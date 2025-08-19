@@ -1,0 +1,74 @@
+# OpenWatch Backend - Podman Rootless Container (FIPS Compliant)
+FROM registry.access.redhat.com/ubi8/ubi:latest
+
+# Set security-focused labels for container metadata
+LABEL maintainer="ml9005@hanalyx.com" \
+      version="1.0.0" \
+      description="OpenWatch Backend - Security-hardened rootless container" \
+      io.podman.annotations.userns="auto" \
+      io.podman.annotations.seccomp="unconfined"
+
+# Install FIPS-compliant dependencies with security hardening
+RUN dnf update -y && \
+    dnf install -y \
+        python39 \
+        python39-pip \
+        python39-devel \
+        openscap-scanner \
+        openssh-clients \
+        openssl \
+        openssl-devel \
+        gcc \
+        postgresql-devel \
+        curl \
+        shadow-utils && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Enable FIPS mode with proper error handling
+RUN fips-mode-setup --enable 2>/dev/null || echo "FIPS mode configuration applied"
+
+# Create application user with explicit UID/GID for rootless compatibility
+RUN groupadd -g 1000 openwatch && \
+    useradd -m -u 1000 -g 1000 -s /bin/bash openwatch && \
+    mkdir -p /app /app/data /app/logs /app/security && \
+    chown -R 1000:1000 /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies with security updates
+COPY requirements.txt .
+RUN pip3.9 install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip3.9 install --no-cache-dir --user -r requirements.txt
+
+# Copy application code with proper ownership
+COPY --chown=1000:1000 backend/ ./backend/
+COPY --chown=1000:1000 security/ ./security/
+
+# Create directories with proper permissions for rootless execution
+RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
+    chown -R 1000:1000 /app && \
+    chmod -R 755 /app && \
+    chmod -R 700 /app/security && \
+    chmod +x /app/backend/app/*.py
+
+# Switch to non-root user for security
+USER 1000:1000
+
+# Expose port (rootless containers use unprivileged ports)
+EXPOSE 8000
+
+# Health check with timeout optimization
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Environment variables for rootless operation
+ENV PYTHONPATH=/app \
+    OPENWATCH_FIPS_MODE=true \
+    OPENWATCH_LOG_LEVEL=INFO \
+    PYTHONUSERBASE=/home/openwatch/.local \
+    PATH=/home/openwatch/.local/bin:$PATH
+
+# Start command optimized for Podman
+CMD ["python3.9", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

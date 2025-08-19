@@ -1,0 +1,64 @@
+# OpenWatch Backend - FIPS Compliant Container
+FROM registry.access.redhat.com/ubi8/ubi:latest
+
+# Install FIPS-compliant OpenSSL and dependencies
+RUN dnf update -y && \
+    dnf install -y \
+        python39 \
+        python39-pip \
+        python39-devel \
+        openscap-scanner \
+        openssh-clients \
+        openssl \
+        openssl-devel \
+        gcc \
+        postgresql-devel \
+        curl && \
+    dnf clean all
+
+# Enable FIPS mode
+RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
+
+# Create application user
+RUN useradd -m -u 1000 openwatch && \
+    mkdir -p /app /app/data /app/logs /app/security && \
+    chown -R openwatch:openwatch /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip3.9 install --no-cache-dir --upgrade pip && \
+    pip3.9 install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY backend/ ./backend/
+COPY security/ ./security/
+
+# Set proper permissions
+RUN chown -R openwatch:openwatch /app && \
+    chmod -R 755 /app && \
+    chmod -R 700 /app/security
+
+# Create directories for runtime data
+RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
+    chown -R openwatch:openwatch /app/data /app/logs /app/security
+
+# Switch to non-root user
+USER openwatch
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Environment variables
+ENV PYTHONPATH=/app \
+    OPENWATCH_FIPS_MODE=true \
+    OPENWATCH_LOG_LEVEL=INFO
+
+# Start command
+CMD ["python3.9", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

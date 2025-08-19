@@ -1,0 +1,66 @@
+# OpenWatch Backend - Development Container
+FROM python:3.9-slim
+
+# Install system dependencies including OpenSCAP and networking tools
+RUN apt-get update && \
+    apt-get install -y \
+        gcc \
+        libpq-dev \
+        openssh-client \
+        curl \
+        openscap-scanner \
+        libopenscap25 \
+        openscap-common \
+        python3-openscap \
+        xmlstarlet \
+        git \
+        iputils-ping \
+        netcat-openbsd \
+        telnet \
+        nmap && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install additional SCAP content
+RUN mkdir -p /usr/share/xml/scap/ssg/content && \
+    curl -L https://github.com/ComplianceAsCode/content/releases/download/v0.1.68/scap-security-guide-0.1.68.zip -o /tmp/ssg.zip && \
+    cd /tmp && unzip -q ssg.zip && \
+    cp -r scap-security-guide-*/ssg-* /usr/share/xml/scap/ssg/content/ 2>/dev/null || true && \
+    rm -rf /tmp/ssg.zip /tmp/scap-security-guide-* || true
+
+# Create application user
+RUN useradd -m -u 1000 openwatch && \
+    mkdir -p /app /app/data /app/logs && \
+    chown -R openwatch:openwatch /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY backend/ ./backend/
+
+# Set proper permissions
+RUN chown -R openwatch:openwatch /app && \
+    chmod -R 755 /app
+
+# Create directories for runtime data
+RUN mkdir -p /app/data/{scap,results,uploads} /app/logs && \
+    chown -R openwatch:openwatch /app/data /app/logs
+
+# Switch to non-root user
+USER openwatch
+
+# Expose port
+EXPOSE 8000
+
+# Environment variables
+ENV PYTHONPATH=/app \
+    OPENWATCH_LOG_LEVEL=DEBUG
+
+# Start command
+CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

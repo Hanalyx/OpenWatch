@@ -1,0 +1,7 @@
+{
+  "supported_os": ["linux", "unix", "rhel", "ubuntu"],
+  "scan_timeout": 300,
+  "enabled": true,
+  "priority": 10,
+  "description": "Example scanner plugin configuration"
+}

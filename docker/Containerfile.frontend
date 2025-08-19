@@ -1,0 +1,72 @@
+# Multi-stage Podman build for React frontend with security hardening
+
+# Stage 1: Build the React application
+FROM docker.io/library/node:18-alpine AS builder
+
+# Security labels and metadata
+LABEL stage="builder" \
+      maintainer="ml9005@hanalyx.com"
+
+WORKDIR /app
+
+# Create non-root user for build stage
+RUN addgroup -g 1000 nodeuser && \
+    adduser -D -u 1000 -G nodeuser nodeuser
+
+# Copy package files with proper ownership
+COPY --chown=1000:1000 frontend/package*.json ./
+
+# Install dependencies as non-root user
+USER 1000:1000
+RUN npm ci --only=production --no-audit --no-fund
+
+# Copy frontend source code
+COPY --chown=1000:1000 frontend/ ./
+
+# Build the React application
+RUN npm run build
+
+# Stage 2: Production NGINX image for Podman rootless
+FROM docker.io/library/nginx:alpine
+
+# Security-focused labels for rootless operation
+LABEL maintainer="ml9005@hanalyx.com" \
+      version="1.0.0" \
+      description="OpenWatch Frontend - Rootless NGINX container" \
+      io.podman.annotations.userns="auto"
+
+# Install dependencies and create non-root user
+RUN apk add --no-cache openssl curl shadow && \
+    addgroup -g 1000 nginx-rootless && \
+    adduser -D -u 1000 -G nginx-rootless nginx-rootless
+
+# Remove default nginx configs and create custom structure
+RUN rm -rf /etc/nginx/conf.d/* /var/log/nginx/* && \
+    mkdir -p /etc/nginx/ssl /var/log/nginx /var/cache/nginx /var/run/nginx && \
+    touch /var/run/nginx.pid
+
+# Copy custom nginx configuration for rootless operation
+COPY docker/frontend/nginx-rootless.conf /etc/nginx/nginx.conf
+COPY docker/frontend/default-rootless.conf /etc/nginx/conf.d/default.conf
+
+# Copy built React app from builder stage with proper ownership
+COPY --from=builder --chown=1000:1000 /app/build /usr/share/nginx/html
+
+# Set proper permissions for rootless execution
+RUN chown -R 1000:1000 /usr/share/nginx/html /etc/nginx /var/log/nginx /var/cache/nginx /var/run/nginx && \
+    chmod -R 755 /usr/share/nginx/html && \
+    chmod -R 755 /etc/nginx && \
+    chmod 755 /var/run/nginx
+
+# Switch to non-root user
+USER 1000:1000
+
+# Expose unprivileged ports for rootless operation
+EXPOSE 8080 8443
+
+# Health check optimized for rootless
+HEALTHCHECK --interval=20s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start nginx in foreground mode for rootless
+CMD ["nginx", "-g", "daemon off;"]

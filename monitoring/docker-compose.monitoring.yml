@@ -1,0 +1,239 @@
+# SecureOps Monitoring Stack - Prometheus, Grafana, Jaeger
+# Designed for comprehensive observability across OpenWatch and AEGIS
+# Last Updated: 2025-08-18
+version: '3.8'
+
+services:
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: docker.io/prom/prometheus:v2.47.0
+    container_name: secureops-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--log.level=info'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - ./config/alerts:/etc/prometheus/alerts:ro,Z
+      - prometheus_data:/prometheus:Z
+    networks:
+      - monitoring-network
+      - openwatch-network
+      - aegis-network
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Alertmanager - Alert Processing
+  alertmanager:
+    image: docker.io/prom/alertmanager:v0.26.0
+    container_name: secureops-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--log.level=info'
+    volumes:
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,Z
+      - alertmanager_data:/alertmanager:Z
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - Visualization Dashboard
+  grafana:
+    image: docker.io/grafana/grafana:10.1.0
+    container_name: secureops-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-secureops_grafana}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_FEATURE_TOGGLES_ENABLE=ngalert
+      - GF_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_ENABLED=true
+    volumes:
+      - grafana_data:/var/lib/grafana:Z
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro,Z
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro,Z
+    networks:
+      - monitoring-network
+    depends_on:
+      - prometheus
+    user: "472:472"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Jaeger - Distributed Tracing
+  jaeger:
+    image: docker.io/jaegertracing/all-in-one:1.49
+    container_name: secureops-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "14269:14269"  # Admin API
+      - "14250:14250"  # gRPC collector
+      - "6831:6831/udp"    # UDP Thrift
+      - "6832:6832/udp"    # UDP Binary
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - JAEGER_DISABLED=false
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=50000
+    networks:
+      - monitoring-network
+      - openwatch-network
+      - aegis-network
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter - Host Metrics
+  node-exporter:
+    image: docker.io/prom/node-exporter:v1.6.1
+    container_name: secureops-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
+      - '--collector.processes'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring-network
+    user: "65534:65534"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Redis Exporter - Redis Metrics
+  redis-exporter:
+    image: docker.io/oliver006/redis_exporter:v1.54.0
+    container_name: secureops-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://openwatch-redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - monitoring-network
+      - openwatch-network
+    depends_on:
+      - prometheus
+    user: "59000:59000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+
+  # Postgres Exporter - Database Metrics
+  postgres-exporter:
+    image: docker.io/prometheuscommunity/postgres-exporter:v0.13.2
+    container_name: secureops-postgres-exporter
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://openwatch:${POSTGRES_PASSWORD}@openwatch-db:5432/openwatch?sslmode=disable
+    networks:
+      - monitoring-network
+      - openwatch-network
+    depends_on:
+      - prometheus
+    user: "70000:70000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+
+  # cAdvisor - Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: secureops-cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring-network
+    privileged: true
+    devices:
+      - /dev/kmsg
+    security_opt:
+      - no-new-privileges:false  # Required for cAdvisor
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+
+networks:
+  monitoring-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+  openwatch-network:
+    external: true
+    name: openwatch_openwatch-network
+  aegis-network:
+    external: true
+    name: aegis_aegis-network

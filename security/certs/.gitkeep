@@ -1,0 +1,3 @@
+# Keep this directory in git
+# SSL certificates will be stored here
+# All .crt, .key, .pem files are ignored by .gitignore

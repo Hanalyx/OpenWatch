@@ -1,0 +1,51 @@
+# Multi-stage build for React frontend with FIPS-compliant NGINX
+
+# Stage 1: Build the React application
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy frontend source code
+COPY frontend/ ./
+
+# Build the React application
+RUN npm run build
+
+# Stage 2: Production NGINX image
+FROM nginx:alpine
+
+# Install openssl for FIPS support
+RUN apk add --no-cache openssl
+
+# Remove default nginx config
+RUN rm -rf /etc/nginx/conf.d/*
+
+# Copy custom nginx configuration
+COPY docker/frontend/nginx.conf /etc/nginx/nginx.conf
+COPY docker/frontend/default-simple.conf /etc/nginx/conf.d/default.conf
+
+# Copy built React app from builder stage
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Create directory for SSL certificates
+RUN mkdir -p /etc/nginx/ssl
+
+# Set proper permissions
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
+# Expose HTTPS port
+EXPOSE 443 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f https://localhost/health || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

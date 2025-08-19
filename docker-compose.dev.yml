@@ -1,0 +1,112 @@
+services:
+  # PostgreSQL with encryption support
+  database:
+    image: postgres:15-alpine
+    container_name: openwatch-db-dev
+    environment:
+      POSTGRES_DB: openwatch
+      POSTGRES_USER: openwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-OpenWatch2025}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./docker/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - openwatch-network-dev
+    restart: unless-stopped
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+
+  # Redis with password auth (simplified for dev)
+  redis:
+    image: redis:7-alpine
+    container_name: openwatch-redis-dev
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - openwatch-network-dev
+    restart: unless-stopped
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.dev
+    container_name: openwatch-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD:-OpenWatch2025}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY:-K7sfTDL2cr9S8rvn094TpHVekeDNB1BL}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY:-utvm1S8EbrNihMW0k1t9YNk3uWAEAKG2}
+      OPENWATCH_FIPS_MODE: "false"  # Disabled for dev
+      OPENWATCH_REQUIRE_HTTPS: "false"  # Disabled for dev
+      OPENWATCH_DEBUG: "true"
+    volumes:
+      - ./backend:/app/backend:ro
+      - app_data_dev:/app/data
+      - app_logs_dev:/app/logs
+    depends_on:
+      - database
+      - redis
+    networks:
+      - openwatch-network-dev
+    restart: unless-stopped
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend.dev
+    container_name: openwatch-worker-dev
+    command: ["python3.9", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD:-OpenWatch2025}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY:-K7sfTDL2cr9S8rvn094TpHVekeDNB1BL}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY:-utvm1S8EbrNihMW0k1t9YNk3uWAEAKG2}
+      OPENWATCH_FIPS_MODE: "false"
+    volumes:
+      - ./backend:/app/backend:ro
+      - app_data_dev:/app/data
+      - app_logs_dev:/app/logs
+    depends_on:
+      - database
+      - redis
+    networks:
+      - openwatch-network-dev
+    restart: unless-stopped
+
+  # React Frontend (development server)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend.dev
+    container_name: openwatch-frontend-dev
+    ports:
+      - "3000:80"  # Different port, HTTP only for dev
+    environment:
+      REACT_APP_API_URL: http://localhost:8001
+    depends_on:
+      - backend
+    networks:
+      - openwatch-network-dev
+    restart: unless-stopped
+
+volumes:
+  postgres_data_dev:
+    driver: local
+  redis_data_dev:
+    driver: local
+  app_data_dev:
+    driver: local
+  app_logs_dev:
+    driver: local
+
+networks:
+  openwatch-network-dev:
+    driver: bridge

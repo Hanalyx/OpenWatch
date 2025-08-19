@@ -1,0 +1,35 @@
+{
+  "name": "secureops-k6-performance-tests",
+  "version": "1.0.0",
+  "description": "k6 Performance Testing Framework for SecureOps Platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "k6 run --out json=results/test-results.json tests/smoke-test.js",
+    "test:load": "k6 run --out json=results/load-test-results.json tests/load-test.js",
+    "test:stress": "k6 run --out json=results/stress-test-results.json tests/stress-test.js",
+    "test:spike": "k6 run --out json=results/spike-test-results.json tests/spike-test.js",
+    "test:volume": "k6 run --out json=results/volume-test-results.json tests/volume-test.js",
+    "test:soak": "k6 run --out json=results/soak-test-results.json tests/soak-test.js",
+    "test:all": "npm run test && npm run test:load && npm run test:stress",
+    "report": "node scripts/generate-report.js",
+    "monitor": "k6 run --out prometheus tests/continuous-monitoring.js"
+  },
+  "keywords": [
+    "k6",
+    "performance",
+    "testing",
+    "secureops",
+    "prometheus",
+    "monitoring"
+  ],
+  "author": "Noah Chen <nc9010@hanalyx.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "k6": "^0.47.0"
+  },
+  "dependencies": {
+    "jsonschema": "^1.4.1",
+    "fs-extra": "^11.2.0",
+    "moment": "^2.29.4"
+  }
+}

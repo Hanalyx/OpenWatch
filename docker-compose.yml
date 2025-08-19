@@ -1,0 +1,149 @@
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: openwatch-db
+    environment:
+      POSTGRES_DB: openwatch
+      POSTGRES_USER: openwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwatch -d openwatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Redis with TLS for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: openwatch-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: openwatch-backend
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_REQUIRE_HTTPS: "false"
+      OPENWATCH_DEBUG: "true"
+      OPENWATCH_DEMO_MODE: "false"
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+      - ./security/certs:/app/security/certs:ro
+      - ./security/keys:/app/security/keys
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: openwatch-worker
+    command: ["python3.9", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_DEMO_MODE: "false"
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+      - ./security/certs:/app/security/certs:ro
+      - ./security/keys:/app/security/keys
+    depends_on:
+      - database
+      - redis
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3.9", "-m", "celery", "-A", "backend.app.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # React Frontend (HTTPS only)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: openwatch-frontend
+    ports:
+      - "3000:80"  # Redirect to HTTPS
+    volumes:
+      - ./security/certs/frontend.crt:/etc/ssl/certs/frontend.crt:ro
+      - ./security/keys/frontend.key:/etc/ssl/private/frontend.key:ro
+    environment:
+      REACT_APP_API_URL: https://localhost:8000
+      HTTPS: "true"
+    depends_on:
+      - backend
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  openwatch-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,196 @@
+# OpenWatch - Podman Compose for Rootless Container Orchestration
+version: '3.8'
+
+services:
+  database:
+    image: docker.io/library/postgres:15-alpine
+    container_name: openwatch-db
+    environment:
+      POSTGRES_DB: openwatch
+      POSTGRES_USER: openwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:Z
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwatch -d openwatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # Security settings for rootless operation
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: openwatch-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data:Z
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    # Security settings for rootless operation
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Containerfile.backend
+    container_name: openwatch-backend
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_FIPS_MODE: "true"
+      OPENWATCH_REQUIRE_HTTPS: "false"
+      OPENWATCH_DEBUG: "false"
+      OPENWATCH_DEMO_MODE: "false"
+      OPENWATCH_ROOTLESS: "true"
+    volumes:
+      - app_data:/app/data:Z
+      - app_logs:/app/logs:Z
+      - ./security/certs:/app/security/certs:ro,Z
+      - ./security/keys:/app/security/keys:Z
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Enhanced security for rootless operation
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Containerfile.backend
+    container_name: openwatch-worker
+    command: ["python3.9", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_FIPS_MODE: "true"
+      OPENWATCH_DEMO_MODE: "false"
+      OPENWATCH_ROOTLESS: "true"
+    volumes:
+      - app_data:/app/data:Z
+      - app_logs:/app/logs:Z
+      - ./security/certs:/app/security/certs:ro,Z
+      - ./security/keys:/app/security/keys:Z
+    depends_on:
+      - database
+      - redis
+      - backend
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3.9", "-m", "celery", "-A", "backend.app.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Enhanced security for rootless operation
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Containerfile.frontend
+    container_name: openwatch-frontend
+    ports:
+      - "3000:8080"   # HTTP port for rootless
+      - "3443:8443"   # HTTPS port for rootless
+    volumes:
+      - ./security/certs/frontend.crt:/etc/nginx/ssl/frontend.crt:ro,Z
+      - ./security/keys/frontend.key:/etc/nginx/ssl/frontend.key:ro,Z
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - openwatch-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # Enhanced security for rootless operation
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run/nginx
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  openwatch-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    # Enhanced network security
+    enable_ipv6: false
+    internal: false

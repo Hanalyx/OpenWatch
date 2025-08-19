@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openwatch"
+version = "1.0.0"
+description = "OpenWatch SCAP Compliance Scanner"
+dependencies = []
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=80",
+    "--tb=short",
+]
+testpaths = ["validation/scenarios"]
+python_files = ["*_validation.py", "*_scenarios.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*", "validate_*"]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests for component interactions", 
+    "performance: Performance and load tests",
+    "security: Security and compliance validation tests",
+    "scap: SCAP scanning and processing tests",
+    "ssh: SSH credential and connection tests",
+    "database: Database operation tests",
+    "api: API endpoint tests",
+    "auth: Authentication and authorization tests",
+    "compliance: Compliance framework tests",
+    "slow: Slower running tests (exclude with -m 'not slow')",
+    "requires_openscap: Tests requiring OpenSCAP installation",
+    "requires_ssh: Tests requiring SSH connectivity",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::sqlalchemy.exc.RemovedIn20Warning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/validation/*", 
+    "*/migrations/*",
+    "*/venv/*",
+    "*/node_modules/*",
+    "*/__pycache__/*",
+    "*/alembic/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError", 
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+  | node_modules
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
