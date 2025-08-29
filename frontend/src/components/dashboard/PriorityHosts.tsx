@@ -60,6 +60,16 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
 }) => {
   const theme = useTheme();
 
+  // Ensure hosts is an array and filter out invalid entries
+  const safeHosts = Array.isArray(hosts) ? hosts.filter(host => 
+    host && 
+    host.id && 
+    host.hostname && 
+    host.issue && 
+    host.issueType && 
+    host.severity
+  ) : [];
+
   const getIssueIcon = (issueType: PriorityHost['issueType']) => {
     switch (issueType) {
       case 'critical_issues':
@@ -118,7 +128,7 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
         {loading && <LinearProgress sx={{ mb: 2 }} />}
 
         <List sx={{ py: 0 }}>
-          {hosts.length === 0 ? (
+          {safeHosts.length === 0 ? (
             <ListItem>
               <ListItemText
                 primary={
@@ -129,7 +139,7 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
               />
             </ListItem>
           ) : (
-            hosts.map((host) => (
+            safeHosts.map((host) => (
               <ListItem
                 key={host.id}
                 sx={{
@@ -149,14 +159,21 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
                   {getIssueIcon(host.issueType)}
                 </ListItemIcon>
                 <ListItemText
+                  primaryTypographyProps={{ 
+                    component: 'div',
+                    sx: { display: 'flex', alignItems: 'center', gap: 1 }
+                  }}
+                  secondaryTypographyProps={{
+                    component: 'div'
+                  }}
                   primary={
-                    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                    <>
                       <Typography component="span" variant="subtitle2" fontWeight="medium">
                         {host.displayName || host.hostname}
                       </Typography>
-                      {host.complianceScore !== undefined && (
+                      {host.complianceScore !== undefined && typeof host.complianceScore === 'number' && (
                         <Chip
-                          label={`${host.complianceScore}%`}
+                          label={`${Math.round(host.complianceScore)}%`}
                           size="small"
                           color={host.complianceScore >= 90 ? 'success' : 
                                  host.complianceScore >= 70 ? 'warning' : 'error'}
@@ -177,7 +194,7 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
                           {Math.abs(host.complianceScore - host.previousScore)}%
                         </Typography>
                       )}
-                    </Box>
+                    </>
                   }
                   secondary={
                     <>

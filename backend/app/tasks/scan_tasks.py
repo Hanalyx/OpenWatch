@@ -16,12 +16,14 @@ from ..database import SessionLocal
 from ..services.scap_scanner import SCAPScanner, ScanExecutionError
 from ..services.semantic_scap_engine import get_semantic_scap_engine
 from ..services.crypto import decrypt_credentials
+from ..services.error_classification import ErrorClassificationService
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
 
 logger = logging.getLogger(__name__)
 
-# Initialize scanner
+# Initialize services
 scap_scanner = SCAPScanner()
+error_service = ErrorClassificationService()
 
 
 def execute_scan_task(scan_id: str, host_data: Dict, content_path: str, 
@@ -42,76 +44,70 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
         """), {"scan_id": scan_id})
         db.commit()
         
+        # Check if this is part of a group scan and update group scan progress
+        group_scan_session_id = scan_options.get("session_id") if scan_options else None
+        if group_scan_session_id and scan_options.get("group_scan"):
+            try:
+                from ..services.group_scan_service import GroupScanProgressTracker
+                progress_tracker = GroupScanProgressTracker(db)
+                progress_tracker.update_host_status(
+                    group_scan_session_id, 
+                    host_data.get("id", "unknown"), 
+                    "scanning", 
+                    scan_id
+                )
+                logger.debug(f"Updated group scan progress for session {group_scan_session_id}")
+            except Exception as e:
+                logger.error(f"Failed to update group scan progress: {e}")
+                # Don't fail the entire scan for group progress tracking errors
+        
         # Decrypt credentials (handle both formats for compatibility)
         credentials = {}
         if host_data["hostname"] == "localhost":
             # No credentials needed for localhost
             credentials = {"type": "local"}
-        elif host_data.get("auth_method") in ["default", "system_default"]:
-            # Use default system credentials
+        else:
+            # Use centralized authentication service for all credential resolution
             try:
-                logger.info(f"Using default system credentials for scan {scan_id}")
+                from ..services.auth_service import get_auth_service
+                auth_service = get_auth_service(db)
                 
-                # Get default system credentials
-                result = db.execute(text("""
-                    SELECT username, auth_method, encrypted_password, 
-                           encrypted_private_key, private_key_passphrase
-                    FROM system_credentials 
-                    WHERE is_default = true AND is_active = true
-                    LIMIT 1
-                """))
+                # Determine if we should use default credentials or host-specific
+                use_default = host_data.get("auth_method") in ["default", "system_default"]
+                target_id = None if use_default else host_data.get("id")
                 
-                row = result.fetchone()
-                if not row:
-                    logger.error(f"No default system credentials found for scan {scan_id}")
-                    _update_scan_error(db, scan_id, "No default system credentials configured")
+                logger.info(f"Resolving credentials for scan {scan_id}: use_default={use_default}, target_id={target_id}")
+                
+                # Resolve credentials using centralized service
+                credential_data = auth_service.resolve_credential(
+                    target_id=target_id,
+                    use_default=use_default
+                )
+                
+                if not credential_data:
+                    logger.error(f"No credentials available for scan {scan_id}")
+                    _update_scan_error(db, scan_id, "No credentials available for host")
                     return
                 
-                # Decrypt system credentials
-                from ..services.encryption import decrypt_data
+                # Convert to format expected by scan tasks
                 credentials = {
-                    "username": row.username,
-                    "auth_method": row.auth_method
+                    "username": credential_data.username,
+                    "auth_method": credential_data.auth_method.value,
+                    "password": credential_data.password,
+                    "private_key": credential_data.private_key,  # ✅ Consistent field naming
+                    "private_key_passphrase": credential_data.private_key_passphrase
                 }
                 
-                if row.encrypted_password:
-                    credentials["password"] = decrypt_data(row.encrypted_password).decode()
-                if row.encrypted_private_key:
-                    credentials["private_key"] = decrypt_data(row.encrypted_private_key).decode()
-                if row.private_key_passphrase:
-                    credentials["private_key_passphrase"] = decrypt_data(row.private_key_passphrase).decode()
+                # Update host_data to use resolved credentials
+                host_data["username"] = credential_data.username
+                host_data["auth_method"] = credential_data.auth_method.value
                 
-                # Update host_data to use system credentials
-                host_data["username"] = row.username
-                host_data["auth_method"] = row.auth_method
+                logger.info(f"✅ Resolved {credential_data.source} credentials for scan {scan_id}")
                 
             except Exception as e:
-                logger.error(f"Failed to get default system credentials for scan {scan_id}: {e}")
-                _update_scan_error(db, scan_id, "Failed to retrieve default system credentials")
+                logger.error(f"Failed to resolve credentials for scan {scan_id}: {e}")
+                _update_scan_error(db, scan_id, f"Credential resolution failed: {str(e)}", e)
                 return
-        elif host_data.get("encrypted_credentials"):
-            try:
-                import base64
-                if isinstance(host_data["encrypted_credentials"], str):
-                    # Try Base64 decode first (legacy format)
-                    try:
-                        decoded = base64.b64decode(host_data["encrypted_credentials"]).decode()
-                        credentials = json.loads(decoded)
-                    except:
-                        # If Base64 fails, try AES decryption
-                        credentials = json.loads(decrypt_credentials(host_data["encrypted_credentials"]))
-                else:
-                    # Raw binary data, use AES decryption
-                    credentials = json.loads(decrypt_credentials(host_data["encrypted_credentials"]))
-                    
-            except Exception as e:
-                logger.error(f"Failed to decrypt credentials for scan {scan_id}: {e}")
-                _update_scan_error(db, scan_id, "Failed to decrypt host credentials")
-                return
-        else:
-            logger.error(f"No credentials available for scan {scan_id}")
-            _update_scan_error(db, scan_id, "No credentials available for remote host")
-            return
         
         # Update progress
         db.execute(text("""
@@ -218,12 +214,16 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
             
             if not ssh_test["success"]:
                 logger.error(f"SSH connection failed for scan {scan_id}: {ssh_test['message']}")
-                _update_scan_error(db, scan_id, f"SSH connection failed: {ssh_test['message']}")
+                # Create a synthetic exception for SSH failure
+                ssh_error = Exception(f"SSH connection failed: {ssh_test['message']}")
+                _update_scan_error(db, scan_id, f"SSH connection failed: {ssh_test['message']}", ssh_error)
                 return
             
             if not ssh_test.get("oscap_available", False):
                 logger.warning(f"OpenSCAP not available on remote host for scan {scan_id}")
-                _update_scan_error(db, scan_id, "OpenSCAP not available on remote host")
+                # Create a synthetic exception for missing dependency
+                dep_error = Exception("OpenSCAP not available on remote host")
+                _update_scan_error(db, scan_id, "OpenSCAP not available on remote host", dep_error)
                 return
         
         # Update progress
@@ -276,11 +276,12 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
             # Check for scan errors
             if "error" in scan_results:
                 logger.error(f"Scan execution failed for {scan_id}: {scan_results['error']}")
-                _update_scan_error(db, scan_id, scan_results["error"])
+                scan_error = Exception(scan_results["error"])
+                _update_scan_error(db, scan_id, scan_results["error"], scan_error)
                 return
         except Exception as e:
             logger.error(f"Scan execution failed for {scan_id}: {str(e)}", exc_info=True)
-            _update_scan_error(db, scan_id, f"Scan execution error: {str(e)}")
+            _update_scan_error(db, scan_id, f"Scan execution error: {str(e)}", e)
             return
         
         # Update scan record with results
@@ -299,6 +300,30 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
         
         # Save scan results summary
         _save_scan_results(db, scan_id, scan_results)
+        
+        # Update group scan progress if this is part of a group scan
+        if group_scan_session_id and scan_options.get("group_scan"):
+            try:
+                from ..services.group_scan_service import GroupScanProgressTracker
+                progress_tracker = GroupScanProgressTracker(db)
+                
+                # Get scan result ID for linking
+                scan_result_id = None
+                result_query = db.execute(text("SELECT id FROM scan_results WHERE scan_id = :scan_id"), 
+                                        {"scan_id": scan_id}).fetchone()
+                if result_query:
+                    scan_result_id = str(result_query.id)
+                
+                progress_tracker.update_host_status(
+                    group_scan_session_id, 
+                    host_data.get("id", "unknown"), 
+                    "completed", 
+                    scan_id,
+                    scan_result_id
+                )
+                logger.debug(f"Updated group scan progress to completed for session {group_scan_session_id}")
+            except Exception as e:
+                logger.error(f"Failed to update group scan completion progress: {e}")
         
         # Process scan with semantic intelligence
         try:
@@ -333,26 +358,61 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
         
     except ScanExecutionError as e:
         logger.error(f"Scan execution error for {scan_id}: {e}")
-        _update_scan_error(db, scan_id, str(e))
+        _update_scan_error(db, scan_id, str(e), e)
     except Exception as e:
         logger.error(f"Unexpected error in scan task {scan_id}: {e}")
-        _update_scan_error(db, scan_id, f"Unexpected error: {str(e)}")
+        _update_scan_error(db, scan_id, f"Unexpected error: {str(e)}", e)
     finally:
         db.close()
 
 
-def _update_scan_error(db: Session, scan_id: str, error_message: str):
+def _update_scan_error(db: Session, scan_id: str, error_message: str, original_exception: Exception = None):
     """Update scan with error status and set progress to 100% to indicate completion"""
     try:
-        # Get scan data for webhook notification
+        # Classify error if original exception provided
+        classified_error = None
+        if original_exception:
+            try:
+                import asyncio
+                classified_error = asyncio.run(error_service.classify_error(original_exception, {"scan_id": scan_id}))
+                # Use classified error message if available
+                if classified_error:
+                    error_message = f"{classified_error.message} (Code: {classified_error.error_code})"
+                    logger.info(f"Error classified for scan {scan_id}: {classified_error.category.value} - {classified_error.error_code}")
+            except Exception as e:
+                logger.warning(f"Failed to classify error for scan {scan_id}: {e}")
+                # Continue with original error message
+        
+        # Get scan data for webhook notification and check for group scan
         scan_result = db.execute(text("""
-            SELECT s.id, h.hostname, s.profile_id
+            SELECT s.id, h.hostname, s.profile_id, s.scan_options, s.host_id
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id
         """), {"scan_id": scan_id})
         
         scan_data = scan_result.fetchone()
+        
+        # Check if this is part of a group scan and update progress
+        if scan_data and scan_data.scan_options:
+            try:
+                import json
+                scan_options = json.loads(scan_data.scan_options)
+                group_scan_session_id = scan_options.get("session_id")
+                
+                if group_scan_session_id and scan_options.get("group_scan"):
+                    from ..services.group_scan_service import GroupScanProgressTracker
+                    progress_tracker = GroupScanProgressTracker(db)
+                    asyncio.run(progress_tracker.update_host_status(
+                        group_scan_session_id, 
+                        str(scan_data.host_id), 
+                        "failed", 
+                        scan_id,
+                        error_message=error_message
+                    ))
+                    logger.debug(f"Updated group scan progress to failed for session {group_scan_session_id}")
+            except Exception as e:
+                logger.error(f"Failed to update group scan failure progress: {e}")
         
         db.execute(text("""
             UPDATE scans 

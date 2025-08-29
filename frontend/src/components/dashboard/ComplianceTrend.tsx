@@ -48,6 +48,13 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
   const theme = useTheme();
   const [hoveredData, setHoveredData] = useState<ComplianceDataPoint | null>(null);
 
+  // Ensure data is valid and properly formatted
+  const safeData = Array.isArray(data) ? data.filter(item => 
+    item && 
+    typeof item.date === 'string' && 
+    typeof item.overall === 'number'
+  ) : [];
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -93,11 +100,11 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
   };
 
   const colors = {
-    overall: theme.palette.primary.main,
-    critical: theme.palette.error.main,
-    high: theme.palette.warning.dark,
-    medium: theme.palette.warning.main,
-    low: theme.palette.info.main
+    overall: theme.palette.mode === 'dark' ? '#90caf9' : theme.palette.primary.main,
+    critical: theme.palette.mode === 'dark' ? '#f44336' : theme.palette.error.main,
+    high: theme.palette.mode === 'dark' ? '#ff9800' : theme.palette.warning.dark,
+    medium: theme.palette.mode === 'dark' ? '#ffb74d' : theme.palette.warning.main,
+    low: theme.palette.mode === 'dark' ? '#64b5f6' : theme.palette.info.main
   };
 
   return (
@@ -121,11 +128,17 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
           )}
         </Box>
 
-        <Box sx={{ height: 300 }}>
-          {data.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+        <Box sx={{ 
+          height: 300, 
+          backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'transparent',
+          borderRadius: 1
+        }}>
+          {safeData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <AreaChart
-                data={data}
+                data={safeData}
+                width={400}
+                height={300}
                 margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 onClick={(e) => {
                   if (e && e.activePayload && onDataPointClick) {
@@ -163,24 +176,33 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                   stroke={colors.overall}
                   fillOpacity={1}
                   fill="url(#colorOverall)"
-                  strokeWidth={2}
+                  strokeWidth={3}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="critical"
                   name="Critical"
                   stroke={colors.critical}
-                  strokeWidth={2}
-                  dot={false}
+                  strokeWidth={3}
+                  fill="none"
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="high"
                   name="High"
                   stroke={colors.high}
-                  strokeWidth={2}
-                  dot={false}
+                  strokeWidth={3}
+                  fill="none"
                   strokeDasharray="5 5"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="medium"
+                  name="Medium"
+                  stroke={colors.medium}
+                  strokeWidth={2}
+                  fill="none"
+                  strokeDasharray="3 3"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -207,11 +229,11 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
           )}
         </Box>
 
-        {hoveredData && data.length > 0 && (
+        {hoveredData && safeData.length > 0 && (
           <Box sx={{ mt: 2, p: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.04), borderRadius: 1 }}>
             <Typography variant="caption" color="text.secondary">
-              Hover insight: Compliance improved by {Math.abs(hoveredData.overall - (data[0]?.overall || 0))}% 
-              since {format(new Date(data[0]?.date || ''), 'MMM d')}
+              Hover insight: Compliance {hoveredData.overall >= (safeData[0]?.overall || 0) ? 'improved' : 'decreased'} by {Math.abs(hoveredData.overall - (safeData[0]?.overall || 0)).toFixed(1)}% 
+              since {format(new Date(safeData[0]?.date || ''), 'MMM d')}
             </Typography>
           </Box>
         )}

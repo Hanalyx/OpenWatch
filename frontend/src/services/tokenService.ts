@@ -3,6 +3,7 @@ import { refreshTokenSuccess, logout, checkSessionExpiry } from '../store/slices
 
 class TokenService {
   private refreshTimer: NodeJS.Timeout | null = null;
+  private autoRefreshPaused: boolean = false;
 
   // Check token expiry and refresh if needed
   async checkAndRefreshToken(): Promise<boolean> {
@@ -10,6 +11,11 @@ class TokenService {
     
     if (!state.token || !state.refreshToken) {
       return false;
+    }
+
+    // Skip auto-refresh if paused (during manual session management)
+    if (this.autoRefreshPaused) {
+      return true;
     }
 
     // Check if token will expire in the next 5 minutes
@@ -22,11 +28,14 @@ class TokenService {
   }
 
   // Refresh the access token using refresh token
-  async refreshToken(): Promise<boolean> {
+  async refreshToken(manual: boolean = false): Promise<boolean> {
     const state = store.getState().auth;
     
     if (!state.refreshToken) {
-      store.dispatch(logout());
+      console.warn('[SECURITY] No refresh token available');
+      if (!manual) {
+        store.dispatch(logout());
+      }
       return false;
     }
 
@@ -35,29 +44,48 @@ class TokenService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.refreshToken}`,
         },
+        body: JSON.stringify({
+          refresh_token: state.refreshToken,
+        }),
       });
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          // Refresh token is invalid or expired
-          store.dispatch(logout());
+          // Refresh token is invalid or expired - security critical
+          console.warn('[SECURITY] Refresh token rejected by server - forcing logout');
+          if (!manual) {
+            store.dispatch(logout());
+          }
           return false;
         }
-        throw new Error('Failed to refresh token');
+        throw new Error(`Failed to refresh token: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      
+      // Validate response structure
+      if (!data.access_token || !data.expires_in) {
+        console.error('[SECURITY] Invalid refresh response structure');
+        if (!manual) {
+          store.dispatch(logout());
+        }
+        return false;
+      }
+
       store.dispatch(refreshTokenSuccess({
         token: data.access_token,
         expiresIn: data.expires_in,
       }));
 
+      console.log('[SECURITY] Token refreshed successfully');
       return true;
     } catch (error) {
-      console.error('Token refresh failed:', error);
-      store.dispatch(logout());
+      console.error('[SECURITY] Token refresh failed:', error);
+      // For security, any refresh failure should logout user unless manual
+      if (!manual) {
+        store.dispatch(logout());
+      }
       return false;
     }
   }
@@ -66,14 +94,35 @@ class TokenService {
   startTokenRefreshTimer() {
     this.stopTokenRefreshTimer();
     
-    // Check every minute
+    // Check every minute for token refresh, but don't auto-logout
     this.refreshTimer = setInterval(() => {
-      store.dispatch(checkSessionExpiry());
       this.checkAndRefreshToken();
     }, 60000);
 
     // Also check immediately
     this.checkAndRefreshToken();
+    
+    // Security: Monitor for tab focus to check session validity
+    this.monitorTabFocus();
+  }
+
+  // Security: Monitor tab focus to validate session on return
+  private monitorTabFocus() {
+    if (typeof window !== 'undefined') {
+      const handleFocus = () => {
+        // When user returns to tab, immediately validate session
+        this.checkAndRefreshToken();
+      };
+
+      window.addEventListener('focus', handleFocus);
+      
+      // Clean up listener when timer stops
+      const originalStop = this.stopTokenRefreshTimer.bind(this);
+      this.stopTokenRefreshTimer = () => {
+        window.removeEventListener('focus', handleFocus);
+        originalStop();
+      };
+    }
   }
 
   // Stop automatic token refresh
@@ -82,6 +131,15 @@ class TokenService {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
+  }
+
+  // Pause/resume automatic token refresh
+  pauseAutoRefresh() {
+    this.autoRefreshPaused = true;
+  }
+
+  resumeAutoRefresh() {
+    this.autoRefreshPaused = false;
   }
 
   // Get current token

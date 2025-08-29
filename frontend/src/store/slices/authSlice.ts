@@ -140,6 +140,7 @@ const authSlice = createSlice({
     refreshTokenSuccess: (state, action: PayloadAction<{ token: string; expiresIn: number }>) => {
       state.token = action.payload.token;
       state.sessionExpiry = Date.now() + action.payload.expiresIn * 1000;
+      state.error = null; // Clear any existing errors on successful refresh
       
       // Update localStorage
       try {

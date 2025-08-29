@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import EnhancedBulkImportDialog from '../../components/hosts/EnhancedBulkImportDialog';
+import HostCard from '../../components/hosts/HostCard';
+import { QuickScanDropdown, BulkScanDialog, BulkScanProgress, ScanRecommendationCard } from '../../components/scans';
 import {
   Box,
   Card,
@@ -100,6 +102,7 @@ import {
   HighlightOff,
   Info,
   Visibility,
+  VisibilityOff,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -208,11 +211,21 @@ const HostsEnhanced: React.FC = () => {
     password: ''
   });
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
+  const [deletingHost, setDeletingHost] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [complianceFilter, setComplianceFilter] = useState<[number, number]>([0, 100]);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
+
+  // Phase 2: Bulk scan states
+  const [bulkScanDialog, setBulkScanDialog] = useState(false);
+  const [bulkScanProgress, setBulkScanProgress] = useState<{
+    open: boolean;
+    sessionId: string;
+    sessionName: string;
+  }>({ open: false, sessionId: '', sessionName: '' });
 
   // Fetch hosts from API
   const fetchHosts = async (silent: boolean = false) => {
@@ -220,14 +233,8 @@ const HostsEnhanced: React.FC = () => {
       if (!silent) {
         setLoading(true);
       }
-      const response = await fetch('/api/hosts/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
       
-      if (response.ok) {
-        const apiHosts = await response.json();
+      const apiHosts = await api.get('/api/hosts/');
         
         // Auto-refresh completed successfully
         
@@ -284,13 +291,13 @@ const HostsEnhanced: React.FC = () => {
         // Use only API hosts (no mock data)
         setHosts(transformedHosts);
         setLastRefresh(new Date());
-      } else {
-        console.warn('Failed to fetch hosts from API');
-        // Keep hosts empty or show existing data
-      }
     } catch (error) {
-      console.warn('Error fetching hosts:', error);
+      console.error('Error fetching hosts:', error);
       // Keep hosts empty or show existing data
+      if (!silent) {
+        // You could set an error state here if needed
+        // setError('Failed to load hosts');
+      }
     } finally {
       if (!silent) {
         setLoading(false);
@@ -431,14 +438,38 @@ const HostsEnhanced: React.FC = () => {
   };
 
   const handleBulkAction = (action: string) => {
-    setSelectedBulkAction(action);
-    setBulkActionDialog(true);
+    if (action === 'scan') {
+      // Open Phase 2 bulk scan dialog
+      setBulkScanDialog(true);
+    } else {
+      setSelectedBulkAction(action);
+      setBulkActionDialog(true);
+    }
   };
 
   const executeBulkAction = () => {
     console.log(`Executing ${selectedBulkAction} on hosts:`, selectedHosts);
     setBulkActionDialog(false);
     setSelectedHosts([]);
+  };
+
+  // Phase 2: Handle bulk scan start
+  const handleBulkScanStarted = (sessionId: string, sessionName: string) => {
+    console.log(`Bulk scan session started: ${sessionId}`);
+    setBulkScanProgress({
+      open: true,
+      sessionId,
+      sessionName
+    });
+    setBulkScanDialog(false);
+    setSelectedHosts([]); // Clear selection
+  };
+
+  // Phase 2: Handle quick scan start
+  const handleQuickScanStarted = (scanId: string, scanName: string) => {
+    console.log(`Quick scan started: ${scanId} - ${scanName}`);
+    // Refresh hosts to show scan status
+    setTimeout(() => fetchHosts(true), 1000);
   };
 
   const handleEditHost = (host: Host) => {
@@ -469,23 +500,23 @@ const HostsEnhanced: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteDialog.host) return;
     
+    setDeletingHost(true);
+    
     try {
-      const response = await fetch(`/api/hosts/${deleteDialog.host.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
+      await api.delete(`/api/hosts/${deleteDialog.host.id}`);
       
-      if (response.ok) {
-        // Remove host from local state
-        setHosts(prev => prev.filter(h => h.id !== deleteDialog.host!.id));
-        setDeleteDialog({open: false, host: null});
-      } else {
-        console.error('Failed to delete host');
-      }
-    } catch (error) {
+      // Remove host from local state
+      setHosts(prev => prev.filter(h => h.id !== deleteDialog.host!.id));
+      setDeleteDialog({open: false, host: null});
+      
+    } catch (error: any) {
       console.error('Error deleting host:', error);
+      
+      // Show more specific error message
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to delete host';
+      alert(`Failed to delete host: ${errorMessage}`);
+    } finally {
+      setDeletingHost(false);
     }
   };
 
@@ -494,33 +525,23 @@ const HostsEnhanced: React.FC = () => {
 
     setDeletingSSHKey(true);
     try {
-      const response = await fetch(`/api/hosts/${editDialog.host.id}/ssh-key`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-
-      if (response.ok) {
-        // Refresh hosts list to get latest data
-        await fetchHosts();
+      await api.delete(`/api/hosts/${editDialog.host.id}/ssh-key`);
+      
+      // Refresh hosts list to get latest data
+      await fetchHosts();
         
-        // Update edit dialog host state to reflect changes
-        setEditDialog(prev => prev.host ? {
-          ...prev,
-          host: {
-            ...prev.host,
-            ssh_key_fingerprint: undefined,
-            ssh_key_type: undefined,
-            ssh_key_bits: undefined,
-            ssh_key_comment: undefined,
-            sshKey: false
-          }
-        } : prev);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to delete SSH key:', errorData);
-      }
+      // Update edit dialog host state to reflect changes
+      setEditDialog(prev => prev.host ? {
+        ...prev,
+        host: {
+          ...prev.host,
+          ssh_key_fingerprint: undefined,
+          ssh_key_type: undefined,
+          ssh_key_bits: undefined,
+          ssh_key_comment: undefined,
+          sshKey: false
+        }
+      } : prev);
     } catch (error) {
       console.error('Error deleting SSH key:', error);
     } finally {
@@ -547,23 +568,11 @@ const HostsEnhanced: React.FC = () => {
       console.log('🚀 Sending edit host request:', requestData);
       console.log('🔑 Auth method being sent:', editFormData.authMethod);
       
-      const response = await fetch(`/api/hosts/${editDialog.host.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer demo-token'
-        },
-        body: JSON.stringify(requestData)
-      });
+      const updatedHost = await api.put(`/api/hosts/${editDialog.host.id}`, requestData);
       
-      if (response.ok) {
-        const updatedHost = await response.json();
-        // Refresh hosts list to get latest data including SSH key metadata
-        await fetchHosts();
-        setEditDialog({open: false, host: null});
-      } else {
-        console.error('Failed to update host');
-      }
+      // Refresh hosts list to get latest data including SSH key metadata
+      await fetchHosts();
+      setEditDialog({open: false, host: null});
     } catch (error) {
       console.error('Error updating host:', error);
     }
@@ -1391,7 +1400,10 @@ const HostsEnhanced: React.FC = () => {
             <Grid container spacing={3}>
               {Object.values(processedHosts).flat().map((host) => (
                 <Grid item xs={12} sm={6} md={4} key={host.id}>
-                                     <HostCard host={host} viewMode={viewMode} />
+                  <HostCard 
+                    host={host} 
+                    viewMode={viewMode}
+                  />
                 </Grid>
               ))}
             </Grid>
@@ -1423,11 +1435,11 @@ const HostsEnhanced: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog({open: false, host: null})}>
+          <Button onClick={() => setDeleteDialog({open: false, host: null})} disabled={deletingHost}>
             Cancel
           </Button>
-          <Button onClick={confirmDelete} color="error" variant="contained">
-            Delete
+          <Button onClick={confirmDelete} color="error" variant="contained" disabled={deletingHost}>
+            {deletingHost ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1505,6 +1517,66 @@ const HostsEnhanced: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            
+            {/* SSH Key Input - Show when SSH Key authentication is selected */}
+            {editFormData.authMethod === 'ssh_key' && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="SSH Private Key"
+                  value={editFormData.sshKey}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, sshKey: e.target.value }))}
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----"
+                  multiline
+                  rows={6}
+                  helperText="Paste your SSH private key content here"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <VpnKey />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            )}
+
+            {/* Password Input - Show when Password authentication is selected */}
+            {editFormData.authMethod === 'password' && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  type={showPassword ? 'text' : 'password'}
+                  label="Password"
+                  value={editFormData.password}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, password: e.target.value }))}
+                  helperText="Enter the password for SSH authentication"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            )}
+
+            {/* System Default SSH Key Display */}
+            {editFormData.authMethod === 'system_default' && (
+              <Grid item xs={12}>
+                <SSHKeyDisplay
+                  isSystemDefault={true}
+                  systemDefaultLabel="This host will use the system default SSH credentials configured in system settings"
+                  showActions={false}
+                  compact={false}
+                />
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -1577,19 +1649,56 @@ const HostsEnhanced: React.FC = () => {
         </MenuItem>
       </Menu>
 
-      {/* Floating Action Button */}
-      <Fab
-        color="primary"
-        aria-label="add host"
-        onClick={() => navigate('/hosts/add-host')}
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
+      {/* Phase 2: Bulk Scan Dialog */}
+      <BulkScanDialog
+        open={bulkScanDialog}
+        onClose={() => setBulkScanDialog(false)}
+        selectedHosts={selectedHosts.map(hostId => {
+          const host = hosts.find(h => h.id === hostId);
+          return host ? {
+            id: host.id,
+            hostname: host.hostname,
+            display_name: host.displayName,
+            ip_address: host.ipAddress,
+            operating_system: host.operatingSystem,
+            environment: host.group || 'production',
+            last_scan: host.lastScan
+          } : null;
+        }).filter(Boolean) as any[]}
+        onScanStarted={handleBulkScanStarted}
+        onError={(error) => console.error('Bulk scan error:', error)}
+      />
+
+      {/* Phase 2: Bulk Scan Progress Dialog */}
+      <BulkScanProgress
+        open={bulkScanProgress.open}
+        onClose={() => setBulkScanProgress(prev => ({ ...prev, open: false }))}
+        sessionId={bulkScanProgress.sessionId}
+        sessionName={bulkScanProgress.sessionName}
+        onCancel={(sessionId) => {
+          console.log('Cancelling bulk scan:', sessionId);
+          // API call to cancel would go here
+          setBulkScanProgress(prev => ({ ...prev, open: false }));
         }}
+      />
+
+      {/* Floating Action Button with Multiple Options */}
+      <SpeedDial
+        ariaLabel="Host actions"
+        sx={{ position: 'fixed', bottom: 24, right: 24 }}
+        icon={<SpeedDialIcon />}
       >
-        <Add />
-      </Fab>
+        <SpeedDialAction
+          icon={<Add />}
+          tooltipTitle="Add Single Host"
+          onClick={() => navigate('/hosts/add-host')}
+        />
+        <SpeedDialAction
+          icon={<CloudUpload />}
+          tooltipTitle="Bulk Import"
+          onClick={() => setEnhancedImportDialogOpen(true)}
+        />
+      </SpeedDial>
     </Container>
   );
 };

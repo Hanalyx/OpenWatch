@@ -110,8 +110,8 @@ const StatCard: React.FC<StatCardProps> = ({
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)', // Gmail-style smooth transitions
         position: 'relative',
-        borderRadius: 0, // Keep cards square as requested in image
-        border: `1px solid ${theme.palette.mode === 'light' ? '#e8eaed' : '#5f6368'}`,
+        borderRadius: 2, // Standard theme border-radius
+        border: 'none', // Remove solid border
         boxShadow: theme.palette.mode === 'light' 
           ? '0 1px 2px 0 rgba(60, 64, 67, .3), 0 1px 3px 1px rgba(60, 64, 67, .15)'
           : '0 1px 2px 0 rgba(0, 0, 0, .3), 0 1px 3px 1px rgba(0, 0, 0, .15)',

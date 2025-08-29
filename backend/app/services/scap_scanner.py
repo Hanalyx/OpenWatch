@@ -19,6 +19,7 @@ import paramiko
 import io
 from paramiko.ssh_exception import SSHException
 from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,25 @@ class ScanExecutionError(Exception):
 class SCAPScanner:
     """Main SCAP scanning service"""
     
-    def __init__(self, content_dir: str = "/app/data/scap", 
-                 results_dir: str = "/app/data/results"):
-        self.content_dir = Path(content_dir)
-        self.results_dir = Path(results_dir)
-        self.content_dir.mkdir(parents=True, exist_ok=True)
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, content_dir: Optional[str] = None, 
+                 results_dir: Optional[str] = None):
+        settings = get_settings()
+        
+        # Use provided paths or fall back to configuration
+        content_path = content_dir or settings.scap_content_dir
+        results_path = results_dir or settings.scan_results_dir
+        
+        self.content_dir = Path(content_path)
+        self.results_dir = Path(results_path)
+        
+        # Create directories if they don't exist
+        try:
+            self.content_dir.mkdir(parents=True, exist_ok=True)
+            self.results_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}")
+        except Exception as e:
+            logger.error(f"Failed to create SCAP directories: {e}")
+            raise SCAPContentError(f"Directory creation failed: {str(e)}")
         
     def validate_scap_content(self, file_path: str) -> Dict:
         """Validate SCAP content file and extract metadata"""
@@ -261,53 +275,12 @@ class SCAPScanner:
                 '-p', str(port)
             ]
             
-            # Build oscap command based on authentication method
-            if auth_method == "password":
-                # For password authentication, use paramiko for direct SSH execution
-                return self._execute_remote_scan_with_paramiko(
-                    hostname, port, username, credential, content_path,
-                    profile_id, scan_id, xml_result, html_report, arf_result, rule_id
-                )
-            
-            cmd = [
-                'oscap-ssh', f'{username}@{hostname}', str(port),
-                'xccdf', 'eval',
-                '--profile', profile_id,
-                '--results', str(xml_result),
-                '--report', str(html_report),
-                '--results-arf', str(arf_result)
-            ]
-            
-            # Add rule-specific scanning if rule_id is provided
-            if rule_id:
-                cmd.extend(['--rule', rule_id])
-                logger.info(f"Remote scanning specific rule: {rule_id}")
-            
-            cmd.append(content_path)
-            
-            logger.info(f"Executing remote scan: {' '.join(cmd)}")
-            
-            result = subprocess.run(
-                cmd, capture_output=True, text=True,
-                timeout=1800  # 30 minutes timeout
+            # For all authentication methods, use paramiko for SSH execution
+            # oscap-ssh is not available in the standard OpenSCAP package
+            return self._execute_remote_scan_with_paramiko(
+                hostname, port, username, auth_method, credential, content_path,
+                profile_id, scan_id, xml_result, html_report, arf_result, rule_id
             )
-            
-            # Parse results with content file for remediation extraction
-            scan_results = self._parse_scan_results(str(xml_result), content_path)
-            scan_results.update({
-                "scan_id": scan_id,
-                "scan_type": "remote",
-                "target_host": hostname,
-                "exit_code": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "xml_result": str(xml_result),
-                "html_report": str(html_report),
-                "arf_result": str(arf_result)
-            })
-            
-            logger.info(f"Remote scan completed: {scan_id}")
-            return scan_results
             
         except subprocess.TimeoutExpired:
             logger.error(f"Remote scan timeout: {scan_id}")
@@ -1012,19 +985,41 @@ class SCAPScanner:
             return {"error": str(e)}
             
     def _execute_remote_scan_with_paramiko(self, hostname: str, port: int, username: str,
-                                          password: str, content_path: str, profile_id: str,
-                                          scan_id: str, xml_result: Path, html_report: Path, 
-                                          arf_result: Path, rule_id: str = None) -> Dict:
-        """Execute remote SCAP scan using paramiko for password authentication"""
+                                          auth_method: str, credential: str, content_path: str, 
+                                          profile_id: str, scan_id: str, xml_result: Path, 
+                                          html_report: Path, arf_result: Path, rule_id: str = None) -> Dict:
+        """Execute remote SCAP scan using paramiko for all authentication methods"""
         try:
             logger.info(f"Executing remote scan via paramiko: {scan_id} on {hostname}")
             
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
-            # Connect with password
-            ssh.connect(hostname, port=port, username=username, 
-                       password=password, timeout=30)
+            # Connect based on authentication method
+            if auth_method == "password":
+                ssh.connect(hostname, port=port, username=username, 
+                           password=credential, timeout=30)
+            elif auth_method in ["ssh-key", "ssh_key"]:
+                # Handle SSH key authentication using new utility
+                try:
+                    # Validate SSH key first
+                    validation_result = validate_ssh_key(credential)
+                    if not validation_result.is_valid:
+                        logger.error(f"Invalid SSH key for {hostname}: {validation_result.error_message}")
+                        raise SSHException(f"Invalid SSH key: {validation_result.error_message}")
+                    
+                    # Parse key using unified parser
+                    key = parse_ssh_key(credential)
+                    ssh.connect(hostname, port=port, username=username, 
+                               pkey=key, timeout=30)
+                except SSHKeyError as e:
+                    logger.error(f"SSH key parsing failed for {hostname}: {e}")
+                    raise SSHException(f"SSH key error: {str(e)}")
+                except Exception as e:
+                    logger.error(f"SSH key connection failed for {hostname}: {e}")
+                    raise
+            else:
+                raise ScanExecutionError(f"Unsupported auth method: {auth_method}")
             
             # Create remote directory for results
             remote_results_dir = f"/tmp/openwatch_scan_{scan_id}"

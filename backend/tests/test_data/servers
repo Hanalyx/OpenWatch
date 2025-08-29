@@ -1,0 +1,14 @@
+Single Entry Host
+------------------------------
+192.168.1.211   owas-rhn01.hanalyx.local
+192.168.1.212   owas-ub4m1.hanalyx.local
+
+Bulk Entry Hosts
+------------------------------
+192.168.1.203   owas-tst01.hanalyx.local
+192.168.1.205   owas-tst02.hanalyx.local
+192.168.1.214   owas-ub4m2.hanalyx.local
+192.168.1.216   owas-ub5m1.hanalyx.local
+192.168.1.217   owas-ub5s2.hanalyx.local
+192.168.1.71    owas-mas00.hanalyx.local
+192.168.1.213   owas-rhn02.hanalyx.local

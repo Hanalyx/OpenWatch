@@ -111,8 +111,8 @@ def create_default_super_admin(db: Session):
             hashed_password = pwd_context.hash("admin123")  # Default password - should be changed
             
             db.execute(text("""
-                INSERT INTO users (id, username, email, hashed_password, role, is_active, created_at, failed_login_attempts)
-                VALUES (1, 'admin', 'admin@openwatch.local', :password, 'super_admin', true, CURRENT_TIMESTAMP, 0)
+                INSERT INTO users (id, username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
+                VALUES (1, 'admin', 'admin@example.com', :password, 'super_admin', true, CURRENT_TIMESTAMP, 0, false)
             """), {"password": hashed_password})
             logger.info("Created new super admin user (username: admin, password: admin123)")
         

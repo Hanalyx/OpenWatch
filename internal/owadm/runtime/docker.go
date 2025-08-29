@@ -145,6 +145,9 @@ func (d *DockerRuntime) Status(ctx context.Context) (*StatusInfo, error) {
 		output, err = execCommandOutput(ctx, "docker-compose", args...)
 	}
 	
+	// Use output to prevent compilation error
+	_ = output
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container status: %w", err)
 	}

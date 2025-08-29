@@ -51,6 +51,7 @@ import {
 } from '@mui/icons-material';
 import { StatusChip, ComplianceRing, SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
 import HostTerminal from '../../components/terminal/HostTerminal';
+import { api } from '../../services/api';
 
 interface Host {
   id: string;
@@ -146,27 +147,19 @@ const HostDetail: React.FC = () => {
 
   const fetchEnhancedHostData = async () => {
     try {
-      const response = await fetch('/api/hosts/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const hosts = await response.json();
-        const enhancedHost = hosts.find((h: any) => h.id === id);
-        if (enhancedHost) {
-          console.log('Found enhanced host data with scan info:', enhancedHost);
-          // Update host with enhanced data
-          setHost((prevHost) => ({
-            ...prevHost,
-            ...enhancedHost
-          }));
-          
-          // Log scan information from host data
-          if (enhancedHost.latest_scan_id) {
-            console.log(`Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`);
-          }
+      const hosts = await api.get('/api/hosts/');
+      const enhancedHost = hosts.find((h: any) => h.id === id);
+      if (enhancedHost) {
+        console.log('Found enhanced host data with scan info:', enhancedHost);
+        // Update host with enhanced data
+        setHost((prevHost) => ({
+          ...prevHost,
+          ...enhancedHost
+        }));
+        
+        // Log scan information from host data
+        if (enhancedHost.latest_scan_id) {
+          console.log(`Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`);
         }
       }
     } catch (error) {
@@ -176,18 +169,8 @@ const HostDetail: React.FC = () => {
 
   const fetchHostDetails = async () => {
     try {
-      const response = await fetch(`/api/hosts/${id}`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const hostData = await response.json();
-        setHost(hostData);
-      } else {
-        setError('Host not found');
-      }
+      const hostData = await api.get(`/api/hosts/${id}`);
+      setHost(hostData);
     } catch (error) {
       console.error('Error fetching host details:', error);
       setError('Failed to load host details');
@@ -197,29 +180,9 @@ const HostDetail: React.FC = () => {
   const fetchHostScans = async () => {
     try {
       // Use trailing slash to avoid redirect
-      const response = await fetch(`/api/scans/?host_id=${id}`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`Fetched ${data.scans?.length || 0} scans for host ${id}`);
-        setScans(data.scans || []);
-      } else {
-        console.error('Failed to fetch host scans:', response.status, response.statusText);
-        // Try without trailing slash as fallback
-        const fallbackResponse = await fetch(`/api/scans?host_id=${id}`, {
-          headers: {
-            'Authorization': 'Bearer demo-token'
-          }
-        });
-        if (fallbackResponse.ok) {
-          const data = await fallbackResponse.json();
-          setScans(data.scans || []);
-        }
-      }
+      const data = await api.get(`/api/scans/?host_id=${id}`);
+      console.log(`Fetched ${data.scans?.length || 0} scans for host ${id}`);
+      setScans(data.scans || []);
     } catch (error) {
       console.error('Error fetching host scans:', error);
     } finally {
@@ -295,27 +258,16 @@ const HostDetail: React.FC = () => {
 
     setDeletingSSHKey(true);
     try {
-      const response = await fetch(`/api/hosts/${host.id}/ssh-key`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-
-      if (response.ok) {
-        // Update host state to remove SSH key metadata
-        setHost(prev => prev ? {
-          ...prev,
-          ssh_key_fingerprint: undefined,
-          ssh_key_type: undefined,
-          ssh_key_bits: undefined,
-          ssh_key_comment: undefined
-        } : null);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to delete SSH key:', errorData);
-        setError(errorData.detail || 'Failed to delete SSH key');
-      }
+      await api.delete(`/api/hosts/${host.id}/ssh-key`);
+      
+      // Update host state to remove SSH key metadata
+      setHost(prev => prev ? {
+        ...prev,
+        ssh_key_fingerprint: undefined,
+        ssh_key_type: undefined,
+        ssh_key_bits: undefined,
+        ssh_key_comment: undefined
+      } : null);
     } catch (error) {
       console.error('Error deleting SSH key:', error);
       setError('Error deleting SSH key');

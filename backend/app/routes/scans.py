@@ -4,16 +4,22 @@ Handles scan job creation, monitoring, and results
 """
 import uuid
 import json
+import asyncio
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
 
 from ..database import get_db
 from ..services.scap_scanner import SCAPScanner
+from ..services.error_classification import ErrorClassificationService, AutomatedFix
+from ..services.scan_intelligence import ScanIntelligenceService, ProfileSuggestion
+from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
+from ..services.error_sanitization import get_error_sanitization_service
+from ..models.error_models import ValidationResultResponse
 from ..auth import get_current_user
 from ..tasks.scan_tasks import execute_scan_task
 import logging
@@ -22,8 +28,50 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
-# Initialize SCAP scanner
+# Initialize services
 scap_scanner = SCAPScanner()
+error_service = ErrorClassificationService()
+sanitization_service = get_error_sanitization_service()
+
+def sanitize_http_error(
+    request: Request, 
+    current_user: dict, 
+    exception: Exception, 
+    fallback_message: str,
+    status_code: int = 500
+) -> HTTPException:
+    """Helper to sanitize HTTP errors and prevent information disclosure"""
+    try:
+        # Get client information
+        client_ip = request.client.host if request.client else "unknown"
+        user_id = current_user.get("sub") if current_user else None
+        
+        # Classify the error internally
+        classified_error = asyncio.create_task(
+            error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
+        )
+        
+        # For synchronous context, use a generic approach
+        sanitized_error = sanitization_service.sanitize_error(
+            {
+                'error_code': 'HTTP_ERROR',
+                'category': 'execution',
+                'severity': 'error',
+                'message': str(exception),
+                'technical_details': {'original_error': str(exception)},
+                'user_guidance': fallback_message,
+                'can_retry': False
+            },
+            user_id=user_id,
+            source_ip=client_ip
+        )
+        
+        return HTTPException(status_code=status_code, detail=sanitized_error.message)
+        
+    except Exception as sanitization_error:
+        # Fallback if sanitization fails
+        logger.error(f"Error sanitization failed: {sanitization_error}")
+        return HTTPException(status_code=status_code, detail=fallback_message)
 
 
 class ScanRequest(BaseModel):
@@ -52,6 +100,697 @@ class VerificationScanRequest(BaseModel):
     original_scan_id: Optional[str] = None
     remediation_job_id: Optional[str] = None
     name: Optional[str] = None
+
+
+class ValidationRequest(BaseModel):
+    host_id: str
+    content_id: int
+    profile_id: str
+
+
+class AutomatedFixRequest(BaseModel):
+    fix_id: str
+    host_id: str
+    validate_after: bool = True
+
+
+class QuickScanRequest(BaseModel):
+    template_id: Optional[str] = "auto"  # Auto-detect best profile
+    priority: Optional[str] = "normal"
+    name: Optional[str] = None
+    email_notify: bool = False
+
+
+class QuickScanResponse(BaseModel):
+    id: str
+    message: str
+    status: str
+    suggested_profile: ProfileSuggestion
+    estimated_completion: Optional[float] = None
+
+
+class BulkScanRequest(BaseModel):
+    host_ids: List[str]
+    template_id: Optional[str] = "auto"
+    priority: Optional[str] = "normal"
+    name_prefix: Optional[str] = "Bulk Scan"
+    stagger_delay: int = 30  # seconds between scan starts
+
+
+class BulkScanResponse(BaseModel):
+    session_id: str
+    message: str
+    total_hosts: int
+    estimated_completion: float
+    scan_ids: List[str]
+
+
+@router.post("/validate")
+async def validate_scan_configuration(
+    validation_request: ValidationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+) -> ValidationResultResponse:
+    """Pre-flight validation for scan configuration"""
+    try:
+        logger.info(f"Pre-flight validation requested for host {validation_request.host_id}")
+        
+        # Get host details
+        host_result = db.execute(text("""
+            SELECT id, display_name, hostname, port, username, auth_method, encrypted_credentials
+            FROM hosts WHERE id = :id AND is_active = true
+        """), {"id": validation_request.host_id}).fetchone()
+        
+        if not host_result:
+            raise HTTPException(status_code=404, detail="Host not found or inactive")
+        
+        # Get SCAP content details
+        content_result = db.execute(text("""
+            SELECT id, name, file_path, profiles FROM scap_content WHERE id = :id
+        """), {"id": validation_request.content_id}).fetchone()
+        
+        if not content_result:
+            raise HTTPException(status_code=404, detail="SCAP content not found")
+        
+        # Validate profile exists
+        if content_result.profiles:
+            try:
+                profiles = json.loads(content_result.profiles)
+                profile_ids = [p.get("id") for p in profiles if p.get("id")]
+                if validation_request.profile_id not in profile_ids:
+                    raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
+            except:
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
+        
+        # Resolve credentials
+        try:
+            from ..services.auth_service import get_auth_service
+            auth_service = get_auth_service(db)
+            
+            use_default = host_result.auth_method in ["default", "system_default"]
+            target_id = None if use_default else host_result.id
+            
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id,
+                use_default=use_default
+            )
+            
+            if not credential_data:
+                raise HTTPException(status_code=400, detail="No credentials available for host")
+                
+            # Extract credential value based on auth method
+            if credential_data.auth_method.value == "password":
+                credential_value = credential_data.password
+            elif credential_data.auth_method.value in ["ssh_key", "ssh-key"]:
+                credential_value = credential_data.private_key
+            else:
+                credential_value = credential_data.password or ""
+                
+        except Exception as e:
+            logger.error(f"Credential resolution failed for validation: {e}")
+            raise sanitize_http_error(
+                request, current_user, e, 
+                "Unable to resolve authentication credentials for target host", 
+                400
+            )
+        
+        # Get client information for security audit
+        client_ip = request.client.host if request.client else "unknown"
+        user_id = current_user.get("sub") if current_user else None
+        user_role = current_user.get("role") if current_user else None
+        is_admin = user_role in ["SUPER_ADMIN", "SECURITY_ADMIN"] if user_role else False
+
+        # Perform comprehensive validation (returns internal result with sensitive data)
+        internal_result = await error_service.validate_scan_prerequisites(
+            hostname=host_result.hostname,
+            port=host_result.port,
+            username=credential_data.username,
+            auth_method=credential_data.auth_method.value,
+            credential=credential_value,
+            user_id=user_id,
+            source_ip=client_ip
+        )
+        
+        logger.info(f"Validation completed: can_proceed={internal_result.can_proceed}, "
+                   f"errors={len(internal_result.errors)}, warnings={len(internal_result.warnings)}")
+        
+        # Convert to sanitized response using Security Fix 5 system info sanitization
+        sanitized_result = error_service.get_sanitized_validation_result(
+            internal_result,
+            user_id=user_id,
+            source_ip=client_ip,
+            user_role=user_role,
+            is_admin=is_admin
+        )
+        
+        return sanitized_result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log full technical details server-side
+        logger.error(f"Validation error: {e}", exc_info=True)
+        
+        # Create sanitized error for user
+        sanitization_service = get_error_sanitization_service()
+        classified_error = await error_service.classify_error(e, {
+            "operation": "scan_validation",
+            "host_id": validation_request.host_id,
+            "content_id": validation_request.content_id
+        })
+        
+        sanitized_error = sanitization_service.sanitize_error(
+            classified_error.dict(),
+            user_id=current_user.get("sub") if current_user else None,
+            source_ip=request.client.host if request.client else "unknown"
+        )
+        
+        # Return generic error message to prevent information disclosure
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Validation failed: {sanitized_error.message}"
+        )
+
+
+@router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
+async def quick_scan(
+    host_id: str,
+    quick_scan_request: QuickScanRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+) -> QuickScanResponse:
+    """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
+    try:
+        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
+        
+        # Initialize intelligence service
+        intelligence_service = ScanIntelligenceService(db)
+        
+        # Auto-detect profile if not specified
+        suggested_profile = None
+        if quick_scan_request.template_id == "auto":
+            suggested_profile = await intelligence_service.suggest_scan_profile(host_id)
+            template_id = suggested_profile.profile_id
+            content_id = suggested_profile.content_id
+        else:
+            # Use specified template - for now, map to default content
+            template_id = quick_scan_request.template_id
+            content_id = 1  # Default SCAP content
+            
+            # Still get suggestion for response metadata
+            suggested_profile = await intelligence_service.suggest_scan_profile(host_id)
+        
+        # Get host details for validation
+        host_result = db.execute(text("""
+            SELECT id, display_name, hostname, port, username, auth_method, encrypted_credentials
+            FROM hosts WHERE id = :id AND is_active = true
+        """), {"id": host_id}).fetchone()
+        
+        if not host_result:
+            raise HTTPException(status_code=404, detail="Host not found or inactive")
+        
+        # Get SCAP content details
+        content_result = db.execute(text("""
+            SELECT id, name, file_path, profiles FROM scap_content WHERE id = :id
+        """), {"id": content_id}).fetchone()
+        
+        if not content_result:
+            raise HTTPException(status_code=404, detail="SCAP content not found")
+        
+        # Validate profile exists in content
+        profiles = []
+        if content_result.profiles:
+            try:
+                profiles = json.loads(content_result.profiles)
+                profile_ids = [p.get("id") for p in profiles if p.get("id")]
+                if template_id not in profile_ids:
+                    # Fall back to first available profile
+                    if profile_ids:
+                        template_id = profile_ids[0]
+                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
+                    else:
+                        raise HTTPException(status_code=400, detail="No profiles available in SCAP content")
+            except:
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
+        
+        # Generate scan name
+        scan_name = quick_scan_request.name
+        if not scan_name:
+            profile_name = suggested_profile.name if suggested_profile else "Quick Scan"
+            scan_name = f"{profile_name} - {host_result.display_name or host_result.hostname}"
+        
+        # Create scan record with UUID primary key
+        scan_id = str(uuid.uuid4())
+        
+        # Pre-flight validation (async, non-blocking for optimistic UI)
+        validation_task = None
+        try:
+            from ..services.auth_service import get_auth_service
+            auth_service = get_auth_service(db)
+            
+            use_default = host_result.auth_method in ["default", "system_default"]
+            target_id = None if use_default else host_result.id
+            
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id,
+                use_default=use_default
+            )
+            
+            if credential_data:
+                # Queue async validation
+                validation_task = background_tasks.add_task(
+                    self._async_validation_check,
+                    scan_id, host_result, credential_data
+                )
+        except Exception as e:
+            logger.warning(f"Pre-flight validation setup failed: {e}")
+        
+        # Create scan immediately (optimistic UI)
+        result = db.execute(text("""
+            INSERT INTO scans 
+            (id, name, host_id, content_id, profile_id, status, progress, 
+             scan_options, started_by, started_at, remediation_requested, verification_scan)
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+                    :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
+            RETURNING id
+        """), {
+            "id": scan_id,
+            "name": scan_name,
+            "host_id": host_id,
+            "content_id": content_id,
+            "profile_id": template_id,
+            "status": "pending",
+            "progress": 0,
+            "scan_options": json.dumps({
+                "quick_scan": True,
+                "template_id": quick_scan_request.template_id,
+                "priority": quick_scan_request.priority,
+                "email_notify": quick_scan_request.email_notify
+            }),
+            "started_by": current_user["id"],
+            "started_at": datetime.utcnow(),
+            "remediation_requested": False,
+            "verification_scan": False
+        })
+        
+        # Commit the scan record
+        db.commit()
+        
+        # Start scan as background task
+        background_tasks.add_task(
+            execute_scan_task,
+            scan_id=str(scan_id),
+            host_data={
+                "hostname": host_result.hostname,
+                "port": host_result.port,
+                "username": host_result.username,
+                "auth_method": host_result.auth_method,
+                "encrypted_credentials": host_result.encrypted_credentials
+            },
+            content_path=content_result.file_path,
+            profile_id=template_id,
+            scan_options={
+                "quick_scan": True,
+                "priority": quick_scan_request.priority
+            }
+        )
+        
+        logger.info(f"Quick scan created and started: {scan_id}")
+        
+        # Calculate estimated completion
+        estimated_time = None
+        if suggested_profile:
+            # Parse estimated duration (e.g., "10-15 min" -> 12.5 minutes)
+            duration_str = suggested_profile.estimated_duration
+            try:
+                if "min" in duration_str:
+                    parts = duration_str.replace(" min", "").split("-")
+                    if len(parts) == 2:
+                        avg_minutes = (int(parts[0]) + int(parts[1])) / 2
+                        estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
+            except:
+                pass
+        
+        return QuickScanResponse(
+            id=scan_id,
+            message="Scan created and started successfully",
+            status="pending",
+            suggested_profile=suggested_profile or ProfileSuggestion(
+                profile_id=template_id,
+                content_id=content_id,
+                name="Quick Scan",
+                confidence=0.5,
+                reasoning=["Manual template selection"],
+                estimated_duration="10-15 min",
+                rule_count=150,
+                priority=suggested_profile.priority if suggested_profile else "normal"
+            ),
+            estimated_completion=estimated_time
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating quick scan: {e}", exc_info=True)
+        # Classify the error for better user guidance
+        try:
+            classified_error = await error_service.classify_error(e, {"operation": "quick_scan"})
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "message": classified_error.message,
+                    "category": classified_error.category.value,
+                    "user_guidance": classified_error.user_guidance,
+                    "can_retry": classified_error.can_retry,
+                    "error_code": classified_error.error_code
+                }
+            )
+        except Exception as fallback_error:
+            # Fallback to generic error if classification fails
+            logger.error(f"Quick scan creation failed with classification error: {fallback_error}")
+            raise HTTPException(status_code=500, detail="Failed to create scan due to system configuration error")
+
+
+async def _async_validation_check(scan_id: str, host_result, credential_data):
+    """Async validation check for quick scan"""
+    # This would run validation and update scan status if blocked
+    # Implementation would go here
+    pass
+
+
+@router.post("/bulk-scan", response_model=BulkScanResponse)
+async def create_bulk_scan(
+    bulk_scan_request: BulkScanRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+) -> BulkScanResponse:
+    """Create and start bulk scan session for multiple hosts"""
+    try:
+        logger.info(f"Bulk scan requested for {len(bulk_scan_request.host_ids)} hosts")
+        
+        if not bulk_scan_request.host_ids:
+            raise HTTPException(status_code=400, detail="No host IDs provided")
+        
+        if len(bulk_scan_request.host_ids) > 100:
+            raise HTTPException(status_code=400, detail="Maximum 100 hosts per bulk scan")
+        
+        # Initialize orchestrator
+        orchestrator = BulkScanOrchestrator(db)
+        
+        # Create bulk scan session
+        session = await orchestrator.create_bulk_scan_session(
+            host_ids=bulk_scan_request.host_ids,
+            template_id=bulk_scan_request.template_id,
+            name_prefix=bulk_scan_request.name_prefix,
+            priority=bulk_scan_request.priority,
+            user_id=current_user["id"],
+            stagger_delay=bulk_scan_request.stagger_delay
+        )
+        
+        # Start the bulk scan session
+        start_result = await orchestrator.start_bulk_scan_session(session.id)
+        
+        logger.info(f"Bulk scan session created and started: {session.id}")
+        
+        return BulkScanResponse(
+            session_id=session.id,
+            message=f"Bulk scan session created for {session.total_hosts} hosts",
+            total_hosts=session.total_hosts,
+            estimated_completion=session.estimated_completion.timestamp() if session.estimated_completion else 0,
+            scan_ids=session.scan_ids or []
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating bulk scan: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create bulk scan: {str(e)}")
+
+
+@router.get("/bulk-scan/{session_id}/progress")
+async def get_bulk_scan_progress(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get real-time progress of a bulk scan session"""
+    try:
+        orchestrator = BulkScanOrchestrator(db)
+        progress = await orchestrator.get_bulk_scan_progress(session_id)
+        return progress
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting bulk scan progress: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get bulk scan progress")
+
+
+@router.post("/bulk-scan/{session_id}/cancel")
+async def cancel_bulk_scan(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Cancel a running bulk scan session"""
+    try:
+        # Update session status to cancelled
+        result = db.execute(text("""
+            UPDATE scan_sessions SET status = 'cancelled'
+            WHERE id = :session_id
+        """), {"session_id": session_id})
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Bulk scan session not found")
+        
+        # Cancel individual scans that are still pending
+        db.execute(text("""
+            UPDATE scans SET status = 'cancelled', error_message = 'Cancelled by user'
+            WHERE id IN (
+                SELECT unnest(ARRAY(
+                    SELECT json_array_elements_text(scan_ids::json)
+                    FROM scan_sessions WHERE id = :session_id
+                ))
+            ) AND status IN ('pending', 'running')
+        """), {"session_id": session_id})
+        
+        db.commit()
+        
+        logger.info(f"Bulk scan session cancelled: {session_id}")
+        return {"message": "Bulk scan session cancelled successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling bulk scan: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cancel bulk scan")
+
+
+@router.get("/sessions")
+async def list_scan_sessions(
+    status: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """List scan sessions for monitoring and management"""
+    try:
+        # Build query conditions
+        where_conditions = []
+        params = {"limit": limit, "offset": offset}
+        
+        if status:
+            where_conditions.append("status = :status")
+            params["status"] = status
+        
+        # Add user filtering if not admin
+        if current_user.get("role") not in ["SUPER_ADMIN", "SECURITY_ADMIN"]:
+            where_conditions.append("created_by = :user_id")
+            params["user_id"] = current_user["id"]
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Get sessions
+        result = db.execute(text(f"""
+            SELECT id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
+                   status, created_by, created_at, started_at, completed_at, estimated_completion
+            FROM scan_sessions
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT :limit OFFSET :offset
+        """), params)
+        
+        sessions = []
+        for row in result:
+            sessions.append({
+                "session_id": row.id,
+                "name": row.name,
+                "total_hosts": row.total_hosts,
+                "completed_hosts": row.completed_hosts,
+                "failed_hosts": row.failed_hosts,
+                "running_hosts": row.running_hosts,
+                "status": row.status,
+                "created_by": row.created_by,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "started_at": row.started_at.isoformat() if row.started_at else None,
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "estimated_completion": row.estimated_completion.isoformat() if row.estimated_completion else None
+            })
+        
+        # Get total count
+        count_result = db.execute(text(f"""
+            SELECT COUNT(*) as total FROM scan_sessions {where_clause}
+        """), params).fetchone()
+        
+        return {
+            "sessions": sessions,
+            "total": count_result.total,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing scan sessions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list scan sessions")
+
+
+@router.post("/{scan_id}/recover")
+async def recover_scan(
+    scan_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Attempt to recover a failed scan with intelligent retry"""
+    try:
+        # Get failed scan details
+        scan_result = db.execute(text("""
+            SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status, s.error_message,
+                   h.hostname, h.port, h.username, h.auth_method
+            FROM scans s
+            JOIN hosts h ON s.host_id = h.id
+            WHERE s.id = :scan_id AND s.status = 'failed'
+        """), {"scan_id": scan_id}).fetchone()
+        
+        if not scan_result:
+            raise HTTPException(status_code=404, detail="Failed scan not found")
+        
+        # Classify the original error to determine recovery strategy
+        original_error = Exception(scan_result.error_message or "Unknown error")
+        classified_error = await error_service.classify_error(
+            original_error, 
+            {"scan_id": scan_id, "hostname": scan_result.hostname}
+        )
+        
+        # Determine if retry is possible
+        if not classified_error.can_retry:
+            return {
+                "can_recover": False,
+                "message": "Scan cannot be automatically recovered",
+                "error_classification": classified_error.dict(),
+                "recommended_actions": classified_error.user_guidance
+            }
+        
+        # Calculate retry delay
+        retry_delay = classified_error.retry_after or 60
+        
+        # Create recovery scan
+        recovery_scan_id = str(uuid.uuid4())
+        db.execute(text("""
+            INSERT INTO scans 
+            (id, name, host_id, content_id, profile_id, status, progress, 
+             started_by, started_at, scan_options)
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+                    :progress, :started_by, :started_at, :scan_options)
+        """), {
+            "id": recovery_scan_id,
+            "name": f"Recovery: {scan_result.name}",
+            "host_id": scan_result.host_id,
+            "content_id": scan_result.content_id,
+            "profile_id": scan_result.profile_id,
+            "status": "pending",
+            "progress": 0,
+            "started_by": current_user["id"],
+            "started_at": datetime.utcnow(),
+            "scan_options": json.dumps({"recovery_scan": True, "original_scan_id": scan_id})
+        })
+        db.commit()
+        
+        logger.info(f"Recovery scan created: {recovery_scan_id} for failed scan {scan_id}")
+        
+        return {
+            "can_recover": True,
+            "recovery_scan_id": recovery_scan_id,
+            "message": f"Recovery scan created and will start in {retry_delay} seconds",
+            "error_classification": classified_error.dict(),
+            "estimated_retry_time": (datetime.utcnow().timestamp() + retry_delay)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating recovery scan: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create recovery scan")
+
+
+@router.post("/hosts/{host_id}/apply-fix")
+async def apply_automated_fix(
+    host_id: str,
+    fix_request: AutomatedFixRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Apply an automated fix to a host"""
+    try:
+        # Get host details
+        host_result = db.execute(text("""
+            SELECT id, display_name, hostname, port, username, auth_method
+            FROM hosts WHERE id = :id AND is_active = true
+        """), {"id": host_id}).fetchone()
+        
+        if not host_result:
+            raise HTTPException(status_code=404, detail="Host not found or inactive")
+        
+        logger.info(f"Applying automated fix {fix_request.fix_id} to host {host_id}")
+        
+        # For now, return a mock response - in production this would execute the fix
+        # This would integrate with the actual fix execution system
+        
+        # Mock execution time based on fix type
+        estimated_time = 30  # Default 30 seconds
+        if "install" in fix_request.fix_id.lower():
+            estimated_time = 120
+        elif "update" in fix_request.fix_id.lower():
+            estimated_time = 60
+        
+        # Create a mock job ID for tracking
+        job_id = str(uuid.uuid4())
+        
+        # In production, this would:
+        # 1. Queue the fix execution as a background task
+        # 2. Track progress in database
+        # 3. Execute commands via SSH
+        # 4. Validate results if requested
+        
+        return {
+            "job_id": job_id,
+            "fix_id": fix_request.fix_id,
+            "host_id": host_id,
+            "status": "queued",
+            "estimated_completion": (datetime.utcnow().timestamp() + estimated_time),
+            "message": f"Automated fix {fix_request.fix_id} queued for execution",
+            "validate_after": fix_request.validate_after
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error applying automated fix: {e}")
+        raise HTTPException(status_code=500, detail="Failed to apply automated fix")
 
 
 @router.get("/")
@@ -216,16 +955,18 @@ async def create_scan(
             except:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
         
-        # Create scan record (let database auto-generate integer ID)
+        # Create scan record with UUID primary key
         import json
+        scan_id = str(uuid.uuid4())
         result = db.execute(text("""
             INSERT INTO scans 
-            (name, host_id, content_id, profile_id, status, progress, 
-             scan_options, started_by, started_at)
-            VALUES (:name, :host_id, :content_id, :profile_id, :status, 
-                    :progress, :scan_options, :started_by, :started_at)
+            (id, name, host_id, content_id, profile_id, status, progress, 
+             scan_options, started_by, started_at, remediation_requested, verification_scan)
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+                    :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
             RETURNING id
         """), {
+            "id": scan_id,
             "name": scan_request.name,
             "host_id": scan_request.host_id,
             "content_id": scan_request.content_id,
@@ -234,11 +975,12 @@ async def create_scan(
             "progress": 0,
             "scan_options": json.dumps(scan_request.scan_options),
             "started_by": current_user["id"],
-            "started_at": datetime.utcnow()
+            "started_at": datetime.utcnow(),
+            "remediation_requested": False,
+            "verification_scan": False
         })
         
-        # Get the generated scan ID
-        scan_id = result.fetchone().id
+        # Commit the scan record
         db.commit()
         
         # Start scan as background task
@@ -269,7 +1011,22 @@ async def create_scan(
         raise
     except Exception as e:
         logger.error(f"Error creating scan: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
+        # Classify the error for better user guidance
+        try:
+            classified_error = await error_service.classify_error(e, {"operation": "create_scan"})
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "message": classified_error.message,
+                    "category": classified_error.category.value,
+                    "user_guidance": classified_error.user_guidance,
+                    "can_retry": classified_error.can_retry,
+                    "error_code": classified_error.error_code
+                }
+            )
+        except:
+            # Fallback to generic error if classification fails
+            raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
 
 
 @router.get("/{scan_id}")

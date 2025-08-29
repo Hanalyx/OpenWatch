@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # Redis/Celery (secure configuration)
     redis_url: str = "redis://localhost:6379"
-    redis_ssl: bool = True
+    redis_ssl: bool = False  # Disabled for Docker development
     redis_ssl_cert: Optional[str] = None
     redis_ssl_key: Optional[str] = None
     redis_ssl_ca: Optional[str] = None
@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     # OpenSCAP
     openscap_timeout: int = 3600  # 1 hour max scan time
     max_concurrent_scans: int = 5
-    scap_content_dir: str = "/app/data/scap"
-    scan_results_dir: str = "/app/data/results"
+    scap_content_dir: str = os.getenv("SCAP_CONTENT_DIR", "/app/data/scap")
+    scan_results_dir: str = os.getenv("SCAN_RESULTS_DIR", "/app/data/results")
     
     # FIPS Configuration
     fips_mode: bool = True
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     require_https: bool = True
     
     # Allowed hosts for CORS
-    allowed_origins: List[str] = ["https://localhost:3000"]
+    allowed_origins: List[str] = ["https://localhost:3001"]
     
     # File upload limits
     max_upload_size: int = 100 * 1024 * 1024  # 100MB
@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = "OPENWATCH_"
+        extra = "allow"  # Allow extra fields from environment
 
 
 @lru_cache()

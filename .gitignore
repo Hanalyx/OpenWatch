@@ -408,6 +408,15 @@ test-reports/
 test_results/
 coverage-reports/
 *.test.log
+e2e-tests/reports/
+backend_test.log
+frontend_test.log
+
+# Test files pattern (temporary files per project convention)
+*test*.py
+*test*.sh
+*test*.md
+**/tests/**  # But keep files in proper test directories
 
 # Temporary files
 *.tmp
@@ -417,6 +426,13 @@ coverage-reports/
 .DS_Store
 .idea/
 .vscode/
+
+# Test virtual environments
+venv_test/
+*_test_env/
+
+# Test artifacts
+test-artifacts/
 
 # ======================================
 # PLUGIN DEVELOPMENT
@@ -505,3 +521,41 @@ cache/
 !config/settings.example.json
 !config/database.example.yml
 !.env.example
+
+# ======================================
+# PROJECT-SPECIFIC DEVELOPMENT FILES
+# ======================================
+
+# Temporary test files created during development/testing
+mock_backend.py
+test_e2e*.py
+test_backend_functionality.py
+test_frontend_e2e.py
+test_complete_e2e.py
+test_comprehensive*.py
+
+# Test report and summary files
+*_TEST_REPORT.md
+*_SUMMARY.md
+COMPREHENSIVE_TEST_REPORT.md
+TROUBLESHOOTING_SUMMARY.md
+gitignore_recommendations.md
+
+# Test screenshots and artifacts
+*_error.png
+*_ui_error.png
+login_error.png
+dashboard_error.png
+hosts_error.png
+hosts_ui_error.png
+host_groups_ui_error.png
+content_ui_error.png
+scanning_ui_error.png
+results_ui_error.png
+
+# Temporary configuration files
+nginx.conf
+/nginx.conf
+
+# Gitignore analysis files
+gitignore_*.md

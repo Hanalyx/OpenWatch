@@ -81,6 +81,7 @@ import {
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Legend } from 'recharts';
 import RemediationPanel from '../../components/remediation/RemediationPanel';
+import { api } from '../../services/api';
 
 interface ScanDetails {
   id: number;
@@ -209,20 +210,12 @@ const ScanDetail: React.FC = () => {
   const fetchScanDetails = async (quiet: boolean = false) => {
     try {
       if (!quiet) setLoading(true);
-      const response = await fetch(`/api/scans/${id}`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
+      const data = await api.get(`/api/scans/${id}`);
+      setScan(data);
       
-      if (response.ok) {
-        const data = await response.json();
-        setScan(data);
-        
-        // Fetch actual rule results if scan is completed
-        if (data.status === 'completed' && data.results) {
-          await fetchActualRuleResults(quiet);
-        }
+      // Fetch actual rule results if scan is completed
+      if (data.status === 'completed' && data.results) {
+        await fetchActualRuleResults(quiet);
       }
     } catch (error) {
       if (!quiet) {
@@ -238,35 +231,24 @@ const ScanDetail: React.FC = () => {
   const fetchActualRuleResults = async (quiet: boolean = false) => {
     try {
       // Fetch actual rule results from JSON report endpoint
-      const response = await fetch(`/api/scans/${id}/report/json`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
+      const data = await api.get(`/api/scans/${id}/report/json`);
       
-      if (response.ok) {
-        const data = await response.json();
+      // Check if we have actual rule results from XML parsing
+      if (data.rule_results && Array.isArray(data.rule_results)) {
+        const actualRules: RuleResult[] = data.rule_results.map((rule: any) => ({
+          rule_id: rule.rule_id || 'unknown',
+          title: rule.title || extractRuleTitle(rule.rule_id) || 'Unknown Rule',
+          severity: mapSeverity(rule.severity || 'unknown'),
+          result: mapResult(rule.result || 'unknown'),
+          description: rule.description || extractRuleDescription(rule.rule_id) || 'No description available',
+          rationale: rule.rationale || '',
+          remediation: rule.remediation || extractRuleDescription(rule.rule_id) || ''
+        }));
         
-        // Check if we have actual rule results from XML parsing
-        if (data.rule_results && Array.isArray(data.rule_results)) {
-          const actualRules: RuleResult[] = data.rule_results.map((rule: any) => ({
-            rule_id: rule.rule_id || 'unknown',
-            title: rule.title || extractRuleTitle(rule.rule_id) || 'Unknown Rule',
-            severity: mapSeverity(rule.severity || 'unknown'),
-            result: mapResult(rule.result || 'unknown'),
-            description: rule.description || extractRuleDescription(rule.rule_id) || 'No description available',
-            rationale: rule.rationale || '',
-            remediation: rule.remediation || extractRuleDescription(rule.rule_id) || ''
-          }));
-          
-          console.log(`Using ${actualRules.length} real SCAP rules with${actualRules.some(r => r.remediation) ? '' : 'out'} remediation data`);
-          setRuleResults(actualRules);
-        } else {
-          // Fallback to generating placeholder rules if XML parsing failed
-          generateFallbackRuleResults();
-        }
+        console.log(`Using ${actualRules.length} real SCAP rules with${actualRules.some(r => r.remediation) ? '' : 'out'} remediation data`);
+        setRuleResults(actualRules);
       } else {
-        // Fallback if endpoint fails
+        // Fallback to generating placeholder rules if XML parsing failed
         generateFallbackRuleResults();
       }
     } catch (error) {
@@ -451,19 +433,11 @@ const ScanDetail: React.FC = () => {
     try {
       showSnackbar(`Exporting report as ${format.toUpperCase()}...`, 'info');
       
-      const response = await fetch(`/api/scans/${id}/report/${format}`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Export failed');
-      }
-      
       // Handle different formats
       if (format === 'html') {
-        const blob = await response.blob();
+        const blob = await api.get(`/api/scans/${id}/report/${format}`, {
+          responseType: 'blob'
+        });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -473,7 +447,7 @@ const ScanDetail: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else if (format === 'json') {
-        const data = await response.json();
+        const data = await api.get(`/api/scans/${id}/report/${format}`);
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -484,7 +458,9 @@ const ScanDetail: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else if (format === 'csv') {
-        const blob = await response.blob();
+        const blob = await api.get(`/api/scans/${id}/report/${format}`, {
+          responseType: 'blob'
+        });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -509,32 +485,20 @@ const ScanDetail: React.FC = () => {
     try {
       showSnackbar('Initiating new scan with same configuration...', 'info');
       
-      const response = await fetch('/api/scans/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer demo-token'
-        },
-        body: JSON.stringify({
-          name: `${scan.name} - Rescan ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
-          host_id: scan.host_id,
-          content_id: scan.content_id,
-          profile_id: scan.profile_id,
-          scan_options: scan.scan_options || {}
-        })
+      const result = await api.post('/api/scans/', {
+        name: `${scan.name} - Rescan ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+        host_id: scan.host_id,
+        content_id: scan.content_id,
+        profile_id: scan.profile_id,
+        scan_options: scan.scan_options || {}
       });
       
-      if (response.ok) {
-        const result = await response.json();
-        showSnackbar('New scan started successfully!', 'success');
-        
-        // Navigate to new scan after a short delay
-        setTimeout(() => {
-          navigate(`/scans/${result.id}`);
-        }, 1500);
-      } else {
-        throw new Error('Failed to start new scan');
-      }
+      showSnackbar('New scan started successfully!', 'success');
+      
+      // Navigate to new scan after a short delay
+      setTimeout(() => {
+        navigate(`/scans/${result.id}`);
+      }, 1500);
     } catch (error) {
       showSnackbar('Failed to start new scan', 'error');
     } finally {

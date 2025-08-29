@@ -27,9 +27,10 @@ class SSHTerminalSession:
     Manages an SSH terminal session with WebSocket communication
     """
     
-    def __init__(self, websocket: WebSocket, host: Host):
+    def __init__(self, websocket: WebSocket, host: Host, db: Session):
         self.websocket = websocket
         self.host = host
+        self.db = db  # Database session for centralized auth service
         self.ssh_client: Optional[paramiko.SSHClient] = None
         self.ssh_channel: Optional[paramiko.Channel] = None
         self.is_connected = False
@@ -154,29 +155,45 @@ class SSHTerminalSession:
             credentials = {}
             
             logger.info(f"Getting credentials for host {self.host.hostname} with auth_method: {auth_method}")
-            logger.info(f"Host has encrypted_credentials: {bool(self.host.encrypted_credentials)}")
             
-            if auth_method == 'system_default':
-                # Load system default SSH key
-                try:
-                    with open('/home/rracine/hanalyx/rsa_private_key', 'r') as f:
-                        credentials['private_key'] = f.read()
-                        credentials['username'] = 'root'
-                        logger.info("Loaded system default SSH key")
-                except FileNotFoundError:
-                    logger.error("System default SSH key not found")
-                    return None, {}
-            
-            elif self.host.encrypted_credentials:
-                # Decrypt stored credentials
-                try:
-                    logger.info("Attempting to decrypt stored credentials")
-                    decrypted = decrypt_credentials(self.host.encrypted_credentials)
-                    credentials = json.loads(decrypted) if isinstance(decrypted, str) else decrypted
-                    logger.info("Successfully decrypted credentials")
-                except Exception as e:
-                    logger.error(f"Failed to decrypt credentials: {e}")
-                    # Fall through to test credentials
+            # Use centralized authentication service instead of old dual system
+            try:
+                from ..services.auth_service import get_auth_service
+                auth_service = get_auth_service(self.db)
+                
+                # Determine if we should use default credentials or host-specific
+                use_default = auth_method in ['default', 'system_default']
+                target_id = None if use_default else str(self.host.id)
+                
+                # Resolve credentials using centralized service
+                credential_data = auth_service.resolve_credential(
+                    target_id=target_id,
+                    use_default=use_default
+                )
+                
+                if credential_data:
+                    credentials = {
+                        'username': credential_data.username,
+                        'private_key': credential_data.private_key,
+                        'password': credential_data.password,
+                        'private_key_passphrase': credential_data.private_key_passphrase
+                    }
+                    logger.info(f"Successfully resolved {credential_data.source} credentials for terminal service")
+                else:
+                    logger.warning("No credentials available via centralized auth service")
+                    
+            except Exception as e:
+                logger.error(f"Failed to resolve credentials via centralized service: {e}")
+                # Fallback to system default if centralized service fails
+                if auth_method == 'system_default':
+                    try:
+                        with open('/home/rracine/hanalyx/rsa_private_key', 'r') as f:
+                            credentials['private_key'] = f.read()
+                            credentials['username'] = 'root'
+                            logger.info("Using fallback system default SSH key")
+                    except FileNotFoundError:
+                        logger.error("System default SSH key not found")
+                        return None, {}
             
             # If we still don't have credentials and this is a password auth host, try test credentials
             if not credentials and auth_method == 'password':
@@ -356,7 +373,7 @@ class TerminalService:
                     self.port = row.port
                     self.username = row.username
                     self.auth_method = row.auth_method
-                    self.encrypted_credentials = row.encrypted_credentials
+                    # NOTE: encrypted_credentials removed - using centralized auth service
             
             host = SimpleHost(host_data)
             
@@ -369,7 +386,7 @@ class TerminalService:
             )
             
             # Create terminal session
-            session = SSHTerminalSession(websocket, host)
+            session = SSHTerminalSession(websocket, host, db)
             self.active_sessions[session_key] = session
             
             # Attempt SSH connection

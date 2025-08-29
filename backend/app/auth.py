@@ -16,6 +16,7 @@ import secrets
 import logging
 
 from .config import get_settings
+from .rbac import UserRole
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -301,7 +302,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 "id": 1,
                 "username": "admin",
                 "email": "admin@openwatch.local",
-                "role": "super_admin"
+                "role": UserRole.SUPER_ADMIN.value
             }
         
         # Check if it's an API key (starts with "owk_")
@@ -368,9 +369,45 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         )
 
 
+def decode_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode JWT token for authorization middleware
+    Returns token payload or None if invalid
+    """
+    try:
+        # Handle demo token for development
+        if token == "demo-token":
+            return {
+                "sub": "admin",
+                "id": 1,
+                "username": "admin",
+                "email": "admin@openwatch.local",
+                "role": UserRole.SUPER_ADMIN.value
+            }
+        
+        # Handle API keys
+        if token.startswith("owk_"):
+            # For middleware, we don't want to update database
+            # Just return basic API key info
+            return {
+                "sub": "api_key",
+                "role": "api_key",
+                "username": "API Key",
+                "api_key": True
+            }
+        
+        # Decode JWT token
+        payload = jwt_manager.verify_token(token)
+        return payload
+        
+    except Exception as e:
+        logger.debug(f"Token decode failed: {e}")
+        return None
+
+
 async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Require admin role for protected endpoints"""
-    if current_user.get("role") != "admin":
+    if current_user.get("role") != UserRole.SUPER_ADMIN.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required"

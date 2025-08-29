@@ -161,113 +161,47 @@ class HostMonitor:
     
     async def get_effective_ssh_credentials(self, host_data: Dict, db) -> Dict:
         """
-        Get effective SSH credentials for a host using inheritance logic:
-        1. If host has auth_method='default' -> use default system credentials
-        2. If host has SSH credentials -> use host credentials
-        3. If host has no SSH credentials -> use default system credentials
+        Get effective SSH credentials for a host using centralized authentication service.
+        Uses unified credential resolution with proper encryption and field naming.
         """
         try:
-            # Check if host is explicitly set to use default credentials
+            # Use centralized authentication service for all credential resolution
+            from ..services.auth_service import get_auth_service
+            auth_service = get_auth_service(db)
+            
+            # Determine if we should use default credentials or host-specific
             host_auth_method = host_data.get('auth_method')
-            if host_auth_method in ['default', 'system_default']:
-                logger.info(f"Host {host_data.get('hostname')} is set to use default system credentials")
-                # Skip to system credentials lookup
-                pass
-            else:
-                # Check if host has SSH credentials
-                host_username = host_data.get('username')
-                encrypted_credentials = host_data.get('encrypted_credentials')
-                
-                if host_username and encrypted_credentials:
-                    # Host has credentials, decrypt them
-                    try:
-                        import base64
-                        import json
-                        
-                        # Decrypt the credentials (currently using base64)
-                        decoded_data = base64.b64decode(encrypted_credentials).decode('utf-8')
-                        credentials_data = json.loads(decoded_data)
-                        
-                        return {
-                            'username': host_username,
-                            'auth_method': host_data.get('auth_method', 'ssh_key'),
-                            'password': credentials_data.get('password'),
-                            'private_key': credentials_data.get('ssh_key'),
-                            'private_key_passphrase': credentials_data.get('passphrase'),
-                            'source': 'host'
-                        }
-                    except Exception as e:
-                        logger.error(f"Failed to decrypt host credentials: {e}")
-                        # Fall through to system credentials
-                elif host_username:
-                    # Host has username but no encrypted credentials (legacy case)
-                    return {
-                        'username': host_username,
-                        'auth_method': host_data.get('auth_method', 'ssh_key'),
-                        'password': None,
-                        'private_key': None,
-                        'source': 'host'
-                    }
+            use_default = host_auth_method in ['default', 'system_default']
+            target_id = None if use_default else host_data.get('id')
             
-            # Host has auth_method='default' or no credentials, try to get default system credentials
-            from sqlalchemy import text
-            logger.info(f"Looking for default system credentials for host {host_data.get('hostname')}")
+            logger.info(f"Resolving credentials for host monitoring {host_data.get('hostname')}: use_default={use_default}, target_id={target_id}")
             
-            result = db.execute(text("""
-                SELECT username, auth_method, encrypted_password, 
-                       encrypted_private_key, private_key_passphrase
-                FROM system_credentials 
-                WHERE is_default = true AND is_active = true
-                LIMIT 1
-            """))
+            # Resolve credentials using centralized service
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id,
+                use_default=use_default
+            )
             
-            row = result.fetchone()
-            if not row:
-                logger.warning("No default system credentials found in database - SSH operations will fail")
+            if not credential_data:
+                logger.warning(f"No credentials available for host {host_data.get('hostname')}")
                 logger.info("Please configure system SSH credentials in Settings to enable remote host monitoring and scanning")
-                return None  # No system credentials available
+                return None
             
-            logger.info(f"Found default system credentials: user={row.username}, auth_method={row.auth_method}")
-            
-            # Decrypt system credentials
-            from ..services.encryption import decrypt_data
-            password = None
-            private_key = None
-            passphrase = None
-            
-            if row.encrypted_password:
-                # Handle both string and memoryview (bytea) types from database
-                encrypted_pw = row.encrypted_password
-                if isinstance(encrypted_pw, memoryview):
-                    # Convert memoryview to string (bytea contains base64 string as UTF-8)
-                    encrypted_pw = encrypted_pw.tobytes().decode('utf-8')
-                password = decrypt_data(encrypted_pw).decode()
-            if row.encrypted_private_key:
-                # Handle both string and memoryview (bytea) types from database
-                encrypted_key = row.encrypted_private_key
-                if isinstance(encrypted_key, memoryview):
-                    # Convert memoryview to string (bytea contains base64 string as UTF-8)
-                    encrypted_key = encrypted_key.tobytes().decode('utf-8')
-                private_key = decrypt_data(encrypted_key).decode()
-            if row.private_key_passphrase:
-                # Handle both string and memoryview (bytea) types from database
-                encrypted_phrase = row.private_key_passphrase
-                if isinstance(encrypted_phrase, memoryview):
-                    # Convert memoryview to string (bytea contains base64 string as UTF-8)
-                    encrypted_phrase = encrypted_phrase.tobytes().decode('utf-8')
-                passphrase = decrypt_data(encrypted_phrase).decode()
-            
-            return {
-                'username': row.username,
-                'auth_method': row.auth_method,
-                'password': password,
-                'private_key': private_key,
-                'private_key_passphrase': passphrase,
-                'source': 'system'
+            # Convert to format expected by host monitoring
+            credentials = {
+                'username': credential_data.username,
+                'auth_method': credential_data.auth_method.value,
+                'password': credential_data.password,
+                'private_key': credential_data.private_key,  # ✅ Consistent field naming
+                'private_key_passphrase': credential_data.private_key_passphrase,
+                'source': credential_data.source
             }
             
+            logger.info(f"✅ Resolved {credential_data.source} credentials for host monitoring {host_data.get('hostname')}")
+            return credentials
+            
         except Exception as e:
-            logger.error(f"Error getting SSH credentials: {e}")
+            logger.error(f"Failed to resolve credentials for host monitoring {host_data.get('hostname')}: {e}")
             return None
     
     def validate_ssh_credentials(self, credentials: Dict) -> Tuple[bool, str]:
@@ -451,7 +385,7 @@ class HostMonitor:
         try:
             # Get all active hosts
             result = db.execute(text("""
-                SELECT id, hostname, ip_address, port, username, auth_method, encrypted_credentials, status, last_check
+                SELECT id, hostname, ip_address, port, username, auth_method, status, last_check
                 FROM hosts 
                 WHERE is_active = true
                 ORDER BY hostname
@@ -466,7 +400,6 @@ class HostMonitor:
                     'port': row.port or 22,
                     'username': row.username,
                     'auth_method': row.auth_method,
-                    'encrypted_credentials': row.encrypted_credentials,
                     'current_status': row.status,
                     'last_check': row.last_check
                 })

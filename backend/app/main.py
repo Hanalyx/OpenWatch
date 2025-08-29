@@ -18,11 +18,26 @@ from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, system_settings, users, audit, host_groups, scan_templates, webhooks, mfa
-from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning
+from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities
+# Import security routes only if available
+try:
+    from .routes import automated_fixes
+except ImportError:
+    print("automated_fixes not available")
+    automated_fixes = None
+
+try:
+    from .routes import authorization, security_config
+except ImportError:
+    print("authorization/security_config not available")
+    authorization = None
+    security_config = None
+# from .routes.v1 import api as v1_api  # Temporarily disabled
 from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
+from .middleware.rate_limiting import get_rate_limiting_middleware
 from .services.prometheus_metrics import get_metrics_instance
-from .services.tracing import initialize_tracing, instrument_fastapi_app, instrument_database_engine
+# from .services.tracing import initialize_tracing, instrument_fastapi_app, instrument_database_engine  # Disabled for now
 
 # Configure logging
 logging.basicConfig(
@@ -94,20 +109,21 @@ async def lifespan(app: FastAPI):
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
     
-    # Initialize distributed tracing
-    try:
-        tracing_success = initialize_tracing(
-            service_name="openwatch",
-            service_version="1.0.0",
-            environment=settings.environment if hasattr(settings, 'environment') else "production"
-        )
-        if tracing_success:
-            instrument_database_engine(engine)
-            logger.info("Distributed tracing initialized successfully")
-        else:
-            logger.warning("Distributed tracing initialization failed")
-    except Exception as e:
-        logger.warning(f"Failed to initialize distributed tracing: {e}")
+    # Initialize distributed tracing (disabled for now)
+    # try:
+    #     tracing_success = initialize_tracing(
+    #         service_name="openwatch",
+    #         service_version="1.0.0",
+    #         environment=settings.environment if hasattr(settings, 'environment') else "production"
+    #     )
+    #     if tracing_success:
+    #         instrument_database_engine(engine)
+    #         logger.info("Distributed tracing initialized successfully")
+    #     else:
+    #         logger.warning("Distributed tracing initialization failed")
+    # except Exception as e:
+    #     logger.warning(f"Failed to initialize distributed tracing: {e}")
+    logger.info("Distributed tracing disabled for initial deployment")
     
     # Start background metrics collection
     try:
@@ -137,6 +153,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
+# Rate Limiting Middleware (applied first for security)
+rate_limiter = get_rate_limiting_middleware()
+app.middleware("http")(rate_limiter)
 
 # Security Middleware
 @app.middleware("http")
@@ -281,7 +301,7 @@ async def https_redirect_middleware(request: Request, call_next):
 cors_origins = settings.allowed_origins
 if settings.debug:
     # Allow HTTP localhost for development
-    cors_origins = cors_origins + ["http://localhost:3000"]
+    cors_origins = cors_origins + ["http://localhost:3001"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -401,7 +421,11 @@ async def metrics():
     )
 
 
-# Include API routes
+# Include API routes - Unified API Façade
+# API v1 - Primary versioned API
+# app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])  # Temporarily disabled
+
+# Legacy API routes (for backward compatibility)
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
 app.include_router(hosts.router, prefix="/api/hosts", tags=["Host Management"])
@@ -423,6 +447,14 @@ app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Opera
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
 app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
+
+# Register security routes if available
+if automated_fixes:
+    app.include_router(automated_fixes.router, tags=["Secure Automated Fixes"])
+if authorization:
+    app.include_router(authorization.router, tags=["Authorization Management"])  
+if security_config:
+    app.include_router(security_config.router, tags=["Security Configuration"])
 
 
 # Global Exception Handler

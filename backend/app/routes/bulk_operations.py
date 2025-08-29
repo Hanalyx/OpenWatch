@@ -13,7 +13,7 @@ import ipaddress
 
 from ..database import get_db, Host
 from ..auth import get_current_user
-from ..rbac import require_role
+from ..rbac import require_role, UserRole
 from ..audit_db import log_security_event
 from ..services.csv_analyzer import CSVAnalyzer, FieldAnalysis, CSVAnalysis
 
@@ -95,7 +95,7 @@ class EnhancedImportRequest(BaseModel):
 
 
 @router.post("/hosts/bulk-import", response_model=BulkImportResult)
-@require_role(["super_admin", "security_admin"])
+@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
 async def bulk_import_hosts(
     request: BulkImportRequest,
     db: Session = Depends(get_db),
@@ -243,7 +243,7 @@ async def download_import_template():
 
 
 @router.get("/hosts/export-csv")
-@require_role(["super_admin", "security_admin", "security_analyst"])
+@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value, UserRole.SECURITY_ANALYST.value])
 async def export_hosts_csv(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user)
@@ -300,7 +300,7 @@ async def export_hosts_csv(
 
 # Enhanced CSV Import Endpoints
 @router.post("/hosts/analyze-csv", response_model=CSVAnalysisResponse)
-@require_role(["super_admin", "security_admin"])
+@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
 async def analyze_csv(
     file: UploadFile = File(...),
     current_user: Dict[str, Any] = Depends(get_current_user)
@@ -354,7 +354,7 @@ async def analyze_csv(
 
 
 @router.post("/hosts/import-with-mapping", response_model=BulkImportResult)
-@require_role(["super_admin", "security_admin"])
+@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
 async def import_with_mapping(
     request: EnhancedImportRequest,
     db: Session = Depends(get_db),
