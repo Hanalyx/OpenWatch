@@ -60,6 +60,15 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
 }) => {
   const theme = useTheme();
 
+  // Ensure activities is an array and filter out invalid entries
+  const safeActivities = Array.isArray(activities) ? activities.filter(activity => 
+    activity && 
+    activity.id && 
+    activity.type && 
+    activity.message && 
+    activity.timestamp
+  ) : [];
+
   const getIcon = (type: ActivityItem['type'], severity?: ActivityItem['severity']) => {
     switch (type) {
       case 'scan_completed':
@@ -89,7 +98,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     }
   };
 
-  const displayActivities = activities.slice(0, maxItems);
+  const displayActivities = safeActivities.slice(0, maxItems);
   
   // Group consecutive similar activities
   const groupedActivities = displayActivities.reduce((acc, activity, index) => {
@@ -183,12 +192,12 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
                   <ListItemText
                     primary={
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2">
+                        <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                           {isGrouped ? `${group.items.length} ${firstItem.type.replace('_', ' ')}s` : firstItem.message}
                         </Typography>
-                        {firstItem.metadata?.complianceScore !== undefined && (
+                        {firstItem.metadata?.complianceScore !== undefined && typeof firstItem.metadata.complianceScore === 'number' && (
                           <Chip
-                            label={`${firstItem.metadata.complianceScore}%`}
+                            label={`${Math.round(firstItem.metadata.complianceScore)}%`}
                             size="small"
                             color={firstItem.metadata.complianceScore >= 90 ? 'success' : 
                                    firstItem.metadata.complianceScore >= 70 ? 'warning' : 'error'}

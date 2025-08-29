@@ -22,5 +22,10 @@ export const store = configureStore({
   },
 });
 
+// Expose store globally for API service access
+if (typeof window !== 'undefined') {
+  (window as any).__REDUX_STORE__ = store;
+}
+
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

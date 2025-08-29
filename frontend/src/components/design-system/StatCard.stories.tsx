@@ -167,7 +167,7 @@ export const ColorVariations: Story = {
         value="85"
         subtitle="Secondary color theme"
         icon={<Security />}
-        color="secondary"
+        color="primary"
       />
       <StatCard
         title="Success"

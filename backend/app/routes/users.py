@@ -216,8 +216,8 @@ async def create_user(
         
         # Create user
         insert_result = db.execute(text("""
-            INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts)
-            VALUES (:username, :email, :password, :role, :is_active, CURRENT_TIMESTAMP, 0)
+            INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
+            VALUES (:username, :email, :password, :role, :is_active, CURRENT_TIMESTAMP, 0, false)
             RETURNING id, created_at
         """), {
             "username": user_data.username,

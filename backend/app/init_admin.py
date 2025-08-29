@@ -6,6 +6,7 @@ import os
 import sys
 from sqlalchemy import create_engine, text
 from passlib.context import CryptContext
+from rbac import UserRole
 
 # Database URL
 DATABASE_URL = os.getenv("OPENWATCH_DATABASE_URL", "postgresql://openwatch:OpenWatch2025@localhost:5432/openwatch")
@@ -33,9 +34,9 @@ def create_admin_user():
         # Create admin user
         hashed_password = pwd_context.hash("admin123")
         conn.execute(text("""
-            INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts)
-            VALUES ('admin', 'admin@example.com', :password, 'super_admin', true, CURRENT_TIMESTAMP, 0)
-        """), {"password": hashed_password})
+            INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
+            VALUES ('admin', 'admin@example.com', :password, :role, true, CURRENT_TIMESTAMP, 0, false)
+        """), {"password": hashed_password, "role": UserRole.SUPER_ADMIN.value})
         conn.commit()
         
         print("Admin user created successfully")

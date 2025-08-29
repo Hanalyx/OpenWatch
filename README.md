@@ -20,14 +20,16 @@ OpenWatch is a modern, open-source SCAP (Security Content Automation Protocol) c
 git clone https://github.com/hanalyx/openwatch.git
 cd openwatch
 
-# Start with owadm (recommended)
-make install
-owadm start
+# Quick start (automatic runtime detection)
+./start-podman.sh
 
 # Or use container compose directly
-podman-compose up -d  # Rootless (recommended)
+podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended)
 # OR
 docker-compose up -d  # Standard Docker
+
+# To stop services
+./stop-podman.sh
 ```
 
 ### First Scan
@@ -88,19 +90,58 @@ OpenWatch follows a modern, cloud-native architecture with plugin extensibility:
 ## 🛠️ Development
 
 ### Development Setup
+
+#### Required Environment Variables
+Before starting OpenWatch, you **must** configure these critical environment variables:
+
 ```bash
-# Backend development
+# 1. Copy the example environment file
+cp backend/.env.example backend/.env
+
+# 2. Generate secure keys
+SECRET_KEY=$(openssl rand -hex 32)
+MASTER_KEY=$(openssl rand -hex 32)
+
+# 3. Edit backend/.env with your values
+SECRET_KEY=your-generated-secret-key-here
+MASTER_KEY=your-generated-master-key-here
+DATABASE_URL=postgresql://openwatch:password@localhost:5432/openwatch
+```
+
+#### Backend Development
+```bash
 cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 
-# Frontend development  
+# Ensure environment variables are set
+export SECRET_KEY="your-secret-key"
+export MASTER_KEY="your-master-key"
+
+uvicorn app.main:app --reload --port 8000
+```
+
+#### Frontend Development  
+```bash
 cd frontend
 npm install
-npm run dev
+npm run dev  # Runs on port 3001
 ```
+
+#### Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SECRET_KEY` | **Yes** | None | JWT signing key (min 32 chars) |
+| `MASTER_KEY` | **Yes** | None | Data encryption key (min 32 chars) |
+| `DATABASE_URL` | **Yes** | None | PostgreSQL connection string |
+| `SCAP_CONTENT_DIR` | No | `/app/data/scap` | SCAP content files location |
+| `SCAN_RESULTS_DIR` | No | `/app/data/results` | Scan results storage location |
+| `OPENWATCH_DEBUG` | No | `false` | Enable debug mode |
+| `OPENWATCH_REQUIRE_HTTPS` | No | `true` | Enforce HTTPS connections |
+
+For complete environment configuration, see [`backend/.env.example`](backend/.env.example).
 
 ### Architecture Documentation
 - [Directory Structure](DIRECTORY_ARCHITECTURE.md) - Project organization and rationale

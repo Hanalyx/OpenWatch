@@ -35,14 +35,22 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({
 }) => {
   const theme = useTheme();
 
+  // Ensure data integrity
+  const safeData = {
+    online: Math.max(0, data?.online || 0),
+    offline: Math.max(0, data?.offline || 0),
+    scanning: Math.max(0, data?.scanning || 0),
+    maintenance: Math.max(0, data?.maintenance || 0)
+  };
+
   const chartData = [
-    { name: 'Online', value: data.online, color: theme.palette.success.main },
-    { name: 'Offline', value: data.offline, color: theme.palette.error.main },
-    { name: 'Scanning', value: data.scanning, color: theme.palette.info.main },
-    { name: 'Maintenance', value: data.maintenance, color: theme.palette.warning.main }
+    { name: 'Online', value: safeData.online, color: theme.palette.mode === 'dark' ? '#4caf50' : theme.palette.success.main },
+    { name: 'Offline', value: safeData.offline, color: theme.palette.mode === 'dark' ? '#f44336' : theme.palette.error.main },
+    { name: 'Scanning', value: safeData.scanning, color: theme.palette.mode === 'dark' ? '#2196f3' : theme.palette.info.main },
+    { name: 'Maintenance', value: safeData.maintenance, color: theme.palette.mode === 'dark' ? '#ff9800' : theme.palette.warning.main }
   ].filter(item => item.value > 0);
 
-  const totalHosts = data.online + data.offline + data.scanning + data.maintenance;
+  const totalHosts = safeData.online + safeData.offline + safeData.scanning + safeData.maintenance;
 
   const getIcon = (status: string) => {
     switch (status) {
@@ -88,54 +96,83 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({
           Fleet Health Overview
         </Typography>
         
-        <Box sx={{ height: 200, position: 'relative' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={2}
-                dataKey="value"
-                onClick={(data) => {
-                  if (onSegmentClick) {
-                    const statusMap: { [key: string]: keyof FleetHealthData } = {
-                      'Online': 'online',
-                      'Offline': 'offline',
-                      'Scanning': 'scanning',
-                      'Maintenance': 'maintenance'
-                    };
-                    onSegmentClick(statusMap[data.name]);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
+        <Box sx={{ 
+          height: 200, 
+          position: 'relative', 
+          backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.8) : 'transparent',
+          borderRadius: 1
+        }}>
+          {totalHosts > 0 ? (
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
+              <PieChart width={400} height={200}>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={75}
+                  paddingAngle={2}
+                  dataKey="value"
+                  onClick={(data) => {
+                    if (onSegmentClick) {
+                      const statusMap: { [key: string]: keyof FleetHealthData } = {
+                        'Online': 'online',
+                        'Offline': 'offline',
+                        'Scanning': 'scanning',
+                        'Maintenance': 'maintenance'
+                      };
+                      onSegmentClick(statusMap[data.name]);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                color: 'text.secondary',
+                textAlign: 'center'
+              }}
+            >
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  No hosts registered
+                </Typography>
+                <Typography variant="body2">
+                  Add hosts to see fleet health overview
+                </Typography>
+              </Box>
+            </Box>
+          )}
           
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center'
-            }}
-          >
-            <Typography variant="h4" fontWeight="bold">
-              {totalHosts}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Total Hosts
-            </Typography>
-          </Box>
+          {totalHosts > 0 && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center'
+              }}
+            >
+              <Typography variant="h4" fontWeight="bold">
+                {totalHosts}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Total Hosts
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>

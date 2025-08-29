@@ -1,4 +1,4 @@
-# OpenWatch - Podman Compose for Rootless Container Orchestration
+# OpenWatch - Production Podman Compose (Full Security & FIPS Compliance)
 version: '3.8'
 
 services:

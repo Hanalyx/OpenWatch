@@ -203,10 +203,10 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     const { renderTime, interactionTime, frameRate, memoryUsage } = metrics;
     
     const summary = {
-      renderPerformance: renderTime <= thresholds.renderTime ? 'good' : 'poor',
-      interactionPerformance: interactionTime <= thresholds.interactionTime ? 'good' : 'poor',
-      frameRatePerformance: frameRate >= thresholds.frameRate ? 'good' : 'poor',
-      memoryPerformance: memoryUsage <= thresholds.memoryUsage ? 'good' : 'poor',
+      renderPerformance: renderTime <= (thresholds.renderTime || 100) ? 'good' : 'poor',
+      interactionPerformance: interactionTime <= (thresholds.interactionTime || 100) ? 'good' : 'poor',
+      frameRatePerformance: frameRate >= (thresholds.frameRate || 30) ? 'good' : 'poor',
+      memoryPerformance: memoryUsage <= (thresholds.memoryUsage || 100) ? 'good' : 'poor',
       overallScore: 0,
     };
 

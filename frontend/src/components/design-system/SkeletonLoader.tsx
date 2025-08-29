@@ -93,7 +93,7 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
   const renderSkeleton = () => {
     const baseProps = {
-      animation: animation === 'pulse' ? 'pulse' : false,
+      animation: animation === 'pulse' ? 'pulse' as const : false as const,
       sx: {
         borderRadius: theme.shape.borderRadius,
         ...getAnimationStyle(),
@@ -111,9 +111,9 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
               backgroundColor: theme.palette.background.paper,
             }}
           >
-            <Skeleton variant="rectangular" height={20} width="60%" sx={{ mb: 2 }} {...baseProps} />
-            <Skeleton variant="rectangular" height={16} width="100%" sx={{ mb: 1 }} {...baseProps} />
-            <Skeleton variant="rectangular" height={16} width="80%" sx={{ mb: 1 }} {...baseProps} />
+            <Skeleton variant="rectangular" height={20} width="60%" {...baseProps} sx={{ mb: 2, ...baseProps.sx }} />
+            <Skeleton variant="rectangular" height={16} width="100%" {...baseProps} sx={{ mb: 1, ...baseProps.sx }} />
+            <Skeleton variant="rectangular" height={16} width="80%" {...baseProps} sx={{ mb: 1, ...baseProps.sx }} />
             <Skeleton variant="rectangular" height={16} width="90%" {...baseProps} />
           </Box>
         );
@@ -155,9 +155,9 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
           <Box>
             {[1, 2, 3, 4].map((item) => (
               <Box key={item} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Skeleton variant="circular" width={40} height={40} sx={{ mr: 2 }} {...baseProps} />
+                <Skeleton variant="circular" width={40} height={40} {...baseProps} sx={{ mr: 2, ...baseProps.sx }} />
                 <Box sx={{ flexGrow: 1 }}>
-                  <Skeleton variant="rectangular" height={16} width="70%" sx={{ mb: 1 }} {...baseProps} />
+                  <Skeleton variant="rectangular" height={16} width="70%" {...baseProps} sx={{ mb: 1, ...baseProps.sx }} />
                   <Skeleton variant="rectangular" height={12} width="50%" {...baseProps} />
                 </Box>
                 <Skeleton variant="rectangular" height={20} width={60} {...baseProps} />
@@ -171,7 +171,7 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
           <Box>
             {/* Header */}
             <Box sx={{ mb: 4 }}>
-              <Skeleton variant="rectangular" height={32} width="40%" sx={{ mb: 2 }} {...baseProps} />
+              <Skeleton variant="rectangular" height={32} width="40%" {...baseProps} sx={{ mb: 2, ...baseProps.sx }} />
               <Skeleton variant="rectangular" height={20} width="60%" {...baseProps} />
             </Box>
             {/* Stats Grid */}
@@ -188,9 +188,9 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
                         textAlign: 'center',
                       }}
                     >
-                      <Skeleton variant="circular" width={48} height={48} sx={{ mx: 'auto', mb: 2 }} {...baseProps} />
-                      <Skeleton variant="rectangular" height={24} width="80%" sx={{ mx: 'auto', mb: 1 }} {...baseProps} />
-                      <Skeleton variant="rectangular" height={16} width="60%" sx={{ mx: 'auto' }} {...baseProps} />
+                      <Skeleton variant="circular" width={48} height={48} {...baseProps} sx={{ mx: 'auto', mb: 2, ...baseProps.sx }} />
+                      <Skeleton variant="rectangular" height={24} width="80%" {...baseProps} sx={{ mx: 'auto', mb: 1, ...baseProps.sx }} />
+                      <Skeleton variant="rectangular" height={16} width="60%" {...baseProps} sx={{ mx: 'auto', ...baseProps.sx }} />
                     </Box>
                   </Grid>
                 ))}

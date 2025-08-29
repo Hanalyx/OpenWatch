@@ -122,6 +122,7 @@ const Login: React.FC = () => {
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
             Intelligent Compliance Automation
           </Typography>
+          
 
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>

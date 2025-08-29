@@ -71,6 +71,7 @@ import {
   Speed as SpeedIcon,
   CleaningServices as CleaningServicesIcon,
 } from '@mui/icons-material';
+import { api } from '../../services/api';
 
 // Enhanced interfaces for enterprise SCAP management
 interface SCAPContent {
@@ -242,24 +243,10 @@ const ScapContentEnhanced: React.FC = () => {
   const fetchScapContent = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/scap-content/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setScapContent(data.scap_content || []);
-      } else {
-        showSnackbar('Failed to load content', 'error');
-        // Fallback to mock data for demo
-        setScapContent(mockContent);
-      }
+      const data = await api.get('/api/scap-content/');
+      setScapContent(data.scap_content || []);
     } catch (error) {
       showSnackbar('Failed to load SCAP content', 'error');
-      // Fallback to mock data for demo
-      setScapContent(mockContent);
     } finally {
       setLoading(false);
     }
@@ -294,21 +281,9 @@ const ScapContentEnhanced: React.FC = () => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const response = await fetch('/api/scap-content/repositories/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer demo-token',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        showSnackbar('Repository sync completed successfully', 'success');
-        fetchScapContent();
-      } else {
-        const error = await response.json();
-        showSnackbar(error.detail || 'Sync failed. Please check repository connections.', 'error');
-      }
+      await api.post('/api/scap-content/repositories/sync');
+      showSnackbar('Repository sync completed successfully', 'success');
+      fetchScapContent();
     } catch (error) {
       showSnackbar('Network error during sync. Please check your connection.', 'error');
     } finally {
@@ -596,6 +571,7 @@ const ScapContentEnhanced: React.FC = () => {
                                         />
                                       </Box>
                                     }
+                                    primaryTypographyProps={{ component: 'div' }}
                                     secondary={
                                       <Box>
                                         <Typography variant="caption" color="text.secondary">
@@ -609,6 +585,7 @@ const ScapContentEnhanced: React.FC = () => {
                                         </Typography>
                                       </Box>
                                     }
+                                    secondaryTypographyProps={{ component: 'div' }}
                                   />
                                   <ListItemSecondaryAction>
                                     <IconButton
@@ -688,8 +665,42 @@ const ScapContentEnhanced: React.FC = () => {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  console.log('File selected:', { name: file.name, size: file.size, type: file.type });
+                  
+                  // Validate file type
+                  const allowedExtensions = ['.xml', '.zip'];
+                  const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
+                  if (!allowedExtensions.includes(fileExt)) {
+                    showSnackbar(`Invalid file type. Please select ${allowedExtensions.join(' or ')} files only.`, 'error');
+                    return;
+                  }
+                  
+                  // Validate file size (max 100MB)
+                  const maxSize = 100 * 1024 * 1024; // 100MB
+                  if (file.size > maxSize) {
+                    showSnackbar('File size exceeds 100MB limit.', 'error');
+                    return;
+                  }
+                  
                   setUploadFile(file);
                   setUploadName(file.name.replace(/\.[^/.]+$/, ""));
+                  
+                  // Auto-detect OS family from filename if possible
+                  const fileName = file.name.toLowerCase();
+                  if (fileName.includes('rhel') || fileName.includes('redhat')) {
+                    setSelectedOsFamily('rhel');
+                  } else if (fileName.includes('ubuntu')) {
+                    setSelectedOsFamily('ubuntu');
+                  } else if (fileName.includes('debian')) {
+                    setSelectedOsFamily('debian');
+                  } else if (fileName.includes('centos')) {
+                    setSelectedOsFamily('centos');
+                  } else if (fileName.includes('suse')) {
+                    setSelectedOsFamily('suse');
+                  }
+                } else {
+                  setUploadFile(null);
+                  setUploadName('');
                 }
               }}
             />
@@ -763,41 +774,68 @@ const ScapContentEnhanced: React.FC = () => {
           </Button>
           <Button 
             onClick={async () => {
-              if (!uploadFile || !uploadName.trim()) {
-                showSnackbar('Please select a file and provide a name', 'error');
+              console.log('Upload button clicked', { 
+                uploadFile: uploadFile?.name, 
+                uploadName: uploadName.trim(),
+                hasFile: !!uploadFile,
+                hasName: !!uploadName.trim()
+              });
+              
+              if (!uploadFile) {
+                showSnackbar('Please select a file to upload', 'error');
+                return;
+              }
+              
+              if (!uploadName.trim()) {
+                showSnackbar('Please provide a name for the content', 'error');
                 return;
               }
 
               try {
                 setUploading(true);
+                console.log('Starting SCAP content upload...', { 
+                  fileName: uploadFile.name, 
+                  name: uploadName.trim(),
+                  description: uploadDescription.trim()
+                });
 
                 const formData = new FormData();
                 formData.append('file', uploadFile);
                 formData.append('name', uploadName.trim());
                 formData.append('description', uploadDescription.trim());
 
-                const response = await fetch('/api/scap-content/upload', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': 'Bearer demo-token'
-                  },
-                  body: formData
-                });
-
-                if (response.ok) {
-                  const result = await response.json();
-                  showSnackbar(`Content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
-                  setUploadDialogOpen(false);
-                  setUploadFile(null);
-                  setUploadName('');
-                  setUploadDescription('');
-                  fetchScapContent();
-                } else {
-                  const error = await response.json();
-                  showSnackbar(error.detail || 'Upload failed', 'error');
+                // The api.post method already returns the response data directly
+                const result = await api.post('/api/scap-content/upload', formData);
+                
+                console.log('Upload successful:', result);
+                showSnackbar(`Content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
+                
+                // Reset form and close dialog
+                setUploadDialogOpen(false);
+                setUploadFile(null);
+                setUploadName('');
+                setUploadDescription('');
+                setSelectedOsFamily('');
+                
+                // Refresh content list
+                fetchScapContent();
+              } catch (error: any) {
+                console.error('Upload error:', error);
+                let errorMessage = 'Failed to upload SCAP content';
+                
+                // Handle different error types
+                if (error.response?.data?.detail) {
+                  errorMessage = error.response.data.detail;
+                } else if (error.response) {
+                  // HTTP error response
+                  errorMessage = `Upload failed: ${error.response.status} ${error.response.statusText}`;
+                } else if (error.isNetworkError) {
+                  errorMessage = 'Network error during upload. Please check your connection.';
+                } else if (error.message) {
+                  errorMessage = error.message;
                 }
-              } catch (error) {
-                showSnackbar('Network error during upload', 'error');
+                
+                showSnackbar(errorMessage, 'error');
               } finally {
                 setUploading(false);
               }
@@ -848,6 +886,7 @@ const ScapContentEnhanced: React.FC = () => {
                       </Typography>
                     </Box>
                   }
+                  secondaryTypographyProps={{ component: 'div' }}
                 />
                 <ListItemSecondaryAction>
                   <Switch

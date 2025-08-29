@@ -36,8 +36,13 @@ import {
   MoreVert as MoreVertIcon,
   Description as DescriptionIcon,
   Security as SecurityIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon
 } from '@mui/icons-material';
+import { api } from '../../services/api';
+import ErrorClassificationDisplay, { ClassifiedError } from '../../components/errors/ErrorClassificationDisplay';
+import { errorService } from '../../services/errorService';
 
 interface ScapContent {
   id: number;
@@ -69,6 +74,7 @@ const ScapContent: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedContent, setSelectedContent] = useState<ScapContent | null>(null);
+  const [uploadError, setUploadError] = useState<ClassifiedError | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -86,20 +92,11 @@ const ScapContent: React.FC = () => {
   const fetchScapContent = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/scap-content/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setScapContent(data.scap_content || []);
-      } else {
-        showSnackbar('Failed to load SCAP content', 'error');
-      }
-    } catch (error) {
-      showSnackbar('Network error loading SCAP content', 'error');
+      const data = await api.get('/api/scap-content/');
+      setScapContent(data.scap_content || []);
+    } catch (error: any) {
+      console.error('Failed to load SCAP content:', error);
+      showSnackbar(errorService.getUserFriendlyError(error), 'error');
     } finally {
       setLoading(false);
     }
@@ -139,40 +136,79 @@ const ScapContent: React.FC = () => {
       return;
     }
 
+    // Clear any previous upload error
+    setUploadError(null);
+
     try {
       setUploading(true);
       setUploadProgress(0);
 
+      // Create FormData manually since we need to append additional fields
       const formData = new FormData();
       formData.append('file', uploadFile);
       formData.append('name', uploadName.trim());
       formData.append('description', uploadDescription.trim());
 
-      const response = await fetch('/api/scap-content/upload', {
-        method: 'POST',
+      const result = await api.post('/api/scap-content/upload', formData, {
         headers: {
-          'Authorization': 'Bearer demo-token'
+          'Content-Type': 'multipart/form-data',
         },
-        body: formData
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        showSnackbar(`SCAP content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
-        setUploadDialogOpen(false);
-        setUploadFile(null);
-        setUploadName('');
-        setUploadDescription('');
-        fetchScapContent();
+      
+      showSnackbar(`SCAP content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
+      setUploadDialogOpen(false);
+      setUploadFile(null);
+      setUploadName('');
+      setUploadDescription('');
+      setUploadError(null);
+      fetchScapContent();
+    } catch (error: any) {
+      console.error('SCAP upload failed:', error);
+      
+      // Classify the upload error for better user guidance
+      const classification = errorService.getErrorClassification(error);
+      if (classification) {
+        setUploadError(classification);
       } else {
-        const error = await response.json();
-        showSnackbar(error.detail || 'Upload failed', 'error');
+        // Create a specialized upload error
+        setUploadError({
+          error_code: 'UPLOAD_001',
+          category: 'content',
+          severity: 'error',
+          message: 'SCAP content upload failed',
+          user_guidance: errorService.getUserFriendlyError(error),
+          technical_details: {
+            filename: uploadFile.name,
+            filesize: uploadFile.size,
+            error: error.message
+          },
+          automated_fixes: [
+            {
+              fix_id: 'retry_upload',
+              description: 'Retry upload',
+              requires_sudo: false,
+              estimated_time: 30,
+              is_safe: true
+            }
+          ],
+          can_retry: true,
+          timestamp: new Date().toISOString()
+        });
       }
-    } catch (error) {
-      showSnackbar('Network error during upload', 'error');
     } finally {
       setUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleUploadRetry = async () => {
+    setUploadError(null);
+    await handleUpload();
+  };
+
+  const handleApplyUploadFix = async (fixId: string) => {
+    if (fixId === 'retry_upload') {
+      await handleUploadRetry();
     }
   };
 
@@ -191,26 +227,20 @@ const ScapContent: React.FC = () => {
     if (!selectedContent) return;
     
     try {
-      const response = await fetch(`/api/scap-content/${selectedContent.id}/download`, {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
+      const response = await api.get(`/api/scap-content/${selectedContent.id}/download`, {
+        responseType: 'blob'
       });
       
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = selectedContent.filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        showSnackbar('Download started', 'success');
-      } else {
-        showSnackbar('Download failed', 'error');
-      }
+      const blob = response;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = selectedContent.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showSnackbar('Download started', 'success');
     } catch (error) {
       showSnackbar('Network error during download', 'error');
     }
@@ -226,20 +256,9 @@ const ScapContent: React.FC = () => {
     }
     
     try {
-      const response = await fetch(`/api/scap-content/${selectedContent.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        showSnackbar('SCAP content deleted successfully', 'success');
-        fetchScapContent();
-      } else {
-        const error = await response.json();
-        showSnackbar(error.detail || 'Delete failed', 'error');
-      }
+      await api.delete(`/api/scap-content/${selectedContent.id}`);
+      showSnackbar('SCAP content deleted successfully', 'success');
+      fetchScapContent();
     } catch (error) {
       showSnackbar('Network error during deletion', 'error');
     }
@@ -426,6 +445,19 @@ const ScapContent: React.FC = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   Uploading and validating content...
                 </Typography>
+              </Box>
+            )}
+
+            {/* Upload Error Display */}
+            {uploadError && (
+              <Box sx={{ mt: 2 }}>
+                <ErrorClassificationDisplay
+                  error={uploadError}
+                  onRetry={handleUploadRetry}
+                  onApplyFix={handleApplyUploadFix}
+                  compact={true}
+                  data-testid="upload-error"
+                />
               </Box>
             )}
           </Box>

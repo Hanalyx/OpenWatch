@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenWatch Token Refresh UI Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .test-container { 
+            background: white; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-weight: bold; 
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 4px; 
+            overflow-x: auto; 
+            font-size: 12px; 
+        }
+        .token-display { 
+            word-break: break-all; 
+            font-family: monospace; 
+            font-size: 10px; 
+            max-height: 100px; 
+            overflow-y: auto; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 OpenWatch Token Refresh UI Test</h1>
+    <p>This test validates the token refresh functionality that Daniel fixed by updating CORS to allow localhost:3001</p>
+
+    <div class="test-container">
+        <h2>Step 1: Login Test</h2>
+        <button onclick="testLogin()">Test Login</button>
+        <div id="login-status"></div>
+        <div id="token-display" class="token-display"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Step 2: Token Refresh Test</h2>
+        <button onclick="testTokenRefresh()" disabled id="refresh-btn">Test Token Refresh</button>
+        <div id="refresh-status"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Step 3: Content Loading Test</h2>
+        <button onclick="testContentLoading()" disabled id="content-btn">Test Content Loading</button>
+        <div id="content-status"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Step 4: Session Extension Simulation</h2>
+        <button onclick="testSessionExtension()" disabled id="session-btn">Simulate Session Extension</button>
+        <div id="session-status"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results Summary</h2>
+        <div id="summary-status"></div>
+    </div>
+
+    <script>
+        let currentTokens = null;
+        const testResults = {};
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function enableButton(buttonId) {
+            document.getElementById(buttonId).disabled = false;
+        }
+
+        async function testLogin() {
+            updateStatus('login-status', '🔄 Testing login...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentTokens = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token
+                    };
+                    
+                    // Store in localStorage like the real app
+                    localStorage.setItem('auth_token', data.access_token);
+                    
+                    updateStatus('login-status', 
+                        `✅ Login successful! Token expires in ${data.expires_in} seconds`, 
+                        'success'
+                    );
+                    
+                    document.getElementById('token-display').innerHTML = 
+                        `<strong>Access Token:</strong><br><div class="token-display">${data.access_token}</div>` +
+                        `<br><strong>Refresh Token:</strong><br><div class="token-display">${data.refresh_token}</div>`;
+                    
+                    testResults.login = true;
+                    enableButton('refresh-btn');
+                    enableButton('content-btn');
+                    enableButton('session-btn');
+                    
+                } else {
+                    const errorText = await response.text();
+                    updateStatus('login-status', 
+                        `❌ Login failed: ${response.status} - ${errorText}`, 
+                        'error'
+                    );
+                    testResults.login = false;
+                }
+            } catch (error) {
+                updateStatus('login-status', 
+                    `❌ Login error: ${error.message}`, 
+                    'error'
+                );
+                testResults.login = false;
+            }
+        }
+
+        async function testTokenRefresh() {
+            if (!currentTokens) {
+                updateStatus('refresh-status', '❌ No tokens available - login first', 'error');
+                return;
+            }
+
+            updateStatus('refresh-status', '🔄 Testing token refresh...', 'info');
+            
+            try {
+                const response = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        refresh_token: currentTokens.refresh_token
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update current tokens
+                    currentTokens.access_token = data.access_token;
+                    localStorage.setItem('auth_token', data.access_token);
+                    
+                    updateStatus('refresh-status', 
+                        `✅ Token refresh successful! New token expires in ${data.expires_in} seconds`, 
+                        'success'
+                    );
+                    testResults.tokenRefresh = true;
+                    
+                } else {
+                    const errorText = await response.text();
+                    updateStatus('refresh-status', 
+                        `❌ Token refresh failed: ${response.status} - ${errorText}`, 
+                        'error'
+                    );
+                    testResults.tokenRefresh = false;
+                }
+            } catch (error) {
+                updateStatus('refresh-status', 
+                    `❌ Token refresh error: ${error.message}`, 
+                    'error'
+                );
+                testResults.tokenRefresh = false;
+            }
+        }
+
+        async function testContentLoading() {
+            if (!currentTokens) {
+                updateStatus('content-status', '❌ No tokens available - login first', 'error');
+                return;
+            }
+
+            updateStatus('content-status', '🔄 Testing content loading...', 'info');
+            
+            try {
+                // Test with user profile endpoint since it's more reliable
+                const response = await fetch('/api/auth/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentTokens.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus('content-status', 
+                        `✅ Content loading successful! User: ${data.username || 'admin'}`, 
+                        'success'
+                    );
+                    testResults.contentLoading = true;
+                    
+                } else if (response.status === 401) {
+                    updateStatus('content-status', 
+                        '⚠️ Got 401 - Token may be expired, trying refresh...', 
+                        'warning'
+                    );
+                    
+                    // Try to refresh and retry
+                    await testTokenRefresh();
+                    if (testResults.tokenRefresh) {
+                        setTimeout(() => testContentLoading(), 1000);
+                    }
+                    
+                } else {
+                    const errorText = await response.text();
+                    updateStatus('content-status', 
+                        `❌ Content loading failed: ${response.status} - ${errorText}`, 
+                        'error'
+                    );
+                    testResults.contentLoading = false;
+                }
+            } catch (error) {
+                updateStatus('content-status', 
+                    `❌ Content loading error: ${error.message}`, 
+                    'error'
+                );
+                testResults.contentLoading = false;
+            }
+        }
+
+        async function testSessionExtension() {
+            updateStatus('session-status', '🔄 Simulating session extension workflow...', 'info');
+            
+            let stepResults = [];
+            
+            // Step 1: Make authenticated request
+            try {
+                const response1 = await fetch('/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${currentTokens.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response1.ok) {
+                    stepResults.push('✅ Initial authenticated request successful');
+                } else {
+                    stepResults.push(`❌ Initial request failed: ${response1.status}`);
+                }
+                
+            } catch (error) {
+                stepResults.push(`❌ Initial request error: ${error.message}`);
+            }
+            
+            // Step 2: Refresh token (simulating SessionManager)
+            try {
+                const refreshResponse = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: currentTokens.refresh_token })
+                });
+                
+                if (refreshResponse.ok) {
+                    const refreshData = await refreshResponse.json();
+                    currentTokens.access_token = refreshData.access_token;
+                    stepResults.push('✅ Session extension (token refresh) successful');
+                } else {
+                    stepResults.push(`❌ Session extension failed: ${refreshResponse.status}`);
+                }
+                
+            } catch (error) {
+                stepResults.push(`❌ Session extension error: ${error.message}`);
+            }
+            
+            // Step 3: Make request with refreshed token
+            try {
+                const response2 = await fetch('/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${currentTokens.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response2.ok) {
+                    stepResults.push('✅ Request with refreshed token successful');
+                    testResults.sessionExtension = true;
+                } else {
+                    stepResults.push(`❌ Post-refresh request failed: ${response2.status}`);
+                    testResults.sessionExtension = false;
+                }
+                
+            } catch (error) {
+                stepResults.push(`❌ Post-refresh request error: ${error.message}`);
+                testResults.sessionExtension = false;
+            }
+            
+            updateStatus('session-status', 
+                stepResults.join('<br>'), 
+                testResults.sessionExtension ? 'success' : 'error'
+            );
+            
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const tests = [
+                { name: 'Login', key: 'login' },
+                { name: 'Token Refresh', key: 'tokenRefresh' },
+                { name: 'Content Loading', key: 'contentLoading' },
+                { name: 'Session Extension', key: 'sessionExtension' }
+            ];
+            
+            let summary = '<h3>Test Results:</h3><ul>';
+            let allPassed = true;
+            
+            tests.forEach(test => {
+                const status = testResults[test.key];
+                const icon = status === true ? '✅' : status === false ? '❌' : '⏸️';
+                summary += `<li>${icon} ${test.name}</li>`;
+                if (status !== true) allPassed = false;
+            });
+            
+            summary += '</ul>';
+            
+            if (allPassed && Object.keys(testResults).length === tests.length) {
+                summary += '<div class="status success"><strong>🎉 ALL TESTS PASSED!</strong><br>' +
+                          'Daniel\'s CORS fix has successfully resolved the 422 token refresh errors.<br>' +
+                          'Users can now extend their sessions without "Failed to refresh token" errors.</div>';
+            } else if (Object.keys(testResults).length > 0) {
+                summary += '<div class="status warning">Some tests are still pending or failed. See details above.</div>';
+            }
+            
+            document.getElementById('summary-status').innerHTML = summary;
+        }
+
+        // Update summary on page load
+        updateSummary();
+    </script>
+</body>
+</html>

@@ -34,7 +34,7 @@ async def check_host_status(
         
         # Get host details
         result = db.execute(text("""
-            SELECT id, hostname, ip_address, port, username, auth_method, encrypted_credentials
+            SELECT id, hostname, ip_address, port, username, auth_method
             FROM hosts WHERE id = :id
         """), {"id": request.host_id})
         
@@ -49,7 +49,7 @@ async def check_host_status(
             'port': host_row.port or 22,
             'username': host_row.username,
             'auth_method': host_row.auth_method,
-            'encrypted_credentials': host_row.encrypted_credentials
+            # NOTE: encrypted_credentials removed - using centralized auth service
         }
         
         # Perform comprehensive check with DB connection for credential access

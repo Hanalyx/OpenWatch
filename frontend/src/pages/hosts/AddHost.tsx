@@ -82,6 +82,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { StatCard, StatusChip, SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import { api } from '../../services/api';
 
 const AddHost: React.FC = () => {
   const theme = useTheme();
@@ -92,6 +93,7 @@ const AddHost: React.FC = () => {
   const [quickMode, setQuickMode] = useState(true);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [connectionTestResults, setConnectionTestResults] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -200,11 +202,55 @@ const AddHost: React.FC = () => {
     setTestingConnection(true);
     setConnectionStatus('testing');
     
-    // Simulate connection test
-    setTimeout(() => {
+    try {
+      // Prepare test connection data
+      const testData = {
+        hostname: formData.hostname || formData.ipAddress,
+        port: parseInt(formData.port) || 22,
+        username: formData.username,
+        auth_method: formData.authMethod,
+        password: formData.authMethod === 'password' ? formData.password : undefined,
+        ssh_key: formData.authMethod === 'ssh-key' ? formData.sshKey : undefined,
+        timeout: 30
+      };
+
+      console.log('Testing connection to:', testData.hostname);
+      
+      // Make API call to test connection
+      const result = await api.post('/api/hosts/test-connection', testData);
+      
       setTestingConnection(false);
       setConnectionStatus('success');
-    }, 2000);
+      
+      // Store the actual results for display
+      setConnectionTestResults({
+        success: true,
+        networkConnectivity: result.network_reachable || true,
+        authentication: result.auth_successful || true,
+        detectedOS: result.detected_os || 'Unknown',
+        detectedVersion: result.os_version || '',
+        responseTime: result.response_time_ms || 0,
+        sshVersion: result.ssh_version || '',
+        additionalInfo: result.additional_info || ''
+      });
+      
+    } catch (error: any) {
+      console.error('Connection test failed:', error);
+      setTestingConnection(false);
+      setConnectionStatus('failed');
+      
+      // Store error details for display
+      setConnectionTestResults({
+        success: false,
+        error: error.response?.data?.detail || error.message || 'Connection test failed',
+        errorCode: error.response?.status || 0,
+        networkConnectivity: false,
+        authentication: false,
+        detectedOS: '',
+        detectedVersion: '',
+        responseTime: 0
+      });
+    }
   };
 
   const handleSubmit = async () => {
@@ -226,39 +272,9 @@ const AddHost: React.FC = () => {
       console.log('Submitting host to API:', hostData);
       
       // Make API call to create host
-      const response = await fetch('/api/hosts/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Note: In production, you'd include auth token here
-          'Authorization': 'Bearer demo-token'
-        },
-        body: JSON.stringify(hostData)
-      });
-
-      if (response.ok) {
-        try {
-          const newHost = await response.json();
-          console.log('Host created successfully:', newHost);
-        } catch (jsonError) {
-          console.log('Host created but no JSON response');
-        }
-        navigate('/hosts');
-      } else {
-        try {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.indexOf("application/json") !== -1) {
-            const error = await response.json();
-            console.error('Failed to create host:', error);
-          } else {
-            console.error('Failed to create host: Non-JSON response');
-          }
-        } catch (parseError) {
-          console.error('Failed to create host: Could not parse error response');
-        }
-        // Still navigate to hosts page even on error
-        navigate('/hosts');
-      }
+      const newHost = await api.post('/api/hosts/', hostData);
+      console.log('Host created successfully:', newHost);
+      navigate('/hosts');
     } catch (error) {
       console.error('Error submitting host:', error);
       // Fallback - still navigate for demo purposes
@@ -427,7 +443,7 @@ const AddHost: React.FC = () => {
               variant="outlined"
               onClick={handleTestConnection}
               startIcon={testingConnection ? <LinearProgress /> : <NetworkCheck />}
-              disabled={testingConnection || !formData.hostname}
+              disabled={testingConnection || !formData.hostname || !formData.username}
             >
               Test Connection
             </Button>
@@ -453,11 +469,47 @@ const AddHost: React.FC = () => {
                 {connectionStatus === 'success' && 'Connection Successful'}
                 {connectionStatus === 'failed' && 'Connection Failed'}
               </AlertTitle>
-              {connectionStatus === 'success' && (
+              {connectionStatus === 'success' && connectionTestResults?.success && (
                 <Box>
-                  <Typography variant="body2">✓ Network connectivity verified</Typography>
-                  <Typography variant="body2">✓ Authentication successful</Typography>
-                  <Typography variant="body2">✓ Detected: Ubuntu 22.04 LTS</Typography>
+                  <Typography variant="body2">
+                    {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity verified
+                    {connectionTestResults.responseTime > 0 && ` (${connectionTestResults.responseTime}ms)`}
+                  </Typography>
+                  <Typography variant="body2">
+                    {connectionTestResults.authentication ? '✓' : '✗'} Authentication successful
+                  </Typography>
+                  <Typography variant="body2">
+                    ✓ Detected: {connectionTestResults.detectedOS}
+                    {connectionTestResults.detectedVersion && ` ${connectionTestResults.detectedVersion}`}
+                  </Typography>
+                  {connectionTestResults.sshVersion && (
+                    <Typography variant="body2">
+                      ✓ SSH Version: {connectionTestResults.sshVersion}
+                    </Typography>
+                  )}
+                  {connectionTestResults.additionalInfo && (
+                    <Typography variant="body2" color="text.secondary">
+                      {connectionTestResults.additionalInfo}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+              {connectionStatus === 'failed' && connectionTestResults && !connectionTestResults.success && (
+                <Box>
+                  <Typography variant="body2" color="error">
+                    Connection failed: {connectionTestResults.error}
+                  </Typography>
+                  {connectionTestResults.errorCode && (
+                    <Typography variant="body2" color="text.secondary">
+                      Error code: {connectionTestResults.errorCode}
+                    </Typography>
+                  )}
+                  <Typography variant="body2">
+                    {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity
+                  </Typography>
+                  <Typography variant="body2">
+                    {connectionTestResults.authentication ? '✓' : '✗'} Authentication
+                  </Typography>
                 </Box>
               )}
             </Alert>

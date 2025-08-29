@@ -26,9 +26,9 @@ import {
   Menu as MenuIcon,
   Dashboard,
   Computer,
+  Group,
   FolderOpen,
   Scanner,
-  Assessment,
   People,
   Security,
   Settings,
@@ -41,6 +41,11 @@ import {
   LightMode,
   CloudSync,
   Psychology,
+  OpenInNew,
+  Launch,
+  Download,
+  ContentCopy,
+  BookmarkAdd,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
@@ -61,6 +66,12 @@ const menuItems = [
     icon: <Computer />, 
     path: '/hosts', 
     roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest'] 
+  },
+  { 
+    text: 'Host Groups', 
+    icon: <Group />, 
+    path: '/host-groups', 
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'] 
   },
   { 
     text: 'Content', 
@@ -107,6 +118,10 @@ const Layout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true); // Desktop drawer state
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  
+  // Context menu state
+  const [contextMenuAnchor, setContextMenuAnchor] = useState<{ mouseX: number; mouseY: number } | null>(null);
+  const [contextMenuItem, setContextMenuItem] = useState<typeof menuItems[0] | null>(null);
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -134,6 +149,99 @@ const Layout: React.FC = () => {
   const handleLogout = async () => {
     await dispatch(logout());
     navigate('/login');
+  };
+
+  // Context menu handlers
+  const handleContextMenu = (event: React.MouseEvent, item: typeof menuItems[0]) => {
+    event.preventDefault();
+    setContextMenuItem(item);
+    setContextMenuAnchor({
+      mouseX: event.clientX - 2,
+      mouseY: event.clientY - 4,
+    });
+  };
+
+  const handleContextMenuClose = () => {
+    setContextMenuAnchor(null);
+    setContextMenuItem(null);
+  };
+
+  const handleOpenInNewTab = () => {
+    if (contextMenuItem) {
+      const baseUrl = window.location.origin;
+      const fullUrl = `${baseUrl}${contextMenuItem.path}`;
+      window.open(fullUrl, '_blank');
+    }
+    handleContextMenuClose();
+  };
+
+  const handleOpenInNewWindow = () => {
+    if (contextMenuItem) {
+      const baseUrl = window.location.origin;
+      const fullUrl = `${baseUrl}${contextMenuItem.path}`;
+      window.open(fullUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    }
+    handleContextMenuClose();
+  };
+
+  const handleCopyLinkAddress = async () => {
+    if (contextMenuItem) {
+      const baseUrl = window.location.origin;
+      const fullUrl = `${baseUrl}${contextMenuItem.path}`;
+      
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        // You could add a toast notification here for feedback
+        console.log('Link copied to clipboard:', fullUrl);
+      } catch (err) {
+        console.error('Failed to copy link to clipboard:', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = fullUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+    }
+    handleContextMenuClose();
+  };
+
+  const handleSaveLinkAs = () => {
+    if (contextMenuItem) {
+      const baseUrl = window.location.origin;
+      const fullUrl = `${baseUrl}${contextMenuItem.path}`;
+      
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a');
+      link.href = fullUrl;
+      link.download = `${contextMenuItem.text.toLowerCase().replace(/\s+/g, '-')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    handleContextMenuClose();
+  };
+
+  const handleBookmarkLink = () => {
+    if (contextMenuItem) {
+      const baseUrl = window.location.origin;
+      const fullUrl = `${baseUrl}${contextMenuItem.path}`;
+      
+      // For modern browsers that support the Bookmarks API
+      if ('external' in window && 'AddSearchProvider' in (window as any).external) {
+        try {
+          (window as any).external.AddFavorite(fullUrl, contextMenuItem.text);
+        } catch (err) {
+          // Fallback: show instruction to user
+          alert(`To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`);
+        }
+      } else {
+        // Show instruction for manual bookmarking
+        alert(`To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`);
+      }
+    }
+    handleContextMenuClose();
   };
 
   const drawer = (
@@ -178,6 +286,7 @@ const Layout: React.FC = () => {
             <ListItemButton
               selected={isSelected}
               onClick={() => handleMenuClick(item.path)}
+              onContextMenu={(event) => handleContextMenu(event, item)}
               sx={{
                 minHeight: 48,
                 justifyContent: drawerOpen ? 'initial' : 'center',
@@ -290,6 +399,47 @@ const Layout: React.FC = () => {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      {/* Navigation Context Menu */}
+      <Menu
+        open={contextMenuAnchor !== null}
+        onClose={handleContextMenuClose}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenuAnchor !== null
+            ? { top: contextMenuAnchor.mouseY, left: contextMenuAnchor.mouseX }
+            : undefined
+        }
+        slotProps={{
+          paper: {
+            style: {
+              maxHeight: 48 * 4.5,
+              width: '20ch',
+            },
+          },
+        }}
+      >
+        <MenuItem onClick={handleOpenInNewTab}>
+          <OpenInNew sx={{ mr: 1 }} />
+          Open link in new tab
+        </MenuItem>
+        <MenuItem onClick={handleOpenInNewWindow}>
+          <Launch sx={{ mr: 1 }} />
+          Open link in new window
+        </MenuItem>
+        <MenuItem onClick={handleSaveLinkAs}>
+          <Download sx={{ mr: 1 }} />
+          Save link as...
+        </MenuItem>
+        <MenuItem onClick={handleCopyLinkAddress}>
+          <ContentCopy sx={{ mr: 1 }} />
+          Copy link address
+        </MenuItem>
+        <MenuItem onClick={handleBookmarkLink}>
+          <BookmarkAdd sx={{ mr: 1 }} />
+          Bookmark link
+        </MenuItem>
+      </Menu>
       
       <Box
         component="nav"
@@ -326,6 +476,9 @@ const Layout: React.FC = () => {
         sx={{
           flexGrow: 1,
           p: 3,
+          maxWidth: '100vw',
+          overflowX: 'hidden',
+          minHeight: 'calc(100vh - 64px)',
           transition: theme.transitions.create(['margin'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,

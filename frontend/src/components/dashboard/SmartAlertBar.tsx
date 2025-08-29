@@ -74,8 +74,7 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
         p: 2,
         mb: 3,
         boxShadow: theme.shadows[1],
-        position: 'relative',
-        overflow: 'hidden'
+        position: 'relative'
       }}
     >
       {loading && (
@@ -90,8 +89,8 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
         />
       )}
       
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, width: '100%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
           {alerts.map((alert) => (
             <Chip
               key={alert.severity}
@@ -130,7 +129,7 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
           {totalIssues > 0 && (
             <Typography variant="body2" color="text.secondary">
               {totalIssues} total issues

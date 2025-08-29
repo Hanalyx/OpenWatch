@@ -15,9 +15,6 @@ class ApiClient {
     this.instance = axios.create({
       baseURL: API_BASE_URL,
       timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
       withCredentials: true,
     });
 
@@ -38,9 +35,43 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor
     this.instance.interceptors.request.use(
-      (config) => {
-        // Get token from localStorage for now (simpler approach)
-        const token = localStorage.getItem('auth_token');
+      async (config) => {
+        // Get token from localStorage first, then fall back to Redux store if available
+        let token = localStorage.getItem('auth_token');
+        
+        // Try Redux store if localStorage token not found
+        if (!token && typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
+          const store = (window as any).__REDUX_STORE__;
+          const state = store.getState();
+          token = state.auth?.token;
+        }
+
+        // Development helper: auto-login if no token found and we're in development
+        if (!token && import.meta.env.DEV) {
+          try {
+            console.log('[DEV] No auth token found, attempting auto-login...');
+            const loginResponse = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: 'admin', password: 'admin123' })
+            });
+            
+            if (loginResponse.ok) {
+              const loginData = await loginResponse.json();
+              token = loginData.access_token;
+              
+              // Store token for future requests
+              localStorage.setItem('auth_token', token || '');
+              localStorage.setItem('refresh_token', loginData.refresh_token);
+              localStorage.setItem('auth_user', JSON.stringify(loginData.user));
+              localStorage.setItem('session_expiry', (Date.now() + loginData.expires_in * 1000).toString());
+              
+              console.log('[DEV] Auto-login successful');
+            }
+          } catch (loginError) {
+            console.warn('[DEV] Auto-login failed:', loginError);
+          }
+        }
         
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -50,6 +81,11 @@ class ApiClient {
         config.headers['X-Requested-With'] = 'XMLHttpRequest';
         config.headers['X-CSRF-Token'] = this.getCsrfToken();
 
+        // Set Content-Type for JSON requests only (not for FormData)
+        if (config.data && !(config.data instanceof FormData)) {
+          config.headers['Content-Type'] = 'application/json';
+        }
+
         return config;
       },
       (error) => {
@@ -57,16 +93,35 @@ class ApiClient {
       }
     );
 
-    // Simple response interceptor
+    // Enhanced response interceptor
     this.instance.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
+        // Network error (no response)
+        if (!error.response) {
+          const networkError = new Error('Unable to connect to the server. Please check your network connection.');
+          (networkError as any).code = 'NETWORK_ERROR';
+          (networkError as any).isNetworkError = true;
+          return Promise.reject(networkError);
+        }
+
+        // Authentication errors
         if (error.response?.status === 401) {
-          // Clear token and redirect to login
+          // Clear tokens from both places
           localStorage.removeItem('auth_token');
+          if (typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
+            // Could dispatch logout action here if needed
+          }
           window.location.href = '/login';
         }
-        return Promise.reject(error);
+
+        // Add additional context to error
+        const enhancedError = new Error(error.message || 'API request failed');
+        (enhancedError as any).response = error.response;
+        (enhancedError as any).status = error.response?.status;
+        (enhancedError as any).statusText = error.response?.statusText;
+        
+        return Promise.reject(enhancedError);
       }
     );
   }

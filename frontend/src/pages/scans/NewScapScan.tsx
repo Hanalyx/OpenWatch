@@ -31,9 +31,14 @@ import {
   PlayArrow as PlayArrowIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  NetworkCheck as NetworkCheckIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../services/api';
+import PreFlightValidationDialog from '../../components/errors/PreFlightValidationDialog';
+import ErrorClassificationDisplay, { ClassifiedError } from '../../components/errors/ErrorClassificationDisplay';
+import { errorService } from '../../services/errorService';
 
 interface Host {
   id: string;  // Changed to string to handle UUID
@@ -76,6 +81,8 @@ const NewScapScan: React.FC = () => {
   // UI state
   const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [showPreFlightDialog, setShowPreFlightDialog] = useState(false);
+  const [scanError, setScanError] = useState<ClassifiedError | null>(null);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -105,24 +112,16 @@ const NewScapScan: React.FC = () => {
 
   const fetchHosts = async () => {
     try {
-      const response = await fetch('/api/hosts/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Convert API data to expected format
-        const formattedHosts = data.map((host: any) => ({
+      const data = await api.get('/api/hosts/');
+      // Convert API data to expected format
+      const formattedHosts = data.map((host: any) => ({
           id: host.id,  // Keep as string UUID
           name: host.display_name || host.hostname,
           hostname: host.hostname,
           operating_system: host.operating_system,
           status: host.status
-        }));
-        setHosts(formattedHosts);
-      }
+      }));
+      setHosts(formattedHosts);
     } catch (error) {
       showSnackbar('Failed to load hosts', 'error');
     }
@@ -130,16 +129,8 @@ const NewScapScan: React.FC = () => {
 
   const fetchScapContent = async () => {
     try {
-      const response = await fetch('/api/scap-content/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setScapContent(data.scap_content || []);
-      }
+      const data = await api.get('/api/scap-content/');
+      setScapContent(data.scap_content || []);
     } catch (error) {
       showSnackbar('Failed to load SCAP content', 'error');
     }
@@ -174,8 +165,19 @@ const NewScapScan: React.FC = () => {
       return;
     }
 
+    // Clear any previous error state
+    setScanError(null);
+
+    // Show pre-flight validation dialog
+    setShowPreFlightDialog(true);
+  };
+
+  const handlePreFlightComplete = async () => {
+    if (!selectedHost || !selectedContent || !selectedProfile) return;
+
     try {
       setStarting(true);
+      setShowPreFlightDialog(false);
       
       const scanRequest = {
         name: scanName.trim(),
@@ -185,32 +187,55 @@ const NewScapScan: React.FC = () => {
         scan_options: {}
       };
 
-      const response = await fetch('/api/scans/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer demo-token'
-        },
-        body: JSON.stringify(scanRequest)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        showSnackbar('Scan started successfully!', 'success');
-        
-        // Navigate to scan detail page after a short delay
-        setTimeout(() => {
-          navigate(`/scans/${result.id}`);
-        }, 1500);
+      const result = await api.post('/api/scans/', scanRequest);
+      showSnackbar('Scan started successfully!', 'success');
+      
+      // Navigate to scan detail page after a short delay
+      setTimeout(() => {
+        navigate(`/scans/${result.id}`);
+      }, 1500);
+    } catch (error: any) {
+      console.error('Scan creation failed:', error);
+      
+      // Try to classify the error using our error service
+      const classification = errorService.getErrorClassification(error);
+      if (classification) {
+        setScanError(classification);
       } else {
-        const error = await response.json();
-        showSnackbar(error.detail || 'Failed to start scan', 'error');
+        // Fallback to generic error
+        setScanError(errorService.classifyGenericError(error));
       }
-    } catch (error) {
-      showSnackbar('Network error starting scan', 'error');
     } finally {
       setStarting(false);
     }
+  };
+
+  const handleErrorRetry = async () => {
+    setScanError(null);
+    // Retry the scan creation
+    await handlePreFlightComplete();
+  };
+
+  const handleApplyFix = async (fixId: string) => {
+    if (!selectedHost) return;
+    
+    try {
+      await errorService.applyAutomatedFix(selectedHost.id, fixId);
+      showSnackbar('Fix applied successfully', 'success');
+      setScanError(null);
+    } catch (error: any) {
+      showSnackbar(errorService.getUserFriendlyError(error), 'error');
+    }
+  };
+
+  const getValidationRequest = () => {
+    if (!selectedHost || !selectedContent || !selectedProfile) return null;
+    
+    return {
+      host_id: selectedHost.id,
+      content_id: selectedContent.id,
+      profile_id: selectedProfile.id
+    };
   };
 
   const renderStepContent = () => {
@@ -482,9 +507,10 @@ const NewScapScan: React.FC = () => {
                 variant="contained"
                 onClick={startScan}
                 disabled={!canProceed() || starting}
-                startIcon={<PlayArrowIcon />}
+                startIcon={starting ? <NetworkCheckIcon /> : <PlayArrowIcon />}
+                data-testid="start-scan-button"
               >
-                {starting ? 'Starting...' : 'Start Scan'}
+                {starting ? 'Starting...' : 'Validate & Start Scan'}
               </Button>
             ) : (
               <Button
@@ -498,6 +524,29 @@ const NewScapScan: React.FC = () => {
           </Box>
         </Box>
       </Paper>
+
+      {/* Error Display */}
+      {scanError && (
+        <Box sx={{ mt: 3 }}>
+          <ErrorClassificationDisplay
+            error={scanError}
+            onRetry={handleErrorRetry}
+            onApplyFix={handleApplyFix}
+            showTechnicalDetails={true}
+            data-testid="scan-creation-error"
+          />
+        </Box>
+      )}
+
+      {/* Pre-Flight Validation Dialog */}
+      <PreFlightValidationDialog
+        open={showPreFlightDialog}
+        onClose={() => setShowPreFlightDialog(false)}
+        onProceed={handlePreFlightComplete}
+        validationRequest={getValidationRequest()}
+        title="Pre-Scan Validation"
+        data-testid="scan-preflight-validation"
+      />
 
       {/* Snackbar */}
       <Snackbar

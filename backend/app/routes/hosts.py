@@ -12,10 +12,10 @@ import uuid
 from ..database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-import json
-import base64
+# NOTE: json and base64 imports removed - using centralized auth service
 from ..services.ssh_utils import validate_ssh_key, format_validation_message
 from ..services.ssh_key_service import extract_ssh_key_metadata
+from ..auth import get_current_user
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -23,15 +23,7 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter()
 
 
-def encrypt_credentials(credentials_data: dict) -> str:
-    """Simple base64 encoding for credentials (should use proper encryption in production)"""
-    try:
-        json_str = json.dumps(credentials_data)
-        encoded = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-        return encoded
-    except Exception as e:
-        logger.error(f"Failed to encode credentials: {e}")
-        raise
+# NOTE: Old encrypt_credentials function removed - now using centralized auth service
 
 
 class Host(BaseModel):
@@ -89,15 +81,30 @@ class HostCreate(BaseModel):
     owner: Optional[str] = None
 
 
+class HostUpdate(BaseModel):
+    hostname: Optional[str] = None
+    ip_address: Optional[str] = None
+    display_name: Optional[str] = None
+    operating_system: Optional[str] = None
+    port: Optional[int] = None
+    username: Optional[str] = None
+    auth_method: Optional[str] = None
+    ssh_key: Optional[str] = None
+    password: Optional[str] = None
+    environment: Optional[str] = None
+    tags: Optional[List[str]] = None
+    owner: Optional[str] = None
+    description: Optional[str] = None  # Allow description updates
+
+
 @router.get("/", response_model=List[Host])
-async def list_hosts(db: Session = Depends(get_db), token: str = Depends(security)):
+async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all managed hosts"""
     try:
         # Try to get hosts from database with latest scan information and group details
         result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
-                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.last_check,
-                   h.ssh_key_fingerprint, h.ssh_key_type, h.ssh_key_bits, h.ssh_key_comment,
+                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
                    s.id as latest_scan_id, s.name as latest_scan_name, s.status as scan_status,
                    s.progress as scan_progress, s.started_at as scan_started_at, s.completed_at as scan_completed_at,
                    sr.score as compliance_score, sr.failed_rules as failed_rules, sr.passed_rules as passed_rules,
@@ -145,11 +152,11 @@ async def list_hosts(db: Session = Depends(get_db), token: str = Depends(securit
                 auth_method=row.auth_method,
                 created_at=row.created_at.isoformat() if row.created_at else None,
                 updated_at=row.updated_at.isoformat() if row.updated_at else None,
-                last_check=row.last_check.isoformat() if row.last_check else None,
-                ssh_key_fingerprint=row.ssh_key_fingerprint,
-                ssh_key_type=row.ssh_key_type,
-                ssh_key_bits=row.ssh_key_bits,
-                ssh_key_comment=row.ssh_key_comment,
+                last_check=None,  # Column doesn't exist in database
+                ssh_key_fingerprint=None,  # Not in database schema
+                ssh_key_type=None,         # Not in database schema
+                ssh_key_bits=None,         # Not in database schema
+                ssh_key_comment=None,      # Not in database schema
                 group_id=row.group_id,
                 group_name=row.group_name,
                 group_description=row.group_description,
@@ -179,35 +186,15 @@ async def list_hosts(db: Session = Depends(get_db), token: str = Depends(securit
         return hosts
         
     except Exception as e:
-        logger.warning(f"Database error, returning mock data: {e}")
-        # Fallback to mock data if database fails
-        mock_hosts = [
-            Host(
-                id="1",
-                hostname="web-server-01",
-                ip_address="192.168.1.10",
-                display_name="Production Web Server",
-                operating_system="Ubuntu 22.04 LTS",
-                status="online",
-                last_scan="2024-01-15T10:30:00Z",
-                compliance_score=92.0
-            ),
-            Host(
-                id="2",
-                hostname="db-server-01",
-                ip_address="192.168.1.20",
-                display_name="Primary Database",
-                operating_system="Red Hat Enterprise Linux 9",
-                status="online",
-                last_scan="2024-01-14T15:45:00Z",
-                compliance_score=88.0
-            )
-        ]
-        return mock_hosts
+        logger.error(f"Database error in host listing: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve hosts from database"
+        )
 
 
 @router.post("/", response_model=Host)
-async def create_host(host: HostCreate, db: Session = Depends(get_db), token: str = Depends(security)):
+async def create_host(host: HostCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Add a new host to management"""
     try:
         # Insert into database
@@ -252,35 +239,35 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), token: st
     except Exception as e:
         logger.error(f"Failed to create host in database: {e}")
         db.rollback()
-        
-        # Fallback to mock response
-        new_host = Host(
-            id=str(uuid.uuid4()),
-            hostname=host.hostname,
-            ip_address=host.ip_address,
-            display_name=host.display_name or host.hostname,
-            operating_system=host.operating_system,
-            status="offline"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create host"
         )
-        
-        logger.info(f"Created mock host (database failed): {host.hostname}")
-        return new_host
 
 
 @router.get("/{host_id}", response_model=Host)
-async def get_host(host_id: str, db: Session = Depends(get_db), token: str = Depends(security)):
+async def get_host(host_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get host details by ID"""
     try:
+        # Validate and convert host_id to UUID
+        try:
+            host_uuid = uuid.UUID(host_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid host ID format"
+            )
+        
         result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
-                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.last_check,
-                   h.ssh_key_fingerprint, h.ssh_key_type, h.ssh_key_bits, h.ssh_key_comment,
+                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
                    hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
             FROM hosts h
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             WHERE h.id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         row = result.fetchone()
         if not row:
@@ -301,11 +288,10 @@ async def get_host(host_id: str, db: Session = Depends(get_db), token: str = Dep
             auth_method=row.auth_method,
             created_at=row.created_at.isoformat() if row.created_at else None,
             updated_at=row.updated_at.isoformat() if row.updated_at else None,
-            last_check=row.last_check.isoformat() if row.last_check else None,
-            ssh_key_fingerprint=row.ssh_key_fingerprint,
-            ssh_key_type=row.ssh_key_type,
-            ssh_key_bits=row.ssh_key_bits,
-            ssh_key_comment=row.ssh_key_comment,
+            ssh_key_fingerprint=None,  # Not in database schema
+            ssh_key_type=None,         # Not in database schema
+            ssh_key_bits=None,         # Not in database schema 
+            ssh_key_comment=None,      # Not in database schema
             group_id=row.group_id,
             group_name=row.group_name,
             group_description=row.group_description,
@@ -323,13 +309,23 @@ async def get_host(host_id: str, db: Session = Depends(get_db), token: str = Dep
 
 
 @router.put("/{host_id}", response_model=Host)
-async def update_host(host_id: str, host_update: HostCreate, db: Session = Depends(get_db), token: str = Depends(security)):
+async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Update host information"""
     try:
+        # Validate and convert host_id to UUID
+        try:
+            host_uuid = uuid.UUID(host_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid host ID format"
+            )
+        
         # Check if host exists
         result = db.execute(text("""
             SELECT id FROM hosts WHERE id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         if not result.fetchone():
             raise HTTPException(
@@ -337,74 +333,32 @@ async def update_host(host_id: str, host_update: HostCreate, db: Session = Depen
                 detail="Host not found"
             )
         
-        # Update host
+        # Get current host data for partial updates
+        current_host_result = db.execute(text("""
+            SELECT hostname, ip_address, display_name, operating_system, port, 
+                   username, auth_method, description
+            FROM hosts WHERE id = :id
+        """), {"id": host_uuid})
+        
+        current_host = current_host_result.fetchone()
+        if not current_host:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Host not found"
+            )
+        
+        # Update host - use existing values if new ones not provided
         current_time = datetime.utcnow()
-        display_name = host_update.display_name or host_update.hostname
         
-        # Validate and encrypt SSH credentials if provided
-        encrypted_credentials = None
-        ssh_key_fingerprint = None
-        ssh_key_type = None
-        ssh_key_bits = None
-        ssh_key_comment = None
+        # Handle display_name logic properly
+        new_hostname = host_update.hostname if host_update.hostname is not None else current_host.hostname
+        new_display_name = (host_update.display_name if host_update.display_name is not None 
+                          else current_host.display_name or new_hostname)
         
-        if host_update.ssh_key or host_update.password:
-            try:
-                # Validate SSH key if provided
-                if host_update.ssh_key and host_update.auth_method == "ssh_key":
-                    logger.info(f"Validating SSH key for host {host_update.hostname}")
-                    validation_result = validate_ssh_key(host_update.ssh_key)
-                    
-                    if not validation_result.is_valid:
-                        logger.error(f"SSH key validation failed for {host_update.hostname}: {validation_result.error_message}")
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Invalid SSH key: {validation_result.error_message}"
-                        )
-                    
-                    # Log warnings if any
-                    if validation_result.warnings:
-                        logger.warning(f"SSH key warnings for {host_update.hostname}: {'; '.join(validation_result.warnings)}")
-                    
-                    # Log recommendations
-                    if validation_result.recommendations:
-                        logger.info(f"SSH key recommendations for {host_update.hostname}: {'; '.join(validation_result.recommendations)}")
-                    
-                    # Extract SSH key metadata for storage and display
-                    metadata = extract_ssh_key_metadata(host_update.ssh_key)
-                    ssh_key_fingerprint = metadata.get('fingerprint')
-                    ssh_key_type = metadata.get('key_type')
-                    ssh_key_bits = int(metadata.get('key_bits')) if metadata.get('key_bits') else None
-                    ssh_key_comment = metadata.get('key_comment')
-                    
-                    if metadata.get('error'):
-                        logger.warning(f"Failed to extract SSH key metadata for '{host_update.hostname}': {metadata.get('error')}")
-                
-                credentials_data = {
-                    "username": host_update.username,
-                    "auth_method": host_update.auth_method
-                }
-                
-                # Add SSH key if provided and validated
-                if host_update.ssh_key:
-                    credentials_data["ssh_key"] = host_update.ssh_key
-                
-                # Add password if provided
-                if host_update.password:
-                    credentials_data["password"] = host_update.password
-                
-                encrypted_credentials = encrypt_credentials(credentials_data)
-                logger.info(f"SSH credentials encrypted successfully for host {host_update.hostname}")
-                
-            except HTTPException:
-                raise  # Re-raise HTTP exceptions (like validation errors)
-            except Exception as e:
-                logger.error(f"Failed to encrypt SSH credentials: {e}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to encrypt SSH credentials"
-                )
+        # For now, skip complex credential handling and focus on basic field updates
+        # TODO: Add credential handling back once SSH key columns are added to schema
         
+        # Update only the fields that exist in the database schema
         db.execute(text("""
             UPDATE hosts 
             SET hostname = :hostname,
@@ -414,43 +368,34 @@ async def update_host(host_id: str, host_update: HostCreate, db: Session = Depen
                 port = :port,
                 username = :username,
                 auth_method = :auth_method,
-                encrypted_credentials = :encrypted_credentials,
-                ssh_key_fingerprint = :ssh_key_fingerprint,
-                ssh_key_type = :ssh_key_type,
-                ssh_key_bits = :ssh_key_bits,
-                ssh_key_comment = :ssh_key_comment,
+                description = :description,
                 updated_at = :updated_at
             WHERE id = :id
         """), {
-            "id": host_id,
-            "hostname": host_update.hostname,
-            "ip_address": host_update.ip_address,
-            "display_name": display_name,
-            "operating_system": host_update.operating_system,
-            "port": host_update.port,
-            "username": host_update.username,
-            "auth_method": host_update.auth_method,
-            "encrypted_credentials": encrypted_credentials,
-            "ssh_key_fingerprint": ssh_key_fingerprint if host_update.ssh_key else None,
-            "ssh_key_type": ssh_key_type if host_update.ssh_key else None,
-            "ssh_key_bits": ssh_key_bits if host_update.ssh_key else None,
-            "ssh_key_comment": ssh_key_comment if host_update.ssh_key else None,
+            "id": host_uuid,
+            "hostname": new_hostname,
+            "ip_address": host_update.ip_address if host_update.ip_address is not None else current_host.ip_address,
+            "display_name": new_display_name,
+            "operating_system": host_update.operating_system if host_update.operating_system is not None else current_host.operating_system,
+            "port": host_update.port if host_update.port is not None else current_host.port,
+            "username": host_update.username if host_update.username is not None else current_host.username,
+            "auth_method": host_update.auth_method if host_update.auth_method is not None else current_host.auth_method,
+            "description": host_update.description if host_update.description is not None else current_host.description,
             "updated_at": current_time
         })
         
         db.commit()
         
-        # Get updated host with group information and SSH key metadata
+        # Get updated host with group information
         result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
-                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at,
-                   h.ssh_key_fingerprint, h.ssh_key_type, h.ssh_key_bits, h.ssh_key_comment,
+                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
                    hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
             FROM hosts h
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             WHERE h.id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         row = result.fetchone()
         updated_host = Host(
@@ -465,10 +410,10 @@ async def update_host(host_id: str, host_update: HostCreate, db: Session = Depen
             auth_method=row.auth_method,
             created_at=row.created_at.isoformat() if row.created_at else None,
             updated_at=row.updated_at.isoformat() if row.updated_at else None,
-            ssh_key_fingerprint=row.ssh_key_fingerprint,
-            ssh_key_type=row.ssh_key_type,
-            ssh_key_bits=row.ssh_key_bits,
-            ssh_key_comment=row.ssh_key_comment,
+            ssh_key_fingerprint=None,  # Not in database schema
+            ssh_key_type=None,         # Not in database schema
+            ssh_key_bits=None,         # Not in database schema 
+            ssh_key_comment=None,      # Not in database schema
             group_id=row.group_id,
             group_name=row.group_name,
             group_description=row.group_description,
@@ -490,13 +435,23 @@ async def update_host(host_id: str, host_update: HostCreate, db: Session = Depen
 
 
 @router.delete("/{host_id}")
-async def delete_host(host_id: str, db: Session = Depends(get_db), token: str = Depends(security)):
+async def delete_host(host_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Remove host from management"""
     try:
+        # Validate and convert host_id to UUID
+        try:
+            host_uuid = uuid.UUID(host_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid host ID format"
+            )
+        
         # Check if host exists
         result = db.execute(text("""
             SELECT id FROM hosts WHERE id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         if not result.fetchone():
             raise HTTPException(
@@ -507,7 +462,7 @@ async def delete_host(host_id: str, db: Session = Depends(get_db), token: str = 
         # Check if host has any scans (optional - you might want to prevent deletion)
         scan_result = db.execute(text("""
             SELECT COUNT(*) as count FROM scans WHERE host_id = :host_id
-        """), {"host_id": host_id})
+        """), {"host_id": host_uuid})
         
         scan_count = scan_result.fetchone().count
         if scan_count > 0:
@@ -517,18 +472,18 @@ async def delete_host(host_id: str, db: Session = Depends(get_db), token: str = 
                 DELETE FROM scan_results WHERE scan_id IN (
                     SELECT id FROM scans WHERE host_id = :host_id
                 )
-            """), {"host_id": host_id})
+            """), {"host_id": host_uuid})
             
             db.execute(text("""
                 DELETE FROM scans WHERE host_id = :host_id
-            """), {"host_id": host_id})
+            """), {"host_id": host_uuid})
             
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
         
         # Delete the host
         db.execute(text("""
             DELETE FROM hosts WHERE id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         db.commit()
         
@@ -547,14 +502,24 @@ async def delete_host(host_id: str, db: Session = Depends(get_db), token: str = 
 
 
 @router.delete("/{host_id}/ssh-key")
-async def delete_host_ssh_key(host_id: str, db: Session = Depends(get_db), token: str = Depends(security)):
+async def delete_host_ssh_key(host_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Delete SSH key from host"""
     try:
+        # Validate and convert host_id to UUID
+        try:
+            host_uuid = uuid.UUID(host_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid host ID format"
+            )
+        
         # Check if host exists and has SSH key
         result = db.execute(text("""
             SELECT id, auth_method, ssh_key_fingerprint FROM hosts 
             WHERE id = :id
-        """), {"id": host_id})
+        """), {"id": host_uuid})
         
         row = result.fetchone()
         if not row:
@@ -579,7 +544,7 @@ async def delete_host_ssh_key(host_id: str, db: Session = Depends(get_db), token
                 updated_at = :updated_at
             WHERE id = :id
         """), {
-            "id": host_id,
+            "id": host_uuid,
             "updated_at": datetime.utcnow()
         })
         

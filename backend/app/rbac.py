@@ -3,7 +3,7 @@ Role-Based Access Control (RBAC) System for OpenWatch
 Defines permissions, roles, and access control logic
 """
 from enum import Enum
-from typing import List, Dict, Set, Optional
+from typing import List, Dict, Set, Optional, Any
 from functools import wraps
 from fastapi import HTTPException, status, Depends
 import logging
@@ -39,6 +39,9 @@ class Permission(str, Enum):
     SCAN_UPDATE = "scan:update"
     SCAN_DELETE = "scan:delete"
     SCAN_EXECUTE = "scan:execute"
+    SCAN_WRITE = "scan:write"
+    SCAN_APPROVE = "scan:approve"
+    SCAN_ROLLBACK = "scan:rollback"
     
     # Results and Reports
     RESULTS_READ = "results:read"
@@ -79,7 +82,8 @@ ROLE_PERMISSIONS: Dict[UserRole, List[Permission]] = {
         Permission.CONTENT_CREATE, Permission.CONTENT_READ, Permission.CONTENT_UPDATE, 
         Permission.CONTENT_DELETE,
         Permission.SCAN_CREATE, Permission.SCAN_READ, Permission.SCAN_UPDATE, 
-        Permission.SCAN_DELETE, Permission.SCAN_EXECUTE,
+        Permission.SCAN_DELETE, Permission.SCAN_EXECUTE, Permission.SCAN_WRITE, 
+        Permission.SCAN_APPROVE, Permission.SCAN_ROLLBACK,
         Permission.RESULTS_READ, Permission.RESULTS_READ_ALL, Permission.REPORTS_GENERATE, 
         Permission.REPORTS_EXPORT,
         Permission.SYSTEM_CONFIG, Permission.SYSTEM_CREDENTIALS, Permission.SYSTEM_LOGS, 
@@ -95,7 +99,8 @@ ROLE_PERMISSIONS: Dict[UserRole, List[Permission]] = {
         Permission.CONTENT_CREATE, Permission.CONTENT_READ, Permission.CONTENT_UPDATE, 
         Permission.CONTENT_DELETE,
         Permission.SCAN_CREATE, Permission.SCAN_READ, Permission.SCAN_UPDATE, 
-        Permission.SCAN_DELETE, Permission.SCAN_EXECUTE,
+        Permission.SCAN_DELETE, Permission.SCAN_EXECUTE, Permission.SCAN_WRITE, 
+        Permission.SCAN_APPROVE, Permission.SCAN_ROLLBACK,
         Permission.RESULTS_READ, Permission.RESULTS_READ_ALL, Permission.REPORTS_GENERATE, 
         Permission.REPORTS_EXPORT,
         Permission.SYSTEM_LOGS,  # Can view system logs
@@ -106,7 +111,7 @@ ROLE_PERMISSIONS: Dict[UserRole, List[Permission]] = {
         # Day-to-day security operations
         Permission.HOST_READ, Permission.HOST_UPDATE,  # Can manage assigned hosts
         Permission.CONTENT_READ,  # Read-only SCAP content
-        Permission.SCAN_CREATE, Permission.SCAN_READ, Permission.SCAN_EXECUTE,
+        Permission.SCAN_CREATE, Permission.SCAN_READ, Permission.SCAN_EXECUTE, Permission.SCAN_WRITE,
         Permission.RESULTS_READ, Permission.REPORTS_GENERATE, Permission.REPORTS_EXPORT,
         Permission.COMPLIANCE_VIEW
     ],
@@ -321,3 +326,31 @@ def check_permission(user_role: str, resource_type: str, action: str):
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Insufficient permissions to {action} {resource_type}"
         )
+
+
+async def check_permission_async(current_user: dict, required_permission: Permission, db: Any = None):
+    """Async permission check for specific permissions"""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    user_roles = current_user.get("roles", [current_user.get("role", "guest")])
+    
+    # Check if any of the user's roles has the required permission
+    for role_name in user_roles:
+        try:
+            user_role = UserRole(role_name)
+            if RBACManager.has_permission(user_role, required_permission):
+                return True
+        except ValueError:
+            logger.warning(f"Unknown role: {role_name}")
+            continue
+    
+    # If no role has permission, log and raise error
+    logger.warning(f"User {current_user.get('username')} attempted to access {required_permission.value}")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Insufficient permissions. Required: {required_permission.value}"
+    )

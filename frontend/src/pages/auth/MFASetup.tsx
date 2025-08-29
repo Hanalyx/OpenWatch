@@ -17,7 +17,6 @@ import {
   Card,
   CardContent,
   Chip,
-  QRCodeSVG,
   Divider,
   List,
   ListItem,
@@ -26,6 +25,7 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Security,
   Smartphone,

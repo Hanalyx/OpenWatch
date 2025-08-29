@@ -15,6 +15,7 @@ from typing import AsyncGenerator, Optional
 from datetime import datetime
 
 from .config import get_settings
+from .rbac import UserRole
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -280,6 +281,17 @@ class HostGroup(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    # Smart group validation fields
+    os_family = Column(String(50), nullable=True)
+    os_version_pattern = Column(String(100), nullable=True)
+    architecture = Column(String(20), nullable=True)
+    # SCAP configuration fields
+    scap_content_id = Column(Integer, ForeignKey("scap_content.id"), nullable=True)
+    default_profile_id = Column(String(100), nullable=True)
+    compliance_framework = Column(String(50), nullable=True)
+    auto_scan_enabled = Column(Boolean, default=False, nullable=False)
+    scan_schedule = Column(String(100), nullable=True)
+    validation_rules = Column(Text, nullable=True)  # JSON-encoded rules
 
 
 class HostGroupMembership(Base):

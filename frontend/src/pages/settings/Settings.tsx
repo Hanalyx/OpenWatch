@@ -41,6 +41,8 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 interface SystemCredentials {
   id: number;
@@ -113,11 +115,20 @@ const Settings: React.FC = () => {
   });
   const [schedulerLoading, setSchedulerLoading] = useState(false);
 
+  // Get user from Redux store
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isSuperAdmin = user?.role === 'super_admin';
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
   const loadCredentials = async () => {
+    // Only load credentials if user has super admin permissions
+    if (!isSuperAdmin) {
+      return;
+    }
+    
     try {
       setLoading(true);
       const response = await api.get('/api/system/credentials');
@@ -192,7 +203,7 @@ const Settings: React.FC = () => {
       loadCredentials();
       loadSchedulerSettings();
     }
-  }, [tabValue]);
+  }, [tabValue, isSuperAdmin]);
 
   const handleAddCredential = () => {
     setEditingCredential(null);
@@ -411,11 +422,19 @@ const Settings: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 Configure master SSH credentials for hosts. If a host doesn't have specific credentials, it will inherit these default settings.
               </Typography>
+              {!isSuperAdmin && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Typography variant="body2">
+                    <strong>SSH Credentials Required:</strong> Only Super Administrators can manage SSH credentials for security reasons.
+                  </Typography>
+                </Alert>
+              )}
             </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddCredential}
+              disabled={!isSuperAdmin}
             >
               Add Credentials
             </Button>
@@ -500,6 +519,7 @@ const Settings: React.FC = () => {
                         size="small"
                         onClick={() => handleEditCredential(credential)}
                         sx={{ mr: 1 }}
+                        disabled={!isSuperAdmin}
                       >
                         <EditIcon />
                       </IconButton>
@@ -507,6 +527,7 @@ const Settings: React.FC = () => {
                         size="small"
                         onClick={() => handleDeleteCredential(credential.id)}
                         color="error"
+                        disabled={!isSuperAdmin}
                       >
                         <DeleteIcon />
                       </IconButton>

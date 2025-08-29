@@ -27,6 +27,7 @@ import {
   MoreVert as MoreVertIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../services/api';
 
 interface Scan {
   id: string;
@@ -48,18 +49,19 @@ const Scans: React.FC = () => {
   const fetchScans = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/scans/', {
-        headers: {
-          'Authorization': 'Bearer demo-token'
-        }
-      });
+      const data = await api.get<{scans: Scan[]}>('/api/scans/');
+      setScans(data.scans || []);
+    } catch (error: any) {
+      console.error('Failed to load scans:', error);
       
-      if (response.ok) {
-        const data = await response.json();
-        setScans(data.scans || []);
+      // Show user-friendly error message
+      if (error.isNetworkError) {
+        console.error('Network error: Unable to connect to server');
+      } else if (error.status === 401) {
+        console.error('Authentication required');
+      } else {
+        console.error('Failed to load scans data');
       }
-    } catch (error) {
-      console.error('Failed to load scans');
     } finally {
       setLoading(false);
     }
