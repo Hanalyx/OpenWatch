@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import EnhancedBulkImportDialog from '../../components/hosts/EnhancedBulkImportDialog';
 import HostCard from '../../components/hosts/HostCard';
 import { QuickScanDropdown, BulkScanDialog, BulkScanProgress, ScanRecommendationCard } from '../../components/scans';
@@ -187,7 +187,7 @@ const HostsEnhanced: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [bulkActionDialog, setBulkActionDialog] = useState(false);
   const [selectedBulkAction, setSelectedBulkAction] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Web Servers', 'Database Servers']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [deleteDialog, setDeleteDialog] = useState<{open: boolean, host: Host | null}>({open: false, host: null});
   const [editDialog, setEditDialog] = useState<{open: boolean, host: Host | null}>({open: false, host: null});
   const [hostGroupsDialogOpen, setHostGroupsDialogOpen] = useState(false);
@@ -419,6 +419,12 @@ const HostsEnhanced: React.FC = () => {
       return groups;
     }
   }, [hosts, searchQuery, statusFilter, complianceFilter, tagFilter, groupBy]);
+
+  // Automatically expand all groups when processedHosts changes
+  useEffect(() => {
+    const allGroupNames = Object.keys(processedHosts);
+    setExpandedGroups(allGroupNames);
+  }, [processedHosts]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
