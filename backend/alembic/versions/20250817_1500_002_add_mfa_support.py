@@ -1,7 +1,7 @@
 """Add MFA support to user model
 
-Revision ID: 20250817_1500_002
-Revises: 20250817_1400_001
+Revision ID: 002
+Revises: 001
 Create Date: 2025-08-17 15:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers
-revision = '20250817_1500_002'
-down_revision = '20250817_1400_001'
+revision = '002'
+down_revision = '001'
 branch_labels = None
 depends_on = None
 

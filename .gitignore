@@ -434,6 +434,9 @@ venv_test/
 # Test artifacts
 test-artifacts/
 
+# Test data with real network information
+backend/tests/test_data/servers
+
 # ======================================
 # PLUGIN DEVELOPMENT
 # ======================================
@@ -460,6 +463,7 @@ monitoring/grafana/data/
 *.openwatch.tmp
 scan_*.tmp
 host_*.tmp
+planning/
 
 # Import/export temporary files
 import_*.csv.tmp
@@ -559,3 +563,4 @@ nginx.conf
 
 # Gitignore analysis files
 gitignore_*.md
+.github/

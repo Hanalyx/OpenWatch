@@ -1,7 +1,7 @@
 """add scan sessions table for bulk scan orchestration
 
-Revision ID: 20250825_1800_004
-Revises: 20250818_1400_003
+Revision ID: 004
+Revises: 20250125_1200_add_security_config
 Create Date: 2025-08-25 18:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '20250825_1800_004'
-down_revision = '20250818_1400_003_compliance_framework_mapping'
+revision = '004'
+down_revision = '20250125_1200_add_security_config'
 branch_labels = None
 depends_on = None
 
