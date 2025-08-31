@@ -525,5 +525,167 @@ async def delete_system_credential(
         )
 
 
-# Keep other scheduler endpoints unchanged (they don't need unified credentials)
-# ... [rest of the original scheduler endpoints would be copied here]
+# Scheduler endpoints for host monitoring
+class SchedulerStatus(BaseModel):
+    status: str  # "running", "stopped", "error"
+    jobs: List[dict] = []
+    uptime: Optional[str] = None
+
+
+# Global scheduler instance
+_scheduler = None
+
+
+def get_scheduler():
+    """Get or create the global scheduler instance"""
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = setup_host_monitoring_scheduler()
+    return _scheduler
+
+
+@router.get("/scheduler", response_model=SchedulerStatus)
+@require_permission(Permission.SYSTEM_MAINTENANCE)
+async def get_scheduler_status(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get current scheduler status"""
+    try:
+        scheduler = get_scheduler()
+        
+        if scheduler is None:
+            return SchedulerStatus(
+                status="error",
+                jobs=[],
+                uptime=None
+            )
+        
+        # Get scheduler status
+        if scheduler.running:
+            jobs_info = []
+            try:
+                for job in scheduler.get_jobs():
+                    jobs_info.append({
+                        "id": job.id,
+                        "name": job.name,
+                        "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                        "trigger": str(job.trigger)
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to get job info: {e}")
+            
+            return SchedulerStatus(
+                status="running",
+                jobs=jobs_info,
+                uptime="Running"
+            )
+        else:
+            return SchedulerStatus(
+                status="stopped",
+                jobs=[],
+                uptime=None
+            )
+        
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {e}")
+        return SchedulerStatus(
+            status="error",
+            jobs=[],
+            uptime=None
+        )
+
+
+@router.post("/scheduler/start")
+@require_permission(Permission.SYSTEM_MAINTENANCE)
+async def start_scheduler(
+    current_user: dict = Depends(get_current_user)
+):
+    """Start the monitoring scheduler"""
+    try:
+        global _scheduler
+        scheduler = get_scheduler()
+        
+        if scheduler is None:
+            # Try to create a new scheduler
+            _scheduler = setup_host_monitoring_scheduler()
+            scheduler = _scheduler
+            
+            if scheduler is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create scheduler (APScheduler not available)"
+                )
+        
+        if not scheduler.running:
+            scheduler.start()
+            logger.info(f"Host monitoring scheduler started by user {current_user.get('username', 'unknown')}")
+            
+            return {
+                "message": "Scheduler started successfully",
+                "status": "running"
+            }
+        else:
+            return {
+                "message": "Scheduler is already running",
+                "status": "running"
+            }
+        
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start scheduler: {str(e)}"
+        )
+
+
+@router.post("/scheduler/stop")
+@require_permission(Permission.SYSTEM_MAINTENANCE)
+async def stop_scheduler(
+    current_user: dict = Depends(get_current_user)
+):
+    """Stop the monitoring scheduler"""
+    try:
+        scheduler = get_scheduler()
+        
+        if scheduler is None:
+            return {
+                "message": "Scheduler is not initialized",
+                "status": "stopped"
+            }
+        
+        if scheduler.running:
+            scheduler.pause()
+            logger.info(f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}")
+            
+            return {
+                "message": "Scheduler stopped successfully",
+                "status": "stopped"
+            }
+        else:
+            return {
+                "message": "Scheduler is already stopped",
+                "status": "stopped"
+            }
+        
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to stop scheduler: {str(e)}"
+        )
+
+
+async def restore_scheduler_state():
+    """Restore scheduler state from database on startup"""
+    try:
+        # For now, we'll just ensure the scheduler is initialized
+        # In the future, this could read state from database
+        scheduler = get_scheduler()
+        if scheduler:
+            logger.info("Scheduler state restored successfully")
+        else:
+            logger.warning("Scheduler could not be initialized on startup")
+            
+    except Exception as e:
+        logger.error(f"Failed to restore scheduler state: {e}")
+        raise
