@@ -1,15 +1,14 @@
 """
 OpenWatch Rate Limiting Middleware
-Prevents abuse and reconnaissance through error endpoint farming
+Implements industry-standard rate limiting with token bucket algorithm
 """
+import os
 import time
 import hashlib
 from typing import Dict, Optional, Tuple, List
-from datetime import datetime, timedelta
-from fastapi import Request, HTTPException, status
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from collections import defaultdict, deque
-import asyncio
+from dataclasses import dataclass
 import logging
 
 from ..models.error_models import RateLimitResponse
@@ -18,374 +17,431 @@ from ..services.security_audit_logger import get_security_audit_logger
 logger = logging.getLogger(__name__)
 audit_logger = get_security_audit_logger()
 
+@dataclass
+class TokenBucket:
+    """Token bucket implementation for smooth rate limiting"""
+    capacity: int  # Maximum tokens
+    tokens: float  # Current tokens
+    rate: float    # Tokens per second
+    last_update: float  # Last update timestamp
+    
+    def consume(self, tokens_requested: int = 1) -> bool:
+        """Attempt to consume tokens from bucket"""
+        now = time.time()
+        
+        # Add tokens based on elapsed time
+        elapsed = now - self.last_update
+        self.tokens = min(self.capacity, self.tokens + (elapsed * self.rate))
+        self.last_update = now
+        
+        # Check if we have enough tokens
+        if self.tokens >= tokens_requested:
+            self.tokens -= tokens_requested
+            return True
+        return False
+    
+    def time_until_available(self, tokens_needed: int = 1) -> float:
+        """Calculate seconds until tokens are available"""
+        if self.tokens >= tokens_needed:
+            return 0.0
+        
+        tokens_deficit = tokens_needed - self.tokens
+        return tokens_deficit / self.rate
+
+
 class RateLimitStore:
-    """In-memory rate limit store with automatic cleanup"""
+    """In-memory rate limit store with token buckets and automatic cleanup"""
     
     def __init__(self):
-        # Store request timestamps per IP
-        self.requests: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
-        # Store blocked IPs with expiration
-        self.blocked_ips: Dict[str, datetime] = {}
-        # Store error counts per IP
-        self.error_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # Token buckets per client/endpoint
+        self.buckets: Dict[str, TokenBucket] = {}
+        # Track suspicious activity
+        self.suspicious_activity: Dict[str, Dict[str, int]] = {}
         # Last cleanup time
-        self.last_cleanup = datetime.utcnow()
+        self.last_cleanup = time.time()
+    
+    def get_or_create_bucket(self, bucket_key: str, capacity: int, rate: float) -> TokenBucket:
+        """Get or create token bucket for client"""
+        if bucket_key not in self.buckets:
+            self.buckets[bucket_key] = TokenBucket(
+                capacity=capacity,
+                tokens=capacity,  # Start with full bucket
+                rate=rate,
+                last_update=time.time()
+            )
+        return self.buckets[bucket_key]
+    
+    def track_suspicious_activity(self, client_id: str, activity_type: str):
+        """Track suspicious activity patterns"""
+        if client_id not in self.suspicious_activity:
+            self.suspicious_activity[client_id] = {}
         
-    def add_request(self, ip_hash: str, endpoint: str):
-        """Add a request timestamp"""
-        now = datetime.utcnow()
-        self.requests[ip_hash].append(now)
+        current_minute = int(time.time() // 60)
+        key = f"{activity_type}:{current_minute}"
         
-        # Track error endpoints specifically
-        if 'error' in endpoint or 'validate' in endpoint or 'scan' in endpoint:
-            self.error_counts[ip_hash]['total'] += 1
-            self.error_counts[ip_hash][endpoint] += 1
-            
-        # Periodic cleanup
-        if (now - self.last_cleanup).seconds > 300:  # Every 5 minutes
-            self._cleanup_old_entries()
-            
-    def get_request_count(self, ip_hash: str, window_seconds: int) -> int:
-        """Get request count within time window"""
-        now = datetime.utcnow()
-        cutoff = now - timedelta(seconds=window_seconds)
+        if key not in self.suspicious_activity[client_id]:
+            self.suspicious_activity[client_id][key] = 0
         
-        if ip_hash not in self.requests:
+        self.suspicious_activity[client_id][key] += 1
+    
+    def get_suspicious_activity_count(self, client_id: str, activity_type: str, minutes: int = 1) -> int:
+        """Get count of suspicious activities within time window"""
+        if client_id not in self.suspicious_activity:
             return 0
-            
-        # Count requests within window
+        
+        current_minute = int(time.time() // 60)
         count = 0
-        for request_time in reversed(self.requests[ip_hash]):
-            if request_time >= cutoff:
-                count += 1
-            else:
-                break  # Requests are ordered by time
-                
+        
+        for i in range(minutes):
+            key = f"{activity_type}:{current_minute - i}"
+            count += self.suspicious_activity[client_id].get(key, 0)
+        
         return count
-        
-    def is_blocked(self, ip_hash: str) -> Tuple[bool, Optional[datetime]]:
-        """Check if IP is currently blocked"""
-        if ip_hash in self.blocked_ips:
-            block_until = self.blocked_ips[ip_hash]
-            if datetime.utcnow() < block_until:
-                return True, block_until
-            else:
-                # Block expired, remove it
-                del self.blocked_ips[ip_hash]
-                
-        return False, None
-        
-    def block_ip(self, ip_hash: str, duration_minutes: int):
-        """Block IP for specified duration"""
-        block_until = datetime.utcnow() + timedelta(minutes=duration_minutes)
-        self.blocked_ips[ip_hash] = block_until
-        
-    def get_error_stats(self, ip_hash: str) -> Dict[str, int]:
-        """Get error statistics for IP"""
-        return dict(self.error_counts[ip_hash])
-        
-    def _cleanup_old_entries(self):
+    
+    def cleanup_old_entries(self):
         """Clean up old entries to prevent memory bloat"""
-        now = datetime.utcnow()
-        cutoff = now - timedelta(hours=2)
+        if time.time() - self.last_cleanup < 300:  # Every 5 minutes
+            return
         
-        # Clean up old request timestamps
-        for ip_hash in list(self.requests.keys()):
-            # Remove old timestamps
-            while self.requests[ip_hash] and self.requests[ip_hash][0] < cutoff:
-                self.requests[ip_hash].popleft()
-                
-            # Remove empty deques
-            if not self.requests[ip_hash]:
-                del self.requests[ip_hash]
-                
-        # Clean up expired blocks
-        expired_blocks = [
-            ip_hash for ip_hash, block_until in self.blocked_ips.items()
-            if now >= block_until
+        now = time.time()
+        cleanup_age = 3600  # Remove buckets unused for 1 hour
+        
+        # Clean up old token buckets
+        buckets_to_remove = [
+            key for key, bucket in self.buckets.items()
+            if now - bucket.last_update > cleanup_age
         ]
-        for ip_hash in expired_blocks:
-            del self.blocked_ips[ip_hash]
+        
+        for key in buckets_to_remove:
+            del self.buckets[key]
+        
+        # Clean up old suspicious activity data
+        current_minute = int(now // 60)
+        cutoff_minute = current_minute - 120  # Keep 2 hours of data
+        
+        for client_id in list(self.suspicious_activity.keys()):
+            activities = self.suspicious_activity[client_id]
+            old_keys = [
+                key for key in activities.keys()
+                if ':' in key and int(key.split(':')[1]) < cutoff_minute
+            ]
             
-        # Clean up old error counts
-        expired_errors = []
-        for ip_hash in self.error_counts:
-            if ip_hash not in self.requests:
-                expired_errors.append(ip_hash)
-                
-        for ip_hash in expired_errors:
-            del self.error_counts[ip_hash]
+            for key in old_keys:
+                del activities[key]
             
+            if not activities:
+                del self.suspicious_activity[client_id]
+        
         self.last_cleanup = now
-        logger.debug(f"Rate limit cleanup completed: {len(expired_blocks)} expired blocks, {len(expired_errors)} expired error counts")
+        if buckets_to_remove:
+            logger.debug(f"Rate limit cleanup: removed {len(buckets_to_remove)} unused buckets")
 
 
 class RateLimitingMiddleware:
-    """Rate limiting middleware for security protection"""
-    
-    # Rate limit configuration
-    LIMITS = {
-        # General API limits (for dashboard, hosts, scans, etc.)
-        'default': {'requests': 200, 'window': 60, 'block_duration': 5},  # 200 req/min - increased for frontend
-        
-        # Authenticated user limits (higher limits for legitimate users)
-        'authenticated': {'requests': 300, 'window': 60, 'block_duration': 5},  # 300 req/min for auth users
-        
-        # Error-prone endpoints (actual error/debug endpoints only)
-        'error_endpoints': {'requests': 50, 'window': 60, 'block_duration': 10},  # 50 req/min - increased from 20
-        
-        # Scan validation (high limit for legitimate pre-flight checks)
-        'validation': {'requests': 60, 'window': 60, 'block_duration': 10},  # 60 req/min - doubled from 30
-        
-        # Authentication endpoints (slightly increased for legitimate retries)
-        'auth': {'requests': 10, 'window': 60, 'block_duration': 30},  # 10 req/min - doubled from 5, reduced block time
-        
-        # System/health endpoints (very high limit for monitoring)
-        'system': {'requests': 500, 'window': 60, 'block_duration': 2},  # 500 req/min for health checks
-    }
-    
-    # Suspicious behavior patterns (relaxed for legitimate usage)
-    SUSPICIOUS_PATTERNS = {
-        'high_error_rate': {'errors_per_minute': 30, 'action': 'block_30min'},  # Increased from 15
-        'validation_farming': {'validation_per_minute': 20, 'action': 'block_30min'},  # Increased from 8, reduced block time
-        'auth_brute_force': {'auth_failures_per_minute': 5, 'action': 'block_60min'},  # Increased from 3, reduced block time
-    }
+    """Industry-standard rate limiting middleware with token bucket algorithm"""
     
     def __init__(self):
         self.store = RateLimitStore()
+        self.enabled = os.getenv("OPENWATCH_RATE_LIMITING", "true").lower() == "true"
+        self.environment = os.getenv("OPENWATCH_ENVIRONMENT", "development").lower()
+        self.limits_config = self._get_limits_configuration()
         
-    async def __call__(self, request: Request, call_next):
-        """Process request through rate limiting"""
+        logger.info(f"Rate limiting initialized - Environment: {self.environment}, Enabled: {self.enabled}")
+    
+    def _get_limits_configuration(self) -> Dict:
+        """Get rate limits following industry patterns"""
+        base_config = {
+            # Anonymous users (like GitHub's unauthenticated API)
+            'anonymous': {
+                'requests_per_minute': 60,    # 1 per second average
+                'burst_capacity': 20,         # Allow short bursts
+                'retry_after_seconds': 60     # 1 minute recovery
+            },
+            
+            # Authenticated users (like GitHub's authenticated API)
+            'authenticated': {
+                'requests_per_minute': 300,   # 5 per second average
+                'burst_capacity': 100,        # Generous burst allowance
+                'retry_after_seconds': 30     # 30 second recovery
+            },
+            
+            # System/health endpoints (like AWS health checks)
+            'system': {
+                'requests_per_minute': 600,   # High limit for monitoring
+                'burst_capacity': 200,        # Large burst for health checks
+                'retry_after_seconds': 10     # Quick recovery
+            },
+            
+            # Authentication endpoints (like Stripe's sensitive endpoints)
+            'auth': {
+                'requests_per_minute': 30,    # More restrictive
+                'burst_capacity': 10,         # Small burst allowance
+                'retry_after_seconds': 120    # 2 minute recovery for security
+            },
+            
+            # Error-prone endpoints
+            'error_endpoints': {
+                'requests_per_minute': 50,
+                'burst_capacity': 15,
+                'retry_after_seconds': 60
+            },
+            
+            # Validation endpoints
+            'validation': {
+                'requests_per_minute': 60,
+                'burst_capacity': 20,
+                'retry_after_seconds': 60
+            }
+        }
         
-        # Get client IP (handle proxy headers)
-        client_ip = self._get_client_ip(request)
-        ip_hash = self._hash_ip(client_ip)
-        endpoint = str(request.url.path)
+        # Environment-specific adjustments
+        if self.environment == "development":
+            # Much higher limits for development
+            for category in base_config:
+                base_config[category]['requests_per_minute'] *= 10
+                base_config[category]['burst_capacity'] *= 5
+                base_config[category]['retry_after_seconds'] = min(30, base_config[category]['retry_after_seconds'])
         
-        # Exclude certain endpoints from rate limiting
-        excluded_endpoints = ['/health', '/metrics', '/security-info', '/docs', '/redoc', '/openapi.json']
-        if any(endpoint.startswith(excluded) for excluded in excluded_endpoints):
+        elif self.environment == "testing":
+            # Lower limits for testing rate limiting
+            for category in base_config:
+                base_config[category]['requests_per_minute'] //= 2
+                base_config[category]['retry_after_seconds'] = 30
+        
+        elif self.environment == "staging":
+            # Slightly higher limits than production
+            for category in base_config:
+                base_config[category]['requests_per_minute'] = int(base_config[category]['requests_per_minute'] * 1.2)
+        
+        return base_config
+    
+    # Suspicious behavior patterns
+    SUSPICIOUS_PATTERNS = {
+        'high_error_rate': {'threshold': 30, 'window_minutes': 1},
+        'validation_farming': {'threshold': 20, 'window_minutes': 1},
+        'auth_brute_force': {'threshold': 5, 'window_minutes': 1}
+    }
+    
+    async def __call__(self, request: Request, call_next) -> Response:
+        """Main rate limiting middleware function"""
+        # Skip if disabled
+        if not self.enabled:
             return await call_next(request)
         
-        # Check if request is authenticated
-        self._current_request_authenticated = self._check_request_authentication(request)
+        # Periodic cleanup
+        self.store.cleanup_old_entries()
         
-        # Determine rate limit category
-        limit_category = self._get_limit_category(endpoint)
-        limits = self.LIMITS[limit_category]
+        # Get client information
+        client_id, client_type = self._get_client_identifier(request)
+        endpoint = str(request.url.path)
+        endpoint_category = self._get_endpoint_category(endpoint)
         
-        # Check if IP is blocked
-        is_blocked, block_until = self.store.is_blocked(ip_hash)
-        if is_blocked:
+        # Skip excluded endpoints
+        if endpoint_category == 'excluded':
+            return await call_next(request)
+        
+        # Get appropriate configuration
+        config_key = endpoint_category if endpoint_category in self.limits_config else client_type
+        config = self.limits_config.get(config_key, self.limits_config['anonymous'])
+        
+        # Get or create token bucket
+        bucket_key = f"{client_id}:{endpoint_category}"
+        rate_per_second = config['requests_per_minute'] / 60.0
+        bucket = self.store.get_or_create_bucket(
+            bucket_key,
+            config['burst_capacity'],
+            rate_per_second
+        )
+        
+        # Create headers for response
+        headers = self._create_rate_limit_headers(bucket, config)
+        
+        # Try to consume token
+        if bucket.consume(1):
+            # Track suspicious patterns
+            self._track_suspicious_patterns(client_id, endpoint, request)
+            
+            # Check for suspicious behavior
+            suspicious_behavior = self._detect_suspicious_behavior(client_id)
+            if suspicious_behavior:
+                client_ip = self._get_client_ip(request)
+                audit_logger.log_reconnaissance_attempt(
+                    source_ip=client_ip,
+                    suspicious_patterns=suspicious_behavior,
+                    user_id=self._get_user_id(request),
+                    session_id=self._get_session_id(request)
+                )
+            
+            # Request allowed - proceed
+            response = await call_next(request)
+            
+            # Add rate limit headers
+            for header_name, header_value in headers.items():
+                response.headers[header_name] = header_value
+            
+            return response
+        else:
+            # Rate limit exceeded
+            retry_after = min(
+                config['retry_after_seconds'],
+                int(bucket.time_until_available(1)) + 1
+            )
+            
+            client_ip = self._get_client_ip(request)
             audit_logger.log_rate_limit_event(
                 source_ip=client_ip,
-                error_count=self.store.get_request_count(ip_hash, 3600),
-                action_taken="request_blocked",
+                error_count=int(bucket.capacity - bucket.tokens),
+                action_taken=f"rate_limited_retry_after_{retry_after}s",
                 user_id=self._get_user_id(request)
             )
             
-            return self._create_rate_limit_response(block_until)
+            logger.warning(f"Rate limit exceeded for {client_id} on {endpoint} - retry after {retry_after}s")
             
-        # Check rate limits
-        request_count = self.store.get_request_count(ip_hash, limits['window'])
+            return self._create_rate_limit_response(retry_after, headers)
+    
+    def _get_client_identifier(self, request: Request) -> Tuple[str, str]:
+        """Get client identifier and type (anonymous/authenticated)"""
+        # Check for authentication
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            # Authenticated user - use token hash as identifier
+            token_hash = hashlib.sha256(auth_header.encode()).hexdigest()[:16]
+            return f"auth:{token_hash}", "authenticated"
         
-        if request_count >= limits['requests']:
-            # Block IP
-            self.store.block_ip(ip_hash, limits['block_duration'])
-            
-            audit_logger.log_rate_limit_event(
-                source_ip=client_ip,
-                error_count=request_count,
-                action_taken=f"blocked_for_{limits['block_duration']}_minutes",
-                user_id=self._get_user_id(request)
-            )
-            
-            logger.warning(f"Rate limit exceeded for IP {ip_hash}: {request_count} requests in {limits['window']}s")
-            
-            return self._create_rate_limit_response(
-                datetime.utcnow() + timedelta(minutes=limits['block_duration'])
-            )
-            
-        # Check for suspicious patterns
-        suspicious_behavior = self._detect_suspicious_behavior(ip_hash, endpoint)
-        if suspicious_behavior:
-            audit_logger.log_reconnaissance_attempt(
-                source_ip=client_ip,
-                suspicious_patterns=suspicious_behavior,
-                user_id=self._get_user_id(request),
-                session_id=self._get_session_id(request)
-            )
-            
-            # Take action based on pattern
-            self._handle_suspicious_behavior(ip_hash, suspicious_behavior)
-            
-        # Record the request
-        self.store.add_request(ip_hash, endpoint)
-        
-        # Add rate limit headers to response
-        response = await call_next(request)
-        
-        # Add rate limit info to response headers
-        remaining = max(0, limits['requests'] - request_count - 1)
-        response.headers["X-RateLimit-Limit"] = str(limits['requests'])
-        response.headers["X-RateLimit-Remaining"] = str(remaining)
-        response.headers["X-RateLimit-Reset"] = str(int(time.time() + limits['window']))
-        
-        return response
-        
+        # Anonymous user - use IP address
+        client_ip = self._get_client_ip(request)
+        ip_hash = hashlib.sha256(f"{client_ip}:anonymous".encode()).hexdigest()[:16]
+        return f"anon:{ip_hash}", "anonymous"
+    
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request, handling proxy headers"""
-        
-        # Check for X-Forwarded-For header (most common proxy header)
-        forwarded_for = request.headers.get("X-Forwarded-For")
+        """Extract client IP handling proxy headers"""
+        forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
-            # Take the first IP in the chain
             return forwarded_for.split(",")[0].strip()
-            
-        # Check for X-Real-IP header
-        real_ip = request.headers.get("X-Real-IP")
+        
+        real_ip = request.headers.get("x-real-ip")
         if real_ip:
-            return real_ip.strip()
-            
-        # Fall back to client host
+            return real_ip
+        
         return request.client.host if request.client else "unknown"
+    
+    def _get_endpoint_category(self, path: str) -> str:
+        """Categorize endpoint for appropriate rate limiting"""
+        path_lower = path.lower()
         
-    def _hash_ip(self, ip_address: str) -> str:
-        """Hash IP address for privacy while maintaining consistency"""
-        salt = "openwatch_rate_limit_salt_2024"
-        return hashlib.sha256(f"{salt}{ip_address}".encode()).hexdigest()[:16]
+        # Excluded endpoints
+        if any(path.startswith(p) for p in ['/health', '/metrics', '/docs', '/redoc', '/openapi.json', '/security-info']):
+            return 'excluded'
         
-    def _get_limit_category(self, endpoint: str) -> str:
-        """Determine rate limit category for endpoint"""
-        
-        endpoint_lower = endpoint.lower()
-        
-        # System/health endpoints (highest limits)
-        if any(sys_path in endpoint_lower for sys_path in ['/health', '/metrics', '/security-info']):
+        # System endpoints
+        if any(p in path_lower for p in ['/health', '/metrics']):
             return 'system'
-            
+        
         # Authentication endpoints
-        if any(auth_path in endpoint_lower for auth_path in ['/auth/', '/login', '/token', '/mfa']):
+        if any(p in path_lower for p in ['/auth/', '/login', '/token', '/register', '/mfa']):
             return 'auth'
-            
-        # Validation endpoints (pre-flight checks)
-        if 'validate' in endpoint_lower:
+        
+        # Validation endpoints
+        if 'validate' in path_lower:
             return 'validation'
-            
-        # Actual error/debug endpoints (not normal API endpoints)
-        if any(error_path in endpoint_lower for error_path in ['/error', '/debug', '/classify']):
+        
+        # Error/debug endpoints
+        if any(p in path_lower for p in ['/error', '/debug', '/classify']):
             return 'error_endpoints'
         
-        # Check if user is authenticated for higher limits
-        return 'authenticated' if self._has_auth_token() else 'default'
+        # Default to regular API
+        return 'api'
+    
+    def _create_rate_limit_headers(self, bucket: TokenBucket, config: Dict) -> Dict[str, str]:
+        """Create industry-standard rate limit headers"""
+        current_minute = int(time.time() // 60)
+        reset_time = (current_minute + 1) * 60  # Next minute boundary
         
-    def _has_auth_token(self) -> bool:
-        """Check if request has authentication token"""
-        # This will be set by the middleware when processing the request
-        return getattr(self, '_current_request_authenticated', False)
-        
-    def _check_request_authentication(self, request: Request) -> bool:
-        """Check if request has valid authentication token"""
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            # For now, just check if there's a Bearer token
-            # In production, you'd validate the JWT token here
-            token = auth_header[7:]  # Remove "Bearer " prefix
-            return len(token) > 0
-        return False
-        
-    def _get_user_id(self, request: Request) -> Optional[str]:
-        """Extract user ID from request if available"""
-        
-        # Try to get from JWT token or session
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            try:
-                # This is a simplified approach - in real implementation,
-                # you'd decode the JWT token to get user ID
-                return "authenticated_user"
-            except:
-                pass
-                
-        return None
-        
-    def _get_session_id(self, request: Request) -> Optional[str]:
-        """Extract session ID from request if available"""
-        
-        # Check for session cookie or header
-        session_id = request.cookies.get("session_id")
-        if not session_id:
-            session_id = request.headers.get("X-Session-ID")
-            
-        return session_id
-        
-    def _detect_suspicious_behavior(self, ip_hash: str, endpoint: str) -> List[str]:
-        """Detect suspicious behavior patterns"""
-        
-        suspicious = []
-        error_stats = self.store.get_error_stats(ip_hash)
-        
-        # High error rate
-        error_count_1min = self.store.get_request_count(ip_hash, 60)
-        if error_count_1min > self.SUSPICIOUS_PATTERNS['high_error_rate']['errors_per_minute']:
-            suspicious.append('high_error_rate')
-            
-        # Validation endpoint farming
-        if 'validate' in endpoint:
-            validation_count = error_stats.get('/scans/validate', 0)
-            if validation_count > self.SUSPICIOUS_PATTERNS['validation_farming']['validation_per_minute']:
-                suspicious.append('validation_farming')
-                
-        # Authentication brute force
-        if any(auth_path in endpoint for auth_path in ['/auth/', '/login']):
-            auth_count = sum(count for path, count in error_stats.items() 
-                           if any(auth_path in path for auth_path in ['/auth/', '/login']))
-            if auth_count > self.SUSPICIOUS_PATTERNS['auth_brute_force']['auth_failures_per_minute']:
-                suspicious.append('auth_brute_force')
-                
-        return suspicious
-        
-    def _handle_suspicious_behavior(self, ip_hash: str, patterns: List[str]):
-        """Handle detected suspicious behavior"""
-        
-        # Determine the most severe action needed
-        block_duration = 0
-        
-        for pattern in patterns:
-            if pattern in self.SUSPICIOUS_PATTERNS:
-                action = self.SUSPICIOUS_PATTERNS[pattern]['action']
-                
-                if action == 'block_30min':
-                    block_duration = max(block_duration, 30)
-                elif action == 'block_60min':
-                    block_duration = max(block_duration, 60)
-                elif action == 'block_120min':
-                    block_duration = max(block_duration, 120)
-                    
-        # Block the IP
-        if block_duration > 0:
-            self.store.block_ip(ip_hash, block_duration)
-            logger.warning(f"Suspicious behavior detected for IP {ip_hash}: {patterns}. Blocked for {block_duration} minutes.")
-            
-    def _create_rate_limit_response(self, block_until: datetime) -> JSONResponse:
-        """Create rate limit exceeded response"""
-        
-        retry_after = int((block_until - datetime.utcnow()).total_seconds())
+        return {
+            "X-RateLimit-Limit": str(config['requests_per_minute']),
+            "X-RateLimit-Remaining": str(max(0, int(bucket.tokens))),
+            "X-RateLimit-Reset": str(reset_time),
+            "X-RateLimit-Burst": str(config['burst_capacity']),
+        }
+    
+    def _create_rate_limit_response(self, retry_after: int, headers: Dict[str, str]) -> JSONResponse:
+        """Create standardized rate limit exceeded response"""
+        headers["Retry-After"] = str(retry_after)
+        headers["X-RateLimit-Retry-After"] = str(retry_after)
         
         rate_limit_response = RateLimitResponse(
             retry_after=retry_after
         )
         
         return JSONResponse(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            status_code=429,
             content=rate_limit_response.dict(),
-            headers={
-                "Retry-After": str(retry_after),
-                "X-RateLimit-Reset": str(int(block_until.timestamp()))
-            }
+            headers=headers
         )
+    
+    def _track_suspicious_patterns(self, client_id: str, endpoint: str, request: Request):
+        """Track patterns that might indicate suspicious behavior"""
+        endpoint_lower = endpoint.lower()
+        
+        # Track error endpoints
+        if any(p in endpoint_lower for p in ['/error', '/debug', '/classify']):
+            self.store.track_suspicious_activity(client_id, 'error_endpoints')
+        
+        # Track validation endpoints
+        if 'validate' in endpoint_lower:
+            self.store.track_suspicious_activity(client_id, 'validation_endpoints')
+        
+        # Track auth failures (would need response status in real implementation)
+        if any(p in endpoint_lower for p in ['/auth/', '/login', '/token']):
+            self.store.track_suspicious_activity(client_id, 'auth_attempts')
+    
+    def _detect_suspicious_behavior(self, client_id: str) -> List[str]:
+        """Detect suspicious behavior patterns"""
+        suspicious = []
+        
+        # Check high error rate
+        error_count = self.store.get_suspicious_activity_count(
+            client_id, 'error_endpoints', 
+            self.SUSPICIOUS_PATTERNS['high_error_rate']['window_minutes']
+        )
+        if error_count > self.SUSPICIOUS_PATTERNS['high_error_rate']['threshold']:
+            suspicious.append('high_error_rate')
+        
+        # Check validation farming
+        validation_count = self.store.get_suspicious_activity_count(
+            client_id, 'validation_endpoints',
+            self.SUSPICIOUS_PATTERNS['validation_farming']['window_minutes']
+        )
+        if validation_count > self.SUSPICIOUS_PATTERNS['validation_farming']['threshold']:
+            suspicious.append('validation_farming')
+        
+        # Check auth brute force
+        auth_count = self.store.get_suspicious_activity_count(
+            client_id, 'auth_attempts',
+            self.SUSPICIOUS_PATTERNS['auth_brute_force']['window_minutes']
+        )
+        if auth_count > self.SUSPICIOUS_PATTERNS['auth_brute_force']['threshold']:
+            suspicious.append('auth_brute_force')
+        
+        return suspicious
+    
+    def _get_user_id(self, request: Request) -> Optional[str]:
+        """Extract user ID from request if available"""
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            # Simplified - in production decode JWT
+            return "authenticated_user"
+        return None
+    
+    def _get_session_id(self, request: Request) -> Optional[str]:
+        """Extract session ID from request if available"""
+        session_id = request.cookies.get("session_id")
+        if not session_id:
+            session_id = request.headers.get("x-session-id")
+        return session_id
 
-# Global instance for dependency injection        
+
+# Global instance for dependency injection
 _rate_limiting_middleware = None
 
 def get_rate_limiting_middleware() -> RateLimitingMiddleware:
@@ -394,3 +450,6 @@ def get_rate_limiting_middleware() -> RateLimitingMiddleware:
     if _rate_limiting_middleware is None:
         _rate_limiting_middleware = RateLimitingMiddleware()
     return _rate_limiting_middleware
+
+# Alias for backward compatibility
+get_industry_standard_rate_limiter = get_rate_limiting_middleware

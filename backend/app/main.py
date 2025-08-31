@@ -17,7 +17,8 @@ import uvicorn
 from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
-from .routes import auth, hosts, scans, content, scap_content, monitoring, system_settings, users, audit, host_groups, scan_templates, webhooks, mfa
+from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa
+from .routes.system_settings_unified import router as system_settings_router
 from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities
 # Import security routes only if available
 try:
@@ -87,7 +88,7 @@ async def lifespan(app: FastAPI):
             
             # Initialize scheduler state from database
             try:
-                from .routes.system_settings import restore_scheduler_state
+                from .routes.system_settings_unified import restore_scheduler_state
                 await restore_scheduler_state()
                 logger.info("Scheduler state restored from database")
             except Exception as scheduler_error:
@@ -154,7 +155,9 @@ app = FastAPI(
 )
 
 
-# Rate Limiting Middleware (applied first for security)
+# Rate Limiting Middleware with Token Bucket Algorithm
+# Environment-controlled: Set OPENWATCH_RATE_LIMITING=false to disable for development
+# Uses industry-standard token bucket algorithm with proper burst handling and recovery times
 rate_limiter = get_rate_limiting_middleware()
 app.middleware("http")(rate_limiter)
 
@@ -330,11 +333,12 @@ app.add_middleware(
 app.add_middleware(PrometheusMiddleware, service_name="openwatch")
 
 # Instrument FastAPI with tracing (do this after app creation)
-try:
-    instrument_fastapi_app(app)
-    logger.info("FastAPI tracing instrumentation completed")
-except Exception as e:
-    logger.warning(f"FastAPI tracing instrumentation failed: {e}")
+# Instrument FastAPI with tracing (disabled for now)
+# try:
+#     instrument_fastapi_app(app)
+#     logger.info("FastAPI tracing instrumentation completed")
+# except Exception as e:
+#     logger.warning(f"FastAPI tracing instrumentation failed: {e}")
 
 
 # Health Check Endpoint
@@ -433,7 +437,7 @@ app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 app.include_router(scap_content.router, prefix="/api", tags=["SCAP Content"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
-app.include_router(system_settings.router, prefix="/api", tags=["System Settings"])
+app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
 app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
