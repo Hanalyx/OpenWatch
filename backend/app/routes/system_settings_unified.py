@@ -527,13 +527,24 @@ async def delete_system_credential(
 
 # Scheduler endpoints for host monitoring
 class SchedulerStatus(BaseModel):
+    enabled: bool
+    interval_minutes: int
     status: str  # "running", "stopped", "error"
-    jobs: List[dict] = []
+    jobs: Optional[List[dict]] = []
     uptime: Optional[str] = None
 
 
-# Global scheduler instance
+class SchedulerStartRequest(BaseModel):
+    interval_minutes: int = 5
+
+
+class SchedulerUpdateRequest(BaseModel):
+    interval_minutes: int
+
+
+# Global scheduler instance and settings
 _scheduler = None
+_scheduler_interval = 5  # Default 5 minutes
 
 
 def get_scheduler():
@@ -555,6 +566,8 @@ async def get_scheduler_status(
         
         if scheduler is None:
             return SchedulerStatus(
+                enabled=False,
+                interval_minutes=_scheduler_interval,
                 status="error",
                 jobs=[],
                 uptime=None
@@ -575,12 +588,16 @@ async def get_scheduler_status(
                 logger.warning(f"Failed to get job info: {e}")
             
             return SchedulerStatus(
+                enabled=True,
+                interval_minutes=_scheduler_interval,
                 status="running",
                 jobs=jobs_info,
                 uptime="Running"
             )
         else:
             return SchedulerStatus(
+                enabled=False,
+                interval_minutes=_scheduler_interval,
                 status="stopped",
                 jobs=[],
                 uptime=None
@@ -589,6 +606,8 @@ async def get_scheduler_status(
     except Exception as e:
         logger.error(f"Failed to get scheduler status: {e}")
         return SchedulerStatus(
+            enabled=False,
+            interval_minutes=_scheduler_interval,
             status="error",
             jobs=[],
             uptime=None
@@ -598,11 +617,13 @@ async def get_scheduler_status(
 @router.post("/scheduler/start")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
 async def start_scheduler(
+    request: SchedulerStartRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """Start the monitoring scheduler"""
     try:
-        global _scheduler
+        global _scheduler, _scheduler_interval
+        _scheduler_interval = request.interval_minutes
         scheduler = get_scheduler()
         
         if scheduler is None:
@@ -618,11 +639,31 @@ async def start_scheduler(
         
         if not scheduler.running:
             scheduler.start()
-            logger.info(f"Host monitoring scheduler started by user {current_user.get('username', 'unknown')}")
+            
+            # Configure the monitoring job with the requested interval
+            from ..tasks.monitoring_tasks import periodic_host_monitoring
+            
+            # Remove any existing job first
+            for job in scheduler.get_jobs():
+                if job.id == "host_monitoring":
+                    scheduler.remove_job(job.id)
+            
+            # Add the job with the specified interval
+            scheduler.add_job(
+                periodic_host_monitoring,
+                'interval',
+                minutes=_scheduler_interval,
+                id='host_monitoring',
+                name='Host Monitoring Task',
+                replace_existing=True
+            )
+            
+            logger.info(f"Host monitoring scheduler started with {_scheduler_interval} minute interval by user {current_user.get('username', 'unknown')}")
             
             return {
                 "message": "Scheduler started successfully",
-                "status": "running"
+                "status": "running",
+                "interval_minutes": _scheduler_interval
             }
         else:
             return {
@@ -672,6 +713,53 @@ async def stop_scheduler(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to stop scheduler: {str(e)}"
+        )
+
+
+@router.put("/scheduler")
+@require_permission(Permission.SYSTEM_MAINTENANCE)
+async def update_scheduler(
+    request: SchedulerUpdateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update scheduler settings"""
+    try:
+        global _scheduler_interval
+        _scheduler_interval = request.interval_minutes
+        
+        scheduler = get_scheduler()
+        
+        # If scheduler is running, we need to reschedule the job with the new interval
+        if scheduler and scheduler.running:
+            # Remove existing jobs
+            for job in scheduler.get_jobs():
+                if job.id == "host_monitoring":
+                    scheduler.remove_job(job.id)
+            
+            # Add new job with updated interval
+            from ..tasks.monitoring_tasks import periodic_host_monitoring
+            scheduler.add_job(
+                periodic_host_monitoring,
+                'interval',
+                minutes=_scheduler_interval,
+                id='host_monitoring',
+                name='Host Monitoring Task',
+                replace_existing=True
+            )
+            
+            logger.info(f"Scheduler interval updated to {_scheduler_interval} minutes by user {current_user.get('username', 'unknown')}")
+        
+        return {
+            "message": f"Scheduler interval updated to {_scheduler_interval} minutes",
+            "interval_minutes": _scheduler_interval,
+            "status": "running" if scheduler and scheduler.running else "stopped"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update scheduler: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update scheduler: {str(e)}"
         )
 
 
