@@ -1,0 +1,186 @@
+name: Issue Management
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, edited, labeled, unlabeled, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  auto-assign:
+    name: Auto Assign Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    
+    steps:
+      - name: Auto assign based on labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(label => label.name);
+            
+            let assignees = [];
+            
+            // Auto-assign based on labels
+            if (labels.includes('backend') || labels.includes('api')) {
+              assignees.push('backend-team');
+            }
+            if (labels.includes('frontend') || labels.includes('ui/ux')) {
+              assignees.push('frontend-team');
+            }
+            if (labels.includes('security')) {
+              assignees.push('security-team');
+            }
+            if (labels.includes('bug')) {
+              assignees.push('qa-team');
+            }
+            if (labels.includes('documentation')) {
+              assignees.push('docs-team');
+            }
+            
+            if (assignees.length > 0) {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                assignees: assignees
+              });
+            }
+
+  label-pr:
+    name: Auto Label PRs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auto label based on changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const labels = new Set();
+            
+            for (const file of files) {
+              const filename = file.filename;
+              
+              if (filename.startsWith('backend/')) {
+                labels.add('backend');
+                if (filename.includes('test')) labels.add('tests');
+                if (filename.includes('security')) labels.add('security');
+                if (filename.includes('api')) labels.add('api');
+              }
+              
+              if (filename.startsWith('frontend/')) {
+                labels.add('frontend');
+                if (filename.includes('test')) labels.add('tests');
+                if (filename.includes('.css') || filename.includes('.scss')) labels.add('styling');
+              }
+              
+              if (filename.startsWith('docs/')) {
+                labels.add('documentation');
+              }
+              
+              if (filename.includes('docker') || filename.includes('compose')) {
+                labels.add('infrastructure');
+              }
+              
+              if (filename.startsWith('.github/')) {
+                labels.add('ci/cd');
+              }
+              
+              if (filename.includes('security') || filename.includes('auth')) {
+                labels.add('security');
+              }
+            }
+            
+            if (labels.size > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: Array.from(labels)
+              });
+            }
+
+  size-label:
+    name: PR Size Labeling
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
+    
+    steps:
+      - name: Add size label
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/XS'
+          xs_max_size: 10
+          s_label: 'size/S'
+          s_max_size: 30
+          m_label: 'size/M'
+          m_max_size: 100
+          l_label: 'size/L'
+          l_max_size: 500
+          xl_label: 'size/XL'
+          fail_if_xl: false
+
+  stale-issues:
+    name: Mark Stale Issues
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Mark stale issues and PRs
+        uses: actions/stale@v8
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has not had recent activity. 
+            It will be closed if no further activity occurs. Thank you for your contributions.
+          stale-pr-message: |
+            This pull request has been automatically marked as stale because it has not had recent activity. 
+            It will be closed if no further activity occurs. Thank you for your contributions.
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          days-before-stale: 30
+          days-before-close: 7
+          exempt-issue-labels: 'pinned,security,enhancement'
+          exempt-pr-labels: 'pinned,security'
+
+  welcome-comment:
+    name: Welcome New Contributors
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    
+    steps:
+      - name: Welcome first-time contributors
+        uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            👋 Thanks for opening your first issue! We're excited to have you contributing to OpenWatch. 
+            
+            Please make sure you've provided enough details for us to understand the issue. 
+            If this is a bug report, please include steps to reproduce the issue.
+          pr-message: |
+            🎉 Thanks for your first pull request! We appreciate your contribution to OpenWatch.
+            
+            Please make sure:
+            - [ ] Your code follows our style guidelines
+            - [ ] You've added tests for new functionality
+            - [ ] All existing tests pass
+            - [ ] You've updated documentation if needed
+            
+            A maintainer will review your PR soon!

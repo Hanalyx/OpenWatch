@@ -1,0 +1,232 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'backend/**/*.py'
+      - 'frontend/**/*.tsx'
+      - 'frontend/**/*.ts'
+      - 'README.md'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'backend/**/*.py'
+      - 'frontend/**/*.tsx'
+      - 'frontend/**/*.ts'
+      - 'README.md'
+
+jobs:
+  generate-api-docs:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install sphinx sphinx-rtd-theme sphinx-autodoc-typehints sphinxcontrib-openapi
+
+      - name: Generate Python API docs
+        working-directory: ./backend
+        run: |
+          # Create docs directory structure
+          mkdir -p docs/source
+          
+          # Generate Sphinx configuration
+          cat > docs/source/conf.py << EOF
+          project = 'OpenWatch API'
+          copyright = '2024, Hanalyx'
+          author = 'Hanalyx Team'
+          
+          extensions = [
+              'sphinx.ext.autodoc',
+              'sphinx.ext.napoleon',
+              'sphinx.ext.viewcode',
+              'sphinx_autodoc_typehints',
+              'sphinxcontrib.openapi',
+          ]
+          
+          templates_path = ['_templates']
+          exclude_patterns = []
+          
+          html_theme = 'sphinx_rtd_theme'
+          html_static_path = ['_static']
+          EOF
+          
+          # Generate API documentation
+          sphinx-apidoc -o docs/source app/
+          
+          # Build HTML documentation
+          sphinx-build -b html docs/source docs/build
+
+      - name: Generate OpenAPI spec
+        working-directory: ./backend
+        run: |
+          python -c "
+          from app.main import app
+          import json
+          openapi_schema = app.openapi()
+          with open('openapi.json', 'w') as f:
+              json.dump(openapi_schema, f, indent=2)
+          "
+
+      - name: Generate TypeScript API docs
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npx typedoc src --out docs
+
+      - name: Upload documentation artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-documentation
+          path: |
+            backend/docs/build/
+            backend/openapi.json
+            frontend/docs/
+
+  build-user-docs:
+    name: Build User Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm install -g @docusaurus/init
+          npm install -g mkdocs mkdocs-material
+
+      - name: Build MkDocs documentation
+        run: |
+          # Create mkdocs.yml configuration
+          cat > mkdocs.yml << EOF
+          site_name: OpenWatch Documentation
+          site_url: https://docs.openwatch.hanalyx.com
+          repo_url: https://github.com/Hanalyx/OpenWatch
+          repo_name: Hanalyx/OpenWatch
+          
+          theme:
+            name: material
+            palette:
+              - scheme: default
+                primary: indigo
+                accent: indigo
+                toggle:
+                  icon: material/brightness-7
+                  name: Switch to dark mode
+              - scheme: slate
+                primary: indigo
+                accent: indigo
+                toggle:
+                  icon: material/brightness-4
+                  name: Switch to light mode
+            features:
+              - navigation.tabs
+              - navigation.sections
+              - navigation.expand
+              - navigation.top
+              - search.suggest
+              - search.highlight
+              - content.code.copy
+          
+          nav:
+            - Home: README.md
+            - Getting Started:
+              - Installation: docs/installation.md
+              - Quick Start: docs/quickstart.md
+              - Configuration: docs/configuration.md
+            - User Guide:
+              - Dashboard: docs/user-guide/dashboard.md
+              - Host Management: docs/user-guide/hosts.md
+              - Scanning: docs/user-guide/scanning.md
+              - Reports: docs/user-guide/reports.md
+            - API Reference:
+              - Overview: docs/api/README.md
+              - Authentication: docs/api/authentication.md
+              - Endpoints: docs/api/endpoints.md
+            - Security:
+              - Overview: docs/security/SECURITY.md
+              - Best Practices: docs/security/best-practices.md
+            - Deployment:
+              - Docker: docs/deployment/docker-deployment.md
+              - Kubernetes: docs/deployment/kubernetes.md
+              - AWS: docs/deployment/aws.md
+          
+          plugins:
+            - search
+            - mermaid2
+          
+          markdown_extensions:
+            - pymdownx.highlight:
+                anchor_linenums: true
+            - pymdownx.inlinehilite
+            - pymdownx.snippets
+            - pymdownx.superfences:
+                custom_fences:
+                  - name: mermaid
+                    class: mermaid
+                    format: !!python/name:pymdownx.superfences.fence_code_format
+            - admonition
+            - pymdownx.details
+            - pymdownx.tabbed:
+                alternate_style: true
+            - tables
+            - toc:
+                permalink: true
+          EOF
+          
+          # Build documentation
+          mkdocs build
+
+      - name: Upload user documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: user-documentation
+          path: site/
+
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [generate-api-docs, build-user-docs]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download documentation artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Prepare GitHub Pages
+        run: |
+          mkdir -p public
+          cp -r user-documentation/* public/
+          mkdir -p public/api
+          cp -r api-documentation/backend/docs/build/* public/api/
+          cp api-documentation/backend/openapi.json public/api/
+          mkdir -p public/api/typescript
+          cp -r api-documentation/frontend/docs/* public/api/typescript/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          cname: docs.openwatch.hanalyx.com

@@ -1,0 +1,272 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          configuration: ".github/changelog-config.json"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: OpenWatch ${{ steps.version.outputs.version }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## Docker Images
+            - Backend: `ghcr.io/hanalyx/openwatch-backend:${{ steps.version.outputs.version }}`
+            - Frontend: `ghcr.io/hanalyx/openwatch-frontend:${{ steps.version.outputs.version }}`
+            
+            ## Installation
+            See the [installation guide](https://github.com/Hanalyx/OpenWatch/blob/main/README.md#installation) for detailed instructions.
+          draft: false
+          prerelease: false
+
+  build-artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        if: matrix.arch == 'arm64'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.backend
+          platforms: ${{ matrix.os }}/${{ matrix.arch }}
+          push: true
+          tags: |
+            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-${{ matrix.arch }}
+            ghcr.io/hanalyx/openwatch-backend:latest-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.frontend
+          platforms: ${{ matrix.os }}/${{ matrix.arch }}
+          push: true
+          tags: |
+            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-${{ matrix.arch }}
+            ghcr.io/hanalyx/openwatch-frontend:latest-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  create-manifests:
+    name: Create Multi-arch Manifests
+    runs-on: ubuntu-latest
+    needs: [create-release, build-artifacts]
+    
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push backend manifest
+        run: |
+          docker manifest create \
+            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }} \
+            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-amd64 \
+            ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}-arm64
+          
+          docker manifest push ghcr.io/hanalyx/openwatch-backend:${{ needs.create-release.outputs.version }}
+          
+          docker manifest create \
+            ghcr.io/hanalyx/openwatch-backend:latest \
+            ghcr.io/hanalyx/openwatch-backend:latest-amd64 \
+            ghcr.io/hanalyx/openwatch-backend:latest-arm64
+          
+          docker manifest push ghcr.io/hanalyx/openwatch-backend:latest
+
+      - name: Create and push frontend manifest
+        run: |
+          docker manifest create \
+            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }} \
+            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-amd64 \
+            ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}-arm64
+          
+          docker manifest push ghcr.io/hanalyx/openwatch-frontend:${{ needs.create-release.outputs.version }}
+          
+          docker manifest create \
+            ghcr.io/hanalyx/openwatch-frontend:latest \
+            ghcr.io/hanalyx/openwatch-frontend:latest-amd64 \
+            ghcr.io/hanalyx/openwatch-frontend:latest-arm64
+          
+          docker manifest push ghcr.io/hanalyx/openwatch-frontend:latest
+
+  package-release:
+    name: Package Release Files
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: |
+          # Create release directory
+          mkdir -p openwatch-${{ needs.create-release.outputs.version }}
+          
+          # Copy necessary files
+          cp -r docker openwatch-${{ needs.create-release.outputs.version }}/
+          cp -r scripts openwatch-${{ needs.create-release.outputs.version }}/
+          cp docker-compose.yml openwatch-${{ needs.create-release.outputs.version }}/
+          cp podman-compose.yml openwatch-${{ needs.create-release.outputs.version }}/
+          cp README.md openwatch-${{ needs.create-release.outputs.version }}/
+          cp LICENSE openwatch-${{ needs.create-release.outputs.version }}/
+          
+          # Create environment template
+          cat > openwatch-${{ needs.create-release.outputs.version }}/.env.template << EOF
+          # OpenWatch Configuration Template
+          # Copy this file to .env and update with your values
+          
+          # Database
+          DATABASE_URL=postgresql://openwatch:changeme@db:5432/openwatch
+          
+          # Redis
+          REDIS_URL=redis://redis:6379
+          
+          # Security
+          JWT_SECRET_KEY=changeme-generate-secure-key
+          ENCRYPTION_KEY=changeme-32-byte-key
+          
+          # Application
+          ENVIRONMENT=production
+          LOG_LEVEL=INFO
+          EOF
+          
+          # Create archives
+          tar -czf openwatch-${{ needs.create-release.outputs.version }}.tar.gz openwatch-${{ needs.create-release.outputs.version }}
+          zip -r openwatch-${{ needs.create-release.outputs.version }}.zip openwatch-${{ needs.create-release.outputs.version }}
+
+      - name: Upload Release Assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./openwatch-${{ needs.create-release.outputs.version }}.tar.gz
+          asset_name: openwatch-${{ needs.create-release.outputs.version }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload ZIP Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./openwatch-${{ needs.create-release.outputs.version }}.zip
+          asset_name: openwatch-${{ needs.create-release.outputs.version }}.zip
+          asset_content_type: application/zip
+
+  update-documentation:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [create-release, create-manifests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update version references
+        run: |
+          # Update README with new version
+          sed -i "s/openwatch:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch:${{ needs.create-release.outputs.version }}/g" README.md
+          
+          # Update docker-compose.yml
+          sed -i "s/openwatch-backend:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch-backend:${{ needs.create-release.outputs.version }}/g" docker-compose.yml
+          sed -i "s/openwatch-frontend:[0-9]\+\.[0-9]\+\.[0-9]\+/openwatch-frontend:${{ needs.create-release.outputs.version }}/g" docker-compose.yml
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update version to ${{ needs.create-release.outputs.version }}"
+          title: "chore: update documentation for ${{ needs.create-release.outputs.version }} release"
+          body: |
+            This PR updates the documentation to reflect the new release version ${{ needs.create-release.outputs.version }}.
+            
+            - Updates version references in README
+            - Updates docker-compose.yml with new image tags
+          branch: update-version-${{ needs.create-release.outputs.version }}
+          delete-branch: true
