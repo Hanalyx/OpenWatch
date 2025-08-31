@@ -5,6 +5,7 @@ Replaces the dual-system approach with a single, consistent authentication layer
 """
 import uuid
 import json
+import base64
 import logging
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime
@@ -184,11 +185,43 @@ class CentralizedAuthService:
             passphrase = None
             
             if row.encrypted_password:
-                password = decrypt_data(row.encrypted_password).decode()
+                # Handle both string and memoryview from database
+                encrypted_data = row.encrypted_password
+                if isinstance(encrypted_data, memoryview):
+                    # memoryview contains base64-encoded bytes - decode then decrypt
+                    import base64
+                    from .encryption import get_encryption_service
+                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                    password = get_encryption_service().decrypt(decoded_bytes).decode()
+                else:
+                    # String data is base64 encoded - use decrypt_data
+                    password = decrypt_data(encrypted_data).decode()
+                
             if row.encrypted_private_key:
-                private_key = decrypt_data(row.encrypted_private_key).decode()
+                # Handle both string and memoryview from database
+                encrypted_data = row.encrypted_private_key
+                if isinstance(encrypted_data, memoryview):
+                    # memoryview contains base64-encoded bytes - decode then decrypt
+                    import base64
+                    from .encryption import get_encryption_service
+                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                    private_key = get_encryption_service().decrypt(decoded_bytes).decode()
+                else:
+                    # String data is base64 encoded - use decrypt_data
+                    private_key = decrypt_data(encrypted_data).decode()
+                
             if row.encrypted_passphrase:
-                passphrase = decrypt_data(row.encrypted_passphrase).decode()
+                # Handle both string and memoryview from database
+                encrypted_data = row.encrypted_passphrase
+                if isinstance(encrypted_data, memoryview):
+                    # memoryview contains base64-encoded bytes - decode then decrypt
+                    import base64
+                    from .encryption import get_encryption_service
+                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                    passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
+                else:
+                    # String data is base64 encoded - use decrypt_data
+                    passphrase = decrypt_data(encrypted_data).decode()
             
             return CredentialData(
                 username=row.username,
@@ -200,19 +233,20 @@ class CentralizedAuthService:
             )
             
         except Exception as e:
+            import traceback
             logger.error(f"Failed to get credential {credential_id}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     def resolve_credential(self, target_id: str = None, use_default: bool = False) -> Optional[CredentialData]:
         """
         Resolve effective credentials using inheritance logic.
-        This is the core method that fixes the authentication inconsistency.
+        TEMPORARY: Using legacy system_credentials table until unified migration is complete.
         
         Resolution order:
-        1. If use_default=True -> system default credential
-        2. If target_id provided -> target-specific credential 
-        3. If target has no credential -> fallback to system default
-        4. Validate and normalize before return
+        1. If use_default=True -> legacy system default credential
+        2. If target_id provided -> target-specific credential (not implemented yet)
+        3. If target has no credential -> fallback to legacy system default
         
         Args:
             target_id: Target ID (host_id, group_id) to resolve credentials for
@@ -222,45 +256,116 @@ class CentralizedAuthService:
             CredentialData: Resolved credential, or None if none available
         """
         try:
-            # Step 1: Check for forced default use
-            if use_default:
-                logger.debug(f"Resolving system default credential (forced)")
+            # Use unified credentials system (migration is now complete)
+            
+            if use_default or not target_id:
+                logger.info(f"Using unified_credentials table for credential resolution")
                 return self._get_system_default()
             
-            # Step 2: Try target-specific credential first
-            if target_id:
-                logger.debug(f"Looking for host-specific credential for {target_id}")
-                result = self.db.execute(text("""
-                    SELECT id FROM unified_credentials 
-                    WHERE scope = 'host' AND target_id = :target_id AND is_active = true
-                    ORDER BY is_default DESC, created_at DESC
-                    LIMIT 1
-                """), {"target_id": target_id})
-                
-                row = result.fetchone()
-                if row:
-                    credential = self.get_credential(row.id)
-                    if credential:
-                        credential.source = f"host:{target_id}"
-                        logger.info(f"Resolved host-specific credential for {target_id}")
-                        return credential
-            
-            # Step 3: Fallback to system default
-            logger.debug(f"Falling back to system default credential")
-            default_credential = self._get_system_default()
-            if default_credential:
-                default_credential.source = "system_default_fallback"
-                logger.info(f"Resolved system default credential as fallback")
-            
-            return default_credential
+            # For now, host-specific credentials are not supported via unified system
+            # Fall back to legacy system default
+            logger.info(f"No host-specific unified credentials supported yet, using legacy system default")
+            return self._get_legacy_system_default()
             
         except Exception as e:
             logger.error(f"Failed to resolve credential: {e}")
             return None
     
-    def _get_system_default(self) -> Optional[CredentialData]:
-        """Get system default credential"""
+    def _get_legacy_system_default(self) -> Optional[CredentialData]:
+        """Get system default credential from legacy system_credentials table"""
         try:
+            logger.info("Getting legacy system default credential from system_credentials table")
+            result = self.db.execute(text("""
+                SELECT id, username, auth_method, encrypted_password, encrypted_private_key, 
+                       private_key_passphrase
+                FROM system_credentials 
+                WHERE is_default = true AND is_active = true
+                LIMIT 1
+            """))
+            
+            row = result.fetchone()
+            if row:
+                logger.info("Found legacy system default credential, decrypting...")
+                # Import decryption function for legacy credentials
+                from .encryption import decrypt_data
+                import base64
+                
+                # Decrypt legacy credential data
+                password = None
+                private_key = None
+                passphrase = None
+                
+                if row.encrypted_password:
+                    try:
+                        encrypted_data = row.encrypted_password
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            password = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            password = decrypt_data(encrypted_data).decode()
+                        logger.info("Successfully decrypted legacy password")
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy password: {e}")
+                
+                if row.encrypted_private_key:
+                    try:
+                        encrypted_data = row.encrypted_private_key
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            private_key = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            private_key = decrypt_data(encrypted_data).decode()
+                        logger.info("Successfully decrypted legacy private key")
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy private key: {e}")
+                
+                if row.private_key_passphrase:
+                    try:
+                        encrypted_data = row.private_key_passphrase
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            passphrase = decrypt_data(encrypted_data).decode()
+                        logger.info("Successfully decrypted legacy passphrase")
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy passphrase: {e}")
+                
+                credential = CredentialData(
+                    username=row.username,
+                    auth_method=AuthMethod(row.auth_method),
+                    password=password,
+                    private_key=private_key,
+                    private_key_passphrase=passphrase,
+                    source="legacy_system_default"
+                )
+                
+                logger.info(f"Successfully resolved legacy system default credential for user: {row.username}")
+                return credential
+            
+            logger.warning("No legacy system default credential found in system_credentials table")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get legacy system default credential: {e}")
+            return None
+    
+    def _get_system_default(self) -> Optional[CredentialData]:
+        """Get system default credential with fallback to legacy system_credentials table"""
+        try:
+            # First try unified_credentials table (new system)
             result = self.db.execute(text("""
                 SELECT id FROM unified_credentials 
                 WHERE scope = 'system' AND is_default = true AND is_active = true
@@ -268,15 +373,90 @@ class CentralizedAuthService:
             """))
             
             row = result.fetchone()
-            if not row:
-                logger.warning("No system default credential found")
-                return None
+            if row:
+                credential = self.get_credential(row.id)
+                if credential:
+                    credential.source = "system_default"
+                    return credential
             
-            credential = self.get_credential(row.id)
-            if credential:
-                credential.source = "system_default"
+            # Fallback to legacy system_credentials table
+            logger.warning("No unified system credentials found, checking legacy system_credentials table")
+            result = self.db.execute(text("""
+                SELECT id, username, auth_method, encrypted_password, encrypted_private_key, 
+                       private_key_passphrase
+                FROM system_credentials 
+                WHERE is_default = true AND is_active = true
+                LIMIT 1
+            """))
             
-            return credential
+            row = result.fetchone()
+            if row:
+                logger.warning("Found legacy system default credential, using it")
+                # Import decryption function for legacy credentials
+                from .encryption import decrypt_data
+                import base64
+                
+                # Decrypt legacy credential data
+                password = None
+                private_key = None
+                passphrase = None
+                
+                if row.encrypted_password:
+                    try:
+                        encrypted_data = row.encrypted_password
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            password = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            password = decrypt_data(encrypted_data).decode()
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy password: {e}")
+                
+                if row.encrypted_private_key:
+                    try:
+                        encrypted_data = row.encrypted_private_key
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            private_key = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            private_key = decrypt_data(encrypted_data).decode()
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy private key: {e}")
+                
+                if row.private_key_passphrase:
+                    try:
+                        encrypted_data = row.private_key_passphrase
+                        if isinstance(encrypted_data, memoryview):
+                            # memoryview contains base64-encoded bytes - decode then decrypt
+                            import base64
+                            from .encryption import get_encryption_service
+                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
+                            passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
+                        else:
+                            # String data is base64 encoded - use decrypt_data
+                            passphrase = decrypt_data(encrypted_data).decode()
+                    except Exception as e:
+                        logger.warning(f"Failed to decrypt legacy passphrase: {e}")
+                
+                return CredentialData(
+                    username=row.username,
+                    auth_method=AuthMethod(row.auth_method),
+                    password=password,
+                    private_key=private_key,
+                    private_key_passphrase=passphrase,
+                    source="legacy_system_default"
+                )
+            
+            logger.warning("No system default credential found in either unified_credentials or system_credentials")
+            return None
             
         except Exception as e:
             logger.error(f"Failed to get system default credential: {e}")

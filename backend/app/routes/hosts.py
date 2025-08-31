@@ -3,11 +3,12 @@ Host Management Routes
 """
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 import logging
 from datetime import datetime
 import uuid
+import json
 
 from ..database import get_db
 from sqlalchemy.orm import Session
@@ -73,7 +74,7 @@ class HostCreate(BaseModel):
     operating_system: str
     port: Optional[int] = 22
     username: Optional[str] = None
-    auth_method: Optional[str] = "ssh_key"
+    auth_method: Optional[str] = Field("ssh_key", pattern="^(password|ssh_key|system_default)$")
     ssh_key: Optional[str] = None
     password: Optional[str] = None
     environment: Optional[str] = "production"
@@ -88,7 +89,7 @@ class HostUpdate(BaseModel):
     operating_system: Optional[str] = None
     port: Optional[int] = None
     username: Optional[str] = None
-    auth_method: Optional[str] = None
+    auth_method: Optional[str] = Field(None, pattern="^(password|ssh_key|system_default)$")
     ssh_key: Optional[str] = None
     password: Optional[str] = None
     environment: Optional[str] = None
@@ -204,9 +205,32 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
         # Use display_name if provided, otherwise use hostname
         display_name = host.display_name or host.hostname
         
+        # Handle credential encryption if provided
+        encrypted_creds = None
+        if host.auth_method == "password" and host.password:
+            from ..services.crypto import encrypt_credentials
+            cred_data = {
+                "username": host.username,
+                "password": host.password,
+                "auth_method": "password"
+            }
+            encrypted_creds = encrypt_credentials(json.dumps(cred_data))
+            logger.info(f"Encrypting password credentials for new host {host.hostname}")
+        elif host.auth_method == "ssh_key" and host.ssh_key:
+            from ..services.crypto import encrypt_credentials
+            cred_data = {
+                "username": host.username,
+                "ssh_key": host.ssh_key,
+                "auth_method": "ssh_key"
+            }
+            encrypted_creds = encrypt_credentials(json.dumps(cred_data))
+            logger.info(f"Encrypting SSH key credentials for new host {host.hostname}")
+        
         db.execute(text("""
-            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, is_active, created_at, updated_at)
-            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port, :is_active, :created_at, :updated_at)
+            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, 
+                             username, auth_method, encrypted_credentials, is_active, created_at, updated_at)
+            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port, 
+                    :username, :auth_method, :encrypted_credentials, :is_active, :created_at, :updated_at)
         """), {
             "id": host_id,
             "hostname": host.hostname,
@@ -215,6 +239,9 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
             "operating_system": host.operating_system,
             "status": "offline",
             "port": int(host.port) if host.port else 22,
+            "username": host.username,
+            "auth_method": host.auth_method or "ssh_key",
+            "encrypted_credentials": encrypted_creds,
             "is_active": True,
             "created_at": current_time,
             "updated_at": current_time
@@ -355,23 +382,36 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
         new_display_name = (host_update.display_name if host_update.display_name is not None 
                           else current_host.display_name or new_hostname)
         
-        # For now, skip complex credential handling and focus on basic field updates
-        # TODO: Add credential handling back once SSH key columns are added to schema
+        # Handle credential updates if provided
+        encrypted_creds = None
+        if host_update.auth_method:
+            if host_update.auth_method == "password" and host_update.password:
+                # Encrypt password credentials
+                from ..services.crypto import encrypt_credentials
+                cred_data = {
+                    "username": host_update.username or current_host.username,
+                    "password": host_update.password,
+                    "auth_method": "password"
+                }
+                encrypted_creds = encrypt_credentials(json.dumps(cred_data))
+                logger.info(f"Encrypting password credentials for host {host_id}")
+            elif host_update.auth_method == "ssh_key" and host_update.ssh_key:
+                # Encrypt SSH key credentials
+                from ..services.crypto import encrypt_credentials
+                cred_data = {
+                    "username": host_update.username or current_host.username,
+                    "ssh_key": host_update.ssh_key,
+                    "auth_method": "ssh_key"
+                }
+                encrypted_creds = encrypt_credentials(json.dumps(cred_data))
+                logger.info(f"Encrypting SSH key credentials for host {host_id}")
+            elif host_update.auth_method == "system_default":
+                # Clear host-specific credentials when using system default
+                encrypted_creds = None
+                logger.info(f"Clearing host credentials for system default auth on host {host_id}")
         
-        # Update only the fields that exist in the database schema
-        db.execute(text("""
-            UPDATE hosts 
-            SET hostname = :hostname,
-                ip_address = :ip_address,
-                display_name = :display_name,
-                operating_system = :operating_system,
-                port = :port,
-                username = :username,
-                auth_method = :auth_method,
-                description = :description,
-                updated_at = :updated_at
-            WHERE id = :id
-        """), {
+        # Update all fields including encrypted credentials
+        update_params = {
             "id": host_uuid,
             "hostname": new_hostname,
             "ip_address": host_update.ip_address if host_update.ip_address is not None else current_host.ip_address,
@@ -382,7 +422,41 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
             "auth_method": host_update.auth_method if host_update.auth_method is not None else current_host.auth_method,
             "description": host_update.description if host_update.description is not None else current_host.description,
             "updated_at": current_time
-        })
+        }
+        
+        # Build SQL query with optional encrypted_credentials
+        if encrypted_creds is not None or (host_update.auth_method == "system_default"):
+            update_query = """
+                UPDATE hosts 
+                SET hostname = :hostname,
+                    ip_address = :ip_address,
+                    display_name = :display_name,
+                    operating_system = :operating_system,
+                    port = :port,
+                    username = :username,
+                    auth_method = :auth_method,
+                    description = :description,
+                    encrypted_credentials = :encrypted_credentials,
+                    updated_at = :updated_at
+                WHERE id = :id
+            """
+            update_params["encrypted_credentials"] = encrypted_creds
+        else:
+            update_query = """
+                UPDATE hosts 
+                SET hostname = :hostname,
+                    ip_address = :ip_address,
+                    display_name = :display_name,
+                    operating_system = :operating_system,
+                    port = :port,
+                    username = :username,
+                    auth_method = :auth_method,
+                    description = :description,
+                    updated_at = :updated_at
+                WHERE id = :id
+            """
+        
+        db.execute(text(update_query), update_params)
         
         db.commit()
         

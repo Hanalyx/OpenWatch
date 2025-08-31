@@ -210,6 +210,16 @@ const HostsEnhanced: React.FC = () => {
     sshKey: '',
     password: ''
   });
+  const [sshKeyValidated, setSshKeyValidated] = useState(false);
+  const [systemCredentialInfo, setSystemCredentialInfo] = useState<{
+    name: string;
+    username: string;
+    authMethod: string;
+    sshKeyType?: string;
+    sshKeyBits?: number;
+    sshKeyComment?: string;
+  } | null>(null);
+  const [editingAuthMethod, setEditingAuthMethod] = useState(false);
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
   const [deletingHost, setDeletingHost] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -496,6 +506,15 @@ const HostsEnhanced: React.FC = () => {
     console.log('📋 Form data being set:', initialFormData);
     
     setEditFormData(initialFormData);
+    setSshKeyValidated(false);
+    setEditingAuthMethod(false);
+    setSystemCredentialInfo(null);
+    
+    // Fetch system credentials if using system default
+    if (host.authMethod === 'system_default') {
+      fetchSystemCredentialsForEdit();
+    }
+    
     setEditDialog({open: true, host});
   };
 
@@ -653,6 +672,56 @@ const HostsEnhanced: React.FC = () => {
     } catch (error) {
       console.error('Error starting host monitoring:', error);
     }
+  };
+
+  const fetchSystemCredentialsForEdit = async () => {
+    try {
+      const response = await api.get('/api/system/credentials');
+      const defaultCredential = response.find((cred: any) => cred.is_default);
+      
+      if (defaultCredential) {
+        setSystemCredentialInfo({
+          name: defaultCredential.name,
+          username: defaultCredential.username,
+          authMethod: defaultCredential.auth_method,
+          sshKeyType: defaultCredential.ssh_key_type,
+          sshKeyBits: defaultCredential.ssh_key_bits,
+          sshKeyComment: defaultCredential.ssh_key_comment
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch system credentials for edit:', error);
+    }
+  };
+
+  const handleAuthMethodChange = (newMethod: string) => {
+    setEditFormData(prev => ({ ...prev, authMethod: newMethod as any }));
+    setSshKeyValidated(false);
+    
+    // Fetch system credentials when system_default is selected
+    if (newMethod === 'system_default') {
+      fetchSystemCredentialsForEdit();
+    } else {
+      setSystemCredentialInfo(null);
+    }
+  };
+
+  const validateSshKeyForEdit = (keyContent: string) => {
+    if (!keyContent.trim()) {
+      setSshKeyValidated(false);
+      return;
+    }
+    
+    // Basic validation - check for valid SSH key headers
+    const validKeyHeaders = [
+      '-----BEGIN OPENSSH PRIVATE KEY-----',
+      '-----BEGIN RSA PRIVATE KEY-----',
+      '-----BEGIN EC PRIVATE KEY-----',
+      '-----BEGIN DSA PRIVATE KEY-----'
+    ];
+    
+    const hasValidHeader = validKeyHeaders.some(header => keyContent.trim().startsWith(header));
+    setSshKeyValidated(hasValidHeader);
   };
 
   const getStatusIcon = (status: string) => {
@@ -1509,43 +1578,97 @@ const HostsEnhanced: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>Authentication Method</InputLabel>
-                <Select
-                  value={editFormData.authMethod}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, authMethod: e.target.value as any }))}
-                >
-                  <MenuItem value="ssh_key">SSH Key</MenuItem>
-                  <MenuItem value="password">Password</MenuItem>
-                  <MenuItem value="none">None</MenuItem>
-                  <MenuItem value="default">Default</MenuItem>
-                  <MenuItem value="system_default">System Default</MenuItem>
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <FormControl fullWidth sx={{ mr: editingAuthMethod ? 0 : 2 }}>
+                  <InputLabel>Authentication Method</InputLabel>
+                  <Select
+                    value={editFormData.authMethod}
+                    onChange={(e) => handleAuthMethodChange(e.target.value)}
+                    disabled={!editingAuthMethod && (sshKeyValidated || editFormData.authMethod === 'system_default')}
+                  >
+                    <MenuItem value="system_default">System Default</MenuItem>
+                    <MenuItem value="ssh_key">SSH Key</MenuItem>
+                    <MenuItem value="password">Password</MenuItem>
+                  </Select>
+                </FormControl>
+                {(!editingAuthMethod && (sshKeyValidated || editFormData.authMethod === 'system_default')) && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setEditingAuthMethod(true)}
+                    startIcon={<Edit />}
+                  >
+                    Edit
+                  </Button>
+                )}
+                {editingAuthMethod && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => setEditingAuthMethod(false)}
+                    startIcon={<CheckCircle />}
+                  >
+                    Done
+                  </Button>
+                )}
+              </Box>
             </Grid>
             
-            {/* SSH Key Input - Show when SSH Key authentication is selected */}
-            {editFormData.authMethod === 'ssh_key' && (
+            {/* SSH Key Input - Show when SSH Key authentication is selected and editing or not validated */}
+            {editFormData.authMethod === 'ssh_key' && (editingAuthMethod || !sshKeyValidated) && (
               <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="SSH Private Key"
                   value={editFormData.sshKey}
-                  onChange={(e) => setEditFormData(prev => ({ ...prev, sshKey: e.target.value }))}
+                  onChange={(e) => {
+                    setEditFormData(prev => ({ ...prev, sshKey: e.target.value }));
+                    validateSshKeyForEdit(e.target.value);
+                  }}
                   placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
 ...
 -----END OPENSSH PRIVATE KEY-----"
                   multiline
                   rows={6}
-                  helperText="Paste your SSH private key content here"
+                  helperText={sshKeyValidated ? "✅ SSH key is valid" : "Paste your SSH private key content here"}
+                  error={editFormData.sshKey.length > 0 && !sshKeyValidated}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <VpnKey />
+                        <VpnKey color={sshKeyValidated ? 'success' : 'inherit'} />
                       </InputAdornment>
                     ),
+                    endAdornment: sshKeyValidated ? (
+                      <InputAdornment position="end">
+                        <CheckCircleOutline color="success" />
+                      </InputAdornment>
+                    ) : null,
                   }}
                 />
+              </Grid>
+            )}
+            
+            {/* SSH Key Validated Display - Show when SSH key is validated and not editing */}
+            {editFormData.authMethod === 'ssh_key' && sshKeyValidated && !editingAuthMethod && (
+              <Grid item xs={12}>
+                <Card sx={{ 
+                  border: '2px solid', 
+                  borderColor: 'success.main', 
+                  bgcolor: 'success.50',
+                  '&:hover': { bgcolor: 'success.100' }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <CheckCircleOutline color="success" sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        SSH Key Configured
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Host-specific SSH key is configured and validated
+                    </Typography>
+                  </CardContent>
+                </Card>
               </Grid>
             )}
 
@@ -1558,8 +1681,14 @@ const HostsEnhanced: React.FC = () => {
                   label="Password"
                   value={editFormData.password}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, password: e.target.value }))}
-                  helperText="Enter the password for SSH authentication"
+                  helperText="Enter the password for SSH authentication - will be encrypted and stored securely"
+                  disabled={!editingAuthMethod && editFormData.password.length === 0}
                   InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <VpnKey />
+                      </InputAdornment>
+                    ),
                     endAdornment: (
                       <InputAdornment position="end">
                         <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
@@ -1572,15 +1701,47 @@ const HostsEnhanced: React.FC = () => {
               </Grid>
             )}
 
-            {/* System Default SSH Key Display */}
+            {/* System Default Credentials Display */}
             {editFormData.authMethod === 'system_default' && (
               <Grid item xs={12}>
-                <SSHKeyDisplay
-                  isSystemDefault={true}
-                  systemDefaultLabel="This host will use the system default SSH credentials configured in system settings"
-                  showActions={false}
-                  compact={false}
-                />
+                <Card sx={{ 
+                  border: '2px solid', 
+                  borderColor: 'primary.main', 
+                  bgcolor: 'primary.50',
+                  '&:hover': { bgcolor: 'primary.100' }
+                }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Security color="primary" sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        Using System Default Credentials
+                      </Typography>
+                    </Box>
+                    {systemCredentialInfo ? (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          <strong>Credential:</strong> {systemCredentialInfo.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          <strong>Username:</strong> {systemCredentialInfo.username}
+                        </Typography>
+                        {systemCredentialInfo.sshKeyType && (
+                          <Typography variant="body2" color="text.secondary">
+                            <strong>Key Type:</strong> {systemCredentialInfo.sshKeyType.toUpperCase()} {systemCredentialInfo.sshKeyBits}-bit
+                            {systemCredentialInfo.sshKeyComment && ` (${systemCredentialInfo.sshKeyComment})`}
+                          </Typography>
+                        )}
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                          All credential input fields are hidden when using system default
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Loading system credentials information...
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
               </Grid>
             )}
           </Grid>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -72,6 +72,7 @@ import {
   Cancel,
   Visibility,
   VisibilityOff,
+  Edit,
   FolderOpen,
   Terminal,
   Speed,
@@ -96,6 +97,25 @@ const AddHost: React.FC = () => {
   const [connectionTestResults, setConnectionTestResults] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // Enhanced authentication state management
+  const [sshKeyValidation, setSshKeyValidation] = useState<{
+    status: 'idle' | 'validating' | 'valid' | 'invalid';
+    message: string;
+    keyType?: string;
+    keyBits?: number;
+    securityLevel?: 'secure' | 'acceptable' | 'deprecated' | 'rejected';
+  }>({ status: 'idle', message: '' });
+  const [authMethodLocked, setAuthMethodLocked] = useState(false);
+  const [systemCredentials, setSystemCredentials] = useState<{
+    name: string;
+    username: string;
+    authMethod: string;
+    sshKeyType?: string;
+    sshKeyBits?: number;
+    sshKeyComment?: string;
+  } | null>(null);
+  const [editingAuth, setEditingAuth] = useState(false);
 
   // Form fields
   const [formData, setFormData] = useState({
@@ -106,7 +126,7 @@ const AddHost: React.FC = () => {
     displayName: '',
     
     // Authentication
-    authMethod: 'ssh-key',
+    authMethod: 'ssh_key',
     username: '',
     password: '',
     sshKey: '',
@@ -210,7 +230,7 @@ const AddHost: React.FC = () => {
         username: formData.username,
         auth_method: formData.authMethod,
         password: formData.authMethod === 'password' ? formData.password : undefined,
-        ssh_key: formData.authMethod === 'ssh-key' ? formData.sshKey : undefined,
+        ssh_key: formData.authMethod === 'ssh_key' ? formData.sshKey : undefined,
         timeout: 30
       };
 
@@ -282,6 +302,148 @@ const AddHost: React.FC = () => {
     }
   };
 
+  // Fetch system default credentials for display
+  const fetchSystemCredentials = async () => {
+    try {
+      const response = await fetch('/api/system/credentials', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+
+      if (response.ok) {
+        const credentials = await response.json();
+        const defaultCredential = credentials.find((cred: any) => cred.is_default);
+        
+        if (defaultCredential) {
+          setSystemCredentials({
+            name: defaultCredential.name,
+            username: defaultCredential.username,
+            authMethod: defaultCredential.auth_method,
+            sshKeyType: defaultCredential.ssh_key_type,
+            sshKeyBits: defaultCredential.ssh_key_bits,
+            sshKeyComment: defaultCredential.ssh_key_comment
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch system credentials:', error);
+    }
+  };
+
+  // Validate SSH key with enhanced feedback
+  const validateSshKey = async (keyContent: string) => {
+    if (!keyContent.trim()) {
+      setSshKeyValidation({ status: 'idle', message: '' });
+      return;
+    }
+
+    setSshKeyValidation({ status: 'validating', message: 'Validating SSH key...' });
+
+    try {
+      // Basic client-side validation first
+      const trimmedKey = keyContent.trim();
+      
+      // Check for common SSH key formats
+      const validKeyHeaders = [
+        '-----BEGIN OPENSSH PRIVATE KEY-----',
+        '-----BEGIN RSA PRIVATE KEY-----',
+        '-----BEGIN EC PRIVATE KEY-----',
+        '-----BEGIN DSA PRIVATE KEY-----'
+      ];
+      
+      const hasValidHeader = validKeyHeaders.some(header => trimmedKey.startsWith(header));
+      
+      if (!hasValidHeader) {
+        setSshKeyValidation({
+          status: 'invalid',
+          message: 'Invalid SSH key format. Please paste a valid private key.'
+        });
+        return;
+      }
+
+      // Test the key with backend validation
+      const testData = {
+        hostname: 'validation-test',
+        port: 22,
+        username: formData.username || 'test',
+        auth_method: 'ssh_key',
+        ssh_key: keyContent,
+        timeout: 5
+      };
+
+      const response = await fetch('/api/hosts/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify(testData)
+      });
+
+      // Even if connection fails, we can get SSH key validation info
+      const result = await response.json();
+      
+      if (result.ssh_key_valid === true || result.message?.includes('SSH key is valid')) {
+        setSshKeyValidation({
+          status: 'valid',
+          message: 'SSH key is valid and properly formatted.',
+          keyType: result.key_type,
+          keyBits: result.key_bits,
+          securityLevel: result.security_level
+        });
+        setAuthMethodLocked(true);
+      } else {
+        setSshKeyValidation({
+          status: 'invalid',
+          message: result.message || 'SSH key validation failed.'
+        });
+      }
+    } catch (error) {
+      setSshKeyValidation({
+        status: 'invalid',
+        message: 'Error validating SSH key. Please check the format and try again.'
+      });
+    }
+  };
+
+  // Handle authentication method change with validation
+  const handleAuthMethodChange = async (method: string) => {
+    if (authMethodLocked && !editingAuth) {
+      return; // Prevent changes when locked
+    }
+
+    handleInputChange('authMethod', method);
+    setAuthMethodLocked(false);
+    setSshKeyValidation({ status: 'idle', message: '' });
+    
+    // Fetch system credentials when system_default is selected
+    if (method === 'system_default' && !systemCredentials) {
+      await fetchSystemCredentials();
+    }
+  };
+
+  // Toggle edit mode for authentication
+  const toggleAuthEdit = () => {
+    setEditingAuth(!editingAuth);
+    if (editingAuth) {
+      // If we're stopping edit mode, lock the auth method if SSH key is valid
+      if (formData.authMethod === 'ssh_key' && sshKeyValidation.status === 'valid') {
+        setAuthMethodLocked(true);
+      }
+    } else {
+      // If we're starting edit mode, unlock
+      setAuthMethodLocked(false);
+    }
+  };
+
+  // Load system credentials on component mount
+  useEffect(() => {
+    if (formData.authMethod === 'system_default') {
+      fetchSystemCredentials();
+    }
+  }, []);
+
   const renderQuickMode = () => (
     <Paper sx={{ p: 3 }}>
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -339,17 +501,42 @@ const AddHost: React.FC = () => {
         </Grid>
 
         <Grid item xs={12}>
-          <RadioGroup
-            value={formData.authMethod}
-            onChange={(e) => handleInputChange('authMethod', e.target.value)}
-            row
-          >
-            <FormControlLabel value="default" control={<Radio />} label="Default (From System Settings)" />
-            <FormControlLabel value="ssh-key" control={<Radio />} label="SSH Key" />
-            <FormControlLabel value="password" control={<Radio />} label="Password" />
-            <FormControlLabel value="certificate" control={<Radio />} label="Certificate" />
-            <FormControlLabel value="agent" control={<Radio />} label="Agent Token" />
-          </RadioGroup>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box>
+              <RadioGroup
+                value={formData.authMethod}
+                onChange={(e) => handleAuthMethodChange(e.target.value)}
+                row
+                disabled={authMethodLocked && !editingAuth}
+              >
+                <FormControlLabel 
+                  value="system_default" 
+                  control={<Radio />} 
+                  label="System Default" 
+                />
+                <FormControlLabel 
+                  value="ssh_key" 
+                  control={<Radio />} 
+                  label="SSH Key" 
+                />
+                <FormControlLabel 
+                  value="password" 
+                  control={<Radio />} 
+                  label="Password" 
+                />
+              </RadioGroup>
+            </Box>
+            {(authMethodLocked || (formData.authMethod && !editingAuth)) && (
+              <Button
+                size="small"
+                onClick={toggleAuthEdit}
+                startIcon={editingAuth ? <CheckCircle /> : <Edit />}
+                color={editingAuth ? "primary" : "secondary"}
+              >
+                {editingAuth ? 'Done' : 'Edit'}
+              </Button>
+            )}
+          </Box>
         </Grid>
 
         <Grid item xs={12} md={6}>
@@ -377,6 +564,9 @@ const AddHost: React.FC = () => {
               label="Password"
               value={formData.password}
               onChange={(e) => handleInputChange('password', e.target.value)}
+              placeholder="Enter password for authentication"
+              helperText="Password will be encrypted and stored securely"
+              disabled={authMethodLocked && !editingAuth}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -385,7 +575,11 @@ const AddHost: React.FC = () => {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                    <IconButton 
+                      onClick={() => setShowPassword(!showPassword)} 
+                      edge="end"
+                      disabled={authMethodLocked && !editingAuth}
+                    >
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
@@ -395,38 +589,137 @@ const AddHost: React.FC = () => {
           </Grid>
         )}
 
-        {formData.authMethod === 'default' && (
+        {formData.authMethod === 'system_default' && (
           <Grid item xs={12}>
-            <SSHKeyDisplay
-              isSystemDefault={true}
-              systemDefaultLabel="This host will use the system default SSH credentials"
-              showActions={false}
-              compact={false}
-            />
+            <Card sx={{ 
+              border: '2px solid', 
+              borderColor: 'primary.main', 
+              bgcolor: 'primary.50',
+              '&:hover': { bgcolor: 'primary.100' }
+            }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <Security color="primary" sx={{ mr: 1 }} />
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    Using System Default Credentials
+                  </Typography>
+                </Box>
+                {systemCredentials ? (
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <strong>Credential:</strong> {systemCredentials.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <strong>Username:</strong> {systemCredentials.username}
+                    </Typography>
+                    {systemCredentials.sshKeyType && (
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Key Type:</strong> {systemCredentials.sshKeyType?.toUpperCase()} {systemCredentials.sshKeyBits}-bit
+                        {systemCredentials.sshKeyComment && ` (${systemCredentials.sshKeyComment})`}
+                      </Typography>
+                    )}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Loading system credentials...
+                  </Typography>
+                )}
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
+                  All credential input fields are hidden when using system default
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
         )}
 
-        {formData.authMethod === 'ssh-key' && (
+        {formData.authMethod === 'ssh_key' && (
           <Grid item xs={12}>
-            <TextField
-              fullWidth
-              label="SSH Private Key"
-              value={formData.sshKey}
-              onChange={(e) => handleInputChange('sshKey', e.target.value)}
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
+            {sshKeyValidation.status === 'valid' && authMethodLocked && !editingAuth ? (
+              // Show validated SSH key info when locked
+              <Card sx={{ 
+                border: '2px solid', 
+                borderColor: 'success.main', 
+                bgcolor: 'success.50',
+                '&:hover': { bgcolor: 'success.100' }
+              }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <CheckCircle color="success" sx={{ mr: 1 }} />
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      SSH Key Validated Successfully
+                    </Typography>
+                  </Box>
+                  {sshKeyValidation.keyType && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <strong>Key Type:</strong> {sshKeyValidation.keyType?.toUpperCase()} {sshKeyValidation.keyBits}-bit
+                    </Typography>
+                  )}
+                  {sshKeyValidation.securityLevel && (
+                    <Chip 
+                      label={sshKeyValidation.securityLevel.toUpperCase()} 
+                      color={sshKeyValidation.securityLevel === 'secure' ? 'success' : 
+                             sshKeyValidation.securityLevel === 'acceptable' ? 'warning' : 'error'}
+                      size="small"
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              // Show SSH key input field when editing or not validated
+              <Box>
+                <TextField
+                  fullWidth
+                  label="SSH Private Key"
+                  value={formData.sshKey}
+                  onChange={(e) => {
+                    handleInputChange('sshKey', e.target.value);
+                    validateSshKey(e.target.value);
+                  }}
+                  placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
 ...
 -----END OPENSSH PRIVATE KEY-----"
-              multiline
-              rows={4}
-              helperText="Paste your SSH private key content or select 'Use System Default' authentication method"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Key />
-                  </InputAdornment>
-                ),
-              }}
-            />
+                  multiline
+                  rows={4}
+                  error={sshKeyValidation.status === 'invalid'}
+                  helperText={sshKeyValidation.message || "Paste your SSH private key content"}
+                  disabled={sshKeyValidation.status === 'validating'}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Key color={
+                          sshKeyValidation.status === 'valid' ? 'success' :
+                          sshKeyValidation.status === 'invalid' ? 'error' : 'inherit'
+                        } />
+                      </InputAdornment>
+                    ),
+                    endAdornment: sshKeyValidation.status === 'validating' ? (
+                      <InputAdornment position="end">
+                        <LinearProgress sx={{ width: 40 }} />
+                      </InputAdornment>
+                    ) : sshKeyValidation.status === 'valid' ? (
+                      <InputAdornment position="end">
+                        <CheckCircle color="success" />
+                      </InputAdornment>
+                    ) : sshKeyValidation.status === 'invalid' ? (
+                      <InputAdornment position="end">
+                        <ErrorIcon color="error" />
+                      </InputAdornment>
+                    ) : null,
+                  }}
+                />
+                {sshKeyValidation.status === 'valid' && (
+                  <Alert severity="success" sx={{ mt: 1 }}>
+                    SSH key validated successfully! 
+                    {sshKeyValidation.keyType && ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
+                  </Alert>
+                )}
+                {sshKeyValidation.status === 'invalid' && (
+                  <Alert severity="error" sx={{ mt: 1 }}>
+                    {sshKeyValidation.message}
+                  </Alert>
+                )}
+              </Box>
+            )}
           </Grid>
         )}
 
@@ -451,7 +744,7 @@ const AddHost: React.FC = () => {
               variant="contained"
               onClick={handleSubmit}
               startIcon={<Add />}
-              disabled={!formData.hostname || !formData.username}
+              disabled={!formData.hostname || (!formData.username && formData.authMethod !== 'system_default')}
             >
               Add Host & Scan Now
             </Button>
@@ -658,11 +951,9 @@ const AddHost: React.FC = () => {
                     value={formData.authMethod}
                     onChange={(e) => handleInputChange('authMethod', e.target.value)}
                   >
-                    <FormControlLabel value="default" control={<Radio />} label="Default (From System Settings)" />
-                    <FormControlLabel value="ssh-key" control={<Radio />} label="SSH Key Authentication" />
+                    <FormControlLabel value="system_default" control={<Radio />} label="System Default" />
+                    <FormControlLabel value="ssh_key" control={<Radio />} label="SSH Key Authentication" />
                     <FormControlLabel value="password" control={<Radio />} label="Password Authentication" />
-                    <FormControlLabel value="certificate" control={<Radio />} label="Certificate Authentication" />
-                    <FormControlLabel value="agent" control={<Radio />} label="OpenWatch Agent Token" />
                   </RadioGroup>
                 </FormControl>
               </Grid>
@@ -674,6 +965,8 @@ const AddHost: React.FC = () => {
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   required
+                  disabled={formData.authMethod === 'system_default'}
+                  helperText={formData.authMethod === 'system_default' ? 'Username will be taken from system default credentials' : ''}
                 />
               </Grid>
 
@@ -698,7 +991,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               )}
 
-              {formData.authMethod === 'default' && (
+              {formData.authMethod === 'system_default' && (
                 <Grid item xs={12}>
                   <SSHKeyDisplay
                     isSystemDefault={true}
@@ -709,7 +1002,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               )}
 
-              {formData.authMethod === 'ssh-key' && (
+              {formData.authMethod === 'ssh_key' && (
                 <Grid item xs={12}>
                   <TextField
                     fullWidth

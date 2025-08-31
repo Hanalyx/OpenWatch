@@ -176,7 +176,44 @@ class HostMonitor:
             
             logger.info(f"Resolving credentials for host monitoring {host_data.get('hostname')}: use_default={use_default}, target_id={target_id}")
             
-            # Resolve credentials using centralized service
+            # First, try to get host-specific credentials from the hosts table
+            if not use_default and target_id:
+                from sqlalchemy import text
+                result = db.execute(text("""
+                    SELECT encrypted_credentials, username, auth_method 
+                    FROM hosts 
+                    WHERE id = :id AND encrypted_credentials IS NOT NULL
+                """), {"id": target_id})
+                
+                row = result.fetchone()
+                if row and row.encrypted_credentials:
+                    logger.info(f"Found host-specific credentials in hosts table for {host_data.get('hostname')}")
+                    # Decrypt the credentials
+                    from ..services.crypto import decrypt_credentials
+                    import json
+                    try:
+                        # Handle memoryview objects from database
+                        encrypted_data = row.encrypted_credentials
+                        if isinstance(encrypted_data, memoryview):
+                            encrypted_data = bytes(encrypted_data)
+                        
+                        decrypted_data = decrypt_credentials(encrypted_data)
+                        cred_data = json.loads(decrypted_data)
+                        
+                        credentials = {
+                            'username': cred_data.get('username', row.username),
+                            'auth_method': cred_data.get('auth_method', row.auth_method),
+                            'password': cred_data.get('password'),
+                            'private_key': cred_data.get('ssh_key'),
+                            'private_key_passphrase': None,
+                            'source': 'host_encrypted_credentials'
+                        }
+                        logger.info(f"✅ Decrypted host credentials for {host_data.get('hostname')}")
+                        return credentials
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt host credentials: {e}")
+            
+            # Try centralized auth service (for system defaults or if host decryption failed)
             credential_data = auth_service.resolve_credential(
                 target_id=target_id,
                 use_default=use_default
