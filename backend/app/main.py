@@ -148,7 +148,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OpenWatch - SCAP Security Scanner",
     description="FIPS-compliant web-based OpenSCAP security scanner",
-    version="0.1.0",
+    version="1.2.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
     lifespan=lifespan
@@ -350,7 +350,7 @@ async def health_check():
         health_status = {
             "status": "healthy",
             "timestamp": time.time(),
-            "version": "1.0.0",
+            "version": "1.2.0",
             "fips_mode": settings.fips_mode
         }
         

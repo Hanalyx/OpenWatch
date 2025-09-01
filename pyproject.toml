@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openwatch"
-version = "0.1.0"
+version = "1.2.0"
 description = "OpenWatch SCAP Compliance Scanner"
 dependencies = []
 
