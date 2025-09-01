@@ -331,6 +331,34 @@ Contributors are recognized in several ways:
 - **Community spotlights** in project updates
 - **Maintainer privileges** for consistent contributors
 
+## ⚙️ GitHub Actions Setup (For Maintainers)
+
+### Required Repository Secrets
+
+To enable all GitHub Actions workflows, configure these secrets in repository settings:
+
+#### Essential Secrets
+
+1. **SONAR_TOKEN** (Required for code quality analysis)
+   - Visit [SonarCloud](https://sonarcloud.io)
+   - Create an organization: `hanalyx`
+   - Set up project: `Hanalyx_OpenWatch`
+   - Generate a project token
+   - Add to GitHub: Settings > Secrets and variables > Actions
+
+#### Configuration Files
+
+The following files are already configured for SonarCloud:
+- `sonar-project.properties` - Project configuration
+- `.github/workflows/code-quality.yml` - Quality pipeline
+
+#### Workflow Overview
+
+- **CI Pipeline** (`ci.yml`) - Tests, linting, builds
+- **Code Quality** (`code-quality.yml`) - SonarCloud analysis, security scans
+- **Documentation** (`docs.yml`) - API docs generation
+- **Deploy** (`deploy.yml`) - Container publishing (main branch only)
+
 ## 🤔 Getting Help
 
 ### Community Resources
