@@ -1,0 +1,87 @@
+[Unit]
+Description=OpenWatch SCAP Compliance Platform
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-db.service openwatch-redis.service
+After=network-online.target openwatch-db.service openwatch-redis.service
+Wants=network-online.target
+PartOf=openwatch.target
+
+[Service]
+Type=notify
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=OPENWATCH_MODE=production
+
+# Pre-start validation
+ExecStartPre=/usr/bin/owadm validate-config
+ExecStartPre=+/usr/bin/mkdir -p /var/lib/openwatch/scap /var/lib/openwatch/results /var/lib/openwatch/tmp
+ExecStartPre=+/usr/bin/chown -R openwatch:openwatch /var/lib/openwatch /var/log/openwatch
+
+# Service management
+ExecStart=/usr/bin/owadm start --daemon --notify
+ExecStop=/usr/bin/owadm stop --graceful
+ExecReload=/usr/bin/owadm reload
+
+# Process management
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStartSec=300
+TimeoutStopSec=120
+TimeoutReloadSec=60
+
+# Service monitoring
+WatchdogSec=60
+NotifyAccess=main
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictNamespaces=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# File system access
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch /etc/openwatch /tmp /var/tmp
+ReadOnlyPaths=/usr/share/openwatch
+InaccessiblePaths=/proc/acpi /proc/kcore /proc/keys /proc/latency_stats /proc/timer_list /proc/timer_stats
+
+# Network restrictions
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+# Device access restrictions
+PrivateDevices=true
+DevicePolicy=closed
+
+# Temporary directories
+PrivateTmp=true
+ProtectClock=true
+
+# Capabilities (minimal required for container management)
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+TasksMax=4096
+
+[Install]
+WantedBy=openwatch.target
+Also=openwatch-db.service openwatch-redis.service

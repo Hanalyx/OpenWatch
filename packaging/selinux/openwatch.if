@@ -1,0 +1,400 @@
+## <summary>OpenWatch SCAP compliance platform</summary>
+
+########################################
+## <summary>
+##	Execute OpenWatch admin tools in the openwatch domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`openwatch_domtrans',`
+	gen_require(`
+		type openwatch_t, openwatch_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, openwatch_exec_t, openwatch_t)
+')
+
+########################################
+## <summary>
+##	Execute OpenWatch admin tools in the openwatch domain, and
+##	allow the specified role the openwatch domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_run',`
+	gen_require(`
+		attribute_role openwatch_admin_r;
+	')
+
+	openwatch_domtrans($1)
+	roleattribute $2 openwatch_admin_r;
+')
+
+########################################
+## <summary>
+##	Read OpenWatch configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_read_config',`
+	gen_require(`
+		type openwatch_conf_t;
+	')
+
+	files_search_etc($1)
+	read_files_pattern($1, openwatch_conf_t, openwatch_conf_t)
+')
+
+########################################
+## <summary>
+##	Manage OpenWatch configuration files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_manage_config',`
+	gen_require(`
+		type openwatch_conf_t;
+	')
+
+	files_search_etc($1)
+	manage_dirs_pattern($1, openwatch_conf_t, openwatch_conf_t)
+	manage_files_pattern($1, openwatch_conf_t, openwatch_conf_t)
+')
+
+########################################
+## <summary>
+##	Read OpenWatch log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_read_logs',`
+	gen_require(`
+		type openwatch_log_t;
+	')
+
+	logging_search_logs($1)
+	read_files_pattern($1, openwatch_log_t, openwatch_log_t)
+	list_dirs_pattern($1, openwatch_log_t, openwatch_log_t)
+')
+
+########################################
+## <summary>
+##	Append OpenWatch log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_append_logs',`
+	gen_require(`
+		type openwatch_log_t;
+	')
+
+	logging_search_logs($1)
+	append_files_pattern($1, openwatch_log_t, openwatch_log_t)
+')
+
+########################################
+## <summary>
+##	Manage OpenWatch log files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_manage_logs',`
+	gen_require(`
+		type openwatch_log_t;
+	')
+
+	logging_search_logs($1)
+	manage_dirs_pattern($1, openwatch_log_t, openwatch_log_t)
+	manage_files_pattern($1, openwatch_log_t, openwatch_log_t)
+')
+
+########################################
+## <summary>
+##	Read OpenWatch data files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_read_data',`
+	gen_require(`
+		type openwatch_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	read_files_pattern($1, openwatch_var_lib_t, openwatch_var_lib_t)
+	list_dirs_pattern($1, openwatch_var_lib_t, openwatch_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Manage OpenWatch data files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_manage_data',`
+	gen_require(`
+		type openwatch_var_lib_t;
+	')
+
+	files_search_var_lib($1)
+	manage_dirs_pattern($1, openwatch_var_lib_t, openwatch_var_lib_t)
+	manage_files_pattern($1, openwatch_var_lib_t, openwatch_var_lib_t)
+')
+
+########################################
+## <summary>
+##	Connect to OpenWatch over a TCP socket.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_tcp_connect',`
+	gen_require(`
+		type openwatch_t;
+	')
+
+	corenet_tcp_recvfrom_labeled($1, openwatch_t)
+	corenet_tcp_sendrecv_generic_if($1)
+	corenet_tcp_sendrecv_generic_node($1)
+	corenet_tcp_connect_http_port($1)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to read
+##	OpenWatch SCAP content files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_read_scap_content',`
+	gen_require(`
+		type openwatch_scap_content_t;
+	')
+
+	read_files_pattern($1, openwatch_scap_content_t, openwatch_scap_content_t)
+	list_dirs_pattern($1, openwatch_scap_content_t, openwatch_scap_content_t)
+')
+
+########################################
+## <summary>
+##	Allow the specified domain to manage
+##	OpenWatch SCAP content files.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_manage_scap_content',`
+	gen_require(`
+		type openwatch_scap_content_t;
+	')
+
+	manage_dirs_pattern($1, openwatch_scap_content_t, openwatch_scap_content_t)
+	manage_files_pattern($1, openwatch_scap_content_t, openwatch_scap_content_t)
+')
+
+########################################
+## <summary>
+##	Create objects in the OpenWatch
+##	configuration directory with a specified type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="file_type">
+##	<summary>
+##	The type of the object to be created.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`openwatch_config_filetrans',`
+	gen_require(`
+		type openwatch_conf_t;
+	')
+
+	filetrans_pattern($1, openwatch_conf_t, $2, $3, $4)
+')
+
+########################################
+## <summary>
+##	Create objects in the OpenWatch
+##	data directory with a specified type.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="file_type">
+##	<summary>
+##	The type of the object to be created.
+##	</summary>
+## </param>
+## <param name="object_class">
+##	<summary>
+##	The object class of the object being created.
+##	</summary>
+## </param>
+## <param name="name" optional="true">
+##	<summary>
+##	The name of the object being created.
+##	</summary>
+## </param>
+#
+interface(`openwatch_data_filetrans',`
+	gen_require(`
+		type openwatch_var_lib_t;
+	')
+
+	filetrans_pattern($1, openwatch_var_lib_t, $2, $3, $4)
+')
+
+########################################
+## <summary>
+##	Allow domain to stream connect to OpenWatch.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_stream_connect',`
+	gen_require(`
+		type openwatch_t, openwatch_var_run_t;
+	')
+
+	files_search_pids($1)
+	stream_connect_pattern($1, openwatch_var_run_t, openwatch_var_run_t, openwatch_t)
+')
+
+########################################
+## <summary>
+##	Send and receive messages from
+##	OpenWatch over dbus.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_dbus_chat',`
+	gen_require(`
+		type openwatch_t;
+		class dbus send_msg;
+	')
+
+	allow $1 openwatch_t:dbus send_msg;
+	allow openwatch_t $1:dbus send_msg;
+')
+
+########################################
+## <summary>
+##	All of the rules required to
+##	administrate an OpenWatch environment.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+## <param name="role">
+##	<summary>
+##	Role allowed access.
+##	</summary>
+## </param>
+#
+interface(`openwatch_admin',`
+	gen_require(`
+		type openwatch_t, openwatch_conf_t, openwatch_secret_t;
+		type openwatch_var_lib_t, openwatch_log_t, openwatch_var_run_t;
+		type openwatch_ssh_key_t, openwatch_scap_content_t;
+	')
+
+	allow $1 openwatch_t:process { ptrace signal_perms };
+	ps_process_pattern($1, openwatch_t)
+
+	# Configuration management
+	openwatch_manage_config($1)
+	manage_files_pattern($1, openwatch_secret_t, openwatch_secret_t)
+	
+	# Data management
+	openwatch_manage_data($1)
+	openwatch_manage_logs($1)
+	
+	# SSH key management
+	manage_files_pattern($1, openwatch_ssh_key_t, openwatch_ssh_key_t)
+	
+	# SCAP content management
+	openwatch_manage_scap_content($1)
+	
+	# Runtime files
+	manage_files_pattern($1, openwatch_var_run_t, openwatch_var_run_t)
+	manage_dirs_pattern($1, openwatch_var_run_t, openwatch_var_run_t)
+	
+	# Role assignment
+	openwatch_run($1, $2)
+')

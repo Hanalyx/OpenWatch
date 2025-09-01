@@ -1,0 +1,56 @@
+[Unit]
+Description=OpenWatch Database Backup
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-db.service
+After=openwatch-db.service
+
+[Service]
+Type=oneshot
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=BACKUP_TIMESTAMP=%i
+
+# Pre-backup validation
+ExecStartPre=/usr/bin/owadm validate-config --database-only
+ExecStartPre=+/usr/bin/mkdir -p /var/lib/openwatch/backups
+ExecStartPre=+/usr/bin/chown openwatch:openwatch /var/lib/openwatch/backups
+
+# Backup execution
+ExecStart=/usr/bin/owadm backup --type database --compress --encrypt
+
+# Post-backup cleanup
+ExecStartPost=/usr/bin/owadm backup --cleanup --retention-days 30
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+# File system access
+ReadWritePaths=/var/lib/openwatch
+ReadOnlyPaths=/etc/openwatch
+PrivateTmp=true
+
+# Network access
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Device restrictions
+PrivateDevices=true
+
+# Resource limits
+LimitNOFILE=4096
+LimitNPROC=256
+TasksMax=256
+
+# Timeout for long backup operations
+TimeoutStartSec=3600

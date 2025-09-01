@@ -1,0 +1,79 @@
+[Unit]
+Description=OpenWatch Celery Worker
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-db.service openwatch-redis.service
+After=openwatch-db.service openwatch-redis.service
+PartOf=openwatch.target
+
+[Service]
+Type=notify
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=CONTAINER_SERVICE=worker
+
+# Pre-start validation
+ExecStartPre=/usr/bin/owadm validate-config --worker-only
+ExecStartPre=+/usr/bin/mkdir -p /var/lib/openwatch/celery
+ExecStartPre=+/usr/bin/chown openwatch:openwatch /var/lib/openwatch/celery
+
+# Worker container management
+ExecStart=/usr/bin/owadm start --service worker --daemon --notify
+ExecStop=/usr/bin/owadm stop --service worker --graceful
+ExecReload=/usr/bin/owadm restart --service worker
+
+# Health monitoring
+ExecStartPost=/bin/sleep 15
+ExecStartPost=/usr/bin/owadm health-check --service worker --wait 45
+
+# Process management
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+KillMode=mixed
+TimeoutStartSec=180
+TimeoutStopSec=90
+TimeoutReloadSec=60
+
+# Service monitoring
+WatchdogSec=60
+NotifyAccess=main
+
+# Security hardening (workers need more access for scanning)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+# File system access (workers need broader access for SCAP operations)
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch /tmp /var/tmp
+ReadOnlyPaths=/etc/openwatch /usr/share/openwatch /usr/bin/oscap /etc/ssl
+PrivateTmp=false
+
+# Network access (workers need network for remote scanning)
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Device restrictions
+PrivateDevices=true
+DevicePolicy=closed
+
+# Additional capabilities for SSH and scanning
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_NET_RAW
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Resource limits (workers are resource intensive)
+LimitNOFILE=16384
+LimitNPROC=2048
+TasksMax=2048
+
+[Install]
+WantedBy=openwatch.target

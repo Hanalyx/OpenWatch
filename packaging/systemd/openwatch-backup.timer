@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenWatch Daily Backup Timer
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-backup.service
+
+[Timer]
+# Run daily at 2 AM
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=300
+
+# Use timestamp in service instance
+Unit=openwatch-backup@%i.service
+
+[Install]
+WantedBy=timers.target

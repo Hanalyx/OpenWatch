@@ -26,7 +26,7 @@ docker/
 ### Runtime Support
 - **Docker**: Standard container runtime (`Dockerfile.*`)
 - **Podman**: Rootless container runtime (`Containerfile.*`)
-- **Auto-detection**: owladm CLI detects available runtime
+- **Auto-detection**: owadm CLI detects available runtime
 
 ### Backend Images
 

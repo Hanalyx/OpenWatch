@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenWatch SCAP Compliance Platform
+Documentation=https://github.com/hanalyx/openwatch
+Wants=openwatch-db.service openwatch-redis.service openwatch-worker.service openwatch-frontend.service openwatch.service
+After=network-online.target
+Wants=network-online.target
+
+[Install]
+WantedBy=multi-user.target

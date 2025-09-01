@@ -157,6 +157,23 @@ release: fmt lint test build-all
 	@echo "🚀 Release build completed"
 	@echo "📦 Binaries available in $(DIST_DIR)/"
 
+# Package management
+.PHONY: package-rpm
+package-rpm: build
+	@echo "📦 Building RPM package..."
+	cd packaging/rpm && ./build-rpm.sh
+	@echo "✅ RPM package build completed"
+
+.PHONY: package-deb
+package-deb: build
+	@echo "📦 Building DEB package..."
+	cd packaging/deb && ./build-deb.sh
+	@echo "✅ DEB package build completed"
+
+.PHONY: package-all
+package-all: package-rpm package-deb
+	@echo "📦 All packages built successfully"
+
 # Quick start for new users
 .PHONY: quick-start
 quick-start: build install
@@ -164,7 +181,7 @@ quick-start: build install
 	@echo "🎉 owadm is ready!"
 	@echo ""
 	@echo "Quick start commands:"
-	@echo "  owladm start          # Start OpenWatch"
+	@echo "  owadm start           # Start OpenWatch"
 	@echo "  owadm status         # Check status"
 	@echo "  owadm stop           # Stop services"
 	@echo "  owadm --help         # Show help"

@@ -1,0 +1,80 @@
+[Unit]
+Description=OpenWatch Frontend Container
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch.service
+After=openwatch.service
+PartOf=openwatch.target
+
+[Service]
+Type=notify
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=CONTAINER_SERVICE=frontend
+
+# Pre-start validation
+ExecStartPre=/usr/bin/owadm validate-config --frontend-only
+ExecStartPre=+/usr/bin/mkdir -p /var/lib/openwatch/nginx
+ExecStartPre=+/usr/bin/chown openwatch:openwatch /var/lib/openwatch/nginx
+
+# Frontend container management
+ExecStart=/usr/bin/owadm start --service frontend --daemon --notify
+ExecStop=/usr/bin/owadm stop --service frontend --graceful
+ExecReload=/usr/bin/owadm reload --service frontend
+
+# Health monitoring
+ExecStartPost=/bin/sleep 10
+ExecStartPost=/usr/bin/owadm health-check --service frontend --wait 60
+
+# Process management
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=300
+StartLimitBurst=10
+KillMode=mixed
+TimeoutStartSec=120
+TimeoutStopSec=30
+TimeoutReloadSec=15
+
+# Service monitoring
+WatchdogSec=30
+NotifyAccess=main
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# File system access
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch
+ReadOnlyPaths=/etc/openwatch /usr/share/openwatch /etc/ssl
+PrivateTmp=true
+
+# Network access (frontend serves web traffic)
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Device restrictions
+PrivateDevices=true
+DevicePolicy=closed
+
+# Web server capabilities
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Resource limits
+LimitNOFILE=8192
+LimitNPROC=1024
+TasksMax=1024
+
+[Install]
+WantedBy=openwatch.target

@@ -79,7 +79,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     container_name: openwatch-worker
-    command: ["python3.9", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
+    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379

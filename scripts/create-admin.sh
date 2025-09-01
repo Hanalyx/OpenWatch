@@ -91,7 +91,7 @@ EOF
 
 # Run the script in the backend container
 docker exec -e ADMIN_USERNAME="$USERNAME" -e ADMIN_EMAIL="$EMAIL" -e ADMIN_PASSWORD="$PASSWORD" \
-    openwatch-backend python3.9 /tmp/create_admin.py
+    openwatch-backend python3 /tmp/create_admin.py
 
 # Clean up
 docker exec openwatch-backend rm -f /tmp/create_admin.py

@@ -1,0 +1,43 @@
+Package: openwatch
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: amd64
+Maintainer: OpenWatch Team <admin@hanalyx.com>
+Homepage: https://github.com/hanalyx/openwatch
+Vcs-Browser: https://github.com/hanalyx/openwatch
+Vcs-Git: https://github.com/hanalyx/openwatch.git
+Depends: docker.io (>= 20.10) | docker-ce (>= 20.10) | podman (>= 4.0),
+         docker-compose (>= 2.0) | docker-compose-plugin (>= 2.0) | podman-compose (>= 1.0),
+         openscap-scanner (>= 1.3.0),
+         openssh-client,
+         systemd,
+         adduser,
+         openssl,
+         ca-certificates,
+         jq
+Recommends: docker.io (>= 20.10),
+            docker-compose-plugin (>= 2.0),
+            apparmor-utils,
+            ufw,
+            fail2ban
+Suggests: aide,
+          auditd,
+          lynis
+Description: Enterprise SCAP compliance scanning and remediation platform
+ OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol)
+ compliance scanning and remediation platform. It provides automated security
+ compliance monitoring, vulnerability assessment, and remediation capabilities
+ for enterprise Linux environments.
+ .
+ Key features:
+  * SCAP-compliant security scanning
+  * Multi-host fleet management  
+  * Automated remediation workflows
+  * Real-time compliance dashboards
+  * Role-based access control
+  * Audit logging and reporting
+  * Container-based deployment
+ .
+ This package provides the OpenWatch admin CLI (owadm) and system configuration
+ for managing OpenWatch containers. Supports Ubuntu 24.04 LTS and newer.

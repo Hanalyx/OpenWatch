@@ -1,0 +1,108 @@
+#!/bin/bash
+# OpenWatch Debian Post-Removal Script
+# Final cleanup after package removal
+
+set -e
+
+# Package name
+PACKAGE="openwatch"
+
+# Service user
+SERVICE_USER="openwatch"
+SERVICE_GROUP="openwatch"
+
+# Colors for output
+if [ -t 1 ]; then
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+else
+    YELLOW=''
+    NC=''
+fi
+
+log_warning() {
+    echo -e "${YELLOW}openwatch:${NC} $1"
+}
+
+# Remove user and group
+remove_user() {
+    echo "Removing OpenWatch user and group..."
+    
+    # Remove user
+    if getent passwd $SERVICE_USER >/dev/null; then
+        deluser --quiet $SERVICE_USER 2>/dev/null || true
+        echo "Removed user: $SERVICE_USER"
+    fi
+    
+    # Remove group if empty
+    if getent group $SERVICE_GROUP >/dev/null; then
+        if [ -z "$(getent group $SERVICE_GROUP | cut -d: -f4)" ]; then
+            delgroup --quiet $SERVICE_GROUP 2>/dev/null || true
+            echo "Removed group: $SERVICE_GROUP"
+        fi
+    fi
+}
+
+# Clean up systemd
+cleanup_systemd() {
+    # Reload systemd if service files were removed
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || true
+    fi
+}
+
+case "$1" in
+    purge)
+        # Only remove configuration and data on purge
+        echo "Purging OpenWatch configuration and data..."
+        
+        # Remove configuration directory
+        if [ -d /etc/openwatch ]; then
+            rm -rf /etc/openwatch
+            echo "Removed /etc/openwatch"
+        fi
+        
+        # Optionally remove data directories (with warning)
+        if [ -d /var/lib/openwatch ] || [ -d /var/log/openwatch ]; then
+            log_warning "Data directories found. To completely remove OpenWatch data:"
+            log_warning "  sudo rm -rf /var/lib/openwatch"
+            log_warning "  sudo rm -rf /var/log/openwatch"
+            log_warning "  sudo rm -rf /var/cache/openwatch"
+            
+            # Optional: Auto-remove if OPENWATCH_PURGE_DATA=yes
+            if [ "$OPENWATCH_PURGE_DATA" = "yes" ]; then
+                rm -rf /var/lib/openwatch
+                rm -rf /var/log/openwatch
+                rm -rf /var/cache/openwatch
+                echo "Removed all OpenWatch data directories"
+            fi
+        fi
+        
+        # Remove logrotate configuration
+        rm -f /etc/logrotate.d/openwatch
+        
+        # Remove user and group
+        remove_user
+        ;;
+        
+    remove)
+        # Basic removal - keep configuration and data
+        echo "OpenWatch removed (configuration and data preserved)"
+        
+        # Clean up systemd
+        cleanup_systemd
+        ;;
+        
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # Nothing to do for these cases
+        ;;
+        
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

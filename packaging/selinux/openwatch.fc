@@ -1,0 +1,132 @@
+# OpenWatch SELinux File Context Configuration
+# Defines security contexts for OpenWatch files and directories
+
+########################################
+# Executables and binaries
+########################################
+
+# Main OpenWatch admin binary
+/usr/bin/owadm			--	gen_context(system_u:object_r:openwatch_exec_t,s0)
+
+# OpenSCAP binaries (if custom installation)
+/usr/local/bin/oscap		--	gen_context(system_u:object_r:bin_t,s0)
+
+########################################
+# Configuration directories and files
+########################################
+
+# Main configuration directory
+/etc/openwatch(/.*)?			gen_context(system_u:object_r:openwatch_conf_t,s0)
+
+# Secrets file (more restrictive)
+/etc/openwatch/secrets\.env	--	gen_context(system_u:object_r:openwatch_secret_t,s0)
+
+# SSH keys for scanning
+/etc/openwatch/ssh(/.*)?		gen_context(system_u:object_r:openwatch_ssh_key_t,s0)
+/etc/openwatch/ssh/.*_rsa	--	gen_context(system_u:object_r:openwatch_ssh_key_t,s0)
+/etc/openwatch/ssh/.*_rsa\.pub	--	gen_context(system_u:object_r:openwatch_ssh_key_t,s0)
+
+# JWT keys
+/etc/openwatch/jwt_private\.pem	--	gen_context(system_u:object_r:openwatch_secret_t,s0)
+/etc/openwatch/jwt_public\.pem	--	gen_context(system_u:object_r:openwatch_conf_t,s0)
+
+########################################
+# Data directories
+########################################
+
+# Main data directory
+/var/lib/openwatch(/.*)?		gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+# SCAP content storage
+/var/lib/openwatch/scap(/.*)?		gen_context(system_u:object_r:openwatch_scap_content_t,s0)
+
+# Scan results storage
+/var/lib/openwatch/results(/.*)?	gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+# Database storage (container volumes)
+/var/lib/openwatch/postgresql(/.*)?	gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+# Redis storage
+/var/lib/openwatch/redis(/.*)?		gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+# Backup storage
+/var/lib/openwatch/backups(/.*)?	gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+# Temporary directories
+/var/lib/openwatch/tmp(/.*)?		gen_context(system_u:object_r:openwatch_tmp_t,s0)
+
+########################################
+# Log directories and files
+########################################
+
+# Log directory
+/var/log/openwatch(/.*)?		gen_context(system_u:object_r:openwatch_log_t,s0)
+
+# Specific log files
+/var/log/openwatch/openwatch\.log.*	--	gen_context(system_u:object_r:openwatch_log_t,s0)
+/var/log/openwatch/audit\.log.*		--	gen_context(system_u:object_r:openwatch_log_t,s0)
+/var/log/openwatch/access\.log.*	--	gen_context(system_u:object_r:openwatch_log_t,s0)
+/var/log/openwatch/error\.log.*		--	gen_context(system_u:object_r:openwatch_log_t,s0)
+
+########################################
+# Runtime and cache directories
+########################################
+
+# Runtime files (PID files, sockets)
+/var/run/openwatch(/.*)?		gen_context(system_u:object_r:openwatch_var_run_t,s0)
+/run/openwatch(/.*)?			gen_context(system_u:object_r:openwatch_var_run_t,s0)
+
+# Cache directory
+/var/cache/openwatch(/.*)?		gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+########################################
+# Container-specific contexts
+########################################
+
+# Container storage (Podman/Docker)
+/var/lib/openwatch/containers(/.*)?	gen_context(system_u:object_r:container_var_lib_t,s0)
+/var/lib/openwatch/overlay(/.*)?	gen_context(system_u:object_r:container_var_lib_t,s0)
+/var/lib/openwatch/volumes(/.*)?	gen_context(system_u:object_r:container_var_lib_t,s0)
+
+# Container runtime sockets
+/var/run/openwatch/podman(/.*)?		gen_context(system_u:object_r:container_var_run_t,s0)
+/var/run/openwatch/docker(/.*)?		gen_context(system_u:object_r:container_var_run_t,s0)
+
+########################################
+# SSL/TLS certificates
+########################################
+
+# Custom SSL certificates for OpenWatch
+/etc/ssl/certs/openwatch\.crt	--	gen_context(system_u:object_r:cert_t,s0)
+/etc/ssl/private/openwatch\.key	--	gen_context(system_u:object_r:cert_t,s0)
+
+########################################
+# Shared application files
+########################################
+
+# Application shared files
+/usr/share/openwatch(/.*)?		gen_context(system_u:object_r:usr_t,s0)
+
+# Compose files
+/usr/share/openwatch/compose(/.*)?	gen_context(system_u:object_r:usr_t,s0)
+
+# Scripts
+/usr/share/openwatch/scripts(/.*)?	gen_context(system_u:object_r:bin_t,s0)
+
+########################################
+# Development and testing contexts
+########################################
+
+# Development installations (optional)
+/home/[^/]+/.*openwatch.*/owadm	--	gen_context(system_u:object_r:openwatch_exec_t,s0)
+/opt/openwatch(/.*)?			gen_context(system_u:object_r:openwatch_var_lib_t,s0)
+
+########################################
+# Temporary and build contexts
+########################################
+
+# Build directories (for package creation)
+/tmp/openwatch.*(/.*)?			gen_context(system_u:object_r:openwatch_tmp_t,s0)
+
+# Package installation temporary files
+/var/tmp/openwatch.*(/.*)?		gen_context(system_u:object_r:openwatch_tmp_t,s0)

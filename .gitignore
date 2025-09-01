@@ -463,7 +463,6 @@ monitoring/grafana/data/
 *.openwatch.tmp
 scan_*.tmp
 host_*.tmp
-planning/
 
 # Import/export temporary files
 import_*.csv.tmp
@@ -564,3 +563,58 @@ nginx.conf
 # Gitignore analysis files
 gitignore_*.md
 .github/
+
+# ======================================
+# RPM PACKAGE BUILDING FILES
+# ======================================
+
+# RPM build artifacts and directories
+rpmbuild/
+rpm-build/
+rpm-package/
+dist/
+*.rpm
+*.src.rpm
+*.tar.gz
+*.orig.tar.gz
+
+# RPM spec files (development versions)
+*.spec
+!packaging/rpm/*.spec
+
+# RPM creation scripts (temporary)
+create-rpm.sh
+
+# Package building directories
+BUILD/
+RPMS/
+SOURCES/
+SPECS/
+SRPMS/
+BUILDROOT/
+
+# ======================================
+# GO MODULE FILES (DEVELOPMENT)
+# ======================================
+
+# Go sum and mod backups
+go.sum.backup
+go.mod.backup
+
+# Binary output directory
+bin/
+
+# ======================================
+# ADDITIONAL BUILD ARTIFACTS
+# ======================================
+
+# Mock backend files created during testing
+mock_backend.py
+
+# Credential migration artifacts
+migrate_*.sql
+*_credential*.sql
+system_credentials_backup.sql
+
+# Temporary credential files
+create_test_credential.py

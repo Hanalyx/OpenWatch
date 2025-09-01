@@ -21,6 +21,7 @@ var (
 	environment  string
 	verbose      bool
 	noColor      bool
+	configPath   string
 
 	// Color functions
 	blue    = color.New(color.FgBlue).SprintFunc()
@@ -48,6 +49,9 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	
+	// Add subcommands
+	rootCmd.AddCommand(validateConfigCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&runtime, "runtime", "r", "", "Container runtime: docker or podman (auto-detected if not specified)")

@@ -1,0 +1,344 @@
+policy_module(openwatch, 1.0.0)
+
+########################################
+#
+# OpenWatch SELinux Policy Module
+# Allows OpenWatch SCAP compliance platform to operate in enforcing mode
+# Supports both rootful and rootless container operations
+#
+########################################
+
+########################################
+# Declarations
+########################################
+
+# OpenWatch domain type
+type openwatch_t;
+type openwatch_exec_t;
+init_daemon_domain(openwatch_t, openwatch_exec_t)
+
+# OpenWatch configuration files
+type openwatch_conf_t;
+files_config_file(openwatch_conf_t)
+
+# OpenWatch secrets (more restrictive than regular config)
+type openwatch_secret_t;
+files_config_file(openwatch_secret_t)
+
+# OpenWatch data directories
+type openwatch_var_lib_t;
+files_type(openwatch_var_lib_t)
+
+# OpenWatch log files
+type openwatch_log_t;
+logging_log_file(openwatch_log_t)
+
+# OpenWatch temporary files
+type openwatch_tmp_t;
+files_tmp_file(openwatch_tmp_t)
+
+# OpenWatch runtime files (PID, sockets)
+type openwatch_var_run_t;
+files_pid_file(openwatch_var_run_t)
+
+# Container runtime integration
+type openwatch_container_t;
+domain_type(openwatch_container_t)
+
+# SSH key files for scanning
+type openwatch_ssh_key_t;
+files_type(openwatch_ssh_key_t)
+
+# SCAP content files
+type openwatch_scap_content_t;
+files_type(openwatch_scap_content_t)
+
+########################################
+# OpenWatch main process permissions
+########################################
+
+# Basic domain transitions and permissions
+allow openwatch_t self:capability { setuid setgid net_bind_service sys_resource };
+allow openwatch_t self:process { fork signal_perms setpgid setsched };
+allow openwatch_t self:fifo_file rw_fifo_file_perms;
+allow openwatch_t self:unix_stream_socket create_stream_socket_perms;
+allow openwatch_t self:unix_dgram_socket create_socket_perms;
+allow openwatch_t self:tcp_socket create_stream_socket_perms;
+allow openwatch_t self:udp_socket create_socket_perms;
+allow openwatch_t self:netlink_route_socket create_netlink_socket_perms;
+
+# File system permissions
+fs_getattr_all_fs(openwatch_t)
+files_read_etc_files(openwatch_t)
+files_read_usr_files(openwatch_t)
+files_exec_etc_files(openwatch_t)
+
+# Configuration file access
+read_files_pattern(openwatch_t, openwatch_conf_t, openwatch_conf_t)
+read_files_pattern(openwatch_t, openwatch_secret_t, openwatch_secret_t)
+list_dirs_pattern(openwatch_t, openwatch_conf_t, openwatch_conf_t)
+
+# Data directory access
+manage_dirs_pattern(openwatch_t, openwatch_var_lib_t, openwatch_var_lib_t)
+manage_files_pattern(openwatch_t, openwatch_var_lib_t, openwatch_var_lib_t)
+files_var_lib_filetrans(openwatch_t, openwatch_var_lib_t, { dir file })
+
+# Log file access
+create_files_pattern(openwatch_t, openwatch_log_t, openwatch_log_t)
+append_files_pattern(openwatch_t, openwatch_log_t, openwatch_log_t)
+read_files_pattern(openwatch_t, openwatch_log_t, openwatch_log_t)
+setattr_files_pattern(openwatch_t, openwatch_log_t, openwatch_log_t)
+logging_log_filetrans(openwatch_t, openwatch_log_t, file)
+
+# Temporary file access
+manage_dirs_pattern(openwatch_t, openwatch_tmp_t, openwatch_tmp_t)
+manage_files_pattern(openwatch_t, openwatch_tmp_t, openwatch_tmp_t)
+files_tmp_filetrans(openwatch_t, openwatch_tmp_t, { dir file })
+
+# Runtime file access
+manage_files_pattern(openwatch_t, openwatch_var_run_t, openwatch_var_run_t)
+manage_dirs_pattern(openwatch_t, openwatch_var_run_t, openwatch_var_run_t)
+files_pid_filetrans(openwatch_t, openwatch_var_run_t, { file dir })
+
+########################################
+# Container runtime permissions
+########################################
+
+# Allow OpenWatch to manage containers
+allow openwatch_t self:capability { sys_admin net_admin dac_override };
+
+# Container engine execution
+can_exec(openwatch_t, container_exec_t)
+domtrans_pattern(openwatch_t, container_exec_t, container_t)
+
+# Podman-specific permissions
+ifdef(`distro_rhel',`
+    # Podman rootless containers
+    allow openwatch_t self:user_namespace create;
+    allow openwatch_t self:capability { setuid setgid sys_chroot };
+    
+    # Podman socket access
+    stream_connect_pattern(openwatch_t, container_var_run_t, container_var_run_t, container_t)
+    
+    # cgroup management for rootless
+    fs_manage_cgroup_dirs(openwatch_t)
+    fs_manage_cgroup_files(openwatch_t)
+')
+
+# Docker-specific permissions  
+ifdef(`distro_ubuntu',`
+    # Docker daemon socket
+    allow openwatch_t container_var_run_t:sock_file { read write };
+    stream_connect_pattern(openwatch_t, container_var_run_t, container_var_run_t, container_t)
+    
+    # Docker network management
+    allow openwatch_t self:capability net_admin;
+')
+
+# Common container operations
+allow openwatch_t container_var_lib_t:dir { create rmdir open read getattr lock search ioctl add_name remove_name write };
+allow openwatch_t container_var_lib_t:file { create unlink open read getattr lock ioctl rename setattr write append };
+
+########################################
+# Network permissions
+########################################
+
+# Allow binding to configured ports
+corenet_tcp_bind_generic_node(openwatch_t)
+corenet_tcp_bind_http_port(openwatch_t)
+corenet_tcp_bind_unreserved_ports(openwatch_t)
+
+# Allow network connections for scanning
+corenet_tcp_connect_ssh_port(openwatch_t)
+corenet_tcp_connect_http_port(openwatch_t)
+corenet_tcp_connect_all_ports(openwatch_t)
+
+# Allow outbound connections to databases
+corenet_tcp_connect_postgresql_port(openwatch_t)
+corenet_tcp_connect_redis_port(openwatch_t)
+
+# DNS resolution
+sysnet_dns_name_resolve(openwatch_t)
+
+########################################
+# SSH and scanning permissions
+########################################
+
+# SSH key management
+read_files_pattern(openwatch_t, openwatch_ssh_key_t, openwatch_ssh_key_t)
+ssh_exec(openwatch_t)
+
+# SSH client operations for remote scanning
+ssh_domtrans(openwatch_t)
+allow openwatch_t self:process setrlimit;
+
+# OpenSCAP scanner execution
+can_exec(openwatch_t, bin_t)
+domtrans_pattern(openwatch_t, bin_t, unconfined_t)
+
+# SCAP content access
+read_files_pattern(openwatch_t, openwatch_scap_content_t, openwatch_scap_content_t)
+manage_files_pattern(openwatch_t, openwatch_scap_content_t, openwatch_scap_content_t)
+
+########################################
+# System integration permissions
+########################################
+
+# Systemd integration
+init_get_system_status(openwatch_t)
+init_stream_connect(openwatch_t)
+
+# System information gathering
+kernel_read_system_state(openwatch_t)
+kernel_read_network_state(openwatch_t)
+
+# Certificate access for SSL/TLS
+miscfiles_read_certs(openwatch_t)
+
+# Time access
+miscfiles_read_localization(openwatch_t)
+
+# Random number generation
+dev_read_urand(openwatch_t)
+dev_read_rand(openwatch_t)
+
+########################################
+# Audit and logging permissions
+########################################
+
+# Allow audit log generation
+logging_send_syslog_msg(openwatch_t)
+
+# Allow interaction with audit daemon
+ifdef(`distro_rhel',`
+    auditadm_exec_auditctl(openwatch_t)
+')
+
+########################################
+# Database and cache permissions
+########################################
+
+# PostgreSQL interaction (through containers)
+allow openwatch_t self:tcp_socket { create bind listen accept };
+postgresql_stream_connect(openwatch_t)
+
+# Redis interaction (through containers)
+allow openwatch_t self:tcp_socket connect;
+
+########################################
+# File context transitions
+########################################
+
+# Configuration directory transitions
+filetrans_pattern(openwatch_t, etc_t, openwatch_conf_t, dir, "openwatch")
+
+# Data directory transitions  
+filetrans_pattern(openwatch_t, var_lib_t, openwatch_var_lib_t, dir, "openwatch")
+
+# Log directory transitions
+filetrans_pattern(openwatch_t, var_log_t, openwatch_log_t, dir, "openwatch")
+
+# Runtime directory transitions
+filetrans_pattern(openwatch_t, var_run_t, openwatch_var_run_t, dir, "openwatch")
+
+########################################
+# Optional: Development mode relaxations
+########################################
+
+# Conditional permissions for development environments
+# These should be disabled in production
+tunable_policy(`openwatch_development_mode',`
+    # Allow broader file access for development
+    files_read_all_files(openwatch_t)
+    
+    # Allow ptrace for debugging
+    allow openwatch_t self:capability sys_ptrace;
+    
+    # Allow unconfined access in development
+    unconfined_domain(openwatch_t)
+',`
+    # Production mode: strict enforcement
+    # No additional permissions
+')
+
+########################################
+# Container runtime integration
+########################################
+
+# Podman-specific rules for RHEL/Oracle Linux
+ifdef(`distro_rhel',`
+    # Rootless container namespace operations
+    allow openwatch_t self:user_namespace create;
+    
+    # Podman storage access
+    allow openwatch_t container_var_lib_t:dir { mounton };
+    
+    # cgroup v2 management
+    allow openwatch_t cgroup_t:dir { add_name create remove_name rmdir write };
+    allow openwatch_t cgroup_t:file { create open read write unlink };
+    
+    # Podman registry access
+    allow openwatch_t container_var_lib_t:file { execute };
+')
+
+# Docker-specific rules for Ubuntu
+ifdef(`distro_ubuntu',`
+    # Docker daemon communication
+    allow openwatch_t container_t:unix_stream_socket connectto;
+    
+    # Docker network management
+    allow openwatch_t self:capability { net_admin net_raw };
+    
+    # Docker storage driver access
+    allow openwatch_t container_var_lib_t:blk_file { read write };
+')
+
+########################################
+# SCAP scanning permissions
+########################################
+
+# Allow execution of OpenSCAP tools
+can_exec(openwatch_t, bin_t)
+
+# Allow reading system configuration for scanning
+files_read_etc_runtime_files(openwatch_t)
+files_read_all_files(openwatch_t)
+
+# Allow network scanning operations
+corenet_tcp_connect_all_unreserved_ports(openwatch_t)
+
+# Allow SCAP result generation
+allow openwatch_t openwatch_var_lib_t:dir { add_name write };
+allow openwatch_t openwatch_var_lib_t:file { create write };
+
+########################################
+# Security boundaries and denials
+########################################
+
+# Explicitly deny dangerous operations
+neverallow openwatch_t { security_t selinux_config_t }:file { write };
+neverallow openwatch_t shadow_t:file { read write };
+neverallow openwatch_t passwd_exec_t:file { write };
+
+# Deny access to other service credentials
+neverallow openwatch_t { ssh_home_t sshd_key_t }:file { read write };
+
+# Deny kernel module operations
+neverallow openwatch_t kernel_module_t:system { module_load module_request };
+
+########################################
+# Role definitions
+########################################
+
+# OpenWatch admin role (for owadm CLI usage)
+role openwatch_admin_r;
+role openwatch_admin_r types openwatch_t;
+
+# Allow transition from unconfined users to OpenWatch admin
+userdom_role_change_template(openwatch_admin, unconfined_r, openwatch_admin_r)
+
+########################################
+# File context labeling rules (defined in .fc file)
+########################################
+
+# These rules are automatically applied during policy compilation

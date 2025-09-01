@@ -1,0 +1,75 @@
+[Unit]
+Description=OpenWatch Redis Cache Container
+Documentation=https://github.com/hanalyx/openwatch
+After=network-online.target
+Wants=network-online.target
+PartOf=openwatch.target
+
+[Service]
+Type=notify
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+Environment=CONTAINER_SERVICE=redis
+
+# Pre-start validation
+ExecStartPre=/usr/bin/owadm validate-config --redis-only
+ExecStartPre=+/usr/bin/mkdir -p /var/lib/openwatch/redis
+ExecStartPre=+/usr/bin/chown openwatch:openwatch /var/lib/openwatch/redis
+
+# Redis container management
+ExecStart=/usr/bin/owadm start --service redis --daemon --notify
+ExecStop=/usr/bin/owadm stop --service redis --graceful
+ExecReload=/usr/bin/owadm restart --service redis
+
+# Health monitoring
+ExecStartPost=/bin/sleep 5
+ExecStartPost=/usr/bin/owadm health-check --service redis --wait 30
+
+# Process management
+Restart=on-failure
+RestartSec=3
+StartLimitInterval=300
+StartLimitBurst=10
+KillMode=mixed
+TimeoutStartSec=60
+TimeoutStopSec=30
+TimeoutReloadSec=15
+
+# Service monitoring
+WatchdogSec=30
+NotifyAccess=main
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+# File system access
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch
+ReadOnlyPaths=/etc/openwatch /usr/share/openwatch
+PrivateTmp=true
+
+# Network access
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Device restrictions
+PrivateDevices=true
+DevicePolicy=closed
+
+# Resource limits
+LimitNOFILE=4096
+LimitNPROC=512
+TasksMax=512
+
+[Install]
+WantedBy=openwatch.target

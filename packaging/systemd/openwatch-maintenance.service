@@ -1,0 +1,53 @@
+[Unit]
+Description=OpenWatch System Maintenance
+Documentation=https://github.com/hanalyx/openwatch
+Requires=openwatch-db.service
+
+[Service]
+Type=oneshot
+User=openwatch
+Group=openwatch
+
+# Configuration and environment
+EnvironmentFile=/etc/openwatch/secrets.env
+Environment=OPENWATCH_CONFIG_FILE=/etc/openwatch/ow.yml
+
+# Pre-maintenance validation
+ExecStartPre=/usr/bin/owadm validate-config
+
+# Maintenance tasks
+ExecStart=/usr/bin/owadm maintenance --vacuum-database
+ExecStart=/usr/bin/owadm maintenance --cleanup-logs
+ExecStart=/usr/bin/owadm maintenance --cleanup-results --older-than 90d
+ExecStart=/usr/bin/owadm maintenance --compress-results --older-than 7d
+ExecStart=/usr/bin/owadm maintenance --analyze-database
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+
+# File system access
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch
+ReadOnlyPaths=/etc/openwatch
+PrivateTmp=true
+
+# Network access
+PrivateNetwork=false
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Device restrictions
+PrivateDevices=true
+
+# Resource limits
+LimitNOFILE=4096
+LimitNPROC=512
+TasksMax=512
+
+# Timeout for maintenance operations
+TimeoutStartSec=7200
