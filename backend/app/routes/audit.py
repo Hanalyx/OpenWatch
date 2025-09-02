@@ -122,13 +122,14 @@ async def get_audit_events(
         events = []
         for row in result:
             # Determine severity based on action
-            severity = 'info'
             if 'FAILED' in row.action or 'ERROR' in row.action:
-                severity = 'error'
+                event_severity = 'error'
             elif 'SECURITY' in row.action or 'UNAUTHORIZED' in row.action:
-                severity = 'warning'
+                event_severity = 'warning'
             elif 'ADMIN' in row.action or 'DELETE' in row.action:
-                severity = 'warning'
+                event_severity = 'warning'
+            else:
+                event_severity = 'info'
             
             events.append(AuditEventResponse(
                 id=row.id,
@@ -141,7 +142,7 @@ async def get_audit_events(
                 user_agent=row.user_agent,
                 details=row.details,
                 timestamp=row.timestamp.isoformat() if row.timestamp else None,
-                severity=severity
+                severity=event_severity
             ))
         
         return AuditEventsResponse(

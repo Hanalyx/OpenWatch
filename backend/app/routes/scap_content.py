@@ -189,8 +189,7 @@ async def upload_scap_content(
                 f.write(content)
             
             # Extract OS and framework information
-            os_family, os_version = _extract_os_info(file.filename, validation_result)
-            compliance_framework = _extract_framework_info(file.filename, validation_result)
+            _, _ = _extract_os_info(file.filename, validation_result)
             
             # Save to database with complete metadata
             import json

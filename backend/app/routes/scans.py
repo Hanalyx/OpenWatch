@@ -47,7 +47,6 @@ def sanitize_http_error(
         user_id = current_user.get("sub") if current_user else None
         
         # Classify the error internally
-        classified_error = asyncio.create_task(
             error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
         )
         
@@ -345,7 +344,6 @@ async def quick_scan(
         scan_id = str(uuid.uuid4())
         
         # Pre-flight validation (async, non-blocking for optimistic UI)
-        validation_task = None
         try:
             from ..services.auth_service import get_auth_service
             auth_service = get_auth_service(db)
@@ -368,7 +366,6 @@ async def quick_scan(
             logger.warning(f"Pre-flight validation setup failed: {e}")
         
         # Create scan immediately (optimistic UI)
-        result = db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -511,7 +508,6 @@ async def create_bulk_scan(
         )
         
         # Start the bulk scan session
-        start_result = await orchestrator.start_bulk_scan_session(session.id)
         
         logger.info(f"Bulk scan session created and started: {session.id}")
         
@@ -958,7 +954,6 @@ async def create_scan(
         # Create scan record with UUID primary key
         import json
         scan_id = str(uuid.uuid4())
-        result = db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -1543,7 +1538,6 @@ async def get_scan_failed_rules(
             except Exception as e:
                 logger.error(f"Error parsing scan results for failed rules: {e}")
                 # Return basic info even if parsing fails
-                pass
         
         response_data = {
             "scan_id": scan_id,

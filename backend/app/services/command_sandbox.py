@@ -487,7 +487,7 @@ class CommandSandboxService:
             
             # Execute rollback in sandbox
             async with SandboxEnvironment() as sandbox:
-                exit_code, stdout, stderr = await sandbox.execute_command(
+                exit_code, _, _ = await sandbox.execute_command(
                     request.rollback_command,
                     timeout=300
                 )

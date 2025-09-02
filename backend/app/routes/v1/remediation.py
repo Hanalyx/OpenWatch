@@ -587,7 +587,7 @@ async def _check_ansible_status():
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await process.communicate()
+        stdout, _ = await process.communicate()
         
         if process.returncode == 0:
             version = stdout.decode().split('\n')[0]

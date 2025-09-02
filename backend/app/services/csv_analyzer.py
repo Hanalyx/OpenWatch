@@ -379,7 +379,6 @@ class CSVAnalyzer:
         mappings = {}
         
         # Required fields that should be mapped
-        required_fields = [FieldType.HOSTNAME, FieldType.IP_ADDRESS]
         
         # Track which target fields have been assigned
         assigned_targets = set()
