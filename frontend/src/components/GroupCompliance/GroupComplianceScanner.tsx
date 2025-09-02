@@ -11,39 +11,19 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
-  TextField,
   Alert,
   LinearProgress,
-  Chip,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Tooltip
+  Grid
 } from '@mui/material';
 import {
   PlayArrow,
-  Schedule,
-  Assessment,
   Security,
   Warning,
   CheckCircle,
   Error,
-  Info,
-  Refresh,
-  Download,
-  Settings
+  Info
 } from '@mui/icons-material';
-import { useSnackbar } from 'notistack';
+// Remove notistack import - using state-based alerts instead
 
 interface ComplianceScanRequest {
   scapContentId?: number;
@@ -85,14 +65,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
   groupName,
   onScanStarted
 }) => {
-  const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [scapContents, setScapContents] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [currentScan, setCurrentScan] = useState<any>(null);
-  const [scanHistory, setScanHistory] = useState<any[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'warning' | 'info'>('info');
 
   const [scanRequest, setScanRequest] = useState<ComplianceScanRequest>({
     remediationMode: 'report_only',
@@ -102,9 +80,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     scanTimeout: 3600
   });
 
+  const showAlert = (message: string, severity: 'success' | 'error' | 'warning' | 'info') => {
+    setAlertMessage(message);
+    setAlertSeverity(severity);
+    setTimeout(() => setAlertMessage(null), 5000);
+  };
+
   useEffect(() => {
     loadScapContents();
-    loadScanHistory();
     checkActiveScan();
   }, [groupId]);
 
@@ -117,10 +100,15 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       });
       if (response.ok) {
         const data = await response.json();
-        setScapContents(data);
+        setScapContents(Array.isArray(data) ? data : []);
+      } else {
+        setScapContents([]);
+        showAlert('Failed to load SCAP content', 'error');
       }
     } catch (error) {
       console.error('Failed to load SCAP contents:', error);
+      setScapContents([]);
+      showAlert('Failed to load SCAP content', 'error');
     }
   };
 
@@ -133,28 +121,18 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       });
       if (response.ok) {
         const data = await response.json();
-        setProfiles(data.profiles || []);
+        setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      } else {
+        setProfiles([]);
+        showAlert('Failed to load profiles', 'error');
       }
     } catch (error) {
       console.error('Failed to load profiles:', error);
+      setProfiles([]);
+      showAlert('Failed to load profiles', 'error');
     }
   };
 
-  const loadScanHistory = async () => {
-    try {
-      const response = await fetch(`/api/group-compliance/${groupId}/scan-history?limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setScanHistory(data);
-      }
-    } catch (error) {
-      console.error('Failed to load scan history:', error);
-    }
-  };
 
   const checkActiveScan = async () => {
     try {
@@ -177,7 +155,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   const startComplianceScan = async () => {
     if (!scanRequest.scapContentId) {
-      enqueueSnackbar('Please select SCAP content', { variant: 'error' });
+      showAlert('Please select SCAP content', 'error');
       return;
     }
 
@@ -204,7 +182,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       if (response.ok) {
         const data = await response.json();
         setCurrentScan(data);
-        enqueueSnackbar('Compliance scan started successfully', { variant: 'success' });
+        showAlert('Compliance scan started successfully', 'success');
         
         if (onScanStarted) {
           onScanStarted(data.session_id);
@@ -214,10 +192,10 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         monitorScanProgress(data.session_id);
       } else {
         const error = await response.json();
-        enqueueSnackbar(`Failed to start scan: ${error.detail}`, { variant: 'error' });
+        showAlert(`Failed to start scan: ${error.detail}`, 'error');
       }
     } catch (error) {
-      enqueueSnackbar('Failed to start compliance scan', { variant: 'error' });
+      showAlert('Failed to start compliance scan', 'error');
     } finally {
       setLoading(false);
     }
@@ -234,14 +212,13 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         
         if (response.ok) {
           const progress = await response.json();
-          setCurrentScan(prev => ({ ...prev, ...progress }));
+          setCurrentScan((prev: any) => ({ ...prev, ...progress }));
           
           if (progress.status === 'completed' || progress.status === 'failed') {
-            loadScanHistory(); // Refresh history
             if (progress.status === 'completed') {
-              enqueueSnackbar('Compliance scan completed', { variant: 'success' });
+              showAlert('Compliance scan completed', 'success');
             } else {
-              enqueueSnackbar('Compliance scan failed', { variant: 'error' });
+              showAlert('Compliance scan failed', 'error');
             }
             return; // Stop polling
           }
@@ -269,11 +246,11 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       });
       
       if (response.ok) {
-        enqueueSnackbar('Scan cancelled', { variant: 'info' });
+        showAlert('Scan cancelled', 'info');
         setCurrentScan(null);
       }
     } catch (error) {
-      enqueueSnackbar('Failed to cancel scan', { variant: 'error' });
+      showAlert('Failed to cancel scan', 'error');
     }
   };
 
@@ -299,6 +276,17 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   return (
     <Box>
+      {/* Alert Messages */}
+      {alertMessage && (
+        <Alert 
+          severity={alertSeverity} 
+          sx={{ mb: 2 }} 
+          onClose={() => setAlertMessage(null)}
+        >
+          {alertMessage}
+        </Alert>
+      )}
+      
       <Card>
         <CardContent>
           <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
@@ -306,18 +294,6 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
               <Security color="primary" />
               Group Compliance Scanning
             </Typography>
-            <Box>
-              <Tooltip title="View scan history">
-                <IconButton onClick={() => setShowHistory(true)}>
-                  <Assessment />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Advanced settings">
-                <IconButton onClick={() => setShowAdvanced(true)}>
-                  <Settings />
-                </IconButton>
-              </Tooltip>
-            </Box>
           </Box>
 
           <Typography variant="subtitle1" color="textSecondary" gutterBottom>
@@ -478,118 +454,10 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
             >
               {loading ? 'Starting...' : 'Start Compliance Scan'}
             </Button>
-            
-            <Button
-              variant="outlined"
-              startIcon={<Schedule />}
-              onClick={() => {/* Open schedule dialog */}}
-            >
-              Schedule Scans
-            </Button>
           </Box>
         </CardContent>
       </Card>
 
-      {/* Scan History Dialog */}
-      <Dialog open={showHistory} onClose={() => setShowHistory(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>Scan History - {groupName}</DialogTitle>
-        <DialogContent>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Started</TableCell>
-                  <TableCell>Completed</TableCell>
-                  <TableCell>Hosts</TableCell>
-                  <TableCell>Success Rate</TableCell>
-                  <TableCell>Framework</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {scanHistory.map((scan) => (
-                  <TableRow key={scan.session_id}>
-                    <TableCell>
-                      <Chip
-                        icon={getStatusIcon(scan.status)}
-                        label={scan.status}
-                        color={getStatusColor(scan.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {new Date(scan.started_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {scan.completed_at ? new Date(scan.completed_at).toLocaleString() : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {scan.hosts_scanned}/{scan.total_hosts}
-                    </TableCell>
-                    <TableCell>
-                      {scan.total_hosts > 0 ? 
-                        `${Math.round(scan.successful_hosts / scan.total_hosts * 100)}%` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {scan.scan_config?.compliance_framework || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="Download Report">
-                        <IconButton size="small">
-                          <Download />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowHistory(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Advanced Settings Dialog */}
-      <Dialog open={showAdvanced} onClose={() => setShowAdvanced(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Advanced Scan Settings</DialogTitle>
-        <DialogContent>
-          <Box mt={2}>
-            <TextField
-              fullWidth
-              label="Concurrent Scans"
-              type="number"
-              value={scanRequest.concurrentScans}
-              onChange={(e) => setScanRequest(prev => ({ 
-                ...prev, 
-                concurrentScans: parseInt(e.target.value) || 5 
-              }))}
-              inputProps={{ min: 1, max: 20 }}
-              helperText="Maximum number of simultaneous scans (1-20)"
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Scan Timeout (seconds)"
-              type="number"
-              value={scanRequest.scanTimeout}
-              onChange={(e) => setScanRequest(prev => ({ 
-                ...prev, 
-                scanTimeout: parseInt(e.target.value) || 3600 
-              }))}
-              inputProps={{ min: 300, max: 7200 }}
-              helperText="Timeout for individual host scans (300-7200 seconds)"
-              margin="normal"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowAdvanced(false)}>Cancel</Button>
-          <Button onClick={() => setShowAdvanced(false)} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

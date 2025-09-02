@@ -16,7 +16,7 @@ from backend.app.auth import get_current_user, require_permissions
 from backend.app.models.scap_content import SCAPContent
 from backend.app.models.hosts import Host, HostGroup
 from backend.app.models.scans import Scan, ScanResult
-from backend.app.services.group_scan_service import GroupScanService
+# GroupScanService removed - using unified API instead
 from backend.app.services.scap_scanner import SCAPScanner
 from backend.app.celery_app import celery_app
 from backend.app.schemas.group_compliance import (
@@ -117,10 +117,16 @@ async def start_group_compliance_scan(
     
     db.commit()
     
-    # Start background scan orchestration
-    background_tasks.add_task(
-        execute_group_compliance_scan,
-        session_id, group_id, list(hosts), session_config, db
+    # Execute scan directly for now (can be moved to background task later)
+    host_ids = [host.id for host in hosts]
+    scan_result = execute_group_compliance_scan(
+        group_id=group_id,
+        host_ids=host_ids,
+        scap_content_id=content_id,
+        profile_id=session_config["profile_id"],
+        db=db,
+        user_id=current_user["user_id"],
+        session_id=session_id
     )
     
     return GroupComplianceScanResponse(
@@ -516,69 +522,108 @@ async def get_group_scan_history(
     ]
 
 
-async def execute_group_compliance_scan(
-    session_id: str,
+def execute_group_compliance_scan(
     group_id: int,
-    hosts: List[Any],
-    config: Dict[str, Any],
-    db: Session
-):
+    host_ids: List[str],
+    scap_content_id: int,
+    profile_id: str,
+    db: Session,
+    user_id: str,
+    session_id: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Background task to execute group compliance scan
-    Enhanced with compliance-specific features
+    Execute compliance scan for hosts using unified approach
+    Returns scan execution results
     """
     try:
-        # Initialize group scan service
-        scan_service = GroupScanService(db)
+        # Initialize SCAP scanner directly
+        scanner = SCAPScanner()
         
-        # Update session status
-        db.execute(text("""
-            UPDATE group_scan_sessions 
-            SET status = 'in_progress', started_at = :started_at
-            WHERE session_id = :session_id
-        """), {
-            "session_id": session_id,
-            "started_at": datetime.utcnow()
-        })
+        # Get SCAP content details
+        scap_content = db.query(SCAPContent).filter(
+            SCAPContent.id == scap_content_id
+        ).first()
+        
+        if not scap_content:
+            return {"status": "failed", "error": "SCAP content not found"}
+        
+        # Execute scan for each host
+        scan_results = []
+        for host_id in host_ids:
+            try:
+                # Get host details
+                host = db.query(Host).filter(Host.id == host_id).first()
+                if not host:
+                    continue
+                
+                # Create scan record
+                scan = Scan(
+                    host_id=host_id,
+                    content_id=scap_content_id,
+                    profile_id=profile_id,
+                    status="running",
+                    started_by=user_id,
+                    started_at=datetime.utcnow()
+                )
+                db.add(scan)
+                db.flush()  # Get scan ID
+                
+                # Execute SCAP scan
+                scan_result = scanner.scan_host(
+                    host=host,
+                    scap_content=scap_content,
+                    profile_id=profile_id
+                )
+                
+                # Update scan status
+                scan.status = "completed"
+                scan.completed_at = datetime.utcnow()
+                
+                # Store scan results
+                if scan_result:
+                    result = ScanResult(
+                        scan_id=scan.id,
+                        total_rules=scan_result.get("total_rules", 0),
+                        passed_rules=scan_result.get("passed_rules", 0),
+                        failed_rules=scan_result.get("failed_rules", 0),
+                        score=scan_result.get("score", 0),
+                        severity_high=scan_result.get("severity_high", 0),
+                        severity_medium=scan_result.get("severity_medium", 0),
+                        severity_low=scan_result.get("severity_low", 0)
+                    )
+                    db.add(result)
+                
+                scan_results.append({
+                    "host_id": host_id,
+                    "scan_id": scan.id,
+                    "status": "completed"
+                })
+                
+            except Exception as host_error:
+                # Mark host scan as failed
+                if 'scan' in locals():
+                    scan.status = "failed"
+                    scan.error_message = str(host_error)
+                    scan.completed_at = datetime.utcnow()
+                
+                scan_results.append({
+                    "host_id": host_id,
+                    "status": "failed",
+                    "error": str(host_error)
+                })
+        
         db.commit()
         
-        # Execute scans with compliance-specific options
-        await scan_service.execute_group_scan(
-            session_id=session_id,
-            hosts=hosts,
-            scap_content_id=config["scap_content_id"],
-            profile_id=config["profile_id"],
-            scan_options=config.get("scan_options", {}),
-            remediation_mode=config.get("remediation_mode", False)
-        )
+        return {
+            "status": "completed",
+            "scan_results": scan_results,
+            "total_hosts": len(host_ids),
+            "successful_scans": len([r for r in scan_results if r["status"] == "completed"])
+        }
         
-        # Mark session as completed
-        db.execute(text("""
-            UPDATE group_scan_sessions 
-            SET status = 'completed', completed_at = :completed_at
-            WHERE session_id = :session_id
-        """), {
-            "session_id": session_id,
-            "completed_at": datetime.utcnow()
-        })
-        db.commit()
-        
-        # Send notifications if configured
-        if config.get("email_notifications"):
-            await send_compliance_scan_notification(session_id, group_id, config, db)
-            
     except Exception as e:
-        # Mark session as failed
-        db.execute(text("""
-            UPDATE group_scan_sessions 
-            SET status = 'failed', error_message = :error
-            WHERE session_id = :session_id
-        """), {
-            "session_id": session_id,
-            "error": str(e)
-        })
-        db.commit()
-        raise
+        db.rollback()
+        return {"status": "failed", "error": str(e)}
 
 
 async def send_compliance_scan_notification(

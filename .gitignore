@@ -400,8 +400,17 @@ $RECYCLE.BIN/
 .nfs*
 
 # ======================================
-# TEST AND TEMPORARY FILES
+# TEST AND DOCUMENTATION DIRECTORIES - NEVER COMMIT
 # ======================================
+
+# Project-specific test and documentation directories
+/test/
+/tests/
+/docs/
+backend/test/
+backend/tests/
+frontend/test/
+frontend/tests/
 
 # Test reports and artifacts
 test-reports/
@@ -416,7 +425,11 @@ frontend_test.log
 *test*.py
 *test*.sh
 *test*.md
-**/tests/**  # But keep files in proper test directories
+*test*.js
+*test*.cjs
+*test*.mjs
+*test*.ts
+*test*.tsx
 
 # Temporary files
 *.tmp

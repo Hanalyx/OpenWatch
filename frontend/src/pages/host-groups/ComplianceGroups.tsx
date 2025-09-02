@@ -51,7 +51,7 @@ import GroupCompatibilityReport from '../../components/host-groups/GroupCompatib
 import ScanProgressDialog from '../../components/host-groups/ScanProgressDialog';
 import BulkConfigurationDialog from '../../components/host-groups/BulkConfigurationDialog';
 import { GroupComplianceScanner, GroupComplianceReport } from '../../components/GroupCompliance';
-import { ScanService } from '../../services/scanService';
+// ScanService removed - using unified group-compliance API
 
 interface HostGroup {
   id: number;
@@ -192,52 +192,36 @@ const ComplianceGroups: React.FC = () => {
         return;
       }
       
-      // Initiate group scan using the scan service
-      try {
-        const scanSession = await ScanService.startGroupScan(selectedGroup.id, {
-          scan_name: `${selectedGroup.name} Compliance Scan`,
+      // Use unified group-compliance API
+      const response = await fetch(`/api/group-compliance/${selectedGroup.id}/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          scap_content_id: selectedGroup.scap_content_id,
           profile_id: selectedGroup.default_profile_id,
-          priority: 'normal'
-        });
-        
-        // Show scan progress dialog
-        setActiveScanSession(scanSession.session_id);
-        setShowScanProgress(true);
-        handleMenuClose();
-      } catch (scanServiceErr) {
-        console.warn('Legacy scan service failed, trying new compliance API:', scanServiceErr);
-        
-        // Fallback to new compliance scanning API
-        const response = await fetch(`/api/group-compliance/${selectedGroup.id}/scan`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          },
-          body: JSON.stringify({
-            scap_content_id: selectedGroup.scap_content_id,
-            profile_id: selectedGroup.default_profile_id,
-            compliance_framework: selectedGroup.compliance_framework,
-            remediation_mode: 'report_only',
-            email_notifications: false,
-            generate_reports: true
-          })
-        });
+          compliance_framework: selectedGroup.compliance_framework,
+          remediation_mode: 'report_only',
+          email_notifications: false,
+          generate_reports: true
+        })
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || 'Failed to start compliance scan');
-        }
-
-        const scanData = await response.json();
-        setActiveScanSession(scanData.session_id);
-        setShowScanProgress(true);
-        handleMenuClose();
-        
-        // Show success message
-        setError(`✅ Compliance scan started successfully using new API. Session: ${scanData.session_id}`);
-        setTimeout(() => setError(null), 5000);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to start compliance scan');
       }
+
+      const scanData = await response.json();
+      setActiveScanSession(scanData.session_id);
+      setShowScanProgress(true);
+      handleMenuClose();
+      
+      // Show success message
+      setError(`✅ Compliance scan started successfully. Session: ${scanData.session_id}`);
+      setTimeout(() => setError(null), 5000);
       
     } catch (err) {
       console.error('Error starting group scan:', err);
@@ -784,7 +768,16 @@ const ComplianceGroups: React.FC = () => {
           groupName={selectedGroup.name}
           onCancel={async (sessionId: string) => {
             try {
-              await ScanService.cancelGroupScan(selectedGroup.id, sessionId);
+              const response = await fetch(`/api/group-compliance/${selectedGroup.id}/cancel/${sessionId}`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+              });
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to cancel scan');
+              }
             } catch (err) {
               console.error('Error cancelling scan:', err);
               setScanError(err instanceof Error ? err.message : 'Failed to cancel scan');

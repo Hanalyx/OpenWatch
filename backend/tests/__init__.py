@@ -1,1 +1,0 @@
-# OpenWatch Backend Tests
