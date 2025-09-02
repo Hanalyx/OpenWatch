@@ -46,7 +46,14 @@ class SSHTerminalSession:
         try:
             # Initialize SSH client
             self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Security Fix: Use strict host key checking instead of AutoAddPolicy
+            self.ssh_client.set_missing_host_key_policy(paramiko.RejectPolicy())
+            # Load system and user host keys for validation
+            try:
+                self.ssh_client.load_system_host_keys()
+                self.ssh_client.load_host_keys('/home/openwatch/.ssh/known_hosts')
+            except FileNotFoundError:
+                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
             
             # Get host credentials
             auth_method, credentials = await self._get_host_credentials()

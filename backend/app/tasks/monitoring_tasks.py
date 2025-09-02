@@ -45,6 +45,7 @@ def periodic_host_monitoring():
 def setup_host_monitoring_scheduler():
     """
     Set up periodic host monitoring using APScheduler
+    This only creates the scheduler instance - jobs are configured by restore_scheduler_state()
     """
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -52,17 +53,9 @@ def setup_host_monitoring_scheduler():
         
         scheduler = BackgroundScheduler()
         
-        # Monitor hosts every 5 minutes
-        scheduler.add_job(
-            func=periodic_host_monitoring,
-            trigger="interval",
-            minutes=5,
-            id='host_monitoring',
-            name='Monitor host availability'
-        )
-        
-        scheduler.start()
-        logger.info("Host monitoring scheduler started (every 5 minutes)")
+        # Don't auto-start or add jobs here - let restore_scheduler_state() handle it
+        # This allows database configuration to control the scheduler behavior
+        logger.info("Host monitoring scheduler instance created (not started)")
         
         # Shut down the scheduler when exiting the app
         atexit.register(lambda: scheduler.shutdown())

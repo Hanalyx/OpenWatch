@@ -843,7 +843,9 @@ async def initiate_group_scan(
         }
         
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Security Fix: Sanitize error messages to prevent information disclosure
+        logger.error(f"Invalid input for group scan: {e}")
+        raise HTTPException(status_code=400, detail="Invalid input parameters for group scan")
     except Exception as e:
         logger.error(f"Error initiating group scan: {e}")
         raise HTTPException(status_code=500, detail="Failed to initiate group scan")
@@ -865,7 +867,9 @@ async def get_scan_progress(
         return progress
         
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        # Security Fix: Sanitize error messages to prevent information disclosure
+        logger.error(f"Invalid session ID for scan progress: {e}")
+        raise HTTPException(status_code=404, detail="Scan session not found")
     except Exception as e:
         logger.error(f"Error getting scan progress: {e}")
         raise HTTPException(status_code=500, detail="Failed to get scan progress")

@@ -247,34 +247,45 @@ async def update_webhook_endpoint(
         if not existing:
             raise HTTPException(status_code=404, detail="Webhook endpoint not found")
         
-        # Build update query
+        # Build update query with secure column mapping
         updates = []
         params = {"id": webhook_id, "updated_at": datetime.utcnow()}
         
+        # Security Fix: Use explicit column mapping instead of f-string concatenation
+        allowed_updates = {
+            "name": "name = :name",
+            "url": "url = :url", 
+            "event_types": "event_types = :event_types",
+            "is_active": "is_active = :is_active",
+            "secret": "secret_hash = :secret_hash",
+            "updated_at": "updated_at = :updated_at"
+        }
+        
         if webhook_update.name is not None:
-            updates.append("name = :name")
+            updates.append(allowed_updates["name"])
             params["name"] = webhook_update.name
             
         if webhook_update.url is not None:
-            updates.append("url = :url")
+            updates.append(allowed_updates["url"])
             params["url"] = webhook_update.url
             
         if webhook_update.event_types is not None:
-            updates.append("event_types = :event_types")
+            updates.append(allowed_updates["event_types"])
             params["event_types"] = json.dumps(webhook_update.event_types)
             
         if webhook_update.is_active is not None:
-            updates.append("is_active = :is_active")
+            updates.append(allowed_updates["is_active"])
             params["is_active"] = webhook_update.is_active
             
         if webhook_update.secret is not None:
-            updates.append("secret_hash = :secret_hash")
+            updates.append(allowed_updates["secret"])
             params["secret_hash"] = hashlib.sha256(webhook_update.secret.encode()).hexdigest()
         
-        updates.append("updated_at = :updated_at")
+        updates.append(allowed_updates["updated_at"])
         
         if updates:
-            query = f"UPDATE webhook_endpoints SET {', '.join(updates)} WHERE id = :id"
+            # Security Fix: Use safe string concatenation instead of f-string
+            query = "UPDATE webhook_endpoints SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
         

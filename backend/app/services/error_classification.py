@@ -190,7 +190,14 @@ class AuthenticationValidator:
         
         try:
             ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Security Fix: Use strict host key checking instead of AutoAddPolicy
+            ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+            # Load system and user host keys for validation
+            try:
+                ssh.load_system_host_keys()
+                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
+            except FileNotFoundError:
+                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
             
             if auth_method == "password":
                 try:
@@ -691,7 +698,14 @@ class ErrorClassificationService:
         ssh_client = None
         try:
             ssh_client = paramiko.SSHClient()
-            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Security Fix: Use strict host key checking instead of AutoAddPolicy
+            ssh_client.set_missing_host_key_policy(paramiko.RejectPolicy())
+            # Load system and user host keys for validation
+            try:
+                ssh_client.load_system_host_keys()
+                ssh_client.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
+            except FileNotFoundError:
+                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
             
             if auth_method == "password":
                 ssh_client.connect(hostname, port=port, username=username, password=credential, timeout=10)

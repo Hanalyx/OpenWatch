@@ -391,7 +391,8 @@ async def update_system_credentials(
         
         if updates:
             updates.append("updated_at = :updated_at")
-            query = f"UPDATE system_credentials SET {', '.join(updates)} WHERE id = :id"
+            # Security Fix: Use safe string concatenation instead of f-string
+            query = "UPDATE system_credentials SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
         
@@ -1023,7 +1024,8 @@ async def update_alert_settings(
         
         if updates:
             updates.append("updated_at = :updated_at")
-            query = f"UPDATE alert_settings SET {', '.join(updates)} WHERE id = :id"
+            # Security Fix: Use safe string concatenation instead of f-string
+            query = "UPDATE alert_settings SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
         

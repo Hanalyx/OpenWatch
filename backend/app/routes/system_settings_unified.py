@@ -544,7 +544,7 @@ class SchedulerUpdateRequest(BaseModel):
 
 # Global scheduler instance and settings
 _scheduler = None
-_scheduler_interval = 5  # Default 5 minutes
+_scheduler_interval = 15  # Default 15 minutes
 
 
 def get_scheduler():
@@ -658,6 +658,23 @@ async def start_scheduler(
                 replace_existing=True
             )
             
+            # Update database with start time and enabled status
+            try:
+                from ..database import get_db
+                db = next(get_db())
+                db.execute(text("""
+                    UPDATE scheduler_config 
+                    SET enabled = TRUE, 
+                        last_started = CURRENT_TIMESTAMP,
+                        interval_minutes = :interval,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE service_name = 'host_monitoring'
+                """), {"interval": _scheduler_interval})
+                db.commit()
+                db.close()
+            except Exception as db_error:
+                logger.warning(f"Failed to update scheduler database state: {db_error}")
+            
             logger.info(f"Host monitoring scheduler started with {_scheduler_interval} minute interval by user {current_user.get('username', 'unknown')}")
             
             return {
@@ -696,6 +713,23 @@ async def stop_scheduler(
         
         if scheduler.running:
             scheduler.pause()
+            
+            # Update database with stop time and disabled status
+            try:
+                from ..database import get_db
+                db = next(get_db())
+                db.execute(text("""
+                    UPDATE scheduler_config 
+                    SET enabled = FALSE,
+                        last_stopped = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE service_name = 'host_monitoring'
+                """))
+                db.commit()
+                db.close()
+            except Exception as db_error:
+                logger.warning(f"Failed to update scheduler database state: {db_error}")
+            
             logger.info(f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}")
             
             return {
@@ -728,6 +762,21 @@ async def update_scheduler(
         _scheduler_interval = request.interval_minutes
         
         scheduler = get_scheduler()
+        
+        # Update database with new interval
+        try:
+            from ..database import get_db
+            db = next(get_db())
+            db.execute(text("""
+                UPDATE scheduler_config 
+                SET interval_minutes = :interval,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE service_name = 'host_monitoring'
+            """), {"interval": _scheduler_interval})
+            db.commit()
+            db.close()
+        except Exception as db_error:
+            logger.warning(f"Failed to update scheduler database interval: {db_error}")
         
         # If scheduler is running, we need to reschedule the job with the new interval
         if scheduler and scheduler.running:
@@ -765,15 +814,94 @@ async def update_scheduler(
 
 async def restore_scheduler_state():
     """Restore scheduler state from database on startup"""
+    logger.info("restore_scheduler_state() function called")
     try:
-        # For now, we'll just ensure the scheduler is initialized
-        # In the future, this could read state from database
-        scheduler = get_scheduler()
-        if scheduler:
-            logger.info("Scheduler state restored successfully")
-        else:
-            logger.warning("Scheduler could not be initialized on startup")
+        global _scheduler, _scheduler_interval
+        
+        # Get database session
+        from ..database import get_db
+        db = next(get_db())
+        
+        try:
+            # Read scheduler configuration from database
+            result = db.execute(text("""
+                SELECT enabled, interval_minutes, auto_start 
+                FROM scheduler_config 
+                WHERE service_name = 'host_monitoring'
+            """))
+            
+            config = result.fetchone()
+            logger.info(f"Database config found: {config if config else 'None'}")
+            
+            if config:
+                _scheduler_interval = config.interval_minutes
+                logger.info(f"Setting global scheduler interval to {_scheduler_interval} minutes from database")
+                
+                if config.enabled and config.auto_start:
+                    logger.info(f"Auto-start enabled, initializing scheduler with {_scheduler_interval} minute interval")
+                    # Auto-start scheduler with database configuration
+                    scheduler = get_scheduler()
+                    if scheduler and not scheduler.running:
+                        scheduler.start()
+                        logger.info("Scheduler started successfully")
+                        
+                        # Configure the monitoring job with saved interval
+                        from ..tasks.monitoring_tasks import periodic_host_monitoring
+                        
+                        # Remove any existing job first (including the hardcoded one from setup)
+                        existing_jobs = scheduler.get_jobs()
+                        logger.info(f"Found {len(existing_jobs)} existing jobs to remove")
+                        for job in existing_jobs:
+                            logger.info(f"Removing existing job: {job.id} - {job.name}")
+                            scheduler.remove_job(job.id)
+                        
+                        # Add the job with the correct interval from database
+                        scheduler.add_job(
+                            periodic_host_monitoring,
+                            'interval',
+                            minutes=_scheduler_interval,
+                            id='host_monitoring',
+                            name='Host Monitoring Task',
+                            replace_existing=True
+                        )
+                        logger.info(f"Added new monitoring job with {_scheduler_interval} minute interval")
+                        
+                        # Update database with start time
+                        db.execute(text("""
+                            UPDATE scheduler_config 
+                            SET last_started = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE service_name = 'host_monitoring'
+                        """))
+                        db.commit()
+                        
+                        logger.info(f"Host monitoring scheduler auto-started with {_scheduler_interval} minute interval")
+                    else:
+                        logger.info("Scheduler initialized but not auto-started (already running or failed to create)")
+                else:
+                    logger.info("Scheduler configured but auto-start disabled or not enabled")
+            else:
+                # No configuration found, create default
+                db.execute(text("""
+                    INSERT INTO scheduler_config (
+                        service_name, enabled, interval_minutes, auto_start
+                    ) VALUES (
+                        'host_monitoring', TRUE, 15, TRUE
+                    )
+                """))
+                db.commit()
+                logger.info("Created default scheduler configuration")
+                
+        except Exception as db_error:
+            logger.warning(f"Database scheduler config not available, using defaults: {db_error}")
+            # Fall back to basic initialization without auto-start
+            scheduler = get_scheduler()
+            if scheduler:
+                logger.info("Scheduler initialized with defaults (not auto-started)")
+                
+        finally:
+            db.close()
             
     except Exception as e:
         logger.error(f"Failed to restore scheduler state: {e}")
-        raise
+        # Don't raise - scheduler can be started manually

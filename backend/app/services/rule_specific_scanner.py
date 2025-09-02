@@ -28,12 +28,25 @@ class RuleSpecificScanner:
         self.framework_mapper = ComplianceFrameworkMapper()
         self.executor = ThreadPoolExecutor(max_workers=5)
     
+    def _sanitize_identifier(self, identifier: str) -> str:
+        """
+        Security Fix: Sanitize identifiers to prevent path injection
+        Only allow alphanumeric characters, hyphens, and underscores
+        """
+        import re
+        # Remove any characters that aren't alphanumeric, hyphens, or underscores
+        sanitized = re.sub(r'[^a-zA-Z0-9\-_]', '_', identifier)
+        # Limit length to prevent excessively long paths
+        return sanitized[:50]
+    
     async def scan_specific_rules(self, host_id: str, content_path: str, 
                                 profile_id: str, rule_ids: List[str],
                                 connection_params: Optional[Dict] = None) -> Dict:
         """Scan specific rules on a host"""
         try:
-            scan_id = f"rule_scan_{host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Security Fix: Sanitize host_id to prevent path injection
+            sanitized_host_id = self._sanitize_identifier(host_id)
+            scan_id = f"rule_scan_{sanitized_host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             logger.info(f"Starting rule-specific scan {scan_id} for {len(rule_ids)} rules")
             
             # Create scan results structure
@@ -448,12 +461,14 @@ class RuleSpecificScanner:
     async def _load_scan_results(self, scan_id: str) -> Optional[Dict]:
         """Load scan results from file"""
         try:
+            # Security Fix: Sanitize scan_id to prevent path injection
+            sanitized_scan_id = self._sanitize_identifier(scan_id)
             # First try exact match
-            result_file = self.results_dir / f"{scan_id}.json"
+            result_file = self.results_dir / f"{sanitized_scan_id}.json"
             
             if not result_file.exists():
                 # Try searching in main results directory
-                main_results = Path("/app/data/results") / scan_id
+                main_results = Path("/app/data/results") / sanitized_scan_id
                 if main_results.exists():
                     # Look for results.json in scan directory
                     result_file = main_results / "results.json"

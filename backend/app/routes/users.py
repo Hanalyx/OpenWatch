@@ -316,35 +316,45 @@ async def update_user(
             if user_data.role and user_data.role != UserRole(existing_user.role):
                 raise HTTPException(status_code=403, detail="Cannot change your own role")
         
-        # Build update query
+        # Build update query with secure column mapping
         updates = []
         params = {"user_id": user_id}
         
+        # Security Fix: Use explicit column mapping instead of f-string concatenation
+        allowed_columns = {
+            "username": "username = :username",
+            "email": "email = :email", 
+            "role": "role = :role",
+            "is_active": "is_active = :is_active",
+            "password": "hashed_password = :password"
+        }
+        
         if user_data.username:
-            updates.append("username = :username")
+            updates.append(allowed_columns["username"])
             params["username"] = user_data.username
         
         if user_data.email:
-            updates.append("email = :email")
+            updates.append(allowed_columns["email"])
             params["email"] = user_data.email
         
         if user_data.role:
-            updates.append("role = :role")
+            updates.append(allowed_columns["role"])
             params["role"] = user_data.role.value
         
         if user_data.is_active is not None:
-            updates.append("is_active = :is_active")
+            updates.append(allowed_columns["is_active"])
             params["is_active"] = user_data.is_active
         
         if user_data.password:
-            updates.append("hashed_password = :password")
+            updates.append(allowed_columns["password"])
             params["password"] = pwd_context.hash(user_data.password)
         
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
         
         updates.append("updated_at = CURRENT_TIMESTAMP")
-        update_query = f"UPDATE users SET {', '.join(updates)} WHERE id = :user_id"
+        # Security Fix: Use parameterized query construction
+        update_query = "UPDATE users SET " + ", ".join(updates) + " WHERE id = :user_id"
         
         db.execute(text(update_query), params)
         db.commit()
