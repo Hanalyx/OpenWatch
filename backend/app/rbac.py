@@ -328,7 +328,7 @@ def check_permission(user_role: str, resource_type: str, action: str):
         )
 
 
-async def check_permission_async(current_user: dict, required_permission: Permission, db: Any = None):
+def check_permission_async(current_user: dict, required_permission: Permission, db: Any = None):
     """Async permission check for specific permissions"""
     if not current_user:
         raise HTTPException(

@@ -143,7 +143,7 @@ class SandboxEnvironment:
             logger.error(f"Failed to create sandbox {self.sandbox_id}: {e}")
             raise
             
-    async def _setup_sandbox_tools(self):
+    def _setup_sandbox_tools(self):
         """Install essential tools in sandbox"""
         try:
             # Update package lists
@@ -165,7 +165,7 @@ class SandboxEnvironment:
         except Exception as e:
             logger.warning(f"Failed to setup sandbox tools: {e}")
             
-    async def execute_command(self, command: str, timeout: int = 300) -> Tuple[int, str, str]:
+    def execute_command(self, command: str, timeout: int = 300) -> Tuple[int, str, str]:
         """Execute command in sandbox with timeout"""
         if not self.container:
             raise RuntimeError("Sandbox not initialized")
@@ -188,7 +188,7 @@ class SandboxEnvironment:
             logger.error(f"Command execution failed in sandbox {self.sandbox_id}: {e}")
             raise
             
-    async def _cleanup_sandbox(self):
+    def _cleanup_sandbox(self):
         """Clean up sandbox container"""
         try:
             if self.container:
@@ -377,7 +377,7 @@ class CommandSandboxService:
                     
         return True
         
-    async def request_command_execution(self, command_id: str, parameters: Dict[str, Any], 
+    def request_command_execution(self, command_id: str, parameters: Dict[str, Any], 
                                        target_host: str, requested_by: str, 
                                        justification: str) -> ExecutionRequest:
         """Request execution of a secure command"""
@@ -405,7 +405,7 @@ class CommandSandboxService:
         
         return request
         
-    async def approve_request(self, request_id: str, approved_by: str) -> bool:
+    def approve_request(self, request_id: str, approved_by: str) -> bool:
         """Approve a pending execution request"""
         if request_id not in self.execution_requests:
             return False
