@@ -19,7 +19,7 @@ from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa
 from .routes.system_settings_unified import router as system_settings_router
-from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities
+from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery
 # Import security routes only if available
 try:
     from .routes import automated_fixes
@@ -451,6 +451,7 @@ app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Opera
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
 app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
+app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
 
 # Register security routes if available
 if automated_fixes:
