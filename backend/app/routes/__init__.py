@@ -2,5 +2,6 @@
 OpenWatch API Routes Package
 """
 
-# Import compliance module to make it available
+# Import compliance modules to make them available
 from . import compliance
+from . import group_compliance

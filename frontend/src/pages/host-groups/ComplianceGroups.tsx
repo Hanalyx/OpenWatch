@@ -50,6 +50,7 @@ import GroupEditDialog from '../../components/host-groups/GroupEditDialog';
 import GroupCompatibilityReport from '../../components/host-groups/GroupCompatibilityReport';
 import ScanProgressDialog from '../../components/host-groups/ScanProgressDialog';
 import BulkConfigurationDialog from '../../components/host-groups/BulkConfigurationDialog';
+import { GroupComplianceScanner, GroupComplianceReport } from '../../components/GroupCompliance';
 import { ScanService } from '../../services/scanService';
 
 interface HostGroup {
@@ -92,6 +93,9 @@ const ComplianceGroups: React.FC = () => {
   const [showBulkConfig, setShowBulkConfig] = useState(false);
   const [activeScanSession, setActiveScanSession] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [showComplianceScanner, setShowComplianceScanner] = useState(false);
+  const [showComplianceReport, setShowComplianceReport] = useState(false);
+  const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
   
   const user = useAppSelector((state) => state.auth.user);
 
@@ -189,27 +193,79 @@ const ComplianceGroups: React.FC = () => {
       }
       
       // Initiate group scan using the scan service
-      const scanSession = await ScanService.startGroupScan(selectedGroup.id, {
-        scan_name: `${selectedGroup.name} Compliance Scan`,
-        profile_id: selectedGroup.default_profile_id,
-        priority: 'normal'
-      });
-      
-      // Show scan progress dialog
-      setActiveScanSession(scanSession.session_id);
-      setShowScanProgress(true);
-      handleMenuClose();
+      try {
+        const scanSession = await ScanService.startGroupScan(selectedGroup.id, {
+          scan_name: `${selectedGroup.name} Compliance Scan`,
+          profile_id: selectedGroup.default_profile_id,
+          priority: 'normal'
+        });
+        
+        // Show scan progress dialog
+        setActiveScanSession(scanSession.session_id);
+        setShowScanProgress(true);
+        handleMenuClose();
+      } catch (scanServiceErr) {
+        console.warn('Legacy scan service failed, trying new compliance API:', scanServiceErr);
+        
+        // Fallback to new compliance scanning API
+        const response = await fetch(`/api/group-compliance/${selectedGroup.id}/scan`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: JSON.stringify({
+            scap_content_id: selectedGroup.scap_content_id,
+            profile_id: selectedGroup.default_profile_id,
+            compliance_framework: selectedGroup.compliance_framework,
+            remediation_mode: 'report_only',
+            email_notifications: false,
+            generate_reports: true
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to start compliance scan');
+        }
+
+        const scanData = await response.json();
+        setActiveScanSession(scanData.session_id);
+        setShowScanProgress(true);
+        handleMenuClose();
+        
+        // Show success message
+        setError(`✅ Compliance scan started successfully using new API. Session: ${scanData.session_id}`);
+        setTimeout(() => setError(null), 5000);
+      }
       
     } catch (err) {
       console.error('Error starting group scan:', err);
-      setScanError(err instanceof Error ? err.message : 'Failed to start group scan');
-      setError(err instanceof Error ? err.message : 'Failed to start group scan');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start group scan';
+      setScanError(errorMessage);
+      setError(`❌ ${errorMessage}. Please check that the group has hosts assigned and SCAP content configured.`);
       handleMenuClose();
     }
   };
 
   const handleViewCompatibility = () => {
     setShowCompatibilityReport(true);
+    handleMenuClose();
+  };
+
+  const handleComplianceScanning = () => {
+    if (selectedGroup) {
+      setComplianceGroup(selectedGroup);
+      setShowComplianceScanner(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleComplianceReport = () => {
+    if (selectedGroup) {
+      setComplianceGroup(selectedGroup);
+      setShowComplianceReport(true);
+    }
     handleMenuClose();
   };
 
@@ -392,35 +448,94 @@ const ComplianceGroups: React.FC = () => {
           )}
 
           {/* Scan Readiness Status */}
-          {group.host_count > 0 && group.scap_content_id && group.default_profile_id ? (
-            <Chip
-              icon={<ScanIcon />}
-              label="Scan Ready"
-              size="small"
-              color="success"
-              variant="outlined"
-              sx={{ mt: 1 }}
-            />
-          ) : (
-            <Chip
-              icon={<WarningIcon />}
-              label={
-                group.host_count === 0 
-                  ? "No hosts assigned" 
-                  : "SCAP content required"
-              }
-              size="small"
-              color="warning"
-              variant="outlined"
-              sx={{ mt: 1 }}
-            />
-          )}
+          <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+            {group.host_count > 0 && group.scap_content_id && group.default_profile_id ? (
+              <Chip
+                icon={<ScanIcon />}
+                label="Scan Ready"
+                size="small"
+                color="success"
+                variant="outlined"
+              />
+            ) : (
+              <Chip
+                icon={<WarningIcon />}
+                label={
+                  group.host_count === 0 
+                    ? "No hosts assigned" 
+                    : "SCAP content required"
+                }
+                size="small"
+                color="warning"
+                variant="outlined"
+              />
+            )}
+
+            {/* Compliance Framework Indicator */}
+            {group.compliance_framework && (
+              <Chip
+                icon={<SecurityIcon />}
+                label={group.compliance_framework.toUpperCase()}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            )}
+
+            {/* Advanced Compliance Features Indicator */}
+            {group.host_count > 0 && (
+              <Chip
+                icon={<ComplianceIcon />}
+                label="Compliance Reports Available"
+                size="small"
+                color="info"
+                variant="outlined"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setComplianceGroup(group);
+                  setShowComplianceReport(true);
+                }}
+                sx={{ cursor: 'pointer' }}
+              />
+            )}
+          </Box>
 
           {/* Warning for compatibility issues */}
           {hasCompatibilityIssues && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               {group.compatibility_summary!.incompatible_hosts} incompatible hosts detected
             </Alert>
+          )}
+
+          {/* Quick Action Buttons */}
+          {group.host_count > 0 && (
+            <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<SecurityIcon />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setComplianceGroup(group);
+                  setShowComplianceScanner(true);
+                }}
+                disabled={group.host_count === 0}
+              >
+                Advanced Scan
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ComplianceIcon />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setComplianceGroup(group);
+                  setShowComplianceReport(true);
+                }}
+              >
+                Report
+              </Button>
+            </Box>
           )}
         </CardContent>
       </Card>
@@ -598,6 +713,23 @@ const ComplianceGroups: React.FC = () => {
             )}
           </ListItemText>
         </MenuItem>
+
+        <MenuItem 
+          onClick={handleComplianceScanning}
+          disabled={!selectedGroup || selectedGroup.host_count === 0}
+        >
+          <ListItemIcon>
+            <SecurityIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Advanced Compliance Scan</ListItemText>
+        </MenuItem>
+
+        <MenuItem onClick={handleComplianceReport}>
+          <ListItemIcon>
+            <ComplianceIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Compliance Report</ListItemText>
+        </MenuItem>
         
         <Divider />
         
@@ -672,6 +804,51 @@ const ComplianceGroups: React.FC = () => {
         groups={groups}
         onConfigurationComplete={fetchGroups}
       />
+
+      {/* Advanced Compliance Scanner Dialog */}
+      <Dialog 
+        open={showComplianceScanner} 
+        onClose={() => setShowComplianceScanner(false)} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <DialogTitle>
+          Advanced Compliance Scanning - {complianceGroup?.name}
+        </DialogTitle>
+        <DialogContent>
+          {complianceGroup && (
+            <GroupComplianceScanner
+              groupId={complianceGroup.id}
+              groupName={complianceGroup.name}
+              onScanStarted={(sessionId) => {
+                setActiveScanSession(sessionId);
+                setShowScanProgress(true);
+                setShowComplianceScanner(false);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Compliance Report Dialog */}
+      <Dialog 
+        open={showComplianceReport} 
+        onClose={() => setShowComplianceReport(false)} 
+        maxWidth="xl" 
+        fullWidth
+      >
+        <DialogTitle>
+          Compliance Report - {complianceGroup?.name}
+        </DialogTitle>
+        <DialogContent>
+          {complianceGroup && (
+            <GroupComplianceReport
+              groupId={complianceGroup.id}
+              groupName={complianceGroup.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
