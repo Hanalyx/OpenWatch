@@ -1,3 +1,12 @@
+
+def sanitize_for_log(value: any) -> str:
+    """Sanitize user input for safe logging"""
+    if value is None:
+        return "None"
+    str_value = str(value)
+    # Remove newlines and control characters to prevent log injection
+    return str_value.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')[:1000]
+
 """
 OpenWatch Secure Command Sandboxing Service
 
@@ -359,13 +368,13 @@ class CommandSandboxService:
         # Check all required parameters are present
         for param in command.allowed_parameters:
             if param not in parameters:
-                logger.warning(f"Missing required parameter {param} for command {command_id}")
+                logger.warning(f"Missing required parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
                 
         # Validate parameter patterns
         for param, value in parameters.items():
             if param not in command.allowed_parameters:
-                logger.warning(f"Unauthorized parameter {param} for command {command_id}")
+                logger.warning(f"Unauthorized parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
                 
             if param in command.parameter_patterns:

@@ -1,3 +1,12 @@
+
+def sanitize_for_log(value: any) -> str:
+    """Sanitize user input for safe logging"""
+    if value is None:
+        return "None"
+    str_value = str(value)
+    # Remove newlines and control characters to prevent log injection
+    return str_value.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')[:1000]
+
 """
 System Settings API Routes
 Handles system-wide configuration including SSH credentials
@@ -134,7 +143,7 @@ async def create_system_credentials(
             
             # Log warnings if any
             if validation_result.warnings:
-                logger.warning(f"SSH key warnings for system credentials '{credentials.name}': {'; '.join(validation_result.warnings)}")
+                logger.warning(f"SSH key warnings for system credentials '{credentials.name}': {sanitize_for_log('; '.join(validation_result.warnings))}")
             
             # Log recommendations
             if validation_result.recommendations:
@@ -154,7 +163,7 @@ async def create_system_credentials(
             ssh_key_comment = metadata.get('key_comment')
             
             if metadata.get('error'):
-                logger.warning(f"Failed to extract SSH key metadata for '{credentials.name}': {metadata.get('error')}")
+                logger.warning(f"Failed to extract SSH key metadata for '{credentials.name}': {sanitize_for_log(metadata.get('error'))}")
         
         # Encrypt sensitive data
         encrypted_password = None

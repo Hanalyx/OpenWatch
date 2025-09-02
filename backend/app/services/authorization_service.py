@@ -1,3 +1,12 @@
+
+def sanitize_for_log(value: any) -> str:
+    """Sanitize user input for safe logging"""
+    if value is None:
+        return "None"
+    str_value = str(value)
+    # Remove newlines and control characters to prevent log injection
+    return str_value.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')[:1000]
+
 """
 Resource-Based Access Control (ReBAC) Authorization Service
 Core service for per-host permission validation with Zero Trust principles
@@ -113,7 +122,7 @@ class AuthorizationService:
             
             # Log security-relevant decisions
             if result.decision == AuthorizationDecision.DENY:
-                logger.warning(f"ACCESS DENIED: User {user_id} denied {action} on {resource.resource_type}:{resource.resource_id} - {result.reason}")
+                logger.warning(f"ACCESS DENIED: User {user_id} denied {action} on {resource.resource_type}:{resource.resource_id} - {sanitize_for_log(result.reason)}")
             else:
                 logger.debug(f"ACCESS GRANTED: User {user_id} allowed {action} on {resource.resource_type}:{resource.resource_id}")
                 
@@ -906,7 +915,7 @@ class AuthorizationService:
                 logger.info(f"Revoked permission {permission_id}")
                 return True
             else:
-                logger.warning(f"Permission {permission_id} not found for revocation")
+                logger.warning(f"Permission {sanitize_for_log(permission_id)} not found for revocation")
                 return False
                 
         except Exception as e:
