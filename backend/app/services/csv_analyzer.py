@@ -54,12 +54,12 @@ class CSVAnalyzer:
     
     def __init__(self):
         self.ip_patterns = [
-            re.compile(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'),  # IPv4
+            re.compile(r'^(?:\d{1,3}\.){3}\d{1,3}$'),  # IPv4
             re.compile(r'^[0-9a-fA-F:]+$'),  # IPv6 (simplified)
         ]
         
         self.hostname_patterns = [
-            re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$'),
+            re.compile(r'^[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?(\.[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?)*$'),
             re.compile(r'^[a-zA-Z0-9\-_]+$'),  # Simple hostname
         ]
         
