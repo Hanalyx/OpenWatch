@@ -542,7 +542,7 @@ async def delete_ssh_key_from_credentials(
 scheduler_instance = None
 
 
-async def restore_scheduler_state():
+def restore_scheduler_state():
     """
     Restore scheduler state from database on application startup
     """

@@ -101,7 +101,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             
         return normalized_path
     
-    async def _record_application_metrics(self, request: Request, response: Response, duration: float):
+    def _record_application_metrics(self, request: Request, response: Response, duration: float):
         """Record application-specific metrics based on request/response"""
         path = request.url.path
         
@@ -161,7 +161,7 @@ class DatabaseMetricsCollector:
     def __init__(self):
         self.metrics = get_metrics_instance()
     
-    async def record_query_metrics(self, operation: str, duration: float):
+    def record_query_metrics(self, operation: str, duration: float):
         """Record database query metrics"""
         from ..services.prometheus_metrics import database_query_duration_seconds
         database_query_duration_seconds.labels(operation=operation).observe(duration)

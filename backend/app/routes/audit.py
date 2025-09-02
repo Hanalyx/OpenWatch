@@ -252,7 +252,7 @@ async def create_audit_log(
         raise HTTPException(status_code=500, detail="Failed to create audit log")
 
 # Helper function to create audit logs from middleware
-async def log_audit_event(
+def log_audit_event(
     db: Session,
     user_id: Optional[int],
     action: str,

@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def log_audit_event(
+def log_audit_event(
     db: Session,
     action: str,
     resource_type: str,
@@ -68,7 +68,7 @@ async def log_audit_event(
         return False
 
 
-async def log_login_event(
+def log_login_event(
     db: Session,
     username: str,
     user_id: Optional[int],
@@ -83,7 +83,7 @@ async def log_login_event(
     if failure_reason and not success:
         details += f" - Reason: {failure_reason}"
     
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=action,
         resource_type="auth",
@@ -94,7 +94,7 @@ async def log_login_event(
     )
 
 
-async def log_scan_event(
+def log_scan_event(
     db: Session,
     action: str,
     scan_id: Optional[str],
@@ -108,7 +108,7 @@ async def log_scan_event(
     if host_name:
         scan_details += f" on host {host_name}"
     
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=f"SCAN_{action.upper()}",
         resource_type="scan",
@@ -119,7 +119,7 @@ async def log_scan_event(
     )
 
 
-async def log_host_event(
+def log_host_event(
     db: Session,
     action: str,
     host_id: Optional[str],
@@ -131,7 +131,7 @@ async def log_host_event(
     """Log host-related events to database"""
     host_details = details or f"{action.title()} host: {host_name}"
     
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=f"HOST_{action.upper()}",
         resource_type="host",
@@ -142,7 +142,7 @@ async def log_host_event(
     )
 
 
-async def log_user_event(
+def log_user_event(
     db: Session,
     action: str,
     target_user_id: Optional[str],
@@ -154,7 +154,7 @@ async def log_user_event(
     """Log user management events to database"""
     user_details = details or f"{action.title()} user: {target_username}"
     
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=f"USER_{action.upper()}",
         resource_type="user",
@@ -165,7 +165,7 @@ async def log_user_event(
     )
 
 
-async def log_security_event(
+def log_security_event(
     db: Session,
     event_type: str,
     ip_address: str,
@@ -173,7 +173,7 @@ async def log_security_event(
     details: Optional[str] = None
 ) -> bool:
     """Log security-related events to database"""
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=f"SECURITY_{event_type.upper()}",
         resource_type="security",
@@ -183,7 +183,7 @@ async def log_security_event(
     )
 
 
-async def log_admin_event(
+def log_admin_event(
     db: Session,
     action: str,
     user_id: int,
@@ -192,7 +192,7 @@ async def log_admin_event(
     details: Optional[str] = None
 ) -> bool:
     """Log administrative actions to database"""
-    return await log_audit_event(
+    return log_audit_event(
         db=db,
         action=f"ADMIN_{action.upper()}",
         resource_type=resource_type,

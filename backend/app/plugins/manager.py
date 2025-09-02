@@ -184,7 +184,7 @@ class PluginManager:
             }
         return plugin_list
     
-    async def enable_plugin(self, plugin_name: str) -> bool:
+    def enable_plugin(self, plugin_name: str) -> bool:
         """Enable a plugin"""
         plugin = self.get_plugin(plugin_name)
         if plugin:
@@ -193,7 +193,7 @@ class PluginManager:
             return True
         return False
     
-    async def disable_plugin(self, plugin_name: str) -> bool:
+    def disable_plugin(self, plugin_name: str) -> bool:
         """Disable a plugin"""
         plugin = self.get_plugin(plugin_name)
         if plugin:
@@ -316,7 +316,7 @@ class PluginManager:
                 if plugin_file.exists():
                     await self.load_plugin(str(plugin_file), plugin_dir.name)
     
-    async def _load_plugin_configs(self):
+    def _load_plugin_configs(self):
         """Load plugin configurations from config directory"""
         for config_file in self.config_dir.glob("*.json"):
             try:
@@ -338,7 +338,7 @@ class PluginManager:
                 return attr
         return None
     
-    async def _validate_plugin(self, plugin: PluginInterface) -> bool:
+    def _validate_plugin(self, plugin: PluginInterface) -> bool:
         """Validate a plugin meets requirements"""
         try:
             metadata = plugin.get_metadata()
@@ -378,7 +378,7 @@ class PluginManager:
             if isinstance(plugin, HookablePlugin):
                 await self._register_plugin_hooks_for(plugin)
     
-    async def _register_plugin_hooks_for(self, plugin: HookablePlugin):
+    def _register_plugin_hooks_for(self, plugin: HookablePlugin):
         """Register hooks for a specific plugin"""
         for hook_name in plugin.get_registered_hooks():
             if hook_name not in self.hook_registry:

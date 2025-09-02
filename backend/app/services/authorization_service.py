@@ -323,7 +323,7 @@ class AuthorizationService:
                 confidence_score=0.0
             )
     
-    async def _get_applicable_policies(
+    def _get_applicable_policies(
         self,
         user_id: str,
         resource: ResourceIdentifier,
@@ -457,7 +457,7 @@ class AuthorizationService:
         
         return self.config.default_decision, "Applied default decision"
     
-    async def _evaluate_role_permissions(
+    def _evaluate_role_permissions(
         self,
         user_id: str,
         resource: ResourceIdentifier,
@@ -521,7 +521,7 @@ class AuthorizationService:
         else:
             return AuthorizationDecision.DENY, f"Role check failed: {role_decision[1]}"
     
-    async def _build_user_context(self, user_id: str) -> AuthorizationContext:
+    def _build_user_context(self, user_id: str) -> AuthorizationContext:
         """
         Build authorization context for a user
         """
@@ -565,7 +565,7 @@ class AuthorizationService:
                 user_groups=[]
             )
     
-    async def _validate_user(self, user_id: str) -> bool:
+    def _validate_user(self, user_id: str) -> bool:
         """
         Validate user exists and is active
         """
@@ -580,7 +580,7 @@ class AuthorizationService:
             logger.error(f"User validation error for {user_id}: {e}")
             return False
     
-    async def _audit_authorization_decision(
+    def _audit_authorization_decision(
         self,
         result: AuthorizationResult,
         context: AuthorizationContext
@@ -645,7 +645,7 @@ class AuthorizationService:
         except Exception as e:
             logger.error(f"Failed to audit authorization decision: {e}")
     
-    async def _audit_bulk_authorization(
+    def _audit_bulk_authorization(
         self,
         request: BulkAuthorizationRequest,
         decision: AuthorizationDecision,
@@ -813,7 +813,7 @@ class AuthorizationService:
     
     # Permission Management Methods
     
-    async def grant_host_permission(
+    def grant_host_permission(
         self,
         user_id: Optional[str],
         group_id: Optional[str],
@@ -879,7 +879,7 @@ class AuthorizationService:
             self.db.rollback()
             raise
     
-    async def revoke_permission(self, permission_id: str) -> bool:
+    def revoke_permission(self, permission_id: str) -> bool:
         """
         Revoke a specific permission
         """

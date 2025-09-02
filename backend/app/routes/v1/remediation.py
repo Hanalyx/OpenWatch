@@ -556,7 +556,7 @@ async def _execute_manual_remediation(job_id, scan_id, host_id, failed_rules, op
     logger.info(f"Manual remediation job {job_id} completed (simulated)")
 
 
-async def _check_aegis_status():
+def _check_aegis_status():
     """Check AEGIS provider status"""
     settings = get_settings()
     aegis_url = getattr(settings, 'aegis_url', None)

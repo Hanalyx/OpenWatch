@@ -397,7 +397,7 @@ def get_db() -> Session:
         db.close()
 
 
-async def create_tables():
+def create_tables():
     """Create database tables if they don't exist"""
     try:
         Base.metadata.create_all(bind=engine)
@@ -407,7 +407,7 @@ async def create_tables():
         raise
 
 
-async def check_database_health() -> bool:
+def check_database_health() -> bool:
     """Check database connectivity for health checks"""
     try:
         from sqlalchemy import text
