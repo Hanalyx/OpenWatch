@@ -441,8 +441,12 @@ class SCAPScanner:
                         
             # Calculate score
             if results["rules_total"] > 0:
-                results["score"] = (results["rules_passed"] / 
-                                 (results["rules_passed"] + results["rules_failed"])) * 100
+                divisor = results["rules_passed"] + results["rules_failed"]
+                if divisor > 0:
+                    results["score"] = (results["rules_passed"] / divisor) * 100
+                else:
+                    # No pass/fail rules to calculate score from (all rules are N/A, error, etc.)
+                    results["score"] = 0.0
                                  
             return results
             

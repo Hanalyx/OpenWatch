@@ -346,11 +346,18 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
                 "completed_at": datetime.utcnow().isoformat()
             }
             
-            # Send webhook asynchronously
-            asyncio.create_task(
-                send_scan_completed_webhook(scan_id, webhook_data)
-            )
-            logger.debug(f"Webhook notification queued for completed scan: {scan_id}")
+            # Run webhook delivery in a new event loop (for Celery worker context)
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    send_scan_completed_webhook(scan_id, webhook_data)
+                )
+                loop.close()
+                logger.debug(f"Webhook notification sent for completed scan: {scan_id}")
+            except Exception as loop_error:
+                logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
+                
         except Exception as webhook_error:
             logger.error(f"Failed to send completion webhook for scan {scan_id}: {webhook_error}")
         
@@ -435,10 +442,18 @@ def _update_scan_error(db: Session, scan_id: str, error_message: str, original_e
                     "completed_at": datetime.utcnow().isoformat()
                 }
                 
-                asyncio.create_task(
-                    send_scan_failed_webhook(scan_id, webhook_data, error_message)
-                )
-                logger.debug(f"Webhook notification queued for failed scan: {scan_id}")
+                # Run webhook delivery in a new event loop (for Celery worker context)
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(
+                        send_scan_failed_webhook(scan_id, webhook_data, error_message)
+                    )
+                    loop.close()
+                    logger.debug(f"Webhook notification sent for failed scan: {scan_id}")
+                except Exception as loop_error:
+                    logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
+                    
             except Exception as webhook_error:
                 logger.error(f"Failed to send failure webhook for scan {scan_id}: {webhook_error}")
         
