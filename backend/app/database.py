@@ -115,6 +115,10 @@ class Host(Base):
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
     display_name = Column(String(255), nullable=True)
     operating_system = Column(String(255), nullable=True)
+    os_family = Column(String(50), nullable=True)
+    os_version = Column(String(100), nullable=True)
+    architecture = Column(String(50), nullable=True)
+    last_os_detection = Column(DateTime, nullable=True)
     status = Column(String(50), default="offline", nullable=False)
     port = Column(Integer, default=22, nullable=False)
     username = Column(String(50), nullable=True)  # Made optional
