@@ -6,14 +6,19 @@ Utility scripts for OpenWatch setup, deployment, and maintenance.
 
 ```
 scripts/
-├── setup.sh              # Initial setup script
-├── setup-dev.sh          # Development environment setup
-├── setup-local-db.sh     # Local database initialization
-├── generate-certs.sh     # SSL certificate generation
-├── create-admin.sh       # Create admin user
-├── check-environment.sh  # Verify environment setup
-├── run-local.sh          # Run services locally
-└── verify-setup.sh       # Validate installation
+├── setup.sh                            # Initial setup script
+├── setup-dev.sh                        # Development environment setup  
+├── setup-local-db.sh                   # Local database initialization
+├── generate-certs.sh                   # SSL certificate generation
+├── create-admin.sh                     # Create admin user
+├── check-environment.sh                # Verify environment setup
+├── run-local.sh                        # Run services locally
+├── verify-setup.sh                     # Validate installation
+├── utilities/
+│   ├── clear_rate_limits.py           # Clear rate limit blocks
+│   └── rate_limit_monitor.py           # Monitor rate limiting
+└── examples/
+    └── group_scan_api_usage.py         # Group Scan API example
 ```
 
 ## Script Descriptions
@@ -115,6 +120,40 @@ Usage:
 ./verify-setup.sh [--comprehensive]
 ```
 
+### utilities/clear_rate_limits.py
+Rate limiting management:
+- Clears all IP blocks from rate limiter
+- Resets request histories and error counts
+- Can be run from container or locally
+
+Usage:
+```bash
+docker-compose exec backend python3 /app/scripts/utilities/clear_rate_limits.py
+# OR restart backend: docker-compose restart backend
+```
+
+### utilities/rate_limit_monitor.py
+Rate limiting monitoring:
+- Monitors rate limiting status and metrics
+- Tracks blocked IPs and request patterns
+- Provides real-time monitoring data
+
+Usage:
+```bash
+python3 scripts/utilities/rate_limit_monitor.py
+```
+
+### examples/group_scan_api_usage.py
+API usage demonstration:
+- Shows how to use Group Scan Progress API
+- Demonstrates endpoint integration
+- Provides client implementation example
+
+Usage:
+```bash
+python3 scripts/examples/group_scan_api_usage.py
+```
+
 ## Common Tasks
 
 ### First Time Setup
@@ -168,4 +207,4 @@ Check PostgreSQL service and credentials in environment
 Regenerate certificates and restart services
 
 ---
-*Last updated: 2025-01-12*
+*Last updated: 2025-09-04*

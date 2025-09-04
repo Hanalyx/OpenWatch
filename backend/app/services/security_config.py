@@ -465,7 +465,7 @@ class SecurityConfigManager:
     def _get_template_recommendation(self, template_name: str) -> str:
         """Get recommendation for when to use a template"""
         recommendations = {
-            "fips_strict": "Government, healthcare, financial services requiring FIPS 140-2",
+            "fips_strict": "Compliance-critical, healthcare, financial services requiring FIPS 140-2",
             "enterprise": "Corporate environments with security requirements",
             "development": "Development and testing environments"
         }

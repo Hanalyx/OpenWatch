@@ -290,92 +290,123 @@ class UnifiedValidationService:
                 "error": f"OpenSCAP dependency check failed: {str(e)}"
             }
     
+    # Error template configurations
+    ERROR_TEMPLATES = {
+        'network': {
+            'error_code': 'NET_001',
+            'category': ErrorCategory.NETWORK,
+            'severity': ErrorSeverity.ERROR,
+            'message': 'Network connectivity failed',
+            'user_guidance': 'Check network connectivity and firewall settings',
+            'can_retry': True,
+            'retry_after': 30
+        },
+        'auth': {
+            'error_code': 'AUTH_001',
+            'category': ErrorCategory.AUTHENTICATION,
+            'severity': ErrorSeverity.ERROR,
+            'message': 'SSH authentication failed',
+            'user_guidance': 'Verify credentials and SSH key permissions',
+            'can_retry': True,
+            'retry_after': 60
+        },
+        'privilege_error': {
+            'error_code': 'PRIV_001',
+            'category': ErrorCategory.PRIVILEGE,
+            'severity': ErrorSeverity.ERROR,
+            'message': 'Insufficient system privileges',
+            'user_guidance': 'Ensure user has sudo access or use root account',
+            'can_retry': False
+        },
+        'privilege_warning': {
+            'error_code': 'PRIV_002',
+            'category': ErrorCategory.PRIVILEGE,
+            'severity': ErrorSeverity.WARNING,
+            'message': 'Limited system privileges detected',
+            'user_guidance': 'Some scans may require elevated privileges',
+            'can_retry': False
+        },
+        'resource_warning': {
+            'error_code': 'RES_001',
+            'category': ErrorCategory.RESOURCE,
+            'severity': ErrorSeverity.WARNING,
+            'message': 'System resource constraints detected',
+            'user_guidance': 'Monitor system resources during scan execution',
+            'can_retry': False
+        },
+        'dependency_warning': {
+            'error_code': 'DEP_001',
+            'category': ErrorCategory.DEPENDENCY,
+            'severity': ErrorSeverity.WARNING,
+            'message': 'OpenSCAP dependencies may be missing',
+            'user_guidance': 'Install OpenSCAP tools on target system if needed',
+            'can_retry': False
+        },
+        'unexpected': {
+            'error_code': 'UNK_001',
+            'category': ErrorCategory.EXECUTION,
+            'severity': ErrorSeverity.ERROR,
+            'message': 'Unexpected validation error',
+            'user_guidance': 'Contact support if this error persists',
+            'can_retry': True,
+            'retry_after': 120
+        }
+    }
+    
+    def _create_error(self, template_key: str, error_msg: str) -> ScanErrorInternal:
+        """
+        Create standardized error using template configuration
+        
+        Args:
+            template_key: Key from ERROR_TEMPLATES dict
+            error_msg: Technical error message
+            
+        Returns:
+            ScanErrorInternal: Configured error instance
+        """
+        if template_key not in self.ERROR_TEMPLATES:
+            template_key = 'unexpected'  # Fallback
+            
+        template = self.ERROR_TEMPLATES[template_key]
+        
+        return ScanErrorInternal(
+            error_code=template['error_code'],
+            category=template['category'],
+            severity=template['severity'],
+            message=template['message'],
+            technical_details={"error": error_msg},
+            user_guidance=template['user_guidance'],
+            can_retry=template['can_retry'],
+            retry_after=template.get('retry_after')
+        )
+    
     def _create_network_error(self, error_msg: str) -> ScanErrorInternal:
         """Create network connectivity error"""
-        return ScanErrorInternal(
-            error_code="NET_001",
-            category=ErrorCategory.NETWORK,
-            severity=ErrorSeverity.ERROR,
-            message="Network connectivity failed",
-            technical_details={"error": error_msg},
-            user_guidance="Check network connectivity and firewall settings",
-            can_retry=True,
-            retry_after=30
-        )
+        return self._create_error('network', error_msg)
     
     def _create_auth_error(self, error_msg: str) -> ScanErrorInternal:
         """Create authentication error"""
-        return ScanErrorInternal(
-            error_code="AUTH_001",
-            category=ErrorCategory.AUTHENTICATION,
-            severity=ErrorSeverity.ERROR,
-            message="SSH authentication failed",
-            technical_details={"error": error_msg},
-            user_guidance="Verify credentials and SSH key permissions",
-            can_retry=True,
-            retry_after=60
-        )
+        return self._create_error('auth', error_msg)
     
     def _create_privilege_error(self, error_msg: str) -> ScanErrorInternal:
         """Create privilege error"""
-        return ScanErrorInternal(
-            error_code="PRIV_001",
-            category=ErrorCategory.PRIVILEGE,
-            severity=ErrorSeverity.ERROR,
-            message="Insufficient system privileges",
-            technical_details={"error": error_msg},
-            user_guidance="Ensure user has sudo access or use root account",
-            can_retry=False
-        )
+        return self._create_error('privilege_error', error_msg)
     
     def _create_privilege_warning(self, error_msg: str) -> ScanErrorInternal:
         """Create privilege warning"""
-        return ScanErrorInternal(
-            error_code="PRIV_002",
-            category=ErrorCategory.PRIVILEGE,
-            severity=ErrorSeverity.WARNING,
-            message="Limited system privileges detected",
-            technical_details={"error": error_msg},
-            user_guidance="Some scans may require elevated privileges",
-            can_retry=False
-        )
+        return self._create_error('privilege_warning', error_msg)
     
     def _create_resource_warning(self, error_msg: str) -> ScanErrorInternal:
         """Create resource warning"""
-        return ScanErrorInternal(
-            error_code="RES_001",
-            category=ErrorCategory.RESOURCE,
-            severity=ErrorSeverity.WARNING,
-            message="System resource constraints detected",
-            technical_details={"error": error_msg},
-            user_guidance="Monitor system resources during scan execution",
-            can_retry=False
-        )
+        return self._create_error('resource_warning', error_msg)
     
     def _create_dependency_warning(self, error_msg: str) -> ScanErrorInternal:
         """Create dependency warning"""
-        return ScanErrorInternal(
-            error_code="DEP_001",
-            category=ErrorCategory.DEPENDENCY,
-            severity=ErrorSeverity.WARNING,
-            message="OpenSCAP dependencies may be missing",
-            technical_details={"error": error_msg},
-            user_guidance="Install OpenSCAP tools on target system if needed",
-            can_retry=False
-        )
+        return self._create_error('dependency_warning', error_msg)
     
     def _create_unexpected_error(self, error_msg: str) -> ScanErrorInternal:
         """Create unexpected error"""
-        return ScanErrorInternal(
-            error_code="UNK_001",
-            category=ErrorCategory.EXECUTION,
-            severity=ErrorSeverity.ERROR,
-            message="Unexpected validation error",
-            technical_details={"error": error_msg},
-            user_guidance="Contact support if this error persists",
-            can_retry=True,
-            retry_after=120
-        )
+        return self._create_error('unexpected', error_msg)
     
     async def _sanitize_validation_result(
         self, 

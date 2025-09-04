@@ -174,9 +174,9 @@ class RateLimitingMiddleware:
             
             # Authentication endpoints (like Stripe's sensitive endpoints)
             'auth': {
-                'requests_per_minute': 30,    # More restrictive
-                'burst_capacity': 10,         # Small burst allowance
-                'retry_after_seconds': 120    # 2 minute recovery for security
+                'requests_per_minute': 15,    # Even more restrictive for security
+                'burst_capacity': 5,          # Very small burst allowance
+                'retry_after_seconds': 300    # 5 minute recovery for security
             },
             
             # Error-prone endpoints

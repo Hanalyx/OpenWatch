@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 import lxml.etree as etree
 from datetime import datetime
 import hashlib
+from ..utils.scap_xml_utils import extract_text_content
 
 logger = logging.getLogger(__name__)
 
@@ -442,17 +443,7 @@ class SCAPDataStreamProcessor:
     
     def _extract_text_content(self, element) -> str:
         """Extract clean text content from XML element"""
-        if element is None:
-            return ""
-        
-        # Get text content, handling HTML tags
-        text = etree.tostring(element, method='text', encoding='unicode').strip()
-        
-        # Clean up whitespace
-        import re
-        text = re.sub(r'\s+', ' ', text).strip()
-        
-        return text
+        return extract_text_content(element)
     
     def _extract_xml_metadata(self, file_path: str) -> Dict:
         """Extract additional metadata from XML structure"""

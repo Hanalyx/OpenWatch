@@ -241,12 +241,11 @@ class CentralizedAuthService:
     def resolve_credential(self, target_id: str = None, use_default: bool = False) -> Optional[CredentialData]:
         """
         Resolve effective credentials using inheritance logic.
-        TEMPORARY: Using legacy system_credentials table until unified migration is complete.
         
         Resolution order:
-        1. If use_default=True -> legacy system default credential
+        1. If use_default=True -> system default credential
         2. If target_id provided -> target-specific credential (not implemented yet)
-        3. If target has no credential -> fallback to legacy system default
+        3. If target has no credential -> fallback to system default
         
         Args:
             target_id: Target ID (host_id, group_id) to resolve credentials for
@@ -263,109 +262,18 @@ class CentralizedAuthService:
                 return self._get_system_default()
             
             # For now, host-specific credentials are not supported via unified system
-            # Fall back to legacy system default
-            logger.info(f"No host-specific unified credentials supported yet, using legacy system default")
-            return self._get_legacy_system_default()
+            # Fall back to system default
+            logger.info(f"No host-specific unified credentials supported yet, using system default")
+            return self._get_system_default()
             
         except Exception as e:
             logger.error(f"Failed to resolve credential: {e}")
             return None
     
-    def _get_legacy_system_default(self) -> Optional[CredentialData]:
-        """Get system default credential from legacy system_credentials table"""
-        try:
-            logger.info("Getting legacy system default credential from system_credentials table")
-            result = self.db.execute(text("""
-                SELECT id, username, auth_method, encrypted_password, encrypted_private_key, 
-                       private_key_passphrase
-                FROM system_credentials 
-                WHERE is_default = true AND is_active = true
-                LIMIT 1
-            """))
-            
-            row = result.fetchone()
-            if row:
-                logger.info("Found legacy system default credential, decrypting...")
-                # Import decryption function for legacy credentials
-                from .encryption import decrypt_data
-                import base64
-                
-                # Decrypt legacy credential data
-                password = None
-                private_key = None
-                passphrase = None
-                
-                if row.encrypted_password:
-                    try:
-                        encrypted_data = row.encrypted_password
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            password = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            password = decrypt_data(encrypted_data).decode()
-                        logger.info("Successfully decrypted legacy password")
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy password: {e}")
-                
-                if row.encrypted_private_key:
-                    try:
-                        encrypted_data = row.encrypted_private_key
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            private_key = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            private_key = decrypt_data(encrypted_data).decode()
-                        logger.info("Successfully decrypted legacy private key")
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy private key: {e}")
-                
-                if row.private_key_passphrase:
-                    try:
-                        encrypted_data = row.private_key_passphrase
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            passphrase = decrypt_data(encrypted_data).decode()
-                        logger.info("Successfully decrypted legacy passphrase")
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy passphrase: {e}")
-                
-                credential = CredentialData(
-                    username=row.username,
-                    auth_method=AuthMethod(row.auth_method),
-                    password=password,
-                    private_key=private_key,
-                    private_key_passphrase=passphrase,
-                    source="legacy_system_default"
-                )
-                
-                logger.info(f"Successfully resolved legacy system default credential for user: {row.username}")
-                return credential
-            
-            logger.warning("No legacy system default credential found in system_credentials table")
-            return None
-            
-        except Exception as e:
-            logger.error(f"Failed to get legacy system default credential: {e}")
-            return None
     
     def _get_system_default(self) -> Optional[CredentialData]:
-        """Get system default credential with fallback to legacy system_credentials table"""
+        """Get system default credential from unified_credentials table"""
         try:
-            # First try unified_credentials table (new system)
             result = self.db.execute(text("""
                 SELECT id FROM unified_credentials 
                 WHERE scope = 'system' AND is_default = true AND is_active = true
@@ -379,83 +287,7 @@ class CentralizedAuthService:
                     credential.source = "system_default"
                     return credential
             
-            # Fallback to legacy system_credentials table
-            logger.warning("No unified system credentials found, checking legacy system_credentials table")
-            result = self.db.execute(text("""
-                SELECT id, username, auth_method, encrypted_password, encrypted_private_key, 
-                       private_key_passphrase
-                FROM system_credentials 
-                WHERE is_default = true AND is_active = true
-                LIMIT 1
-            """))
-            
-            row = result.fetchone()
-            if row:
-                logger.warning("Found legacy system default credential, using it")
-                # Import decryption function for legacy credentials
-                from .encryption import decrypt_data
-                import base64
-                
-                # Decrypt legacy credential data
-                password = None
-                private_key = None
-                passphrase = None
-                
-                if row.encrypted_password:
-                    try:
-                        encrypted_data = row.encrypted_password
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            password = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            password = decrypt_data(encrypted_data).decode()
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy password: {e}")
-                
-                if row.encrypted_private_key:
-                    try:
-                        encrypted_data = row.encrypted_private_key
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            private_key = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            private_key = decrypt_data(encrypted_data).decode()
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy private key: {e}")
-                
-                if row.private_key_passphrase:
-                    try:
-                        encrypted_data = row.private_key_passphrase
-                        if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
-                        else:
-                            # String data is base64 encoded - use decrypt_data
-                            passphrase = decrypt_data(encrypted_data).decode()
-                    except Exception as e:
-                        logger.warning(f"Failed to decrypt legacy passphrase: {e}")
-                
-                return CredentialData(
-                    username=row.username,
-                    auth_method=AuthMethod(row.auth_method),
-                    password=password,
-                    private_key=private_key,
-                    private_key_passphrase=passphrase,
-                    source="legacy_system_default"
-                )
-            
-            logger.warning("No system default credential found in either unified_credentials or system_credentials")
+            logger.warning("No system default credential found in unified_credentials table")
             return None
             
         except Exception as e:
@@ -502,7 +334,7 @@ class CentralizedAuthService:
                     logger.warning(f"Credential rejected by strict security policy: {error_message}")
                     return False, error_message
             else:
-                # Legacy validation (only for compatibility)
+                # Basic SSH key validation if not using strict mode
                 if credential_data.private_key:
                     validation_result = validate_ssh_key(credential_data.private_key)
                     if not validation_result.is_valid:
@@ -561,31 +393,31 @@ class CentralizedAuthService:
             List[Dict]: List of credential metadata (no sensitive data)
         """
         try:
-            conditions = ["is_active = true"]
-            params = {}
-            
-            if scope:
-                conditions.append("scope = :scope")
-                params["scope"] = scope.value
-                
-            if target_id:
-                conditions.append("target_id = :target_id")
-                params["target_id"] = target_id
-                
-            if user_id:
-                conditions.append("created_by = :user_id")
-                params["user_id"] = user_id
-            
-            where_clause = " AND ".join(conditions)
-            
-            result = self.db.execute(text(f"""
+            # Build query with parameterized conditions to prevent SQL injection
+            base_query = """
                 SELECT id, name, description, scope, target_id, username, auth_method,
                        ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment,
                        is_default, created_at, updated_at
                 FROM unified_credentials 
-                WHERE {where_clause}
-                ORDER BY scope, is_default DESC, name
-            """), params)
+                WHERE is_active = true
+            """
+            params = {}
+            
+            if scope:
+                base_query += " AND scope = :scope"
+                params["scope"] = scope.value
+                
+            if target_id:
+                base_query += " AND target_id = :target_id"
+                params["target_id"] = target_id
+                
+            if user_id:
+                base_query += " AND created_by = :user_id"
+                params["user_id"] = user_id
+            
+            base_query += " ORDER BY scope, is_default DESC, name"
+            
+            result = self.db.execute(text(base_query), params)
             
             credentials = []
             for row in result:

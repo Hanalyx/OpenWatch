@@ -4,7 +4,7 @@ FIPS-compliant security settings and environment configuration
 """
 import os
 from typing import Optional, List
-from pydantic import validator
+from pydantic import validator, Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -53,8 +53,10 @@ class Settings(BaseSettings):
     tls_ca_file: Optional[str] = None
     require_https: bool = True
     
-    # Allowed hosts for CORS
-    allowed_origins: List[str] = ["https://localhost:3001"]
+    # Allowed hosts for CORS (configurable via environment)
+    allowed_origins: List[str] = Field(
+        default_factory=lambda: os.getenv("OPENWATCH_ALLOWED_ORIGINS", "https://localhost:3001").split(",")
+    )
     
     # File upload limits
     max_upload_size: int = 100 * 1024 * 1024  # 100MB
