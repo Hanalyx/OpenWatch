@@ -23,6 +23,10 @@ FROM nginx:alpine
 # Install openssl for FIPS support
 RUN apk add --no-cache openssl
 
+# Create non-root user for security
+RUN addgroup -g 1000 openwatch && \
+    adduser -D -u 1000 -G openwatch openwatch
+
 # Remove default nginx config
 RUN rm -rf /etc/nginx/conf.d/*
 
@@ -36,9 +40,13 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # Create directory for SSL certificates
 RUN mkdir -p /etc/nginx/ssl
 
-# Set proper permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chmod -R 755 /usr/share/nginx/html
+# Set proper permissions for openwatch user
+RUN chown -R openwatch:openwatch /usr/share/nginx/html /var/cache/nginx /var/run /etc/nginx/ssl && \
+    chmod -R 755 /usr/share/nginx/html && \
+    chmod -R 750 /etc/nginx/ssl
+
+# Switch to non-root user
+USER openwatch
 
 # Expose HTTPS port
 EXPOSE 443 80

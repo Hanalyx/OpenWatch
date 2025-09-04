@@ -819,11 +819,11 @@ async def list_scans(
         params = {"limit": limit, "offset": offset}
         
         if host_id:
-            where_conditions.append("s.host_id = %(host_id)s")
+            where_conditions.append("s.host_id = :host_id")
             params["host_id"] = host_id
         
         if status:
-            where_conditions.append("s.status = %(status)s")
+            where_conditions.append("s.status = :status")
             params["status"] = status
         
         where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""

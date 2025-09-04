@@ -19,7 +19,9 @@ import paramiko
 import io
 from paramiko.ssh_exception import SSHException
 from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
+from .unified_ssh_service import UnifiedSSHService
 from ..config import get_settings
+from ..utils.scap_xml_utils import extract_text_content
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,9 @@ class SCAPScanner:
         
         self.content_dir = Path(content_path)
         self.results_dir = Path(results_path)
+        
+        # Initialize unified SSH service
+        self.unified_ssh = UnifiedSSHService(settings)
         
         # Create directories if they don't exist
         try:
@@ -111,62 +116,56 @@ class SCAPScanner:
             
     def test_ssh_connection(self, hostname: str, port: int, username: str, 
                           auth_method: str, credential: str) -> Dict:
-        """Test SSH connection to remote host"""
+        """Test SSH connection to remote host using unified SSH service"""
+        logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
+        
+        # Use unified SSH service to establish connection
+        connection_result = self.unified_ssh.connect_with_credentials(
+            hostname=hostname,
+            port=port,
+            username=username,
+            auth_method=auth_method,
+            credential=credential,
+            service_name="SCAP_Scanner_Connection_Test",
+            timeout=10
+        )
+        
+        if not connection_result.success:
+            logger.error(f"SSH connection test failed for {hostname}: {connection_result.error_message}")
+            return {
+                "success": False,
+                "message": f"SSH connection failed: {connection_result.error_message}",
+                "oscap_available": False
+            }
+        
+        # Test basic command execution and check OpenSCAP availability
         try:
-            logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
+            ssh = connection_result.connection
             
-            ssh = paramiko.SSHClient()
-            # Security Fix: Use strict host key checking instead of AutoAddPolicy
-            # AutoAddPolicy automatically accepts unknown host keys, vulnerable to MITM attacks
-            ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
-            # Load system and user host keys for validation
-            try:
-                ssh.load_system_host_keys()  # Load from /etc/ssh/ssh_known_hosts
-                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))  # Load user known_hosts
-            except FileNotFoundError:
-                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
-            
-            # Connect based on auth method
-            if auth_method == "password":
-                ssh.connect(hostname, port=port, username=username, 
-                           password=credential, timeout=10)
-            elif auth_method in ["ssh-key", "ssh_key"]:
-                # Handle SSH key authentication using new utility
-                try:
-                    # Validate SSH key first
-                    validation_result = validate_ssh_key(credential)
-                    if not validation_result.is_valid:
-                        logger.error(f"Invalid SSH key for {hostname}: {validation_result.error_message}")
-                        raise SSHException(f"Invalid SSH key: {validation_result.error_message}")
-                    
-                    # Log any warnings
-                    if validation_result.warnings:
-                        logger.warning(f"SSH key warnings for {hostname}: {'; '.join(validation_result.warnings)}")
-                    
-                    # Parse key using unified parser
-                    key = parse_ssh_key(credential)
-                    ssh.connect(hostname, port=port, username=username, 
-                               pkey=key, timeout=10)
-                except SSHKeyError as e:
-                    logger.error(f"SSH key parsing failed for {hostname}: {e}")
-                    raise SSHException(f"SSH key error: {str(e)}")
-                except Exception as e:
-                    logger.error(f"SSH key connection failed for {hostname}: {e}")
-                    raise
-            else:
-                raise SCAPContentError(f"Unsupported auth method: {auth_method}")
-                
             # Test basic command execution
-            stdin, stdout, stderr = ssh.exec_command('echo "OpenWatch SSH Test"')
-            output = stdout.read().decode()
-            error = stderr.read().decode()
+            test_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command='echo "OpenWatch SSH Test"',
+                timeout=5
+            )
+            
+            if not test_result.success:
+                ssh.close()
+                return {
+                    "success": False,
+                    "message": f"SSH command test failed: {test_result.error_message}",
+                    "oscap_available": False
+                }
             
             # Check if oscap is available on remote host
-            stdin, stdout, stderr = ssh.exec_command('oscap --version')
-            oscap_output = stdout.read().decode()
-            oscap_error = stderr.read().decode()
+            oscap_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command='oscap --version',
+                timeout=5
+            )
             
-            oscap_available = stdout.channel.recv_exit_status() == 0
+            oscap_available = oscap_result.success
+            oscap_version = oscap_result.stdout.strip() if oscap_available else None
             
             ssh.close()
             
@@ -174,25 +173,27 @@ class SCAPScanner:
                 "success": True,
                 "message": "SSH connection successful",
                 "oscap_available": oscap_available,
-                "oscap_version": oscap_output.strip() if oscap_available else None,
-                "test_output": output.strip()
+                "oscap_version": oscap_version,
+                "test_output": test_result.stdout.strip()
             }
             
             if not oscap_available:
                 result["warning"] = "OpenSCAP not found on remote host"
-                
-            logger.info(f"SSH test successful: {hostname}")
+                logger.warning(f"OpenSCAP not available on {hostname}: {oscap_result.error_message}")
+            else:
+                logger.info(f"SSH test successful: {hostname} (OpenSCAP available: {oscap_version})")
+            
             return result
             
-        except SSHException as e:
-            logger.error(f"SSH connection failed: {e}")
-            return {
-                "success": False,
-                "message": f"SSH connection failed: {str(e)}",
-                "oscap_available": False
-            }
         except Exception as e:
-            logger.error(f"SSH test error: {e}")
+            # Ensure connection is closed even if test fails
+            try:
+                if connection_result.connection:
+                    connection_result.connection.close()
+            except:
+                pass
+            
+            logger.error(f"SSH test error for {hostname}: {e}")
             return {
                 "success": False,
                 "message": f"Connection test failed: {str(e)}",
@@ -508,17 +509,7 @@ class SCAPScanner:
     
     def _extract_text_content(self, element) -> str:
         """Extract clean text content from XML element, handling HTML tags"""
-        if element is None:
-            return ""
-            
-        # Get text content and clean up HTML tags
-        text = etree.tostring(element, method='text', encoding='unicode').strip()
-        
-        # Clean up extra whitespace
-        import re
-        text = re.sub(r'\s+', ' ', text).strip()
-        
-        return text
+        return extract_text_content(element)
     
     def _extract_remediation_details(self, rule_element, namespaces: Dict) -> Dict:
         """Extract remediation details from rule element with enhanced Fix Text and OpenSCAP remediation parsing"""
@@ -933,123 +924,95 @@ class SCAPScanner:
             
     def _get_remote_system_info(self, hostname: str, port: int, username: str,
                                auth_method: str, credential: str) -> Dict:
-        """Get remote system information via SSH"""
+        """Get minimal remote system information using unified SSH service
+        
+        Replaces 7-command system discovery with 2 essential commands to reduce
+        reconnaissance footprint and security alerts.
+        """
         try:
-            ssh = paramiko.SSHClient()
-            # Security Fix: Use strict host key checking instead of AutoAddPolicy
-            ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
-            # Load system and user host keys for validation
-            try:
-                ssh.load_system_host_keys()
-                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
-            except FileNotFoundError:
-                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
+            logger.info(f"Getting minimal system info for {hostname} via unified SSH service")
             
-            # Connect
-            if auth_method == "password":
-                ssh.connect(hostname, port=port, username=username, 
-                           password=credential, timeout=10)
+            # Use unified SSH service for minimal system discovery
+            minimal_info = self.unified_ssh.execute_minimal_system_check(
+                hostname=hostname,
+                port=port,
+                username=username,
+                auth_method=auth_method,
+                credential=credential,
+                service_name="SCAP_Scanner_System_Info"
+            )
+            
+            if "error" in minimal_info:
+                return {"error": minimal_info["error"]}
+            
+            # Map minimal discovery results to expected format for backward compatibility
+            os_family = minimal_info.get("os_family", "unknown")
+            oscap_available = minimal_info.get("oscap_available", "no") == "yes"
+            
+            # Generate OS info based on family detection
+            if os_family == "redhat":
+                os_name = "Red Hat Enterprise Linux"
+                os_version = "Unknown Version"
+            elif os_family == "debian":
+                os_name = "Debian/Ubuntu"
+                os_version = "Unknown Version"
             else:
-                # Handle SSH key using new utility
-                try:
-                    key = parse_ssh_key(credential)
-                    ssh.connect(hostname, port=port, username=username, 
-                               pkey=key, timeout=10)
-                except SSHKeyError as e:
-                    logger.error(f"SSH key parsing failed for remote system info: {e}")
-                    raise Exception(f"SSH key error: {str(e)}")
-                except Exception as e:
-                    logger.error(f"SSH connection failed for remote system info: {e}")
-                    raise
-                           
-            # Execute commands to get system info
-            commands = {
-                "hostname": "hostname",
-                "os_release": "cat /etc/os-release 2>/dev/null || echo 'ID=unknown'",
-                "kernel": "uname -r",
-                "architecture": "uname -m",
-                "uptime": "uptime",
-                "memory": "free -m | grep '^Mem:' | awk '{print $2}'",
-                "cpu_info": "nproc"
-            }
+                os_name = "Unknown Linux"
+                os_version = "Unknown Version"
             
-            results = {}
-            for key, cmd in commands.items():
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                output = stdout.read().decode().strip()
-                results[key] = output
-                
-            ssh.close()
-            
-            # Parse OS release info
-            os_info = {}
-            for line in results.get("os_release", "").split('\n'):
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    os_info[key] = value.strip('"')
-                    
             return {
-                "hostname": results.get("hostname", hostname),
-                "os_name": os_info.get('NAME', 'Unknown'),
-                "os_version": os_info.get('VERSION', 'Unknown'),
-                "kernel": results.get("kernel", "Unknown"),
-                "architecture": results.get("architecture", "Unknown"),
-                "cpu_count": int(results.get("cpu_info", "0")),
-                "memory_mb": int(results.get("memory", "0")),
-                "uptime": results.get("uptime", "Unknown")
+                "hostname": hostname,  # Use provided hostname to avoid disclosure
+                "os_name": os_name,
+                "os_version": os_version,
+                "os_family": os_family,
+                "oscap_available": oscap_available,
+                "kernel": "Hidden (minimal discovery)",
+                "architecture": "Hidden (minimal discovery)",
+                "cpu_count": 0,  # Not collected in minimal mode
+                "memory_mb": 0,  # Not collected in minimal mode
+                "uptime": "Hidden (minimal discovery)",
+                "discovery_mode": "minimal",
+                "commands_executed": 2  # vs 7 in original mode
             }
             
         except Exception as e:
-            logger.error(f"Error getting remote system info: {e}")
+            logger.error(f"Error getting minimal system info for {hostname}: {e}")
             return {"error": str(e)}
             
     def _execute_remote_scan_with_paramiko(self, hostname: str, port: int, username: str,
                                           auth_method: str, credential: str, content_path: str, 
                                           profile_id: str, scan_id: str, xml_result: Path, 
                                           html_report: Path, arf_result: Path, rule_id: str = None) -> Dict:
-        """Execute remote SCAP scan using paramiko for all authentication methods"""
+        """Execute remote SCAP scan using unified SSH service for consistent security policies"""
         try:
-            logger.info(f"Executing remote scan via paramiko: {scan_id} on {hostname}")
+            logger.info(f"Executing remote scan via unified SSH service: {scan_id} on {hostname}")
             
-            ssh = paramiko.SSHClient()
-            # Security Fix: Use strict host key checking instead of AutoAddPolicy
-            ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
-            # Load system and user host keys for validation
-            try:
-                ssh.load_system_host_keys()
-                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
-            except FileNotFoundError:
-                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
+            # Use unified SSH service to establish connection
+            connection_result = self.unified_ssh.connect_with_credentials(
+                hostname=hostname,
+                port=port,
+                username=username,
+                auth_method=auth_method,
+                credential=credential,
+                service_name="SCAP_Scanner_Remote_Scan",
+                timeout=30
+            )
             
-            # Connect based on authentication method
-            if auth_method == "password":
-                ssh.connect(hostname, port=port, username=username, 
-                           password=credential, timeout=30)
-            elif auth_method in ["ssh-key", "ssh_key"]:
-                # Handle SSH key authentication using new utility
-                try:
-                    # Validate SSH key first
-                    validation_result = validate_ssh_key(credential)
-                    if not validation_result.is_valid:
-                        logger.error(f"Invalid SSH key for {hostname}: {validation_result.error_message}")
-                        raise SSHException(f"Invalid SSH key: {validation_result.error_message}")
-                    
-                    # Parse key using unified parser
-                    key = parse_ssh_key(credential)
-                    ssh.connect(hostname, port=port, username=username, 
-                               pkey=key, timeout=30)
-                except SSHKeyError as e:
-                    logger.error(f"SSH key parsing failed for {hostname}: {e}")
-                    raise SSHException(f"SSH key error: {str(e)}")
-                except Exception as e:
-                    logger.error(f"SSH key connection failed for {hostname}: {e}")
-                    raise
-            else:
-                raise ScanExecutionError(f"Unsupported auth method: {auth_method}")
+            if not connection_result.success:
+                raise ScanExecutionError(f"SSH connection failed: {connection_result.error_message}")
+            
+            ssh = connection_result.connection
             
             # Create remote directory for results
             remote_results_dir = f"/tmp/openwatch_scan_{scan_id}"
-            ssh.exec_command(f"mkdir -p {remote_results_dir}")
+            mkdir_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command=f"mkdir -p {remote_results_dir}",
+                timeout=10
+            )
+            
+            if not mkdir_result.success:
+                raise ScanExecutionError(f"Failed to create remote directory: {mkdir_result.error_message}")
             
             # Define remote file paths
             remote_xml = f"{remote_results_dir}/results.xml"
@@ -1085,21 +1048,65 @@ class SCAPScanner:
             
             logger.info(f"Executing remote command: {oscap_cmd}")
             
-            stdin, stdout, stderr = ssh.exec_command(oscap_cmd, timeout=1800)  # 30 minutes
+            # Execute SCAP scan command using unified SSH service
+            oscap_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command=oscap_cmd,
+                timeout=1800  # 30 minutes
+            )
             
-            # Wait for command completion and get exit code
-            exit_code = stdout.channel.recv_exit_status()
-            stdout_data = stdout.read().decode()
-            stderr_data = stderr.read().decode()
+            exit_code = oscap_result.exit_code
+            stdout_data = oscap_result.stdout
+            stderr_data = oscap_result.stderr
             
             logger.info(f"Remote oscap command completed with exit code: {exit_code}")
+            
+            # Add small delay to ensure oscap has finished writing files
+            import time
+            time.sleep(2)
+            
+            # Debug: List remote directory contents before download
+            ls_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command=f"ls -la {remote_results_dir}/",
+                timeout=10
+            )
+            logger.info(f"Remote directory contents before download:\n{ls_result.stdout}")
+            
+            # Debug: Check file types
+            file_type_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command=f"file {remote_results_dir}/*.xml 2>/dev/null || echo 'No XML files found'",
+                timeout=10
+            )
+            logger.info(f"Remote XML file types: {file_type_result.stdout}")
             
             # Copy result files back to local system
             sftp = ssh.open_sftp()
             
             try:
+                # Verify content before download
+                verify_result = self.unified_ssh.execute_command(
+                    ssh_connection=ssh,
+                    command=f"head -5 {remote_xml} 2>/dev/null || echo 'Cannot read file'",
+                    timeout=10
+                )
+                logger.info(f"Remote XML first 5 lines: {verify_result.stdout}")
+                
                 sftp.get(remote_xml, str(xml_result))
                 logger.info(f"Downloaded results file: {xml_result}")
+                
+                # Verify downloaded file content
+                if xml_result.exists():
+                    with open(xml_result, 'r') as f:
+                        first_lines = f.read(500)
+                        if '<Benchmark' in first_lines:
+                            logger.error("ERROR: Downloaded results.xml contains Benchmark (source content) instead of TestResult!")
+                        elif '<TestResult' in first_lines:
+                            logger.info("SUCCESS: Downloaded results.xml contains TestResult data")
+                        else:
+                            logger.warning(f"UNKNOWN: Downloaded file content starts with: {first_lines[:100]}...")
+                            
             except FileNotFoundError:
                 logger.warning("Results XML file not found on remote host")
                 
@@ -1118,12 +1125,39 @@ class SCAPScanner:
             sftp.close()
             
             # Clean up remote files
-            ssh.exec_command(f"rm -rf {remote_results_dir}")
+            cleanup_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command=f"rm -rf {remote_results_dir}",
+                timeout=10
+            )
+            
+            if not cleanup_result.success:
+                logger.warning(f"Failed to cleanup remote directory: {cleanup_result.error_message}")
+            
             ssh.close()
             
             # Parse results if XML file exists
             if xml_result.exists():
                 scan_results = self._parse_scan_results(str(xml_result), content_path)
+                
+                # If results show rules_total > 0 but all pass/fail counts are 0, likely wrong file downloaded
+                # This indicates we parsed a Benchmark instead of TestResult
+                # Try to use ARF file as fallback
+                if (scan_results.get("rules_total", 0) > 0 and 
+                    scan_results.get("rules_passed", 0) == 0 and 
+                    scan_results.get("rules_failed", 0) == 0 and
+                    scan_results.get("rules_error", 0) == 0 and
+                    arf_result.exists()):
+                    
+                    logger.warning("Results file contains Benchmark instead of TestResult, attempting to parse ARF file as fallback")
+                    try:
+                        # ARF files contain TestResult wrapped in asset-report-collection
+                        arf_results = self._parse_arf_results(str(arf_result), content_path)
+                        if arf_results.get("rules_total", 0) > 0:
+                            logger.info(f"Successfully extracted {arf_results['rules_total']} rules from ARF file")
+                            scan_results = arf_results
+                    except Exception as e:
+                        logger.error(f"Failed to parse ARF file: {e}")
             else:
                 # If no results file, create basic results from command output
                 scan_results = {
@@ -1159,3 +1193,88 @@ class SCAPScanner:
                 ssh.close()
             except:
                 pass
+
+    def _parse_arf_results(self, arf_file: str, content_file: str = None) -> Dict:
+        """Parse SCAP scan results from ARF (Asset Reporting Format) file"""
+        try:
+            if not os.path.exists(arf_file):
+                return {"error": "ARF file not found"}
+                
+            tree = etree.parse(arf_file)
+            root = tree.getroot()
+            
+            # ARF namespace
+            namespaces = {
+                'arf': 'http://scap.nist.gov/schema/asset-reporting-format/1.1',
+                'xccdf': 'http://checklists.nist.gov/xccdf/1.2',
+                'ai': 'http://scap.nist.gov/schema/asset-identification/1.1'
+            }
+            
+            # Find TestResult within ARF structure
+            test_results = root.xpath('//xccdf:TestResult', namespaces=namespaces)
+            
+            if not test_results:
+                logger.warning("No TestResult found in ARF file")
+                return {"error": "No TestResult in ARF"}
+            
+            # Use the first TestResult (there should typically be only one)
+            test_result = test_results[0]
+            
+            results = {
+                "timestamp": datetime.now().isoformat(),
+                "rules_total": 0,
+                "rules_passed": 0,
+                "rules_failed": 0,
+                "rules_error": 0,
+                "rules_unknown": 0,
+                "rules_notapplicable": 0,
+                "rules_notchecked": 0,
+                "score": 0.0,
+                "failed_rules": [],
+                "rule_details": []
+            }
+            
+            # Count rule results from TestResult element
+            rule_results = test_result.xpath('.//xccdf:rule-result', namespaces=namespaces)
+            results["rules_total"] = len(rule_results)
+            
+            for rule_result in rule_results:
+                result_elem = rule_result.find('xccdf:result', namespaces)
+                if result_elem is not None:
+                    result_value = result_elem.text
+                    rule_id = rule_result.get('idref', '')
+                    severity = rule_result.get('severity', 'unknown')
+                    
+                    # Count by result type
+                    if result_value == 'pass':
+                        results["rules_passed"] += 1
+                    elif result_value == 'fail':
+                        results["rules_failed"] += 1
+                        results["failed_rules"].append({
+                            "rule_id": rule_id,
+                            "severity": severity
+                        })
+                    elif result_value == 'error':
+                        results["rules_error"] += 1
+                    elif result_value == 'unknown':
+                        results["rules_unknown"] += 1
+                    elif result_value == 'notapplicable':
+                        results["rules_notapplicable"] += 1
+                    elif result_value == 'notchecked':
+                        results["rules_notchecked"] += 1
+            
+            # Calculate score
+            if results["rules_total"] > 0:
+                divisor = results["rules_passed"] + results["rules_failed"]
+                if divisor > 0:
+                    results["score"] = (results["rules_passed"] / divisor) * 100
+                else:
+                    results["score"] = 0.0
+            
+            logger.info(f"Parsed ARF file: {results['rules_total']} total rules, "
+                       f"{results['rules_passed']} passed, {results['rules_failed']} failed")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error parsing ARF file: {e}")
+            return {"error": f"Failed to parse ARF: {str(e)}"}

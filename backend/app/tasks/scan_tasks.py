@@ -123,76 +123,8 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
         else:
             credential_value = credentials.get("credential", "")
         
-        # Check if demo mode is enabled
-        demo_mode = os.getenv("OPENWATCH_DEMO_MODE", "true").lower() == "true"
         
-        if demo_mode:
-            logger.info(f"Demo mode enabled - simulating scan execution for {scan_id}")
-            
-            # Simulate scan progression
-            import time
-            for progress in [20, 40, 60, 80, 95]:
-                db.execute(text("""
-                    UPDATE scans SET progress = :progress WHERE id = :scan_id
-                """), {"scan_id": scan_id, "progress": progress})
-                db.commit()
-                time.sleep(0.5)  # Simulate work
-            
-            # Create mock results
-            result_data = {
-                "scan_id": scan_id,
-                "hostname": host_data["hostname"],
-                "profile_id": profile_id,
-                "status": "completed",
-                "total_rules": 150,
-                "passed": 120,
-                "failed": 25,
-                "error": 5,
-                "score": 80.0,
-                "scan_time": "2025-08-06T03:45:00",
-                "findings": [
-                    {"rule_id": "demo_rule_1", "severity": "high", "status": "fail", "description": "Sample security finding"},
-                    {"rule_id": "demo_rule_2", "severity": "medium", "status": "pass", "description": "Security control passed"}
-                ]
-            }
-            
-            # Update scan as completed
-            db.execute(text("""
-                UPDATE scans SET 
-                    status = 'completed',
-                    progress = 100,
-                    completed_at = :completed_at
-                WHERE id = :scan_id
-            """), {
-                "scan_id": scan_id,
-                "completed_at": datetime.utcnow()
-            })
-            db.commit()
-            
-            # Send webhook notification for demo completion
-            try:
-                webhook_data = {
-                    "hostname": host_data["hostname"],
-                    "profile_id": profile_id,
-                    "status": "completed",
-                    "total_rules": 150,
-                    "passed_rules": 120,
-                    "failed_rules": 25,
-                    "score": 80.0,
-                    "completed_at": datetime.utcnow().isoformat()
-                }
-                
-                asyncio.create_task(
-                    send_scan_completed_webhook(scan_id, webhook_data)
-                )
-                logger.debug(f"Webhook notification queued for demo scan: {scan_id}")
-            except Exception as webhook_error:
-                logger.error(f"Failed to send demo completion webhook for scan {scan_id}: {webhook_error}")
-            
-            logger.info(f"Demo scan completed successfully: {scan_id}")
-            return
-        
-        # Production mode - Test SSH connection first
+        # Test SSH connection first
         if host_data["hostname"] != "localhost":
             logger.info(f"Testing SSH connection for scan {scan_id}")
             
