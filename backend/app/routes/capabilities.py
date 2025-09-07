@@ -2,6 +2,7 @@
 OpenWatch Capabilities API
 Provides feature discovery and capability-based routing for OSS/Enterprise features
 """
+
 import logging
 from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +22,7 @@ router = APIRouter()
 
 class FeatureFlags(BaseModel):
     """Feature flags for conditional functionality"""
+
     scanning: bool = True
     reporting: bool = True
     host_management: bool = True
@@ -28,7 +30,7 @@ class FeatureFlags(BaseModel):
     audit_logging: bool = True
     mfa: bool = True
     plugin_system: bool = True
-    
+
     # Enterprise features (license-dependent)
     remediation: bool = False
     ai_assistance: bool = False
@@ -40,6 +42,7 @@ class FeatureFlags(BaseModel):
 
 class SystemLimits(BaseModel):
     """System limits and constraints"""
+
     max_hosts: int = 50
     concurrent_scans: int = 5
     max_users: int = 10
@@ -50,12 +53,13 @@ class SystemLimits(BaseModel):
 
 class IntegrationStatus(BaseModel):
     """Status of external integrations"""
+
     aegis_available: bool = False
     aegis_version: str = None
     ldap_enabled: bool = False
     smtp_configured: bool = False
     prometheus_enabled: bool = False
-    
+
     # Container runtime detection
     container_runtime: str = "unknown"
     kubernetes_available: bool = False
@@ -63,6 +67,7 @@ class IntegrationStatus(BaseModel):
 
 class CapabilitiesResponse(BaseModel):
     """Complete capabilities response"""
+
     version: str
     build_info: Dict[str, Any]
     features: FeatureFlags
@@ -74,48 +79,47 @@ class CapabilitiesResponse(BaseModel):
 
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> CapabilitiesResponse:
     """
     Get system capabilities and feature flags
-    
+
     Returns comprehensive information about:
     - Available features and their status
-    - System limits and constraints  
+    - System limits and constraints
     - Integration status with external systems
     - License information and limitations
-    
+
     This endpoint enables frontend conditional rendering and
     API consumers to discover available functionality.
     """
     try:
         settings = get_settings()
-        
+
         # Detect license type and enterprise features
         license_info = await _detect_license_info()
-        
+
         # Check integration status
         integrations = await _check_integrations()
-        
+
         # Determine feature flags based on license and configuration
         features = await _determine_feature_flags(license_info, settings)
-        
+
         # Calculate system limits
         limits = await _calculate_system_limits(license_info, settings)
-        
+
         # Get system information
         system_info = await _get_system_info()
-        
+
         # Build version info
         build_info = {
             "version": "1.0.0",
             "build_date": "2025-08-20",
             "git_commit": "d84d2a3",
             "api_version": "v1",
-            "environment": getattr(settings, 'environment', 'production')
+            "environment": getattr(settings, "environment", "production"),
         }
-        
+
         response = CapabilitiesResponse(
             version="1.0.0",
             build_info=build_info,
@@ -123,28 +127,26 @@ async def get_capabilities(
             limits=limits,
             integrations=integrations,
             license_info=license_info,
-            system_info=system_info
+            system_info=system_info,
         )
-        
+
         logger.info(f"Capabilities requested by user {current_user.get('user_id', 'unknown')}")
-        
+
         return response
-        
+
     except Exception as e:
         logger.error(f"Error getting capabilities: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve system capabilities"
+            detail="Failed to retrieve system capabilities",
         )
 
 
 @router.get("/features", response_model=FeatureFlags)
-async def get_feature_flags(
-    current_user: dict = Depends(get_current_user)
-) -> FeatureFlags:
+async def get_feature_flags(current_user: dict = Depends(get_current_user)) -> FeatureFlags:
     """
     Get just the feature flags (lightweight endpoint)
-    
+
     Returns only the feature availability flags without
     detailed system information. Useful for frequent polling
     by frontend applications.
@@ -153,41 +155,43 @@ async def get_feature_flags(
         settings = get_settings()
         license_info = await _detect_license_info()
         features = await _determine_feature_flags(license_info, settings)
-        
+
         logger.debug(f"Feature flags requested by user {current_user.get('user_id', 'unknown')}")
-        
+
         return features
-        
+
     except Exception as e:
         logger.error(f"Error getting feature flags: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve feature flags"
+            detail="Failed to retrieve feature flags",
         )
 
 
 @router.get("/health/integrations", response_model=IntegrationStatus)
 async def get_integration_status(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ) -> IntegrationStatus:
     """
     Get status of external integrations
-    
+
     Returns the current status of all external system integrations
     including AEGIS, LDAP, SMTP, and container runtime information.
     """
     try:
         integrations = await _check_integrations()
-        
-        logger.debug(f"Integration status requested by user {current_user.get('user_id', 'unknown')}")
-        
+
+        logger.debug(
+            f"Integration status requested by user {current_user.get('user_id', 'unknown')}"
+        )
+
         return integrations
-        
+
     except Exception as e:
         logger.error(f"Error getting integration status: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve integration status"
+            detail="Failed to retrieve integration status",
         )
 
 
@@ -196,28 +200,23 @@ def _detect_license_info() -> Dict[str, Any]:
     """Detect license type and enterprise features availability"""
     # For OSS version, return basic license info
     # In enterprise version, this would check actual license files
-    
+
     return {
         "type": "oss",
         "tier": "community",
         "expires": None,
-        "features_enabled": [
-            "scanning",
-            "reporting", 
-            "host_management",
-            "plugin_system"
-        ],
+        "features_enabled": ["scanning", "reporting", "host_management", "plugin_system"],
         "enterprise_available": False,
-        "upgrade_url": "https://hanalyx.com/openwatch/enterprise"
+        "upgrade_url": "https://hanalyx.com/openwatch/enterprise",
     }
 
 
 async def _determine_feature_flags(license_info: Dict, settings) -> FeatureFlags:
     """Determine which features are available based on license and config"""
-    
+
     # Base OSS features (always available)
     features = FeatureFlags()
-    
+
     # Check for enterprise license
     if license_info.get("type") == "enterprise":
         features.remediation = True
@@ -226,23 +225,23 @@ async def _determine_feature_flags(license_info: Dict, settings) -> FeatureFlags
         features.siem_integration = True
         features.compliance_frameworks = True
         features.enterprise_auth = True
-    
+
     # Check configuration-dependent features
-    features.mfa = getattr(settings, 'mfa_enabled', True)
-    
+    features.mfa = getattr(settings, "mfa_enabled", True)
+
     # Check if AEGIS is available (affects remediation)
     if await _check_aegis_availability():
         # Even in OSS, basic remediation might be available if AEGIS is configured
         features.remediation = license_info.get("type") == "enterprise"
-    
+
     return features
 
 
 def _calculate_system_limits(license_info: Dict, settings) -> SystemLimits:
     """Calculate system limits based on license and configuration"""
-    
+
     limits = SystemLimits()
-    
+
     # Adjust limits based on license type
     if license_info.get("type") == "enterprise":
         limits.max_hosts = 1000
@@ -258,37 +257,37 @@ def _calculate_system_limits(license_info: Dict, settings) -> SystemLimits:
         limits.storage_limit_gb = 500
         limits.api_rate_limit = 5000
         limits.plugin_limit = 50
-    
+
     # OSS defaults are already set in the model
-    
+
     return limits
 
 
 async def _check_integrations() -> IntegrationStatus:
     """Check status of external integrations"""
-    
+
     integrations = IntegrationStatus()
-    
+
     # Check AEGIS availability
     integrations.aegis_available = await _check_aegis_availability()
     if integrations.aegis_available:
         integrations.aegis_version = await _get_aegis_version()
-    
+
     # Check LDAP configuration
     integrations.ldap_enabled = _check_ldap_config()
-    
+
     # Check SMTP configuration
     integrations.smtp_configured = _check_smtp_config()
-    
+
     # Check Prometheus
     integrations.prometheus_enabled = _check_prometheus_config()
-    
+
     # Detect container runtime
     integrations.container_runtime = await _detect_container_runtime()
-    
+
     # Check Kubernetes availability
     integrations.kubernetes_available = await _check_kubernetes_availability()
-    
+
     return integrations
 
 
@@ -297,7 +296,7 @@ def _check_aegis_availability() -> bool:
     try:
         # In a real implementation, this would check AEGIS connectivity
         # For now, check if AEGIS configuration exists
-        aegis_url = os.environ.get('AEGIS_URL')
+        aegis_url = os.environ.get("AEGIS_URL")
         return aegis_url is not None
     except:
         return False
@@ -314,17 +313,17 @@ def _get_aegis_version() -> str:
 
 def _check_ldap_config() -> bool:
     """Check if LDAP is configured"""
-    return bool(os.environ.get('LDAP_SERVER'))
+    return bool(os.environ.get("LDAP_SERVER"))
 
 
 def _check_smtp_config() -> bool:
     """Check if SMTP is configured"""
-    return bool(os.environ.get('SMTP_SERVER'))
+    return bool(os.environ.get("SMTP_SERVER"))
 
 
 def _check_prometheus_config() -> bool:
     """Check if Prometheus monitoring is enabled"""
-    return bool(os.environ.get('PROMETHEUS_ENABLED', '').lower() == 'true')
+    return bool(os.environ.get("PROMETHEUS_ENABLED", "").lower() == "true")
 
 
 async def _detect_container_runtime() -> str:
@@ -332,27 +331,23 @@ async def _detect_container_runtime() -> str:
     try:
         # Check for Podman
         result = await asyncio.create_subprocess_exec(
-            'podman', '--version',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            "podman", "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         if result.returncode == 0:
             return "podman"
     except:
         pass
-    
+
     try:
         # Check for Docker
         result = await asyncio.create_subprocess_exec(
-            'docker', '--version',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            "docker", "--version", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         if result.returncode == 0:
             return "docker"
     except:
         pass
-    
+
     return "unknown"
 
 
@@ -361,9 +356,11 @@ async def _check_kubernetes_availability() -> bool:
     try:
         # Check for kubectl
         result = await asyncio.create_subprocess_exec(
-            'kubectl', 'version', '--client',
+            "kubectl",
+            "version",
+            "--client",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         return result.returncode == 0
     except:
@@ -374,7 +371,7 @@ def _get_system_info() -> Dict[str, Any]:
     """Get basic system information"""
     import platform
     import psutil
-    
+
     try:
         return {
             "platform": platform.system(),
@@ -383,8 +380,8 @@ def _get_system_info() -> Dict[str, Any]:
             "python_version": platform.python_version(),
             "cpu_count": psutil.cpu_count(),
             "memory_total": psutil.virtual_memory().total,
-            "disk_usage": dict(psutil.disk_usage('/')._asdict()),
-            "uptime": psutil.boot_time()
+            "disk_usage": dict(psutil.disk_usage("/")._asdict()),
+            "uptime": psutil.boot_time(),
         }
     except Exception as e:
         logger.warning(f"Could not get system info: {e}")

@@ -8,6 +8,7 @@ bulk operations and ensuring least privilege enforcement.
 
 Design by Emily (Security Engineer) - Implements ReBAC with audit trail
 """
+
 import uuid
 from enum import Enum
 from typing import Dict, List, Optional, Set, Any
@@ -18,6 +19,7 @@ from dataclasses import dataclass
 
 class ResourceType(str, Enum):
     """Types of resources that can be protected by authorization"""
+
     HOST = "host"
     HOST_GROUP = "host_group"
     SCAN = "scan"
@@ -27,31 +29,35 @@ class ResourceType(str, Enum):
 
 class ActionType(str, Enum):
     """Actions that can be performed on resources"""
+
     READ = "read"
     WRITE = "write"
     EXECUTE = "execute"
     DELETE = "delete"
     MANAGE = "manage"  # Administrative actions
-    SCAN = "scan"      # Specific to scan operations
+    SCAN = "scan"  # Specific to scan operations
     EXPORT = "export"  # Data export operations
 
 
 class PermissionEffect(str, Enum):
     """Effect of a permission policy"""
+
     ALLOW = "allow"
     DENY = "deny"
 
 
 class PermissionScope(str, Enum):
     """Scope of permission application"""
-    DIRECT = "direct"        # Direct resource access
+
+    DIRECT = "direct"  # Direct resource access
     INHERITED = "inherited"  # Inherited from parent resource
-    GROUP = "group"         # Through group membership
-    ROLE = "role"          # Through role assignment
+    GROUP = "group"  # Through group membership
+    ROLE = "role"  # Through role assignment
 
 
 class AuthorizationDecision(str, Enum):
     """Final authorization decision"""
+
     ALLOW = "allow"
     DENY = "deny"
     NOT_APPLICABLE = "not_applicable"
@@ -60,19 +66,21 @@ class AuthorizationDecision(str, Enum):
 @dataclass
 class ResourceIdentifier:
     """Identifies a specific resource for authorization"""
+
     resource_type: ResourceType
     resource_id: str
     parent_resource_id: Optional[str] = None
     attributes: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.attributes is None:
             self.attributes = {}
 
 
-@dataclass 
+@dataclass
 class PermissionPolicy:
     """Defines a specific permission policy"""
+
     subject_type: str  # user, group, role
     subject_id: str
     resource_type: ResourceType
@@ -87,7 +95,7 @@ class PermissionPolicy:
     expires_at: Optional[datetime] = None
     created_by: str = None
     is_active: bool = True
-    
+
     def __post_init__(self):
         if self.conditions is None:
             self.conditions = {}
@@ -96,6 +104,7 @@ class PermissionPolicy:
 @dataclass
 class AuthorizationContext:
     """Context information for authorization decisions"""
+
     user_id: str
     user_roles: List[str]
     user_groups: List[str]
@@ -104,7 +113,7 @@ class AuthorizationContext:
     session_id: Optional[str] = None
     request_time: datetime = Field(default_factory=datetime.utcnow)
     additional_attributes: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.additional_attributes is None:
             self.additional_attributes = {}
@@ -113,6 +122,7 @@ class AuthorizationContext:
 @dataclass
 class AuthorizationResult:
     """Result of an authorization check"""
+
     decision: AuthorizationDecision
     resource: ResourceIdentifier
     action: ActionType
@@ -128,6 +138,7 @@ class AuthorizationResult:
 
 class BulkAuthorizationRequest(BaseModel):
     """Request for bulk authorization checking"""
+
     user_id: str
     resources: List[ResourceIdentifier]
     action: ActionType
@@ -138,6 +149,7 @@ class BulkAuthorizationRequest(BaseModel):
 
 class BulkAuthorizationResult(BaseModel):
     """Result of bulk authorization check"""
+
     overall_decision: AuthorizationDecision
     individual_results: List[AuthorizationResult]
     denied_resources: List[ResourceIdentifier]
@@ -149,6 +161,7 @@ class BulkAuthorizationResult(BaseModel):
 
 class HostPermission(BaseModel):
     """Specific host permission model"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: Optional[str] = None
     group_id: Optional[str] = None
@@ -165,6 +178,7 @@ class HostPermission(BaseModel):
 
 class HostGroupPermission(BaseModel):
     """Host group permission model"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: Optional[str] = None
     group_id: Optional[str] = None
@@ -182,6 +196,7 @@ class HostGroupPermission(BaseModel):
 
 class AuthorizationAuditEvent(BaseModel):
     """Audit event for authorization decisions"""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_type: str  # permission_check, policy_created, access_granted, access_denied
     user_id: str
@@ -202,14 +217,16 @@ class AuthorizationAuditEvent(BaseModel):
 
 class PolicyConflictResolution(str, Enum):
     """How to resolve conflicting policies"""
-    DENY_OVERRIDES = "deny_overrides"    # Deny takes precedence
-    ALLOW_OVERRIDES = "allow_overrides"  # Allow takes precedence  
-    FIRST_MATCH = "first_match"         # First matching policy wins
-    PRIORITY_ORDER = "priority_order"   # Higher priority wins
+
+    DENY_OVERRIDES = "deny_overrides"  # Deny takes precedence
+    ALLOW_OVERRIDES = "allow_overrides"  # Allow takes precedence
+    FIRST_MATCH = "first_match"  # First matching policy wins
+    PRIORITY_ORDER = "priority_order"  # Higher priority wins
 
 
 class AuthorizationConfiguration(BaseModel):
     """Authorization system configuration"""
+
     default_decision: AuthorizationDecision = AuthorizationDecision.DENY
     conflict_resolution: PolicyConflictResolution = PolicyConflictResolution.DENY_OVERRIDES
     cache_ttl_seconds: int = 300  # 5 minutes
@@ -225,6 +242,7 @@ class AuthorizationConfiguration(BaseModel):
 # Database Models for SQLAlchemy
 class AuthorizationPolicy(BaseModel):
     """Database model for authorization policies"""
+
     id: str
     name: str
     description: Optional[str]
@@ -246,55 +264,60 @@ class AuthorizationPolicy(BaseModel):
 
 class PermissionCache:
     """In-memory cache for permission decisions"""
-    
+
     def __init__(self, ttl_seconds: int = 300, max_size: int = 10000):
         self.cache: Dict[str, Dict] = {}
         self.ttl_seconds = ttl_seconds
         self.max_size = max_size
         self.access_times: Dict[str, datetime] = {}
-    
+
     def _generate_key(self, user_id: str, resource: ResourceIdentifier, action: ActionType) -> str:
         """Generate cache key for permission check"""
         return f"{user_id}:{resource.resource_type.value}:{resource.resource_id}:{action.value}"
-    
-    def get(self, user_id: str, resource: ResourceIdentifier, action: ActionType) -> Optional[AuthorizationResult]:
+
+    def get(
+        self, user_id: str, resource: ResourceIdentifier, action: ActionType
+    ) -> Optional[AuthorizationResult]:
         """Get cached permission decision"""
         key = self._generate_key(user_id, resource, action)
-        
+
         if key not in self.cache:
             return None
-        
+
         cached_item = self.cache[key]
-        cached_time = cached_item.get('timestamp')
-        
+        cached_time = cached_item.get("timestamp")
+
         if not cached_time or datetime.utcnow() - cached_time > timedelta(seconds=self.ttl_seconds):
             # Cache expired
             del self.cache[key]
             if key in self.access_times:
                 del self.access_times[key]
             return None
-        
+
         # Update access time
         self.access_times[key] = datetime.utcnow()
-        
-        result = cached_item.get('result')
+
+        result = cached_item.get("result")
         if result:
             result.cached = True
-        
+
         return result
-    
-    def put(self, user_id: str, resource: ResourceIdentifier, action: ActionType, result: AuthorizationResult):
+
+    def put(
+        self,
+        user_id: str,
+        resource: ResourceIdentifier,
+        action: ActionType,
+        result: AuthorizationResult,
+    ):
         """Cache permission decision"""
         if len(self.cache) >= self.max_size:
             self._evict_least_recently_used()
-        
+
         key = self._generate_key(user_id, resource, action)
-        self.cache[key] = {
-            'result': result,
-            'timestamp': datetime.utcnow()
-        }
+        self.cache[key] = {"result": result, "timestamp": datetime.utcnow()}
         self.access_times[key] = datetime.utcnow()
-    
+
     def invalidate_user(self, user_id: str):
         """Invalidate all cached permissions for a user"""
         keys_to_remove = [k for k in self.cache.keys() if k.startswith(f"{user_id}:")]
@@ -302,7 +325,7 @@ class PermissionCache:
             del self.cache[key]
             if key in self.access_times:
                 del self.access_times[key]
-    
+
     def invalidate_resource(self, resource: ResourceIdentifier):
         """Invalidate all cached permissions for a resource"""
         resource_prefix = f"{resource.resource_type.value}:{resource.resource_id}"
@@ -311,21 +334,21 @@ class PermissionCache:
             del self.cache[key]
             if key in self.access_times:
                 del self.access_times[key]
-    
+
     def clear(self):
         """Clear all cached permissions"""
         self.cache.clear()
         self.access_times.clear()
-    
+
     def _evict_least_recently_used(self):
         """Evict least recently used cache entries"""
         if not self.access_times:
             return
-        
+
         # Remove 10% of cache entries (oldest first)
         remove_count = max(1, len(self.access_times) // 10)
         sorted_keys = sorted(self.access_times.items(), key=lambda x: x[1])
-        
+
         for key, _ in sorted_keys[:remove_count]:
             if key in self.cache:
                 del self.cache[key]

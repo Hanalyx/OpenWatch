@@ -1,6 +1,7 @@
 """
 SCAP Content Management Routes
 """
+
 from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
@@ -44,7 +45,7 @@ async def list_content(token: str = Depends(security)):
             content_type="benchmark",
             file_path="/scap/rhel9-stig.xml",
             upload_date="2024-01-10T09:00:00Z",
-            profiles=["stig-rhel9-server", "stig-rhel9-workstation"]
+            profiles=["stig-rhel9-server", "stig-rhel9-workstation"],
         ),
         SCAPContent(
             id="2",
@@ -54,25 +55,22 @@ async def list_content(token: str = Depends(security)):
             content_type="benchmark",
             file_path="/scap/ubuntu22-cis.xml",
             upload_date="2024-01-12T14:30:00Z",
-            profiles=["cis-ubuntu22-l1-server", "cis-ubuntu22-l2-server"]
-        )
+            profiles=["cis-ubuntu22-l1-server", "cis-ubuntu22-l2-server"],
+        ),
     ]
-    
+
     return mock_content
 
 
 @router.post("/upload")
-async def upload_content(
-    file: UploadFile = File(...),
-    token: str = Depends(security)
-):
+async def upload_content(file: UploadFile = File(...), token: str = Depends(security)):
     """Upload new SCAP content file"""
-    if not file.filename.endswith(('.xml', '.zip', '.bz2')):
+    if not file.filename.endswith((".xml", ".zip", ".bz2")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Only XML, ZIP, and BZ2 files are allowed."
+            detail="Invalid file type. Only XML, ZIP, and BZ2 files are allowed.",
         )
-    
+
     # Mock upload processing
     content_info = {
         "id": "3",
@@ -80,9 +78,9 @@ async def upload_content(
         "size": file.size,
         "content_type": file.content_type,
         "status": "uploaded",
-        "message": "File uploaded successfully. Processing will begin shortly."
+        "message": "File uploaded successfully. Processing will begin shortly.",
     }
-    
+
     logger.info(f"SCAP content uploaded: {file.filename}")
     return content_info
 
@@ -100,13 +98,10 @@ async def get_content(content_id: str, token: str = Depends(security)):
             content_type="benchmark",
             file_path="/scap/rhel9-stig.xml",
             upload_date="2024-01-10T09:00:00Z",
-            profiles=["stig-rhel9-server", "stig-rhel9-workstation"]
+            profiles=["stig-rhel9-server", "stig-rhel9-workstation"],
         )
-    
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="SCAP content not found"
-    )
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SCAP content not found")
 
 
 @router.get("/{content_id}/profiles")
@@ -117,15 +112,15 @@ async def get_content_profiles(content_id: str, token: str = Depends(security)):
         {
             "id": "stig-rhel9-server",
             "title": "Red Hat Enterprise Linux 9 STIG for Servers",
-            "description": "Security configuration for RHEL 9 servers"
+            "description": "Security configuration for RHEL 9 servers",
         },
         {
-            "id": "stig-rhel9-workstation", 
+            "id": "stig-rhel9-workstation",
             "title": "Red Hat Enterprise Linux 9 STIG for Workstations",
-            "description": "Security configuration for RHEL 9 workstations"
-        }
+            "description": "Security configuration for RHEL 9 workstations",
+        },
     ]
-    
+
     return mock_profiles
 
 

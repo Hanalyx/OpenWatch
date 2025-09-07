@@ -2,8 +2,24 @@
 FIPS-compliant database configuration with encryption support
 PostgreSQL with TLS and encrypted connections
 """
+
 import logging
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, Text, Boolean, LargeBinary, Float, JSON, ForeignKey, Enum
+from sqlalchemy import (
+    create_engine,
+    MetaData,
+    Table,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Text,
+    Boolean,
+    LargeBinary,
+    Float,
+    JSON,
+    ForeignKey,
+    Enum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from uuid import uuid4
 from sqlalchemy.ext.declarative import declarative_base
@@ -27,12 +43,14 @@ DATABASE_URL = settings.database_url
 ssl_params = {}
 if settings.database_ssl_mode and not settings.debug:
     # Only use SSL in production with certificates
-    ssl_params.update({
-        "sslmode": settings.database_ssl_mode,
-        "sslcert": settings.database_ssl_cert,
-        "sslkey": settings.database_ssl_key,
-        "sslrootcert": settings.database_ssl_ca
-    })
+    ssl_params.update(
+        {
+            "sslmode": settings.database_ssl_mode,
+            "sslcert": settings.database_ssl_cert,
+            "sslkey": settings.database_ssl_key,
+            "sslrootcert": settings.database_ssl_ca,
+        }
+    )
 elif settings.debug:
     # Development mode - disable SSL
     ssl_params.update({"sslmode": "disable"})
@@ -45,11 +63,7 @@ engine = create_engine(
     max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=3600,  # Recycle connections every hour
-    connect_args={
-        **ssl_params,
-        "connect_timeout": 10,
-        "options": "-c application_name=openwatch"
-    }
+    connect_args={**ssl_params, "connect_timeout": 10, "options": "-c application_name=openwatch"},
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -59,19 +73,32 @@ Base = declarative_base()
 # Database Models
 class User(Base):
     """User model with secure password storage"""
+
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)  # Argon2id hash
-    role = Column(Enum('super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest', name='user_roles'), default='guest', nullable=False)
+    role = Column(
+        Enum(
+            "super_admin",
+            "security_admin",
+            "security_analyst",
+            "compliance_officer",
+            "auditor",
+            "guest",
+            name="user_roles",
+        ),
+        default="guest",
+        nullable=False,
+    )
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)
-    
+
     # MFA Support
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(Text, nullable=True)  # Encrypted TOTP secret
@@ -83,8 +110,9 @@ class User(Base):
 
 class MFAAuditLog(Base):
     """MFA audit log for security monitoring"""
+
     __tablename__ = "mfa_audit_log"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     action = Column(String(50), nullable=False)  # enroll, validate, disable, etc.
@@ -98,8 +126,9 @@ class MFAAuditLog(Base):
 
 class MFAUsedCodes(Base):
     """TOTP replay protection"""
+
     __tablename__ = "mfa_used_codes"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     code_hash = Column(String(64), nullable=False)  # SHA-256 hash
@@ -108,8 +137,9 @@ class MFAUsedCodes(Base):
 
 class Host(Base):
     """Host model with encrypted credential storage"""
+
     __tablename__ = "hosts"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     hostname = Column(String(255), nullable=False)
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
@@ -125,15 +155,18 @@ class Host(Base):
     tags = Column(String(500), nullable=True)  # Added for bulk import (comma-separated)
     owner = Column(String(100), nullable=True)  # Added for bulk import
     is_active = Column(Boolean, default=True, nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
+    created_by = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )  # Made optional for development
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class ScapContent(Base):
     """SCAP content metadata"""
+
     __tablename__ = "scap_content"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     filename = Column(String(255), nullable=False)
@@ -149,28 +182,39 @@ class ScapContent(Base):
 
 class Scan(Base):
     """Scan job tracking"""
+
     __tablename__ = "scans"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     name = Column(String(100), nullable=False)
-    host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)  # Updated to match Host.id
+    host_id = Column(
+        UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False
+    )  # Updated to match Host.id
     content_id = Column(Integer, ForeignKey("scap_content.id"), nullable=False)
     profile_id = Column(String(100), nullable=False)
-    status = Column(String(20), default="pending", nullable=False)  # pending, running, completed, failed
+    status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, running, completed, failed
     progress = Column(Integer, default=0, nullable=False)  # 0-100
     result_file = Column(String(500), nullable=True)
     report_file = Column(String(500), nullable=True)
     error_message = Column(Text, nullable=True)
     scan_options = Column(Text, nullable=True)  # JSON options
-    started_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
+    started_by = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )  # Made optional for development
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     celery_task_id = Column(String(100), nullable=True)
-    
+
     # AEGIS Integration Fields
     remediation_requested = Column(Boolean, default=False, nullable=False)
-    aegis_remediation_id = Column(UUID(as_uuid=True), nullable=True)  # Link to AEGIS remediation job
-    verification_scan = Column(Boolean, default=False, nullable=False)  # True if this is a verification scan
+    aegis_remediation_id = Column(
+        UUID(as_uuid=True), nullable=True
+    )  # Link to AEGIS remediation job
+    verification_scan = Column(
+        Boolean, default=False, nullable=False
+    )  # True if this is a verification scan
     remediation_status = Column(String(20), nullable=True)  # completed, failed, partial
     remediation_completed_at = Column(DateTime, nullable=True)
     scan_metadata = Column(JSON, nullable=True)  # Additional metadata including remediation results
@@ -178,8 +222,9 @@ class Scan(Base):
 
 class ScanResult(Base):
     """Scan results summary"""
+
     __tablename__ = "scan_results"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=False)
     total_rules = Column(Integer, nullable=False)
@@ -197,8 +242,9 @@ class ScanResult(Base):
 
 class SystemCredentials(Base):
     """System-wide SSH credentials for enterprise environments"""
+
     __tablename__ = "system_credentials"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)  # e.g., "Default Admin Account"
     description = Column(Text, nullable=True)
@@ -221,8 +267,9 @@ class SystemCredentials(Base):
 
 class Role(Base):
     """Role definitions with permissions"""
+
     __tablename__ = "roles"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), unique=True, nullable=False)  # super_admin, security_admin, etc.
     display_name = Column(String(100), nullable=False)  # "Super Administrator"
@@ -235,8 +282,9 @@ class Role(Base):
 
 class UserGroup(Base):
     """User groups for organizing access to hosts and resources"""
+
     __tablename__ = "user_groups"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
@@ -247,8 +295,9 @@ class UserGroup(Base):
 
 class UserGroupMembership(Base):
     """Many-to-many relationship between users and groups"""
+
     __tablename__ = "user_group_memberships"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("user_groups.id"), nullable=False)
@@ -258,13 +307,16 @@ class UserGroupMembership(Base):
 
 class HostAccess(Base):
     """Host access control for users and groups"""
+
     __tablename__ = "host_access"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Direct user access
     group_id = Column(Integer, ForeignKey("user_groups.id"), nullable=True)  # Group access
-    access_level = Column(Enum('read', 'write', 'admin', name='access_levels'), default='read', nullable=False)
+    access_level = Column(
+        Enum("read", "write", "admin", name="access_levels"), default="read", nullable=False
+    )
     granted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
@@ -272,8 +324,9 @@ class HostAccess(Base):
 
 class HostGroup(Base):
     """Host groups for organizing hosts"""
+
     __tablename__ = "host_groups"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=True)
@@ -296,8 +349,9 @@ class HostGroup(Base):
 
 class HostGroupMembership(Base):
     """Host group membership mapping"""
+
     __tablename__ = "host_group_memberships"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("host_groups.id"), nullable=False)
@@ -307,8 +361,9 @@ class HostGroupMembership(Base):
 
 class AuditLog(Base):
     """Security audit log"""
+
     __tablename__ = "audit_logs"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=True)  # User ID if authenticated
     action = Column(String(50), nullable=False)
@@ -322,8 +377,9 @@ class AuditLog(Base):
 
 class WebhookEndpoint(Base):
     """Webhook endpoint management for AEGIS integration"""
+
     __tablename__ = "webhook_endpoints"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     name = Column(String(100), nullable=False)
     url = Column(String(500), nullable=False)
@@ -337,13 +393,16 @@ class WebhookEndpoint(Base):
 
 class WebhookDelivery(Base):
     """Webhook delivery tracking"""
+
     __tablename__ = "webhook_deliveries"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False)
     event_type = Column(String(50), nullable=False)
     event_data = Column(JSON, nullable=False)
-    delivery_status = Column(String(20), default="pending", nullable=False)  # pending, delivered, failed
+    delivery_status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, delivered, failed
     http_status_code = Column(Integer, nullable=True)
     response_body = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
@@ -356,8 +415,9 @@ class WebhookDelivery(Base):
 
 class ApiKey(Base):
     """API keys for service-to-service authentication"""
+
     __tablename__ = "api_keys"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     name = Column(String(100), nullable=False)
     key_hash = Column(String(128), nullable=False)  # Hashed API key
@@ -371,8 +431,9 @@ class ApiKey(Base):
 
 class IntegrationAuditLog(Base):
     """Audit log for cross-service operations"""
+
     __tablename__ = "integration_audit_log"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     event_type = Column(String(50), nullable=False)  # scan.completed, remediation.requested, etc.
     source_service = Column(String(20), nullable=False)  # openwatch, aegis
@@ -411,6 +472,7 @@ def check_database_health() -> bool:
     """Check database connectivity for health checks"""
     try:
         from sqlalchemy import text
+
         db = SessionLocal()
         # Simple query to test connection
         db.execute(text("SELECT 1"))
@@ -423,38 +485,43 @@ def check_database_health() -> bool:
 
 class DatabaseManager:
     """Database operations with security logging"""
-    
+
     def __init__(self, db: Session):
         self.db = db
-    
-    def create_user(self, username: str, email: str, hashed_password: str, role: str = "user") -> User:
+
+    def create_user(
+        self, username: str, email: str, hashed_password: str, role: str = "user"
+    ) -> User:
         """Create new user with audit logging"""
-        user = User(
-            username=username,
-            email=email,
-            hashed_password=hashed_password,
-            role=role
-        )
+        user = User(username=username, email=email, hashed_password=hashed_password, role=role)
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
-        
+
         # Audit log
         self.log_audit("CREATE", "USER", str(user.id), f"Created user: {username}")
-        
+
         return user
-    
+
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Get user by username"""
         return self.db.query(User).filter(User.username == username).first()
-    
+
     def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email"""
         return self.db.query(User).filter(User.email == email).first()
-    
-    def create_host(self, name: str, hostname: str, port: int, username: str, 
-                   auth_method: str, encrypted_credentials: bytes, 
-                   created_by: int, description: str = None) -> Host:
+
+    def create_host(
+        self,
+        name: str,
+        hostname: str,
+        port: int,
+        username: str,
+        auth_method: str,
+        encrypted_credentials: bytes,
+        created_by: int,
+        description: str = None,
+    ) -> Host:
         """Create new host with encrypted credentials"""
         host = Host(
             name=name,
@@ -464,19 +531,26 @@ class DatabaseManager:
             auth_method=auth_method,
             encrypted_credentials=encrypted_credentials,
             description=description,
-            created_by=created_by
+            created_by=created_by,
         )
         self.db.add(host)
         self.db.commit()
         self.db.refresh(host)
-        
+
         # Audit log
         self.log_audit("CREATE", "HOST", str(host.id), f"Created host: {name}")
-        
+
         return host
-    
-    def log_audit(self, action: str, resource_type: str, resource_id: str, 
-                  details: str, user_id: int = None, ip_address: str = "unknown"):
+
+    def log_audit(
+        self,
+        action: str,
+        resource_type: str,
+        resource_id: str,
+        details: str,
+        user_id: int = None,
+        ip_address: str = "unknown",
+    ):
         """Log audit event"""
         audit_log = AuditLog(
             user_id=user_id,
@@ -484,7 +558,7 @@ class DatabaseManager:
             resource_type=resource_type,
             resource_id=resource_id,
             ip_address=ip_address,
-            details=details
+            details=details,
         )
         self.db.add(audit_log)
         self.db.commit()
@@ -498,12 +572,12 @@ async def init_database():
         healthy = await check_database_health()
         if not healthy:
             raise Exception("Database connection failed")
-        
+
         # Create tables
         await create_tables()
-        
+
         logger.info("Database initialized successfully with FIPS-compliant configuration")
-        
+
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

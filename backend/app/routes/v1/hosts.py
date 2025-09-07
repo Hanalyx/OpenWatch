@@ -2,6 +2,7 @@
 OpenWatch API v1 - Host Management
 Versioned host management endpoints with enhanced capabilities
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from pydantic import BaseModel
@@ -27,12 +28,10 @@ for route in hosts_router.routes:
 
 # Add v1-specific enhancements
 @router.get("/capabilities")
-async def get_host_management_capabilities(
-    current_user: dict = Depends(get_current_user)
-):
+async def get_host_management_capabilities(current_user: dict = Depends(get_current_user)):
     """
     Get host management capabilities for API v1
-    
+
     Returns information about available host management features,
     limits, and supported operations in the v1 API.
     """
@@ -44,32 +43,30 @@ async def get_host_management_capabilities(
             "host_groups": True,
             "ssh_key_management": True,
             "remote_scanning": True,
-            "monitoring": True
+            "monitoring": True,
         },
         "limits": {
             "max_hosts_per_request": 100,
             "bulk_import_max_size": 10000,
-            "supported_os": ["linux", "unix", "rhel", "ubuntu", "debian", "centos"]
+            "supported_os": ["linux", "unix", "rhel", "ubuntu", "debian", "centos"],
         },
         "endpoints": {
             "list_hosts": "GET /api/v1/hosts",
-            "create_host": "POST /api/v1/hosts", 
+            "create_host": "POST /api/v1/hosts",
             "get_host": "GET /api/v1/hosts/{host_id}",
             "update_host": "PUT /api/v1/hosts/{host_id}",
             "delete_host": "DELETE /api/v1/hosts/{host_id}",
             "bulk_import": "POST /api/v1/hosts/bulk",
-            "capabilities": "GET /api/v1/hosts/capabilities"
-        }
+            "capabilities": "GET /api/v1/hosts/capabilities",
+        },
     }
 
 
 @router.get("/summary")
-async def get_hosts_summary(
-    current_user: dict = Depends(get_current_user)
-):
+async def get_hosts_summary(current_user: dict = Depends(get_current_user)):
     """
     Get summary statistics for host management (v1 specific)
-    
+
     Returns aggregate information about hosts, groups, and management status.
     """
     # This would typically query the database for actual statistics
@@ -78,15 +75,7 @@ async def get_hosts_summary(
         "active_hosts": 0,
         "groups": 0,
         "last_scan": None,
-        "compliance_summary": {
-            "compliant": 0,
-            "non_compliant": 0,
-            "unknown": 0
-        },
+        "compliance_summary": {"compliant": 0, "non_compliant": 0, "unknown": 0},
         "os_distribution": {},
-        "scan_status": {
-            "never_scanned": 0,
-            "recently_scanned": 0,
-            "outdated_scans": 0
-        }
+        "scan_status": {"never_scanned": 0, "recently_scanned": 0, "outdated_scans": 0},
     }

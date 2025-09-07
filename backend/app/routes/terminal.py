@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from ..database import get_db
 from ..services.terminal_service import terminal_service
+
 # from ..auth import get_current_user  # Optional for future authentication
 
 logger = logging.getLogger(__name__)
@@ -25,28 +26,26 @@ def get_client_ip(request: Request) -> str:
     if forwarded_for:
         # Take the first IP if there are multiple
         return forwarded_for.split(",")[0].strip()
-    
+
     # Check X-Real-IP header (nginx)
     real_ip = request.headers.get("x-real-ip")
     if real_ip:
         return real_ip.strip()
-    
+
     # Fallback to direct client IP
     if request.client and request.client.host:
         return request.client.host
-    
+
     return "unknown"
 
 
 @router.websocket("/api/hosts/{host_id}/terminal")
 async def host_terminal_websocket(
-    websocket: WebSocket,
-    host_id: str,
-    db: Session = Depends(get_db)
+    websocket: WebSocket, host_id: str, db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for SSH terminal access to a specific host
-    
+
     Args:
         websocket: WebSocket connection
         host_id: UUID of the host to connect to
@@ -63,19 +62,16 @@ async def host_terminal_websocket(
             client_ip = websocket.client.host
     except Exception:
         pass
-    
+
     logger.info(f"Terminal WebSocket connection requested for host {host_id} from {client_ip}")
-    
+
     # Note: WebSocket connections don't easily support standard HTTP auth middleware
     # For now, we'll accept connections and rely on network-level security
     # In production, consider implementing WebSocket-specific auth
-    
+
     try:
         await terminal_service.handle_websocket_connection(
-            websocket=websocket,
-            host_id=host_id,
-            db=db,
-            client_ip=client_ip
+            websocket=websocket, host_id=host_id, db=db, client_ip=client_ip
         )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for host {host_id}")
@@ -88,17 +84,14 @@ async def host_terminal_websocket(
 
 
 @router.get("/api/hosts/{host_id}/terminal/status")
-async def get_terminal_status(
-    host_id: str,
-    db: Session = Depends(get_db)
-):
+async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
     """
     Get terminal connection status for a host
-    
+
     Args:
         host_id: UUID of the host
         db: Database session
-        
+
     Returns:
         Terminal status information
     """
@@ -106,37 +99,32 @@ async def get_terminal_status(
         # Check if host exists using raw SQL query
         result = db.execute(text("SELECT * FROM hosts WHERE id = :host_id"), {"host_id": host_id})
         host_data = result.fetchone()
-        
+
         if not host_data:
             return {"error": "Host not found"}
-        
+
         # Convert row to dict-like object
         host = {
             "id": str(host_data.id),
             "hostname": host_data.hostname,
             "ip_address": host_data.ip_address,
-            "auth_method": host_data.auth_method
+            "auth_method": host_data.auth_method,
         }
-        
-        
+
         # Check for active sessions
         active_sessions = [
-            key for key in terminal_service.active_sessions.keys()
-            if key.startswith(f"{host_id}_")
+            key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")
         ]
-        
+
         return {
             "host_id": host_id,
             "hostname": host["hostname"],
             "ip_address": host["ip_address"],
             "active_sessions": len(active_sessions),
             "auth_method": host["auth_method"],
-            "terminal_available": True
+            "terminal_available": True,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting terminal status for host {host_id}: {e}")
-        return {
-            "error": "Failed to get terminal status",
-            "details": str(e)
-        }
+        return {"error": "Failed to get terminal status", "details": str(e)}

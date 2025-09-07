@@ -1,6 +1,7 @@
 """
 Group scan session models and data structures
 """
+
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -9,6 +10,7 @@ from enum import Enum
 
 class ScanSessionStatus(str, Enum):
     """Status values for group scan sessions"""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -18,6 +20,7 @@ class ScanSessionStatus(str, Enum):
 
 class HostScanStatus(str, Enum):
     """Status values for individual host scans within a group scan"""
+
     PENDING = "pending"
     SCANNING = "scanning"
     COMPLETED = "completed"
@@ -27,6 +30,7 @@ class HostScanStatus(str, Enum):
 
 class GroupScanConfig(BaseModel):
     """Configuration for group scan initiation"""
+
     content_id: Optional[int] = None
     profile_id: Optional[str] = None
     scan_options: Optional[Dict[str, Any]] = {}
@@ -38,6 +42,7 @@ class GroupScanConfig(BaseModel):
 
 class HostScanDetail(BaseModel):
     """Detailed status of a host within a group scan"""
+
     host_id: str
     host_name: str
     hostname: str
@@ -53,6 +58,7 @@ class HostScanDetail(BaseModel):
 
 class GroupScanSession(BaseModel):
     """Group scan session tracking information"""
+
     session_id: str
     group_id: int
     group_name: str
@@ -63,15 +69,16 @@ class GroupScanSession(BaseModel):
     actual_completion: Optional[datetime] = None
     status: ScanSessionStatus
     hosts_scanning: List[str] = []  # Host IDs currently being scanned
-    hosts_pending: List[str] = []   # Host IDs waiting to be scanned
+    hosts_pending: List[str] = []  # Host IDs waiting to be scanned
     hosts_completed: List[str] = []  # Host IDs with completed scans
-    hosts_failed: List[str] = []     # Host IDs with failed scans
+    hosts_failed: List[str] = []  # Host IDs with failed scans
     scan_config: Optional[GroupScanConfig] = None
     metadata: Optional[Dict[str, Any]] = {}
 
 
 class GroupScanProgress(BaseModel):
     """Real-time progress information for a group scan"""
+
     session_id: str
     group_id: int
     group_name: str
@@ -90,6 +97,7 @@ class GroupScanProgress(BaseModel):
 
 class GroupScanSummary(BaseModel):
     """Summary results for a completed group scan"""
+
     session_id: str
     group_id: int
     group_name: str
@@ -107,6 +115,7 @@ class GroupScanSummary(BaseModel):
 
 class ActiveScanSession(BaseModel):
     """Active scan session information for listing"""
+
     session_id: str
     group_id: int
     group_name: str

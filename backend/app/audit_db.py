@@ -2,6 +2,7 @@
 Database Audit Logging Module
 Provides functions to write audit events directly to the database
 """
+
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
@@ -19,11 +20,11 @@ def log_audit_event(
     user_id: Optional[int] = None,
     ip_address: str = "0.0.0.0",
     user_agent: Optional[str] = None,
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """
     Log an audit event to the database
-    
+
     Args:
         db: Database session
         action: Action performed (e.g., LOGIN_SUCCESS, SCAN_CREATED)
@@ -33,12 +34,13 @@ def log_audit_event(
         ip_address: IP address of the client
         user_agent: User agent string (optional)
         details: Additional details about the event (optional)
-    
+
     Returns:
         bool: True if successful, False otherwise
     """
     try:
-        query = text("""
+        query = text(
+            """
             INSERT INTO audit_logs (
                 user_id, action, resource_type, resource_id, 
                 ip_address, user_agent, details, timestamp
@@ -46,22 +48,26 @@ def log_audit_event(
                 :user_id, :action, :resource_type, :resource_id,
                 :ip_address, :user_agent, :details, :timestamp
             )
-        """)
-        
-        db.execute(query, {
-            "user_id": user_id,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "ip_address": ip_address,
-            "user_agent": user_agent,
-            "details": details,
-            "timestamp": datetime.utcnow()
-        })
-        
+        """
+        )
+
+        db.execute(
+            query,
+            {
+                "user_id": user_id,
+                "action": action,
+                "resource_type": resource_type,
+                "resource_id": resource_id,
+                "ip_address": ip_address,
+                "user_agent": user_agent,
+                "details": details,
+                "timestamp": datetime.utcnow(),
+            },
+        )
+
         db.commit()
         return True
-        
+
     except Exception as e:
         logger.error(f"Failed to log audit event: {e}")
         db.rollback()
@@ -75,14 +81,18 @@ def log_login_event(
     success: bool,
     ip_address: str,
     user_agent: Optional[str] = None,
-    failure_reason: Optional[str] = None
+    failure_reason: Optional[str] = None,
 ) -> bool:
     """Log login attempt to database"""
     action = "LOGIN_SUCCESS" if success else "LOGIN_FAILED"
-    details = f"User {username} logged in successfully" if success else f"Failed login attempt for {username}"
+    details = (
+        f"User {username} logged in successfully"
+        if success
+        else f"Failed login attempt for {username}"
+    )
     if failure_reason and not success:
         details += f" - Reason: {failure_reason}"
-    
+
     return log_audit_event(
         db=db,
         action=action,
@@ -90,7 +100,7 @@ def log_login_event(
         user_id=user_id if success else None,
         ip_address=ip_address,
         user_agent=user_agent,
-        details=details
+        details=details,
     )
 
 
@@ -101,13 +111,13 @@ def log_scan_event(
     user_id: int,
     ip_address: str,
     host_name: Optional[str] = None,
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """Log scan-related events to database"""
     scan_details = details or f"Scan operation: {action}"
     if host_name:
         scan_details += f" on host {host_name}"
-    
+
     return log_audit_event(
         db=db,
         action=f"SCAN_{action.upper()}",
@@ -115,7 +125,7 @@ def log_scan_event(
         resource_id=scan_id,
         user_id=user_id,
         ip_address=ip_address,
-        details=scan_details
+        details=scan_details,
     )
 
 
@@ -126,11 +136,11 @@ def log_host_event(
     host_name: str,
     user_id: int,
     ip_address: str,
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """Log host-related events to database"""
     host_details = details or f"{action.title()} host: {host_name}"
-    
+
     return log_audit_event(
         db=db,
         action=f"HOST_{action.upper()}",
@@ -138,7 +148,7 @@ def log_host_event(
         resource_id=host_id,
         user_id=user_id,
         ip_address=ip_address,
-        details=host_details
+        details=host_details,
     )
 
 
@@ -149,11 +159,11 @@ def log_user_event(
     target_username: str,
     user_id: int,
     ip_address: str,
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """Log user management events to database"""
     user_details = details or f"{action.title()} user: {target_username}"
-    
+
     return log_audit_event(
         db=db,
         action=f"USER_{action.upper()}",
@@ -161,7 +171,7 @@ def log_user_event(
         resource_id=target_user_id,
         user_id=user_id,
         ip_address=ip_address,
-        details=user_details
+        details=user_details,
     )
 
 
@@ -170,7 +180,7 @@ def log_security_event(
     event_type: str,
     ip_address: str,
     user_id: Optional[int] = None,
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """Log security-related events to database"""
     return log_audit_event(
@@ -179,7 +189,7 @@ def log_security_event(
         resource_type="security",
         user_id=user_id,
         ip_address=ip_address,
-        details=details
+        details=details,
     )
 
 
@@ -189,7 +199,7 @@ def log_admin_event(
     user_id: int,
     ip_address: str,
     resource_type: str = "system",
-    details: Optional[str] = None
+    details: Optional[str] = None,
 ) -> bool:
     """Log administrative actions to database"""
     return log_audit_event(
@@ -198,5 +208,5 @@ def log_admin_event(
         resource_type=resource_type,
         user_id=user_id,
         ip_address=ip_address,
-        details=details
+        details=details,
     )

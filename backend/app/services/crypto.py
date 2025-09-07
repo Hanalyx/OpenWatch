@@ -2,6 +2,7 @@
 Encryption/Decryption service for sensitive data
 FIPS-compliant AES-256-GCM encryption
 """
+
 import os
 import base64
 from typing import Union
@@ -24,7 +25,7 @@ def _derive_key(password: str, salt: bytes):
         length=32,
         salt=salt,
         iterations=100000,
-        backend=default_backend()
+        backend=default_backend(),
     )
     return kdf.derive(password.encode())
 
@@ -38,24 +39,20 @@ def encrypt_credentials(data: str):
         # Generate random salt and nonce
         salt = os.urandom(16)
         nonce = os.urandom(12)
-        
+
         # Derive key
         key = _derive_key(ENCRYPTION_KEY, salt)
-        
+
         # Encrypt data
-        cipher = Cipher(
-            algorithms.AES(key),
-            modes.GCM(nonce),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(data.encode()) + encryptor.finalize()
-        
+
         # Combine salt + nonce + tag + ciphertext
         encrypted_data = salt + nonce + encryptor.tag + ciphertext
-        
+
         return encrypted_data
-        
+
     except Exception as e:
         logger.error(f"Encryption failed: {e}")
         raise ValueError("Failed to encrypt credentials")
@@ -69,27 +66,23 @@ def decrypt_credentials(encrypted_data):
     try:
         if len(encrypted_data) < 44:  # 16 (salt) + 12 (nonce) + 16 (tag) minimum
             raise ValueError("Invalid encrypted data length")
-        
+
         # Extract components
         salt = encrypted_data[:16]
         nonce = encrypted_data[16:28]
         tag = encrypted_data[28:44]
         ciphertext = encrypted_data[44:]
-        
+
         # Derive key
         key = _derive_key(ENCRYPTION_KEY, salt)
-        
+
         # Decrypt data
-        cipher = Cipher(
-            algorithms.AES(key),
-            modes.GCM(nonce, tag),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend())
         decryptor = cipher.decryptor()
         plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-        
+
         return plaintext.decode()
-        
+
     except Exception as e:
         logger.error(f"Decryption failed: {e}")
         raise ValueError("Failed to decrypt credentials")

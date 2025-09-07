@@ -2,6 +2,7 @@
 OpenWatch FastAPI Application - FIPS Compliant Security Scanner
 Main application with comprehensive security middleware
 """
+
 import logging
 import os
 import asyncio
@@ -17,9 +18,32 @@ import uvicorn
 from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
-from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa
+from .routes import (
+    auth,
+    hosts,
+    scans,
+    content,
+    scap_content,
+    monitoring,
+    users,
+    audit,
+    host_groups,
+    scan_templates,
+    webhooks,
+    mfa,
+)
 from .routes.system_settings_unified import router as system_settings_router
-from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities
+from .routes import (
+    credentials,
+    api_keys,
+    remediation_callback,
+    integration_metrics,
+    bulk_operations,
+    compliance,
+    rule_scanning,
+    capabilities,
+)
+
 # Import security routes only if available
 try:
     from .routes import automated_fixes
@@ -38,12 +62,12 @@ from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 from .services.prometheus_metrics import get_metrics_instance
+
 # from .services.tracing import initialize_tracing, instrument_fastapi_app, instrument_database_engine  # Disabled for now
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -55,61 +79,68 @@ async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
     logger.info("Starting OpenWatch application...")
-    
+
     # Verify FIPS mode if required
     if settings.fips_mode:
         try:
             from security.config.fips_config import FIPSConfig
+
             if not FIPSConfig.validate_fips_mode():
                 logger.warning("FIPS mode is not enabled in the system")
             else:
                 logger.info("FIPS mode validated successfully")
         except ImportError:
             logger.warning("FIPS configuration module not found - using development mode")
-    
+
     # Create database tables with retry logic (skip in development if fails)
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             await create_tables()
             logger.info("Database tables created successfully")
-            
+
             # Initialize RBAC system
             try:
                 from .init_roles import initialize_rbac_system
+
                 await initialize_rbac_system()
                 logger.info("RBAC system initialized successfully")
             except Exception as rbac_error:
                 logger.warning(f"RBAC initialization failed: {rbac_error}")
                 if not settings.debug:
                     raise
-            
+
             # Initialize scheduler state from database
             try:
                 from .routes.system_settings_unified import restore_scheduler_state
+
                 await restore_scheduler_state()
                 logger.info("Scheduler state restored from database")
             except Exception as scheduler_error:
                 logger.warning(f"Scheduler restoration failed: {scheduler_error}")
                 # Don't raise - scheduler can be started manually from UI
-            
+
             break
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.warning(f"Database connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
+                logger.warning(
+                    f"Database connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds..."
+                )
                 await asyncio.sleep(retry_delay)
             else:
                 if settings.debug:
-                    logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
+                    logger.warning(
+                        f"Database connection failed in debug mode, continuing without DB: {e}"
+                    )
                 else:
                     logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                     raise
-    
+
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
-    
+
     # Initialize distributed tracing (disabled for now)
     # try:
     #     tracing_success = initialize_tracing(
@@ -125,19 +156,20 @@ async def lifespan(app: FastAPI):
     # except Exception as e:
     #     logger.warning(f"Failed to initialize distributed tracing: {e}")
     logger.info("Distributed tracing disabled for initial deployment")
-    
+
     # Start background metrics collection
     try:
         import asyncio
+
         asyncio.create_task(background_updater.start_background_updates())
         logger.info("Background metrics collection started")
     except Exception as e:
         logger.warning(f"Failed to start background metrics collection: {e}")
-    
+
     logger.info("OpenWatch application started successfully")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down OpenWatch application...")
     background_updater.stop_background_updates()
@@ -151,7 +183,7 @@ app = FastAPI(
     version="1.2.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -161,12 +193,13 @@ app = FastAPI(
 rate_limiter = get_rate_limiting_middleware()
 app.middleware("http")(rate_limiter)
 
+
 # Security Middleware
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """Add FIPS-compliant security headers to all responses"""
     response = await call_next(request)
-    
+
     # Add security headers with development modifications
     for header, value in SECURITY_HEADERS.items():
         if header == "Content-Security-Policy" and settings.debug:
@@ -184,7 +217,7 @@ async def security_headers_middleware(request: Request, call_next):
             response.headers[header] = dev_csp
         else:
             response.headers[header] = value
-    
+
     return response
 
 
@@ -192,97 +225,97 @@ async def security_headers_middleware(request: Request, call_next):
 async def audit_middleware(request: Request, call_next):
     """Log security-relevant requests for audit purposes"""
     start_time = time.time()
-    
+
     # Get client IP
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
         client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
-    
+
     # Process request
     response = await call_next(request)
-    
+
     # Log security events (only for non-auth endpoints to avoid double logging)
     process_time = time.time() - start_time
-    
+
     # Get database session for audit logging
     db = next(get_db())
-    
+
     try:
         # Log scan operations
         if request.url.path.startswith("/api/scans"):
             audit_logger.log_security_event(
                 "SCAN_OPERATION",
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
+                client_ip,
             )
             await log_security_event(
                 db=db,
                 event_type="SCAN_OPERATION",
                 ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
+                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
             )
-        
+
         # Log host operations
         elif request.url.path.startswith("/api/hosts"):
             audit_logger.log_security_event(
                 "HOST_OPERATION",
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
+                client_ip,
             )
             await log_security_event(
                 db=db,
                 event_type="HOST_OPERATION",
                 ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
+                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
             )
-        
+
         # Log user management operations
         elif request.url.path.startswith("/api/users"):
             audit_logger.log_security_event(
                 "USER_OPERATION",
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
+                client_ip,
             )
             await log_security_event(
                 db=db,
                 event_type="USER_OPERATION",
                 ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
+                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
             )
-        
+
         # Log webhook operations
         elif request.url.path.startswith("/api/v1/webhooks"):
             audit_logger.log_security_event(
                 "WEBHOOK_OPERATION",
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
+                client_ip,
             )
             await log_security_event(
                 db=db,
                 event_type="WEBHOOK_OPERATION",
                 ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
+                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
             )
-        
+
         # Log unusual status codes (HTTP errors)
         if response.status_code >= 400:
             audit_logger.log_security_event(
                 "HTTP_ERROR",
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
+                client_ip,
             )
             await log_security_event(
                 db=db,
                 event_type="HTTP_ERROR",
                 ip_address=client_ip,
-                details=f"HTTP {response.status_code} error on {request.url.path}"
+                details=f"HTTP {response.status_code} error on {request.url.path}",
             )
-    
+
     except Exception as e:
         logger.error(f"Error in audit middleware: {e}")
     finally:
         db.close()
-    
+
     return response
 
 
@@ -293,10 +326,9 @@ async def https_redirect_middleware(request: Request, call_next):
         if request.url.scheme != "https":
             https_url = request.url.replace(scheme="https")
             return JSONResponse(
-                status_code=status.HTTP_301_MOVED_PERMANENTLY,
-                headers={"Location": str(https_url)}
+                status_code=status.HTTP_301_MOVED_PERMANENTLY, headers={"Location": str(https_url)}
             )
-    
+
     return await call_next(request)
 
 
@@ -312,7 +344,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
-    expose_headers=["X-Total-Count"]
+    expose_headers=["X-Total-Count"],
 )
 
 # Trusted Host Middleware
@@ -324,10 +356,7 @@ if not settings.debug:
             host = origin.replace("https://", "").split(":")[0]
             trusted_hosts.append(host)
 
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=trusted_hosts
-)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware, service_name="openwatch")
@@ -351,48 +380,45 @@ async def health_check():
             "status": "healthy",
             "timestamp": time.time(),
             "version": "1.2.0",
-            "fips_mode": settings.fips_mode
+            "fips_mode": settings.fips_mode,
         }
-        
+
         # Check database connectivity
         try:
             from .database import check_database_health
+
             db_healthy = await check_database_health()
             health_status["database"] = "healthy" if db_healthy else "unhealthy"
         except Exception as e:
             logger.warning(f"Database health check failed: {e}")
             health_status["database"] = "unknown"
             db_healthy = True  # Continue for development
-        
+
         # Check Redis connectivity
         try:
             from .celery_app import check_redis_health
+
             redis_healthy = await check_redis_health()
             health_status["redis"] = "healthy" if redis_healthy else "unhealthy"
         except Exception as e:
             logger.warning(f"Redis health check failed: {e}")
             health_status["redis"] = "unknown"
             redis_healthy = True  # Continue for development
-        
+
         # Overall status
         if not (db_healthy and redis_healthy):
             health_status["status"] = "degraded"
             return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content=health_status
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status
             )
-        
+
         return health_status
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": time.time()
-            }
+            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
         )
 
 
@@ -406,7 +432,7 @@ async def security_info():
         "jwt_algorithm": "RS256",
         "encryption": "AES-256-GCM",
         "hash_algorithm": "Argon2id",
-        "tls_version": "1.3"
+        "tls_version": "1.3",
     }
 
 
@@ -415,13 +441,12 @@ async def security_info():
 async def metrics():
     """Prometheus metrics endpoint"""
     from fastapi.responses import PlainTextResponse
-    
+
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
-    
+
     return PlainTextResponse(
-        content=metrics_data,
-        media_type="text/plain; version=0.0.4; charset=utf-8"
+        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
     )
 
 
@@ -446,7 +471,9 @@ app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
 app.include_router(credentials.router, tags=["Credential Sharing"])
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
-app.include_router(integration_metrics.router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
+app.include_router(
+    integration_metrics.router, prefix="/api/integration/metrics", tags=["Integration Metrics"]
+)
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
 app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
@@ -456,7 +483,7 @@ app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Sca
 if automated_fixes:
     app.include_router(automated_fixes.router, tags=["Secure Automated Fixes"])
 if authorization:
-    app.include_router(authorization.router, tags=["Authorization Management"])  
+    app.include_router(authorization.router, tags=["Authorization Management"])
 if security_config:
     app.include_router(security_config.router, tags=["Security Configuration"])
 
@@ -468,24 +495,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
         client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
-    
+
     # Log the exception
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    
+
     # Log security event
     audit_logger.log_security_event(
-        "EXCEPTION",
-        f"Path: {request.url.path}, Exception: {type(exc).__name__}",
-        client_ip
+        "EXCEPTION", f"Path: {request.url.path}, Exception: {type(exc).__name__}", client_ip
     )
-    
+
     # Return generic error response (don't expose internal details)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Internal server error",
-            "error_id": f"{int(time.time())}"
-        }
+        content={"detail": "Internal server error", "error_id": f"{int(time.time())}"},
     )
 
 
@@ -498,5 +520,5 @@ if __name__ == "__main__":
         ssl_keyfile=settings.tls_key_file if settings.require_https else None,
         ssl_certfile=settings.tls_cert_file if settings.require_https else None,
         log_level=settings.log_level.lower(),
-        reload=settings.debug
+        reload=settings.debug,
     )

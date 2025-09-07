@@ -1,6 +1,7 @@
 """
 Scan Template Routes - Quick Scan Configuration
 """
+
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
 from typing import List, Optional
@@ -28,8 +29,7 @@ class ScanTemplate(BaseModel):
 
 @router.get("/")
 async def list_scan_templates(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """List available scan templates"""
     # For now, return predefined templates
@@ -44,40 +44,38 @@ async def list_scan_templates(
             "scope": "system",
             "isDefault": True,
             "estimatedDuration": "5-10 min",
-            "ruleCount": 120
+            "ruleCount": 120,
         },
         {
             "id": "security-audit",
-            "name": "Security Audit", 
+            "name": "Security Audit",
             "description": "Comprehensive security configuration review",
             "contentId": 1,
             "profileId": "xccdf_org.ssgproject.content_profile_stig",
             "scope": "system",
             "isDefault": False,
             "estimatedDuration": "15-25 min",
-            "ruleCount": 340
+            "ruleCount": 340,
         },
         {
             "id": "vulnerability-scan",
             "name": "Vulnerability Check",
-            "description": "Scan for known security vulnerabilities", 
+            "description": "Scan for known security vulnerabilities",
             "contentId": 1,
             "profileId": "xccdf_org.ssgproject.content_profile_cis",
             "scope": "system",
             "isDefault": False,
             "estimatedDuration": "10-15 min",
-            "ruleCount": 200
-        }
+            "ruleCount": 200,
+        },
     ]
-    
+
     return {"templates": templates}
 
 
 @router.get("/host/{host_id}")
 async def get_host_scan_templates(
-    host_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    host_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """Get scan templates available for a specific host"""
     # For now, return the same system templates
@@ -90,29 +88,24 @@ async def get_host_scan_templates(
 async def create_scan_template(
     template: ScanTemplate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new scan template"""
     # Basic validation
     if not template.name or not template.profileId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Template name and profile ID are required"
+            detail="Template name and profile ID are required",
         )
-    
+
     # In full implementation, would save to database
     # For now, just return success
-    return {
-        "message": "Scan template created successfully",
-        "template_id": template.id
-    }
+    return {"message": "Scan template created successfully", "template_id": template.id}
 
 
 @router.delete("/{template_id}")
 async def delete_scan_template(
-    template_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    template_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """Delete a scan template"""
     # In full implementation, would delete from database
