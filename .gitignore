@@ -562,7 +562,7 @@ nginx.conf
 
 # Gitignore analysis files
 gitignore_*.md
-.github/
+# .github/  # Needed for GitHub Actions
 
 # ======================================
 # RPM PACKAGE BUILDING FILES

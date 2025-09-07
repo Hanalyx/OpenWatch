@@ -1,0 +1,40 @@
+name: Test CI Fixes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-backend-deps:
+    name: Test Backend Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Test requirements.txt location
+        run: |
+          echo "Checking if requirements.txt exists at root..."
+          if [ -f requirements.txt ]; then
+            echo "✓ requirements.txt found at root"
+          else
+            echo "✗ requirements.txt not found at root"
+            exit 1
+          fi
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "✓ Dependencies installed successfully"
+          
+      - name: Test backend directory
+        run: |
+          echo "Checking backend directory structure..."
+          ls -la backend/
+          echo "✓ Backend directory verified"
