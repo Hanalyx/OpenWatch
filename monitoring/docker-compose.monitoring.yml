@@ -6,7 +6,7 @@ version: '3.8'
 services:
   # Prometheus - Metrics Collection
   prometheus:
-    image: docker.io/prom/prometheus:v2.47.0
+    image: docker.io/prom/prometheus:v2.56.0
     container_name: secureops-prometheus
     restart: unless-stopped
     ports:
@@ -41,7 +41,7 @@ services:
 
   # Alertmanager - Alert Processing
   alertmanager:
-    image: docker.io/prom/alertmanager:v0.26.0
+    image: docker.io/prom/alertmanager:v0.28.0
     container_name: secureops-alertmanager
     restart: unless-stopped
     ports:
@@ -69,7 +69,7 @@ services:
 
   # Grafana - Visualization Dashboard
   grafana:
-    image: docker.io/grafana/grafana:10.1.0
+    image: docker.io/grafana/grafana:11.4.0
     container_name: secureops-grafana
     restart: unless-stopped
     ports:
@@ -102,7 +102,7 @@ services:
 
   # Jaeger - Distributed Tracing
   jaeger:
-    image: docker.io/jaegertracing/all-in-one:1.49
+    image: docker.io/jaegertracing/all-in-one:1.65.0
     container_name: secureops-jaeger
     restart: unless-stopped
     ports:
@@ -132,7 +132,7 @@ services:
 
   # Node Exporter - Host Metrics
   node-exporter:
-    image: docker.io/prom/node-exporter:v1.6.1
+    image: docker.io/prom/node-exporter:v1.8.2
     container_name: secureops-node-exporter
     restart: unless-stopped
     ports:
@@ -159,7 +159,7 @@ services:
 
   # Redis Exporter - Redis Metrics
   redis-exporter:
-    image: docker.io/oliver006/redis_exporter:v1.54.0
+    image: docker.io/oliver006/redis_exporter:v1.69.0
     container_name: secureops-redis-exporter
     restart: unless-stopped
     ports:
@@ -179,7 +179,7 @@ services:
 
   # Postgres Exporter - Database Metrics
   postgres-exporter:
-    image: docker.io/prometheuscommunity/postgres-exporter:v0.13.2
+    image: docker.io/prometheuscommunity/postgres-exporter:v0.18.0
     container_name: secureops-postgres-exporter
     restart: unless-stopped
     ports:
@@ -198,7 +198,7 @@ services:
 
   # cAdvisor - Container Metrics
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
     container_name: secureops-cadvisor
     restart: unless-stopped
     ports:

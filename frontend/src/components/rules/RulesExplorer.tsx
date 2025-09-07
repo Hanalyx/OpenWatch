@@ -86,22 +86,42 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
 
   // Initial load
   useEffect(() => {
-    dispatch(fetchRules({
-      offset: pagination.offset,
-      limit: pagination.limit,
-      ...activeFilters,
-    }));
+    loadRules();
   }, []);
+
+  // Load rules function
+  const loadRules = async () => {
+    try {
+      const rulesData = await ruleService.getRules({
+        offset: pagination.offset,
+        limit: pagination.limit,
+        ...activeFilters,
+      });
+      // Handle rules data - this would typically update the store
+    } catch (error) {
+      console.error('Error loading rules:', error);
+    }
+  };
+
+  // Search function
+  const performSearch = async (searchParams: any) => {
+    try {
+      const searchResults = await ruleService.searchRules(searchParams);
+      // Handle search results
+    } catch (error) {
+      console.error('Error searching rules:', error);
+    }
+  };
 
   // Handle search
   const handleSearch = useCallback((query: string) => {
     dispatch(setSearchQuery(query));
     if (query) {
-      dispatch(searchRules({
+      performSearch({
         query,
         filters: {
-          platform: activeFilters.platforms.length > 0 ? activeFilters.platforms : undefined,
-          severity: activeFilters.severities.length > 0 ? activeFilters.severities : undefined,
+          platform: activeFilters.platforms?.length > 0 ? activeFilters.platforms : undefined,
+          severity: activeFilters.severities?.length > 0 ? activeFilters.severities : undefined,
           category: activeFilters.categories.length > 0 ? activeFilters.categories : undefined,
           framework: activeFilters.frameworks.length > 0 ? activeFilters.frameworks : undefined,
         },

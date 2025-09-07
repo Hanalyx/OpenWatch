@@ -11,6 +11,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 
 interface AuthHeaders {
+  [key: string]: string;
   'Authorization'?: string;
   'Content-Type': string;
 }

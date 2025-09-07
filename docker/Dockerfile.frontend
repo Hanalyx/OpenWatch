@@ -1,7 +1,7 @@
 # Multi-stage build for React frontend with FIPS-compliant NGINX
 
 # Stage 1: Build the React application
-FROM node:18-alpine AS builder
+FROM node:18.20.5-alpine AS builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Production NGINX image
-FROM nginx:alpine
+FROM nginx:1.27.3-alpine
 
 # Install openssl for FIPS support
 RUN apk add --no-cache openssl
