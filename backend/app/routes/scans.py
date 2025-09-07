@@ -46,11 +46,12 @@ def sanitize_http_error(
         client_ip = request.client.host if request.client else "unknown"
         user_id = current_user.get("sub") if current_user else None
         
-        # Classify the error internally
-            error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
-        )
+        # Classify the error internally  
+        error_service = ErrorClassificationService()
+        _ = await error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
         
         # For synchronous context, use a generic approach
+        sanitization_service = get_error_sanitization_service()
         sanitized_error = sanitization_service.sanitize_error(
             {
                 'error_code': 'HTTP_ERROR',
@@ -366,6 +367,7 @@ async def quick_scan(
             logger.warning(f"Pre-flight validation setup failed: {e}")
         
         # Create scan immediately (optimistic UI)
+        db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -954,6 +956,7 @@ async def create_scan(
         # Create scan record with UUID primary key
         import json
         scan_id = str(uuid.uuid4())
+        db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)

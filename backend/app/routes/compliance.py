@@ -376,17 +376,7 @@ async def create_remediation_strategy(
             raise HTTPException(status_code=400, detail="host_id is required")
         
         # Get semantic rules for the host (mock data for now)
-            SELECT * FROM rule_intelligence
-            WHERE :framework = ANY(applicable_frameworks)
-            ORDER BY 
-                CASE business_impact 
-                    WHEN 'high' THEN 1 
-                    WHEN 'medium' THEN 2 
-                    ELSE 3 
-                END,
-                estimated_fix_time ASC
-            LIMIT 20
-        """
+        # This would be implemented with actual database query when ready
         
         # For now, return a structured remediation strategy
         strategy = {
