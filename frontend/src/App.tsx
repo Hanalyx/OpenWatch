@@ -16,7 +16,7 @@ import HostsEnhanced from './pages/hosts/HostsEnhanced';
 import HostDetail from './pages/hosts/HostDetail';
 import AddHost from './pages/hosts/AddHost';
 import ComplianceGroups from './pages/host-groups/ComplianceGroups';
-import ScapContentEnhanced from './pages/content/ScapContentEnhanced';
+import Content from './pages/content/Content';
 import Scans from './pages/scans/Scans';
 import ScanDetail from './pages/scans/ScanDetail';
 import NewScan from './pages/scans/NewScan';
@@ -70,7 +70,7 @@ function App() {
                 <Route path="/hosts/add-host" element={<AddHost />} />
                 <Route path="/hosts/:id" element={<HostDetail />} />
                 <Route path="/host-groups" element={<ComplianceGroups />} />
-                <Route path="/content" element={<ScapContentEnhanced />} />
+                <Route path="/content" element={<Content />} />
                 <Route path="/scans" element={<Scans />} />
                 <Route path="/scans/new" element={<NewScan />} />
                 <Route path="/scans/new-scap" element={<NewScapScan />} />

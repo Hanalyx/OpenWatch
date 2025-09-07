@@ -12,6 +12,11 @@ from . import hosts as v1_hosts
 from . import scans as v1_scans
 from . import remediation as v1_remediation
 from . import openapi as v1_openapi
+from ...api.v1.endpoints import mongodb_test
+from ...api.v1.endpoints import scap_import
+from ...api.v1.endpoints import rule_management
+from ...api.v1.endpoints import compliance_rules_api
+from ...api.v1.endpoints import mongodb_scan_api
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,11 @@ router.include_router(v1_hosts.router, prefix="/hosts", tags=["Host Management v
 router.include_router(v1_scans.router, prefix="/scans", tags=["Scan Management v1"])
 router.include_router(v1_remediation.router, prefix="/remediation", tags=["Remediation Provider v1"])
 router.include_router(v1_openapi.router, prefix="/docs", tags=["API Documentation v1"])
+router.include_router(mongodb_test.router, prefix="/mongodb", tags=["MongoDB Integration Test"])
+router.include_router(scap_import.router, tags=["SCAP Import"])
+router.include_router(rule_management.router, tags=["Enhanced Rule Management"])
+router.include_router(compliance_rules_api.router, tags=["MongoDB Compliance Rules"])
+router.include_router(mongodb_scan_api.router, tags=["MongoDB Scanning"])
 
 
 @router.get("/")
@@ -53,7 +63,10 @@ async def get_api_info():
             "hosts": "/api/v1/hosts",
             "scans": "/api/v1/scans",
             "remediation": "/api/v1/remediation",
-            "integrations": "/api/v1/health/integrations"
+            "integrations": "/api/v1/health/integrations",
+            "mongodb_test": "/api/v1/mongodb",
+            "scap_import": "/api/v1/scap-import",
+            "rule_management": "/api/v1/rules"
         },
         "rate_limits": {
             "default": "1000 requests per minute",
@@ -80,6 +93,7 @@ async def get_api_health():
         "timestamp": "2025-08-20T12:00:00Z",
         "dependencies": {
             "database": "healthy",
+            "mongodb": "healthy",
             "redis": "healthy", 
             "plugins": "healthy"
         },

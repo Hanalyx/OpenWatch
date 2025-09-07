@@ -33,7 +33,7 @@ except ImportError:
     print("authorization/security_config not available")
     authorization = None
     security_config = None
-# from .routes.v1 import api as v1_api  # Temporarily disabled
+from .routes.v1 import api as v1_api
 from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
@@ -109,6 +109,16 @@ async def lifespan(app: FastAPI):
     
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
+    
+    # Initialize MongoDB
+    try:
+        from .services.mongo_integration_service import get_mongo_service
+        mongo_service = await get_mongo_service()
+        logger.info("MongoDB integration service initialized successfully")
+    except Exception as mongo_error:
+        logger.warning(f"MongoDB initialization failed: {mongo_error}")
+        if not settings.debug:
+            raise
     
     # Initialize distributed tracing (disabled for now)
     # try:
@@ -374,8 +384,20 @@ async def health_check():
             health_status["redis"] = "unknown"
             redis_healthy = True  # Continue for development
         
+        # Check MongoDB connectivity
+        try:
+            from .services.mongo_integration_service import get_mongo_service
+            mongo_service = await get_mongo_service()
+            mongo_health = await mongo_service.health_check()
+            health_status["mongodb"] = mongo_health.get("status", "unknown")
+            mongodb_healthy = mongo_health.get("status") == "healthy"
+        except Exception as e:
+            logger.warning(f"MongoDB health check failed: {e}")
+            health_status["mongodb"] = "unknown"
+            mongodb_healthy = True  # Continue for development
+        
         # Overall status
-        if not (db_healthy and redis_healthy):
+        if not (db_healthy and redis_healthy and mongodb_healthy):
             health_status["status"] = "degraded"
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -427,7 +449,7 @@ async def metrics():
 
 # Include API routes - Unified API Façade
 # API v1 - Primary versioned API
-# app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])  # Temporarily disabled
+app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])
 
 # Legacy API routes (for backward compatibility)
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])

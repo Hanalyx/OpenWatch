@@ -437,6 +437,41 @@ test-artifacts/
 # Test data with real network information
 backend/tests/test_data/servers
 
+# Frontend test artifacts and screenshots
+frontend/*.png
+frontend/*.jpg
+frontend/*.jpeg
+frontend/*.html
+frontend/*.json
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/tailwind.config.js
+!frontend/postcss.config.js
+!frontend/.eslintrc.json
+!frontend/playwright.config.ts
+
+# Test screenshots and results
+*_test_results.json
+*_test_result.png
+*_results.json
+*_error.png
+*_debug.png
+*_demo_*.png
+*_comparison_*.png
+*_integration_*.json
+*_e2e_*.json
+*_e2e_*.png
+responsive_*.png
+pagination_*.png
+content_*.png
+login_*.png
+mongodb_*.png
+rules_explorer_*.png
+scrolling_*.png
+tab_*.png
+
 # ======================================
 # PLUGIN DEVELOPMENT
 # ======================================
@@ -524,6 +559,13 @@ cache/
 !config/settings.example.json
 !config/database.example.yml
 !.env.example
+
+# ======================================
+# COMPLIANCE RULES
+# ======================================
+
+# Compliance rules directory (1,584 JSON files, 14MB)
+compliance_rules/
 
 # ======================================
 # PROJECT-SPECIFIC DEVELOPMENT FILES
@@ -618,3 +660,22 @@ system_credentials_backup.sql
 
 # Temporary credential files
 create_test_credential.py
+
+# ======================================
+# VIRTUAL ENVIRONMENTS AND SCRIPTS
+# ======================================
+
+# MongoDB virtual environment
+mongo_env/
+
+# Debug and import scripts
+scripts/debug_*.py
+scripts/import_*.py
+scripts/simple_*.py
+
+# Phase-specific scripts
+scripts/*phase*.py
+
+# Demo and phase files
+*phase*.py
+*demo*.py

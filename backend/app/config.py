@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     redis_ssl_key: Optional[str] = None
     redis_ssl_ca: Optional[str] = None
     
+    # MongoDB Configuration
+    mongodb_url: str = Field(
+        default="mongodb://openwatch:secure_password@mongodb:27017/openwatch_rules?authSource=admin",
+        description="MongoDB connection string for compliance rules"
+    )
+    mongodb_database: str = Field(
+        default="openwatch_rules",
+        description="MongoDB database name"
+    )
+    mongodb_min_pool_size: int = Field(default=10)
+    mongodb_max_pool_size: int = Field(default=100)
+    mongodb_ssl: bool = Field(default=True)
+    mongodb_ssl_cert: Optional[str] = Field(default="/etc/ssl/mongodb.pem")
+    mongodb_ssl_ca: Optional[str] = Field(default="/etc/ssl/ca.crt")
+    
     # OpenSCAP
     openscap_timeout: int = 3600  # 1 hour max scan time
     max_concurrent_scans: int = 5
@@ -82,6 +97,12 @@ class Settings(BaseSettings):
         for origin in v:
             if not origin.startswith(("https://", "http://localhost")):
                 raise ValueError("All origins must use HTTPS (except localhost)")
+        return v
+    
+    @validator("mongodb_url")
+    def validate_mongodb_url(cls, v):
+        if not v.startswith("mongodb://"):
+            raise ValueError("MongoDB URL must start with mongodb://")
         return v
     
     class Config:
