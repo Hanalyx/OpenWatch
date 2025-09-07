@@ -10,7 +10,7 @@ celery==5.3.4
 redis==5.0.1
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0
-python-jose[cryptography]==3.3.0
+# python-jose[cryptography]==3.3.0  # Removed - using pyjwt instead (CVE fix)
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 aiofiles==23.2.1
