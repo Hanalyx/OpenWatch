@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres:15-alpine
+    image: postgres:15.10-alpine
     container_name: openwatch-db
     environment:
       POSTGRES_DB: openwatch
@@ -20,7 +20,7 @@ services:
 
   # Redis with TLS for Celery
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.1-alpine
     container_name: openwatch-redis
     command: >
       redis-server
@@ -37,6 +37,42 @@ services:
       retries: 5
       start_period: 30s
 
+  # MongoDB for Compliance Rules
+  mongodb:
+    image: mongo:7.0.15-jammy
+    container_name: openwatch-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-openwatch}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-secure_mongo_password}
+      MONGO_INITDB_DATABASE: openwatch_rules
+    volumes:
+      - mongodb_data:/data/db
+      - ./backend/app/data/mongo/init:/docker-entrypoint-initdb.d:ro
+      - ./security/certs/mongodb:/etc/ssl:ro
+    ports:
+      - "127.0.0.1:27017:27017"
+    networks:
+      - openwatch-network
+    command: >
+      mongod
+      --auth
+      --bind_ip_all
+      --tlsMode allowTLS
+      --tlsCertificateKeyFile /etc/ssl/mongodb.pem
+      --tlsCAFile /etc/ssl/ca.crt
+      --logpath /var/log/mongodb/mongod.log
+      --logappend
+    healthcheck:
+      test: |
+        echo 'db.runCommand({serverStatus: 1}).ok' | mongosh --host localhost:27017 \
+        -u ${MONGO_ROOT_USER:-openwatch} -p ${MONGO_ROOT_PASSWORD:-secure_mongo_password} \
+        --authenticationDatabase admin --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
   # FastAPI Backend
   backend:
     build:
@@ -46,6 +82,7 @@ services:
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_MONGODB_URL: mongodb://openwatch:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017/openwatch_rules?authSource=admin
       OPENWATCH_SECRET_KEY: ${SECRET_KEY}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
       OPENWATCH_FIPS_MODE: "false"
@@ -63,6 +100,8 @@ services:
       database:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
     networks:
       - openwatch-network
@@ -83,6 +122,7 @@ services:
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_MONGODB_URL: mongodb://openwatch:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017/openwatch_rules?authSource=admin
       OPENWATCH_SECRET_KEY: ${SECRET_KEY}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
       OPENWATCH_FIPS_MODE: "false"
@@ -135,6 +175,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  mongodb_data:
     driver: local
   app_data:
     driver: local

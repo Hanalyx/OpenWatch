@@ -3,6 +3,8 @@
  * Provides methods for individual scans and group scanning operations
  */
 
+import { getAuthHeaders } from '../hooks/useAuthHeaders';
+
 interface GroupScanRequest {
   scan_name?: string;
   profile_id: string;
@@ -46,12 +48,7 @@ interface ScanProgressResponse {
 }
 
 class ScanService {
-  private static getAuthHeaders() {
-    return {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json'
-    };
-  }
+  // Use centralized auth headers - no more direct localStorage access
 
   /**
    * Start a group scan for all hosts in the specified host group
@@ -59,7 +56,7 @@ class ScanService {
   static async startGroupScan(groupId: number, request: GroupScanRequest): Promise<GroupScanSessionResponse> {
     const response = await fetch(`/api/host-groups/${groupId}/scan`, {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         scan_name: request.scan_name || `Group Scan - ${new Date().toLocaleString()}`,
         profile_id: request.profile_id,
@@ -81,7 +78,7 @@ class ScanService {
    */
   static async getGroupScanProgress(groupId: number, sessionId: string): Promise<ScanProgressResponse> {
     const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`, {
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -98,7 +95,7 @@ class ScanService {
   static async cancelGroupScan(groupId: number, sessionId: string): Promise<void> {
     const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/cancel`, {
       method: 'POST',
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -112,7 +109,7 @@ class ScanService {
    */
   static async getGroupScanSessions(groupId: number): Promise<GroupScanSessionResponse[]> {
     const response = await fetch(`/api/host-groups/${groupId}/scan-sessions`, {
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -129,7 +126,7 @@ class ScanService {
   static async startHostScan(hostId: string, contentId: number, profileId: string): Promise<any> {
     const response = await fetch('/api/scans/', {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name: `Manual Scan - ${new Date().toLocaleString()}`,
         host_id: hostId,
@@ -152,7 +149,7 @@ class ScanService {
    */
   static async getScanDetails(scanId: string): Promise<any> {
     const response = await fetch(`/api/scans/${scanId}`, {
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -169,7 +166,7 @@ class ScanService {
   static async cancelScan(scanId: string): Promise<void> {
     const response = await fetch(`/api/scans/${scanId}/cancel`, {
       method: 'POST',
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {
@@ -183,7 +180,7 @@ class ScanService {
    */
   static async getScanResults(scanId: string): Promise<any> {
     const response = await fetch(`/api/scans/${scanId}/results`, {
-      headers: this.getAuthHeaders()
+      headers: getAuthHeaders()
     });
 
     if (!response.ok) {

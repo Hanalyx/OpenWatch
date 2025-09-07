@@ -341,9 +341,9 @@ class HostMonitor:
                     check_results['error_message'] = validation_error
                     logger.warning(f"SSH credentials validation failed for {hostname}: {validation_error}")
                 else:
-                    check_results['credential_details'] = f"Using {source} credentials (user: {username}, method: {auth_method})"
+                    check_results['credential_details'] = f"Using {source} credentials (user: ***REDACTED***, method: {auth_method})"
                     
-                    logger.info(f"Checking SSH connectivity for {hostname} using {source} credentials (user: {username}, method: {auth_method})")
+                    logger.info(f"Checking SSH connectivity for {hostname} using {source} credentials (user: ***REDACTED***, method: {auth_method})")
                     
                     # Try SSH connection with validated credentials
                     ssh_success, ssh_error = await self.check_ssh_connectivity(
@@ -353,11 +353,11 @@ class HostMonitor:
                     
                     if ssh_success:
                         check_results['credential_details'] += " - ✅ SSH authentication successful"
-                        logger.info(f"SSH authentication successful for {hostname} using {source} credentials")
+                        logger.info(f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)")
                     else:
                         check_results['credential_details'] += f" - ❌ SSH authentication failed: {ssh_error}"
                         check_results['error_message'] = f"SSH authentication failed with {source} credentials: {ssh_error}"
-                        logger.warning(f"SSH authentication failed for {hostname} using {source} credentials: {ssh_error}")
+                        logger.warning(f"SSH authentication failed for {hostname} using {source} credentials (user: ***REDACTED***): {ssh_error}")
                     
             else:
                 check_results['credential_details'] = "❌ No SSH credentials available (neither host-specific nor system default)"

@@ -1,7 +1,7 @@
 services:
   # PostgreSQL with encryption support
   database:
-    image: postgres:15-alpine
+    image: postgres:15.10-alpine
     container_name: openwatch-db-dev
     environment:
       POSTGRES_DB: openwatch
@@ -19,7 +19,7 @@ services:
 
   # Redis with password auth (simplified for dev)
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.1-alpine
     container_name: openwatch-redis-dev
     command: redis-server --requirepass ${REDIS_PASSWORD:-redis123}
     volumes:

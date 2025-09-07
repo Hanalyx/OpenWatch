@@ -7,6 +7,7 @@ import resultReducer from './slices/resultSlice';
 import userReducer from './slices/userSlice';
 import auditReducer from './slices/auditSlice';
 import notificationReducer from './slices/notificationSlice';
+import ruleReducer from './slices/ruleSlice';
 
 // Simple store without persistence for now to avoid initialization issues
 export const store = configureStore({
@@ -19,6 +20,7 @@ export const store = configureStore({
     users: userReducer,
     audit: auditReducer,
     notifications: notificationReducer,
+    rules: ruleReducer,
   },
 });
 

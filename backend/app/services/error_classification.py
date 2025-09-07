@@ -649,7 +649,7 @@ class ErrorClassificationService:
         system_info = {}
         validation_checks = {}
         
-        logger.info(f"Starting pre-flight validation for {username}@{hostname}:{port}")
+        logger.info(f"Starting pre-flight validation for ***REDACTED***@{hostname}:{port}")
         
         # Stage 1: Network Connectivity
         try:

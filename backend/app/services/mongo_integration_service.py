@@ -1,0 +1,378 @@
+"""
+MongoDB Integration Service for OpenWatch
+Handles MongoDB connections, data operations, and testing
+"""
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import asyncio
+import logging
+from beanie import PydanticObjectId
+
+from app.models.mongo_models import (
+    ComplianceRule, 
+    RuleIntelligence, 
+    RemediationScript,
+    MongoManager,
+    FrameworkVersions,
+    PlatformImplementation,
+    get_mongo_manager
+)
+from app.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+
+class MongoIntegrationService:
+    """Service for MongoDB integration operations"""
+
+    def __init__(self):
+        self.mongo_manager: Optional[MongoManager] = None
+        self.initialized = False
+
+    async def initialize(self):
+        """Initialize MongoDB connection"""
+        if self.initialized:
+            return
+        
+        settings = get_settings()
+        self.mongo_manager = await get_mongo_manager()
+        
+        # Initialize with settings from config
+        await self.mongo_manager.initialize(
+            mongodb_url=settings.mongodb_url,
+            database_name=settings.mongodb_database,
+            min_pool_size=settings.mongodb_min_pool_size,
+            max_pool_size=settings.mongodb_max_pool_size,
+            ssl=settings.mongodb_ssl,
+            ssl_cert=settings.mongodb_ssl_cert,
+            ssl_ca=settings.mongodb_ssl_ca
+        )
+        
+        self.initialized = True
+        logger.info("MongoDB Integration Service initialized successfully")
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform MongoDB health check"""
+        if not self.initialized:
+            await self.initialize()
+        
+        return await self.mongo_manager.health_check()
+
+    async def create_test_compliance_rule(self) -> ComplianceRule:
+        """Create a test compliance rule for validation"""
+        test_rule = ComplianceRule(
+            rule_id="ow-test-ssh-config-001",
+            scap_rule_id="xccdf_org.ssgproject.content_rule_sshd_disable_root_login",
+            metadata={
+                "name": "Disable SSH root login",
+                "description": "Ensure that root login via SSH is disabled",
+                "rationale": "Direct root access should be disabled for security",
+                "source": "SSG RHEL8"
+            },
+            abstract=False,
+            severity="high",
+            category="authentication",
+            security_function="access_control",
+            tags=["ssh", "authentication", "root_access", "test"],
+            frameworks=FrameworkVersions(
+                nist={
+                    "800-53r4": ["AC-2", "AC-3"],
+                    "800-53r5": ["AC-2", "AC-3"]
+                },
+                cis={
+                    "rhel8_v2.0.0": ["5.2.8"],
+                    "rhel9_v1.0.0": ["5.2.8"]
+                },
+                stig={
+                    "rhel8_v1r11": "RHEL-08-010550",
+                    "rhel9_v1r1": "RHEL-09-255030"
+                }
+            ),
+            platform_implementations={
+                "rhel": PlatformImplementation(
+                    versions=["8", "9"],
+                    service_name="sshd",
+                    check_command="grep '^PermitRootLogin no' /etc/ssh/sshd_config",
+                    check_method="file",
+                    config_files=["/etc/ssh/sshd_config"],
+                    enable_command="sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
+                    validation_command="systemctl reload sshd && grep '^PermitRootLogin no' /etc/ssh/sshd_config",
+                    service_dependencies=["openssh-server"]
+                ),
+                "ubuntu": PlatformImplementation(
+                    versions=["20.04", "22.04", "24.04"],
+                    service_name="ssh",
+                    check_command="grep '^PermitRootLogin no' /etc/ssh/sshd_config",
+                    check_method="file",
+                    config_files=["/etc/ssh/sshd_config"],
+                    enable_command="sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
+                    validation_command="systemctl reload ssh && grep '^PermitRootLogin no' /etc/ssh/sshd_config",
+                    service_dependencies=["openssh-server"]
+                )
+            },
+            check_type="file",
+            check_content={
+                "check_type": "file",
+                "file_path": "/etc/ssh/sshd_config",
+                "parameter": "PermitRootLogin",
+                "expected_value": "no",
+                "comparison": "equals",
+                "config_format": "ssh_config"
+            },
+            fix_available=True,
+            fix_content={
+                "shell": {
+                    "script": "sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl reload sshd",
+                    "requires_root": True,
+                    "backup_command": "cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup"
+                },
+                "ansible": {
+                    "task": "lineinfile",
+                    "path": "/etc/ssh/sshd_config",
+                    "regexp": "^.*PermitRootLogin.*",
+                    "line": "PermitRootLogin no",
+                    "notify": "reload sshd"
+                }
+            },
+            remediation_complexity="low",
+            remediation_risk="low",
+            source_file="test_integration",
+            source_hash="test_hash_001",
+            version="1.0.0"
+        )
+        
+        # Insert the rule
+        await test_rule.insert()
+        logger.info(f"Created test compliance rule: {test_rule.rule_id}")
+        return test_rule
+
+    async def create_test_rule_intelligence(self, rule_id: str) -> RuleIntelligence:
+        """Create test rule intelligence data"""
+        intelligence = RuleIntelligence(
+            rule_id=rule_id,
+            business_impact="High security risk - root access should be restricted",
+            compliance_importance=9,
+            false_positive_rate=0.05,
+            common_exceptions=[
+                {
+                    "scenario": "Emergency access procedures",
+                    "justification": "Some environments require emergency root SSH access",
+                    "mitigation": "Use jump hosts and proper logging"
+                }
+            ],
+            implementation_notes="This rule should be implemented with proper exception handling for emergency access",
+            testing_guidance="Verify that root SSH login is actually disabled by attempting to connect",
+            rollback_procedure="Set PermitRootLogin yes and reload sshd service",
+            scan_duration_avg_ms=250,
+            resource_impact="low",
+            success_rate=0.95,
+            usage_count=1
+        )
+        
+        await intelligence.insert()
+        logger.info(f"Created test rule intelligence for: {rule_id}")
+        return intelligence
+
+    async def create_test_remediation_script(self, rule_id: str) -> RemediationScript:
+        """Create test remediation script"""
+        script = RemediationScript(
+            rule_id=rule_id,
+            platform="rhel",
+            script_type="bash",
+            script_content="""#!/bin/bash
+# Disable SSH root login
+set -euo pipefail
+
+# Backup original config
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d_%H%M%S)
+
+# Update configuration
+sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+
+# Validate configuration
+if sshd -t; then
+    systemctl reload sshd
+    echo "SSH root login disabled successfully"
+else
+    echo "SSH configuration error - restoring backup"
+    cp /etc/ssh/sshd_config.backup.$(date +%Y%m%d_%H%M%S) /etc/ssh/sshd_config
+    exit 1
+fi
+""",
+            requires_root=True,
+            estimated_duration_seconds=10,
+            validation_command="grep '^PermitRootLogin no' /etc/ssh/sshd_config",
+            rollback_script="sed -i 's/^.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && systemctl reload sshd",
+            tested_on=["rhel-8.8", "rhel-9.2"],
+            contributed_by="OpenWatch Integration Test",
+            approved=True,
+            approval_date=datetime.utcnow()
+        )
+        
+        await script.insert()
+        logger.info(f"Created test remediation script for: {rule_id}")
+        return script
+
+    async def query_rules_by_platform(self, platform: str, version: str) -> List[ComplianceRule]:
+        """Query rules by platform and version"""
+        if not self.initialized:
+            await self.initialize()
+        
+        # MongoDB query for platform-specific rules
+        query_field = f"platform_implementations.{platform}.versions"
+        rules = await ComplianceRule.find({query_field: version}).to_list()
+        
+        logger.info(f"Found {len(rules)} rules for {platform} {version}")
+        return rules
+
+    async def query_rules_by_framework(self, framework: str, version: str) -> List[ComplianceRule]:
+        """Query rules by compliance framework and version"""
+        if not self.initialized:
+            await self.initialize()
+        
+        # MongoDB query for framework-specific rules
+        query_field = f"frameworks.{framework}.{version}"
+        rules = await ComplianceRule.find({query_field: {"$exists": True}}).to_list()
+        
+        logger.info(f"Found {len(rules)} rules for {framework} {version}")
+        return rules
+
+    async def get_rule_with_intelligence(self, rule_id: str) -> Dict[str, Any]:
+        """Get rule with associated intelligence and remediation data"""
+        if not self.initialized:
+            await self.initialize()
+        
+        # Get the rule
+        rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+        if not rule:
+            return {"error": "Rule not found"}
+        
+        # Get intelligence
+        intelligence = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_id)
+        
+        # Get remediation scripts
+        scripts = await RemediationScript.find(RemediationScript.rule_id == rule_id).to_list()
+        
+        return {
+            "rule": rule.dict() if rule else None,
+            "intelligence": intelligence.dict() if intelligence else None,
+            "remediation_scripts": [script.dict() for script in scripts]
+        }
+
+    async def cleanup_test_data(self):
+        """Clean up test data"""
+        if not self.initialized:
+            return
+        
+        # Delete test rules
+        await ComplianceRule.find(ComplianceRule.rule_id.regex("^ow-test-")).delete()
+        await RuleIntelligence.find(RuleIntelligence.rule_id.regex("^ow-test-")).delete()
+        await RemediationScript.find(RemediationScript.rule_id.regex("^ow-test-")).delete()
+        
+        logger.info("Cleaned up test data")
+
+    async def run_comprehensive_test(self) -> Dict[str, Any]:
+        """Run comprehensive MongoDB integration test"""
+        test_results = {
+            "status": "running",
+            "tests": {},
+            "errors": [],
+            "start_time": datetime.utcnow().isoformat()
+        }
+        
+        try:
+            # Test 1: Connection and Health Check
+            health = await self.health_check()
+            test_results["tests"]["health_check"] = {
+                "status": "passed" if health["status"] == "healthy" else "failed",
+                "details": health
+            }
+            
+            # Test 2: Create Test Data
+            test_rule = await self.create_test_compliance_rule()
+            test_results["tests"]["create_rule"] = {
+                "status": "passed",
+                "rule_id": test_rule.rule_id
+            }
+            
+            # Test 3: Create Associated Data
+            intelligence = await self.create_test_rule_intelligence(test_rule.rule_id)
+            script = await self.create_test_remediation_script(test_rule.rule_id)
+            
+            test_results["tests"]["create_associated_data"] = {
+                "status": "passed",
+                "intelligence_id": str(intelligence.id),
+                "script_id": str(script.id)
+            }
+            
+            # Test 4: Platform-based Queries
+            rhel_rules = await self.query_rules_by_platform("rhel", "8")
+            ubuntu_rules = await self.query_rules_by_platform("ubuntu", "22.04")
+            
+            test_results["tests"]["platform_queries"] = {
+                "status": "passed",
+                "rhel_8_count": len(rhel_rules),
+                "ubuntu_22_04_count": len(ubuntu_rules)
+            }
+            
+            # Test 5: Framework-based Queries
+            nist_rules = await self.query_rules_by_framework("nist", "800-53r5")
+            cis_rules = await self.query_rules_by_framework("cis", "rhel8_v2.0.0")
+            
+            test_results["tests"]["framework_queries"] = {
+                "status": "passed",
+                "nist_800_53r5_count": len(nist_rules),
+                "cis_rhel8_v2_count": len(cis_rules)
+            }
+            
+            # Test 6: Complex Query with Intelligence
+            rule_with_intel = await self.get_rule_with_intelligence(test_rule.rule_id)
+            
+            test_results["tests"]["complex_query"] = {
+                "status": "passed" if rule_with_intel.get("rule") else "failed",
+                "has_intelligence": bool(rule_with_intel.get("intelligence")),
+                "script_count": len(rule_with_intel.get("remediation_scripts", []))
+            }
+            
+            # Test 7: Index Performance Test
+            start_time = datetime.utcnow()
+            # Perform multiple queries to test indexes
+            for _ in range(10):
+                await ComplianceRule.find(ComplianceRule.severity == "high").limit(100).to_list()
+            
+            end_time = datetime.utcnow()
+            query_duration_ms = (end_time - start_time).total_seconds() * 1000
+            
+            test_results["tests"]["index_performance"] = {
+                "status": "passed" if query_duration_ms < 1000 else "warning",
+                "duration_ms": query_duration_ms,
+                "queries_per_second": 10000 / query_duration_ms if query_duration_ms > 0 else 0
+            }
+            
+            # Final status
+            failed_tests = [k for k, v in test_results["tests"].items() if v["status"] == "failed"]
+            test_results["status"] = "failed" if failed_tests else "passed"
+            test_results["failed_tests"] = failed_tests
+            
+        except Exception as e:
+            test_results["status"] = "error"
+            test_results["errors"].append(str(e))
+            logger.error(f"MongoDB integration test error: {e}")
+        
+        finally:
+            test_results["end_time"] = datetime.utcnow().isoformat()
+            # Clean up test data
+            await self.cleanup_test_data()
+        
+        return test_results
+
+
+# Global service instance
+mongo_service = MongoIntegrationService()
+
+
+async def get_mongo_service() -> MongoIntegrationService:
+    """Get MongoDB integration service instance"""
+    if not mongo_service.initialized:
+        await mongo_service.initialize()
+    return mongo_service

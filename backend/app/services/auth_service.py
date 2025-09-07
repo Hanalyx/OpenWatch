@@ -352,7 +352,7 @@ class CentralizedAuthService:
                     source="legacy_system_default"
                 )
                 
-                logger.info(f"Successfully resolved legacy system default credential for user: {row.username}")
+                logger.info(f"Successfully resolved legacy system default credential for user: ***REDACTED***")
                 return credential
             
             logger.warning("No legacy system default credential found in system_credentials table")

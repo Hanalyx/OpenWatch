@@ -105,7 +105,7 @@ class SessionMigrationService:
             new_access_token = jwt_manager.create_access_token(user_data)
             new_refresh_token = jwt_manager.create_refresh_token(user_data)
             
-            logger.info(f"Session migrated for user: {user_data['username']}")
+            logger.info(f"Session migrated for user: ***REDACTED***")
             
             return {
                 "access_token": new_access_token,

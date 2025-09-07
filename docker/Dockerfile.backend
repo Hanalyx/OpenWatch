@@ -1,5 +1,5 @@
 # OpenWatch Backend - FIPS Compliant Container
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi:9.5
 
 # Install FIPS-compliant OpenSSL and dependencies
 RUN dnf update -y && \
