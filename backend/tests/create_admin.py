@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Create admin user for OpenWatch"""
+import os
 import sys
 from app.database import SessionLocal
 from app.auth import pwd_context
 from sqlalchemy import text
 import uuid
 
-# Default admin credentials
-username = "admin"
-email = "admin@openwatch.local"
-password = "admin123"
+import secrets
+import string
+
+# Generate secure admin credentials (should be changed after first login)
+username = os.getenv("ADMIN_USERNAME", "admin")
+email = os.getenv("ADMIN_EMAIL", "admin@openwatch.local")
+# Generate a secure random password if not provided via environment
+default_password = ''.join(secrets.choice(string.ascii_letters + string.digits + '!@#$%^&*') for _ in range(16))
+password = os.getenv("ADMIN_PASSWORD", default_password)
 
 db = SessionLocal()
 
@@ -37,7 +43,11 @@ try:
     db.commit()
     print(f"Admin user '{username}' created successfully!")
     print(f"Username: {username}")
-    print(f"Password: {password}")
+    if os.getenv("ADMIN_PASSWORD"):
+        print("Password: [Set via ADMIN_PASSWORD environment variable]")
+    else:
+        print(f"Generated Password: {password}")
+        print("⚠️  IMPORTANT: Save this password securely and change it after first login!")
     
 except Exception as e:
     print(f"Error creating user: {e}")

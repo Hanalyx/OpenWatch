@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import logging
 import json
 import uuid
+import re
 from pathlib import Path
 import shutil
 from datetime import datetime
@@ -65,6 +66,10 @@ class SCAPScanner:
     def validate_scap_content(self, file_path: str) -> Dict:
         """Validate SCAP content file and extract metadata"""
         try:
+            # Validate file path to prevent path traversal
+            if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+                raise SCAPContentError(f"Invalid or unsafe file path: {file_path}")
+            
             logger.info(f"Validating SCAP content: {file_path}")
             
             # First check if file exists and is readable
@@ -94,6 +99,10 @@ class SCAPScanner:
     def extract_profiles(self, file_path: str) -> List[Dict]:
         """Extract available profiles from SCAP content"""
         try:
+            # Validate file path to prevent path traversal
+            if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+                raise SCAPContentError(f"Invalid or unsafe file path: {file_path}")
+            
             logger.info(f"Extracting profiles from: {file_path}")
             
             result = subprocess.run([
@@ -204,6 +213,19 @@ class SCAPScanner:
                           scan_id: str, rule_id: str = None) -> Dict:
         """Execute SCAP scan on local system"""
         try:
+            # Validate inputs to prevent command injection
+            if not isinstance(content_path, str) or '..' in content_path or not os.path.isfile(content_path):
+                raise ScanExecutionError(f"Invalid or unsafe content path: {content_path}")
+            
+            if not isinstance(profile_id, str) or not re.match(r'^[a-zA-Z0-9_:.-]+$', profile_id):
+                raise ScanExecutionError(f"Invalid profile_id format: {profile_id}")
+            
+            if not isinstance(scan_id, str) or not re.match(r'^[a-zA-Z0-9_-]+$', scan_id):
+                raise ScanExecutionError(f"Invalid scan_id format: {scan_id}")
+            
+            if rule_id and (not isinstance(rule_id, str) or not re.match(r'^[a-zA-Z0-9_:.-]+$', rule_id)):
+                raise ScanExecutionError(f"Invalid rule_id format: {rule_id}")
+            
             logger.info(f"Starting local scan: {scan_id}")
             
             # Create result directory for this scan
@@ -215,7 +237,7 @@ class SCAPScanner:
             html_report = scan_dir / "report.html"
             arf_result = scan_dir / "results.arf.xml"
             
-            # Execute oscap scan
+            # Execute oscap scan with validated parameters
             cmd = [
                 'oscap', 'xccdf', 'eval',
                 '--profile', profile_id,
@@ -231,7 +253,8 @@ class SCAPScanner:
             
             cmd.append(content_path)
             
-            logger.info(f"Executing: {' '.join(cmd)}")
+            # Log command execution without exposing actual command to prevent information disclosure
+            logger.info(f"Executing local SCAP scan with profile: {profile_id}")
             
             result = subprocess.run(
                 cmd, capture_output=True, text=True, 
@@ -266,6 +289,28 @@ class SCAPScanner:
                            profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
         """Execute SCAP scan on remote system via SSH"""
         try:
+            # Validate inputs to prevent injection attacks
+            if not isinstance(hostname, str) or not re.match(r'^[a-zA-Z0-9.-]+$', hostname):
+                raise ScanExecutionError(f"Invalid hostname format: {hostname}")
+            
+            if not isinstance(port, int) or port < 1 or port > 65535:
+                raise ScanExecutionError(f"Invalid port number: {port}")
+            
+            if not isinstance(username, str) or not re.match(r'^[a-zA-Z0-9_-]+$', username):
+                raise ScanExecutionError(f"Invalid username format: {username}")
+            
+            if not isinstance(content_path, str) or '..' in content_path or not os.path.isfile(content_path):
+                raise ScanExecutionError(f"Invalid or unsafe content path: {content_path}")
+            
+            if not isinstance(profile_id, str) or not re.match(r'^[a-zA-Z0-9_:.-]+$', profile_id):
+                raise ScanExecutionError(f"Invalid profile_id format: {profile_id}")
+            
+            if not isinstance(scan_id, str) or not re.match(r'^[a-zA-Z0-9_-]+$', scan_id):
+                raise ScanExecutionError(f"Invalid scan_id format: {scan_id}")
+            
+            if rule_id and (not isinstance(rule_id, str) or not re.match(r'^[a-zA-Z0-9_:.-]+$', rule_id)):
+                raise ScanExecutionError(f"Invalid rule_id format: {rule_id}")
+            
             logger.info(f"Starting remote scan: {scan_id} on {hostname}")
             
             # Create result directory for this scan
@@ -1003,11 +1048,12 @@ class SCAPScanner:
             
             ssh = connection_result.connection
             
-            # Create remote directory for results
+            # Create remote directory for results with safe path construction
+            import shlex
             remote_results_dir = f"/tmp/openwatch_scan_{scan_id}"
             mkdir_result = self.unified_ssh.execute_command(
                 ssh_connection=ssh,
-                command=f"mkdir -p {remote_results_dir}",
+                command=f"mkdir -p {shlex.quote(remote_results_dir)}",
                 timeout=10
             )
             
@@ -1032,21 +1078,28 @@ class SCAPScanner:
             
             sftp.close()
             
-            # Build and execute oscap command on remote host with transferred file
-            oscap_cmd = (f"oscap xccdf eval "
-                        f"--profile {profile_id} "
-                        f"--results {remote_xml} "
-                        f"--report {remote_html} "
-                        f"--results-arf {remote_arf} ")
+            # Build oscap command using parameterized approach to prevent injection
+            oscap_cmd_parts = [
+                "oscap", "xccdf", "eval",
+                "--profile", profile_id,
+                "--results", remote_xml,
+                "--report", remote_html,
+                "--results-arf", remote_arf
+            ]
             
             # Add rule-specific scanning if rule_id is provided
             if rule_id:
-                oscap_cmd += f"--rule {rule_id} "
+                oscap_cmd_parts.extend(["--rule", rule_id])
                 logger.info(f"Remote scanning specific rule via paramiko: {rule_id}")
             
-            oscap_cmd += f"{remote_content_path}"
+            oscap_cmd_parts.append(remote_content_path)
             
-            logger.info(f"Executing remote command: {oscap_cmd}")
+            # Join command with proper shell escaping
+            import shlex
+            oscap_cmd = ' '.join(shlex.quote(part) for part in oscap_cmd_parts)
+            
+            # Log command execution without exposing actual command to prevent information disclosure
+            logger.info(f"Executing remote SCAP scan with profile: {profile_id}")
             
             # Execute SCAP scan command using unified SSH service
             oscap_result = self.unified_ssh.execute_command(

@@ -37,9 +37,9 @@ class HostMonitor:
                 return True
                 
         except FileNotFoundError:
-            logger.debug(f"Ping command not found, using socket fallback for {ip_address}")
+            logger.debug("Ping command not found, using socket fallback")
         except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-            logger.debug(f"Ping command failed for {ip_address}: {e}")
+            logger.debug(f"Ping command failed: {type(e).__name__}")
         
         # Fallback to socket connection test
         try:
@@ -68,7 +68,7 @@ class HostMonitor:
             return False
             
         except Exception as e:
-            logger.debug(f"Socket connectivity test failed for {ip_address}: {e}")
+            logger.debug(f"Socket connectivity test failed: {type(e).__name__}")
             return False
     
     async def check_port_connectivity(self, ip_address: str, port: int) -> bool:
@@ -82,7 +82,7 @@ class HostMonitor:
             sock.close()
             return result == 0
         except Exception as e:
-            logger.debug(f"Port check failed for {ip_address}:{port}: {e}")
+            logger.debug(f"Port check failed: {type(e).__name__}")
             return False
     
     async def check_ssh_connectivity(self, ip_address: str, port: int = 22, 
@@ -134,8 +134,7 @@ class HostMonitor:
         
         if not connection_result.success:
             # Map unified service error types to user-friendly messages
-            error_message = connection_result.error_message
-            
+            # Map error types to user-friendly messages without exposing sensitive details
             if connection_result.error_type == "authentication_failed":
                 error_message = "Authentication failed - verify SSH credentials in Settings"
             elif connection_result.error_type == "timeout":
@@ -143,9 +142,11 @@ class HostMonitor:
             elif connection_result.error_type == "connection_refused":
                 error_message = "Connection refused - SSH service may not be running"
             elif connection_result.error_type == "invalid_ssh_key":
-                error_message = f"Invalid SSH key: {connection_result.error_message}"
+                error_message = "Invalid SSH key format"
+            else:
+                error_message = "SSH connection failed"
             
-            logger.warning(f"SSH connectivity check failed for {ip_address}: {error_message}")
+            logger.warning(f"SSH connectivity check failed: {connection_result.error_type}")
             return False, error_message
         
         # Test basic command execution to ensure SSH is fully functional
@@ -165,7 +166,7 @@ class HostMonitor:
                 return True, None
             else:
                 error_msg = "SSH command execution failed"
-                logger.warning(f"SSH command test failed for {ip_address}: {command_result.error_message}")
+                logger.warning(f"SSH command test failed: {command_result.error_type}")
                 return False, error_msg
                 
         except Exception as e:
@@ -176,8 +177,8 @@ class HostMonitor:
             except:
                 pass
             
-            error_msg = f"SSH test command error: {str(e)}"
-            logger.error(f"SSH test command failed for {ip_address}: {e}")
+            error_msg = "SSH test command error"
+            logger.error(f"SSH test command failed: {type(e).__name__}")
             return False, error_msg
     
     async def get_effective_ssh_credentials(self, host_data: Dict, db) -> Dict:
@@ -215,6 +216,7 @@ class HostMonitor:
                     try:
                         # Handle memoryview objects from database
                         encrypted_data = row.encrypted_credentials
+                        # Handle memoryview objects from database securely
                         if isinstance(encrypted_data, memoryview):
                             encrypted_data = bytes(encrypted_data)
                         
@@ -232,7 +234,7 @@ class HostMonitor:
                         logger.info(f"✅ Decrypted host credentials for {host_data.get('hostname')}")
                         return credentials
                     except Exception as e:
-                        logger.error(f"Failed to decrypt host credentials: {e}")
+                        logger.error(f"Failed to decrypt host credentials: {type(e).__name__}")
             
             # Try centralized auth service (for system defaults or if host decryption failed)
             credential_data = auth_service.resolve_credential(
@@ -259,7 +261,7 @@ class HostMonitor:
             return credentials
             
         except Exception as e:
-            logger.error(f"Failed to resolve credentials for host monitoring {host_data.get('hostname')}: {e}")
+            logger.error(f"Failed to resolve credentials for host monitoring: {type(e).__name__}")
             return None
     
     def validate_ssh_credentials(self, credentials: Dict) -> Tuple[bool, str]:
@@ -399,8 +401,8 @@ class HostMonitor:
             check_results['response_time_ms'] = int((end_time - start_time) * 1000)
             
         except Exception as e:
-            logger.error(f"Error checking host {hostname}: {e}")
-            check_results['error_message'] = f"Monitoring error: {str(e)}"
+            logger.error(f"Error checking host {hostname}: {type(e).__name__}")
+            check_results['error_message'] = "Monitoring error occurred"
             check_results['status'] = 'error'
         
         return check_results
@@ -432,7 +434,7 @@ class HostMonitor:
             return True
             
         except Exception as e:
-            logger.error(f"Failed to update host status: {e}")
+            logger.error(f"Failed to update host status: {type(e).__name__}")
             db.rollback()
             return False
     
@@ -481,7 +483,7 @@ class HostMonitor:
             return check_results
             
         except Exception as e:
-            logger.error(f"Error monitoring hosts: {e}")
+            logger.error(f"Error monitoring hosts: {type(e).__name__}")
             return []
     
     async def get_alert_recipients(self, db: Session, alert_type: str) -> List[str]:
@@ -504,7 +506,7 @@ class HostMonitor:
             return list(set(recipients))  # Remove duplicates
             
         except Exception as e:
-            logger.error(f"Error getting alert recipients: {e}")
+            logger.error(f"Error getting alert recipients: {type(e).__name__}")
             return []
     
     async def send_status_change_alerts(self, db: Session, host: Dict, old_status: str, new_status: str):
@@ -533,7 +535,7 @@ class HostMonitor:
                     )
                     
         except Exception as e:
-            logger.error(f"Error sending status change alerts: {e}")
+            logger.error(f"Error sending status change alerts: {type(e).__name__}")
 
 # Global monitor instance
 host_monitor = HostMonitor()

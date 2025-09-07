@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import logging
 import json
+import re
 import xml.etree.ElementTree as ET
 import lxml.etree as etree
 from datetime import datetime
@@ -43,6 +44,10 @@ class SCAPDataStreamProcessor:
     def validate_datastream(self, file_path: str) -> Dict:
         """Validate SCAP data-stream file and extract metadata"""
         try:
+            # Validate file path to prevent path traversal attacks
+            if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+                raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
+            
             logger.info(f"Validating SCAP data-stream: {file_path}")
             
             # First check if it's a ZIP file (common for DISA distributions)
@@ -86,6 +91,10 @@ class SCAPDataStreamProcessor:
     def extract_profiles_with_metadata(self, file_path: str) -> List[Dict]:
         """Extract profiles with full metadata using oscap info --profiles"""
         try:
+            # Validate file path to prevent path traversal attacks
+            if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+                raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
+            
             logger.info(f"Extracting profiles from: {file_path}")
             
             # Handle ZIP files
@@ -121,6 +130,10 @@ class SCAPDataStreamProcessor:
     def extract_content_components(self, file_path: str) -> Dict:
         """Extract all components from SCAP content (data-streams, benchmarks, checks)"""
         try:
+            # Validate file path to prevent path traversal attacks
+            if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+                raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
+            
             components = {
                 'data_streams': [],
                 'benchmarks': [],
@@ -162,6 +175,18 @@ class SCAPDataStreamProcessor:
     
     def create_content_validation_report(self, file_path: str) -> Dict:
         """Create comprehensive validation report for SCAP content"""
+        # Validate file path to prevent path traversal attacks
+        if not isinstance(file_path, str) or '..' in file_path or not os.path.isfile(file_path):
+            return {
+                'file_path': 'INVALID_PATH',
+                'timestamp': datetime.now().isoformat(),
+                'validation_status': 'error',
+                'errors': [f'Invalid or unsafe file path: {file_path}'],
+                'warnings': [],
+                'info': {},
+                'recommendations': []
+            }
+        
         report = {
             'file_path': file_path,
             'timestamp': datetime.now().isoformat(),
@@ -226,12 +251,21 @@ class SCAPDataStreamProcessor:
                     # Extract all files
                     zip_file.extractall(temp_dir)
                     
-                    # Find SCAP content files
+                    # Find SCAP content files with path validation
                     scap_files = []
                     for root, dirs, files in os.walk(temp_dir):
+                        # Prevent path traversal by checking that root is within temp_dir
+                        if not os.path.commonpath([root, temp_dir]) == temp_dir:
+                            continue
                         for file in files:
+                            # Validate filename to prevent path traversal
+                            if '..' in file or '/' in file:
+                                continue
                             if file.endswith(('.xml', '.scap')):
                                 full_path = os.path.join(root, file)
+                                # Additional security check
+                                if not os.path.commonpath([full_path, temp_dir]) == temp_dir:
+                                    continue
                                 # Skip small files (likely metadata)
                                 if os.path.getsize(full_path) > 1000:
                                     scap_files.append(full_path)
