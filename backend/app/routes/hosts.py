@@ -11,6 +11,7 @@ import uuid
 import json
 
 from ..database import get_db
+from ..utils.logging_security import sanitize_id_for_log
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 # NOTE: json and base64 imports removed - using centralized auth service
@@ -280,7 +281,7 @@ async def get_host(host_id: str, db: Session = Depends(get_db), current_user: di
         try:
             host_uuid = uuid.UUID(host_id)
         except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid host ID format"
@@ -343,7 +344,7 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
         try:
             host_uuid = uuid.UUID(host_id)
         except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid host ID format"
@@ -516,7 +517,7 @@ async def delete_host(host_id: str, db: Session = Depends(get_db), current_user:
         try:
             host_uuid = uuid.UUID(host_id)
         except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid host ID format"
@@ -583,7 +584,7 @@ async def delete_host_ssh_key(host_id: str, db: Session = Depends(get_db), curre
         try:
             host_uuid = uuid.UUID(host_id)
         except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {host_id} - {e}")
+            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid host ID format"

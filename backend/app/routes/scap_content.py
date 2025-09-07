@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from ..utils.logging_security import sanitize_path_for_log
 from sqlalchemy.exc import IntegrityError
 
 from ..database import get_db, DatabaseManager
@@ -386,7 +387,7 @@ async def delete_scap_content(
                     except:
                         pass
             except Exception as e:
-                logger.warning(f"Failed to delete file {file_path}: {e}")
+                logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
         
         # Delete from database
         db.execute(text("""

@@ -912,14 +912,14 @@ class AuthorizationService:
             if result.rowcount > 0:
                 # Clear entire cache since we don't know which users/resources were affected
                 self.permission_cache.clear()
-                logger.info(f"Revoked permission {permission_id}")
+                logger.info(f"Revoked permission {sanitize_for_log(permission_id)}")
                 return True
             else:
                 logger.warning(f"Permission {sanitize_for_log(permission_id)} not found for revocation")
                 return False
                 
         except Exception as e:
-            logger.error(f"Failed to revoke permission {permission_id}: {e}")
+            logger.error(f"Failed to revoke permission {sanitize_for_log(permission_id)}: {type(e).__name__}")
             self.db.rollback()
             return False
 

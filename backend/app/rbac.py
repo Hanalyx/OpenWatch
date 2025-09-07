@@ -7,6 +7,7 @@ from typing import List, Dict, Set, Optional, Any
 from functools import wraps
 from fastapi import HTTPException, status, Depends
 import logging
+from .utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +225,7 @@ def require_permission(permission: Permission):
             
             user_role = UserRole(current_user.get('role', 'guest'))
             if not RBACManager.has_permission(user_role, permission):
-                logger.warning(f"User {current_user.get('username')} with role {user_role} attempted to access {permission}")
+                logger.warning(f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access {permission}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Insufficient permissions. Required: {permission.value}"
@@ -249,7 +250,7 @@ def require_any_permission(permissions: List[Permission]):
             
             user_role = UserRole(current_user.get('role', 'guest'))
             if not RBACManager.has_any_permission(user_role, permissions):
-                logger.warning(f"User {current_user.get('username')} with role {user_role} attempted to access {[p.value for p in permissions]}")
+                logger.warning(f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access {[p.value for p in permissions]}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Insufficient permissions. Required one of: {[p.value for p in permissions]}"
@@ -274,7 +275,7 @@ def require_role(required_roles: List[UserRole]):
             
             user_role = UserRole(current_user.get('role', 'guest'))
             if user_role not in required_roles:
-                logger.warning(f"User {current_user.get('username')} with role {user_role} attempted to access endpoint requiring {[r.value for r in required_roles]}")
+                logger.warning(f"User {sanitize_username_for_log(current_user.get('username'))} with role {user_role} attempted to access endpoint requiring {[r.value for r in required_roles]}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Insufficient role. Required one of: {[r.value for r in required_roles]}"
@@ -349,7 +350,7 @@ async def check_permission_async(current_user: dict, required_permission: Permis
             continue
     
     # If no role has permission, log and raise error
-    logger.warning(f"User {current_user.get('username')} attempted to access {required_permission.value}")
+    logger.warning(f"User {sanitize_username_for_log(current_user.get('username'))} attempted to access {required_permission.value}")
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=f"Insufficient permissions. Required: {required_permission.value}"

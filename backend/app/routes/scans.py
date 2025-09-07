@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
+from ..utils.logging_security import sanitize_path_for_log
 
 from ..database import get_db
 from ..services.scap_scanner import SCAPScanner
@@ -1196,7 +1197,7 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to delete file {file_path}: {e}")
+                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
         
         # Delete scan results first (foreign key constraint)
         db.execute(text("""
