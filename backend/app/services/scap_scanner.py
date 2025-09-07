@@ -113,7 +113,7 @@ class SCAPScanner:
                           auth_method: str, credential: str) -> Dict:
         """Test SSH connection to remote host"""
         try:
-            logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
+            logger.info(f"Testing SSH connection to ***REDACTED***@{hostname}:{port}")
             
             ssh = paramiko.SSHClient()
             # Security Fix: Use strict host key checking instead of AutoAddPolicy

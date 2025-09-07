@@ -226,7 +226,7 @@ class MFAService:
             )
             
         except Exception as e:
-            logger.error(f"MFA enrollment failed for {username}: {e}")
+            logger.error(f"MFA enrollment failed for ***REDACTED***: {e}")
             return MFAEnrollmentResult(
                 success=False,
                 error_message=f"Enrollment failed: {str(e)}"
@@ -298,11 +298,11 @@ class MFAService:
         """
         try:
             backup_codes = self.generate_backup_codes()
-            logger.info(f"Regenerated backup codes for user: {username}")
+            logger.info(f"Regenerated backup codes for user: ***REDACTED***)")
             return backup_codes
             
         except Exception as e:
-            logger.error(f"Failed to regenerate backup codes for {username}: {e}")
+            logger.error(f"Failed to regenerate backup codes for ***REDACTED***: {e}")
             raise
     
     def get_mfa_status(self, user_data: Dict) -> Dict[str, any]:

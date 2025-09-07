@@ -8,6 +8,7 @@ and interactive debugging.
 import asyncio
 import logging
 import json
+import os
 from typing import Dict, Optional
 import paramiko
 from fastapi import WebSocket, WebSocketDisconnect
@@ -204,14 +205,15 @@ class SSHTerminalSession:
             
             # If we still don't have credentials and this is a password auth host, try test credentials
             if not credentials and auth_method == 'password':
-                # For test hosts with known credentials (temporary workaround)
+                # SECURITY FIX: Remove hardcoded credentials - use environment variables or secure storage
+                # These credentials have been moved to secure configuration
                 test_hosts = {
-                    '146.190.45.61': {'username': 'root', 'password': 'DRUCrItroS7I@E3iv&CR'},
-                    '146.190.156.198': {'username': 'root', 'password': 'DRUCrItroS7I@E3iv&CR'}
+                    '146.190.45.61': {'username': os.getenv('TEST_HOST_USER', 'root'), 'password': os.getenv('TEST_HOST_1_PASSWORD')},
+                    '146.190.156.198': {'username': os.getenv('TEST_HOST_USER', 'root'), 'password': os.getenv('TEST_HOST_2_PASSWORD')}
                 }
                 
                 if self.host.ip_address in test_hosts:
-                    logger.info(f"Using test credentials for host {self.host.ip_address}")
+                    logger.info(f"Using test credentials for host {self.host.ip_address} (user: ***REDACTED***)")
                     credentials = test_hosts[self.host.ip_address]
                 else:
                     logger.warning(f"No credentials available for host {self.host.hostname}")
