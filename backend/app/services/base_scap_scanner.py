@@ -18,6 +18,7 @@ import paramiko
 from paramiko.ssh_exception import SSHException
 
 from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError
+from .ssh_config_service import SSHConfigService
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -54,20 +55,13 @@ class SCAPConnectionManager:
             raise SSHException(f"SSH key error: {str(e)}")
     
     @staticmethod
-    def create_ssh_client() -> paramiko.SSHClient:
-        """Create SSH client with security-hardened configuration"""
+    def create_ssh_client(host_ip: Optional[str] = None) -> paramiko.SSHClient:
+        """Create SSH client with configurable host key policy"""
         ssh = paramiko.SSHClient()
         
-        # Security Fix: Use strict host key checking instead of AutoAddPolicy
-        # AutoAddPolicy automatically accepts unknown host keys, vulnerable to MITM attacks
-        ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
-        
-        # Load system and user host keys for validation
-        try:
-            ssh.load_system_host_keys()  # Load from /etc/ssh/ssh_known_hosts
-            ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))  # Load user known_hosts
-        except FileNotFoundError:
-            logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
+        # Use configurable SSH host key policy instead of hardcoded RejectPolicy
+        ssh_config_service = SSHConfigService()
+        ssh_config_service.configure_ssh_client(ssh, host_ip)
         
         return ssh
     
@@ -78,7 +72,7 @@ class SCAPConnectionManager:
         try:
             logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
             
-            ssh = cls.create_ssh_client()
+            ssh = cls.create_ssh_client(hostname)
             
             # Connect based on auth method
             if auth_method == "password":
@@ -383,7 +377,7 @@ class BaseSCAPScanner(ABC):
                                auth_method: str, credential: str) -> Dict:
         """Get remote system information via SSH"""
         try:
-            ssh = self.connection_manager.create_ssh_client()
+            ssh = self.connection_manager.create_ssh_client(hostname)
             
             # Connect
             if auth_method == "password":

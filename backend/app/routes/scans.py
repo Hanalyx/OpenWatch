@@ -612,17 +612,21 @@ async def list_scan_sessions(
             where_conditions.append("created_by = :user_id")
             params["user_id"] = current_user["id"]
         
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
         # Get sessions
-        result = db.execute(text(f"""
+        base_sessions_query = """
             SELECT id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                    status, created_by, created_at, started_at, completed_at, estimated_completion
             FROM scan_sessions
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-        """), params)
+        """
+        
+        if where_conditions:
+            sessions_query = base_sessions_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            sessions_query = base_sessions_query
+            
+        sessions_query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+        
+        result = db.execute(text(sessions_query), params)
         
         sessions = []
         for row in result:
@@ -642,9 +646,11 @@ async def list_scan_sessions(
             })
         
         # Get total count
-        count_result = db.execute(text(f"""
-            SELECT COUNT(*) as total FROM scan_sessions {where_clause}
-        """), params).fetchone()
+        count_sessions_query = "SELECT COUNT(*) as total FROM scan_sessions"
+        if where_conditions:
+            count_sessions_query += " WHERE " + " AND ".join(where_conditions)
+            
+        count_result = db.execute(text(count_sessions_query), params).fetchone()
         
         return {
             "sessions": sessions,
@@ -814,21 +820,8 @@ async def list_scans(
                 "offset": offset
             }
         
-        # Build query
-        where_conditions = []
-        params = {"limit": limit, "offset": offset}
-        
-        if host_id:
-            where_conditions.append("s.host_id = %(host_id)s")
-            params["host_id"] = host_id
-        
-        if status:
-            where_conditions.append("s.status = %(status)s")
-            params["status"] = status
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
-        query = """
+        # Build query without mixing string formatting and parameter binding
+        base_query = """
             SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status,
                    s.progress, s.started_at, s.completed_at, s.started_by,
                    s.error_message, s.result_file, s.report_file,
@@ -841,10 +834,27 @@ async def list_scans(
             LEFT JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scap_content c ON s.content_id = c.id
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
-            {}
-            ORDER BY s.started_at DESC
-            LIMIT :limit OFFSET :offset
-        """.format(where_clause)
+        """
+        
+        # Build WHERE conditions and parameters
+        where_conditions = []
+        params = {"limit": limit, "offset": offset}
+        
+        if host_id:
+            where_conditions.append("s.host_id = :host_id")
+            params["host_id"] = host_id
+        
+        if status:
+            where_conditions.append("s.status = :status")
+            params["status"] = status
+        
+        # Complete the query
+        if where_conditions:
+            query = base_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            query = base_query
+            
+        query += " ORDER BY s.started_at DESC LIMIT :limit OFFSET :offset"
         
         result = db.execute(text(query), params)
         
@@ -896,13 +906,18 @@ async def list_scans(
             scans.append(scan_data)
         
         # Get total count
-        count_query = """
+        count_base_query = """
             SELECT COUNT(*) as total
             FROM scans s
             LEFT JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scap_content c ON s.content_id = c.id
-            {}
-        """.format(where_clause)
+        """
+        
+        if where_conditions:
+            count_query = count_base_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            count_query = count_base_query
+            
         total_result = db.execute(text(count_query), params).fetchone()
         
         return {
