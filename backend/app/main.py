@@ -19,7 +19,7 @@ from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance
 from .routes.system_settings_unified import router as system_settings_router
-from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery
+from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
 # Import security routes only if available
 try:
     from .routes import automated_fixes
@@ -475,6 +475,7 @@ app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Sca
 app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
 app.include_router(group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"])
+app.include_router(host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"])
 
 # Register security routes if available
 if automated_fixes:
