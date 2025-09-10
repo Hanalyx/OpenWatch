@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from backend.app.celery_app import celery_app
 from backend.app.database import get_db_session
-from backend.app.services.group_scan_service import GroupScanService
+# GroupScanService removed - using group_compliance API instead
 from backend.app.services.scap_scanner import SCAPScanner
 from backend.app.models.hosts import HostGroup
 from backend.app.models.scap_content import SCAPContent
@@ -127,10 +127,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int,
             })
             db.commit()
             
-            # Initialize scan service
-            scan_service = GroupScanService(db)
-            
-            # Execute the scan for each host
+            # Execute the scan for each host using unified API
             successful_scans = 0
             failed_scans = 0
             
@@ -147,28 +144,32 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int,
                     })
                     db.commit()
                     
-                    # Start individual scan
-                    scan_id = await scan_service.start_individual_scan(
-                        host_id=host["id"],
+                    # Use the unified group-compliance scan execution
+                    scan_result = execute_group_compliance_scan(
+                        group_id=group_id,
+                        host_ids=[host["id"]],
                         scap_content_id=config["scap_content_id"],
                         profile_id=config["profile_id"],
-                        scan_options=config.get("scan_options", {}),
-                        session_id=session_id
+                        db=db,
+                        user_id="system"
                     )
                     
-                    # Update progress
-                    db.execute(text("""
-                        UPDATE group_scan_host_progress 
-                        SET scan_id = :scan_id, status = 'completed', progress = 100
-                        WHERE session_id = :session_id AND host_id = :host_id
-                    """), {
-                        "session_id": session_id,
-                        "host_id": host["id"],
-                        "scan_id": scan_id
-                    })
-                    db.commit()
+                    # Update progress based on scan result
+                    if scan_result.get("status") == "completed":
+                        db.execute(text("""
+                            UPDATE group_scan_host_progress 
+                            SET status = 'completed', progress = 100, scan_id = :scan_id
+                            WHERE session_id = :session_id AND host_id = :host_id
+                        """), {
+                            "session_id": session_id,
+                            "host_id": host["id"],
+                            "scan_id": scan_result.get("scan_id")
+                        })
+                        successful_scans += 1
+                    else:
+                        raise Exception(scan_result.get("error", "Scan failed"))
                     
-                    successful_scans += 1
+                    db.commit()
                     
                 except Exception as host_error:
                     # Update host as failed
