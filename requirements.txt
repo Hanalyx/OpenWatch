@@ -2,13 +2,13 @@
 # Production dependencies
 fastapi==0.109.2
 uvicorn[standard]==0.32.1
-sqlalchemy==2.0.23
+sqlalchemy==2.0.35
 alembic==1.13.1
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 asyncpg==0.29.0
-celery==5.3.4
-redis==5.0.1
-pydantic[email]==2.5.0
+celery==5.4.0
+redis==5.2.1
+pydantic[email]==2.10.4
 pydantic-settings==2.1.0
 # python-jose[cryptography]==3.3.0  # Removed - using pyjwt instead (CVE fix)
 passlib[bcrypt]==1.7.4
@@ -23,7 +23,7 @@ aiohttp==3.12.14
 lxml==5.3.0
 xmltodict==0.13.0
 python-magic==0.4.27
-paramiko==3.4.0
+paramiko==3.5.0
 websockets==12.0
 schedule==1.2.0
 psutil==5.9.6
