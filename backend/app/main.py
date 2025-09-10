@@ -212,7 +212,6 @@ async def audit_middleware(request: Request, call_next):
     response = await call_next(request)
     
     # Log security events (only for non-auth endpoints to avoid double logging)
-    process_time = time.time() - start_time
     
     # Get database session for audit logging
     db = next(get_db())

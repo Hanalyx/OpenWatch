@@ -367,29 +367,16 @@ async def create_remediation_strategy(
     """Create an intelligent remediation strategy based on semantic analysis"""
     try:
         # Get the semantic SCAP engine
-        semantic_engine = get_semantic_scap_engine()
         
         # Extract request parameters
         host_id = request.get("host_id")
         framework_goals = request.get("frameworks", ["stig"])
-        risk_tolerance = request.get("risk_tolerance", "medium")
         
         if not host_id:
             raise HTTPException(status_code=400, detail="host_id is required")
         
         # Get semantic rules for the host (mock data for now)
-        rules_query = """
-            SELECT * FROM rule_intelligence
-            WHERE :framework = ANY(applicable_frameworks)
-            ORDER BY 
-                CASE business_impact 
-                    WHEN 'high' THEN 1 
-                    WHEN 'medium' THEN 2 
-                    ELSE 3 
-                END,
-                estimated_fix_time ASC
-            LIMIT 20
-        """
+        # This would be implemented with actual database query when ready
         
         # For now, return a structured remediation strategy
         strategy = {
@@ -442,7 +429,6 @@ async def compliance_health_check():
     """Health check endpoint for compliance intelligence services"""
     try:
         # Test semantic engine availability
-        semantic_engine = get_semantic_scap_engine()
         
         return {
             "status": "healthy",
