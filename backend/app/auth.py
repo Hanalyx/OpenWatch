@@ -274,7 +274,7 @@ class SecurityAuditLogger:
             f"SECURITY_{event_type} - Details: {details}, IP: {ip_address}"
         )
     
-    async def log_api_key_action(self, user_id: str, action: str, api_key_id: str, 
+    def log_api_key_action(self, user_id: str, action: str, api_key_id: str, 
                                  api_key_name: str, details: Optional[Dict] = None):
         """Log API key related actions"""
         self.audit_logger.info(
@@ -286,7 +286,7 @@ class SecurityAuditLogger:
 audit_logger = SecurityAuditLogger()
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
     """Get current authenticated user from JWT token or API key"""
     from sqlalchemy.orm import Session
     from .database import get_db, ApiKey
@@ -405,7 +405,7 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Require admin role for protected endpoints"""
     if current_user.get("role") != UserRole.SUPER_ADMIN.value:
         raise HTTPException(

@@ -192,7 +192,7 @@ async def get_integration_status(
 
 
 # Helper functions
-async def _detect_license_info() -> Dict[str, Any]:
+def _detect_license_info() -> Dict[str, Any]:
     """Detect license type and enterprise features availability"""
     # For OSS version, return basic license info
     # In enterprise version, this would check actual license files
@@ -238,7 +238,7 @@ async def _determine_feature_flags(license_info: Dict, settings) -> FeatureFlags
     return features
 
 
-async def _calculate_system_limits(license_info: Dict, settings) -> SystemLimits:
+def _calculate_system_limits(license_info: Dict, settings) -> SystemLimits:
     """Calculate system limits based on license and configuration"""
     
     limits = SystemLimits()
@@ -292,7 +292,7 @@ async def _check_integrations() -> IntegrationStatus:
     return integrations
 
 
-async def _check_aegis_availability() -> bool:
+def _check_aegis_availability() -> bool:
     """Check if AEGIS remediation service is available"""
     try:
         # In a real implementation, this would check AEGIS connectivity
@@ -303,7 +303,7 @@ async def _check_aegis_availability() -> bool:
         return False
 
 
-async def _get_aegis_version() -> str:
+def _get_aegis_version() -> str:
     """Get AEGIS version if available"""
     try:
         # In a real implementation, this would query AEGIS API
@@ -370,7 +370,7 @@ async def _check_kubernetes_availability() -> bool:
         return False
 
 
-async def _get_system_info() -> Dict[str, Any]:
+def _get_system_info() -> Dict[str, Any]:
     """Get basic system information"""
     import platform
     import psutil

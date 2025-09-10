@@ -812,7 +812,7 @@ async def update_scheduler(
         )
 
 
-async def restore_scheduler_state():
+def restore_scheduler_state():
     """Restore scheduler state from database on startup"""
     logger.info("restore_scheduler_state() function called")
     try:

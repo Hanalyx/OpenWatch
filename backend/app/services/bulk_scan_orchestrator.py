@@ -409,7 +409,7 @@ class BulkScanOrchestrator:
             # Use default content and specified template
             return 1, template_id if template_id != "auto" else "xccdf_org.ssgproject.content_profile_cui"
     
-    async def _create_batch_scans(self, batch: ScanBatch, session_id: str, name_prefix: str, user_id: str, stagger_delay: int) -> List[str]:
+    def _create_batch_scans(self, batch: ScanBatch, session_id: str, name_prefix: str, user_id: str, stagger_delay: int) -> List[str]:
         """Create individual scan records for a batch"""
         try:
             scan_ids = []
@@ -457,7 +457,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error creating batch scans: {e}")
             raise
     
-    async def _store_scan_session(self, session: ScanSession):
+    def _store_scan_session(self, session: ScanSession):
         """Store scan session in database"""
         try:
             # Create a scan sessions table record (you'll need to create this table)
@@ -488,7 +488,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error storing scan session: {e}")
             raise
     
-    async def _update_scan_session(self, session: ScanSession):
+    def _update_scan_session(self, session: ScanSession):
         """Update scan session in database"""
         try:
             self.db.execute(text("""
@@ -518,7 +518,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error updating scan session: {e}")
             raise
     
-    async def _get_scan_session(self, session_id: str) -> Optional[ScanSession]:
+    def _get_scan_session(self, session_id: str) -> Optional[ScanSession]:
         """Retrieve scan session from database"""
         try:
             result = self.db.execute(text("""
@@ -550,7 +550,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error getting scan session: {e}")
             return None
     
-    async def _get_scans_status(self, scan_ids: List[str]) -> List[Dict]:
+    def _get_scans_status(self, scan_ids: List[str]) -> List[Dict]:
         """Get status of multiple scans"""
         if not scan_ids:
             return []
@@ -592,7 +592,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error getting scans status: {e}")
             return []
     
-    async def _execute_staggered_scans(self, scan_ids: List[str]) -> List[str]:
+    def _execute_staggered_scans(self, scan_ids: List[str]) -> List[str]:
         """Execute scans with staggered start times"""
         # For now, just update all scans to running status
         # In a production system, this would integrate with Celery or similar
@@ -726,7 +726,7 @@ class BulkScanOrchestrator:
             
             return [], authorization_failures
     
-    async def _build_user_authorization_context(self, user_id: str) -> AuthorizationContext:
+    def _build_user_authorization_context(self, user_id: str) -> AuthorizationContext:
         """
         Build authorization context for a user including roles and groups
         """
@@ -769,7 +769,7 @@ class BulkScanOrchestrator:
                 user_groups=[]
             )
     
-    async def _get_host_details(self, host_ids: List[str]) -> List[Dict]:
+    def _get_host_details(self, host_ids: List[str]) -> List[Dict]:
         """
         Get host details for authorization results
         """
@@ -801,7 +801,7 @@ class BulkScanOrchestrator:
             logger.error(f"Error getting host details: {e}")
             return [{'id': host_id, 'hostname': 'unknown', 'display_name': 'unknown'} for host_id in host_ids]
     
-    async def _create_batch_scans_with_authorization(
+    def _create_batch_scans_with_authorization(
         self,
         batch: ScanBatch,
         session_id: str,

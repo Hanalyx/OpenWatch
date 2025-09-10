@@ -182,7 +182,7 @@ class SecureCeleryManager:
 celery_manager = SecureCeleryManager()
 
 
-async def check_redis_health() -> bool:
+def check_redis_health() -> bool:
     """Check Redis connectivity for health checks"""
     try:
         # Parse Redis URL
