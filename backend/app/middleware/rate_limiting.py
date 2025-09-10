@@ -5,6 +5,7 @@ Implements industry-standard rate limiting with token bucket algorithm
 import os
 import time
 import hashlib
+import secrets
 from typing import Dict, Optional, Tuple, List
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -174,9 +175,9 @@ class RateLimitingMiddleware:
             
             # Authentication endpoints (like Stripe's sensitive endpoints)
             'auth': {
-                'requests_per_minute': 30,    # More restrictive
-                'burst_capacity': 10,         # Small burst allowance
-                'retry_after_seconds': 120    # 2 minute recovery for security
+                'requests_per_minute': 15,    # Even more restrictive for security
+                'burst_capacity': 5,          # Very small burst allowance
+                'retry_after_seconds': 300    # 5 minute recovery for security
             },
             
             # Error-prone endpoints
@@ -304,13 +305,26 @@ class RateLimitingMiddleware:
         # Check for authentication
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
-            # Authenticated user - use token hash as identifier
-            token_hash = hashlib.sha256(auth_header.encode()).hexdigest()[:16]
+            # Authenticated user - use secure token hash as identifier with salt
+            # Use HMAC-SHA256 instead of plain SHA256 for better security
+            import hmac
+            secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
+            token_hash = hmac.new(
+                secret_key.encode(), 
+                auth_header.encode(), 
+                hashlib.sha256
+            ).hexdigest()[:16]
             return f"auth:{token_hash}", "authenticated"
         
-        # Anonymous user - use IP address
+        # Anonymous user - use IP address with secure hashing
         client_ip = self._get_client_ip(request)
-        ip_hash = hashlib.sha256(f"{client_ip}:anonymous".encode()).hexdigest()[:16]
+        import hmac
+        secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
+        ip_hash = hmac.new(
+            secret_key.encode(), 
+            f"{client_ip}:anonymous".encode(), 
+            hashlib.sha256
+        ).hexdigest()[:16]
         return f"anon:{ip_hash}", "anonymous"
     
     def _get_client_ip(self, request: Request) -> str:

@@ -88,12 +88,16 @@ services:
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
-      OPENWATCH_DEMO_MODE: "false"
+      # SSH Configuration - Unified SSH Service
+      OPENWATCH_SSH_STRICT_MODE: "false"
+      # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
+      # OPENWATCH_PERMISSIVE_SSH: "false"    # Uncomment to force AutoAddPolicy
     volumes:
       - app_data:/app/data
       - app_logs:/app/logs
       - ./security/certs:/app/security/certs:ro
       - ./security/keys:/app/security/keys
+      - ssh_known_hosts:/app/security/known_hosts
     ports:
       - "8000:8000"
     depends_on:
@@ -126,12 +130,16 @@ services:
       OPENWATCH_SECRET_KEY: ${SECRET_KEY}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
       OPENWATCH_FIPS_MODE: "false"
-      OPENWATCH_DEMO_MODE: "false"
+      # SSH Configuration - Unified SSH Service
+      OPENWATCH_SSH_STRICT_MODE: "false"
+      # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
+      # OPENWATCH_PERMISSIVE_SSH: "false"    # Uncomment to force AutoAddPolicy
     volumes:
       - app_data:/app/data
       - app_logs:/app/logs
       - ./security/certs:/app/security/certs:ro
       - ./security/keys:/app/security/keys
+      - ssh_known_hosts:/app/security/known_hosts
     depends_on:
       - database
       - redis
@@ -181,6 +189,8 @@ volumes:
   app_data:
     driver: local
   app_logs:
+    driver: local
+  ssh_known_hosts:
     driver: local
 
 networks:

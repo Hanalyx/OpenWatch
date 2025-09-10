@@ -103,15 +103,13 @@ class OpenWatchCLI:
                 print(f"[OpenWatch] ERROR: Invalid SCAP content file: {content_path}")
                 return 1
             
-            # Note: For demo purposes, remote scanning needs proper credential management
-            # In production, this would integrate with the credential storage system
-            print("[OpenWatch] NOTE: Remote scanning requires SSH credentials")
-            print("[OpenWatch] For demo purposes, showing scan initiation workflow")
+            # Remote scanning requires proper credential management
+            print("[OpenWatch] NOTE: Remote scanning requires SSH credentials to be configured")
             
             default_credentials = {
                 'username': 'root',
                 'auth_method': 'password', 
-                'credential': ''  # Would be loaded from secure storage
+                'credential': ''  # Must be loaded from secure credential storage
             }
             
             # Update scanner concurrency

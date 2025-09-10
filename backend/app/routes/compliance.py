@@ -237,11 +237,14 @@ async def get_compliance_overview(
             universal_coverage = round((remediation_ready / total_rules) * 100)
             remediation_readiness = universal_coverage
         
-        # Get unique frameworks count
+        # Get unique frameworks count - simplified approach
         frameworks_query = """
-            SELECT COUNT(DISTINCT unnest(applicable_frameworks)) as framework_count
-            FROM rule_intelligence
-            WHERE applicable_frameworks IS NOT NULL
+            WITH framework_list AS (
+                SELECT DISTINCT unnest(applicable_frameworks) as framework_name
+                FROM rule_intelligence
+                WHERE applicable_frameworks IS NOT NULL
+            )
+            SELECT COUNT(*) as framework_count FROM framework_list
         """
         
         framework_result = db.execute(text(frameworks_query))

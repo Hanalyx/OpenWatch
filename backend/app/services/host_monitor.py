@@ -15,13 +15,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .email_service import email_service
 from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
+from .unified_ssh_service import UnifiedSSHService
 
 logger = logging.getLogger(__name__)
 
 class HostMonitor:
-    def __init__(self):
+    def __init__(self, settings=None):
         self.ssh_timeout = 10  # seconds
         self.ping_timeout = 5   # seconds
+        self.unified_ssh = UnifiedSSHService(settings)
         
     async def ping_host(self, ip_address: str) -> bool:
         """
@@ -35,9 +37,9 @@ class HostMonitor:
                 return True
                 
         except FileNotFoundError:
-            logger.debug(f"Ping command not found, using socket fallback for {ip_address}")
+            logger.debug("Ping command not found, using socket fallback")
         except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-            logger.debug(f"Ping command failed for {ip_address}: {e}")
+            logger.debug(f"Ping command failed: {type(e).__name__}")
         
         # Fallback to socket connection test
         try:
@@ -66,7 +68,7 @@ class HostMonitor:
             return False
             
         except Exception as e:
-            logger.debug(f"Socket connectivity test failed for {ip_address}: {e}")
+            logger.debug(f"Socket connectivity test failed: {type(e).__name__}")
             return False
     
     async def check_port_connectivity(self, ip_address: str, port: int) -> bool:
@@ -80,7 +82,7 @@ class HostMonitor:
             sock.close()
             return result == 0
         except Exception as e:
-            logger.debug(f"Port check failed for {ip_address}:{port}: {e}")
+            logger.debug(f"Port check failed: {type(e).__name__}")
             return False
     
     async def check_ssh_connectivity(self, ip_address: str, port: int = 22, 
@@ -91,80 +93,93 @@ class HostMonitor:
         """
         Test SSH connectivity to determine if host is accessible for scanning
         Returns (is_connected, error_message)
+        
+        Uses unified SSH service for consistent security policies and audit logging.
         """
-        try:
-            ssh = paramiko.SSHClient()
-            # Security Fix: Use strict host key checking instead of AutoAddPolicy
-            ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
-            # Load system and user host keys for validation
+        # Determine authentication method and credential
+        auth_method = None
+        credential = None
+        
+        if key_path:
+            # Read SSH key from file
             try:
-                ssh.load_system_host_keys()
-                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
-            except FileNotFoundError:
-                logger.warning("No known_hosts files found - SSH connections may fail without proper host key management")
+                with open(key_path, 'r') as f:
+                    credential = f.read().strip()
+                auth_method = "ssh-key"
+            except Exception as e:
+                logger.error(f"Failed to read SSH key file {key_path}: {e}")
+                return False, f"Failed to read SSH key file: {str(e)}"
+        elif private_key_content:
+            credential = private_key_content
+            auth_method = "ssh-key"
+        elif password:
+            credential = password
+            auth_method = "password"
+        else:
+            return False, "No authentication credentials provided"
+        
+        if not username:
+            return False, "Username is required for SSH connectivity check"
+        
+        # Use unified SSH service to establish connection
+        connection_result = self.unified_ssh.connect_with_credentials(
+            hostname=ip_address,
+            port=port,
+            username=username,
+            auth_method=auth_method,
+            credential=credential,
+            service_name="Host_Monitor_Connectivity_Check",
+            timeout=self.ssh_timeout
+        )
+        
+        if not connection_result.success:
+            # Map unified service error types to user-friendly messages
+            # Map error types to user-friendly messages without exposing sensitive details
+            if connection_result.error_type == "authentication_failed":
+                error_message = "Authentication failed - verify SSH credentials in Settings"
+            elif connection_result.error_type == "timeout":
+                error_message = "Connection timeout - host may be unreachable"
+            elif connection_result.error_type == "connection_refused":
+                error_message = "Connection refused - SSH service may not be running"
+            elif connection_result.error_type == "invalid_ssh_key":
+                error_message = "Invalid SSH key format"
+            else:
+                error_message = "SSH connection failed"
             
-            connect_kwargs = {
-                'hostname': ip_address,
-                'port': port,
-                'timeout': self.ssh_timeout,
-                'banner_timeout': self.ssh_timeout
-            }
+            logger.warning(f"SSH connectivity check failed: {connection_result.error_type}")
+            return False, error_message
+        
+        # Test basic command execution to ensure SSH is fully functional
+        try:
+            ssh = connection_result.connection
+            command_result = self.unified_ssh.execute_command(
+                ssh_connection=ssh,
+                command='echo "test"',
+                timeout=5
+            )
             
-            if username:
-                connect_kwargs['username'] = username
-                
-            if key_path:
-                connect_kwargs['key_filename'] = key_path
-            elif private_key_content:
-                # Load private key from content string using new utility
-                try:
-                    # Validate key first
-                    validation_result = validate_ssh_key(private_key_content)
-                    if not validation_result.is_valid:
-                        logger.error(f"Invalid SSH key for {ip_address}: {validation_result.error_message}")
-                        return False, f"Invalid SSH key: {validation_result.error_message}"
-                    
-                    # Log any warnings
-                    if validation_result.warnings:
-                        logger.warning(f"SSH key warnings for {ip_address}: {'; '.join(validation_result.warnings)}")
-                    
-                    # Parse key using unified parser
-                    private_key = parse_ssh_key(private_key_content)
-                    connect_kwargs['pkey'] = private_key
-                except SSHKeyError as e:
-                    logger.error(f"SSH key parsing failed for {ip_address}: {e}")
-                    return False, f"SSH key error: {str(e)}"
-                except Exception as e:
-                    logger.error(f"Failed to load private key for {ip_address}: {e}")
-                    return False, f"Invalid private key: {str(e)}"
-            elif password:
-                connect_kwargs['password'] = password
-            
-            ssh.connect(**connect_kwargs)
-            
-            # Test basic command execution
-            stdin, stdout, stderr = ssh.exec_command('echo "test"', timeout=5)
-            exit_status = stdout.channel.recv_exit_status()
-            
+            # Close the connection
             ssh.close()
             
-            if exit_status == 0:
+            if command_result.success:
+                logger.debug(f"SSH connectivity check successful for {ip_address}")
                 return True, None
             else:
-                return False, "SSH command execution failed"
+                error_msg = "SSH command execution failed"
+                logger.warning(f"SSH command test failed: {command_result.error_type}")
+                return False, error_msg
                 
-        except paramiko.AuthenticationException:
-            logger.warning(f"SSH authentication failed for {ip_address} - check credentials in Settings")
-            return False, "Authentication failed - verify SSH credentials in Settings"
-        except paramiko.SSHException as e:
-            logger.error(f"SSH connection error to {ip_address}: {e}")
-            return False, f"SSH error: {str(e)}"
-        except socket.timeout:
-            logger.warning(f"SSH connection timeout to {ip_address}")
-            return False, "Connection timeout - host may be unreachable"
         except Exception as e:
-            logger.error(f"SSH connection failed to {ip_address}: {e}")
-            return False, f"Connection error: {str(e)}"
+            # Ensure connection is closed even if test fails
+            try:
+                if connection_result.connection:
+                    connection_result.connection.close()
+            except:
+                pass
+            
+            error_msg = "SSH test command error"
+            logger.error(f"SSH test command failed: {type(e).__name__}")
+            return False, error_msg
     
     async def get_effective_ssh_credentials(self, host_data: Dict, db) -> Dict:
         """
@@ -201,6 +216,7 @@ class HostMonitor:
                     try:
                         # Handle memoryview objects from database
                         encrypted_data = row.encrypted_credentials
+                        # Handle memoryview objects from database securely
                         if isinstance(encrypted_data, memoryview):
                             encrypted_data = bytes(encrypted_data)
                         
@@ -218,7 +234,7 @@ class HostMonitor:
                         logger.info(f"✅ Decrypted host credentials for {host_data.get('hostname')}")
                         return credentials
                     except Exception as e:
-                        logger.error(f"Failed to decrypt host credentials: {e}")
+                        logger.error(f"Failed to decrypt host credentials: {type(e).__name__}")
             
             # Try centralized auth service (for system defaults or if host decryption failed)
             credential_data = auth_service.resolve_credential(
@@ -245,7 +261,7 @@ class HostMonitor:
             return credentials
             
         except Exception as e:
-            logger.error(f"Failed to resolve credentials for host monitoring {host_data.get('hostname')}: {e}")
+            logger.error(f"Failed to resolve credentials for host monitoring: {type(e).__name__}")
             return None
     
     def validate_ssh_credentials(self, credentials: Dict) -> Tuple[bool, str]:
@@ -385,8 +401,8 @@ class HostMonitor:
             check_results['response_time_ms'] = int((end_time - start_time) * 1000)
             
         except Exception as e:
-            logger.error(f"Error checking host {hostname}: {e}")
-            check_results['error_message'] = f"Monitoring error: {str(e)}"
+            logger.error(f"Error checking host {hostname}: {type(e).__name__}")
+            check_results['error_message'] = "Monitoring error occurred"
             check_results['status'] = 'error'
         
         return check_results
@@ -418,7 +434,7 @@ class HostMonitor:
             return True
             
         except Exception as e:
-            logger.error(f"Failed to update host status: {e}")
+            logger.error(f"Failed to update host status: {type(e).__name__}")
             db.rollback()
             return False
     
@@ -467,7 +483,7 @@ class HostMonitor:
             return check_results
             
         except Exception as e:
-            logger.error(f"Error monitoring hosts: {e}")
+            logger.error(f"Error monitoring hosts: {type(e).__name__}")
             return []
     
     async def get_alert_recipients(self, db: Session, alert_type: str) -> List[str]:
@@ -490,7 +506,7 @@ class HostMonitor:
             return list(set(recipients))  # Remove duplicates
             
         except Exception as e:
-            logger.error(f"Error getting alert recipients: {e}")
+            logger.error(f"Error getting alert recipients: {type(e).__name__}")
             return []
     
     async def send_status_change_alerts(self, db: Session, host: Dict, old_status: str, new_status: str):
@@ -519,7 +535,7 @@ class HostMonitor:
                     )
                     
         except Exception as e:
-            logger.error(f"Error sending status change alerts: {e}")
+            logger.error(f"Error sending status change alerts: {type(e).__name__}")
 
 # Global monitor instance
 host_monitor = HostMonitor()
