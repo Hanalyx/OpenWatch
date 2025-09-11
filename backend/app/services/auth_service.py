@@ -270,7 +270,6 @@ class CentralizedAuthService:
             logger.error(f"Failed to resolve credential: {e}")
             return None
     
-<<<<<<< HEAD
     def _get_legacy_system_default(self) -> Optional[CredentialData]:
         """Get system default credential from legacy system_credentials table"""
         try:
