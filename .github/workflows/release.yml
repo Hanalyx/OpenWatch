@@ -51,12 +51,12 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          release_name: OpenWatch ${{ steps.version.outputs.version }}
+          name: OpenWatch ${{ steps.version.outputs.version }}
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.changelog }}
@@ -218,24 +218,14 @@ jobs:
           zip -r openwatch-${{ needs.create-release.outputs.version }}.zip openwatch-${{ needs.create-release.outputs.version }}
 
       - name: Upload Release Assets
-        uses: actions/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./openwatch-${{ needs.create-release.outputs.version }}.tar.gz
-          asset_name: openwatch-${{ needs.create-release.outputs.version }}.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload ZIP Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./openwatch-${{ needs.create-release.outputs.version }}.zip
-          asset_name: openwatch-${{ needs.create-release.outputs.version }}.zip
-          asset_content_type: application/zip
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            ./openwatch-${{ needs.create-release.outputs.version }}.tar.gz
+            ./openwatch-${{ needs.create-release.outputs.version }}.zip
 
   update-documentation:
     name: Update Documentation
