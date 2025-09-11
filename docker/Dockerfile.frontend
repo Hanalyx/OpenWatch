@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Production NGINX image
-FROM nginx:1.27.3-alpine
+FROM nginx:1.29.1-alpine
 
 # Install openssl for FIPS support
 RUN apk add --no-cache openssl
