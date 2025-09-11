@@ -37,7 +37,11 @@ import {
   Security as SecurityIcon,
   Schedule as ScheduleIcon,
   PlayArrow as PlayIcon,
-  Stop as StopIcon
+  Stop as StopIcon,
+  VpnKey as VpnKeyIcon,
+  SettingsEthernet as SettingsEthernetIcon,
+  Shield as ShieldIcon,
+  Policy as PolicyIcon
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
@@ -58,6 +62,32 @@ interface SystemCredentials {
   ssh_key_type?: string | null;
   ssh_key_bits?: number | null;
   ssh_key_comment?: string | null;
+}
+
+interface SSHPolicy {
+  policy: string;
+  trusted_networks: string[];
+  description: string;
+}
+
+interface KnownHost {
+  id: number;
+  hostname: string;
+  ip_address?: string;
+  key_type: string;
+  fingerprint: string;
+  first_seen: string;
+  last_verified?: string;
+  is_trusted: boolean;
+  notes?: string;
+}
+
+interface LoggingPolicy {
+  id: number;
+  name: string;
+  enabled: boolean;
+  frameworks: string[];
+  created_at: string;
 }
 
 interface TabPanelProps {
@@ -114,6 +144,27 @@ const Settings: React.FC = () => {
     status: 'stopped'
   });
   const [schedulerLoading, setSchedulerLoading] = useState(false);
+
+  // SSH Configuration state
+  const [sshPolicy, setSSHPolicy] = useState<SSHPolicy>({
+    policy: 'auto_add',
+    trusted_networks: [],
+    description: ''
+  });
+  const [knownHosts, setKnownHosts] = useState<KnownHost[]>([]);
+  const [sshLoading, setSSHLoading] = useState(false);
+  const [addHostKeyOpen, setAddHostKeyOpen] = useState(false);
+  const [newHostKey, setNewHostKey] = useState({
+    hostname: '',
+    ip_address: '',
+    key_type: 'rsa',
+    public_key: '',
+    notes: ''
+  });
+
+  // Security settings state
+  const [loggingPolicies, setLoggingPolicies] = useState<LoggingPolicy[]>([]);
+  const [securityLoading, setSecurityLoading] = useState(false);
 
   // Get user from Redux store
   const user = useSelector((state: RootState) => state.auth.user);
@@ -198,10 +249,114 @@ const Settings: React.FC = () => {
     }
   };
 
+  // SSH Configuration functions
+  const loadSSHPolicy = async () => {
+    try {
+      setSSHLoading(true);
+      const response = await api.get('/api/ssh-settings/policy');
+      setSSHPolicy(response);
+    } catch (err: any) {
+      setError('Failed to load SSH policy');
+      console.error('Error loading SSH policy:', err);
+    } finally {
+      setSSHLoading(false);
+    }
+  };
+
+  const loadKnownHosts = async () => {
+    try {
+      setSSHLoading(true);
+      const response = await api.get('/api/ssh-settings/known-hosts');
+      setKnownHosts(response);
+    } catch (err: any) {
+      setError('Failed to load known hosts');
+      console.error('Error loading known hosts:', err);
+    } finally {
+      setSSHLoading(false);
+    }
+  };
+
+  const updateSSHPolicy = async (newPolicy: string, trustedNetworks: string[]) => {
+    try {
+      setSSHLoading(true);
+      const response = await api.post('/api/ssh-settings/policy', {
+        policy: newPolicy,
+        trusted_networks: trustedNetworks
+      });
+      setSSHPolicy(response);
+      setSuccess('SSH policy updated successfully');
+    } catch (err: any) {
+      setError('Failed to update SSH policy');
+      console.error('Error updating SSH policy:', err);
+    } finally {
+      setSSHLoading(false);
+    }
+  };
+
+  const addKnownHost = async () => {
+    try {
+      setSSHLoading(true);
+      await api.post('/api/ssh-settings/known-hosts', newHostKey);
+      setSuccess('Host key added successfully');
+      setAddHostKeyOpen(false);
+      setNewHostKey({
+        hostname: '',
+        ip_address: '',
+        key_type: 'rsa',
+        public_key: '',
+        notes: ''
+      });
+      await loadKnownHosts();
+    } catch (err: any) {
+      setError('Failed to add host key');
+      console.error('Error adding host key:', err);
+    } finally {
+      setSSHLoading(false);
+    }
+  };
+
+  const removeKnownHost = async (hostname: string, keyType?: string) => {
+    if (!confirm(`Are you sure you want to remove the host key for ${hostname}?`)) {
+      return;
+    }
+
+    try {
+      setSSHLoading(true);
+      const params = keyType ? `?key_type=${keyType}` : '';
+      await api.delete(`/api/ssh-settings/known-hosts/${hostname}${params}`);
+      setSuccess('Host key removed successfully');
+      await loadKnownHosts();
+    } catch (err: any) {
+      setError('Failed to remove host key');
+      console.error('Error removing host key:', err);
+    } finally {
+      setSSHLoading(false);
+    }
+  };
+
+  // Security functions
+  const loadLoggingPolicies = async () => {
+    try {
+      setSecurityLoading(true);
+      // This is a placeholder - implement when backend API is available
+      setLoggingPolicies([]);
+    } catch (err: any) {
+      setError('Failed to load logging policies');
+      console.error('Error loading logging policies:', err);
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tabValue === 0) { // System Settings tab
       loadCredentials();
       loadSchedulerSettings();
+    } else if (tabValue === 1) { // SSH Configuration tab
+      loadSSHPolicy();
+      loadKnownHosts();
+    } else if (tabValue === 3) { // Security tab
+      loadLoggingPolicies();
     }
   }, [tabValue, isSuperAdmin]);
 
@@ -331,8 +486,9 @@ const Settings: React.FC = () => {
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label="System Settings" />
+            <Tab label="SSH Configuration" />
             <Tab label="User Preferences" disabled />
-            <Tab label="Security" disabled />
+            <Tab label="Security" />
           </Tabs>
         </Box>
 
@@ -549,13 +705,276 @@ const Settings: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
+          {/* SSH Configuration Section */}
+          <Card sx={{ mb: 4, p: 3 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                <VpnKeyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                SSH Host Key Policy
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Configure how OpenWatch handles SSH host key verification for secure connections.
+              </Typography>
+            </Box>
+
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel>SSH Host Key Policy</InputLabel>
+              <Select
+                value={sshPolicy.policy}
+                onChange={(e) => updateSSHPolicy(e.target.value, sshPolicy.trusted_networks)}
+                disabled={sshLoading}
+              >
+                <MenuItem value="strict">
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">Strict</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Reject unknown hosts (most secure)
+                    </Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="auto_add">
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">Auto Add</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Automatically accept and save unknown host keys
+                    </Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="bypass_trusted">
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">Bypass Trusted</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Auto-add hosts in trusted network ranges
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+
+            {sshPolicy.policy !== 'strict' && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                  {sshPolicy.policy === 'auto_add' 
+                    ? 'Automatically accept and save unknown host keys' 
+                    : 'Auto-add hosts in trusted network ranges'
+                  }
+                </Typography>
+              </Alert>
+            )}
+
+            {sshPolicy.policy === 'bypass_trusted' && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Trusted Networks
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="192.168.1.0/24, 10.0.0.0/8"
+                  value={sshPolicy.trusted_networks.join(', ')}
+                  onChange={(e) => {
+                    const networks = e.target.value.split(',').map(n => n.trim()).filter(n => n);
+                    updateSSHPolicy(sshPolicy.policy, networks);
+                  }}
+                  helperText="Comma-separated list of trusted network ranges (CIDR notation)"
+                  disabled={sshLoading}
+                />
+              </Box>
+            )}
+          </Card>
+
+          {/* Known SSH Hosts Section */}
+          <Card sx={{ p: 3 }}>
+            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  <SettingsEthernetIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Known SSH Hosts
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Manage trusted SSH host keys for secure connections.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setAddHostKeyOpen(true)}
+                disabled={sshLoading}
+              >
+                Add Host Key
+              </Button>
+            </Box>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Hostname</TableCell>
+                    <TableCell>IP Address</TableCell>
+                    <TableCell>Key Type</TableCell>
+                    <TableCell>Fingerprint</TableCell>
+                    <TableCell>First Seen</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {knownHosts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                        <Typography color="text.secondary">
+                          No known hosts configured
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    knownHosts.map((host) => (
+                      <TableRow key={`${host.hostname}-${host.key_type}`}>
+                        <TableCell>{host.hostname}</TableCell>
+                        <TableCell>{host.ip_address || '-'}</TableCell>
+                        <TableCell>{host.key_type.toUpperCase()}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                            {host.fingerprint}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(host.first_seen).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => removeKnownHost(host.hostname, host.key_type)}
+                            disabled={sshLoading}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={2}>
           <Typography variant="h6">User Preferences</Typography>
           <Typography color="text.secondary">Coming soon...</Typography>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
-          <Typography variant="h6">Security Settings</Typography>
-          <Typography color="text.secondary">Coming soon...</Typography>
+        <TabPanel value={tabValue} index={3}>
+          {/* Security Settings Section */}
+          <Card sx={{ mb: 4, p: 3 }}>
+            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  <PolicyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Logging Policy Management
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Configure centralized audit logging policies for applications, database, and network events.
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                disabled={securityLoading}
+              >
+                Create Policy
+              </Button>
+            </Box>
+
+            {loggingPolicies.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  No logging policies configured. Create a policy to enable centralized audit logging.
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Policy Name</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Frameworks</TableCell>
+                      <TableCell>Created</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {loggingPolicies.map((policy) => (
+                      <TableRow key={policy.id}>
+                        <TableCell>{policy.name}</TableCell>
+                        <TableCell>
+                          <Typography 
+                            variant="body2" 
+                            color={policy.enabled ? 'success.main' : 'text.secondary'}
+                          >
+                            {policy.enabled ? 'Enabled' : 'Disabled'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {policy.frameworks.join(', ')}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(policy.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell align="right">
+                          <IconButton size="small">
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton size="small" color="error">
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Card>
+
+          {/* Compliance Framework Support Section */}
+          <Card sx={{ p: 3 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                <ShieldIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Compliance Framework Support
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                OpenWatch supports the following compliance frameworks for audit logging:
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 2 }}>
+              {[
+                { name: 'SOC2', description: 'System and Organization Controls', enabled: true },
+                { name: 'HIPAA', description: 'Health Insurance Portability', enabled: true },
+                { name: 'PCI-DSS', description: 'Payment Card Industry', enabled: true },
+                { name: 'GDPR', description: 'General Data Protection', enabled: true }
+              ].map((framework) => (
+                <Card 
+                  key={framework.name} 
+                  variant="outlined" 
+                  sx={{ 
+                    p: 2, 
+                    textAlign: 'center',
+                    backgroundColor: framework.enabled ? 'action.selected' : 'background.paper'
+                  }}
+                >
+                  <Typography variant="h6" gutterBottom>
+                    {framework.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {framework.description}
+                  </Typography>
+                </Card>
+              ))}
+            </Box>
+          </Card>
         </TabPanel>
       </Card>
 
@@ -723,6 +1142,83 @@ const Settings: React.FC = () => {
             disabled={loading || !formData.name || !formData.username}
           >
             {loading ? 'Saving...' : editingCredential ? 'Update' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Host Key Dialog */}
+      <Dialog 
+        open={addHostKeyOpen} 
+        onClose={() => setAddHostKeyOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+      >
+        <DialogTitle>Add SSH Host Key</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'grid', gap: 2 }}>
+            <TextField
+              label="Hostname"
+              fullWidth
+              value={newHostKey.hostname}
+              onChange={(e) => setNewHostKey(prev => ({ ...prev, hostname: e.target.value }))}
+              helperText="The hostname or FQDN for this host key"
+              required
+            />
+            
+            <TextField
+              label="IP Address"
+              fullWidth
+              value={newHostKey.ip_address}
+              onChange={(e) => setNewHostKey(prev => ({ ...prev, ip_address: e.target.value }))}
+              helperText="Optional IP address for this host"
+            />
+            
+            <FormControl fullWidth>
+              <InputLabel>Key Type</InputLabel>
+              <Select
+                value={newHostKey.key_type}
+                onChange={(e) => setNewHostKey(prev => ({ ...prev, key_type: e.target.value }))}
+              >
+                <MenuItem value="rsa">RSA</MenuItem>
+                <MenuItem value="ecdsa">ECDSA</MenuItem>
+                <MenuItem value="ed25519">Ed25519</MenuItem>
+                <MenuItem value="dsa">DSA</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <TextField
+              label="Public Key"
+              fullWidth
+              multiline
+              rows={4}
+              value={newHostKey.public_key}
+              onChange={(e) => setNewHostKey(prev => ({ ...prev, public_key: e.target.value }))}
+              helperText="The SSH public key for this host (base64 encoded)"
+              placeholder="AAAAB3NzaC1yc2EAAAA..."
+              required
+            />
+            
+            <TextField
+              label="Notes"
+              fullWidth
+              multiline
+              rows={2}
+              value={newHostKey.notes}
+              onChange={(e) => setNewHostKey(prev => ({ ...prev, notes: e.target.value }))}
+              helperText="Optional notes about this host key"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddHostKeyOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={addKnownHost}
+            variant="contained"
+            disabled={sshLoading || !newHostKey.hostname || !newHostKey.public_key}
+          >
+            {sshLoading ? 'Adding...' : 'Add Host Key'}
           </Button>
         </DialogActions>
       </Dialog>

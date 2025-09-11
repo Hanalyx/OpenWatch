@@ -115,6 +115,10 @@ class Host(Base):
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
     display_name = Column(String(255), nullable=True)
     operating_system = Column(String(255), nullable=True)
+    os_family = Column(String(50), nullable=True)  # Added for compatibility validation
+    os_version = Column(String(100), nullable=True)  # Added for compatibility validation  
+    architecture = Column(String(50), nullable=True)  # Added for compatibility validation
+    last_os_detection = Column(DateTime, nullable=True)  # Added for OS detection tracking
     status = Column(String(50), default="offline", nullable=False)
     port = Column(Integer, default=22, nullable=False)
     username = Column(String(50), nullable=True)  # Made optional
@@ -142,6 +146,9 @@ class ScapContent(Base):
     profiles = Column(Text, nullable=True)  # JSON array of available profiles
     description = Column(Text, nullable=True)
     version = Column(String(50), nullable=True)
+    os_family = Column(String(50), nullable=True)  # Added for compatibility validation
+    os_version = Column(String(100), nullable=True)  # Added for OS version compatibility validation
+    compliance_framework = Column(String(100), nullable=True)  # Added for compliance tracking
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     file_hash = Column(String(64), nullable=False)  # SHA-256 hash for integrity
@@ -397,7 +404,7 @@ def get_db() -> Session:
         db.close()
 
 
-async def create_tables():
+def create_tables():
     """Create database tables if they don't exist"""
     try:
         Base.metadata.create_all(bind=engine)
@@ -407,7 +414,7 @@ async def create_tables():
         raise
 
 
-async def check_database_health() -> bool:
+def check_database_health() -> bool:
     """Check database connectivity for health checks"""
     try:
         from sqlalchemy import text

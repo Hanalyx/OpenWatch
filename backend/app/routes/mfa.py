@@ -86,7 +86,7 @@ class MFADisableRequest(BaseModel):
 
 
 # Audit Logging
-async def log_mfa_action(
+def log_mfa_action(
     db: Session,
     user_id: int,
     action: str,

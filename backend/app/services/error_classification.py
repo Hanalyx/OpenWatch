@@ -317,7 +317,7 @@ class PrivilegeValidator:
         
         try:
             # Check sudo access for oscap
-            stdin, stdout, stderr = ssh_client.exec_command('sudo -n oscap --version', timeout=10)
+            _, stdout, stderr = ssh_client.exec_command('sudo -n oscap --version', timeout=10)
             exit_status = stdout.channel.recv_exit_status()
             stderr_output = stderr.read().decode()
             
@@ -393,7 +393,7 @@ class ResourceValidator:
         
         try:
             # Check disk space in /tmp
-            stdin, stdout, stderr = ssh_client.exec_command("df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10)
+            _, stdout, _ = ssh_client.exec_command("df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10)
             available_output = stdout.read().decode().strip()
             
             if available_output:
@@ -462,7 +462,7 @@ class DependencyValidator:
         
         try:
             # Check if OpenSCAP is installed
-            stdin, stdout, stderr = ssh_client.exec_command('which oscap', timeout=10)
+            _, stdout, _ = ssh_client.exec_command('which oscap', timeout=10)
             oscap_path = stdout.read().decode().strip()
             
             if not oscap_path:

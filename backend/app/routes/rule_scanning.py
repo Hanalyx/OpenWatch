@@ -365,7 +365,7 @@ async def create_remediation_plan(
         raise HTTPException(status_code=500, detail="Failed to create remediation plan")
 
 
-async def _store_rule_scan_results(db: Session, scan_results: dict):
+def _store_rule_scan_results(db: Session, scan_results: dict):
     """Store rule scan results in database"""
     try:
         for rule_result in scan_results.get("rule_results", []):
@@ -401,7 +401,7 @@ async def _store_rule_scan_results(db: Session, scan_results: dict):
         db.rollback()
 
 
-async def _store_remediation_plan(db: Session, plan, created_by: int):
+def _store_remediation_plan(db: Session, plan, created_by: int):
     """Store remediation plan in database"""
     try:
         import json
@@ -440,7 +440,7 @@ async def _store_remediation_plan(db: Session, plan, created_by: int):
         db.rollback()
 
 
-async def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, verification_report: dict):
+def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, verification_report: dict):
     """Update remediation plan status after verification"""
     try:
         # Determine status based on verification results

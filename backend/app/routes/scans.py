@@ -46,12 +46,12 @@ def sanitize_http_error(
         client_ip = request.client.host if request.client else "unknown"
         user_id = current_user.get("sub") if current_user else None
         
-        # Classify the error internally
-        classified_error = asyncio.create_task(
-            error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
-        )
+        # Classify the error internally  
+        error_service = ErrorClassificationService()
+        _ = await error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
         
         # For synchronous context, use a generic approach
+        sanitization_service = get_error_sanitization_service()
         sanitized_error = sanitization_service.sanitize_error(
             {
                 'error_code': 'HTTP_ERROR',
@@ -345,7 +345,6 @@ async def quick_scan(
         scan_id = str(uuid.uuid4())
         
         # Pre-flight validation (async, non-blocking for optimistic UI)
-        validation_task = None
         try:
             from ..services.auth_service import get_auth_service
             auth_service = get_auth_service(db)
@@ -368,7 +367,7 @@ async def quick_scan(
             logger.warning(f"Pre-flight validation setup failed: {e}")
         
         # Create scan immediately (optimistic UI)
-        result = db.execute(text("""
+        db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -511,7 +510,6 @@ async def create_bulk_scan(
         )
         
         # Start the bulk scan session
-        start_result = await orchestrator.start_bulk_scan_session(session.id)
         
         logger.info(f"Bulk scan session created and started: {session.id}")
         
@@ -612,17 +610,21 @@ async def list_scan_sessions(
             where_conditions.append("created_by = :user_id")
             params["user_id"] = current_user["id"]
         
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
         # Get sessions
-        result = db.execute(text(f"""
+        base_sessions_query = """
             SELECT id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                    status, created_by, created_at, started_at, completed_at, estimated_completion
             FROM scan_sessions
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-        """), params)
+        """
+        
+        if where_conditions:
+            sessions_query = base_sessions_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            sessions_query = base_sessions_query
+            
+        sessions_query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+        
+        result = db.execute(text(sessions_query), params)
         
         sessions = []
         for row in result:
@@ -642,9 +644,11 @@ async def list_scan_sessions(
             })
         
         # Get total count
-        count_result = db.execute(text(f"""
-            SELECT COUNT(*) as total FROM scan_sessions {where_clause}
-        """), params).fetchone()
+        count_sessions_query = "SELECT COUNT(*) as total FROM scan_sessions"
+        if where_conditions:
+            count_sessions_query += " WHERE " + " AND ".join(where_conditions)
+            
+        count_result = db.execute(text(count_sessions_query), params).fetchone()
         
         return {
             "sessions": sessions,
@@ -814,21 +818,8 @@ async def list_scans(
                 "offset": offset
             }
         
-        # Build query
-        where_conditions = []
-        params = {"limit": limit, "offset": offset}
-        
-        if host_id:
-            where_conditions.append("s.host_id = %(host_id)s")
-            params["host_id"] = host_id
-        
-        if status:
-            where_conditions.append("s.status = %(status)s")
-            params["status"] = status
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
-        query = """
+        # Build query without mixing string formatting and parameter binding
+        base_query = """
             SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status,
                    s.progress, s.started_at, s.completed_at, s.started_by,
                    s.error_message, s.result_file, s.report_file,
@@ -841,10 +832,27 @@ async def list_scans(
             LEFT JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scap_content c ON s.content_id = c.id
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
-            {}
-            ORDER BY s.started_at DESC
-            LIMIT :limit OFFSET :offset
-        """.format(where_clause)
+        """
+        
+        # Build WHERE conditions and parameters
+        where_conditions = []
+        params = {"limit": limit, "offset": offset}
+        
+        if host_id:
+            where_conditions.append("s.host_id = :host_id")
+            params["host_id"] = host_id
+        
+        if status:
+            where_conditions.append("s.status = :status")
+            params["status"] = status
+        
+        # Complete the query
+        if where_conditions:
+            query = base_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            query = base_query
+            
+        query += " ORDER BY s.started_at DESC LIMIT :limit OFFSET :offset"
         
         result = db.execute(text(query), params)
         
@@ -896,13 +904,18 @@ async def list_scans(
             scans.append(scan_data)
         
         # Get total count
-        count_query = """
+        count_base_query = """
             SELECT COUNT(*) as total
             FROM scans s
             LEFT JOIN hosts h ON s.host_id = h.id
             LEFT JOIN scap_content c ON s.content_id = c.id
-            {}
-        """.format(where_clause)
+        """
+        
+        if where_conditions:
+            count_query = count_base_query + " WHERE " + " AND ".join(where_conditions)
+        else:
+            count_query = count_base_query
+            
         total_result = db.execute(text(count_query), params).fetchone()
         
         return {
@@ -958,7 +971,7 @@ async def create_scan(
         # Create scan record with UUID primary key
         import json
         scan_id = str(uuid.uuid4())
-        result = db.execute(text("""
+        db.execute(text("""
             INSERT INTO scans 
             (id, name, host_id, content_id, profile_id, status, progress, 
              scan_options, started_by, started_at, remediation_requested, verification_scan)
@@ -1543,7 +1556,6 @@ async def get_scan_failed_rules(
             except Exception as e:
                 logger.error(f"Error parsing scan results for failed rules: {e}")
                 # Return basic info even if parsing fails
-                pass
         
         response_data = {
             "scan_id": scan_id,

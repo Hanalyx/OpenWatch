@@ -206,15 +206,15 @@ class ScanIntelligenceService:
         if env in self.ENVIRONMENT_PROFILES:
             env_profiles = self.ENVIRONMENT_PROFILES[env]
             
-            # Check for federal/government
-            if "federal" in owner or "gov" in owner or "dod" in owner:
+            # Check for federal/regulatory
+            if "federal" in owner or "gov" in owner or "dod" in owner or "regulatory" in owner:
                 if "federal" in env_profiles:
                     return ProfileSuggestion(
                         profile_id=env_profiles["federal"],
                         content_id=1,  # Will be updated with actual content
                         name="STIG Compliance",
                         confidence=0.9,
-                        reasoning=[f"Federal/government owner detected", f"Environment: {env}"],
+                        reasoning=[f"Federal/regulatory owner detected", f"Environment: {env}"],
                         estimated_duration="15-25 min",
                         rule_count=340,
                         priority=ScanPriority.HIGH

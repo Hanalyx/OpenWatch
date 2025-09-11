@@ -182,7 +182,7 @@ class SecureCeleryManager:
 celery_manager = SecureCeleryManager()
 
 
-async def check_redis_health() -> bool:
+def check_redis_health() -> bool:
     """Check Redis connectivity for health checks"""
     try:
         # Parse Redis URL
@@ -209,7 +209,7 @@ async def check_redis_health() -> bool:
         return True
         
     except Exception as e:
-        logger.error(f"Redis health check failed: {e}")
+        logger.error(f"Redis health check failed: {type(e).__name__}")
         return False
 
 

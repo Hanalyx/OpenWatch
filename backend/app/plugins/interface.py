@@ -107,7 +107,7 @@ class PluginInterface(ABC):
         """Cleanup plugin resources. Return True if successful."""
         pass
     
-    async def health_check(self) -> Dict:
+    def health_check(self) -> Dict:
         """Perform plugin health check"""
         return {
             "status": "healthy" if self.enabled else "disabled",
@@ -142,7 +142,7 @@ class ScannerPlugin(PluginInterface):
         """Validate SCAP content compatibility with this scanner"""
         pass
     
-    async def get_supported_profiles(self, content_path: str) -> List[Dict]:
+    def get_supported_profiles(self, content_path: str) -> List[Dict]:
         """Get profiles supported by this scanner"""
         return []
 
@@ -161,7 +161,7 @@ class ReporterPlugin(PluginInterface):
         """Get list of supported report formats"""
         pass
     
-    async def get_report_template(self, format_type: str) -> Optional[str]:
+    def get_report_template(self, format_type: str) -> Optional[str]:
         """Get report template for the specified format"""
         return None
 
@@ -186,7 +186,7 @@ class RemediationPlugin(PluginInterface):
         """Get remediation plan for multiple failed rules"""
         pass
     
-    async def validate_remediation(self, rule_id: str, host_config: Dict) -> Dict:
+    def validate_remediation(self, rule_id: str, host_config: Dict) -> Dict:
         """Validate that remediation was successful"""
         return {"status": "unknown", "validated": False}
 
@@ -205,7 +205,7 @@ class IntegrationPlugin(PluginInterface):
         """Import SCAP content from external source"""
         pass
     
-    async def sync_hosts(self, source_config: Dict) -> List[Dict]:
+    def sync_hosts(self, source_config: Dict) -> List[Dict]:
         """Synchronize host inventory from external system"""
         return []
 
@@ -228,7 +228,7 @@ class ContentPlugin(PluginInterface):
         """Validate content integrity and authenticity"""
         pass
     
-    async def get_content_metadata(self, content_id: str) -> Dict:
+    def get_content_metadata(self, content_id: str) -> Dict:
         """Get metadata for specific content"""
         return {}
 
@@ -247,7 +247,7 @@ class AuthenticationPlugin(PluginInterface):
         """Check if user is authorized for specific action on resource"""
         pass
     
-    async def get_user_groups(self, user_info: Dict) -> List[str]:
+    def get_user_groups(self, user_info: Dict) -> List[str]:
         """Get list of groups for authenticated user"""
         return []
 
@@ -266,7 +266,7 @@ class NotificationPlugin(PluginInterface):
         """Get supported notification types"""
         pass
     
-    async def validate_recipients(self, recipients: List[str]) -> List[str]:
+    def validate_recipients(self, recipients: List[str]) -> List[str]:
         """Validate and return valid recipients"""
         return recipients
 

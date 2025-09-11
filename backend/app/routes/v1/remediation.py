@@ -556,7 +556,7 @@ async def _execute_manual_remediation(job_id, scan_id, host_id, failed_rules, op
     logger.info(f"Manual remediation job {job_id} completed (simulated)")
 
 
-async def _check_aegis_status():
+def _check_aegis_status():
     """Check AEGIS provider status"""
     settings = get_settings()
     aegis_url = getattr(settings, 'aegis_url', None)
@@ -587,7 +587,7 @@ async def _check_ansible_status():
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await process.communicate()
+        stdout, _ = await process.communicate()
         
         if process.returncode == 0:
             version = stdout.decode().split('\n')[0]
