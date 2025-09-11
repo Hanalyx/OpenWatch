@@ -1,3 +1,12 @@
+
+def sanitize_for_log(value: any) -> str:
+    """Sanitize user input for safe logging"""
+    if value is None:
+        return "None"
+    str_value = str(value)
+    # Remove newlines and control characters to prevent log injection
+    return str_value.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')[:1000]
+
 """
 OpenWatch Secure Automated Fixes API Routes
 
@@ -183,7 +192,7 @@ async def approve_fix_request(
         if result["success"]:
             logger.info(f"Fix request approved: {request_id} by {current_user.get('username')}")
         else:
-            logger.warning(f"Fix approval failed: {request_id} - {result['message']}")
+            logger.warning(f"Fix approval failed: {request_id} - {sanitize_for_log(result['message'])}")
             
         return result
         
@@ -218,7 +227,7 @@ async def execute_approved_fix(
         if result["success"]:
             logger.info(f"Fix executed successfully: {request_id}")
         else:
-            logger.warning(f"Fix execution failed: {request_id} - {result['message']}")
+            logger.warning(f"Fix execution failed: {request_id} - {sanitize_for_log(result['message'])}")
             
         return result
         
@@ -259,7 +268,7 @@ async def rollback_fix(
         if result["success"]:
             logger.info(f"Fix rolled back successfully: {request_id} by {current_user.get('username')}")
         else:
-            logger.warning(f"Fix rollback failed: {request_id} - {result['message']}")
+            logger.warning(f"Fix rollback failed: {request_id} - {sanitize_for_log(result['message'])}")
             
         return result
         

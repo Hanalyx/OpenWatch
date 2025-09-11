@@ -11,6 +11,7 @@ from datetime import datetime
 import logging
 
 from ..database import get_db
+from ..utils.logging_security import sanitize_id_for_log
 from ..auth import get_current_user, pwd_context
 from ..rbac import (
     require_permission, require_super_admin, require_admin,
@@ -286,7 +287,7 @@ async def get_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving user {user_id}: {e}")
+        logger.error(f"Error retrieving user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Failed to retrieve user")
 
 
@@ -365,7 +366,7 @@ async def update_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating user {user_id}: {e}")
+        logger.error(f"Error updating user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update user")
 
@@ -404,7 +405,7 @@ async def delete_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting user {user_id}: {e}")
+        logger.error(f"Error deleting user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete user")
 
@@ -447,7 +448,7 @@ async def change_password(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error changing password for user {current_user.get('id')}: {e}")
+        logger.error(f"Error changing password for user {sanitize_id_for_log(current_user.get('id'))}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to change password")
 

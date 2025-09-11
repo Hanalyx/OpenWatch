@@ -33,6 +33,7 @@ from ..models.authorization_models import (
 )
 from ..auth import get_current_user
 from ..database import get_db
+from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             # Get current user from token
             current_user = await self._extract_current_user(request)
             if not current_user:
-                logger.warning(f"Authorization failed: No authenticated user for {request.method} {request.url.path}")
+                logger.warning(f"Authorization failed: No authenticated user for {request.method} {sanitize_for_log(str(request.url.path))}")
                 return self._create_error_response(
                     status.HTTP_401_UNAUTHORIZED,
                     "Authentication required",
@@ -120,7 +121,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             # Extract resources from request
             resources = await self._extract_resources(request, endpoint_config, current_user)
             if not resources:
-                logger.warning(f"Authorization failed: Could not extract resources from request {request.method} {request.url.path}")
+                logger.warning(f"Authorization failed: Could not extract resources from request {request.method} {sanitize_for_log(str(request.url.path))}")
                 return self._create_error_response(
                     status.HTTP_400_BAD_REQUEST,
                     "Could not determine resources for authorization",
@@ -140,7 +141,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             )
             
             if authorization_result.overall_decision != AuthorizationDecision.ALLOW:
-                logger.warning(f"Authorization denied for user {current_user['id']} on {request.method} {request.url.path}: "
+                logger.warning(f"Authorization denied for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))}: "
                               f"{len(authorization_result.denied_resources)} resources denied")
                 return self._create_authorization_error_response(authorization_result, request.url.path)
             
@@ -153,7 +154,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             
             # Log successful authorization
             processing_time = int((time.time() - start_time) * 1000)
-            logger.info(f"Authorization successful for user {current_user['id']} on {request.method} {request.url.path} "
+            logger.info(f"Authorization successful for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))} ")
                        f"({len(authorization_result.allowed_resources)} resources, {processing_time}ms)")
             
             return response

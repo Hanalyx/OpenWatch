@@ -15,6 +15,7 @@ from ..config import get_settings
 from ..database import get_db
 from ..rbac import UserRole
 from ..audit_db import log_login_event
+from ..utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -223,10 +224,10 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
         # Re-raise HTTP exceptions (already logged above)
         raise
     except Exception as e:
-        logger.error(f"Login failed for {request.username}: {e}")
+        logger.error(f"Login failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}")
         audit_logger.log_security_event(
             "LOGIN_FAILURE",
-            f"System error during login for {request.username}: {str(e)}",
+            f"System error during login for {sanitize_username_for_log(request.username)}: system error",
             client_ip
         )
         await log_login_event(
@@ -306,7 +307,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Registration failed for {request.username}: {e}")
+        logger.error(f"Registration failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

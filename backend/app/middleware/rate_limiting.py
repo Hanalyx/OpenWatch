@@ -120,7 +120,7 @@ class RateLimitStore:
         current_minute = int(now // 60)
         cutoff_minute = current_minute - 120  # Keep 2 hours of data
         
-        for client_id in list(self.suspicious_activity.keys()):
+        for client_id in self.suspicious_activity.keys():
             activities = self.suspicious_activity[client_id]
             old_keys = [
                 key for key in activities.keys()

@@ -18,6 +18,7 @@ import logging
 
 from .encryption import encrypt_data, decrypt_data
 from ..config import get_settings
+from ..utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -226,7 +227,7 @@ class MFAService:
             )
             
         except Exception as e:
-            logger.error(f"MFA enrollment failed for ***REDACTED***: {e}")
+            logger.error(f"MFA enrollment failed for {sanitize_username_for_log(username)}: {type(e).__name__}")
             return MFAEnrollmentResult(
                 success=False,
                 error_message=f"Enrollment failed: {str(e)}"
@@ -298,11 +299,11 @@ class MFAService:
         """
         try:
             backup_codes = self.generate_backup_codes()
-            logger.info(f"Regenerated backup codes for user: ***REDACTED***)")
+            logger.info(f"Regenerated backup codes for user: {sanitize_username_for_log(username)}")
             return backup_codes
             
         except Exception as e:
-            logger.error(f"Failed to regenerate backup codes for ***REDACTED***: {e}")
+            logger.error(f"Failed to regenerate backup codes for {sanitize_username_for_log(username)}: {type(e).__name__}")
             raise
     
     def get_mfa_status(self, user_data: Dict) -> Dict[str, any]:
