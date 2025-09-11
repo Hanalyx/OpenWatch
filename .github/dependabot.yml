@@ -1,20 +1,24 @@
 version: 2
 updates:
-  # Python dependencies for backend
+  # Python dependencies for backend (regular updates)
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "04:00"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 10
     reviewers:
       - "Hanalyx/security-team"
+    assignees:
+      - "daniel-kim"  # Backend lead
     labels:
       - "dependencies"
+      - "backend"
       - "python"
     commit-message:
-      prefix: "chore"
+      prefix: "backend"
       include: "scope"
     groups:
       python-minor:
@@ -23,22 +27,30 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Auto-merge configuration for patch updates
+    allow:
+      - dependency-type: "all"
+        update-type: "version-update:semver-patch"
 
-  # JavaScript dependencies for frontend
+  # JavaScript dependencies for frontend (regular updates)
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "04:00"
+      time: "10:00"
+      timezone: "UTC"
     open-pull-requests-limit: 10
     reviewers:
       - "Hanalyx/frontend-team"
+    assignees:
+      - "sofia-alvarez"  # Frontend lead
     labels:
       - "dependencies"
+      - "frontend"
       - "javascript"
     commit-message:
-      prefix: "chore"
+      prefix: "frontend"
       include: "scope"
     groups:
       npm-production:
@@ -51,21 +63,32 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Auto-merge configuration
+    allow:
+      - dependency-type: "development"
+        update-type: "version-update:semver-patch"
+      - dependency-type: "production"
+        update-type: "version-update:semver-patch"
 
   # Docker base images
   - package-ecosystem: "docker"
-    directory: "/docker"
+    directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
     reviewers:
       - "Hanalyx/devops-team"
+    assignees:
+      - "marcus-rodriguez"  # DevOps lead
     labels:
       - "dependencies"
       - "docker"
+      - "infrastructure"
     commit-message:
-      prefix: "chore"
+      prefix: "docker"
       include: "scope"
 
   # GitHub Actions
@@ -73,13 +96,97 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      day: "tuesday"
+      time: "10:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
     reviewers:
       - "Hanalyx/devops-team"
+    assignees:
+      - "marcus-rodriguez"  # DevOps lead
     labels:
       - "dependencies"
+      - "ci-cd"
       - "github-actions"
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
       include: "scope"
+    # Auto-merge patch updates for actions
+    allow:
+      - dependency-type: "all"
+        update-type: "version-update:semver-patch"
+
+  # Security-focused updates for frontend (daily)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "UTC"
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "security"
+      - "critical"
+      - "frontend"
+    reviewers:
+      - "Hanalyx/security-team"
+    assignees:
+      - "emily-chen"  # Security lead
+    commit-message:
+      prefix: "security(frontend)"
+      include: "scope"
+    # Only security updates on daily schedule
+    allow:
+      - dependency-type: "all"
+        update-type: "security-update"
+        
+  # Security-focused updates for backend (daily)
+  - package-ecosystem: "pip" 
+    directory: "/backend"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "UTC"
+    target-branch: "main"
+    labels:
+      - "dependencies"
+      - "security"
+      - "critical"
+      - "backend"
+    reviewers:
+      - "Hanalyx/security-team"
+    assignees:
+      - "emily-chen"  # Security lead
+    commit-message:
+      prefix: "security(backend)"
+      include: "scope"
+    # Only security updates on daily schedule
+    allow:
+      - dependency-type: "all"
+        update-type: "security-update"
+
+# Global ignore patterns
+ignore:
+  # Ignore specific packages that require manual coordination
+  - dependency-name: "react"
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "@mui/material"
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "fastapi"
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "sqlalchemy"
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "node"
+    # Ignore Node.js base image major updates
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "python"
+    # Ignore Python base image major updates  
+    update-types: ["version-update:semver-major"]
+  - dependency-name: "postgres"
+    # Ignore PostgreSQL major version updates
+    update-types: ["version-update:semver-major"]
+  
+  # Ignore beta/alpha releases globally
+  - dependency-name: "*"
+    versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]
