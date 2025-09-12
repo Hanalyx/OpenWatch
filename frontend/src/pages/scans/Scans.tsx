@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -41,13 +41,16 @@ const Scans: React.FC = () => {
   const [scans, setScans] = useState<Scan[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scansRef = useRef<Scan[]>([]);
 
   const fetchScans = async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await api.get<{scans: Scan[]}>('/api/scans/');
-      setScans(data.scans || []);
+      const newScans = data.scans || [];
+      setScans(newScans);
+      scansRef.current = newScans;
     } catch (error: any) {
       console.error('Failed to load scans:', error);
       
@@ -67,15 +70,15 @@ const Scans: React.FC = () => {
   useEffect(() => {
     fetchScans();
     
-    // Set up periodic refresh for running scans
+    // Set up periodic refresh for running scans using ref to avoid infinite loop
     const interval = setInterval(() => {
-      if (scans.some(scan => scan.status === 'running')) {
+      if (scansRef.current.some(scan => scan.status === 'running')) {
         fetchScans();
       }
     }, 10000); // Refresh every 10 seconds if there are running scans
     
     return () => clearInterval(interval);
-  }, [scans]);
+  }, []); // Empty dependency array - only run once
 
   const getStatusColor = (status: string) => {
     switch (status) {
