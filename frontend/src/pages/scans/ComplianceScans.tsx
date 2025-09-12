@@ -101,7 +101,7 @@ const ComplianceScans: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/api/hosts/');
-      setHosts(response.hosts || []);
+      setHosts(response || []); // Backend returns array directly, not {hosts: []}
     } catch (error) {
       console.error('Failed to load hosts:', error);
       setError('Failed to load hosts');
@@ -114,7 +114,7 @@ const ComplianceScans: React.FC = () => {
     try {
       setLoading(true);
       const response = await api.get('/api/host-groups/');
-      setGroups(response.groups || []);
+      setGroups(response || []); // Backend returns array directly, not {groups: []}
     } catch (error) {
       console.error('Failed to load groups:', error);
       setError('Failed to load host groups');
