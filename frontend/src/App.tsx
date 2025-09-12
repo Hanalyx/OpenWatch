@@ -18,6 +18,7 @@ import AddHost from './pages/hosts/AddHost';
 import ComplianceGroups from './pages/host-groups/ComplianceGroups';
 import Content from './pages/content/Content';
 import Scans from './pages/scans/Scans';
+import ComplianceScans from './pages/scans/ComplianceScans';
 import ScanDetail from './pages/scans/ScanDetail';
 import NewScan from './pages/scans/NewScan';
 import NewScapScan from './pages/scans/NewScapScan';
@@ -72,6 +73,7 @@ function App() {
                 <Route path="/host-groups" element={<ComplianceGroups />} />
                 <Route path="/content" element={<Content />} />
                 <Route path="/scans" element={<Scans />} />
+                <Route path="/scans/compliance" element={<ComplianceScans />} />
                 <Route path="/scans/new" element={<NewScan />} />
                 <Route path="/scans/new-scap" element={<NewScapScan />} />
                 <Route path="/scans/:id" element={<ScanDetail />} />

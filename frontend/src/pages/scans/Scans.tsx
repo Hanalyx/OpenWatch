@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardContent,
   Container,
   Typography,
   Table,
@@ -15,15 +13,10 @@ import {
   Paper,
   Chip,
   LinearProgress,
-  Menu,
-  MenuItem,
-  IconButton,
-  Alert,
-  Grid
+  IconButton
 } from '@mui/material';
 import {
   Add as AddIcon,
-  PlayArrow as PlayArrowIcon,
   MoreVert as MoreVertIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -109,29 +102,22 @@ const Scans: React.FC = () => {
       </Box>
 
       {/* Actions Bar */}
-      <Box sx={{ mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/scans/new')}
-              size="large"
-            >
-              New Scan
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6} sx={{ textAlign: 'right' }}>
-            <Button
-              variant="outlined"
-              startIcon={<PlayArrowIcon />}
-              onClick={() => console.log('Start all pending scans')}
-              disabled={!scans.some(scan => scan.status === 'pending')}
-            >
-              Start All Pending
-            </Button>
-          </Grid>
-        </Grid>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/scans/compliance')}
+          size="large"
+        >
+          New Scan
+        </Button>
+        <Button
+          variant="text"
+          disabled
+          sx={{ color: 'text.secondary' }}
+        >
+          Start All Pending
+        </Button>
       </Box>
 
       {/* Scans Table */}
@@ -169,7 +155,7 @@ const Scans: React.FC = () => {
                       <Button
                         variant="contained"
                         startIcon={<AddIcon />}
-                        onClick={() => navigate('/scans/new')}
+                        onClick={() => navigate('/scans/compliance')}
                       >
                         Create Your First Scan
                       </Button>
