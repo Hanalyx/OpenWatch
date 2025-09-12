@@ -13,7 +13,9 @@ import {
   Paper,
   Chip,
   LinearProgress,
-  IconButton
+  IconButton,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -38,10 +40,12 @@ const Scans: React.FC = () => {
   const navigate = useNavigate();
   const [scans, setScans] = useState<Scan[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchScans = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await api.get<{scans: Scan[]}>('/api/scans/');
       setScans(data.scans || []);
     } catch (error: any) {
@@ -49,11 +53,11 @@ const Scans: React.FC = () => {
       
       // Show user-friendly error message
       if (error.isNetworkError) {
-        console.error('Network error: Unable to connect to server');
+        setError('Network error: Unable to connect to server');
       } else if (error.status === 401) {
-        console.error('Authentication required');
+        setError('Authentication required');
       } else {
-        console.error('Failed to load scans data');
+        setError('Failed to load scans data');
       }
     } finally {
       setLoading(false);
@@ -62,7 +66,16 @@ const Scans: React.FC = () => {
 
   useEffect(() => {
     fetchScans();
-  }, []);
+    
+    // Set up periodic refresh for running scans
+    const interval = setInterval(() => {
+      if (scans.some(scan => scan.status === 'running')) {
+        fetchScans();
+      }
+    }, 10000); // Refresh every 10 seconds if there are running scans
+    
+    return () => clearInterval(interval);
+  }, [scans]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -119,6 +132,28 @@ const Scans: React.FC = () => {
           Start All Pending
         </Button>
       </Box>
+
+      {/* Error Display */}
+      {error && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={fetchScans}
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={16} /> : undefined}
+            >
+              {loading ? 'Retrying...' : 'Retry'}
+            </Button>
+          }
+          onClose={() => setError(null)}
+        >
+          {error}
+        </Alert>
+      )}
 
       {/* Scans Table */}
       <Paper>

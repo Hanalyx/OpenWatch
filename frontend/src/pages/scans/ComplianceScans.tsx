@@ -95,7 +95,7 @@ const ComplianceScans: React.FC = () => {
     if (activeStep === 1) {
       loadRules();
     }
-  }, [activeStep]);
+  }, [activeStep, frameworkFilter, severityFilter]);
 
   const loadHosts = async () => {
     try {
@@ -127,8 +127,23 @@ const ComplianceScans: React.FC = () => {
     try {
       setLoading(true);
       setRulesError(false);
-      const response = await api.get('/api/compliance/rules');
-      setRules(response.rules || []);
+      const params: any = {};
+      if (frameworkFilter) params.framework = frameworkFilter;
+      if (severityFilter) params.business_impact = severityFilter;
+      
+      const response = await api.get('/api/compliance/semantic-rules', { params });
+      
+      // Transform the response to match our interface
+      const transformedRules = (response.rules || []).map((rule: any) => ({
+        id: rule.id,
+        rule_id: rule.scap_rule_id,
+        title: rule.title,
+        description: rule.compliance_intent,
+        severity: rule.risk_level?.toLowerCase() || 'medium',
+        framework: rule.frameworks?.[0] || 'unknown'
+      }));
+      
+      setRules(transformedRules);
     } catch (error) {
       console.error('Failed to load rules:', error);
       setRulesError(true);
@@ -178,15 +193,24 @@ const ComplianceScans: React.FC = () => {
   const handleStartScan = async () => {
     try {
       setLoading(true);
-      const payload = {
-        target_type: targetType,
-        target_ids: targetType === 'hosts' ? selectedHosts : selectedGroups,
-        rule_ids: selectedRules,
-        scan_name: `Compliance Scan - ${new Date().toISOString()}`
-      };
       
-      const response = await api.post('/api/scans/compliance', payload);
-      navigate(`/scans/${response.scan_id}`);
+      if (targetType === 'groups') {
+        // Use group compliance endpoint for host groups
+        for (const groupId of selectedGroups) {
+          const response = await api.post(`/api/group-compliance/${groupId}/scan`, {
+            rule_ids: selectedRules,
+            scan_name: `Compliance Scan - ${new Date().toISOString()}`
+          });
+          console.log(`Started scan for group ${groupId}:`, response);
+        }
+        // Navigate to scans list to see all started scans
+        navigate('/scans');
+      } else {
+        // For individual hosts, we need to create individual scans
+        // This would require the regular scan endpoint with compliance profile
+        setError('Individual host scanning not yet implemented. Please use host groups for now.');
+        return;
+      }
     } catch (error) {
       console.error('Failed to start scan:', error);
       setError('Failed to start compliance scan');
@@ -281,8 +305,11 @@ const ComplianceScans: React.FC = () => {
       </Box>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
           <CircularProgress />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Loading available hosts...
+          </Typography>
         </Box>
       ) : hosts.length === 0 ? (
         <Alert severity="info">No hosts available for scanning</Alert>
@@ -410,8 +437,11 @@ const ComplianceScans: React.FC = () => {
       </Box>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
           <CircularProgress />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Loading compliance rules...
+          </Typography>
         </Box>
       ) : rulesError ? (
         <Box sx={{ py: 8, textAlign: 'center' }}>
@@ -421,10 +451,18 @@ const ComplianceScans: React.FC = () => {
           <Typography variant="body2" color="text.secondary" gutterBottom>
             No compliance rules available
           </Typography>
-          <Alert severity="error" sx={{ mt: 3 }}>
+          <Alert severity="error" sx={{ mt: 3, mb: 2 }}>
             We don't see compliance rules here because the MongoDB database failed to connect
             but this is the view for step 4
           </Alert>
+          <Button
+            variant="outlined"
+            onClick={loadRules}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : undefined}
+          >
+            {loading ? 'Retrying...' : 'Retry Loading Rules'}
+          </Button>
         </Box>
       ) : rules.length === 0 ? (
         <Alert severity="info">No compliance rules available</Alert>
