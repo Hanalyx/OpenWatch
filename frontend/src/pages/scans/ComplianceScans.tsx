@@ -221,12 +221,14 @@ const ComplianceScans: React.FC = () => {
 
   const renderSelectTarget = () => (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-        Select Target Type
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Choose whether to scan individual hosts or host groups.
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Select Target Type
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Choose whether to scan individual hosts or host groups.
+        </Typography>
+      </Box>
       
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
@@ -286,12 +288,12 @@ const ComplianceScans: React.FC = () => {
 
   const renderSelectHosts = () => (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h5" component="h2" gutterBottom>
             Select Target Hosts
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body1" color="text.secondary">
             Select one or more hosts to scan for compliance.
           </Typography>
         </Box>
@@ -364,12 +366,14 @@ const ComplianceScans: React.FC = () => {
 
   const renderChooseRules = () => (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-        Choose Compliance Rules
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Select specific compliance rules to check or enable full scan for comprehensive assessment.
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Choose Compliance Rules
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Select specific compliance rules to check or enable full scan for comprehensive assessment.
+        </Typography>
+      </Box>
 
       <Box sx={{ mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
@@ -547,9 +551,11 @@ const ComplianceScans: React.FC = () => {
 
   const renderReviewAndStart = () => (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-        Review & Start Scan
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Review & Start Scan
+        </Typography>
+      </Box>
       
       <Grid container spacing={3}>
         <Grid item xs={12}>
@@ -605,20 +611,27 @@ const ComplianceScans: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl">
+      {/* Standard Header Pattern */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          New SCAP Scan
+          New Compliance Scan
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Create and configure security compliance scans for your infrastructure
         </Typography>
       </Box>
 
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label, index) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+      {/* Stepper in Paper Container */}
+      <Paper sx={{ mb: 3, p: 3 }}>
+        <Stepper activeStep={activeStep}>
+          {steps.map((label, index) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+      </Paper>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -626,11 +639,16 @@ const ComplianceScans: React.FC = () => {
         </Alert>
       )}
 
-      <Box sx={{ mb: 4 }}>
-        {getStepContent()}
-      </Box>
+      {/* Content in Card */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent sx={{ p: 3 }}>
+          {getStepContent()}
+        </CardContent>
+      </Card>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+      {/* Navigation Actions */}
+      <Paper sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Button
           onClick={() => {
             if (activeStep === 0 && targetType !== null) {
@@ -659,7 +677,8 @@ const ComplianceScans: React.FC = () => {
             Next
           </Button>
         )}
-      </Box>
+        </Box>
+      </Paper>
     </Container>
   );
 };
