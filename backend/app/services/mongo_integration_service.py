@@ -8,7 +8,7 @@ import asyncio
 import logging
 from beanie import PydanticObjectId
 
-from app.models.mongo_models import (
+from ..models.mongo_models import (
     ComplianceRule, 
     RuleIntelligence, 
     RemediationScript,
@@ -17,7 +17,7 @@ from app.models.mongo_models import (
     PlatformImplementation,
     get_mongo_manager
 )
-from app.config import get_settings
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 

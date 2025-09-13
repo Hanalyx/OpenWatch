@@ -195,7 +195,7 @@ async def bulk_import_hosts(
             continue
     
     # Log the bulk import operation
-    await log_security_event(
+    log_security_event(
         db=db,
         event_type="BULK_HOST_IMPORT",
         user_id=current_user["id"],
@@ -281,7 +281,7 @@ async def export_hosts_csv(
         ])
     
     # Log export operation
-    await log_security_event(
+    log_security_event(
         db=db,
         event_type="HOST_EXPORT",
         user_id=current_user["id"],
@@ -502,7 +502,7 @@ async def import_with_mapping(
                 continue
         
         # Log the import operation
-        await log_security_event(
+        log_security_event(
             db=db,
             event_type="ENHANCED_BULK_IMPORT",
             user_id=current_user["id"],

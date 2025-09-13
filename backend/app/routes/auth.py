@@ -79,7 +79,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
                 f"Login attempt with non-existent username: {request.username}", 
                 client_ip
             )
-            await log_login_event(
+            log_login_event(
                 db=db,
                 username=request.username,
                 user_id=None,
@@ -100,7 +100,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
                 f"Login attempt with inactive account: {request.username}", 
                 client_ip
             )
-            await log_login_event(
+            log_login_event(
                 db=db,
                 username=request.username,
                 user_id=user.id,
@@ -121,7 +121,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
                 f"Login attempt with locked account: {request.username}", 
                 client_ip
             )
-            await log_login_event(
+            log_login_event(
                 db=db,
                 username=request.username,
                 user_id=user.id,
@@ -161,7 +161,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
                 f"Invalid password for user: {request.username} (attempt {failed_attempts})", 
                 client_ip
             )
-            await log_login_event(
+            log_login_event(
                 db=db,
                 username=request.username,
                 user_id=user.id,
@@ -204,7 +204,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
             f"User {request.username} logged in successfully",
             client_ip
         )
-        await log_login_event(
+        log_login_event(
             db=db,
             username=request.username,
             user_id=user.id,
@@ -230,7 +230,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
             f"System error during login for {sanitize_username_for_log(request.username)}: system error",
             client_ip
         )
-        await log_login_event(
+        log_login_event(
             db=db,
             username=request.username,
             user_id=None,

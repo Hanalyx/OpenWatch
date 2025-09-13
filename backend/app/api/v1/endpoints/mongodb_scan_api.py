@@ -9,11 +9,11 @@ from datetime import datetime
 import logging
 import uuid
 
-from app.services.mongodb_scap_scanner import MongoDBSCAPScanner
-from app.services.result_enrichment_service import ResultEnrichmentService
-from app.services.compliance_framework_reporting import ComplianceFrameworkReporter
-from app.auth import get_current_user
-from app.models.user import User
+from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
+from ....services.result_enrichment_service import ResultEnrichmentService
+from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
+from ....auth import get_current_user
+from ....models.user import User
 
 logger = logging.getLogger(__name__)
 

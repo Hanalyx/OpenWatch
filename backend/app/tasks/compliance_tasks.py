@@ -9,11 +9,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.app.celery_app import celery_app
-from backend.app.database import get_db_session
+from backend.app.database import get_db_session, HostGroup, ScapContent
 # GroupScanService removed - using group_compliance API instead
 from backend.app.services.scap_scanner import SCAPScanner
-from backend.app.models.hosts import HostGroup
-from backend.app.models.scap_content import SCAPContent
 from backend.app.routes.group_compliance import execute_group_compliance_scan
 
 

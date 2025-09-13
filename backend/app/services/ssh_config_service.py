@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
 
-from ..database import SystemSettings, SSHKnownHosts, get_db
+from ..database import get_db
+# TODO: Add SystemSettings, SSHKnownHosts models when needed
 
 logger = logging.getLogger(__name__)
 

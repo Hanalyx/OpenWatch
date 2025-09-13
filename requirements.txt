@@ -8,6 +8,10 @@ psycopg2-binary==2.9.10
 asyncpg==0.30.0
 celery==5.4.0
 redis==5.2.1
+# MongoDB dependencies for compliance rules and analytics
+beanie==1.26.0
+motor==3.6.0
+pymongo>=4.9,<4.10
 pydantic[email]==2.10.4
 pydantic-settings==2.8.0
 # python-jose[cryptography]==3.3.0  # Removed - using pyjwt instead (CVE fix)

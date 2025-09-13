@@ -387,7 +387,7 @@ class TerminalService:
             host = SimpleHost(host_data)
             
             # Log terminal access attempt
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="TERMINAL_ACCESS",
                 ip_address=client_ip,
@@ -403,7 +403,7 @@ class TerminalService:
             
             if connection_success:
                 # Log successful connection
-                await log_security_event(
+                log_security_event(
                     db=db,
                     event_type="TERMINAL_CONNECTED",
                     ip_address=client_ip,
@@ -420,7 +420,7 @@ class TerminalService:
                     pass
             else:
                 # Log failed connection
-                await log_security_event(
+                log_security_event(
                     db=db,
                     event_type="TERMINAL_FAILED",
                     ip_address=client_ip,

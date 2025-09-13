@@ -49,7 +49,7 @@ def sanitize_http_error(
         
         # Classify the error internally  
         error_service = ErrorClassificationService()
-        _ = await error_service.classify_error(exception, {"http_endpoint": str(request.url.path)})
+        # Note: Cannot use await in sync context, error classification happens elsewhere
         
         # For synchronous context, use a generic approach
         sanitization_service = get_error_sanitization_service()

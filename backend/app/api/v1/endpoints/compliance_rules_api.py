@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import logging
 
-from app.services.mongo_integration_service import get_mongo_service, MongoIntegrationService
-from app.models.mongo_models import ComplianceRule
+from ....services.mongo_integration_service import get_mongo_service, MongoIntegrationService
+from ....models.mongo_models import ComplianceRule
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ from ..database import get_db
 from ..auth import get_current_user
 from ..rbac import require_permission, Permission
 from ..services.ssh_config_service import SSHConfigService
-from ..services.enhanced_audit_service import log_enhanced_ssh_event
+# from ..services.enhanced_audit_service import log_enhanced_ssh_event  # TODO: Create when needed
 
 logger = logging.getLogger(__name__)
 

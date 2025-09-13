@@ -392,6 +392,48 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def require_permissions(current_user: Dict[str, Any], permissions: str) -> None:
+    """Require specific permissions for protected endpoints"""
+    user_permissions = current_user.get("permissions", [])
+    
+    # Handle API keys - they have permissions as a list
+    if isinstance(user_permissions, list):
+        if permissions not in user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission '{permissions}' required"
+            )
+    else:
+        # Handle regular users - check role-based permissions
+        user_role = current_user.get("role")
+        
+        # Super admin has all permissions
+        if user_role == UserRole.SUPER_ADMIN.value:
+            return
+        
+        # For other roles, you would implement role-based permission checking
+        # For now, allow basic permissions for authenticated users
+        allowed_permissions = {
+            "scans:create": [UserRole.ADMIN.value, UserRole.SCANNER.value],
+            "scans:view": [UserRole.ADMIN.value, UserRole.SCANNER.value, UserRole.VIEWER.value],
+            "reports:view": [UserRole.ADMIN.value, UserRole.SCANNER.value, UserRole.VIEWER.value],
+            "hosts:view": [UserRole.ADMIN.value, UserRole.SCANNER.value, UserRole.VIEWER.value],
+            "hosts:manage": [UserRole.ADMIN.value, UserRole.SCANNER.value]
+        }
+        
+        if permissions not in allowed_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission '{permissions}' not recognized"
+            )
+        
+        if user_role not in allowed_permissions[permissions]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission '{permissions}' required"
+            )
+
+
 def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Require admin role for protected endpoints"""
     if current_user.get("role") != UserRole.SUPER_ADMIN.value:

@@ -188,7 +188,7 @@ async def initialize_rbac_system():
     """Initialize the complete RBAC system including default credentials"""
     try:
         # Ensure tables exist
-        await create_tables()
+        create_tables()
         
         # Initialize roles and system components
         db = SessionLocal()

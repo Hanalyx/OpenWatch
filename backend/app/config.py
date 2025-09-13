@@ -48,9 +48,9 @@ class Settings(BaseSettings):
     )
     mongodb_min_pool_size: int = Field(default=10)
     mongodb_max_pool_size: int = Field(default=100)
-    mongodb_ssl: bool = Field(default=True)
-    mongodb_ssl_cert: Optional[str] = Field(default="/etc/ssl/mongodb.pem")
-    mongodb_ssl_ca: Optional[str] = Field(default="/etc/ssl/ca.crt")
+    mongodb_ssl: bool = Field(default=False)  # Disable SSL for development
+    mongodb_ssl_cert: Optional[str] = Field(default=None)
+    mongodb_ssl_ca: Optional[str] = Field(default=None)
     
     # OpenSCAP
     openscap_timeout: int = 3600  # 1 hour max scan time

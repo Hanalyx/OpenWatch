@@ -34,7 +34,7 @@ except ImportError:
     print("authorization/security_config not available")
     authorization = None
     security_config = None
-from .routes.v1 import api as v1_api
+# from .routes.v1 import api as v1_api  # TODO: Fix beanie dependency
 from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     
     for attempt in range(max_retries):
         try:
-            await create_tables()
+            create_tables()
             logger.info("Database tables created successfully")
             
             # Initialize RBAC system
@@ -100,7 +100,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             if attempt < max_retries - 1:
                 logger.warning(f"Database connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
-                await asyncio.sleep(retry_delay)
+                import asyncio as async_sleep_module
+                await async_sleep_module.sleep(retry_delay)
             else:
                 if settings.debug:
                     logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
@@ -137,11 +138,11 @@ async def lifespan(app: FastAPI):
     #     logger.warning(f"Failed to initialize distributed tracing: {e}")
     logger.info("Distributed tracing disabled for initial deployment")
     
-    # Start background metrics collection
+    # Start background metrics collection (temporarily disabled for debugging)
     try:
-        import asyncio
-        asyncio.create_task(background_updater.start_background_updates())
-        logger.info("Background metrics collection started")
+        # import asyncio
+        # asyncio.create_task(background_updater.start_background_updates())
+        logger.info("Background metrics collection disabled for debugging")
     except Exception as e:
         logger.warning(f"Failed to start background metrics collection: {e}")
     
@@ -225,7 +226,7 @@ async def audit_middleware(request: Request, call_next):
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
                 client_ip
             )
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="SCAN_OPERATION",
                 ip_address=client_ip,
@@ -239,7 +240,7 @@ async def audit_middleware(request: Request, call_next):
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
                 client_ip
             )
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="HOST_OPERATION",
                 ip_address=client_ip,
@@ -253,7 +254,7 @@ async def audit_middleware(request: Request, call_next):
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
                 client_ip
             )
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="USER_OPERATION",
                 ip_address=client_ip,
@@ -267,7 +268,7 @@ async def audit_middleware(request: Request, call_next):
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
                 client_ip
             )
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="WEBHOOK_OPERATION",
                 ip_address=client_ip,
@@ -281,7 +282,7 @@ async def audit_middleware(request: Request, call_next):
                 f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
                 client_ip
             )
-            await log_security_event(
+            log_security_event(
                 db=db,
                 event_type="HTTP_ERROR",
                 ip_address=client_ip,
@@ -364,37 +365,59 @@ async def health_check():
             "fips_mode": settings.fips_mode
         }
         
-        # Check database connectivity
+        # Check database connectivity - simplified approach
+        db_healthy = True
         try:
-            from .database import check_database_health
-            db_healthy = await check_database_health()
-            health_status["database"] = "healthy" if db_healthy else "unhealthy"
+            # Simple inline database check
+            from sqlalchemy import text
+            from .database import SessionLocal
+            db = SessionLocal()
+            db.execute(text("SELECT 1"))
+            db.close()
+            health_status["database"] = "healthy"
+            logger.info("✅ Database health check successful - inline version")
         except Exception as e:
-            logger.warning(f"Database health check failed: {e}")
-            health_status["database"] = "unknown"
-            db_healthy = True  # Continue for development
+            logger.error(f"❌ Database health check failed - inline version: {e}")
+            health_status["database"] = "unhealthy"
+            db_healthy = False
         
-        # Check Redis connectivity
+        # Check Redis connectivity - simplified approach
+        redis_healthy = True
         try:
-            from .celery_app import check_redis_health
-            redis_healthy = await check_redis_health()
-            health_status["redis"] = "healthy" if redis_healthy else "unhealthy"
+            # Simple inline Redis check
+            import redis
+            import urllib.parse
+            parsed = urllib.parse.urlparse(settings.redis_url)
+            redis_client = redis.Redis(
+                host=parsed.hostname,
+                port=parsed.port or 6379,
+                password=parsed.password,
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            redis_client.ping()
+            redis_client.close()
+            health_status["redis"] = "healthy"
+            logger.info("✅ Redis health check successful - inline version")
         except Exception as e:
-            logger.warning(f"Redis health check failed: {e}")
-            health_status["redis"] = "unknown"
-            redis_healthy = True  # Continue for development
+            logger.error(f"❌ Redis health check failed - inline version: {e}")
+            health_status["redis"] = "unhealthy"
+            redis_healthy = False
         
-        # Check MongoDB connectivity
+        # Check MongoDB connectivity - optional service
+        mongodb_healthy = True
         try:
             from .services.mongo_integration_service import get_mongo_service
             mongo_service = await get_mongo_service()
             mongo_health = await mongo_service.health_check()
             health_status["mongodb"] = mongo_health.get("status", "unknown")
             mongodb_healthy = mongo_health.get("status") == "healthy"
+            logger.info("✅ MongoDB health check successful")
         except Exception as e:
-            logger.warning(f"MongoDB health check failed: {e}")
-            health_status["mongodb"] = "unknown"
-            mongodb_healthy = True  # Continue for development
+            # MongoDB is optional - mark as not configured rather than failed
+            health_status["mongodb"] = "not_configured"
+            logger.info("⚠️ MongoDB not configured (optional service)")
+            mongodb_healthy = True  # Don't fail health check for optional service
         
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
@@ -449,7 +472,7 @@ async def metrics():
 
 # Include API routes - Unified API Façade
 # API v1 - Primary versioned API
-app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])
+# app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])  # TODO: Fix beanie dependency
 
 # Legacy API routes (for backward compatibility)
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])

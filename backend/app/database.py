@@ -404,6 +404,11 @@ def get_db() -> Session:
         db.close()
 
 
+def get_db_session() -> Session:
+    """Get database session for Celery tasks"""
+    return SessionLocal()
+
+
 def create_tables():
     """Create database tables if they don't exist"""
     try:
@@ -502,12 +507,12 @@ async def init_database():
     """Initialize database connection and verify FIPS compliance"""
     try:
         # Test connection
-        healthy = await check_database_health()
+        healthy = check_database_health()
         if not healthy:
             raise Exception("Database connection failed")
         
         # Create tables
-        await create_tables()
+        create_tables()
         
         logger.info("Database initialized successfully with FIPS-compliant configuration")
         

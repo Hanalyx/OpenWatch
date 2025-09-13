@@ -54,7 +54,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             )
             
             # Record specific application events
-            await self._record_application_metrics(request, response, duration)
+            self._record_application_metrics(request, response, duration)
             
             return response
             

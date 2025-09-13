@@ -524,20 +524,25 @@ class MongoManager:
         if self.initialized:
             return
         
-        # Create MongoDB client with connection pooling and SSL
-        self.client = AsyncIOMotorClient(
-            mongodb_url,
-            minPoolSize=kwargs.get('min_pool_size', 10),
-            maxPoolSize=kwargs.get('max_pool_size', 100),
-            connectTimeoutMS=30000,
-            serverSelectionTimeoutMS=30000,
-            heartbeatFrequencyMS=10000,
-            # SSL configuration
-            tls=kwargs.get('ssl', True),
-            tlsCertificateKeyFile=kwargs.get('ssl_cert'),
-            tlsCAFile=kwargs.get('ssl_ca'),
-            tlsAllowInvalidCertificates=kwargs.get('ssl_allow_invalid', False)
-        )
+        # Create MongoDB client with connection pooling
+        client_kwargs = {
+            'minPoolSize': kwargs.get('min_pool_size', 10),
+            'maxPoolSize': kwargs.get('max_pool_size', 100),
+            'connectTimeoutMS': 30000,
+            'serverSelectionTimeoutMS': 30000,
+            'heartbeatFrequencyMS': 10000
+        }
+        
+        # Add SSL configuration only if SSL is enabled
+        if kwargs.get('ssl', False):
+            client_kwargs.update({
+                'tls': True,
+                'tlsCertificateKeyFile': kwargs.get('ssl_cert'),
+                'tlsCAFile': kwargs.get('ssl_ca'),
+                'tlsAllowInvalidCertificates': kwargs.get('ssl_allow_invalid', False)
+            })
+        
+        self.client = AsyncIOMotorClient(mongodb_url, **client_kwargs)
         
         # Get database
         self.database = self.client[database_name]

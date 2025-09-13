@@ -11,11 +11,8 @@ from uuid import uuid4
 import json
 import asyncio
 
-from backend.app.database import get_db
+from backend.app.database import get_db, ScapContent, Host, HostGroup, Scan, ScanResult
 from backend.app.auth import get_current_user, require_permissions
-from backend.app.models.scap_content import SCAPContent
-from backend.app.models.hosts import Host, HostGroup
-from backend.app.models.scans import Scan, ScanResult
 # GroupScanService removed - using unified API instead
 from backend.app.services.scap_scanner import SCAPScanner
 from backend.app.celery_app import celery_app
@@ -67,7 +64,7 @@ async def start_group_compliance_scan(
     if not content_id:
         raise HTTPException(status_code=400, detail="No SCAP content specified")
     
-    scap_content = db.query(SCAPContent).filter(SCAPContent.id == content_id).first()
+    scap_content = db.query(ScapContent).filter(ScapContent.id == content_id).first()
     if not scap_content:
         raise HTTPException(status_code=404, detail="SCAP content not found")
     
@@ -540,8 +537,8 @@ def execute_group_compliance_scan(
         scanner = SCAPScanner()
         
         # Get SCAP content details
-        scap_content = db.query(SCAPContent).filter(
-            SCAPContent.id == scap_content_id
+        scap_content = db.query(ScapContent).filter(
+            ScapContent.id == scap_content_id
         ).first()
         
         if not scap_content:
