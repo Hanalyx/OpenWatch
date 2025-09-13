@@ -13,7 +13,7 @@ from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
 from ....services.result_enrichment_service import ResultEnrichmentService
 from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
 from ....auth import get_current_user
-from ....models.user import User
+from ....database import User
 
 logger = logging.getLogger(__name__)
 

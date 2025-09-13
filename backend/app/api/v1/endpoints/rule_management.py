@@ -12,9 +12,8 @@ import json
 import io
 import csv
 
-from ....database import get_db
+from ....database import get_db, User
 from ....auth import get_current_user
-from ....models.user import User
 from ....services.rule_service import RuleService, QueryPriority, ParameterResolution
 from ....services.rule_cache_service import RuleCacheService
 from ....services.platform_capability_service import PlatformCapabilityService
@@ -88,7 +87,7 @@ class ApplicableRulesQuery(BaseModel):
 
 class RuleExportOptions(BaseModel):
     """Rule export configuration"""
-    format: str = Field("json", regex="^(json|csv|xml)$", description="Export format")
+    format: str = Field("json", pattern="^(json|csv|xml)$", description="Export format")
     include_inheritance: bool = Field(True, description="Include resolved inheritance")
     include_dependencies: bool = Field(False, description="Include dependency information")
     filters: Optional[RuleQuery] = Field(None, description="Query filters to apply")
