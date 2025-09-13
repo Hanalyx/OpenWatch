@@ -34,7 +34,7 @@ except ImportError:
     print("authorization/security_config not available")
     authorization = None
     security_config = None
-# from .routes.v1 import api as v1_api  # TODO: Fix beanie dependency
+# from .routes.v1 import api as v1_api  # TODO: Fix import paths in v1 endpoints
 from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
@@ -484,7 +484,7 @@ async def metrics():
 
 # Include API routes - Unified API Façade
 # API v1 - Primary versioned API
-# app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])  # TODO: Fix beanie dependency
+# app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])  # TODO: Fix import paths in v1 endpoints
 
 # Legacy API routes (for backward compatibility)
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])

@@ -12,12 +12,12 @@ import json
 import io
 import csv
 
-from backend.app.core.database import get_db
-from backend.app.core.auth import get_current_user
-from backend.app.models.user import User
-from backend.app.services.rule_service import RuleService, QueryPriority, ParameterResolution
-from backend.app.services.rule_cache_service import RuleCacheService
-from backend.app.services.platform_capability_service import PlatformCapabilityService
+from ....database import get_db
+from ....auth import get_current_user
+from ....models.user import User
+from ....services.rule_service import RuleService, QueryPriority, ParameterResolution
+from ....services.rule_cache_service import RuleCacheService
+from ....services.platform_capability_service import PlatformCapabilityService
 
 router = APIRouter(prefix="/api/v1/rules", tags=["Enhanced Rule Management"])
 

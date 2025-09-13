@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from backend.app.services.scap_import_service import SCAPImportService
-from backend.app.services.mongo_integration_service import MongoIntegrationService
+from ....services.scap_import_service import SCAPImportService
+from ....services.mongo_integration_service import MongoIntegrationService
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 
@@ -233,7 +233,7 @@ async def get_import_statistics(service: SCAPImportService = Depends(get_import_
     
     try:
         # Get collection statistics from MongoDB
-        from backend.app.models.mongo_models import ComplianceRule, RuleIntelligence, RemediationScript
+        from ....models.mongo_models import ComplianceRule, RuleIntelligence, RemediationScript
         
         stats = {
             'total_rules': await ComplianceRule.count(),
