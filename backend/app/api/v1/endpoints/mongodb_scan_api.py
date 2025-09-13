@@ -396,12 +396,33 @@ async def get_scanner_health(
         enrichment = await get_enrichment_service()
         reporter = await get_compliance_reporter()
         
+        # Check actual MongoDB connection
+        mongo_status = "unknown"
+        mongo_details = {}
+        try:
+            from ....services.mongo_integration_service import get_mongo_service
+            mongo_service = await get_mongo_service()
+            mongo_health = await mongo_service.health_check()
+            mongo_status = mongo_health.get("status", "unknown")
+            if mongo_status == "healthy":
+                mongo_details = {
+                    "database": mongo_health.get("database"),
+                    "collections": mongo_health.get("collections", []),
+                    "document_count": mongo_health.get("document_count", {})
+                }
+            else:
+                mongo_details = {"error": mongo_health.get("message", "Unknown error")}
+        except Exception as e:
+            mongo_status = "error"
+            mongo_details = {"error": str(e)}
+        
         return {
-            "status": "healthy",
+            "status": "healthy" if mongo_status == "healthy" else "degraded",
             "components": {
                 "mongodb_scanner": {
                     "status": "initialized" if scanner._initialized else "not_initialized",
-                    "mongodb_connection": "connected"  # This would check actual connection
+                    "mongodb_connection": mongo_status,
+                    "mongodb_details": mongo_details
                 },
                 "enrichment_service": {
                     "status": "initialized" if enrichment._initialized else "not_initialized",

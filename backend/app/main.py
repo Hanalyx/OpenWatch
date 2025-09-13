@@ -404,20 +404,32 @@ async def health_check():
             health_status["redis"] = "unhealthy"
             redis_healthy = False
         
-        # Check MongoDB connectivity - optional service
+        # Check MongoDB connectivity
+        mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
         mongodb_healthy = True
-        try:
-            from .services.mongo_integration_service import get_mongo_service
-            mongo_service = await get_mongo_service()
-            mongo_health = await mongo_service.health_check()
-            health_status["mongodb"] = mongo_health.get("status", "unknown")
-            mongodb_healthy = mongo_health.get("status") == "healthy"
-            logger.info("✅ MongoDB health check successful")
-        except Exception as e:
-            # MongoDB is optional - mark as not configured rather than failed
+        
+        if mongodb_configured:
+            try:
+                from .services.mongo_integration_service import get_mongo_service
+                mongo_service = await get_mongo_service()
+                mongo_health = await mongo_service.health_check()
+                health_status["mongodb"] = mongo_health.get("status", "unknown")
+                mongodb_healthy = mongo_health.get("status") == "healthy"
+                if mongodb_healthy:
+                    logger.info("✅ MongoDB health check successful")
+                else:
+                    logger.warning(f"⚠️ MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
+            except Exception as e:
+                # Return actual error status
+                health_status["mongodb"] = "unhealthy"
+                health_status["mongodb_error"] = str(e)
+                logger.error(f"❌ MongoDB health check failed: {e}")
+                mongodb_healthy = False
+        else:
+            # MongoDB not configured - this is acceptable
             health_status["mongodb"] = "not_configured"
-            logger.info("⚠️ MongoDB not configured (optional service)")
-            mongodb_healthy = True  # Don't fail health check for optional service
+            logger.info("ℹ️ MongoDB not configured - skipping health check")
+            mongodb_healthy = True  # Don't fail overall health for unconfigured service
         
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
