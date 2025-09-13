@@ -1,12 +1,15 @@
 # Multi-stage build for React frontend with FIPS-compliant NGINX
 
 # Stage 1: Build the React application
-FROM node:18.20.5-alpine AS builder
+FROM node:20.19.5-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY frontend/package*.json ./
+
+# Update npm to latest version
+RUN npm install -g npm@11.6.0
 
 # Install dependencies
 RUN npm install
@@ -40,10 +43,13 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # Create directory for SSL certificates
 RUN mkdir -p /etc/nginx/ssl
 
-# Set proper permissions for openwatch user
-RUN chown -R openwatch:openwatch /usr/share/nginx/html /var/cache/nginx /var/run /etc/nginx/ssl && \
+# Create directories and set proper permissions for openwatch user
+RUN mkdir -p /var/log/nginx /tmp && \
+    chown -R openwatch:openwatch /usr/share/nginx/html /var/cache/nginx /var/log/nginx /tmp /etc/nginx/ssl && \
     chmod -R 755 /usr/share/nginx/html && \
-    chmod -R 750 /etc/nginx/ssl
+    chmod -R 750 /etc/nginx/ssl && \
+    chmod 755 /var/log/nginx && \
+    chmod 1777 /tmp
 
 # Switch to non-root user
 USER openwatch
