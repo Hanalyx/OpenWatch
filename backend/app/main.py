@@ -117,6 +117,10 @@ async def lifespan(app: FastAPI):
         from .services.mongo_integration_service import get_mongo_service
         mongo_service = await get_mongo_service()
         logger.info("MongoDB integration service initialized successfully")
+        
+        # Health monitoring models are initialized with other Beanie models
+        logger.info("Health monitoring models ready")
+        
     except Exception as mongo_error:
         logger.warning(f"MongoDB initialization failed: {mongo_error}")
         if not settings.debug:

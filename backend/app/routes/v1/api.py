@@ -18,6 +18,8 @@ from ...api.v1.endpoints import rule_management
 from ...api.v1.endpoints import compliance_rules_api
 from ...api.v1.endpoints import mongodb_scan_api
 
+from ...api.v1.endpoints import health_monitoring
+
 logger = logging.getLogger(__name__)
 
 # Create main v1 API router
@@ -36,6 +38,8 @@ router.include_router(scap_import.router, tags=["SCAP Import"])
 router.include_router(rule_management.router, tags=["Enhanced Rule Management"])
 router.include_router(compliance_rules_api.router, tags=["MongoDB Compliance Rules"])
 router.include_router(mongodb_scan_api.router, tags=["MongoDB Scanning"])
+
+router.include_router(health_monitoring.router, prefix="/health-monitoring", tags=["Health Monitoring"])
 
 
 @router.get("/")

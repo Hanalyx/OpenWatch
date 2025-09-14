@@ -268,10 +268,12 @@ class ComplianceRule(Document):
     
     # Assessment Logic (Enhanced)
     check_type: str = Field(
+        default="custom",
         pattern="^(script|command|file|package|service|kernel|multi_parameter|oval|custom)$",
         description="Type of check to perform"
     )
     check_content: Dict[str, Any] = Field(
+        default_factory=dict,
         description="Detailed check configuration"
     )
     
@@ -307,9 +309,11 @@ class ComplianceRule(Document):
     
     # Change Tracking and Provenance
     source_file: str = Field(
+        default="unknown",
         description="Original source file (SCAP XML, etc.)"
     )
     source_hash: str = Field(
+        default="unknown",
         description="Hash of the source content for change detection"
     )
     version: str = Field(
@@ -547,11 +551,33 @@ class MongoManager:
         # Get database
         self.database = self.client[database_name]
         
-        # Initialize Beanie with document models
-        await init_beanie(
-            database=self.database,
-            document_models=[ComplianceRule, RuleIntelligence, RemediationScript]
+        # Import health models
+        from .health_models import (
+            ServiceHealthDocument,
+            ContentHealthDocument,
+            HealthSummaryDocument
         )
+        
+        # Initialize Beanie with all document models
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("About to initialize Beanie ODM...")
+        try:
+            await init_beanie(
+                database=self.database,
+                document_models=[
+                    ComplianceRule, 
+                    RuleIntelligence, 
+                    RemediationScript,
+                    ServiceHealthDocument,
+                    ContentHealthDocument,
+                    HealthSummaryDocument
+                ]
+            )
+            logger.info("Beanie ODM initialized successfully")
+        except Exception as beanie_error:
+            logger.error(f"Beanie initialization failed: {type(beanie_error).__name__}: {beanie_error}")
+            raise
         
         self.initialized = True
     
