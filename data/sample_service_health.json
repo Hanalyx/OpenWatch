@@ -1,0 +1,277 @@
+{
+  "_id": "openwatch_service_health_2025_09_14",
+  "scanner_id": "openwatch_primary_scanner",
+  "health_check_timestamp": "2025-09-14T12:45:00.000Z",
+  "overall_status": "healthy",
+  "uptime_seconds": 864000,
+  
+  "service_components": {
+    "core_services": {
+      "scanner_engine": {
+        "status": "healthy",
+        "version": "2.4.1",
+        "pid": 12345,
+        "started_at": "2025-09-04T12:45:00.000Z",
+        "memory_usage_mb": 256.7,
+        "cpu_usage_percent": 12.3,
+        "threads_active": 8,
+        "last_heartbeat": "2025-09-14T12:44:58.000Z"
+      },
+      "rule_processor": {
+        "status": "healthy",
+        "version": "2.4.1",
+        "rules_loaded": 1567,
+        "rule_cache_size_mb": 89.3,
+        "processing_queue_length": 0,
+        "average_processing_time_ms": 42.1,
+        "errors_last_hour": 0
+      },
+      "remediation_engine": {
+        "status": "healthy",
+        "version": "1.2.0",
+        "plugins_loaded": 3,
+        "active_remediations": 0,
+        "completed_last_hour": 12,
+        "failed_last_hour": 1,
+        "plugin_health": {
+          "@openwatch/aegis-remediation": "healthy",
+          "@openwatch/ansible-executor": "healthy",
+          "@openwatch/shell-runner": "healthy"
+        }
+      }
+    },
+    
+    "data_services": {
+      "mongodb_connector": {
+        "status": "healthy",
+        "connection_pool": {
+          "active_connections": 5,
+          "idle_connections": 15,
+          "max_connections": 20,
+          "wait_queue_length": 0
+        },
+        "mongodb_details": {
+          "host": "mongodb://localhost:27017",
+          "database": "openwatch_rules",
+          "collections": [
+            "compliance_rules",
+            "rule_intelligence", 
+            "remediation_scripts",
+            "scan_results",
+            "audit_logs"
+          ],
+          "storage_stats": {
+            "database_size_mb": 456.7,
+            "index_size_mb": 23.4,
+            "document_counts": {
+              "compliance_rules": 1567,
+              "rule_intelligence": 892,
+              "remediation_scripts": 1234,
+              "scan_results": 45678,
+              "audit_logs": 123456
+            }
+          },
+          "performance": {
+            "average_query_time_ms": 12.3,
+            "slow_queries_last_hour": 2,
+            "index_hit_rate_percent": 98.7
+          }
+        }
+      },
+      "redis_cache": {
+        "status": "healthy",
+        "connection_status": "connected",
+        "memory_usage_mb": 128.9,
+        "memory_limit_mb": 512.0,
+        "hit_rate_percent": 87.3,
+        "evicted_keys_last_hour": 234,
+        "connected_clients": 12
+      },
+      "postgresql_main": {
+        "status": "healthy",
+        "connection_pool": {
+          "active_connections": 8,
+          "idle_connections": 22,
+          "max_connections": 30
+        },
+        "replication_status": "in_sync",
+        "replication_lag_seconds": 0.2,
+        "database_size_gb": 23.4,
+        "transaction_rate_per_sec": 145.7
+      }
+    },
+    
+    "integration_services": {
+      "content_updater": {
+        "status": "warning",
+        "last_successful_update": "2025-09-05T19:48:04.000Z",
+        "last_update_attempt": "2025-09-14T06:00:00.000Z",
+        "last_error": "Connection timeout to update server",
+        "update_sources": {
+          "complianceascode_repo": {
+            "status": "degraded",
+            "last_sync": "2025-09-05T19:48:04.000Z",
+            "error": "SSL certificate verification failed"
+          },
+          "openwatch_content_cdn": {
+            "status": "healthy",
+            "last_sync": "2025-09-14T06:00:00.000Z"
+          }
+        }
+      },
+      "plugin_registry": {
+        "status": "healthy",
+        "registry_url": "https://registry.openwatch.io",
+        "available_plugins": 12,
+        "installed_plugins": 3,
+        "update_available": ["@openwatch/aegis-remediation"],
+        "last_registry_check": "2025-09-14T12:00:00.000Z"
+      },
+      "enrichment_service": {
+        "status": "healthy",
+        "enrichment_providers": {
+          "nvd_cve": "connected",
+          "mitre_attack": "connected",
+          "vendor_advisories": "rate_limited"
+        },
+        "cache_stats": {
+          "total_enrichments_cached": 8934,
+          "cache_hit_rate_percent": 76.8,
+          "average_enrichment_time_ms": 234.5
+        }
+      }
+    },
+    
+    "api_endpoints": {
+      "rest_api": {
+        "status": "healthy",
+        "endpoint": "http://localhost:8000",
+        "requests_per_minute": 234,
+        "average_response_time_ms": 45.6,
+        "error_rate_percent": 0.2,
+        "active_connections": 23
+      },
+      "grpc_api": {
+        "status": "healthy",
+        "endpoint": "localhost:50051",
+        "active_streams": 5,
+        "messages_per_second": 567.8,
+        "error_rate_percent": 0.1
+      },
+      "websocket_api": {
+        "status": "healthy",
+        "endpoint": "ws://localhost:8000/ws",
+        "connected_clients": 12,
+        "messages_per_minute": 1234,
+        "reconnection_rate_percent": 2.3
+      }
+    }
+  },
+  
+  "resource_usage": {
+    "system": {
+      "total_memory_gb": 16.0,
+      "used_memory_gb": 8.7,
+      "memory_usage_percent": 54.4,
+      "cpu_cores": 8,
+      "cpu_usage_percent": 23.4,
+      "load_average": [2.1, 2.3, 2.0]
+    },
+    "storage": {
+      "content_directory": {
+        "path": "/app/data/scap",
+        "total_gb": 100.0,
+        "used_gb": 12.3,
+        "usage_percent": 12.3
+      },
+      "results_directory": {
+        "path": "/app/data/results", 
+        "total_gb": 500.0,
+        "used_gb": 234.5,
+        "usage_percent": 46.9
+      },
+      "logs_directory": {
+        "path": "/app/logs",
+        "total_gb": 50.0,
+        "used_gb": 23.4,
+        "usage_percent": 46.8,
+        "rotation_enabled": true
+      }
+    },
+    "network": {
+      "interfaces": {
+        "eth0": {
+          "status": "up",
+          "speed_mbps": 1000,
+          "rx_bytes_per_sec": 123456,
+          "tx_bytes_per_sec": 234567,
+          "error_rate_percent": 0.0
+        }
+      },
+      "connections": {
+        "established": 156,
+        "time_wait": 23,
+        "listening": 8
+      }
+    }
+  },
+  
+  "recent_operations": {
+    "scans": {
+      "completed_last_hour": 45,
+      "failed_last_hour": 2,
+      "average_scan_duration_seconds": 234.5,
+      "queued_scans": 3,
+      "concurrent_scans": 2
+    },
+    "remediations": {
+      "executed_last_hour": 12,
+      "successful_last_hour": 11,
+      "failed_last_hour": 1,
+      "rollbacks_last_hour": 0
+    },
+    "api_requests": {
+      "total_last_hour": 14023,
+      "errors_last_hour": 28,
+      "rate_limited_last_hour": 5
+    }
+  },
+  
+  "alerts": [
+    {
+      "id": "alert_001",
+      "severity": "warning",
+      "component": "content_updater",
+      "message": "SSL certificate verification failed for compliance content repository",
+      "timestamp": "2025-09-14T06:00:15.000Z",
+      "auto_resolution_attempted": true,
+      "resolved": false
+    },
+    {
+      "id": "alert_002",
+      "severity": "info",
+      "component": "enrichment_service",
+      "message": "Vendor advisory API rate limited - falling back to cache",
+      "timestamp": "2025-09-14T11:30:45.000Z",
+      "auto_resolution_attempted": false,
+      "resolved": false
+    }
+  ],
+  
+  "maintenance_windows": {
+    "scheduled": [
+      {
+        "start": "2025-09-20T02:00:00.000Z",
+        "end": "2025-09-20T04:00:00.000Z",
+        "type": "content_update",
+        "description": "Scheduled compliance content update"
+      }
+    ],
+    "last_maintenance": {
+      "start": "2025-09-06T02:00:00.000Z",
+      "end": "2025-09-06T02:45:00.000Z",
+      "type": "database_optimization",
+      "result": "completed"
+    }
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "_id": "openwatch_content_health_2025_09_14",
+  "scanner_id": "openwatch_primary_scanner",
+  "health_check_timestamp": "2025-09-14T12:30:00.000Z",
+  "last_updated": "2025-09-14T12:30:00.000Z",
+  
+  "content_health": {
+    "frameworks": {
+      "summary": {
+        "total_frameworks": 5,
+        "active_frameworks": 4,
+        "deprecated_frameworks": 1,
+        "last_content_update": "2025-09-05T19:48:04.000Z"
+      },
+      "details": {
+        "cis_controls_v8": {
+          "version": "8.0",
+          "status": "active",
+          "last_updated": "2025-08-15T10:00:00.000Z",
+          "total_controls": 18,
+          "implemented_controls": 15,
+          "coverage_percentage": 83.3,
+          "rule_count": 127,
+          "benchmark_dependencies": ["cis_rhel8_v2.0.0", "cis_ubuntu20_v1.0.0"]
+        },
+        "nist_800_53r5": {
+          "version": "revision_5",
+          "status": "active", 
+          "last_updated": "2025-09-01T14:30:00.000Z",
+          "total_controls": 334,
+          "implemented_controls": 298,
+          "coverage_percentage": 89.2,
+          "rule_count": 892,
+          "benchmark_dependencies": ["stig_rhel8_v1r11", "cis_rhel8_v2.0.0"]
+        },
+        "pci_dss_4.0": {
+          "version": "4.0",
+          "status": "active",
+          "last_updated": "2025-07-20T08:15:00.000Z", 
+          "total_controls": 62,
+          "implemented_controls": 58,
+          "coverage_percentage": 93.5,
+          "rule_count": 234,
+          "benchmark_dependencies": ["cis_rhel8_v2.0.0"]
+        },
+        "iso_27001_2013": {
+          "version": "2013",
+          "status": "active",
+          "last_updated": "2025-06-10T16:45:00.000Z",
+          "total_controls": 114,
+          "implemented_controls": 89,
+          "coverage_percentage": 78.1,
+          "rule_count": 156,
+          "benchmark_dependencies": ["cis_rhel8_v2.0.0"]
+        },
+        "nist_800_53r4": {
+          "version": "revision_4",
+          "status": "deprecated",
+          "last_updated": "2024-12-01T12:00:00.000Z",
+          "deprecation_date": "2025-03-01T00:00:00.000Z",
+          "migration_target": "nist_800_53r5",
+          "total_controls": 324,
+          "implemented_controls": 324,
+          "coverage_percentage": 100.0,
+          "rule_count": 756
+        }
+      }
+    },
+
+    "benchmarks": {
+      "summary": {
+        "total_benchmarks": 3,
+        "active_benchmarks": 3,
+        "outdated_benchmarks": 1,
+        "last_content_update": "2025-09-05T19:48:04.000Z"
+      },
+      "details": {
+        "cis_rhel8_v2.0.0": {
+          "benchmark_version": "2.0.0",
+          "source_framework": "cis_controls_v8",
+          "platform": "rhel8",
+          "status": "active",
+          "last_updated": "2025-08-15T10:00:00.000Z",
+          "total_rules": 245,
+          "implemented_rules": 238,
+          "coverage_percentage": 97.1,
+          "satisfies_frameworks": ["cis_controls_v8", "nist_800_53r5", "pci_dss_4.0", "iso_27001_2013"],
+          "content_freshness": {
+            "days_since_update": 30,
+            "freshness_status": "current",
+            "next_update_expected": "2025-11-15T00:00:00.000Z"
+          }
+        },
+        "stig_rhel8_v1r11": {
+          "benchmark_version": "1.11",
+          "source_framework": "disa_stig",
+          "platform": "rhel8", 
+          "status": "active",
+          "last_updated": "2025-09-01T14:30:00.000Z",
+          "total_rules": 334,
+          "implemented_rules": 298,
+          "coverage_percentage": 89.2,
+          "satisfies_frameworks": ["nist_800_53r5"],
+          "content_freshness": {
+            "days_since_update": 13,
+            "freshness_status": "current", 
+            "next_update_expected": "2025-12-01T00:00:00.000Z"
+          }
+        },
+        "cis_ubuntu20_v1.0.0": {
+          "benchmark_version": "1.0.0",
+          "source_framework": "cis_controls_v8",
+          "platform": "ubuntu20",
+          "status": "outdated",
+          "last_updated": "2025-03-15T09:20:00.000Z",
+          "total_rules": 189,
+          "implemented_rules": 189,
+          "coverage_percentage": 100.0,
+          "satisfies_frameworks": ["cis_controls_v8"],
+          "content_freshness": {
+            "days_since_update": 183,
+            "freshness_status": "stale",
+            "next_update_expected": "2025-09-30T00:00:00.000Z",
+            "newer_version_available": "2.0.0"
+          }
+        }
+      }
+    },
+
+    "compliance_rules": {
+      "summary": {
+        "total_rules": 1567,
+        "active_rules": 1523,
+        "deprecated_rules": 44,
+        "rules_with_remediation": 1234,
+        "rules_with_plugin_support": 892,
+        "last_import": "2025-09-05T19:48:04.156441+00:00"
+      },
+      "rule_distribution": {
+        "by_severity": {
+          "critical": 89,
+          "high": 312, 
+          "medium": 756,
+          "low": 366,
+          "info": 44
+        },
+        "by_category": {
+          "authentication": 234,
+          "auditing": 189,
+          "system": 345,
+          "network": 167,
+          "access_control": 298,
+          "encryption": 156,
+          "other": 178
+        },
+        "by_platform": {
+          "rhel8": 1245,
+          "ubuntu20": 189,
+          "centos8": 133
+        }
+      },
+      "remediation_coverage": {
+        "shell_scripts": 1234,
+        "ansible_playbooks": 1156,
+        "plugin_extensions": 892,
+        "manual_only": 289
+      }
+    },
+
+    "content_integrity": {
+      "source_validation": {
+        "scap_content_valid": true,
+        "signature_verification": "passed",
+        "hash_validation": "passed",
+        "last_validation": "2025-09-14T12:00:00.000Z"
+      },
+      "rule_consistency": {
+        "schema_compliance": 100.0,
+        "duplicate_rule_ids": 0,
+        "missing_required_fields": 0,
+        "invalid_references": 0
+      },
+      "cross_references": {
+        "framework_mappings_valid": true,
+        "benchmark_references_valid": true, 
+        "broken_control_references": 0,
+        "orphaned_rules": 12
+      }
+    },
+
+    "performance_metrics": {
+      "content_loading": {
+        "average_rule_load_time_ms": 2.3,
+        "framework_index_build_time_ms": 145.7,
+        "benchmark_cache_hit_rate": 94.2
+      },
+      "scanning_performance": {
+        "rules_processed_per_second": 23.7,
+        "average_rule_evaluation_time_ms": 42.1,
+        "concurrent_scan_capacity": 5
+      },
+      "memory_usage": {
+        "rule_cache_size_mb": 89.3,
+        "framework_index_size_mb": 12.4,
+        "total_content_memory_mb": 156.8
+      }
+    }
+  },
+
+  "scanner_operational_health": {
+    "service_status": {
+      "scanner_engine": "healthy",
+      "rule_processor": "healthy", 
+      "remediation_engine": "healthy",
+      "plugin_manager": "healthy",
+      "content_updater": "warning"
+    },
+    "connectivity": {
+      "scap_content_repository": "connected",
+      "plugin_registry": "connected",
+      "update_server": "degraded",
+      "certificate_authority": "connected"
+    },
+    "recent_operations": {
+      "last_content_update": "2025-09-05T19:48:04.000Z",
+      "last_successful_scan": "2025-09-14T11:45:23.000Z",
+      "last_remediation_execution": "2025-09-14T10:30:15.000Z",
+      "content_update_failures_24h": 1,
+      "scan_failures_24h": 0
+    }
+  },
+
+  "alerts_and_recommendations": [
+    {
+      "type": "warning",
+      "category": "content_freshness",
+      "message": "CIS Ubuntu 20.04 benchmark is 183 days old - update recommended",
+      "rule_impact": 189,
+      "recommended_action": "Update to CIS Ubuntu 20.04 v2.0.0",
+      "urgency": "medium"
+    },
+    {
+      "type": "info", 
+      "category": "framework_migration",
+      "message": "NIST 800-53r4 framework deprecated - consider migration to r5",
+      "rule_impact": 756,
+      "recommended_action": "Plan migration to NIST 800-53r5",
+      "urgency": "low"
+    },
+    {
+      "type": "warning",
+      "category": "connectivity",
+      "message": "Update server connection degraded - may impact content updates",
+      "recommended_action": "Check network connectivity and certificates",
+      "urgency": "medium"
+    }
+  ]
+}
