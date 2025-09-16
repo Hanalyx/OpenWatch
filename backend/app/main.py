@@ -20,7 +20,7 @@ from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance
 from .routes.system_settings_unified import router as system_settings_router
 from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
-from .routes import host_discovery, host_security_discovery, plugin_management
+from .routes import host_discovery, host_security_discovery, plugin_management, bulk_remediation_routes
 # Import security routes only if available
 try:
     from .routes import automated_fixes
@@ -519,6 +519,7 @@ app.include_router(host_compliance_discovery.router, prefix="/api", tags=["Host 
 app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
 app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
 app.include_router(plugin_management.router, tags=["Plugin Management"])
+app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
 
 # Register security routes if available
 if automated_fixes:
