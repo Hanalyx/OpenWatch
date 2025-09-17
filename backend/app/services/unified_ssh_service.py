@@ -1,30 +1,117 @@
 """
-Unified SSH Service for OpenWatch
+Unified SSH Service for OpenWatch - Consolidated Version
 
-Provides centralized SSH connection management across all OpenWatch services
-with consistent security policies, comprehensive audit logging, and 
-automation-friendly host key handling.
+Provides centralized SSH connection management, key validation, configuration,
+and metadata extraction with consistent security policies, comprehensive audit
+logging, and automation-friendly host key handling.
+
+This service consolidates functionality from:
+- ssh_service.py: Basic SSH connectivity and command execution
+- ssh_utils.py: SSH key validation and security assessment  
+- ssh_config_service.py: SSH host key policies and configuration
+- ssh_key_service.py: SSH key metadata extraction
+
+All existing imports should be updated to use this unified service.
 """
 
 import os
 import socket
 import logging
 import json
+import re
+import base64
+import ipaddress
+import io
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 from dataclasses import dataclass
+from enum import Enum
 
 import paramiko
-from paramiko import SSHClient, SSHException
+from paramiko import SSHClient, SSHException, RSAKey, Ed25519Key, ECDSAKey, DSSKey
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, ed25519, ec, dsa
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-from .ssh_utils import (
-    parse_ssh_key, validate_ssh_key, SSHKeyError, 
-    SSHKeyValidationResult, format_validation_message
-)
+from ..database import get_db, Host
 
 logger = logging.getLogger(__name__)
 
+
+# ============================================================================
+# ENUMS AND DATA CLASSES
+# ============================================================================
+
+class SSHKeyType(Enum):
+    """Supported SSH key types"""
+    RSA = "rsa"
+    ED25519 = "ed25519"
+    ECDSA = "ecdsa"
+    DSA = "dsa"
+
+
+class SSHKeySecurityLevel(Enum):
+    """Security assessment levels for SSH keys"""
+    SECURE = "secure"
+    ACCEPTABLE = "acceptable"
+    DEPRECATED = "deprecated"
+    REJECTED = "rejected"
+
+
+class SSHKeyValidationResult:
+    """Result of SSH key validation"""
+    
+    def __init__(
+        self,
+        is_valid: bool,
+        key_type: Optional[SSHKeyType] = None,
+        security_level: Optional[SSHKeySecurityLevel] = None,
+        key_size: Optional[int] = None,
+        error_message: Optional[str] = None,
+        warnings: Optional[list] = None,
+        recommendations: Optional[list] = None
+    ):
+        self.is_valid = is_valid
+        self.key_type = key_type
+        self.security_level = security_level
+        self.key_size = key_size
+        self.error_message = error_message
+        self.warnings = warnings or []
+        self.recommendations = recommendations or []
+
+
+class SSHKeyError(Exception):
+    """Custom exception for SSH key related errors"""
+    pass
+
+
+@dataclass
+class SSHConnectionResult:
+    """Result of SSH connection attempt with detailed information."""
+    success: bool
+    connection: Optional[SSHClient] = None
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
+    host_key_fingerprint: Optional[str] = None
+    auth_method_used: Optional[str] = None
+
+
+@dataclass
+class SSHCommandResult:
+    """Result of SSH command execution."""
+    success: bool
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: int = -1
+    duration: float = 0.0
+    error_message: Optional[str] = None
+
+
+# ============================================================================
+# SSH HOST KEY POLICIES
+# ============================================================================
 
 class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
     """
@@ -74,6 +161,13 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
             # Even logging can fail in some environments, ensure connection continues
             pass
         
+        # Call audit callback if provided
+        if self.audit_callback:
+            try:
+                self.audit_callback(hostname, key_type, fingerprint)
+            except Exception:
+                pass
+        
         # Store key for this session (safe operation)
         try:
             client.get_host_keys().add(hostname, key.get_name(), key)
@@ -82,432 +176,1075 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
             pass
 
 
-@dataclass
-class SSHConnectionResult:
-    """Result of SSH connection attempt with detailed information."""
-    success: bool
-    connection: Optional[SSHClient] = None
-    error_message: Optional[str] = None
-    error_type: Optional[str] = None
-    host_key_fingerprint: Optional[str] = None
-    auth_method_used: Optional[str] = None
+# ============================================================================
+# SSH KEY UTILITIES
+# ============================================================================
+
+def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
+    """
+    Detect SSH key type from key content.
+    
+    Args:
+        key_content: SSH key content as string or bytes
+        
+    Returns:
+        SSHKeyType if detected, None if unknown
+    """
+    try:
+        # Handle bytes input (common from database)
+        if isinstance(key_content, (bytes, memoryview)):
+            key_content = key_content.decode('utf-8', errors='ignore')
+        
+        content_str = str(key_content).strip()
+        
+        # Check key type markers
+        if 'ssh-ed25519' in content_str or 'BEGIN OPENSSH PRIVATE KEY' in content_str:
+            # Ed25519 detection requires checking the actual key
+            try:
+                if '-----BEGIN OPENSSH PRIVATE KEY-----' in content_str:
+                    # Private key - try to parse to determine type
+                    key = paramiko.Ed25519Key.from_private_key_file(io.StringIO(content_str))
+                    return SSHKeyType.ED25519
+                elif content_str.startswith('ssh-ed25519'):
+                    return SSHKeyType.ED25519
+            except:
+                pass
+        
+        if any(marker in content_str for marker in ['ssh-rsa', 'BEGIN RSA PRIVATE KEY', 'RSA PRIVATE KEY']):
+            return SSHKeyType.RSA
+        elif any(marker in content_str for marker in ['ecdsa-sha2-', 'BEGIN EC PRIVATE KEY', 'EC PRIVATE KEY']):
+            return SSHKeyType.ECDSA
+        elif any(marker in content_str for marker in ['ssh-dss', 'BEGIN DSA PRIVATE KEY', 'DSA PRIVATE KEY']):
+            return SSHKeyType.DSA
+        
+        return None
+        
+    except Exception as e:
+        logger.debug(f"Error detecting key type: {e}")
+        return None
 
 
-@dataclass
-class SSHCommandResult:
-    """Result of SSH command execution."""
-    success: bool
-    stdout: str = ""
-    stderr: str = ""
-    exit_code: int = 0
-    error_message: Optional[str] = None
+def parse_ssh_key(key_content: str, passphrase: Optional[str] = None) -> paramiko.PKey:
+    """
+    Parse SSH key content into paramiko PKey object.
+    
+    Args:
+        key_content: SSH key content as string
+        passphrase: Optional passphrase for encrypted keys
+        
+    Returns:
+        paramiko.PKey object
+        
+    Raises:
+        SSHKeyError: If key cannot be parsed
+    """
+    try:
+        # Handle bytes input
+        if isinstance(key_content, (bytes, memoryview)):
+            key_content = key_content.decode('utf-8', errors='ignore')
+        
+        content_str = str(key_content).strip()
+        
+        # Try parsing with different key types
+        key_types = [
+            (Ed25519Key, "Ed25519"),
+            (RSAKey, "RSA"),
+            (ECDSAKey, "ECDSA"),
+            (DSSKey, "DSA")
+        ]
+        
+        for key_class, key_name in key_types:
+            try:
+                import io
+                key_file = io.StringIO(content_str)
+                if passphrase:
+                    return key_class.from_private_key(key_file, password=passphrase)
+                else:
+                    return key_class.from_private_key(key_file)
+            except (paramiko.PasswordRequiredException, paramiko.SSHException):
+                continue
+            except Exception:
+                continue
+        
+        raise SSHKeyError("Unable to parse SSH key - unsupported format or incorrect passphrase")
+        
+    except SSHKeyError:
+        raise
+    except Exception as e:
+        raise SSHKeyError(f"Error parsing SSH key: {str(e)}")
 
+
+def get_key_size(pkey: paramiko.PKey) -> Optional[int]:
+    """
+    Get the size of an SSH key in bits.
+    
+    Args:
+        pkey: paramiko PKey object
+        
+    Returns:
+        Key size in bits, None if unable to determine
+    """
+    try:
+        if isinstance(pkey, RSAKey):
+            return pkey.get_bits()
+        elif isinstance(pkey, Ed25519Key):
+            return 256  # Ed25519 is always 256 bits
+        elif isinstance(pkey, ECDSAKey):
+            return pkey.get_bits()
+        elif isinstance(pkey, DSSKey):
+            return pkey.get_bits()
+        else:
+            # Try generic method
+            try:
+                return pkey.get_bits()
+            except:
+                return None
+    except Exception:
+        return None
+
+
+def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[SSHKeySecurityLevel, list, list]:
+    """
+    Assess the security level of an SSH key based on type and size.
+    
+    Args:
+        key_type: Type of SSH key
+        key_size: Size of key in bits
+        
+    Returns:
+        Tuple of (security_level, warnings, recommendations)
+    """
+    warnings = []
+    recommendations = []
+    
+    if key_type == SSHKeyType.ED25519:
+        # Ed25519 is always secure (256-bit equivalent to 3072-bit RSA)
+        return SSHKeySecurityLevel.SECURE, warnings, recommendations
+    
+    elif key_type == SSHKeyType.RSA:
+        if not key_size:
+            warnings.append("Cannot determine RSA key size")
+            return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Verify key size is at least 2048 bits"]
+        elif key_size >= 4096:
+            return SSHKeySecurityLevel.SECURE, warnings, recommendations
+        elif key_size >= 2048:
+            return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Consider upgrading to 4096-bit RSA or Ed25519"]
+        else:
+            warnings.append(f"RSA key size {key_size} is below current security standards")
+            recommendations.append("Replace with at least 2048-bit RSA or Ed25519 key")
+            return SSHKeySecurityLevel.DEPRECATED, warnings, recommendations
+    
+    elif key_type == SSHKeyType.ECDSA:
+        if not key_size:
+            return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Verify ECDSA curve is P-256 or higher"]
+        elif key_size >= 384:  # P-384 or P-521
+            return SSHKeySecurityLevel.SECURE, warnings, recommendations
+        elif key_size >= 256:  # P-256
+            return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Consider Ed25519 for better security"]
+        else:
+            warnings.append(f"ECDSA key size {key_size} may be insecure")
+            recommendations.append("Replace with P-256 ECDSA or Ed25519 key")
+            return SSHKeySecurityLevel.DEPRECATED, warnings, recommendations
+    
+    elif key_type == SSHKeyType.DSA:
+        warnings.append("DSA keys are deprecated due to security vulnerabilities")
+        recommendations.append("Replace with Ed25519 or RSA key immediately")
+        return SSHKeySecurityLevel.REJECTED, warnings, recommendations
+    
+    else:
+        warnings.append("Unknown key type")
+        return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Use Ed25519 for new keys"]
+
+
+def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
+    """
+    Comprehensive SSH key validation with security assessment.
+    
+    Args:
+        key_content: SSH key content as string
+        passphrase: Optional passphrase for encrypted keys
+        
+    Returns:
+        SSHKeyValidationResult with detailed validation information
+    """
+    try:
+        # Handle empty input
+        if not key_content or not str(key_content).strip():
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message="Empty key content provided"
+            )
+        
+        # Detect key type
+        key_type = detect_key_type(key_content)
+        if not key_type:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message="Unable to detect SSH key type"
+            )
+        
+        # Parse key
+        try:
+            pkey = parse_ssh_key(key_content, passphrase)
+        except SSHKeyError as e:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                key_type=key_type,
+                error_message=str(e)
+            )
+        
+        # Get key size
+        key_size = get_key_size(pkey)
+        
+        # Assess security
+        security_level, warnings, recommendations = assess_key_security(key_type, key_size)
+        
+        return SSHKeyValidationResult(
+            is_valid=True,
+            key_type=key_type,
+            security_level=security_level,
+            key_size=key_size,
+            warnings=warnings,
+            recommendations=recommendations
+        )
+        
+    except Exception as e:
+        return SSHKeyValidationResult(
+            is_valid=False,
+            error_message=f"Validation error: {str(e)}"
+        )
+
+
+def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
+    """
+    Generate MD5 fingerprint for SSH key (compatible with OpenSSH format).
+    
+    Args:
+        key_content: SSH key content as string
+        passphrase: Optional passphrase for encrypted keys
+        
+    Returns:
+        Fingerprint as hex string, None if unable to generate
+    """
+    try:
+        pkey = parse_ssh_key(key_content, passphrase)
+        return pkey.get_fingerprint().hex()
+    except Exception as e:
+        logger.debug(f"Error generating key fingerprint: {e}")
+        return None
+
+
+def format_validation_message(result: SSHKeyValidationResult) -> str:
+    """
+    Format validation result into human-readable message.
+    
+    Args:
+        result: SSHKeyValidationResult object
+        
+    Returns:
+        Formatted message string
+    """
+    if not result.is_valid:
+        return f"Invalid SSH key: {result.error_message}"
+    
+    message_parts = []
+    
+    # Basic info
+    key_info = f"{result.key_type.value.upper()} key"
+    if result.key_size:
+        key_info += f" ({result.key_size} bits)"
+    
+    message_parts.append(f"Valid {key_info}")
+    
+    # Security level
+    if result.security_level:
+        security_msg = f"Security level: {result.security_level.value}"
+        message_parts.append(security_msg)
+    
+    # Warnings
+    if result.warnings:
+        warning_msg = "Warnings: " + "; ".join(result.warnings)
+        message_parts.append(warning_msg)
+    
+    # Recommendations
+    if result.recommendations:
+        rec_msg = "Recommendations: " + "; ".join(result.recommendations)
+        message_parts.append(rec_msg)
+    
+    return ". ".join(message_parts)
+
+
+def recommend_key_type() -> str:
+    """
+    Get current SSH key type recommendation.
+    
+    Returns:
+        Recommended key type with rationale
+    """
+    return (
+        "Ed25519 (recommended): Modern, secure, fast algorithm with small key size. "
+        "Alternatively, use RSA 4096-bit for maximum compatibility."
+    )
+
+
+# ============================================================================
+# SSH KEY METADATA EXTRACTION
+# ============================================================================
+
+def extract_ssh_key_metadata(key_content: str, passphrase: Optional[str] = None) -> Dict[str, Optional[str]]:
+    """
+    Extract SSH key metadata for storage and display.
+    
+    Args:
+        key_content: SSH private key content as string
+        passphrase: Optional passphrase for encrypted keys
+        
+    Returns:
+        Dictionary containing:
+        - fingerprint: SHA256 fingerprint (format: SHA256:base64hash)
+        - key_type: Key type (rsa, ed25519, ecdsa, dsa)
+        - key_bits: Key size in bits as string
+        - key_comment: Key comment/label if found
+        - error: Error message if extraction failed
+    """
+    try:
+        # Validate and get comprehensive key information
+        result = validate_ssh_key(key_content, passphrase)
+        
+        if not result.is_valid:
+            return {
+                'fingerprint': None,
+                'key_type': None,
+                'key_bits': None,
+                'key_comment': None,
+                'error': result.error_message or 'Invalid SSH key'
+            }
+        
+        # Get fingerprint
+        fingerprint_hex = get_key_fingerprint(key_content, passphrase)
+        
+        # Format fingerprint as SHA256:base64 (like GitHub/OpenSSH format)
+        fingerprint = None
+        if fingerprint_hex:
+            try:
+                # Convert hex to bytes then to base64
+                fingerprint_bytes = bytes.fromhex(fingerprint_hex)
+                fingerprint_b64 = base64.b64encode(fingerprint_bytes).decode('ascii')
+                fingerprint = f"SHA256:{fingerprint_b64}"
+            except Exception:
+                # Fallback to hex format
+                fingerprint = f"MD5:{fingerprint_hex}"
+        
+        # Extract comment from key
+        key_comment = extract_key_comment(key_content)
+        
+        return {
+            'fingerprint': fingerprint,
+            'key_type': result.key_type.value if result.key_type else None,
+            'key_bits': str(result.key_size) if result.key_size else None,
+            'key_comment': key_comment,
+            'error': None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error extracting SSH key metadata: {e}")
+        return {
+            'fingerprint': None,
+            'key_type': None,
+            'key_bits': None,
+            'key_comment': None,
+            'error': f'Metadata extraction failed: {str(e)}'
+        }
+
+
+def extract_key_comment(key_content: str) -> Optional[str]:
+    """
+    Extract comment/label from SSH key content.
+    
+    Args:
+        key_content: SSH key content as string
+        
+    Returns:
+        Key comment if found, None otherwise
+    """
+    try:
+        # Handle bytes input
+        if isinstance(key_content, (bytes, memoryview)):
+            key_content = key_content.decode('utf-8', errors='ignore')
+        
+        content_str = str(key_content).strip()
+        
+        # Look for public key format first (ssh-rsa AAAAB3... comment)
+        pub_key_pattern = r'^(ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-\S+)\s+\S+\s+(.+)$'
+        for line in content_str.split('\n'):
+            line = line.strip()
+            if line and not line.startswith('#') and not line.startswith('-'):
+                match = re.match(pub_key_pattern, line)
+                if match:
+                    comment = match.group(2).strip()
+                    if comment:
+                        return comment
+        
+        # Look for comment in private key format
+        comment_patterns = [
+            r'Comment:\s*"([^"]+)"',  # Comment: "description"
+            r'Comment:\s*([^\s]+)',   # Comment: description
+        ]
+        
+        for pattern in comment_patterns:
+            match = re.search(pattern, content_str, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        return None
+        
+    except Exception as e:
+        logger.debug(f"Error extracting key comment: {e}")
+        return None
+
+
+def format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date) -> str:
+    """
+    Format SSH key information for user-friendly display.
+    
+    Args:
+        fingerprint: Key fingerprint
+        key_type: Key type (rsa, ed25519, etc.)
+        key_bits: Key size in bits
+        key_comment: Key comment/label
+        created_date: Key creation date
+        
+    Returns:
+        Formatted display string
+    """
+    parts = []
+    
+    # Key type and size
+    if key_type:
+        type_display = key_type.upper()
+        if key_bits:
+            type_display += f" {key_bits}"
+        parts.append(type_display)
+    
+    # Comment
+    if key_comment:
+        parts.append(f'"{key_comment}"')
+    
+    # Fingerprint (shortened for display)
+    if fingerprint:
+        if len(fingerprint) > 47:  # SHA256: + 43 chars
+            short_fp = fingerprint[:15] + "..." + fingerprint[-8:]
+        else:
+            short_fp = fingerprint
+        parts.append(short_fp)
+    
+    # Creation date
+    if created_date:
+        if isinstance(created_date, str):
+            parts.append(f"Added {created_date}")
+        else:
+            parts.append(f"Added {created_date.strftime('%Y-%m-%d')}")
+    
+    return " · ".join(parts) if parts else "SSH Key"
+
+
+def get_key_security_indicator(key_type: Optional[str], key_bits: Optional[str]) -> Tuple[str, str]:
+    """
+    Get security level indicator for UI display.
+    
+    Args:
+        key_type: Key type string
+        key_bits: Key size as string
+        
+    Returns:
+        Tuple of (color, label) for UI display
+    """
+    if not key_type:
+        return "gray", "Unknown"
+    
+    key_type_lower = key_type.lower()
+    key_size = int(key_bits) if key_bits and key_bits.isdigit() else None
+    
+    if key_type_lower == "ed25519":
+        return "green", "Secure"
+    elif key_type_lower == "rsa":
+        if key_size and key_size >= 4096:
+            return "green", "Secure"
+        elif key_size and key_size >= 2048:
+            return "yellow", "Acceptable"
+        else:
+            return "red", "Weak"
+    elif key_type_lower == "ecdsa":
+        if key_size and key_size >= 384:
+            return "green", "Secure"
+        elif key_size and key_size >= 256:
+            return "yellow", "Acceptable"
+        else:
+            return "red", "Weak"
+    elif key_type_lower == "dsa":
+        return "red", "Deprecated"
+    else:
+        return "gray", "Unknown"
+
+
+# ============================================================================
+# UNIFIED SSH SERVICE
+# ============================================================================
 
 class UnifiedSSHService:
     """
-    Unified SSH service providing consistent connection handling across
-    all OpenWatch services with comprehensive security and audit features.
+    Unified SSH Service for OpenWatch
+    
+    Provides centralized SSH connection management across all OpenWatch services
+    with consistent security policies, comprehensive audit logging, and 
+    automation-friendly host key handling.
+    
+    This service consolidates functionality from:
+    - ssh_service.py: Basic SSH connectivity and command execution
+    - ssh_utils.py: SSH key validation and security assessment  
+    - ssh_config_service.py: SSH host key policies and configuration
+    - ssh_key_service.py: SSH key metadata extraction
     """
     
-    def __init__(self, settings=None):
+    def __init__(self, db: Session = None):
+        """Initialize unified SSH service"""
+        self.db = db
+        self.client = None
+        self.current_host = None
+        self._settings_cache = {}
+        self._cache_expiry = None
+    
+    # ========================================================================
+    # BASIC SSH CONNECTIVITY (from ssh_service.py)
+    # ========================================================================
+    
+    def connect(self, host: Host, timeout: int = 10) -> bool:
         """
-        Initialize unified SSH service.
+        Establish SSH connection to a host
         
         Args:
-            settings: Application settings object (optional)
-        """
-        self.settings = settings
-        
-        # Detect SSH strict mode from FIPS setting or environment
-        self.ssh_strict_mode = self._detect_ssh_strict_mode()
-        
-        # SSH connection defaults
-        self.default_timeout = 30
-        self.default_banner_timeout = 30
-        self.max_retries = 3 if not self.ssh_strict_mode else 1
-        
-        # Container-aware known_hosts path
-        self.container_known_hosts_path = Path("/app/security/known_hosts")
-        
-        # Ensure SSH directory exists in container environment
-        self._ensure_ssh_directory()
-        
-        logger.info(f"UnifiedSSHService initialized with ssh_strict_mode={self.ssh_strict_mode}")
-        
-    def _detect_ssh_strict_mode(self) -> bool:
-        """
-        Detect SSH strict mode based on FIPS setting and environment variables.
-        
+            host: Host object to connect to
+            timeout: Connection timeout in seconds
+            
         Returns:
-            bool: True if strict mode should be enabled
-        """
-        # Check FIPS mode from settings
-        if self.settings and hasattr(self.settings, 'fips_mode') and self.settings.fips_mode:
-            logger.info("SSH strict mode enabled due to FIPS mode")
-            return True
-            
-        # Check environment variable
-        if os.getenv("OPENWATCH_SSH_STRICT_MODE", "false").lower() == "true":
-            logger.info("SSH strict mode enabled via OPENWATCH_SSH_STRICT_MODE")
-            return True
-            
-        return False
-    
-    def _ensure_ssh_directory(self) -> None:
-        """
-        Ensure SSH directories exist in container environment to prevent file not found errors.
+            True if connection successful, False otherwise
         """
         try:
-            # Ensure user SSH directory exists
-            ssh_dir = Path.home() / ".ssh"
-            ssh_dir.mkdir(parents=True, exist_ok=True)
+            if self.client:
+                self.disconnect()
             
-            # Create empty known_hosts if it doesn't exist
-            known_hosts_file = ssh_dir / "known_hosts"
-            if not known_hosts_file.exists():
-                known_hosts_file.touch()
-                logger.debug(f"Created empty known_hosts file: {known_hosts_file}")
+            self.client = paramiko.SSHClient()
             
-            # Ensure container security directory exists
-            security_dir = Path("/app/security")
-            security_dir.mkdir(parents=True, exist_ok=True)
+            # Configure with security policy
+            self.configure_ssh_client(self.client, host.ip_address)
             
-            # Create container known_hosts if it doesn't exist
-            if not self.container_known_hosts_path.exists():
-                self.container_known_hosts_path.touch()
-                logger.debug(f"Created empty container known_hosts: {self.container_known_hosts_path}")
+            # Extract connection details
+            hostname = host.ip_address or host.hostname
+            port = host.port or 22
+            username = host.username
+            
+            # For now, we'll handle key-based authentication
+            # In a real implementation, you'd decrypt the stored credentials
+            self.client.connect(
+                hostname=hostname,
+                port=port,
+                username=username,
+                timeout=timeout,
+                look_for_keys=True,
+                allow_agent=True
+            )
+            
+            self.current_host = host
+            logger.info(f"Successfully connected to {hostname}:{port}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to connect to {hostname if 'hostname' in locals() else 'host'}: {e}")
+            return False
+    
+    def disconnect(self):
+        """Close SSH connection"""
+        try:
+            if self.client:
+                self.client.close()
+                self.client = None
+            self.current_host = None
+            logger.debug("SSH connection closed")
+        except Exception as e:
+            logger.warning(f"Error closing SSH connection: {e}")
+    
+    def execute_command(self, command: str, timeout: int = 30) -> Dict[str, Any]:
+        """
+        Execute a command over SSH
+        
+        Args:
+            command: Command to execute
+            timeout: Command timeout in seconds
+            
+        Returns:
+            Dictionary with execution results
+        """
+        if not self.client:
+            return {
+                'success': False,
+                'error': 'No SSH connection established',
+                'stdout': '',
+                'stderr': '',
+                'exit_code': -1
+            }
+        
+        try:
+            start_time = datetime.now()
+            
+            # Execute command
+            stdin, stdout, stderr = self.client.exec_command(command, timeout=timeout)
+            
+            # Read output
+            stdout_data = stdout.read().decode('utf-8', errors='ignore')
+            stderr_data = stderr.read().decode('utf-8', errors='ignore')
+            exit_code = stdout.channel.recv_exit_status()
+            
+            duration = (datetime.now() - start_time).total_seconds()
+            
+            result = {
+                'success': exit_code == 0,
+                'stdout': stdout_data,
+                'stderr': stderr_data,
+                'exit_code': exit_code,
+                'duration': duration,
+                'command': command
+            }
+            
+            logger.debug(f"Command executed: {command} (exit_code: {exit_code}, duration: {duration:.2f}s)")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'stdout': '',
+                'stderr': '',
+                'exit_code': -1,
+                'command': command
+            }
+    
+    def is_connected(self) -> bool:
+        """Check if SSH connection is active"""
+        try:
+            if not self.client:
+                return False
+            
+            # Try to get transport status
+            transport = self.client.get_transport()
+            return transport is not None and transport.is_active()
+        except:
+            return False
+    
+    def test_connection(self, host: Host) -> Dict[str, Any]:
+        """
+        Test SSH connectivity without establishing persistent connection
+        
+        Args:
+            host: Host object to test
+            
+        Returns:
+            Dictionary with test results
+        """
+        temp_client = None
+        try:
+            temp_client = paramiko.SSHClient()
+            self.configure_ssh_client(temp_client, host.ip_address)
+            
+            hostname = host.ip_address or host.hostname
+            port = host.port or 22
+            username = host.username
+            
+            start_time = datetime.now()
+            temp_client.connect(
+                hostname=hostname,
+                port=port,
+                username=username,
+                timeout=10,
+                look_for_keys=True,
+                allow_agent=True
+            )
+            
+            duration = (datetime.now() - start_time).total_seconds()
+            
+            return {
+                'success': True,
+                'hostname': hostname,
+                'port': port,
+                'username': username,
+                'duration': duration,
+                'message': f'Successfully connected to {hostname}:{port}'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'hostname': hostname if 'hostname' in locals() else 'unknown',
+                'port': port if 'port' in locals() else 22,
+                'username': username if 'username' in locals() else 'unknown',
+                'error': str(e),
+                'message': f'Failed to connect: {str(e)}'
+            }
+        finally:
+            if temp_client:
+                try:
+                    temp_client.close()
+                except:
+                    pass
+    
+    # ========================================================================
+    # SSH CONFIGURATION AND POLICIES (from ssh_config_service.py)
+    # ========================================================================
+    
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        """Get a system setting value with caching"""
+        if not self.db:
+            logger.warning("No database session available for SSH config service")
+            return default
+            
+        try:
+            # Import here to avoid circular imports
+            from ..models.system_models import SystemSettings
+            
+            setting = self.db.query(SystemSettings).filter(
+                SystemSettings.setting_key == key
+            ).first()
+            
+            if not setting:
+                return default
+            
+            # Convert based on type
+            if setting.setting_type == "json":
+                return json.loads(setting.setting_value) if setting.setting_value else default
+            elif setting.setting_type == "boolean":
+                return setting.setting_value.lower() in ("true", "1", "yes") if setting.setting_value else default
+            elif setting.setting_type == "integer":
+                return int(setting.setting_value) if setting.setting_value else default
+            else:
+                return setting.setting_value or default
                 
         except Exception as e:
-            logger.debug(f"Could not ensure SSH directory setup (non-critical): {e}")
+            logger.error(f"Error getting setting {key}: {e}")
+            return default
     
-    def _get_host_key_policy(self) -> paramiko.MissingHostKeyPolicy:
-        """
-        Get appropriate host key policy based on environment configuration.
+    def set_setting(self, key: str, value: Any, setting_type: str, description: str, user_id: int) -> bool:
+        """Set a system setting value"""
+        if not self.db:
+            logger.warning("No database session available for SSH config service")
+            return False
+            
+        try:
+            # Import here to avoid circular imports
+            from ..models.system_models import SystemSettings
+            
+            # Convert value to string based on type
+            if setting_type == "json":
+                string_value = json.dumps(value)
+            elif setting_type == "boolean":
+                string_value = str(value).lower()
+            else:
+                string_value = str(value)
+            
+            # Update or create setting
+            setting = self.db.query(SystemSettings).filter(
+                SystemSettings.setting_key == key
+            ).first()
+            
+            if setting:
+                setting.setting_value = string_value
+                setting.setting_type = setting_type
+                setting.description = description
+                setting.modified_by = user_id
+                setting.modified_at = datetime.utcnow()
+            else:
+                setting = SystemSettings(
+                    setting_key=key,
+                    setting_value=string_value,
+                    setting_type=setting_type,
+                    description=description,
+                    created_by=user_id,
+                    modified_by=user_id
+                )
+                self.db.add(setting)
+            
+            self.db.commit()
+            logger.info(f"Updated setting {key} = {string_value}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting {key}: {e}")
+            if self.db:
+                self.db.rollback()
+            return False
+    
+    def get_ssh_policy(self) -> str:
+        """Get current SSH host key policy"""
+        return self.get_setting("ssh_host_key_policy", "auto_add_warning")
+    
+    def set_ssh_policy(self, policy: str, user_id: int = None) -> bool:
+        """Set SSH host key policy"""
+        valid_policies = ["strict", "auto_add", "auto_add_warning", "bypass_trusted"]
         
-        Returns:
-            paramiko.MissingHostKeyPolicy: Policy instance
-        """
-        # Check for explicit environment overrides
-        if os.getenv("OPENWATCH_STRICT_SSH", "false").lower() == "true":
-            logger.info("Using RejectPolicy due to OPENWATCH_STRICT_SSH")
+        if policy not in valid_policies:
+            logger.error(f"Invalid SSH policy: {policy}. Valid options: {valid_policies}")
+            return False
+        
+        return self.set_setting(
+            "ssh_host_key_policy", 
+            policy, 
+            "string",
+            f"SSH host key verification policy: {policy}",
+            user_id or 1
+        )
+    
+    def get_trusted_networks(self) -> List[str]:
+        """Get trusted network ranges"""
+        networks = self.get_setting("ssh_trusted_networks", [])
+        if isinstance(networks, str):
+            try:
+                networks = json.loads(networks)
+            except:
+                networks = []
+        return networks if isinstance(networks, list) else []
+    
+    def set_trusted_networks(self, networks: List[str], user_id: int = None) -> bool:
+        """Set trusted network ranges"""
+        # Validate network ranges
+        valid_networks = []
+        for network in networks:
+            try:
+                ipaddress.ip_network(network, strict=False)
+                valid_networks.append(network)
+            except ValueError as e:
+                logger.warning(f"Invalid network range {network}: {e}")
+        
+        return self.set_setting(
+            "ssh_trusted_networks",
+            valid_networks,
+            "json", 
+            "Trusted network ranges for SSH host key bypass",
+            user_id or 1
+        )
+    
+    def is_host_in_trusted_network(self, host_ip: str) -> bool:
+        """Check if host is in trusted network range"""
+        try:
+            host_addr = ipaddress.ip_address(host_ip)
+            trusted_networks = self.get_trusted_networks()
+            
+            for network_str in trusted_networks:
+                try:
+                    network = ipaddress.ip_network(network_str, strict=False)
+                    if host_addr in network:
+                        return True
+                except ValueError:
+                    continue
+            
+            return False
+        except ValueError:
+            return False
+    
+    def create_ssh_policy(self, host_ip: str = None):
+        """Create paramiko policy object based on configuration"""
+        policy = self.get_ssh_policy()
+        
+        if policy == "strict":
             return paramiko.RejectPolicy()
-            
-        if os.getenv("OPENWATCH_PERMISSIVE_SSH", "false").lower() == "true":
-            logger.info("Using AutoAddPolicy due to OPENWATCH_PERMISSIVE_SSH")
+        elif policy == "auto_add":
             return paramiko.AutoAddPolicy()
-        
-        # Use SecurityWarningPolicy as default (automation-friendly)
-        logger.debug("Using SecurityWarningPolicy (default automation-friendly)")
-        return SecurityWarningPolicy(audit_callback=self._audit_host_key_event)
-    
-    def _load_container_host_keys(self, ssh_client: SSHClient) -> None:
-        """
-        Load host keys from container-persistent storage.
-        
-        Args:
-            ssh_client: SSH client to load keys into
-        """
-        keys_loaded = False
-        
-        # Skip loading host keys entirely when not in strict mode
-        # This prevents file not found errors when ssh_strict_mode is false
-        if not self.ssh_strict_mode:
-            logger.debug("SSH strict mode disabled - skipping host key loading")
-            return
-        
-        # Try to load system host keys if available
-        try:
-            ssh_client.load_system_host_keys()
-            keys_loaded = True
-            logger.debug("Loaded system host keys")
-        except Exception as e:
-            logger.debug(f"Could not load system host keys: {e}")
-        
-        # Try to load user host keys if available (only if file exists)
-        try:
-            user_known_hosts = os.path.expanduser('~/.ssh/known_hosts')
-            if os.path.exists(user_known_hosts):
-                ssh_client.load_host_keys(user_known_hosts)
-                keys_loaded = True
-                logger.debug("Loaded user known_hosts")
+        elif policy == "auto_add_warning":
+            return SecurityWarningPolicy()
+        elif policy == "bypass_trusted":
+            if host_ip and self.is_host_in_trusted_network(host_ip):
+                return paramiko.AutoAddPolicy()
             else:
-                logger.debug("User known_hosts file does not exist")
-        except Exception as e:
-            logger.debug(f"Could not load user host keys: {e}")
-        
-        # Try to load container-persistent host keys if available
+                return SecurityWarningPolicy()
+        else:
+            # Default to warning policy
+            return SecurityWarningPolicy()
+    
+    def configure_ssh_client(self, ssh: paramiko.SSHClient, host_ip: str = None) -> None:
+        """Configure SSH client with security policy"""
         try:
-            if self.container_known_hosts_path.exists():
-                ssh_client.load_host_keys(str(self.container_known_hosts_path))
-                keys_loaded = True
-                logger.debug(f"Loaded container host keys from {self.container_known_hosts_path}")
-            else:
-                logger.debug("Container known_hosts file does not exist yet")
-        except Exception as e:
-            logger.debug(f"Could not load container host keys: {e}")
-        
-        if not keys_loaded:
-            logger.info("No known_hosts files found - will accept new host keys")
-    
-    def _audit_host_key_event(self, hostname: str, event_type: str, details: Dict[str, Any]) -> None:
-        """
-        Audit host key events for compliance logging.
-        
-        Args:
-            hostname: Target hostname
-            event_type: Type of event (e.g., 'unknown_host_key')
-            details: Additional event details
-        """
-        audit_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "event_type": "ssh_host_key_event",
-            "hostname": hostname,
-            "ssh_strict_mode": self.ssh_strict_mode,
-            "host_key_event_type": event_type,
-            "details": details
-        }
-        logger.info(f"SSH_HOST_KEY_AUDIT: {json.dumps(audit_entry)}")
-    
-    def audit_ssh_connection(self, hostname: str, username: str, service_name: str,
-                           success: bool, error_message: Optional[str] = None,
-                           auth_method: Optional[str] = None, 
-                           additional_info: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Log SSH connection attempts for compliance and audit purposes.
-        
-        Args:
-            hostname: Target hostname
-            username: SSH username
-            service_name: Name of calling service
-            success: Whether connection succeeded
-            error_message: Error message if failed
-            auth_method: Authentication method used
-            additional_info: Additional information to log
-        """
-        audit_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "event_type": "ssh_connection",
-            "service": service_name,
-            "target_host": hostname,
-            "username": username,
-            "success": success,
-            "error": error_message,
-            "auth_method": auth_method,
-            "ssh_strict_mode": self.ssh_strict_mode
-        }
-        
-        # Add additional info if provided
-        if additional_info:
-            audit_entry.update(additional_info)
+            policy = self.create_ssh_policy(host_ip)
+            ssh.set_missing_host_key_policy(policy)
             
-        logger.info(f"SSH_AUDIT: {json.dumps(audit_entry)}")
+            # Load system host keys
+            try:
+                ssh.load_system_host_keys()
+            except Exception as e:
+                logger.debug(f"Could not load system host keys: {e}")
+            
+            # Load user host keys
+            try:
+                ssh.load_host_keys(os.path.expanduser('~/.ssh/known_hosts'))
+            except Exception as e:
+                logger.debug(f"Could not load user host keys: {e}")
+                
+        except Exception as e:
+            logger.warning(f"Error configuring SSH client: {e}")
+            # Fallback to warning policy
+            ssh.set_missing_host_key_policy(SecurityWarningPolicy())
+    
+    # ========================================================================
+    # ADVANCED CONNECTION METHODS (from unified_ssh_service.py)
+    # ========================================================================
     
     def connect_with_credentials(self, hostname: str, port: int, username: str,
                                auth_method: str, credential: str, service_name: str,
                                timeout: Optional[int] = None) -> SSHConnectionResult:
         """
-        Establish SSH connection using specified credentials and authentication method.
+        Advanced SSH connection with various authentication methods.
         
         Args:
-            hostname: Target hostname or IP address
-            port: SSH port (typically 22)
-            username: SSH username
-            auth_method: Authentication method ('password', 'ssh-key', 'ssh_key')
-            credential: Password or SSH private key content
-            service_name: Name of calling service for audit logging
-            timeout: Connection timeout (uses default if None)
+            hostname: Target hostname or IP
+            port: SSH port
+            username: Username for authentication
+            auth_method: Authentication method (password, key, agent)
+            credential: Password or private key content
+            service_name: Service name for logging
+            timeout: Connection timeout
             
         Returns:
-            SSHConnectionResult: Connection result with details
+            SSHConnectionResult with detailed connection information
         """
-        connection_timeout = timeout or self.default_timeout
+        start_time = datetime.utcnow()
+        client = None
         
-        # Validate inputs
-        if not hostname or not username or not credential:
-            error_msg = "Missing required connection parameters"
-            self.audit_ssh_connection(
-                hostname=hostname or "unknown", 
-                username=username or "unknown",
-                service_name=service_name,
-                success=False,
-                error_message=error_msg,
-                auth_method=auth_method
-            )
-            return SSHConnectionResult(
-                success=False, 
-                error_message=error_msg,
-                error_type="invalid_parameters"
-            )
-        
-        # Validate SSH key if using key authentication
-        if auth_method in ["ssh-key", "ssh_key"]:
-            validation_result = validate_ssh_key(credential)
-            if not validation_result.is_valid:
-                error_msg = f"Invalid SSH key: {validation_result.error_message}"
-                self.audit_ssh_connection(
+        try:
+            client = SSHClient()
+            self.configure_ssh_client(client, hostname)
+            
+            # Set timeouts
+            connect_timeout = timeout or 30
+            
+            if auth_method == "password":
+                client.connect(
                     hostname=hostname,
-                    username=username, 
-                    service_name=service_name,
-                    success=False,
-                    error_message=error_msg,
-                    auth_method=auth_method
+                    port=port,
+                    username=username,
+                    password=credential,
+                    timeout=connect_timeout,
+                    allow_agent=False,
+                    look_for_keys=False
                 )
-                return SSHConnectionResult(
-                    success=False,
-                    error_message=error_msg,
-                    error_type="invalid_ssh_key"
-                )
-        
-        # Attempt connection with retries
-        last_error = None
-        for attempt in range(self.max_retries):
-            try:
-                # Create SSH client
-                ssh = SSHClient()
+                auth_method_used = "password"
                 
-                # Set host key policy
-                ssh.set_missing_host_key_policy(self._get_host_key_policy())
-                
-                # Load host keys
-                self._load_container_host_keys(ssh)
-                
-                # Connection parameters
-                connect_kwargs = {
-                    'hostname': hostname,
-                    'port': port,
-                    'username': username,
-                    'timeout': connection_timeout,
-                    'banner_timeout': self.default_banner_timeout
-                }
-                
-                # Add authentication-specific parameters
-                if auth_method == "password":
-                    connect_kwargs['password'] = credential
-                elif auth_method in ["ssh-key", "ssh_key"]:
-                    # Parse SSH key using unified parser
-                    try:
-                        pkey = parse_ssh_key(credential)
-                        connect_kwargs['pkey'] = pkey
-                    except SSHKeyError as e:
-                        error_msg = f"SSH key parsing failed: {str(e)}"
-                        self.audit_ssh_connection(
-                            hostname=hostname,
-                            username=username,
-                            service_name=service_name,
-                            success=False,
-                            error_message=error_msg,
-                            auth_method=auth_method
-                        )
-                        return SSHConnectionResult(
-                            success=False,
-                            error_message=error_msg,
-                            error_type="ssh_key_parse_error"
-                        )
-                else:
-                    error_msg = f"Unsupported authentication method: {auth_method}"
-                    self.audit_ssh_connection(
+            elif auth_method == "key":
+                # Parse private key
+                try:
+                    pkey = parse_ssh_key(credential)
+                    client.connect(
                         hostname=hostname,
+                        port=port,
                         username=username,
-                        service_name=service_name,
-                        success=False,
-                        error_message=error_msg,
-                        auth_method=auth_method
+                        pkey=pkey,
+                        timeout=connect_timeout,
+                        allow_agent=False,
+                        look_for_keys=False
                     )
+                    auth_method_used = "private_key"
+                except SSHKeyError as e:
                     return SSHConnectionResult(
                         success=False,
-                        error_message=error_msg,
-                        error_type="unsupported_auth_method"
+                        error_message=f"Invalid private key: {str(e)}",
+                        error_type="key_error"
                     )
-                
-                # Establish connection
-                ssh.connect(**connect_kwargs)
-                
-                # Get host key fingerprint for logging
-                host_key_fingerprint = None
-                try:
-                    transport = ssh.get_transport()
-                    if transport:
-                        remote_server_key = transport.get_remote_server_key()
-                        if remote_server_key:
-                            host_key_fingerprint = remote_server_key.get_fingerprint().hex()
-                except Exception as e:
-                    logger.debug(f"Could not get host key fingerprint: {e}")
-                
-                # Log successful connection
-                self.audit_ssh_connection(
+                    
+            elif auth_method == "agent":
+                client.connect(
                     hostname=hostname,
+                    port=port,
                     username=username,
-                    service_name=service_name,
-                    success=True,
-                    auth_method=auth_method,
-                    additional_info={
-                        "host_key_fingerprint": host_key_fingerprint,
-                        "attempt": attempt + 1
-                    }
+                    timeout=connect_timeout,
+                    allow_agent=True,
+                    look_for_keys=True
                 )
+                auth_method_used = "ssh_agent"
                 
+            else:
                 return SSHConnectionResult(
-                    success=True,
-                    connection=ssh,
-                    host_key_fingerprint=host_key_fingerprint,
-                    auth_method_used=auth_method
+                    success=False,
+                    error_message=f"Unsupported authentication method: {auth_method}",
+                    error_type="auth_error"
                 )
-                
-            except paramiko.AuthenticationException as e:
-                last_error = f"SSH authentication failed: {str(e)}"
-                error_type = "authentication_failed"
-                
-            except paramiko.SSHException as e:
-                last_error = f"SSH connection error: {str(e)}"
-                error_type = "ssh_error"
-                
-            except socket.timeout:
-                last_error = f"SSH connection timeout after {connection_timeout}s"
-                error_type = "timeout"
-                
-            except ConnectionRefusedError:
-                last_error = f"SSH connection refused to {hostname}:{port}"
-                error_type = "connection_refused"
-                
-            except Exception as e:
-                last_error = f"Unexpected SSH error: {str(e)}"
-                error_type = "unexpected_error"
             
-            # Log retry attempt if not the last one
-            if attempt < self.max_retries - 1:
-                logger.debug(f"SSH connection attempt {attempt + 1} failed for {hostname}: {last_error}. Retrying...")
-        
-        # Log final failure
-        self.audit_ssh_connection(
-            hostname=hostname,
-            username=username,
-            service_name=service_name,
-            success=False,
-            error_message=last_error,
-            auth_method=auth_method,
-            additional_info={"total_attempts": self.max_retries}
-        )
-        
-        return SSHConnectionResult(
-            success=False,
-            error_message=last_error,
-            error_type=error_type
-        )
+            # Get host key fingerprint
+            transport = client.get_transport()
+            host_key = transport.get_remote_server_key()
+            host_key_fingerprint = host_key.get_fingerprint().hex() if host_key else None
+            
+            # Log successful connection
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            logger.info(
+                f"SSH connection successful: {service_name} -> {username}@{hostname}:{port} "
+                f"(auth: {auth_method_used}, duration: {duration:.2f}s)"
+            )
+            
+            return SSHConnectionResult(
+                success=True,
+                connection=client,
+                host_key_fingerprint=host_key_fingerprint,
+                auth_method_used=auth_method_used
+            )
+            
+        except paramiko.AuthenticationException:
+            if client:
+                client.close()
+            return SSHConnectionResult(
+                success=False,
+                error_message=f"Authentication failed for {username}@{hostname}",
+                error_type="auth_failed"
+            )
+            
+        except paramiko.SSHException as e:
+            if client:
+                client.close()
+            return SSHConnectionResult(
+                success=False,
+                error_message=f"SSH connection error: {str(e)}",
+                error_type="ssh_error"
+            )
+            
+        except socket.timeout:
+            if client:
+                client.close()
+            return SSHConnectionResult(
+                success=False,
+                error_message=f"Connection timeout to {hostname}:{port}",
+                error_type="timeout"
+            )
+            
+        except Exception as e:
+            if client:
+                client.close()
+            logger.error(f"SSH connection failed: {str(e)}")
+            return SSHConnectionResult(
+                success=False,
+                error_message=f"Connection failed: {str(e)}",
+                error_type="connection_error"
+            )
     
-    def execute_command(self, ssh_connection: SSHClient, command: str,
-                       timeout: Optional[int] = None) -> SSHCommandResult:
+    def execute_command_advanced(self, ssh_connection: SSHClient, command: str,
+                               timeout: Optional[int] = None) -> SSHCommandResult:
         """
-        Execute a single command via SSH connection.
+        Execute command with advanced result handling.
         
         Args:
-            ssh_connection: Established SSH connection
+            ssh_connection: Active SSH connection
             command: Command to execute
-            timeout: Command timeout (uses default if None)
+            timeout: Command timeout
             
         Returns:
-            SSHCommandResult: Command execution result
+            SSHCommandResult with detailed execution information
         """
-        command_timeout = timeout or self.default_timeout
+        start_time = datetime.utcnow()
+        command_timeout = timeout or 300  # 5 minute default
         
         try:
             # Execute command
@@ -516,110 +1253,121 @@ class UnifiedSSHService:
                 timeout=command_timeout
             )
             
-            # Get output
+            # Read output with timeout handling
             stdout_data = stdout.read().decode('utf-8', errors='replace').strip()
             stderr_data = stderr.read().decode('utf-8', errors='replace').strip()
             exit_code = stdout.channel.recv_exit_status()
             
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            
             return SSHCommandResult(
-                success=(exit_code == 0),
+                success=exit_code == 0,
                 stdout=stdout_data,
                 stderr=stderr_data,
-                exit_code=exit_code
+                exit_code=exit_code,
+                duration=duration
             )
             
         except socket.timeout:
             return SSHCommandResult(
                 success=False,
-                error_message=f"Command timeout after {command_timeout}s",
-                exit_code=-1
+                error_message=f"Command timed out after {command_timeout} seconds"
             )
         except Exception as e:
             return SSHCommandResult(
                 success=False,
-                error_message=f"Command execution error: {str(e)}",
-                exit_code=-1
+                error_message=f"Command execution failed: {str(e)}"
             )
     
-    def execute_minimal_system_check(self, hostname: str, port: int, username: str,
-                                   auth_method: str, credential: str, 
-                                   service_name: str) -> Dict[str, Any]:
-        """
-        Execute minimal system discovery commands to reduce reconnaissance footprint.
-        
-        This replaces the original 7-command system discovery with just 2 essential
-        checks that are required for SCAP compliance scanning.
-        
-        Args:
-            hostname: Target hostname or IP address
-            port: SSH port
-            username: SSH username  
-            auth_method: Authentication method
-            credential: Password or SSH key
-            service_name: Name of calling service
-            
-        Returns:
-            Dict containing essential system information
-        """
-        # Essential commands for SCAP scanning (reduced from 7 to 2)
-        essential_commands = {
-            "os_family": (
-                "[ -f /etc/redhat-release ] && echo 'redhat' || "
-                "([ -f /etc/debian_version ] && echo 'debian' || echo 'unknown')"
-            ),
-            "oscap_available": "command -v oscap >/dev/null 2>&1 && echo 'yes' || echo 'no'"
-        }
-        
-        # Establish connection
-        connection_result = self.connect_with_credentials(
-            hostname=hostname,
-            port=port,
-            username=username,
-            auth_method=auth_method,
-            credential=credential,
-            service_name=service_name
-        )
-        
-        if not connection_result.success:
-            return {
-                "error": connection_result.error_message,
-                "error_type": connection_result.error_type,
-                "commands_attempted": list(essential_commands.keys())
-            }
-        
-        # Execute essential commands
-        results = {}
-        ssh = connection_result.connection
-        
-        try:
-            for key, command in essential_commands.items():
-                logger.debug(f"Executing minimal discovery command '{key}': {command}")
-                
-                command_result = self.execute_command(ssh, command)
-                
-                if command_result.success:
-                    results[key] = command_result.stdout
-                    logger.debug(f"Command '{key}' result: {command_result.stdout}")
-                else:
-                    results[key] = "unknown"
-                    logger.warning(f"Command '{key}' failed: {command_result.error_message}")
-            
-            # Log successful minimal discovery
-            logger.info(f"Minimal system discovery completed for {hostname}: {results}")
-            
-        except Exception as e:
-            logger.error(f"Error during minimal system discovery for {hostname}: {e}")
-            results["error"] = str(e)
-            
-        finally:
-            # Always close the SSH connection
-            try:
-                ssh.close()
-            except Exception as e:
-                logger.debug(f"Error closing SSH connection to {hostname}: {e}")
-        
-        return results
+    # ========================================================================
+    # SSH KEY UTILITIES (wrapped from module functions)
+    # ========================================================================
+    
+    def validate_ssh_key(self, key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
+        """Validate SSH key with security assessment"""
+        return validate_ssh_key(key_content, passphrase)
+    
+    def extract_ssh_key_metadata(self, key_content: str, passphrase: Optional[str] = None) -> Dict[str, Optional[str]]:
+        """Extract SSH key metadata for storage and display"""
+        return extract_ssh_key_metadata(key_content, passphrase)
+    
+    def get_key_fingerprint(self, key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
+        """Generate fingerprint for SSH key"""
+        return get_key_fingerprint(key_content, passphrase)
+    
+    def format_validation_message(self, result: SSHKeyValidationResult) -> str:
+        """Format validation result into human-readable message"""
+        return format_validation_message(result)
+    
+    def recommend_key_type(self) -> str:
+        """Get current SSH key type recommendation"""
+        return recommend_key_type()
+    
+    def extract_key_comment(self, key_content: str) -> Optional[str]:
+        """Extract comment/label from SSH key content"""
+        return extract_key_comment(key_content)
+    
+    def format_key_display_info(self, fingerprint, key_type, key_bits, key_comment, created_date) -> str:
+        """Format SSH key information for user-friendly display"""
+        return format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date)
+    
+    def get_key_security_indicator(self, key_type: Optional[str], key_bits: Optional[str]) -> Tuple[str, str]:
+        """Get security level indicator for UI display"""
+        return get_key_security_indicator(key_type, key_bits)
 
 
-# Global instance for service usage
-unified_ssh_service = UnifiedSSHService()
+# ============================================================================
+# CONVENIENCE FUNCTIONS FOR BACKWARD COMPATIBILITY
+# ============================================================================
+
+def get_ssh_config_service(db: Session = None) -> UnifiedSSHService:
+    """Factory function for backward compatibility"""
+    return UnifiedSSHService(db)
+
+
+def configure_ssh_client_with_policy(ssh: paramiko.SSHClient, host_ip: str = None) -> None:
+    """Convenience function for SSH client configuration"""
+    service = UnifiedSSHService()
+    service.configure_ssh_client(ssh, host_ip)
+
+
+# Legacy class aliases for backward compatibility
+SSHService = UnifiedSSHService
+SSHConfigService = UnifiedSSHService
+
+# Export all public functions and classes
+__all__ = [
+    # Main service class
+    'UnifiedSSHService',
+    
+    # Legacy aliases
+    'SSHService',
+    'SSHConfigService',
+    
+    # Data classes and enums
+    'SSHKeyType',
+    'SSHKeySecurityLevel', 
+    'SSHKeyValidationResult',
+    'SSHKeyError',
+    'SSHConnectionResult',
+    'SSHCommandResult',
+    'SecurityWarningPolicy',
+    
+    # Utility functions
+    'detect_key_type',
+    'parse_ssh_key',
+    'get_key_size',
+    'assess_key_security',
+    'validate_ssh_key',
+    'get_key_fingerprint',
+    'format_validation_message',
+    'recommend_key_type',
+    'extract_ssh_key_metadata',
+    'extract_key_comment',
+    'format_key_display_info',
+    'get_key_security_indicator',
+    
+    # Configuration functions
+    'get_ssh_config_service',
+    'configure_ssh_client_with_policy',
+]

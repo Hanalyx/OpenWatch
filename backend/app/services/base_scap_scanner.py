@@ -17,8 +17,8 @@ from datetime import datetime
 import paramiko
 from paramiko.ssh_exception import SSHException
 
-from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError
-from .ssh_config_service import SSHConfigService
+from .unified_ssh_service import parse_ssh_key, validate_ssh_key, SSHKeyError
+from .unified_ssh_service import SSHConfigService
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -15,8 +15,8 @@ from ..utils.logging_security import sanitize_id_for_log
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 # NOTE: json and base64 imports removed - using centralized auth service
-from ..services.ssh_utils import validate_ssh_key, format_validation_message
-from ..services.ssh_key_service import extract_ssh_key_metadata
+from ..services.unified_ssh_service import validate_ssh_key, format_validation_message
+from ..services.unified_ssh_service import extract_ssh_key_metadata
 from ..auth import get_current_user
 
 logger = logging.getLogger(__name__)

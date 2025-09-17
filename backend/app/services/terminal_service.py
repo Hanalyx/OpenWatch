@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import get_db, Host
-from ..services.ssh_utils import validate_ssh_key, SSHKeyValidationResult
+from ..services.unified_ssh_service import validate_ssh_key, SSHKeyValidationResult
 from ..services.crypto import decrypt_credentials
 from ..audit_db import log_security_event
 

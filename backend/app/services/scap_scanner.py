@@ -19,7 +19,7 @@ import lxml.etree as etree
 import paramiko
 import io
 from paramiko.ssh_exception import SSHException
-from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
+from .unified_ssh_service import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
 from .unified_ssh_service import UnifiedSSHService
 from ..config import get_settings
 from ..utils.scap_xml_utils import extract_text_content

@@ -240,7 +240,7 @@ class AuthenticationValidator:
                         
             elif auth_method in ["ssh_key", "ssh-key"]:
                 try:
-                    from .ssh_utils import parse_ssh_key, validate_ssh_key
+                    from .unified_ssh_service import parse_ssh_key, validate_ssh_key
                     
                     # First validate the key format
                     validation_result = validate_ssh_key(credential)
@@ -710,7 +710,7 @@ class ErrorClassificationService:
             if auth_method == "password":
                 ssh_client.connect(hostname, port=port, username=username, password=credential, timeout=10)
             else:
-                from .ssh_utils import parse_ssh_key
+                from .unified_ssh_service import parse_ssh_key
                 key = parse_ssh_key(credential)
                 ssh_client.connect(hostname, port=port, username=username, pkey=key, timeout=10)
                 

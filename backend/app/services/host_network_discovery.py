@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from ..database import Host
-from ..services.ssh_service import SSHService
+from ..services.unified_ssh_service import UnifiedSSHService as SSHService
 
 logger = logging.getLogger(__name__)
 

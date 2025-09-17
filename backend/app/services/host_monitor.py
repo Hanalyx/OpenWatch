@@ -14,7 +14,7 @@ import paramiko
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .email_service import email_service
-from .ssh_utils import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
+from .unified_ssh_service import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
 from .unified_ssh_service import UnifiedSSHService
 
 logger = logging.getLogger(__name__)

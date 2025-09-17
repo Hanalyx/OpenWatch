@@ -61,9 +61,12 @@ database.json
 backend/venv/
 backend/env/
 backend/.venv/
+backend/docs
 venv/
 env/
 .venv/
+
+frontend/docs
 
 # Python cache and compiled files
 __pycache__/

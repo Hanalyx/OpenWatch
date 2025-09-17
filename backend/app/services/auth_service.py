@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 from enum import Enum
 
 from .encryption import encrypt_data, decrypt_data
-from .ssh_utils import validate_ssh_key, parse_ssh_key
-from .ssh_key_service import extract_ssh_key_metadata
+from .unified_ssh_service import validate_ssh_key, parse_ssh_key
+from .unified_ssh_service import extract_ssh_key_metadata
 from .credential_validation import validate_credential_with_strict_policy, SecurityPolicyLevel
 
 logger = logging.getLogger(__name__)

@@ -23,8 +23,8 @@ from ..database import get_db
 from ..auth import get_current_user
 from ..rbac import require_permission, Permission
 from ..services.encryption import encrypt_data, decrypt_data
-from ..services.ssh_utils import validate_ssh_key, format_validation_message
-from ..services.ssh_key_service import extract_ssh_key_metadata
+from ..services.unified_ssh_service import validate_ssh_key, format_validation_message
+from ..services.unified_ssh_service import extract_ssh_key_metadata
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
