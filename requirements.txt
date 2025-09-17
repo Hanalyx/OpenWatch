@@ -13,7 +13,7 @@ beanie==1.26.0
 motor==3.6.0
 pymongo>=4.9,<4.10
 # Template engine for report generation
-jinja2==3.1.5
+jinja2==3.1.6
 pydantic[email]==2.10.4
 pydantic-settings==2.8.0
 # python-jose[cryptography]==3.3.0  # Removed - using pyjwt instead (CVE fix)
