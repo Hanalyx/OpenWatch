@@ -1,7 +1,7 @@
 # Multi-stage build for React frontend with FIPS-compliant NGINX
 
 # Stage 1: Build the React application
-FROM node:20.19.5-alpine AS builder
+FROM node:24.8.0-alpine AS builder
 
 WORKDIR /app
 
