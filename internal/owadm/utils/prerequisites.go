@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
+	goruntime "runtime"
 )
 
 // CheckPrerequisites checks if all required tools and conditions are met
 func CheckPrerequisites() error {
 	// Check if running as non-root (recommended for rootless containers)
-	if runtime.GOOS != "windows" && os.Geteuid() == 0 {
+	if goruntime.GOOS != "windows" && os.Geteuid() == 0 {
 		// This is just a warning, not an error
 		fmt.Println("⚠️  Running as root user. Consider using rootless containers for better security.")
 	}

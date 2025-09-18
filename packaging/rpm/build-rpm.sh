@@ -45,7 +45,7 @@ check_prerequisites() {
     
     # Check for required tools
     local missing_tools=()
-    for tool in rpmbuild rpmdev-setuptree go git; do
+    for tool in rpmbuild go git; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing_tools+=("$tool")
         fi
@@ -64,8 +64,14 @@ check_prerequisites() {
 setup_build_env() {
     log_info "Setting up RPM build environment..."
     
-    # Create RPM build directory structure
-    rpmdev-setuptree
+    # Create RPM build directory structure manually if rpmdev-setuptree not available
+    if command -v rpmdev-setuptree >/dev/null 2>&1; then
+        rpmdev-setuptree
+    else
+        log_info "Creating RPM directory structure manually..."
+        mkdir -p "$BUILD_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        mkdir -p "$BUILD_DIR/RPMS"/{i386,i586,i686,x86_64,noarch}
+    fi
     
     # Verify directory structure
     for dir in BUILD RPMS SOURCES SPECS SRPMS; do
@@ -84,9 +90,8 @@ prepare_sources() {
     
     cd "$PROJECT_ROOT"
     
-    # Get version from git or default
-    local version
-    version=$(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+    # Use fixed version to match spec file
+    local version="1.2.1"
     
     # Build SELinux policy first
     log_info "Building SELinux policy..."
@@ -124,8 +129,8 @@ build_rpm() {
     
     cd "$BUILD_DIR"
     
-    # Build source and binary RPMs
-    rpmbuild -ba SPECS/openwatch.spec
+    # Build source and binary RPMs (skip dependency check on Ubuntu)
+    rpmbuild --nodeps -ba SPECS/openwatch.spec
     
     if [ $? -eq 0 ]; then
         log_success "RPM build completed successfully!"

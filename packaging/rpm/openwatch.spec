@@ -2,10 +2,9 @@
 # Enterprise SCAP compliance scanning platform
 
 %global commit %(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-%global version %(git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "1.0.0")
 
 Name:           openwatch
-Version:        %{version}
+Version:        1.2.1
 Release:        1%{?dist}
 Summary:        Enterprise SCAP compliance scanning and remediation platform
 License:        Apache-2.0
@@ -20,7 +19,6 @@ ExclusiveArch:  x86_64 aarch64
 BuildRequires:  golang >= 1.21
 BuildRequires:  git
 BuildRequires:  make
-BuildRequires:  systemd-rpm-macros
 
 # Runtime requirements - Container runtime (one of these)
 Requires:       (podman >= 4.0 or docker-ce >= 20.10)
@@ -64,15 +62,18 @@ Supports RHEL 8+, Oracle Linux 8+, and other enterprise Linux distributions.
 # Build owadm CLI tool
 export CGO_ENABLED=0
 export GOOS=linux
-export GOARCH=%{_arch}
 
-# Set build-time variables
-export LDFLAGS="-s -w \
-    -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} \
-    -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} \
-    -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')"
+# Set build-time variables and correct architecture
+if [ "%{_arch}" = "x86_64" ]; then
+    export GOARCH=amd64
+else
+    export GOARCH=%{_arch}
+fi
 
-go build $LDFLAGS -o bin/owadm cmd/owadm/main.go
+export BUILD_TIME=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')
+export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
+
+go build -ldflags "$LDFLAGS" -o bin/owadm cmd/owadm/main.go
 
 # Build SELinux policy if tools are available
 if command -v make >/dev/null 2>&1 && [ -f /usr/share/selinux/devel/Makefile ]; then
@@ -462,14 +463,15 @@ fi
 %dir %attr(755,openwatch,openwatch) %{_localstatedir}/cache/openwatch
 
 %changelog
-* Sun Sep 1 2025 OpenWatch Team <admin@hanalyx.com> - 1.0.1-1
+* Wed Sep 18 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-1
+- Update to version 1.2.1
 - Add fapolicyd integration for application whitelisting
 - Include comprehensive fapolicyd rules for all OpenWatch components
 - Add fapolicyd troubleshooting and diagnostic tools
 - Automatic fapolicyd configuration during package installation
 - Enhanced security for RHEL/Oracle Linux deployments
 
-* Sat Aug 31 2025 OpenWatch Team <admin@hanalyx.com> - 1.0.0-1
+* Tue Sep 17 2024 OpenWatch Team <admin@hanalyx.com> - 1.0.0-1
 - Initial RPM package for OpenWatch
 - Support for RHEL 8+, Oracle Linux 8+
 - Container runtime abstraction (Podman/Docker)

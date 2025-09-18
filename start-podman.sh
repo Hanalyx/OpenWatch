@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 PROJECT_NAME="openwatch"
 COMPOSE_FILE=""
 RUNTIME=""
+DEV_MODE=false
 
 # Logging functions
 log_info() {
@@ -43,7 +44,11 @@ check_prerequisites() {
     if command -v podman &> /dev/null; then
         if command -v podman-compose &> /dev/null; then
             RUNTIME="podman-compose"
-            COMPOSE_FILE="podman-compose-fixed.yml"
+            if [ "$DEV_MODE" = true ]; then
+                COMPOSE_FILE="podman-compose.dev.yml"
+            else
+                COMPOSE_FILE="podman-compose.yml"
+            fi
             log_info "Found podman-compose, using Podman runtime"
         else
             log_warning "Podman found but podman-compose not available"
@@ -53,7 +58,11 @@ check_prerequisites() {
     if command -v docker &> /dev/null && [ -z "$RUNTIME" ]; then
         if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
             RUNTIME="docker"
-            COMPOSE_FILE="docker-compose.yml"
+            if [ "$DEV_MODE" = true ]; then
+                COMPOSE_FILE="docker-compose.dev.yml"
+            else
+                COMPOSE_FILE="docker-compose.yml"
+            fi
             log_info "Found Docker Compose, using Docker runtime"
         else
             log_warning "Docker found but Docker Compose not available"
@@ -71,12 +80,13 @@ check_prerequisites() {
     # Check for required files
     if [ ! -f "$SCRIPT_DIR/$COMPOSE_FILE" ]; then
         log_error "Compose file not found: $COMPOSE_FILE"
-        if [ "$COMPOSE_FILE" = "podman-compose-fixed.yml" ] && [ -f "$SCRIPT_DIR/podman-compose.yml" ]; then
-            log_info "Using original podman-compose.yml instead"
-            COMPOSE_FILE="podman-compose.yml"
-        else
-            exit 1
-        fi
+        exit 1
+    fi
+    
+    if [ "$DEV_MODE" = true ]; then
+        log_info "Running in DEVELOPMENT mode"
+    else
+        log_info "Running in PRODUCTION mode"
     fi
 }
 
@@ -149,8 +159,13 @@ start_services() {
         log_success "OpenWatch services started successfully!"
         log_info ""
         log_info "Access points:"
-        log_info "  Frontend: http://localhost:3001"
-        log_info "  Backend API: http://localhost:8000"
+        if [ "$RUNTIME" = "podman-compose" ] && [ "$DEV_MODE" = false ]; then
+            log_info "  Frontend: http://localhost:8080 (HTTPS: https://localhost:8443)"
+            log_info "  Backend API: http://localhost:8000"
+        else
+            log_info "  Frontend: http://localhost:3001"
+            log_info "  Backend API: http://localhost:8000"
+        fi
         log_info "  API Docs: http://localhost:8000/docs"
         log_info ""
         log_info "To stop services, run:"
@@ -205,25 +220,64 @@ main() {
     log_success "OpenWatch startup complete!"
 }
 
-# Handle script arguments
-case "$1" in
-    "--help"|"-h")
-        echo "OpenWatch Startup Script"
-        echo ""
-        echo "Usage: $0 [OPTIONS]"
-        echo ""
-        echo "Options:"
-        echo "  --help, -h           Show this help message"
-        echo "  --no-health-check    Skip health check after startup"
-        echo ""
-        echo "This script will:"
-        echo "  1. Detect available container runtime (Podman or Docker)"
-        echo "  2. Set up environment variables"
-        echo "  3. Start OpenWatch services"
-        echo "  4. Perform basic health checks"
-        exit 0
-        ;;
-    *)
-        main "$@"
-        ;;
-esac
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --dev|-d)
+            DEV_MODE=true
+            shift
+            ;;
+        --help|-h)
+            echo "OpenWatch Startup Script"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --dev, -d            Run in development mode"
+            echo "  --help, -h           Show this help message"
+            echo "  --no-health-check    Skip health check after startup"
+            echo ""
+            echo "Environment variables:"
+            echo "  OPENWATCH_ENV        Set to 'development' for dev mode"
+            echo ""
+            echo "This script will:"
+            echo "  1. Detect available container runtime (Podman or Docker)"
+            echo "  2. Set up environment variables"
+            echo "  3. Start OpenWatch services"
+            echo "  4. Perform basic health checks"
+            exit 0
+            ;;
+        --no-health-check)
+            NO_HEALTH_CHECK=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Check environment variable for dev mode
+if [ "$OPENWATCH_ENV" = "development" ]; then
+    DEV_MODE=true
+fi
+
+# Main execution
+main() {
+    log_info "OpenWatch Podman/Docker Startup Script"
+    log_info "======================================="
+    
+    check_prerequisites
+    setup_environment
+    start_services
+    
+    if [ "$NO_HEALTH_CHECK" != true ]; then
+        check_health
+    fi
+    
+    log_success "OpenWatch startup complete!"
+}
+
+main
