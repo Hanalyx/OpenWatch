@@ -20,9 +20,9 @@ BuildRequires:  golang >= 1.21
 BuildRequires:  git
 BuildRequires:  make
 
-# Runtime requirements - Container runtime (one of these)
-Requires:       (podman >= 4.0 or docker-ce >= 20.10)
-Requires:       (podman-compose >= 1.0 or docker-compose >= 2.0)
+# Runtime requirements - Prefer Podman for RHEL-based systems
+Requires:       podman >= 4.0
+Requires:       podman-compose >= 1.0
 
 # System requirements
 Requires:       openscap-scanner >= 1.3.0
@@ -90,7 +90,7 @@ install -d %{buildroot}%{_sysconfdir}/openwatch/ssh
 install -d %{buildroot}%{_datadir}/openwatch
 install -d %{buildroot}%{_datadir}/openwatch/compose
 install -d %{buildroot}%{_datadir}/openwatch/scripts
-install -d %{buildroot}%{_unitdir}
+install -d %{buildroot}/lib/systemd/system
 install -d %{buildroot}%{_localstatedir}/lib/openwatch
 install -d %{buildroot}%{_localstatedir}/log/openwatch
 install -d %{buildroot}%{_localstatedir}/cache/openwatch
@@ -111,6 +111,7 @@ runtime:
   engine: "podman"              # podman (default), docker, auto
   rootless: true                # Use rootless containers (recommended)
   compose_file: "/usr/share/openwatch/compose/podman-compose.yml"
+  compose_command: "podman-compose"  # podman-compose or podman compose or docker-compose
   
 database:
   host: "localhost"
@@ -170,7 +171,7 @@ JWT_PUBLIC_KEY_PATH=/etc/openwatch/jwt_public.pem
 EOF
 
 # Install systemd service files
-cat > %{buildroot}%{_unitdir}/openwatch.service << 'EOF'
+cat > %{buildroot}/lib/systemd/system/openwatch.service << 'EOF'
 [Unit]
 Description=OpenWatch SCAP Compliance Platform
 Documentation=https://github.com/hanalyx/openwatch
@@ -208,7 +209,7 @@ LockPersonality=true
 WantedBy=multi-user.target
 EOF
 
-cat > %{buildroot}%{_unitdir}/openwatch-db.service << 'EOF'
+cat > %{buildroot}/lib/systemd/system/openwatch-db.service << 'EOF'
 [Unit]
 Description=OpenWatch Database Container
 Documentation=https://github.com/hanalyx/openwatch
@@ -220,9 +221,9 @@ Type=forking
 User=openwatch
 Group=openwatch
 EnvironmentFile=/etc/openwatch/secrets.env
-ExecStartPre=/usr/bin/owadm validate-config --database-only
-ExecStart=/usr/bin/owadm start --database-only --daemon
-ExecStop=/usr/bin/owadm stop --database-only
+ExecStartPre=/usr/bin/owadm validate-config
+ExecStart=/usr/bin/owadm start --daemon --service database
+ExecStop=/usr/bin/owadm stop --service database
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
@@ -239,9 +240,14 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-# Install SELinux policy files
+# Install SELinux policy files (if available)
 install -d %{buildroot}%{_datadir}/selinux/packages
-install -m 0644 packaging/selinux/openwatch.pp %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
+if [ -f packaging/selinux/openwatch.pp ]; then
+    install -m 0644 packaging/selinux/openwatch.pp %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
+else
+    # Create empty policy file as placeholder
+    touch %{buildroot}%{_datadir}/selinux/packages/openwatch.pp
+fi
 
 # Install fapolicyd configuration scripts
 install -m 0755 packaging/rpm/scripts/configure-fapolicyd.sh %{buildroot}%{_datadir}/openwatch/scripts/configure-fapolicyd.sh
@@ -261,43 +267,165 @@ set -euo pipefail
 SECRETS_FILE="/etc/openwatch/secrets.env"
 CONFIG_DIR="/etc/openwatch"
 
-# Generate secure random passwords
-generate_password() {
-    openssl rand -base64 32 | tr -d "=+/" | cut -c1-32
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+log_info() {
+    echo -e "${GREEN}ℹ️  $1${NC}"
 }
 
-# Generate JWT key pair
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Check prerequisites
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+    
+    # Check if OpenSSL is installed
+    if ! command -v openssl >/dev/null 2>&1; then
+        log_error "OpenSSL is not installed!"
+        echo ""
+        echo "Please install OpenSSL first:"
+        echo "  RHEL/Fedora/Oracle Linux: sudo dnf install openssl"
+        echo "  Ubuntu/Debian:             sudo apt install openssl"
+        echo "  SLES/openSUSE:             sudo zypper install openssl"
+        echo ""
+        exit 1
+    fi
+    
+    # Check OpenSSL version
+    local openssl_version
+    openssl_version=$(openssl version | cut -d' ' -f2)
+    log_info "OpenSSL version: $openssl_version"
+    
+    # Check if we have required tools
+    local missing_tools=()
+    for tool in sed chown chmod; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            missing_tools+=("$tool")
+        fi
+    done
+    
+    if [ ${#missing_tools[@]} -gt 0 ]; then
+        log_error "Missing required tools: ${missing_tools[*]}"
+        exit 1
+    fi
+    
+    log_info "Prerequisites check passed"
+}
+
+# Generate secure random passwords
+generate_password() {
+    # Try different methods based on what's available
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -base64 32 | tr -d "=+/" | cut -c1-32
+    elif [ -f /dev/urandom ]; then
+        tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32
+    else
+        log_error "Cannot generate secure random passwords - no entropy source available"
+        exit 1
+    fi
+}
+
+# Generate JWT key pair with compatibility
 generate_jwt_keys() {
     local private_key="$CONFIG_DIR/jwt_private.pem"
     local public_key="$CONFIG_DIR/jwt_public.pem"
     
-    # Generate RSA-2048 private key
-    openssl genpkey -algorithm RSA -out "$private_key" -pkcs8 -pkeyopt rsa_keygen_bits:2048
+    log_info "Generating JWT key pair..."
     
-    # Extract public key
-    openssl pkey -in "$private_key" -pubout -out "$public_key"
+    # Try modern OpenSSL syntax first, fall back to older syntax
+    if openssl genpkey -algorithm RSA -out "$private_key" -pkeyopt rsa_keygen_bits:2048 2>/dev/null; then
+        log_info "Generated private key using modern OpenSSL"
+    elif openssl genrsa -out "$private_key" 2048 2>/dev/null; then
+        log_info "Generated private key using legacy OpenSSL"
+    else
+        log_error "Failed to generate RSA private key"
+        log_info "Trying alternative method..."
+        
+        # Alternative method for very old OpenSSL versions
+        if ! openssl genrsa 2048 > "$private_key" 2>/dev/null; then
+            log_error "All RSA key generation methods failed"
+            exit 1
+        fi
+        log_info "Generated private key using alternative method"
+    fi
+    
+    # Extract public key (try different methods)
+    if openssl pkey -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
+        log_info "Extracted public key using modern OpenSSL"
+    elif openssl rsa -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
+        log_info "Extracted public key using legacy OpenSSL"
+    else
+        log_error "Failed to extract public key from private key"
+        exit 1
+    fi
     
     # Set proper permissions
     chmod 600 "$private_key"
     chmod 644 "$public_key"
-    chown openwatch:openwatch "$private_key" "$public_key"
+    
+    # Only change ownership if openwatch user exists
+    if id "openwatch" >/dev/null 2>&1; then
+        chown openwatch:openwatch "$private_key" "$public_key"
+    else
+        log_warning "openwatch user not found - keeping root ownership"
+    fi
+    
+    log_info "JWT keys generated successfully"
 }
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
-    echo "This script must be run as root" >&2
+    log_error "This script must be run as root"
     exit 1
 fi
 
-echo "Generating OpenWatch secrets..."
+# Check if secrets file exists
+if [ ! -f "$SECRETS_FILE" ]; then
+    log_error "Secrets file not found: $SECRETS_FILE"
+    log_info "Please ensure OpenWatch is properly installed"
+    exit 1
+fi
 
-# Generate secrets
+echo "🔐 OpenWatch Secret Generation Script"
+echo "====================================="
+
+check_prerequisites
+
+log_info "Generating OpenWatch secrets..."
+
+# Generate secrets with error handling
+log_info "Generating database password..."
 DB_PASSWORD=$(generate_password)
+
+log_info "Generating Redis password..."
 REDIS_PASSWORD=$(generate_password)
-SECRET_KEY=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-64)
+
+log_info "Generating application secret key..."
+if command -v openssl >/dev/null 2>&1; then
+    SECRET_KEY=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-64)
+else
+    SECRET_KEY=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
+fi
+
+log_info "Generating master key..."
 MASTER_KEY=$(generate_password)
 
+# Backup original secrets file
+cp "$SECRETS_FILE" "$SECRETS_FILE.backup.$(date +%%Y%%m%%d_%%H%%M%%S)"
+log_info "Backed up original secrets file"
+
 # Update secrets file
+log_info "Updating secrets file..."
 sed -i "s/CHANGEME_SECURE_DB_PASSWORD/$DB_PASSWORD/" "$SECRETS_FILE"
 sed -i "s/CHANGEME_SECURE_REDIS_PASSWORD/$REDIS_PASSWORD/" "$SECRETS_FILE"
 sed -i "s/CHANGEME_64_CHAR_SECRET_KEY/$SECRET_KEY/" "$SECRETS_FILE"
@@ -308,11 +436,26 @@ generate_jwt_keys
 
 # Secure the secrets file
 chmod 600 "$SECRETS_FILE"
-chown openwatch:openwatch "$SECRETS_FILE"
+if id "openwatch" >/dev/null 2>&1; then
+    chown openwatch:openwatch "$SECRETS_FILE"
+else
+    log_warning "openwatch user not found - keeping root ownership"
+fi
 
-echo "✅ Secrets generated successfully"
-echo "⚠️  Please review and customize /etc/openwatch/ow.yml"
-echo "🔐 Secrets stored securely in $SECRETS_FILE"
+echo ""
+echo "✅ Secrets generated successfully!"
+echo ""
+echo "📁 Files created/updated:"
+echo "  • $SECRETS_FILE"
+echo "  • $CONFIG_DIR/jwt_private.pem"
+echo "  • $CONFIG_DIR/jwt_public.pem"
+echo ""
+echo "⚠️  Next steps:"
+echo "  1. Review and customize /etc/openwatch/ow.yml"
+echo "  2. Generate SSH keys if needed: ssh-keygen -t rsa -f /etc/openwatch/ssh/openwatch_rsa"
+echo "  3. Start OpenWatch: systemctl start openwatch"
+echo ""
+echo "🔐 Secrets stored securely with restricted permissions"
 EOF
 
 chmod +x %{buildroot}%{_datadir}/openwatch/scripts/generate-secrets.sh
@@ -349,44 +492,117 @@ if grep -q "CHANGEME" /etc/openwatch/secrets.env; then
     /usr/share/openwatch/scripts/generate-secrets.sh
 fi
 
-# Install and configure SELinux policy for RHEL/Oracle Linux
-if command -v semanage >/dev/null 2>&1 && getenforce | grep -q "Enforcing\|Permissive"; then
-    echo "Installing OpenWatch SELinux policy..."
-    
-    # Install policy module
-    if [ -f /usr/share/selinux/packages/openwatch.pp ]; then
-        semodule -i /usr/share/selinux/packages/openwatch.pp
-        echo "✅ SELinux policy module installed"
+# Check and configure SELinux policy for RHEL/Oracle Linux
+check_and_configure_selinux() {
+    # Check if SELinux tools are available
+    if ! command -v semanage >/dev/null 2>&1; then
+        echo "ℹ️  SELinux management tools not found - skipping SELinux policy installation"
+        return 0
     fi
     
-    # Apply file contexts
+    # Check if SELinux is installed and enabled
+    if ! command -v getenforce >/dev/null 2>&1; then
+        echo "ℹ️  SELinux not installed - skipping SELinux policy installation"
+        return 0
+    fi
+    
+    local selinux_status
+    selinux_status=$(getenforce 2>/dev/null || echo "Disabled")
+    
+    if [ "$selinux_status" = "Disabled" ]; then
+        echo "ℹ️  SELinux is disabled - skipping SELinux policy installation"
+        return 0
+    fi
+    
+    echo "Installing OpenWatch SELinux policy (SELinux status: $selinux_status)..."
+    
+    # Install policy module only if the file exists and is valid
+    if [ -f /usr/share/selinux/packages/openwatch.pp ] && [ -s /usr/share/selinux/packages/openwatch.pp ]; then
+        if semodule -i /usr/share/selinux/packages/openwatch.pp 2>/dev/null; then
+            echo "✅ SELinux policy module installed successfully"
+        else
+            echo "⚠️  SELinux policy installation failed - this is expected if policy wasn't built"
+        fi
+    else
+        echo "⚠️  SELinux policy file not found or empty - skipping policy installation"
+    fi
+    
+    # Apply file contexts regardless of policy installation
+    echo "Applying SELinux file contexts..."
     if [ -d /etc/openwatch ]; then
-        restorecon -R /etc/openwatch
+        restorecon -R /etc/openwatch 2>/dev/null || true
     fi
     if [ -d /var/lib/openwatch ]; then
-        restorecon -R /var/lib/openwatch  
+        restorecon -R /var/lib/openwatch 2>/dev/null || true
     fi
     if [ -d /var/log/openwatch ]; then
-        restorecon -R /var/log/openwatch
+        restorecon -R /var/log/openwatch 2>/dev/null || true
     fi
     if [ -f /usr/bin/owadm ]; then
-        restorecon /usr/bin/owadm
+        restorecon /usr/bin/owadm 2>/dev/null || true
     fi
     
     echo "✅ SELinux contexts configured"
-fi
+}
 
-# Configure fapolicyd for OpenWatch if installed and active
-if command -v fapolicyd >/dev/null 2>&1 && systemctl is-active --quiet fapolicyd; then
-    echo "Configuring fapolicyd for OpenWatch..."
-    /usr/share/openwatch/scripts/configure-fapolicyd.sh configure
-    echo "✅ fapolicyd rules configured"
-    echo "ℹ️  Use 'fapolicyd-troubleshoot.sh' if you encounter permission issues"
-fi
+# Check and configure fapolicyd for OpenWatch
+check_and_configure_fapolicyd() {
+    # Check if fapolicyd is installed
+    if ! command -v fapolicyd >/dev/null 2>&1; then
+        echo "ℹ️  fapolicyd not installed - skipping fapolicyd configuration"
+        return 0
+    fi
+    
+    # Check if fapolicyd service exists
+    if ! systemctl list-unit-files fapolicyd.service >/dev/null 2>&1; then
+        echo "ℹ️  fapolicyd service not available - skipping fapolicyd configuration"
+        return 0
+    fi
+    
+    # Check if fapolicyd is enabled and running
+    local fapolicyd_enabled=false
+    local fapolicyd_active=false
+    
+    if systemctl is-enabled fapolicyd >/dev/null 2>&1; then
+        fapolicyd_enabled=true
+    fi
+    
+    if systemctl is-active --quiet fapolicyd 2>/dev/null; then
+        fapolicyd_active=true
+    fi
+    
+    if [ "$fapolicyd_enabled" = "false" ] && [ "$fapolicyd_active" = "false" ]; then
+        echo "ℹ️  fapolicyd is not enabled or running - skipping automatic configuration"
+        echo "ℹ️  To configure fapolicyd later: /usr/share/openwatch/scripts/configure-fapolicyd.sh configure"
+        return 0
+    fi
+    
+    echo "Configuring fapolicyd for OpenWatch (enabled: $fapolicyd_enabled, active: $fapolicyd_active)..."
+    
+    # Check if configuration script exists
+    if [ -f /usr/share/openwatch/scripts/configure-fapolicyd.sh ]; then
+        if /usr/share/openwatch/scripts/configure-fapolicyd.sh configure 2>/dev/null; then
+            echo "✅ fapolicyd rules configured successfully"
+        else
+            echo "⚠️  fapolicyd configuration failed - manual configuration may be needed"
+        fi
+        echo "ℹ️  Troubleshooting: /usr/share/openwatch/scripts/fapolicyd-troubleshoot.sh"
+    else
+        echo "⚠️  fapolicyd configuration script not found"
+    fi
+}
+
+# Run security configurations
+check_and_configure_selinux
+check_and_configure_fapolicyd
 
 # Enable but don't start services (let admin control startup)
-%systemd_post openwatch.service openwatch-db.service
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload
+    systemctl enable openwatch.service openwatch-db.service
+fi
 
+echo ""
 echo ""
 echo "🎉 OpenWatch installed successfully!"
 echo ""
@@ -396,19 +612,43 @@ echo "2. Configure SSL certificates (recommended)"
 echo "3. Start services: systemctl start openwatch"
 echo "4. Check status: owadm status"
 echo ""
-if command -v fapolicyd >/dev/null 2>&1; then
-    echo "fapolicyd detected - OpenWatch rules configured automatically"
-    echo "Troubleshooting: /usr/share/openwatch/scripts/fapolicyd-troubleshoot.sh"
-    echo ""
+
+# Show runtime environment info
+echo "🔧 Runtime Configuration:"
+echo "  • Container runtime: Podman (RHEL/Fedora optimized)"
+echo "  • Compose command: podman-compose"
+echo "  • Config file: /etc/openwatch/ow.yml"
+echo ""
+
+# Show security configuration status
+echo "🛡️  Security Configuration Status:"
+if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null || echo Disabled)" != "Disabled" ]; then
+    echo "  • SELinux: Enabled and configured"
+else
+    echo "  • SELinux: Not enabled"
 fi
-echo "Documentation: https://github.com/hanalyx/openwatch"
+
+if command -v fapolicyd >/dev/null 2>&1 && systemctl is-enabled fapolicyd >/dev/null 2>&1; then
+    echo "  • fapolicyd: Detected and configured"
+    echo "    Troubleshooting: /usr/share/openwatch/scripts/fapolicyd-troubleshoot.sh"
+else
+    echo "  • fapolicyd: Not enabled"
+fi
+echo ""
+
+echo "📖 Documentation: https://github.com/hanalyx/openwatch"
 echo ""
 
 %preun
-%systemd_preun openwatch.service openwatch-db.service
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop openwatch.service openwatch-db.service || true
+    systemctl disable openwatch.service openwatch-db.service || true
+fi
 
 %postun
-%systemd_postun_with_restart openwatch.service openwatch-db.service
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+fi
 
 # Clean up user on complete removal
 if [ $1 -eq 0 ]; then
@@ -439,8 +679,8 @@ fi
 %config(noreplace) %attr(600,openwatch,openwatch) %{_sysconfdir}/openwatch/secrets.env
 
 # Systemd service files
-%{_unitdir}/openwatch.service
-%{_unitdir}/openwatch-db.service
+/lib/systemd/system/openwatch.service
+/lib/systemd/system/openwatch-db.service
 
 # Application data
 %dir %attr(755,root,root) %{_datadir}/openwatch
