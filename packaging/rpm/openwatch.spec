@@ -112,6 +112,7 @@ runtime:
   rootless: true                # Use rootless containers (recommended)
   compose_file: "/usr/share/openwatch/compose/podman-compose.yml"
   compose_command: "podman-compose"  # podman-compose or podman compose or docker-compose
+  working_directory: "/usr/share/openwatch/compose"  # Directory containing compose files
   
 database:
   host: "localhost"
@@ -183,15 +184,16 @@ Wants=network-online.target
 Type=forking
 User=openwatch
 Group=openwatch
-WorkingDirectory=/etc/openwatch
+WorkingDirectory=/usr/share/openwatch/compose
 EnvironmentFile=/etc/openwatch/secrets.env
 EnvironmentFile=-/etc/openwatch/.env
 Environment="COMPOSE_PROJECT_NAME=openwatch"
 Environment="CONTAINER_RUNTIME=podman"
-ExecStartPre=/usr/bin/owadm validate-config
-ExecStart=/usr/bin/owadm start --daemon
-ExecStop=/usr/bin/owadm stop
-ExecReload=/usr/bin/owadm restart
+Environment="OPENWATCH_CONFIG_DIR=/etc/openwatch"
+ExecStartPre=/usr/bin/owadm validate-config --config /etc/openwatch/ow.yml
+ExecStart=/usr/bin/owadm start --daemon --config /etc/openwatch/ow.yml
+ExecStop=/usr/bin/owadm stop --config /etc/openwatch/ow.yml
+ExecReload=/usr/bin/owadm restart --config /etc/openwatch/ow.yml
 Restart=on-failure
 RestartSec=10
 KillMode=mixed
@@ -202,7 +204,7 @@ TimeoutStopSec=120
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/openwatch /var/log/openwatch /etc/openwatch
+ReadWritePaths=/var/lib/openwatch /var/log/openwatch /etc/openwatch /usr/share/openwatch/compose
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
@@ -224,14 +226,15 @@ Wants=network-online.target
 Type=forking
 User=openwatch
 Group=openwatch
-WorkingDirectory=/etc/openwatch
+WorkingDirectory=/usr/share/openwatch/compose
 EnvironmentFile=/etc/openwatch/secrets.env
 EnvironmentFile=-/etc/openwatch/.env
 Environment="COMPOSE_PROJECT_NAME=openwatch"
 Environment="CONTAINER_RUNTIME=podman"
-ExecStartPre=/usr/bin/owadm validate-config
-ExecStart=/usr/bin/owadm start --daemon --service database
-ExecStop=/usr/bin/owadm stop --service database
+Environment="OPENWATCH_CONFIG_DIR=/etc/openwatch"
+ExecStartPre=/usr/bin/owadm validate-config --config /etc/openwatch/ow.yml
+ExecStart=/usr/bin/owadm start --daemon --service database --config /etc/openwatch/ow.yml
+ExecStop=/usr/bin/owadm stop --service database --config /etc/openwatch/ow.yml
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
@@ -241,7 +244,7 @@ TimeoutStopSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/openwatch /etc/openwatch
+ReadWritePaths=/var/lib/openwatch /etc/openwatch /usr/share/openwatch/compose
 PrivateTmp=true
 
 [Install]
@@ -555,6 +558,16 @@ EOF
 
 create_env_file
 
+# Create symbolic link for .env file in compose directory  
+echo "Configuring compose directory..."
+if [ -f /etc/openwatch/.env ]; then
+    ln -sf /etc/openwatch/.env /usr/share/openwatch/compose/.env
+fi
+
+# Set proper ownership for compose directory
+chown -R openwatch:openwatch /usr/share/openwatch/compose
+echo "✅ Compose directory configured"
+
 # Check and configure SELinux policy for RHEL/Oracle Linux
 check_and_configure_selinux() {
     # Check if SELinux tools are available
@@ -759,11 +772,12 @@ fi
 
 # Application data
 %dir %attr(755,root,root) %{_datadir}/openwatch
-%dir %attr(755,root,root) %{_datadir}/openwatch/compose
+%dir %attr(755,openwatch,openwatch) %{_datadir}/openwatch/compose
 %dir %attr(755,root,root) %{_datadir}/openwatch/scripts
 %dir %attr(755,root,root) %{_datadir}/openwatch/templates
 %{_datadir}/openwatch/compose/docker-compose.yml
 %{_datadir}/openwatch/compose/podman-compose.yml
+%ghost %{_datadir}/openwatch/compose/.env
 %attr(755,root,root) %{_datadir}/openwatch/scripts/generate-secrets.sh
 %attr(755,root,root) %{_datadir}/openwatch/scripts/configure-fapolicyd.sh
 %attr(755,root,root) %{_datadir}/openwatch/scripts/fapolicyd-troubleshoot.sh
