@@ -183,7 +183,11 @@ Wants=network-online.target
 Type=forking
 User=openwatch
 Group=openwatch
+WorkingDirectory=/etc/openwatch
 EnvironmentFile=/etc/openwatch/secrets.env
+EnvironmentFile=-/etc/openwatch/.env
+Environment="COMPOSE_PROJECT_NAME=openwatch"
+Environment="CONTAINER_RUNTIME=podman"
 ExecStartPre=/usr/bin/owadm validate-config
 ExecStart=/usr/bin/owadm start --daemon
 ExecStop=/usr/bin/owadm stop
@@ -220,7 +224,11 @@ Wants=network-online.target
 Type=forking
 User=openwatch
 Group=openwatch
+WorkingDirectory=/etc/openwatch
 EnvironmentFile=/etc/openwatch/secrets.env
+EnvironmentFile=-/etc/openwatch/.env
+Environment="COMPOSE_PROJECT_NAME=openwatch"
+Environment="CONTAINER_RUNTIME=podman"
 ExecStartPre=/usr/bin/owadm validate-config
 ExecStart=/usr/bin/owadm start --daemon --service database
 ExecStop=/usr/bin/owadm stop --service database
@@ -233,7 +241,7 @@ TimeoutStopSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/openwatch
+ReadWritePaths=/var/lib/openwatch /etc/openwatch
 PrivateTmp=true
 
 [Install]
@@ -476,7 +484,19 @@ if getent group docker >/dev/null; then
 fi
 
 %post
+# Create log directory and log file with proper permissions
+mkdir -p /var/log/openwatch
+touch /var/log/openwatch/install.log
+chmod 640 /var/log/openwatch/install.log
+
+# Redirect all output to log file
+exec 1>>/var/log/openwatch/install.log 2>&1
+
+echo "=== OpenWatch Post-Installation Script ==="
+echo "=== $(date) ==="
+
 # Set proper ownership and permissions
+echo "Setting ownership and permissions..."
 chown -R openwatch:openwatch /etc/openwatch
 chown -R openwatch:openwatch /var/lib/openwatch
 chown -R openwatch:openwatch /var/log/openwatch
@@ -491,6 +511,49 @@ if grep -q "CHANGEME" /etc/openwatch/secrets.env; then
     echo "Generating initial secrets..."
     /usr/share/openwatch/scripts/generate-secrets.sh
 fi
+
+# Create .env file for container services from secrets.env
+echo "Creating .env file for container services..."
+create_env_file() {
+    local env_file="/etc/openwatch/.env"
+    local secrets_file="/etc/openwatch/secrets.env"
+    
+    # Source the secrets file to get the values
+    if [ -f "$secrets_file" ]; then
+        # Create .env file with required environment variables
+        cat > "$env_file" << EOF
+# Auto-generated from secrets.env - DO NOT EDIT DIRECTLY
+# Generated on $(date)
+
+# Database Configuration
+$(grep "POSTGRES_PASSWORD=" "$secrets_file" || echo "POSTGRES_PASSWORD=changeme")
+
+# Redis Configuration  
+$(grep "REDIS_PASSWORD=" "$secrets_file" || echo "REDIS_PASSWORD=changeme")
+
+# Application Secrets
+$(grep "SECRET_KEY=" "$secrets_file" || echo "SECRET_KEY=changeme")
+$(grep "MASTER_KEY=" "$secrets_file" || echo "MASTER_KEY=changeme")
+
+# JWT Keys
+$(grep "JWT_PRIVATE_KEY_PATH=" "$secrets_file" || echo "JWT_PRIVATE_KEY_PATH=/etc/openwatch/jwt_private.pem")
+$(grep "JWT_PUBLIC_KEY_PATH=" "$secrets_file" || echo "JWT_PUBLIC_KEY_PATH=/etc/openwatch/jwt_public.pem")
+
+# Container Settings
+COMPOSE_PROJECT_NAME=openwatch
+CONTAINER_RUNTIME=podman
+EOF
+        
+        # Set proper permissions
+        chmod 600 "$env_file"
+        chown openwatch:openwatch "$env_file"
+        echo "✅ Created .env file at $env_file"
+    else
+        echo "⚠️  Warning: secrets.env not found, .env file not created"
+    fi
+}
+
+create_env_file
 
 # Check and configure SELinux policy for RHEL/Oracle Linux
 check_and_configure_selinux() {
@@ -598,12 +661,13 @@ check_and_configure_fapolicyd
 
 # Enable but don't start services (let admin control startup)
 if command -v systemctl >/dev/null 2>&1; then
+    echo "Enabling systemd services..."
     systemctl daemon-reload
     systemctl enable openwatch.service openwatch-db.service
 fi
 
 echo ""
-echo ""
+echo "=== Installation Summary ==="
 echo "🎉 OpenWatch installed successfully!"
 echo ""
 echo "Next steps:"
@@ -618,6 +682,7 @@ echo "🔧 Runtime Configuration:"
 echo "  • Container runtime: Podman (RHEL/Fedora optimized)"
 echo "  • Compose command: podman-compose"
 echo "  • Config file: /etc/openwatch/ow.yml"
+echo "  • Environment file: /etc/openwatch/.env"
 echo ""
 
 # Show security configuration status
@@ -638,6 +703,15 @@ echo ""
 
 echo "📖 Documentation: https://github.com/hanalyx/openwatch"
 echo ""
+echo "=== Post-installation log saved to /var/log/openwatch/install.log ==="
+
+# Show minimal output to screen (stdout is still redirected to log)
+# Use file descriptor 3 to write to terminal
+exec 3>&2
+echo >&3
+echo "OpenWatch installation completed successfully." >&3
+echo "Installation log: /var/log/openwatch/install.log" >&3
+echo >&3
 
 %preun
 if command -v systemctl >/dev/null 2>&1; then
@@ -677,6 +751,7 @@ fi
 %dir %attr(700,openwatch,openwatch) %{_sysconfdir}/openwatch/ssh
 %config(noreplace) %attr(640,openwatch,openwatch) %{_sysconfdir}/openwatch/ow.yml
 %config(noreplace) %attr(600,openwatch,openwatch) %{_sysconfdir}/openwatch/secrets.env
+%ghost %attr(600,openwatch,openwatch) %{_sysconfdir}/openwatch/.env
 
 # Systemd service files
 /lib/systemd/system/openwatch.service
