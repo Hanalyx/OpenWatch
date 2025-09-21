@@ -5,7 +5,7 @@
 
 Name:           openwatch
 Version:        1.2.1
-Release:        7%{?dist}
+Release:        8%{?dist}
 Summary:        Enterprise SCAP compliance scanning and remediation platform
 License:        Apache-2.0
 URL:            https://github.com/hanalyx/openwatch
@@ -283,6 +283,12 @@ install -m 0755 packaging/rpm/scripts/fapolicyd-troubleshoot.sh %{buildroot}%{_d
 
 # Install comprehensive cleanup script
 install -m 0755 packaging/rpm/scripts/cleanup-openwatch.sh %{buildroot}%{_datadir}/openwatch/scripts/cleanup-openwatch.sh
+
+# Install Podman permission fix script  
+install -m 0755 packaging/rpm/scripts/fix-podman-permissions.sh %{buildroot}%{_datadir}/openwatch/scripts/fix-podman-permissions.sh
+
+# Install Podman troubleshooting script
+install -m 0755 packaging/rpm/scripts/podman-troubleshoot.sh %{buildroot}%{_datadir}/openwatch/scripts/podman-troubleshoot.sh
 
 # Install fapolicyd rules template
 install -d %{buildroot}%{_datadir}/openwatch/templates
@@ -890,6 +896,8 @@ fi
 %attr(755,root,root) %{_datadir}/openwatch/scripts/configure-fapolicyd.sh
 %attr(755,root,root) %{_datadir}/openwatch/scripts/fapolicyd-troubleshoot.sh
 %attr(755,root,root) %{_datadir}/openwatch/scripts/cleanup-openwatch.sh
+%attr(755,root,root) %{_datadir}/openwatch/scripts/fix-podman-permissions.sh
+%attr(755,root,root) %{_datadir}/openwatch/scripts/podman-troubleshoot.sh
 %{_datadir}/openwatch/templates/90-openwatch.rules
 
 # SELinux policy files
@@ -901,6 +909,14 @@ fi
 %dir %attr(755,openwatch,openwatch) %{_localstatedir}/cache/openwatch
 
 %changelog
+* Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-8
+- NEW: Added comprehensive Podman permission fix scripts
+- NEW: Added Podman troubleshooting tool for container build issues
+- FIXED: Container image unpacking failures with "operation not permitted"
+- IMPROVED: SELinux detection with fallback for non-SELinux systems
+- IMPROVED: Storage driver configuration for better compatibility
+- ADDED: Systemd service override recommendations for container permissions
+
 * Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-7
 - FIXED: Git repository properly initialized to include committed owladm fixes
 - FIXED: RPM build now uses git archive with committed source code changes
