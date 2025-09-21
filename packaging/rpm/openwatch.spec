@@ -73,7 +73,9 @@ fi
 export BUILD_TIME=$(date -u '+%%Y-%%m-%%d_%%H:%%M:%%S')
 export LDFLAGS="-s -w -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=%{version} -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=%{commit} -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$BUILD_TIME"
 
-go build -ldflags "$LDFLAGS" -o bin/owadm cmd/owadm/main.go
+# Ensure Go modules are available
+go mod download
+go build -ldflags "$LDFLAGS" -o bin/owadm ./cmd/owadm
 
 # Build SELinux policy if tools are available
 if command -v make >/dev/null 2>&1 && [ -f /usr/share/selinux/devel/Makefile ]; then
