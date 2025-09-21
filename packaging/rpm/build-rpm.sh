@@ -107,15 +107,14 @@ prepare_sources() {
     local tarball_path="$BUILD_DIR/SOURCES/$tarball_name"
     
     # Create clean source archive (exclude build artifacts and sensitive files)
-    # Use tar instead of git archive since repository may not be fully initialized
+    # Use tar with proper directory structure for RPM
     tar --exclude-vcs --exclude='*.rpm' --exclude='dist/' --exclude='rpmbuild/' \
         --exclude='node_modules/' --exclude='venv/' --exclude='*.log' \
         --exclude='*.tmp' --exclude='*.backup' --exclude='*.swp' \
         --exclude='security/keys/*.pem' --exclude='*.sock' --exclude='*.pid' \
         --transform "s,^,openwatch-${version}/," \
         -czf "$tarball_path" \
-        -C "$PROJECT_ROOT/.." \
-        "$(basename "$PROJECT_ROOT")"
+        .
     
     log_success "Source tarball created: $tarball_path"
     echo "Version: $version"
