@@ -18,19 +18,19 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo -e "${BLUE}INFO: $1${NC}"
 }
 
 log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}SUCCESS: $1${NC}"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}ERROR: $1${NC}"
 }
 
 # Check prerequisites
@@ -107,8 +107,15 @@ prepare_sources() {
     local tarball_path="$BUILD_DIR/SOURCES/$tarball_name"
     
     # Create clean source archive (exclude build artifacts and sensitive files)
-    git archive --format=tar.gz --prefix="openwatch-${version}/" \
-        --output="$tarball_path" HEAD
+    # Use tar instead of git archive since repository may not be fully initialized
+    tar --exclude-vcs --exclude='*.rpm' --exclude='dist/' --exclude='rpmbuild/' \
+        --exclude='node_modules/' --exclude='venv/' --exclude='*.log' \
+        --exclude='*.tmp' --exclude='*.backup' --exclude='*.swp' \
+        --exclude='security/keys/*.pem' --exclude='*.sock' --exclude='*.pid' \
+        --transform "s,^,openwatch-${version}/," \
+        -czf "$tarball_path" \
+        -C "$PROJECT_ROOT/.." \
+        "$(basename "$PROJECT_ROOT")"
     
     log_success "Source tarball created: $tarball_path"
     echo "Version: $version"
@@ -175,7 +182,7 @@ test_installation() {
 
 # Main execution
 main() {
-    echo "🏗️  OpenWatch RPM Build Script"
+    echo "OpenWatch RPM Build Script"
     echo "================================"
     
     check_prerequisites
@@ -188,10 +195,10 @@ main() {
     echo ""
     log_success "OpenWatch RPM package build completed!"
     echo ""
-    echo "📦 Install with:"
+    echo "Install with:"
     echo "   sudo dnf install $PROJECT_ROOT/packaging/rpm/dist/openwatch-*.rpm"
     echo ""
-    echo "🚀 After installation:"
+    echo "After installation:"
     echo "   1. Review: /etc/openwatch/ow.yml"
     echo "   2. Start: sudo systemctl start openwatch"
     echo "   3. Status: owadm status"

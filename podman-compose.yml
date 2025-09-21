@@ -1,4 +1,4 @@
-# OpenWatch - Production Podman Compose (Full Security & FIPS Compliance)
+# OpenWatch - Production Podman Compose (System Containers with Enhanced Security)
 version: '3.8'
 
 services:
@@ -21,7 +21,7 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
-    # Security settings for rootless operation
+    # Security settings for system containers
     user: "999:999"
     security_opt:
       - no-new-privileges:true
@@ -49,7 +49,7 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
-    # Security settings for rootless operation
+    # Security settings for system containers
     user: "999:999"
     security_opt:
       - no-new-privileges:true
@@ -93,7 +93,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    # Enhanced security for rootless operation
+    # Enhanced security for system containers
     user: "1000:1000"
     security_opt:
       - no-new-privileges:true
@@ -133,7 +133,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    # Enhanced security for rootless operation
+    # Enhanced security for system containers
     user: "1000:1000"
     security_opt:
       - no-new-privileges:true
@@ -147,8 +147,8 @@ services:
       dockerfile: docker/Containerfile.frontend
     container_name: openwatch-frontend
     ports:
-      - "3000:8080"   # HTTP port for rootless
-      - "3443:8443"   # HTTPS port for rootless
+      - "3000:8080"   # HTTP port for system containers
+      - "443:8443"    # HTTPS port for system containers
     volumes:
       - ./security/certs/frontend.crt:/etc/nginx/ssl/frontend.crt:ro,Z
       - ./security/keys/frontend.key:/etc/nginx/ssl/frontend.key:ro,Z
@@ -165,7 +165,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-    # Enhanced security for rootless operation
+    # Enhanced security for system containers
     user: "1000:1000"
     security_opt:
       - no-new-privileges:true
