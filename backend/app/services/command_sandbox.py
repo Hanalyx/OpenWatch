@@ -36,7 +36,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import docker
+try:
+    import docker
+    DOCKER_AVAILABLE = True
+except ImportError:
+    DOCKER_AVAILABLE = False
+    logger.warning("Docker library not available. Container execution will use subprocess fallback.")
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from pydantic import BaseModel, Field
@@ -73,6 +78,10 @@ class ContainerRuntimeClient:
     
     def _initialize_client(self):
         """Initialize Docker client with runtime-specific configuration"""
+        if not DOCKER_AVAILABLE:
+            logger.warning("Docker library not available. Container runtime disabled.")
+            return None
+            
         try:
             if self.runtime == "podman":
                 # Try rootless Podman first
@@ -88,8 +97,8 @@ class ContainerRuntimeClient:
             else:
                 return docker.from_env()
         except Exception as e:
-            logger.error(f"Failed to initialize container client: {e}")
-            raise
+            logger.warning(f"Failed to initialize container client: {e}. Using subprocess fallback.")
+            return None
 
 
 class CommandSandbox:
@@ -249,8 +258,12 @@ class SandboxEnvironment:
     
     def __init__(self, container_image: str = "ubuntu:22.04"):
         self.container_image = container_image
-        self.container_client = ContainerRuntimeClient()
-        self.docker_client = self.container_client.client
+        if DOCKER_AVAILABLE:
+            self.container_client = ContainerRuntimeClient()
+            self.docker_client = self.container_client.client
+        else:
+            self.container_client = None
+            self.docker_client = None
         self.container = None
         self.sandbox_id = str(uuid.uuid4())
         
