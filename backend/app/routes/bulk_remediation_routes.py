@@ -18,8 +18,8 @@ from ..services.bulk_remediation_service import (
     BulkExecutionStatus,
     HostExecutionResult
 )
-from ..auth.middleware import get_current_user
-from ..models.auth_models import User
+from ..auth import get_current_user
+from ..database import User
 
 logger = logging.getLogger(__name__)
 
