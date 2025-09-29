@@ -178,9 +178,9 @@ owadm replaces these OpenWatch scripts:
 
 | Old Script | New Command |
 |------------|-------------|
-| `start-podman.sh` | `owadm start` |
+| `start-openwatch.sh` | `owadm start` |
 | `podman-start.sh` | `owadm start --runtime podman` |
-| `stop-podman.sh` | `owadm stop` |
+| `stop-openwatch.sh` | `owadm stop` |
 | `install.sh` | `owadm start` (with auto-setup) |
 | `scripts/setup.sh` | `owadm start` (with auto-setup) |
 | `scripts/check-environment.sh` | `owadm status --verbose` |

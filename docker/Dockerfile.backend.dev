@@ -28,8 +28,8 @@ RUN mkdir -p /usr/share/xml/scap/ssg/content && \
     cp -r scap-security-guide-*/ssg-* /usr/share/xml/scap/ssg/content/ 2>/dev/null || true && \
     rm -rf /tmp/ssg.zip /tmp/scap-security-guide-* || true
 
-# Create application user
-RUN useradd -m -u 1000 openwatch && \
+# Create application user with high UID/GID to avoid collisions
+RUN useradd -m -u 10001 openwatch && \
     mkdir -p /app /app/data /app/logs && \
     chown -R openwatch:openwatch /app
 
@@ -50,7 +50,12 @@ RUN chown -R openwatch:openwatch /app && \
 
 # Create directories for runtime data
 RUN mkdir -p /app/data/{scap,results,uploads} /app/logs && \
-    chown -R openwatch:openwatch /app/data /app/logs
+    chown -R openwatch:openwatch /app/data /app/logs && \
+    chmod -R 755 /app/logs
+
+# Copy entrypoint script and set permissions before switching user
+COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Switch to non-root user
 USER openwatch
@@ -61,6 +66,9 @@ EXPOSE 8000
 # Environment variables
 ENV PYTHONPATH=/app \
     OPENWATCH_LOG_LEVEL=DEBUG
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Start command
 CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
