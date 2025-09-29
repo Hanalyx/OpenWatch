@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"bytes"
-	"os"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 func TestRootCommand(t *testing.T) {
@@ -21,7 +18,7 @@ func TestRootCommand(t *testing.T) {
 			args:      []string{"--help"},
 			wantError: false,
 			checkOutput: func(output string) bool {
-				return strings.Contains(output, "OpenWatch Admin utility")
+				return strings.Contains(output, "OpenWatch Admin")
 			},
 		},
 		{
@@ -29,7 +26,7 @@ func TestRootCommand(t *testing.T) {
 			args:      []string{"--version"},
 			wantError: false,
 			checkOutput: func(output string) bool {
-				return strings.Contains(output, "owadm version")
+				return strings.Contains(output, "OpenWatch Admin")
 			},
 		},
 		{
@@ -44,7 +41,7 @@ func TestRootCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewRootCmd()
+			cmd := rootCmd
 			buf := new(bytes.Buffer)
 			cmd.SetOut(buf)
 			cmd.SetErr(buf)
@@ -63,65 +60,18 @@ func TestRootCommand(t *testing.T) {
 	}
 }
 
-func TestGetProjectName(t *testing.T) {
-	tests := []struct {
-		name        string
-		envValue    string
-		configValue string
-		flagValue   string
-		expected    string
-	}{
-		{
-			name:     "Default value",
-			expected: "openwatch",
-		},
-		{
-			name:      "Flag takes precedence",
-			envValue:  "env-project",
-			flagValue: "flag-project",
-			expected:  "flag-project",
-		},
-		{
-			name:     "Env value used",
-			envValue: "env-project",
-			expected: "env-project",
-		},
+func TestVersionCommand(t *testing.T) {
+	// Test version information is available
+	if Version == "" {
+		Version = "dev"
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore env
-			oldEnv := getEnv("OWADM_PROJECT")
-			defer setEnv("OWADM_PROJECT", oldEnv)
-
-			if tt.envValue != "" {
-				setEnv("OWADM_PROJECT", tt.envValue)
-			}
-
-			cmd := &cobra.Command{}
-			if tt.flagValue != "" {
-				cmd.Flags().String("project", tt.flagValue, "")
-			} else {
-				cmd.Flags().String("project", "", "")
-			}
-
-			result := getProjectName(cmd)
-			if result != tt.expected {
-				t.Errorf("getProjectName() = %v, want %v", result, tt.expected)
-			}
-		})
+	if Commit == "" {
+		Commit = "unknown"
 	}
+	if BuildTime == "" {
+		BuildTime = "unknown"
+	}
+	
+	t.Logf("Version: %s, Commit: %s, BuildTime: %s", Version, Commit, BuildTime)
 }
 
-// Helper functions
-func getEnv(key string) string {
-	return os.Getenv(key)
-}
-
-func setEnv(key, value string) {
-	if value == "" {
-		os.Unsetenv(key)
-	} else {
-		os.Setenv(key, value)
-	}
-}

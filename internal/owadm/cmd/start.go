@@ -82,13 +82,25 @@ func runStart(cmd *cobra.Command, args []string) error {
 	LogInfo(fmt.Sprintf("Environment: %s", env))
 	
 	if err := utils.CheckEnvironmentFiles(); err != nil {
-		LogWarning(fmt.Sprintf("Environment check: %v", err))
-		// Create default .env if it doesn't exist
-		if err := utils.CreateDefaultEnvFile(); err != nil {
-			LogError(fmt.Sprintf("Failed to create .env file: %v", err))
-			return err
+		// Handle different types of environment issues
+		if err.Error() == "production installation detected (source files not present)" {
+			LogInfo("Production installation detected - using compose files from system directory")
+		} else if err.Error() == ".env file not found" {
+			LogWarning("Environment file missing - creating default .env file")
+			if err := utils.CreateDefaultEnvFile(); err != nil {
+				LogError(fmt.Sprintf("Failed to create .env file: %v", err))
+				return err
+			}
+			LogSuccess("Created default .env file")
+		} else {
+			LogWarning(fmt.Sprintf("Environment check: %v", err))
+			// Create default .env if it doesn't exist
+			if err := utils.CreateDefaultEnvFile(); err != nil {
+				LogError(fmt.Sprintf("Failed to create .env file: %v", err))
+				return err
+			}
+			LogSuccess("Created default .env file")
 		}
-		LogSuccess("Created default .env file")
 	}
 	
 	// Create required directories

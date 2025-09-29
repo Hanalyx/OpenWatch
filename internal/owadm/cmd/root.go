@@ -16,12 +16,12 @@ var (
 	BuildTime = "unknown"
 
 	// Global flags
-	cfgFile      string
-	runtime      string
-	environment  string
-	verbose      bool
-	noColor      bool
-	configPath   string
+	cfgFile         string
+	runtimeFlag     string
+	environment     string
+	verbose         bool
+	noColor         bool
+	configPath      string
 
 	// Color functions
 	blue    = color.New(color.FgBlue).SprintFunc()
@@ -54,7 +54,7 @@ func init() {
 	rootCmd.AddCommand(validateConfigCmd)
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&runtime, "runtime", "r", "", "Container runtime: docker or podman (auto-detected if not specified)")
+	rootCmd.PersistentFlags().StringVarP(&runtimeFlag, "runtime", "r", "", "Container runtime: docker or podman (auto-detected if not specified)")
 	rootCmd.PersistentFlags().StringVarP(&environment, "env", "e", "prod", "Environment: dev or prod")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colored output")

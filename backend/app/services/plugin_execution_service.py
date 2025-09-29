@@ -15,7 +15,7 @@ from ..models.plugin_models import (
     InstalledPlugin, PluginExecutionRequest, PluginExecutionResult,
     PluginCapability, PluginStatus
 )
-from ..models.mongo_models import Host
+from ..database import Host
 from .plugin_registry_service import PluginRegistryService
 from .command_sandbox import CommandSandbox
 from ..config import get_settings

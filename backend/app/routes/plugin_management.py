@@ -10,10 +10,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..auth import get_current_user
-from ..models.authorization_models import User
+from ..database import User
 from ..models.plugin_models import (
     InstalledPlugin, PluginTrustLevel, PluginStatus, 
-    PluginAssociation, SecurityCheckResult
+    PluginAssociation, SecurityCheckResult, PluginExecutionRequest
 )
 from ..services.plugin_import_service import PluginImportService
 from ..services.plugin_security_service import PluginSecurityService

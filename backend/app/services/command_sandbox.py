@@ -41,11 +41,154 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from pydantic import BaseModel, Field
 
-from ..config import settings
+from ..config import get_settings
 from ..database import get_db
-from .crypto import CryptoService
+from .crypto import encrypt_credentials, decrypt_credentials
+import os
 
 logger = logging.getLogger(__name__)
+
+
+class ContainerRuntimeClient:
+    """Runtime-agnostic container client supporting Docker and Podman"""
+    
+    def __init__(self, runtime="auto"):
+        self.runtime = self._detect_runtime() if runtime == "auto" else runtime
+        self.client = self._initialize_client()
+    
+    def _detect_runtime(self):
+        """Detect available container runtime"""
+        # Check for Podman socket first (rootless)
+        if os.path.exists(f"/run/user/{os.getuid()}/podman/podman.sock"):
+            return "podman"
+        # Check for Podman system socket
+        elif os.path.exists("/run/podman/podman.sock"):
+            return "podman"
+        # Check for Docker socket
+        elif os.path.exists("/var/run/docker.sock"):
+            return "docker"
+        else:
+            logger.warning("No container runtime detected, using Docker as fallback")
+            return "docker"
+    
+    def _initialize_client(self):
+        """Initialize Docker client with runtime-specific configuration"""
+        try:
+            if self.runtime == "podman":
+                # Try rootless Podman first
+                podman_socket = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
+                if os.path.exists(f"/run/user/{os.getuid()}/podman/podman.sock"):
+                    return docker.DockerClient(base_url=podman_socket)
+                # Fallback to system Podman
+                elif os.path.exists("/run/podman/podman.sock"):
+                    return docker.DockerClient(base_url="unix:///run/podman/podman.sock")
+                else:
+                    logger.warning("Podman socket not found, falling back to Docker")
+                    return docker.from_env()
+            else:
+                return docker.from_env()
+        except Exception as e:
+            logger.error(f"Failed to initialize container client: {e}")
+            raise
+
+
+class CommandSandbox:
+    """Runtime-agnostic command sandbox for plugin execution"""
+    
+    def __init__(self, runtime=None):
+        settings = get_settings()
+        runtime = runtime or settings.container_runtime
+        self.container_client = ContainerRuntimeClient(runtime)
+        self.runtime = self.container_client.runtime
+        logger.info(f"CommandSandbox initialized with {self.runtime} runtime")
+    
+    async def run_command(self, command, cwd=None, env=None, timeout=300, capture_output=True):
+        """Run command with containerized execution"""
+        import subprocess
+        import asyncio
+        
+        try:
+            # If containerized execution is available, use it
+            if hasattr(self.container_client, 'client') and self.container_client.client:
+                return await self._run_containerized(command, cwd, env, timeout)
+            else:
+                # Fallback to subprocess execution with warning
+                logger.warning("Container runtime not available, using subprocess execution")
+                return await self._run_subprocess(command, cwd, env, timeout)
+                
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}")
+            return CommandResult(
+                returncode=1,
+                stdout="",
+                stderr=str(e)
+            )
+    
+    async def _run_containerized(self, command, cwd, env, timeout):
+        """Run command in container (future implementation)"""
+        # TODO: Implement full containerized execution
+        # For now, log and fall back to subprocess
+        logger.info(f"Containerized execution requested for: {command}")
+        return await self._run_subprocess(command, cwd, env, timeout)
+    
+    async def _run_subprocess(self, command, cwd, env, timeout):
+        """Run command with subprocess (secure fallback)"""
+        import subprocess
+        import asyncio
+        
+        try:
+            # Prepare command
+            if isinstance(command, str):
+                cmd = command
+                shell = True
+            else:
+                cmd = command
+                shell = False
+            
+            # Run with timeout
+            process = await asyncio.create_subprocess_shell(
+                cmd if shell else ' '.join(cmd),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+                env=env
+            )
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), 
+                    timeout=timeout
+                )
+                
+                return CommandResult(
+                    returncode=process.returncode,
+                    stdout=stdout.decode('utf-8') if stdout else "",
+                    stderr=stderr.decode('utf-8') if stderr else ""
+                )
+                
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return CommandResult(
+                    returncode=124,  # Standard timeout exit code
+                    stdout="",
+                    stderr=f"Command timed out after {timeout} seconds"
+                )
+                
+        except Exception as e:
+            return CommandResult(
+                returncode=1,
+                stdout="",
+                stderr=str(e)
+            )
+
+
+class CommandResult:
+    """Result of command execution"""
+    def __init__(self, returncode, stdout, stderr):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 class CommandSecurityLevel(str, Enum):
@@ -106,7 +249,8 @@ class SandboxEnvironment:
     
     def __init__(self, container_image: str = "ubuntu:22.04"):
         self.container_image = container_image
-        self.docker_client = docker.from_env()
+        self.container_client = ContainerRuntimeClient()
+        self.docker_client = self.container_client.client
         self.container = None
         self.sandbox_id = str(uuid.uuid4())
         
@@ -210,8 +354,9 @@ class SandboxEnvironment:
 class CommandSignatureService:
     """Cryptographic signature service for command verification"""
     
-    def __init__(self, crypto_service: CryptoService):
-        self.crypto_service = crypto_service
+    def __init__(self):
+        # Use crypto functions directly instead of service class
+        pass
         self.signature_algorithm = hashes.SHA256()
         
     def sign_command(self, command: SecureCommand, private_key_path: str) -> str:
@@ -292,8 +437,7 @@ class CommandSandboxService:
     """Main service for secure command sandboxing"""
     
     def __init__(self):
-        self.crypto_service = CryptoService()
-        self.signature_service = CommandSignatureService(self.crypto_service)
+        self.signature_service = CommandSignatureService()
         self.allowed_commands: Dict[str, SecureCommand] = {}
         self.execution_requests: Dict[str, ExecutionRequest] = {}
         self._load_allowed_commands()

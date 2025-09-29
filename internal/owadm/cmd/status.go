@@ -80,7 +80,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			svc.Name,
 			getStatusColor(svc.State),
 			getHealthColor(svc.Health),
-			svc.Ports,
+			strings.Join(svc.Ports, ", "),
 		)
 	}
 	
@@ -118,31 +118,31 @@ func checkServiceHealth() []runtime.ServiceStatus {
 			Name:   "frontend",
 			State:  "unknown",
 			Health: "unknown", 
-			Ports:  "3001",
+			Ports:  []string{"3001"},
 		},
 		{
 			Name:   "backend",
 			State:  "unknown",
 			Health: "unknown",
-			Ports:  "8000",
+			Ports:  []string{"8000"},
 		},
 		{
 			Name:   "database",
 			State:  "unknown",
 			Health: "unknown",
-			Ports:  "5432",
+			Ports:  []string{"5432"},
 		},
 		{
 			Name:   "redis",
 			State:  "unknown", 
 			Health: "unknown",
-			Ports:  "6379",
+			Ports:  []string{"6379"},
 		},
 		{
 			Name:   "worker",
 			State:  "unknown",
 			Health: "unknown",
-			Ports:  "-",
+			Ports:  []string{"-"},
 		},
 	}
 	
@@ -155,7 +155,7 @@ func checkServiceHealth() []runtime.ServiceStatus {
 		} else if services[i].Name == "backend" && isPortOpen("localhost", 8000) {
 			services[i].State = "running"
 			services[i].Health = "healthy"
-		} else if services[i].Ports != "-" {
+		} else if len(services[i].Ports) > 0 && services[i].Ports[0] != "-" {
 			services[i].State = "stopped"
 			services[i].Health = "-"
 		}

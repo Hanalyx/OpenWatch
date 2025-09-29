@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
+	goruntime "runtime"
 )
 
 // CheckPrerequisites checks if all required tools and conditions are met
 func CheckPrerequisites() error {
 	// Check if running as non-root (recommended for rootless containers)
-	if runtime.GOOS != "windows" && os.Geteuid() == 0 {
+	if goruntime.GOOS != "windows" && os.Geteuid() == 0 {
 		// This is just a warning, not an error
-		fmt.Println("⚠️  Running as root user. Consider using rootless containers for better security.")
+		fmt.Println("WARNING: Running as root user. Consider using rootless containers for better security.")
 	}
 	
 	// Check for container runtime (at least one must be available)
@@ -56,17 +56,35 @@ func CheckEnvironmentFiles() error {
 		return fmt.Errorf(".env file not found")
 	}
 	
-	// Check if we're in the OpenWatch directory
+	// Check if we're in a development OpenWatch directory
+	// In production installations, these source files won't exist
 	requiredFiles := []string{
 		"docker-compose.yml",
 		"backend/app/main.py",
 		"frontend/package.json",
 	}
 	
+	// Check if ANY of the development files exist
+	// If none exist, we're likely in a production installation
+	developmentFilesFound := 0
 	for _, file := range requiredFiles {
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			return fmt.Errorf("not in OpenWatch directory (missing %s)", file)
+		if _, err := os.Stat(file); err == nil {
+			developmentFilesFound++
 		}
+	}
+	
+	// If we find some but not all files, it's an incomplete installation
+	if developmentFilesFound > 0 && developmentFilesFound < len(requiredFiles) {
+		for _, file := range requiredFiles {
+			if _, err := os.Stat(file); os.IsNotExist(err) {
+				return fmt.Errorf("incomplete OpenWatch directory (missing %s)", file)
+			}
+		}
+	}
+	
+	// If no development files found, assume production installation
+	if developmentFilesFound == 0 {
+		return fmt.Errorf("production installation detected (source files not present)")
 	}
 	
 	return nil
@@ -148,8 +166,18 @@ func CreateRequiredDirectories() error {
 	// Set more restrictive permissions on security directories
 	securityDirs := []string{"security/keys", "backend/security/keys"}
 	for _, dir := range securityDirs {
+		// Check if directory exists and get current permissions
+		if info, err := os.Stat(dir); err == nil {
+			// Directory exists - check if permissions are already correct
+			if info.Mode().Perm() == 0700 {
+				continue // Skip - already has correct permissions
+			}
+		}
+		
+		// Try to set permissions, but don't fail if we can't (production constraint)
 		if err := os.Chmod(dir, 0700); err != nil {
-			return fmt.Errorf("failed to set permissions on %s: %w", dir, err)
+			fmt.Printf("WARNING: Could not set permissions on %s: %v (continuing anyway)\n", dir, err)
+			continue // Don't fail the entire operation
 		}
 	}
 	

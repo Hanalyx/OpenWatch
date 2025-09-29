@@ -20,7 +20,7 @@ from ..models.plugin_models import (
     PluginExecutionRequest, PluginExecutionResult, 
     InstalledPlugin, PluginStatus
 )
-from ..models.mongo_models import Host
+from ..database import Host
 from .plugin_execution_service import PluginExecutionService
 from .plugin_registry_service import PluginRegistryService
 
