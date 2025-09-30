@@ -3,7 +3,7 @@ FIPS-compliant database configuration with encryption support
 PostgreSQL with TLS and encrypted connections
 """
 import logging
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, Text, Boolean, LargeBinary, Float, JSON, ForeignKey, Enum
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, Text, Boolean, LargeBinary, Float, JSON, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from uuid import uuid4
 from sqlalchemy.ext.declarative import declarative_base
@@ -132,6 +132,7 @@ class Host(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_check = Column(DateTime, nullable=True)  # Added for host monitoring tracking
 
 
 class ScapContent(Base):
@@ -392,6 +393,26 @@ class IntegrationAuditLog(Base):
     duration_ms = Column(Integer, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AlertSettings(Base):
+    """Alert settings for monitoring notifications"""
+    __tablename__ = "alert_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    alert_type = Column(String(50), nullable=False)  # host_offline, host_online, scan_failed, etc.
+    enabled = Column(Boolean, default=True, nullable=False)
+    email_enabled = Column(Boolean, default=False, nullable=False)
+    email_addresses = Column(JSON, nullable=True)  # List of email addresses
+    webhook_url = Column(String(500), nullable=True)
+    webhook_enabled = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'alert_type', name='uq_user_alert_type'),
+    )
 
 
 # Database dependency for FastAPI

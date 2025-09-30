@@ -26,9 +26,9 @@ FROM nginx:1.27.3-alpine
 # Install openssl for FIPS support
 RUN apk add --no-cache openssl
 
-# Create non-root user for security
-RUN addgroup -g 1000 openwatch && \
-    adduser -D -u 1000 -G openwatch openwatch
+# Create non-root user for security with high UID/GID to avoid collisions
+RUN addgroup -g 10002 openwatch && \
+    adduser -D -u 10002 -G openwatch openwatch
 
 # Remove default nginx config
 RUN rm -rf /etc/nginx/conf.d/*

@@ -36,6 +36,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+# Initialize logger early
+logger = logging.getLogger(__name__)
+
 try:
     import docker
     DOCKER_AVAILABLE = True
@@ -50,8 +53,6 @@ from ..config import get_settings
 from ..database import get_db
 from .crypto import encrypt_credentials, decrypt_credentials
 import os
-
-logger = logging.getLogger(__name__)
 
 
 class ContainerRuntimeClient:
