@@ -204,33 +204,30 @@ async def create_system_credential(
             created_by=user_uuid
         )
         
-        # Get the created credential for response
-        created_cred_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
-        created_cred = next((c for c in created_cred_list if c["id"] == credential_id), None)
+        # Build response directly from the data we have (avoids retrieval timing issues)
+        external_id = uuid_to_int(credential_id)
         
-        if not created_cred:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve created credential"
-            )
+        # Extract SSH key metadata if we have a private key
+        ssh_metadata = {}
+        if credential.private_key:
+            ssh_metadata = extract_ssh_key_metadata(credential.private_key, credential.private_key_passphrase)
         
-        # Convert to response format
-        external_id = uuid_to_int(created_cred["id"])
+        current_time = datetime.now().isoformat()
         
         response = SystemCredentialsResponse(
             id=external_id,
-            name=created_cred["name"],
-            description=created_cred["description"],
-            username=created_cred["username"],
-            auth_method=created_cred["auth_method"],
-            is_default=created_cred["is_default"],
+            name=credential.name,
+            description=credential.description,
+            username=credential.username,
+            auth_method=credential.auth_method,
+            is_default=credential.is_default,
             is_active=True,
-            created_at=created_cred["created_at"],
-            updated_at=created_cred["updated_at"],
-            ssh_key_fingerprint=created_cred["ssh_key_fingerprint"],
-            ssh_key_type=created_cred["ssh_key_type"],
-            ssh_key_bits=created_cred["ssh_key_bits"],
-            ssh_key_comment=created_cred["ssh_key_comment"]
+            created_at=current_time,
+            updated_at=current_time,
+            ssh_key_fingerprint=ssh_metadata.get('fingerprint'),
+            ssh_key_type=ssh_metadata.get('key_type'),
+            ssh_key_bits=int(ssh_metadata.get('key_bits')) if ssh_metadata.get('key_bits') else None,
+            ssh_key_comment=ssh_metadata.get('key_comment')
         )
         
         logger.info(f"Created system credential '{credential.name}' with unified ID: {credential_id}")
