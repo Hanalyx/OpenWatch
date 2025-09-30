@@ -9,6 +9,10 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
 
 
 class SystemInfoLevel(str, Enum):
@@ -113,3 +117,19 @@ class SystemInfoAuditEvent(BaseModel):
     reconnaissance_detected: bool = False
     patterns_triggered: List[str] = Field(default_factory=list)
     sanitization_applied: bool = True
+
+
+class SystemSettings(Base):
+    """System configuration settings for SSH and other services"""
+    __tablename__ = "system_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    setting_key = Column(String(100), unique=True, nullable=False, index=True)
+    setting_value = Column(Text, nullable=True)
+    setting_type = Column(String(20), default="string", nullable=False)  # string, json, boolean, integer
+    description = Column(Text, nullable=True)
+    created_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    modified_by = Column(Integer, nullable=True)
+    modified_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

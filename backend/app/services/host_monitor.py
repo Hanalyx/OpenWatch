@@ -20,10 +20,27 @@ from .unified_ssh_service import UnifiedSSHService
 logger = logging.getLogger(__name__)
 
 class HostMonitor:
-    def __init__(self, settings=None):
+    def __init__(self, db_session: Session = None):
+        """
+        Initialize HostMonitor with optional database session
+        
+        Args:
+            db_session: SQLAlchemy database session for SSH service configuration
+        """
         self.ssh_timeout = 10  # seconds
         self.ping_timeout = 5   # seconds
-        self.unified_ssh = UnifiedSSHService(settings)
+        self.unified_ssh = UnifiedSSHService(db=db_session)
+        self.db_session = db_session
+    
+    def set_database_session(self, db_session: Session):
+        """
+        Set or update the database session for SSH service configuration
+        
+        Args:
+            db_session: SQLAlchemy database session
+        """
+        self.db_session = db_session
+        self.unified_ssh.db = db_session
         
     async def ping_host(self, ip_address: str) -> bool:
         """
@@ -133,26 +150,32 @@ class HostMonitor:
         )
         
         if not connection_result.success:
-            # Map unified service error types to user-friendly messages
-            # Map error types to user-friendly messages without exposing sensitive details
-            if connection_result.error_type == "authentication_failed":
-                error_message = "Authentication failed - verify SSH credentials in Settings"
+            # Map unified service error types to user-friendly messages while preserving detail
+            # Log the original detailed error for debugging
+            logger.warning(f"SSH connectivity check failed: {connection_result.error_type} - {connection_result.error_message}")
+            
+            if connection_result.error_type == "auth_failed":
+                error_message = f"SSH authentication failed: {connection_result.error_message}"
+            elif connection_result.error_type == "auth_error":
+                error_message = f"SSH authentication error: {connection_result.error_message}"
+            elif connection_result.error_type == "key_error":
+                error_message = f"SSH key error: {connection_result.error_message}"
             elif connection_result.error_type == "timeout":
                 error_message = "Connection timeout - host may be unreachable"
-            elif connection_result.error_type == "connection_refused":
-                error_message = "Connection refused - SSH service may not be running"
-            elif connection_result.error_type == "invalid_ssh_key":
-                error_message = "Invalid SSH key format"
+            elif connection_result.error_type == "connection_error":
+                error_message = f"Connection error: {connection_result.error_message}"
+            elif connection_result.error_type == "ssh_error":
+                error_message = f"SSH protocol error: {connection_result.error_message}"
             else:
-                error_message = "SSH connection failed"
+                # Preserve any unhandled error details
+                error_message = f"SSH connection failed ({connection_result.error_type}): {connection_result.error_message}"
             
-            logger.warning(f"SSH connectivity check failed: {connection_result.error_type}")
             return False, error_message
         
         # Test basic command execution to ensure SSH is fully functional
         try:
             ssh = connection_result.connection
-            command_result = self.unified_ssh.execute_command(
+            command_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh,
                 command='echo "test"',
                 timeout=5
@@ -537,5 +560,5 @@ class HostMonitor:
         except Exception as e:
             logger.error(f"Error sending status change alerts: {type(e).__name__}")
 
-# Global monitor instance
+# Global monitor instance - database session will be provided per-operation
 host_monitor = HostMonitor()
