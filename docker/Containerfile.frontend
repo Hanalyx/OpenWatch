@@ -9,19 +9,17 @@ LABEL stage="builder" \
 
 WORKDIR /app
 
-# Create non-root user for build stage
-RUN addgroup -g 1000 nodeuser && \
-    adduser -D -u 1000 -G nodeuser nodeuser
+# Use root for npm operations to avoid permission issues
+USER root
 
-# Copy package files with proper ownership
-COPY --chown=1000:1000 frontend/package*.json ./
+# Copy package files
+COPY frontend/package*.json ./
 
-# Install dependencies as non-root user
-USER 1000:1000
-RUN npm ci --only=production --no-audit --no-fund
+# Install dependencies as root to avoid cache permission issues
+RUN npm install --only=production --no-audit --no-fund
 
 # Copy frontend source code
-COPY --chown=1000:1000 frontend/ ./
+COPY frontend/ ./
 
 # Build the React application
 RUN npm run build
@@ -35,10 +33,10 @@ LABEL maintainer="ml9005@hanalyx.com" \
       description="OpenWatch Frontend - Rootless NGINX container" \
       io.podman.annotations.userns="auto"
 
-# Install dependencies and create non-root user
+# Install dependencies and create non-root user with high UID/GID
 RUN apk add --no-cache openssl curl shadow && \
-    addgroup -g 1000 nginx-rootless && \
-    adduser -D -u 1000 -G nginx-rootless nginx-rootless
+    addgroup -g 10002 nginx-rootless && \
+    adduser -D -u 10002 -G nginx-rootless nginx-rootless
 
 # Remove default nginx configs and create custom structure
 RUN rm -rf /etc/nginx/conf.d/* /var/log/nginx/* && \
@@ -46,20 +44,22 @@ RUN rm -rf /etc/nginx/conf.d/* /var/log/nginx/* && \
     touch /var/run/nginx.pid
 
 # Copy custom nginx configuration for rootless operation
-COPY docker/frontend/nginx-rootless.conf /etc/nginx/nginx.conf
-COPY docker/frontend/default-rootless.conf /etc/nginx/conf.d/default.conf
+COPY docker/frontend/nginx.conf /etc/nginx/nginx.conf
+COPY docker/frontend/default-simple.conf /etc/nginx/conf.d/default.conf
 
-# Copy built React app from builder stage with proper ownership
-COPY --from=builder --chown=1000:1000 /app/build /usr/share/nginx/html
+# Workaround for Podman large file copy issue - use tar approach
+RUN mkdir -p /usr/share/nginx/html
+COPY --from=builder /app/build/index.html /usr/share/nginx/html/
+COPY --from=builder /app/build/assets /usr/share/nginx/html/assets
 
 # Set proper permissions for rootless execution
-RUN chown -R 1000:1000 /usr/share/nginx/html /etc/nginx /var/log/nginx /var/cache/nginx /var/run/nginx && \
+RUN chown -R 10002:10002 /usr/share/nginx/html /etc/nginx /var/log/nginx /var/cache/nginx /var/run/nginx && \
     chmod -R 755 /usr/share/nginx/html && \
     chmod -R 755 /etc/nginx && \
     chmod 755 /var/run/nginx
 
 # Switch to non-root user
-USER 1000:1000
+USER 10002:10002
 
 # Expose unprivileged ports for rootless operation
 EXPOSE 8080 8443
