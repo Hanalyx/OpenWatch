@@ -148,6 +148,11 @@ For complete environment configuration, see [`backend/.env.example`](backend/.en
 - [Kubernetes Migration](KUBERNETES_READINESS.md) - Container orchestration strategy
 - [API Documentation](http://localhost:8000/docs) - Interactive API explorer (when running)
 
+### Infrastructure Documentation
+- [SSH Troubleshooting Guide](docs/SSH_TROUBLESHOOTING_GUIDE.md) - Comprehensive SSH connectivity troubleshooting
+- [FIPS Compliance Validation](docs/FIPS_COMPLIANCE_VALIDATION.md) - Federal security standards compliance report
+- [SSH Infrastructure Completion Report](docs/SSH_INFRASTRUCTURE_COMPLETION_REPORT.md) - Complete infrastructure improvement documentation
+
 ### Contributing
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
 - Development workflow and standards
