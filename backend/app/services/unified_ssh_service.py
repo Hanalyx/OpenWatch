@@ -182,7 +182,11 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
 
 def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
     """
-    Detect SSH key type from key content.
+    DEPRECATED: Detect SSH key type from key content.
+    
+    This function is deprecated in favor of using paramiko.PKey.from_private_key()
+    directly in validate_ssh_key(). It remains for backward compatibility with
+    existing services but should not be used in new code.
     
     Args:
         key_content: SSH key content as string or bytes
@@ -226,7 +230,11 @@ def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
 
 def parse_ssh_key(key_content: str, passphrase: Optional[str] = None) -> paramiko.PKey:
     """
-    Parse SSH key content into paramiko PKey object.
+    DEPRECATED: Parse SSH key content into paramiko PKey object.
+    
+    This function is deprecated in favor of using paramiko.PKey.from_private_key()
+    directly. It remains for backward compatibility with existing services but
+    should not be used in new code.
     
     Args:
         key_content: SSH key content as string
@@ -358,7 +366,11 @@ def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[
 
 def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
     """
-    Comprehensive SSH key validation with security assessment.
+    Simplified SSH key validation using paramiko's built-in capabilities.
+    
+    This refactored version eliminates complex manual key type detection and parsing
+    in favor of paramiko's robust, battle-tested key handling. This fixes issues
+    with modern OpenSSH key formats and reduces maintenance overhead.
     
     Args:
         key_content: SSH key content as string
@@ -375,38 +387,79 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
                 error_message="Empty key content provided"
             )
         
-        # Detect key type
-        key_type = detect_key_type(key_content)
-        if not key_type:
-            return SSHKeyValidationResult(
-                is_valid=False,
-                error_message="Unable to detect SSH key type"
-            )
-        
-        # Parse key
+        # Let paramiko handle all the complexity of key parsing and validation
         try:
-            pkey = parse_ssh_key(key_content, passphrase)
-        except SSHKeyError as e:
+            # Handle bytes input (common from database)
+            if isinstance(key_content, (bytes, memoryview)):
+                key_content = key_content.decode('utf-8', errors='ignore')
+            
+            key_content = str(key_content).strip()
+            
+            # Try different key classes in order - paramiko requires specific classes
+            key_classes = [
+                (paramiko.Ed25519Key, "Ed25519"),
+                (paramiko.RSAKey, "RSA"), 
+                (paramiko.ECDSAKey, "ECDSA"),
+                (paramiko.DSSKey, "DSA")
+            ]
+            
+            pkey = None
+            for key_class, key_name in key_classes:
+                try:
+                    pkey = key_class.from_private_key(io.StringIO(key_content), passphrase)
+                    break
+                except (paramiko.PasswordRequiredException, paramiko.SSHException):
+                    continue
+                except Exception:
+                    continue
+            
+            if pkey is None:
+                raise paramiko.SSHException("Unable to parse SSH key - unsupported format or incorrect passphrase")
+            
+            # Extract key information using paramiko's methods
+            key_name = pkey.get_name()  # e.g., 'ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256'
+            key_size = pkey.get_bits()
+            
+            # Map paramiko key names to our enum types for backward compatibility
+            key_type_mapping = {
+                'ssh-rsa': SSHKeyType.RSA,
+                'ssh-ed25519': SSHKeyType.ED25519,
+                'ecdsa-sha2-nistp256': SSHKeyType.ECDSA,
+                'ecdsa-sha2-nistp384': SSHKeyType.ECDSA,
+                'ecdsa-sha2-nistp521': SSHKeyType.ECDSA,
+                'ssh-dss': SSHKeyType.DSA,
+            }
+            
+            # Get key type, default to RSA if unknown (maintain compatibility)
+            key_type = key_type_mapping.get(key_name, SSHKeyType.RSA)
+            
+            # Assess security using existing logic
+            security_level, warnings, recommendations = assess_key_security(key_type, key_size)
+            
+            return SSHKeyValidationResult(
+                is_valid=True,
+                key_type=key_type,
+                security_level=security_level,
+                key_size=key_size,
+                warnings=warnings,
+                recommendations=recommendations
+            )
+            
+        except paramiko.PasswordRequiredException:
             return SSHKeyValidationResult(
                 is_valid=False,
-                key_type=key_type,
-                error_message=str(e)
+                error_message="SSH key is encrypted and requires a passphrase"
             )
-        
-        # Get key size
-        key_size = get_key_size(pkey)
-        
-        # Assess security
-        security_level, warnings, recommendations = assess_key_security(key_type, key_size)
-        
-        return SSHKeyValidationResult(
-            is_valid=True,
-            key_type=key_type,
-            security_level=security_level,
-            key_size=key_size,
-            warnings=warnings,
-            recommendations=recommendations
-        )
+        except paramiko.SSHException as e:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message=f"Invalid SSH key format: {str(e)}"
+            )
+        except Exception as e:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message=f"SSH key parsing failed: {str(e)}"
+            )
         
     except Exception as e:
         return SSHKeyValidationResult(
@@ -417,7 +470,7 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
 
 def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
     """
-    Generate MD5 fingerprint for SSH key (compatible with OpenSSH format).
+    Generate MD5 fingerprint for SSH key using paramiko's built-in method.
     
     Args:
         key_content: SSH key content as string
@@ -427,7 +480,26 @@ def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> O
         Fingerprint as hex string, None if unable to generate
     """
     try:
-        pkey = parse_ssh_key(key_content, passphrase)
+        # Handle bytes input (common from database)
+        if isinstance(key_content, (bytes, memoryview)):
+            key_content = key_content.decode('utf-8', errors='ignore')
+        
+        key_content = str(key_content).strip()
+        
+        # Use paramiko's built-in key parsing and fingerprint generation
+        # Try different key classes in order
+        key_classes = [paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey, paramiko.DSSKey]
+        
+        pkey = None
+        for key_class in key_classes:
+            try:
+                pkey = key_class.from_private_key(io.StringIO(key_content), passphrase)
+                break
+            except Exception:
+                continue
+        
+        if pkey is None:
+            raise Exception("Unable to parse SSH key")
         return pkey.get_fingerprint().hex()
     except Exception as e:
         logger.debug(f"Error generating key fingerprint: {e}")

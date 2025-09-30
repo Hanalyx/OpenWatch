@@ -132,6 +132,7 @@ async def list_system_credentials(
         )
 
 
+
 @router.post("/credentials", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def create_system_credential(
@@ -144,6 +145,7 @@ async def create_system_credential(
         # Validate auth method
         valid_methods = ["ssh_key", "password", "both"]
         if credential.auth_method not in valid_methods:
+            logger.error(f"Invalid auth method '{credential.auth_method}', valid methods: {valid_methods}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid auth method. Must be one of: {valid_methods}"
@@ -166,15 +168,11 @@ async def create_system_credential(
         if credential.private_key:
             validation_result = validate_ssh_key(credential.private_key)
             if not validation_result.is_valid:
-                # Log the validation error but continue for now to unblock credential creation
-                logger.warning(f"SSH key validation failed (proceeding anyway): {validation_result.error_message}")
-                logger.warning(f"Key type detection failed for key starting with: {credential.private_key[:50]}...")
-                # NOTE: Temporarily commenting out strict validation to unblock SSH credential creation
-                # TODO: Improve SSH key validation function to handle more key formats
-                # raise HTTPException(
-                #     status_code=status.HTTP_400_BAD_REQUEST,
-                #     detail=f"Invalid SSH key: {validation_result.error_message}"
-                # )
+                logger.error(f"SSH key validation failed: {validation_result.error_message}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid SSH key: {validation_result.error_message}"
+                )
         
         # Create credential data
         credential_data = CredentialData(
@@ -200,7 +198,6 @@ async def create_system_credential(
         auth_service = get_auth_service(db)
         # Convert integer user ID to UUID format for unified credentials
         user_uuid = f"00000000-0000-0000-0000-{current_user['id']:012d}"
-        logger.info(f"Converting user ID {current_user['id']} to UUID format: {user_uuid}")
         credential_id = auth_service.store_credential(
             credential_data=credential_data,
             metadata=metadata,
@@ -208,13 +205,10 @@ async def create_system_credential(
         )
         
         # Get the created credential for response
-        logger.info(f"Looking for created credential with ID: {credential_id}")
         created_cred_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
-        logger.info(f"Found {len(created_cred_list)} system credentials")
         created_cred = next((c for c in created_cred_list if c["id"] == credential_id), None)
         
         if not created_cred:
-            logger.error(f"Failed to find credential {credential_id} in list of {len(created_cred_list)} credentials")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to retrieve created credential"
@@ -242,10 +236,13 @@ async def create_system_credential(
         logger.info(f"Created system credential '{credential.name}' with unified ID: {credential_id}")
         return response
         
-    except HTTPException:
+    except HTTPException as http_ex:
+        logger.error(f"HTTP validation error creating credential: {http_ex.detail}")
         raise
     except Exception as e:
         logger.error(f"Failed to create system credential: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create system credential"
