@@ -16,6 +16,7 @@ All existing imports should be updated to use this unified service.
 
 import os
 import socket
+import errno
 import logging
 import json
 import re
@@ -182,7 +183,11 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
 
 def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
     """
-    Detect SSH key type from key content.
+    DEPRECATED: Detect SSH key type from key content.
+    
+    This function is deprecated in favor of using paramiko.PKey.from_private_key()
+    directly in validate_ssh_key(). It remains for backward compatibility with
+    existing services but should not be used in new code.
     
     Args:
         key_content: SSH key content as string or bytes
@@ -226,7 +231,11 @@ def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
 
 def parse_ssh_key(key_content: str, passphrase: Optional[str] = None) -> paramiko.PKey:
     """
-    Parse SSH key content into paramiko PKey object.
+    DEPRECATED: Parse SSH key content into paramiko PKey object.
+    
+    This function is deprecated in favor of using paramiko.PKey.from_private_key()
+    directly. It remains for backward compatibility with existing services but
+    should not be used in new code.
     
     Args:
         key_content: SSH key content as string
@@ -358,7 +367,11 @@ def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[
 
 def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
     """
-    Comprehensive SSH key validation with security assessment.
+    Simplified SSH key validation using paramiko's built-in capabilities.
+    
+    This refactored version eliminates complex manual key type detection and parsing
+    in favor of paramiko's robust, battle-tested key handling. This fixes issues
+    with modern OpenSSH key formats and reduces maintenance overhead.
     
     Args:
         key_content: SSH key content as string
@@ -375,38 +388,79 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
                 error_message="Empty key content provided"
             )
         
-        # Detect key type
-        key_type = detect_key_type(key_content)
-        if not key_type:
-            return SSHKeyValidationResult(
-                is_valid=False,
-                error_message="Unable to detect SSH key type"
-            )
-        
-        # Parse key
+        # Let paramiko handle all the complexity of key parsing and validation
         try:
-            pkey = parse_ssh_key(key_content, passphrase)
-        except SSHKeyError as e:
+            # Handle bytes input (common from database)
+            if isinstance(key_content, (bytes, memoryview)):
+                key_content = key_content.decode('utf-8', errors='ignore')
+            
+            key_content = str(key_content).strip()
+            
+            # Try different key classes in order - paramiko requires specific classes
+            key_classes = [
+                (paramiko.Ed25519Key, "Ed25519"),
+                (paramiko.RSAKey, "RSA"), 
+                (paramiko.ECDSAKey, "ECDSA"),
+                (paramiko.DSSKey, "DSA")
+            ]
+            
+            pkey = None
+            for key_class, key_name in key_classes:
+                try:
+                    pkey = key_class.from_private_key(io.StringIO(key_content), passphrase)
+                    break
+                except (paramiko.PasswordRequiredException, paramiko.SSHException):
+                    continue
+                except Exception:
+                    continue
+            
+            if pkey is None:
+                raise paramiko.SSHException("Unable to parse SSH key - unsupported format or incorrect passphrase")
+            
+            # Extract key information using paramiko's methods
+            key_name = pkey.get_name()  # e.g., 'ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256'
+            key_size = pkey.get_bits()
+            
+            # Map paramiko key names to our enum types for backward compatibility
+            key_type_mapping = {
+                'ssh-rsa': SSHKeyType.RSA,
+                'ssh-ed25519': SSHKeyType.ED25519,
+                'ecdsa-sha2-nistp256': SSHKeyType.ECDSA,
+                'ecdsa-sha2-nistp384': SSHKeyType.ECDSA,
+                'ecdsa-sha2-nistp521': SSHKeyType.ECDSA,
+                'ssh-dss': SSHKeyType.DSA,
+            }
+            
+            # Get key type, default to RSA if unknown (maintain compatibility)
+            key_type = key_type_mapping.get(key_name, SSHKeyType.RSA)
+            
+            # Assess security using existing logic
+            security_level, warnings, recommendations = assess_key_security(key_type, key_size)
+            
+            return SSHKeyValidationResult(
+                is_valid=True,
+                key_type=key_type,
+                security_level=security_level,
+                key_size=key_size,
+                warnings=warnings,
+                recommendations=recommendations
+            )
+            
+        except paramiko.PasswordRequiredException:
             return SSHKeyValidationResult(
                 is_valid=False,
-                key_type=key_type,
-                error_message=str(e)
+                error_message="SSH key is encrypted and requires a passphrase"
             )
-        
-        # Get key size
-        key_size = get_key_size(pkey)
-        
-        # Assess security
-        security_level, warnings, recommendations = assess_key_security(key_type, key_size)
-        
-        return SSHKeyValidationResult(
-            is_valid=True,
-            key_type=key_type,
-            security_level=security_level,
-            key_size=key_size,
-            warnings=warnings,
-            recommendations=recommendations
-        )
+        except paramiko.SSHException as e:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message=f"Invalid SSH key format: {str(e)}"
+            )
+        except Exception as e:
+            return SSHKeyValidationResult(
+                is_valid=False,
+                error_message=f"SSH key parsing failed: {str(e)}"
+            )
         
     except Exception as e:
         return SSHKeyValidationResult(
@@ -417,7 +471,7 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
 
 def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
     """
-    Generate MD5 fingerprint for SSH key (compatible with OpenSSH format).
+    Generate MD5 fingerprint for SSH key using paramiko's built-in method.
     
     Args:
         key_content: SSH key content as string
@@ -427,7 +481,26 @@ def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> O
         Fingerprint as hex string, None if unable to generate
     """
     try:
-        pkey = parse_ssh_key(key_content, passphrase)
+        # Handle bytes input (common from database)
+        if isinstance(key_content, (bytes, memoryview)):
+            key_content = key_content.decode('utf-8', errors='ignore')
+        
+        key_content = str(key_content).strip()
+        
+        # Use paramiko's built-in key parsing and fingerprint generation
+        # Try different key classes in order
+        key_classes = [paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey, paramiko.DSSKey]
+        
+        pkey = None
+        for key_class in key_classes:
+            try:
+                pkey = key_class.from_private_key(io.StringIO(key_content), passphrase)
+                break
+            except Exception:
+                continue
+        
+        if pkey is None:
+            raise Exception("Unable to parse SSH key")
         return pkey.get_fingerprint().hex()
     except Exception as e:
         logger.debug(f"Error generating key fingerprint: {e}")
@@ -713,6 +786,19 @@ class UnifiedSSHService:
         self.current_host = None
         self._settings_cache = {}
         self._cache_expiry = None
+        self._debug_mode = False  # Enable detailed SSH debugging
+    
+    def enable_debug_mode(self):
+        """Enable detailed SSH debugging"""
+        self._debug_mode = True
+        # Enable paramiko debug logging
+        paramiko.util.log_to_file('/tmp/paramiko_debug.log')
+        logger.info("SSH debug mode enabled - detailed logs will be written to /tmp/paramiko_debug.log")
+    
+    def disable_debug_mode(self):
+        """Disable SSH debugging"""
+        self._debug_mode = False
+        logger.info("SSH debug mode disabled")
     
     # ========================================================================
     # BASIC SSH CONNECTIVITY (from ssh_service.py)
@@ -1123,6 +1209,11 @@ class UnifiedSSHService:
             # Set timeouts
             connect_timeout = timeout or 30
             
+            if self._debug_mode:
+                logger.info(f"[DEBUG] SSH connection attempt to {hostname}:{port} as {username}")
+                logger.info(f"[DEBUG] Auth method: {auth_method}, Timeout: {connect_timeout}s")
+                logger.info(f"[DEBUG] Service: {service_name}")
+            
             if auth_method == "password":
                 client.connect(
                     hostname=hostname,
@@ -1135,10 +1226,13 @@ class UnifiedSSHService:
                 )
                 auth_method_used = "password"
                 
-            elif auth_method == "key":
-                # Parse private key
+            elif auth_method in ["key", "ssh_key", "ssh-key"]:
+                # Parse private key (handle both "key" and "ssh_key" for compatibility)
                 try:
                     pkey = parse_ssh_key(credential)
+                    # Log key info for debugging (without exposing sensitive data)
+                    logger.debug(f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}")
+                    
                     client.connect(
                         hostname=hostname,
                         port=port,
@@ -1150,6 +1244,7 @@ class UnifiedSSHService:
                     )
                     auth_method_used = "private_key"
                 except SSHKeyError as e:
+                    logger.error(f"SSH key parsing failed: {str(e)}")
                     return SSHConnectionResult(
                         success=False,
                         error_message=f"Invalid private key: {str(e)}",
@@ -1170,7 +1265,7 @@ class UnifiedSSHService:
             else:
                 return SSHConnectionResult(
                     success=False,
-                    error_message=f"Unsupported authentication method: {auth_method}",
+                    error_message=f"Unsupported authentication method: {auth_method}. Supported methods: password, key, ssh_key, ssh-key, agent",
                     error_type="auth_error"
                 )
             
@@ -1193,40 +1288,94 @@ class UnifiedSSHService:
                 auth_method_used=auth_method_used
             )
             
-        except paramiko.AuthenticationException:
+        except paramiko.AuthenticationException as e:
             if client:
                 client.close()
+            # Enhanced error logging for authentication failures
+            logger.error(f"SSH authentication failed for {username}@{hostname}:{port} using {auth_method} auth")
+            logger.debug(f"AuthenticationException details: {str(e)}")
+            
+            # Try to determine specific authentication failure reason
+            error_details = str(e).lower()
+            if "no authentication methods available" in error_details:
+                specific_error = "No authentication methods accepted by server"
+            elif "authentication failed" in error_details:
+                specific_error = "Invalid credentials or key not accepted"
+            elif "permission denied" in error_details:
+                specific_error = "Permission denied (check username/key permissions)"
+            else:
+                specific_error = "Authentication failed"
+            
             return SSHConnectionResult(
                 success=False,
-                error_message=f"Authentication failed for {username}@{hostname}",
+                error_message=f"{specific_error} for {username}@{hostname}",
                 error_type="auth_failed"
             )
             
         except paramiko.SSHException as e:
             if client:
                 client.close()
+            logger.error(f"SSH connection error to {hostname}:{port}: {str(e)}")
+            
+            # Provide more specific SSH error messages
+            error_details = str(e).lower()
+            if "unable to connect" in error_details:
+                specific_error = "Unable to establish SSH connection"
+            elif "host key" in error_details:
+                specific_error = "Host key verification failed"
+            elif "banner" in error_details:
+                specific_error = "SSH banner exchange failed"
+            else:
+                specific_error = f"SSH protocol error: {str(e)}"
+            
             return SSHConnectionResult(
                 success=False,
-                error_message=f"SSH connection error: {str(e)}",
+                error_message=specific_error,
                 error_type="ssh_error"
             )
             
         except socket.timeout:
             if client:
                 client.close()
+            logger.warning(f"SSH connection timeout to {hostname}:{port} after {connect_timeout}s")
             return SSHConnectionResult(
                 success=False,
-                error_message=f"Connection timeout to {hostname}:{port}",
+                error_message=f"Connection timeout to {hostname}:{port} after {connect_timeout}s",
                 error_type="timeout"
+            )
+            
+        except socket.error as e:
+            if client:
+                client.close()
+            logger.error(f"Socket error connecting to {hostname}:{port}: {str(e)}")
+            
+            # Provide specific socket error messages
+            if hasattr(e, 'errno'):
+                if e.errno == errno.ECONNREFUSED:  # Connection refused
+                    specific_error = "Connection refused (SSH service may not be running)"
+                elif e.errno == errno.EHOSTUNREACH:  # No route to host
+                    specific_error = "No route to host (network unreachable)"
+                elif e.errno == errno.ETIMEDOUT:  # Connection timed out
+                    specific_error = "Connection timed out"
+                else:
+                    specific_error = f"Network error (errno {e.errno}): {str(e)}"
+            else:
+                specific_error = f"Network error: {str(e)}"
+            
+            return SSHConnectionResult(
+                success=False,
+                error_message=specific_error,
+                error_type="connection_error"
             )
             
         except Exception as e:
             if client:
                 client.close()
-            logger.error(f"SSH connection failed: {str(e)}")
+            logger.error(f"Unexpected SSH connection error: {type(e).__name__}: {str(e)}")
+            logger.debug(f"Full exception details:", exc_info=True)
             return SSHConnectionResult(
                 success=False,
-                error_message=f"Connection failed: {str(e)}",
+                error_message=f"Connection failed: {type(e).__name__}: {str(e)}",
                 error_type="connection_error"
             )
     
@@ -1314,6 +1463,85 @@ class UnifiedSSHService:
     def get_key_security_indicator(self, key_type: Optional[str], key_bits: Optional[str]) -> Tuple[str, str]:
         """Get security level indicator for UI display"""
         return get_key_security_indicator(key_type, key_bits)
+    
+    def execute_minimal_system_check(self, hostname: str, port: int, username: str,
+                                   auth_method: str, credential: str, 
+                                   service_name: str) -> Dict[str, Any]:
+        """
+        Execute minimal system discovery commands to reduce reconnaissance footprint.
+        
+        This replaces the original 7-command system discovery with just 2 essential
+        checks that are required for SCAP compliance scanning.
+        
+        Args:
+            hostname: Target hostname or IP address
+            port: SSH port
+            username: SSH username  
+            auth_method: Authentication method
+            credential: Password or SSH key
+            service_name: Name of calling service
+            
+        Returns:
+            Dict containing essential system information
+        """
+        # Essential commands for SCAP scanning (reduced from 7 to 2)
+        essential_commands = {
+            "os_family": (
+                "[ -f /etc/redhat-release ] && echo 'redhat' || "
+                "([ -f /etc/debian_version ] && echo 'debian' || echo 'unknown')"
+            ),
+            "oscap_available": "command -v oscap >/dev/null 2>&1 && echo 'yes' || echo 'no'"
+        }
+        
+        # Establish connection
+        connection_result = self.connect_with_credentials(
+            hostname=hostname,
+            port=port,
+            username=username,
+            auth_method=auth_method,
+            credential=credential,
+            service_name=service_name
+        )
+        
+        if not connection_result.success:
+            return {
+                "error": connection_result.error_message,
+                "error_type": connection_result.error_type,
+                "commands_attempted": list(essential_commands.keys())
+            }
+        
+        # Execute essential commands
+        results = {}
+        ssh = connection_result.connection
+        
+        try:
+            for key, command in essential_commands.items():
+                logger.debug(f"Executing minimal discovery command '{key}': {command}")
+                
+                command_result = self.execute_command_advanced(ssh, command)
+                
+                if command_result.success:
+                    results[key] = command_result.stdout
+                    logger.debug(f"Command '{key}' result: {command_result.stdout}")
+                else:
+                    results[key] = "unknown"
+                    logger.warning(f"Command '{key}' failed: {command_result.error_message}")
+            
+            # Log successful minimal discovery
+            logger.info(f"Minimal system discovery completed for {hostname}: {results}")
+            
+        except Exception as e:
+            logger.error(f"Error during minimal system discovery for {hostname}: {e}")
+            results["error"] = str(e)
+            
+        finally:
+            # Always close the SSH connection
+            try:
+                ssh.close()
+            except Exception as e:
+                logger.debug(f"Error closing SSH connection to {hostname}: {e}")
+        
+        return results
 
 
 # ============================================================================

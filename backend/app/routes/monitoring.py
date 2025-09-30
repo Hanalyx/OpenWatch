@@ -52,6 +52,9 @@ async def check_host_status(
             # NOTE: encrypted_credentials removed - using centralized auth service
         }
         
+        # Set database session for SSH service configuration access
+        host_monitor.set_database_session(db)
+        
         # Perform comprehensive check with DB connection for credential access
         check_result = await host_monitor.comprehensive_host_check(host_data, db)
         
@@ -93,8 +96,13 @@ async def check_all_hosts_status(
     Check status of all hosts (runs in background)
     """
     try:
+        # Create wrapper function to set database session before monitoring
+        async def monitor_with_session():
+            host_monitor.set_database_session(db)
+            await host_monitor.monitor_all_hosts(db)
+        
         # Run monitoring in background
-        background_tasks.add_task(host_monitor.monitor_all_hosts, db)
+        background_tasks.add_task(monitor_with_session)
         
         return {
             "message": "Host monitoring started in background",

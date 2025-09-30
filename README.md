@@ -21,7 +21,7 @@ git clone https://github.com/hanalyx/openwatch.git
 cd openwatch
 
 # Quick start (automatic runtime detection)
-./start-podman.sh
+./start-openwatch.sh
 
 # Or use container compose directly
 podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended)
@@ -29,7 +29,7 @@ podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended
 docker-compose up -d  # Standard Docker
 
 # To stop services
-./stop-podman.sh
+./stop-openwatch.sh
 ```
 
 ### First Scan
@@ -147,6 +147,11 @@ For complete environment configuration, see [`backend/.env.example`](backend/.en
 - [Directory Structure](DIRECTORY_ARCHITECTURE.md) - Project organization and rationale
 - [Kubernetes Migration](KUBERNETES_READINESS.md) - Container orchestration strategy
 - [API Documentation](http://localhost:8000/docs) - Interactive API explorer (when running)
+
+### Infrastructure Documentation
+- [SSH Troubleshooting Guide](docs/SSH_TROUBLESHOOTING_GUIDE.md) - Comprehensive SSH connectivity troubleshooting
+- [FIPS Compliance Validation](docs/FIPS_COMPLIANCE_VALIDATION.md) - Federal security standards compliance report
+- [SSH Infrastructure Completion Report](docs/SSH_INFRASTRUCTURE_COMPLETION_REPORT.md) - Complete infrastructure improvement documentation
 
 ### Contributing
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
