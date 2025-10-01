@@ -1,0 +1,139 @@
+{
+  "framework_info": {
+    "id": "nist_800_53_r5",
+    "name": "NIST Special Publication 800-53 Revision 5",
+    "description": "Security and Privacy Controls for Information Systems and Organizations",
+    "version": "5.1.1",
+    "published_date": "2020-09-23",
+    "updated_date": "2022-12-01",
+    "organization": "National Institute of Standards and Technology",
+    "url": "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final"
+  },
+  "control_families": [
+    "Access Control (AC)",
+    "Awareness and Training (AT)",
+    "Audit and Accountability (AU)",
+    "Configuration Management (CM)",
+    "Contingency Planning (CP)",
+    "Identification and Authentication (IA)",
+    "Incident Response (IR)",
+    "Maintenance (MA)",
+    "Media Protection (MP)",
+    "Physical and Environmental Protection (PE)",
+    "Planning (PL)",
+    "Program Management (PM)",
+    "Personnel Security (PS)",
+    "Privacy Controls (PT)",
+    "Risk Assessment (RA)",
+    "System and Communications Protection (SC)",
+    "System and Information Integrity (SI)",
+    "System and Services Acquisition (SA)",
+    "Supply Chain Risk Management (SR)"
+  ],
+  "controls": [
+    {
+      "control_id": "AC-1",
+      "title": "Policy and Procedures",
+      "family": "Access Control",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Develop, document, and disseminate access control policy and procedures.",
+      "supplemental_guidance": "Access control policy and procedures for the controls in the AC family implemented within systems and organizations.",
+      "related_controls": ["PM-9", "PS-8", "SI-12"],
+      "control_enhancements": []
+    },
+    {
+      "control_id": "AC-2",
+      "title": "Account Management",
+      "family": "Access Control",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Manage information system accounts including establishing, activating, modifying, reviewing, disabling, and removing accounts.",
+      "supplemental_guidance": "Account management applies to all account types including individual, shared, group, system, guest, anonymous, emergency, developer, temporary, and service accounts.",
+      "related_controls": ["AC-3", "AC-5", "AC-6", "AC-10", "AC-17", "AC-19", "AC-20", "AU-9", "IA-2", "IA-4", "IA-5", "IA-8", "MA-3", "MA-4", "MA-5", "PL-4", "SC-13"],
+      "control_enhancements": [
+        {
+          "enhancement_id": "AC-2(1)",
+          "title": "Automated System Account Management",
+          "description": "Support the management of system accounts using automated mechanisms."
+        },
+        {
+          "enhancement_id": "AC-2(2)",
+          "title": "Automated Temporary and Emergency Account Management",
+          "description": "Automatically remove or disable temporary and emergency accounts."
+        },
+        {
+          "enhancement_id": "AC-2(3)",
+          "title": "Disable Accounts",
+          "description": "Disable accounts within an organization-defined time period when the accounts have been inactive."
+        }
+      ]
+    },
+    {
+      "control_id": "AC-3",
+      "title": "Access Enforcement",
+      "family": "Access Control",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Enforce approved authorizations for logical access to information and system resources.",
+      "supplemental_guidance": "Access control policies control access between active entities or subjects and passive entities or objects.",
+      "related_controls": ["AC-2", "AC-4", "AC-5", "AC-6", "AC-16", "AC-17", "AC-18", "AC-19", "AC-20", "AC-21", "AC-22", "AU-9", "CA-9", "CM-5", "MA-3", "MA-4", "MA-5", "MP-4", "PM-2", "PT-2", "PT-3", "SC-2", "SC-3", "SC-4", "SC-12", "SC-13", "SC-28", "SC-34", "SI-4", "SI-9"],
+      "control_enhancements": []
+    },
+    {
+      "control_id": "IA-5",
+      "title": "Authenticator Management",
+      "family": "Identification and Authentication",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Manage system authenticators by verifying the identity of the individual, group, role, or device.",
+      "supplemental_guidance": "Individual authenticators include passwords, tokens, biometrics, PKI certificates, and key cards.",
+      "related_controls": ["AC-2", "AC-3", "AC-6", "CM-6", "IA-2", "IA-4", "IA-8", "IA-12", "MA-4", "PE-2", "PL-4", "PS-5", "PS-6", "SC-12", "SC-13", "SC-17"],
+      "control_enhancements": [
+        {
+          "enhancement_id": "IA-5(1)",
+          "title": "Password-Based Authentication",
+          "description": "For password-based authentication, maintain password policies and procedures."
+        },
+        {
+          "enhancement_id": "IA-5(4)",
+          "title": "Automated Support for Password Strength Determination",
+          "description": "Employ automated tools to determine if password authenticators are sufficiently strong."
+        }
+      ]
+    },
+    {
+      "control_id": "SC-13",
+      "title": "Cryptographic Protection",
+      "family": "System and Communications Protection",
+      "priority": "P1",
+      "baseline": ["moderate", "high"],
+      "description": "Determine the cryptographic uses and implement required cryptographic protections using cryptographic mechanisms.",
+      "supplemental_guidance": "Cryptographic mechanisms used by the system are employed in accordance with applicable laws, executive orders, directives, regulations, policies, standards, and guidelines.",
+      "related_controls": ["AC-2", "AC-3", "AC-7", "AC-17", "AC-18", "AU-9", "AU-10", "CM-11", "CP-9", "IA-3", "IA-7", "MA-4", "MP-2", "MP-4", "MP-5", "SA-4", "SA-8", "SA-9", "SC-8", "SC-12", "SC-20", "SC-23", "SC-28", "SC-40", "SI-3", "SI-7"],
+      "control_enhancements": []
+    },
+    {
+      "control_id": "AU-2",
+      "title": "Event Logging",
+      "family": "Audit and Accountability",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Identify the types of events that the system is capable of logging in support of the audit function.",
+      "supplemental_guidance": "An event is an observable occurrence in a system. The types of events that require logging are those events that are significant and relevant to the security of systems and the privacy of individuals.",
+      "related_controls": ["AC-6", "AC-17", "AU-3", "AU-12", "CA-7", "CM-5", "CM-10", "CM-11", "IA-3", "MA-4", "MP-4", "PE-3", "PM-14", "SA-8", "SC-7", "SC-18", "SI-3", "SI-4", "SI-7", "SI-10", "SI-11"],
+      "control_enhancements": []
+    },
+    {
+      "control_id": "CM-6",
+      "title": "Configuration Settings",
+      "family": "Configuration Management",
+      "priority": "P1",
+      "baseline": ["low", "moderate", "high"],
+      "description": "Establish and document configuration settings for components employed within the system using security and privacy configuration checklists.",
+      "supplemental_guidance": "Configuration settings are the parameters that can be changed in the hardware, software, or firmware that affect the security and privacy posture or functionality of the system.",
+      "related_controls": ["AC-3", "AC-19", "AU-2", "AU-6", "CA-9", "CM-2", "CM-3", "CM-5", "CM-7", "CM-11", "CP-7", "CP-9", "CP-10", "IA-3", "IA-5", "PL-8", "PM-5", "PM-11", "RA-5", "SA-4", "SA-5", "SA-8", "SA-9", "SC-18", "SC-28", "SC-43", "SI-2", "SI-4", "SI-6"],
+      "control_enhancements": []
+    }
+  ]
+}

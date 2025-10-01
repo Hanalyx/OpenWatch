@@ -427,8 +427,19 @@ const Settings: React.FC = () => {
       setDialogOpen(false);
       loadCredentials();
     } catch (err: any) {
-      setError(editingCredential ? 'Failed to update credential set' : 'Failed to create credential set');
+      // Get more specific error message from the response
+      let errorMessage = editingCredential ? 'Failed to update credential set' : 'Failed to create credential set';
+      
+      if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message && err.message !== 'API request failed') {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       console.error('Error saving credential:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
     } finally {
       setLoading(false);
     }

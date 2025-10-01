@@ -21,7 +21,7 @@ git clone https://github.com/hanalyx/openwatch.git
 cd openwatch
 
 # Quick start (automatic runtime detection)
-./start-podman.sh
+./start-openwatch.sh
 
 # Or use container compose directly
 podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended)
@@ -29,7 +29,7 @@ podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended
 docker-compose up -d  # Standard Docker
 
 # To stop services
-./stop-podman.sh
+./stop-openwatch.sh
 ```
 
 ### First Scan

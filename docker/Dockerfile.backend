@@ -19,8 +19,8 @@ RUN dnf update -y && \
 # Enable FIPS mode
 RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
 
-# Create application user
-RUN useradd -m -u 1000 openwatch && \
+# Create application user with high UID/GID to avoid collisions
+RUN useradd -m -u 10001 openwatch && \
     mkdir -p /app /app/data /app/logs /app/security && \
     chown -R openwatch:openwatch /app
 
@@ -43,7 +43,12 @@ RUN chown -R openwatch:openwatch /app && \
 
 # Create directories for runtime data
 RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
-    chown -R openwatch:openwatch /app/data /app/logs /app/security
+    chown -R openwatch:openwatch /app/data /app/logs /app/security && \
+    chmod -R 755 /app/logs
+
+# Copy entrypoint script and set permissions before switching user
+COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Switch to non-root user
 USER openwatch
@@ -59,6 +64,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 ENV PYTHONPATH=/app \
     OPENWATCH_FIPS_MODE=true \
     OPENWATCH_LOG_LEVEL=INFO
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 # Start command
 CMD ["python3", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
