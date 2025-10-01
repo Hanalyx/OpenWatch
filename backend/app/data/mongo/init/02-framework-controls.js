@@ -155,11 +155,74 @@ db.framework_control_definitions.insertMany(
   }))
 );
 
+// Load ISO 27001:2022 Controls
+print("Loading ISO 27001:2022 Controls...");
+load("/docker-entrypoint-initdb.d/framework_definitions/iso_27001_2022.json");
+
+// Insert ISO Controls into framework_control_definitions
+db.framework_control_definitions.insertMany(
+  iso_framework.controls.map(control => ({
+    framework_id: iso_framework.framework_info.id,
+    control_id: control.control_id,
+    title: control.title,
+    family: control.category,
+    priority: control.implementation_level,
+    description: control.description,
+    supplemental_guidance: control.implementation_guidance,
+    related_controls: control.related_controls || [],
+    external_references: control.external_references || {},
+    framework_version: iso_framework.framework_info.version,
+    framework_organization: iso_framework.framework_info.organization,
+    created_at: new Date(),
+    updated_at: new Date(),
+    // ISO-specific fields
+    category: control.category,
+    implementation_level: control.implementation_level,
+    implementation_guidance: control.implementation_guidance,
+    objective: control.objective,
+    compliance_evidence: control.compliance_evidence || []
+  }))
+);
+
+// Load PCI-DSS v4.0 Controls
+print("Loading PCI-DSS v4.0 Controls...");
+load("/docker-entrypoint-initdb.d/framework_definitions/pci_dss_v4.json");
+
+// Insert PCI-DSS Controls into framework_control_definitions
+db.framework_control_definitions.insertMany(
+  pci_framework.controls.map(control => ({
+    framework_id: pci_framework.framework_info.id,
+    control_id: control.control_id,
+    title: control.title,
+    family: control.category,
+    priority: control.validation_level,
+    description: control.description,
+    supplemental_guidance: control.guidance,
+    related_controls: control.related_controls || [],
+    external_references: control.external_references || {},
+    framework_version: pci_framework.framework_info.version,
+    framework_organization: pci_framework.framework_info.organization,
+    created_at: new Date(),
+    updated_at: new Date(),
+    // PCI-DSS-specific fields
+    requirement: control.requirement,
+    requirement_title: control.requirement_title,
+    category: control.category,
+    validation_level: control.validation_level,
+    testing_procedures: control.testing_procedures || [],
+    guidance: control.guidance,
+    customization: control.customization,
+    compliance_evidence: control.compliance_evidence || []
+  }))
+);
+
 print("Framework control definitions loaded successfully!");
 print("Total NIST controls:", db.framework_control_definitions.countDocuments({framework_id: "nist_800_53_r5"}));
 print("Total CIS controls:", db.framework_control_definitions.countDocuments({framework_id: "cis_v8"}));
 print("Total SRG controls:", db.framework_control_definitions.countDocuments({framework_id: "srg_os"}));
 print("Total STIG RHEL 9 controls:", db.framework_control_definitions.countDocuments({framework_id: "stig_rhel9"}));
+print("Total ISO 27001 controls:", db.framework_control_definitions.countDocuments({framework_id: "iso_27001_2022"}));
+print("Total PCI-DSS controls:", db.framework_control_definitions.countDocuments({framework_id: "pci_dss_v4"}));
 
 // Create framework_info collection for metadata
 print("Creating framework_info collection...");
@@ -188,6 +251,18 @@ db.framework_info.insertMany([
   {
     framework_id: "stig_rhel9",
     ...stig_framework.framework_info,
+    created_at: new Date(),
+    updated_at: new Date()
+  },
+  {
+    framework_id: "iso_27001_2022",
+    ...iso_framework.framework_info,
+    created_at: new Date(),
+    updated_at: new Date()
+  },
+  {
+    framework_id: "pci_dss_v4",
+    ...pci_framework.framework_info,
     created_at: new Date(),
     updated_at: new Date()
   }

@@ -1,0 +1,352 @@
+{
+  "framework_info": {
+    "id": "iso_27001_2022",
+    "name": "ISO/IEC 27001:2022 - Information Security Management Systems",
+    "description": "International standard for information security management systems requirements",
+    "version": "2022",
+    "published_date": "2022-10-25",
+    "updated_date": "2022-10-25",
+    "organization": "International Organization for Standardization (ISO)",
+    "url": "https://www.iso.org/standard/27001",
+    "classification": "International Standard"
+  },
+  "control_categories": [
+    "Information Security Policies",
+    "Organization of Information Security",
+    "Human Resource Security",
+    "Asset Management",
+    "Access Control",
+    "Cryptography",
+    "Physical and Environmental Security",
+    "Operations Security",
+    "Communications Security",
+    "System Acquisition, Development and Maintenance",
+    "Supplier Relationships",
+    "Information Security Incident Management",
+    "Information Security Aspects of Business Continuity Management",
+    "Compliance"
+  ],
+  "implementation_levels": ["Basic", "Advanced", "Comprehensive"],
+  "controls": [
+    {
+      "control_id": "A.5.1",
+      "title": "Policies for Information Security",
+      "category": "Information Security Policies",
+      "implementation_level": "Basic",
+      "description": "Information security policy and topic-specific policies shall be defined, approved by management, published, communicated to and acknowledged by relevant personnel and relevant interested parties, and reviewed at planned intervals or if significant changes occur.",
+      "implementation_guidance": "The organization shall establish, implement, maintain and continually improve an information security management system.",
+      "objective": "To provide management direction and support for information security in accordance with business requirements and relevant laws and regulations.",
+      "external_references": {
+        "nist": "PM-1",
+        "cis": "1.1",
+        "pci": "12.1"
+      },
+      "related_controls": ["A.5.2", "A.5.3"],
+      "compliance_evidence": [
+        "Documented information security policy",
+        "Management approval records",
+        "Communication and acknowledgment records",
+        "Review and update records"
+      ]
+    },
+    {
+      "control_id": "A.5.2",
+      "title": "Information Security Roles and Responsibilities",
+      "category": "Information Security Policies", 
+      "implementation_level": "Basic",
+      "description": "Information security roles and responsibilities shall be defined and allocated according to the organization needs.",
+      "implementation_guidance": "Roles and responsibilities for information security should be defined and documented in accordance with the organization's information security policy.",
+      "objective": "To ensure information security responsibilities are defined and assigned.",
+      "external_references": {
+        "nist": "PM-2",
+        "cis": "1.2"
+      },
+      "related_controls": ["A.5.1", "A.6.1"],
+      "compliance_evidence": [
+        "Roles and responsibilities matrix",
+        "Job descriptions with security responsibilities",
+        "Assignment documentation"
+      ]
+    },
+    {
+      "control_id": "A.6.1",
+      "title": "Screening",
+      "category": "Human Resource Security",
+      "implementation_level": "Basic", 
+      "description": "Background verification checks on all candidates for employment shall be carried out in accordance with relevant laws, regulations and ethics and shall be proportional to the business requirements, the classification of the information to be accessed and the perceived risks.",
+      "implementation_guidance": "Background verification should include identity verification, completeness and accuracy of application, verification of academic and professional qualifications, independent verification of employment history, and checking of criminal records.",
+      "objective": "To ensure that personnel understand their responsibilities and are suitable for the roles for which they are considered.",
+      "external_references": {
+        "nist": "PS-3",
+        "cis": "5.1",
+        "pci": "12.7"
+      },
+      "related_controls": ["A.6.2", "A.6.3"],
+      "compliance_evidence": [
+        "Background check procedures",
+        "Verification records",
+        "Risk assessment documentation"
+      ]
+    },
+    {
+      "control_id": "A.8.1",
+      "title": "Responsibility for Assets",
+      "category": "Asset Management",
+      "implementation_level": "Basic",
+      "description": "Assets shall be identified, and an inventory of assets shall be drawn up and maintained.",
+      "implementation_guidance": "The organization should identify all assets and document the importance of these assets. Asset owners should be appointed and accept responsibility for assets.",
+      "objective": "To identify organizational assets and define appropriate protection responsibilities.",
+      "external_references": {
+        "nist": "CM-8",
+        "cis": "1.1",
+        "pci": "2.4"
+      },
+      "related_controls": ["A.8.2", "A.8.3"],
+      "compliance_evidence": [
+        "Asset inventory",
+        "Asset ownership documentation", 
+        "Asset classification records"
+      ]
+    },
+    {
+      "control_id": "A.8.2",
+      "title": "Information Classification",
+      "category": "Asset Management",
+      "implementation_level": "Advanced",
+      "description": "Information shall be classified according to the legal requirements, value, criticality and sensitivity to unauthorized disclosure or modification.",
+      "implementation_guidance": "Information classification should consider legal and regulatory requirements, value to the organization, and sensitivity. Classification levels should be defined with appropriate handling procedures.",
+      "objective": "To ensure that information receives an appropriate level of protection in accordance with its importance to the organization.",
+      "external_references": {
+        "nist": "MP-4",
+        "cis": "3.1",
+        "pci": "3.1"
+      },
+      "related_controls": ["A.8.1", "A.8.3"],
+      "compliance_evidence": [
+        "Information classification scheme",
+        "Classification procedures",
+        "Handling guidelines",
+        "Training records"
+      ]
+    },
+    {
+      "control_id": "A.9.1",
+      "title": "Access Control Policy",
+      "category": "Access Control",
+      "implementation_level": "Basic",
+      "description": "An access control policy shall be established, documented and reviewed based on business and information security requirements.",
+      "implementation_guidance": "Access control rules should take account of policies for information dissemination and authorization, considering the principle of least privilege and segregation of duties.",
+      "objective": "To limit access to information and information processing facilities.",
+      "external_references": {
+        "nist": "AC-1",
+        "cis": "5.1",
+        "pci": "7.1"
+      },
+      "related_controls": ["A.9.2", "A.9.3"],
+      "compliance_evidence": [
+        "Access control policy",
+        "Access control procedures",
+        "Review records"
+      ]
+    },
+    {
+      "control_id": "A.9.2",
+      "title": "Access to Networks and Network Services",
+      "category": "Access Control",
+      "implementation_level": "Advanced",
+      "description": "Users shall only be provided with access to the network and network services that they have been specifically authorized to use.",
+      "implementation_guidance": "Controls should be in place to ensure users are only provided access to the services they have been authorized to use and to prevent unauthorized access to networks and network services.",
+      "objective": "To ensure authorized user access and to prevent unauthorized access to networks and network services.",
+      "external_references": {
+        "nist": "AC-3",
+        "cis": "5.2",
+        "pci": "7.2"
+      },
+      "related_controls": ["A.9.1", "A.13.1"],
+      "compliance_evidence": [
+        "Network access control procedures",
+        "Authorization records",
+        "Access monitoring logs"
+      ]
+    },
+    {
+      "control_id": "A.10.1",
+      "title": "Cryptographic Controls",
+      "category": "Cryptography",
+      "implementation_level": "Advanced",
+      "description": "A policy on the use of cryptographic controls for protection of information shall be developed and implemented.",
+      "implementation_guidance": "Policy should include the approach to key management including methods to deal with protection of cryptographic keys and recovery of encrypted information.",
+      "objective": "To ensure proper and effective use of cryptography to protect the confidentiality, authenticity and/or integrity of information.",
+      "external_references": {
+        "nist": "SC-13",
+        "cis": "3.11",
+        "pci": "3.4"
+      },
+      "related_controls": ["A.10.2"],
+      "compliance_evidence": [
+        "Cryptographic policy",
+        "Key management procedures",
+        "Implementation guidelines"
+      ]
+    },
+    {
+      "control_id": "A.11.1",
+      "title": "Physical Security Perimeters",
+      "category": "Physical and Environmental Security",
+      "implementation_level": "Basic",
+      "description": "Physical security perimeters shall be defined and used to protect areas that contain either sensitive or critical information and information processing facilities.",
+      "implementation_guidance": "Physical security perimeters should be physically sound with no gaps where break-in could occur. Access points should be controlled and secure areas clearly defined.",
+      "objective": "To prevent unauthorized physical access, damage and interference to the organization's information and information processing facilities.",
+      "external_references": {
+        "nist": "PE-3",
+        "cis": "2.1",
+        "pci": "9.1"
+      },
+      "related_controls": ["A.11.2", "A.11.3"],
+      "compliance_evidence": [
+        "Physical security perimeter documentation",
+        "Access control implementation",
+        "Security measures documentation"
+      ]
+    },
+    {
+      "control_id": "A.12.1",
+      "title": "Operational Procedures and Responsibilities",
+      "category": "Operations Security",
+      "implementation_level": "Basic",
+      "description": "Operating procedures shall be documented and made available to all users who need them.",
+      "implementation_guidance": "Operating procedures should include instructions for handling and processing of information, backup procedures, equipment handling, and media handling.",
+      "objective": "To ensure correct and secure operations of information processing facilities.",
+      "external_references": {
+        "nist": "CM-1",
+        "cis": "2.1",
+        "pci": "12.1"
+      },
+      "related_controls": ["A.12.2", "A.12.3"],
+      "compliance_evidence": [
+        "Operating procedures documentation",
+        "User access to procedures",
+        "Procedure review records"
+      ]
+    },
+    {
+      "control_id": "A.13.1",
+      "title": "Network Security Management",
+      "category": "Communications Security",
+      "implementation_level": "Advanced",
+      "description": "Networks shall be managed and controlled to protect information in systems and applications.",
+      "implementation_guidance": "Network security should include appropriate network controls, security of network equipment, and procedures for remote diagnostic and configuration port protection.",
+      "objective": "To ensure the protection of information in networks and the supporting information processing facilities.",
+      "external_references": {
+        "nist": "SC-7",
+        "cis": "11.1", 
+        "pci": "1.1"
+      },
+      "related_controls": ["A.13.2", "A.9.2"],
+      "compliance_evidence": [
+        "Network security procedures",
+        "Network monitoring logs",
+        "Security control implementation"
+      ]
+    },
+    {
+      "control_id": "A.14.1",
+      "title": "Information Security Requirements Analysis and Specification",
+      "category": "System Acquisition, Development and Maintenance",
+      "implementation_level": "Advanced",
+      "description": "Information security requirements shall be identified, specified and approved when developing or acquiring information systems.",
+      "implementation_guidance": "Security requirements should be identified at the requirements analysis and specification stage and justified, agreed and documented as part of the overall business case for an information system.",
+      "objective": "To ensure that information security is designed and implemented within the development lifecycle of information systems.",
+      "external_references": {
+        "nist": "SA-3",
+        "cis": "16.1",
+        "pci": "6.3"
+      },
+      "related_controls": ["A.14.2", "A.14.3"],
+      "compliance_evidence": [
+        "Security requirements documentation",
+        "Approval records",
+        "Business case documentation"
+      ]
+    },
+    {
+      "control_id": "A.15.1",
+      "title": "Information Security in Supplier Relationships",
+      "category": "Supplier Relationships",
+      "implementation_level": "Advanced",
+      "description": "Information security requirements for mitigating the risks associated with supplier's access to the organization's assets shall be agreed with the supplier and documented.",
+      "implementation_guidance": "Agreements with suppliers should address the different ways that business information can be accessed, processed, stored, communicated or provided by suppliers.",
+      "objective": "To ensure protection of the organization's assets that are accessible by suppliers.",
+      "external_references": {
+        "nist": "SA-9",
+        "cis": "15.1",
+        "pci": "12.8"
+      },
+      "related_controls": ["A.15.2"],
+      "compliance_evidence": [
+        "Supplier agreements",
+        "Risk assessment documentation", 
+        "Security requirements documentation"
+      ]
+    },
+    {
+      "control_id": "A.16.1",
+      "title": "Management of Information Security Incidents and Improvements",
+      "category": "Information Security Incident Management",
+      "implementation_level": "Basic",
+      "description": "Information security incidents shall be managed through the use of defined and communicated information security incident management processes.",
+      "implementation_guidance": "A formal incident response process should be established including incident detection, reporting, assessment, response, recovery and lessons learned.",
+      "objective": "To ensure a consistent and effective approach to the management of information security incidents.",
+      "external_references": {
+        "nist": "IR-1",
+        "cis": "17.1",
+        "pci": "12.10"
+      },
+      "related_controls": ["A.16.2"],
+      "compliance_evidence": [
+        "Incident management procedures",
+        "Incident response records",
+        "Communication procedures"
+      ]
+    },
+    {
+      "control_id": "A.17.1",
+      "title": "Planning Information Security Continuity",
+      "category": "Information Security Aspects of Business Continuity Management",
+      "implementation_level": "Comprehensive",
+      "description": "The organization shall determine its requirements for information security and the continuity of information security management in adverse situations.",
+      "implementation_guidance": "Information security continuity should be embedded in the organization's business continuity management systems. Requirements should be determined through risk assessment.",
+      "objective": "To counteract interruptions to business activities and to protect critical business processes from the effects of major failures or disasters.",
+      "external_references": {
+        "nist": "CP-1",
+        "cis": "11.5"
+      },
+      "related_controls": ["A.17.2"],
+      "compliance_evidence": [
+        "Business continuity plans",
+        "Risk assessment documentation",
+        "Continuity testing records"
+      ]
+    },
+    {
+      "control_id": "A.18.1",
+      "title": "Compliance with Legal and Contractual Requirements",
+      "category": "Compliance",
+      "implementation_level": "Basic",
+      "description": "All relevant legislative statutory, regulatory, contractual requirements and the organization's approach to meet these requirements shall be explicitly identified, documented and kept up to date.",
+      "implementation_guidance": "The organization should identify applicable legal, regulatory and contractual requirements and document how these requirements are met.",
+      "objective": "To avoid breaches of legal, statutory, regulatory or contractual obligations related to information security.",
+      "external_references": {
+        "nist": "PM-11",
+        "cis": "18.1",
+        "pci": "12.1"
+      },
+      "related_controls": ["A.18.2"],
+      "compliance_evidence": [
+        "Legal and regulatory requirements register",
+        "Compliance procedures",
+        "Review and update records"
+      ]
+    }
+  ]
+}

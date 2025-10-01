@@ -1,0 +1,362 @@
+{
+  "framework_info": {
+    "id": "pci_dss_v4",
+    "name": "Payment Card Industry Data Security Standard v4.0",
+    "description": "Security standards for organizations that handle cardholder data",
+    "version": "4.0.1",
+    "published_date": "2022-03-31",
+    "updated_date": "2024-03-31",
+    "organization": "PCI Security Standards Council",
+    "url": "https://www.pcisecuritystandards.org/standards/pci-dss/",
+    "classification": "Industry Standard"
+  },
+  "validation_levels": ["SAQ A", "SAQ A-EP", "SAQ B", "SAQ B-IP", "SAQ C", "SAQ C-VT", "SAQ D", "Level 1", "Level 2", "Level 3", "Level 4"],
+  "requirement_categories": [
+    "Build and Maintain a Secure Network and Systems",
+    "Protect Cardholder Data", 
+    "Maintain a Vulnerability Management Program",
+    "Implement Strong Access Control Measures",
+    "Regularly Monitor and Test Networks",
+    "Maintain an Information Security Policy"
+  ],
+  "controls": [
+    {
+      "control_id": "1.1.1",
+      "title": "Processes and mechanisms for implementing and/or maintaining firewall configurations are defined and documented",
+      "requirement": "1.1",
+      "requirement_title": "Establish and implement firewall and router configuration standards",
+      "category": "Build and Maintain a Secure Network and Systems",
+      "validation_level": "All",
+      "description": "Establish and implement firewall and router configuration standards that include a formal process for approving and testing all network connections and changes to the firewall and router configurations.",
+      "testing_procedures": [
+        "Examine documented procedures to verify processes are defined for implementing and/or maintaining firewall configurations",
+        "Interview personnel to verify processes are implemented as documented"
+      ],
+      "guidance": "Firewall and router configurations should be reviewed and approved by authorized personnel. All changes should be documented and tested before implementation.",
+      "customization": "The entity may customize this requirement to align with their defined processes for implementing and/or maintaining firewall configurations.",
+      "external_references": {
+        "nist": "CM-6",
+        "iso": "A.13.1",
+        "cis": "11.1"
+      },
+      "related_controls": ["1.1.2", "1.2.1"],
+      "compliance_evidence": [
+        "Documented firewall configuration procedures",
+        "Change approval records",
+        "Testing documentation"
+      ]
+    },
+    {
+      "control_id": "1.2.1",
+      "title": "Configuration standards for firewall and router are defined and implemented",
+      "requirement": "1.2",
+      "requirement_title": "Configure firewall and router security features",
+      "category": "Build and Maintain a Secure Network and Systems", 
+      "validation_level": "All",
+      "description": "Configuration standards for network security controls are defined and implemented to provide only necessary services, protocols, daemons, etc., as required for the function of the system.",
+      "testing_procedures": [
+        "Examine configuration standards to verify they are defined",
+        "Examine firewall and router configurations to verify they are implemented according to the configuration standards"
+      ],
+      "guidance": "Configuration standards should specify only necessary services and protocols. Unnecessary services should be disabled or removed.",
+      "customization": "The entity may customize configuration standards based on their specific technology and business requirements.",
+      "external_references": {
+        "nist": "CM-7",
+        "iso": "A.13.1",
+        "cis": "11.2"
+      },
+      "related_controls": ["1.1.1", "1.2.2"],
+      "compliance_evidence": [
+        "Configuration standards documentation",
+        "Configuration files",
+        "Implementation verification"
+      ]
+    },
+    {
+      "control_id": "2.1.1",
+      "title": "Processes and mechanisms for maintaining vendor default accounts are defined and documented",
+      "requirement": "2.1",
+      "requirement_title": "Always change vendor-supplied defaults and remove or disable unnecessary default accounts before installing a system on the network",
+      "category": "Build and Maintain a Secure Network and Systems",
+      "validation_level": "All", 
+      "description": "For all system components, vendor-supplied defaults for system passwords and other security parameters are always changed before installing a system on the network.",
+      "testing_procedures": [
+        "Examine documented procedures to verify processes are defined for maintaining vendor default accounts",
+        "Examine system configurations to verify vendor defaults have been changed"
+      ],
+      "guidance": "Default passwords and security parameters are well known and create security vulnerabilities. All defaults should be changed before deployment.",
+      "customization": "The entity may customize this requirement based on their change management and deployment processes.",
+      "external_references": {
+        "nist": "IA-5",
+        "iso": "A.9.2",
+        "cis": "5.1"
+      },
+      "related_controls": ["2.1.2", "2.2.1"],
+      "compliance_evidence": [
+        "Default account management procedures",
+        "Configuration change records",
+        "System hardening documentation"
+      ]
+    },
+    {
+      "control_id": "3.1.1",
+      "title": "Processes and mechanisms for protecting stored account data are defined and documented",
+      "requirement": "3.1",
+      "requirement_title": "Keep cardholder data storage to a minimum by implementing data retention and disposal policies, procedures and processes",
+      "category": "Protect Cardholder Data",
+      "validation_level": "All",
+      "description": "Cardholder data storage is kept to a minimum through implementation of data retention and disposal policies, procedures, and processes that include limiting data storage amount and retention time to that which is required for legal, regulatory, and/or business requirements.",
+      "testing_procedures": [
+        "Examine documented procedures to verify processes are defined for protecting stored account data",
+        "Interview personnel to verify data retention and disposal processes are implemented"
+      ],
+      "guidance": "Organizations should minimize the storage of cardholder data and ensure proper disposal when no longer needed for business purposes.",
+      "customization": "The entity may customize data retention periods based on business, legal, and regulatory requirements.",
+      "external_references": {
+        "nist": "MP-6",
+        "iso": "A.8.2",
+        "cis": "3.1"
+      },
+      "related_controls": ["3.2.1", "3.3.1"],
+      "compliance_evidence": [
+        "Data retention policy",
+        "Data disposal procedures", 
+        "Storage inventory records"
+      ]
+    },
+    {
+      "control_id": "3.4.1",
+      "title": "PAN is protected with strong cryptography during transmission over open, public networks",
+      "requirement": "3.4",
+      "requirement_title": "Protect account data during transmission over open, public networks",
+      "category": "Protect Cardholder Data",
+      "validation_level": "All",
+      "description": "PAN is protected with strong cryptography and security protocols during transmission over open, public networks.",
+      "testing_procedures": [
+        "Examine system configurations to verify strong cryptography is implemented",
+        "Examine data transmission processes to verify protection over public networks"
+      ],
+      "guidance": "Strong cryptography includes TLS 1.2 or higher for web-based applications and other strong encryption protocols for other applications.",
+      "customization": "The entity may implement cryptographic methods appropriate for their specific technologies and applications.",
+      "external_references": {
+        "nist": "SC-8",
+        "iso": "A.10.1",
+        "cis": "3.11"
+      },
+      "related_controls": ["3.4.2", "4.2.1"],
+      "compliance_evidence": [
+        "Cryptographic implementation documentation",
+        "Transmission security configuration",
+        "Protocol verification records"
+      ]
+    },
+    {
+      "control_id": "6.1.1",
+      "title": "Processes and mechanisms for identifying security vulnerabilities are defined and documented",
+      "requirement": "6.1",
+      "requirement_title": "Develop and maintain secure systems and applications",
+      "category": "Maintain a Vulnerability Management Program",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for identifying security vulnerabilities are defined, documented, and followed.",
+      "testing_procedures": [
+        "Examine documented procedures to verify processes are defined for identifying security vulnerabilities",
+        "Interview personnel to verify vulnerability identification processes are implemented"
+      ],
+      "guidance": "Organizations should establish formal processes for identifying vulnerabilities through security advisories, vendor notifications, and security testing.",
+      "customization": "The entity may customize vulnerability identification processes based on their technology environment and risk assessment.",
+      "external_references": {
+        "nist": "RA-5",
+        "iso": "A.12.6",
+        "cis": "7.1"
+      },
+      "related_controls": ["6.1.2", "6.2.1"],
+      "compliance_evidence": [
+        "Vulnerability management procedures",
+        "Vulnerability identification records",
+        "Security advisory tracking"
+      ]
+    },
+    {
+      "control_id": "7.1.1",
+      "title": "Processes and mechanisms for limiting access to system components and cardholder data are defined and documented",
+      "requirement": "7.1",
+      "requirement_title": "Limit access to system components and cardholder data by business need to know",
+      "category": "Implement Strong Access Control Measures",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for limiting access to system components and cardholder data by business need-to-know are defined, documented, and implemented.",
+      "testing_procedures": [
+        "Examine documented procedures to verify processes are defined for limiting access",
+        "Interview personnel to verify access control processes are implemented"
+      ],
+      "guidance": "Access should be granted based on job function and business need. Principle of least privilege should be applied to all access decisions.",
+      "customization": "The entity may customize access control processes based on their organizational structure and business requirements.",
+      "external_references": {
+        "nist": "AC-2",
+        "iso": "A.9.1",
+        "cis": "5.1"
+      },
+      "related_controls": ["7.2.1", "8.1.1"],
+      "compliance_evidence": [
+        "Access control procedures",
+        "Access authorization records",
+        "Need-to-know documentation"
+      ]
+    },
+    {
+      "control_id": "8.1.1",
+      "title": "Processes and mechanisms for authenticating access to system components are defined and documented",
+      "requirement": "8.1",
+      "requirement_title": "Define and implement policies and procedures to ensure proper user identification management",
+      "category": "Implement Strong Access Control Measures",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for authenticating access to system components are defined, documented, and implemented.",
+      "testing_procedures": [
+        "Examine documented procedures to verify authentication processes are defined",
+        "Interview personnel to verify authentication processes are implemented"
+      ],
+      "guidance": "Authentication processes should include unique user identification, strong authentication methods, and proper session management.",
+      "customization": "The entity may customize authentication processes based on their technology environment and risk assessment.",
+      "external_references": {
+        "nist": "IA-2",
+        "iso": "A.9.2",
+        "cis": "5.1"
+      },
+      "related_controls": ["8.2.1", "8.3.1"],
+      "compliance_evidence": [
+        "Authentication procedures",
+        "User identification documentation",
+        "Authentication method implementation"
+      ]
+    },
+    {
+      "control_id": "10.1.1",
+      "title": "Processes and mechanisms for logging and monitoring access to network resources and cardholder data are defined and documented",
+      "requirement": "10.1",
+      "requirement_title": "Implement audit trails to link all access to network resources and cardholder data to each individual user",
+      "category": "Regularly Monitor and Test Networks",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for logging and monitoring access to network resources and cardholder data are defined, documented, and implemented.",
+      "testing_procedures": [
+        "Examine documented procedures to verify logging and monitoring processes are defined",
+        "Interview personnel to verify logging processes are implemented"
+      ],
+      "guidance": "Comprehensive logging should capture all access to cardholder data and network resources with sufficient detail to establish accountability.",
+      "customization": "The entity may customize logging requirements based on their system architecture and regulatory requirements.",
+      "external_references": {
+        "nist": "AU-2",
+        "iso": "A.12.4",
+        "cis": "8.1"
+      },
+      "related_controls": ["10.2.1", "10.3.1"],
+      "compliance_evidence": [
+        "Logging procedures",
+        "Monitoring implementation",
+        "Audit trail documentation"
+      ]
+    },
+    {
+      "control_id": "11.1.1",
+      "title": "Processes and mechanisms for testing security of network implementations are defined and documented",
+      "requirement": "11.1",
+      "requirement_title": "Implement a process to test for the presence of wireless access points and detect and identify all authorized and unauthorized wireless access points on a quarterly basis",
+      "category": "Regularly Monitor and Test Networks",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for testing security of network implementations and detecting unauthorized wireless access points are defined, documented, and implemented.",
+      "testing_procedures": [
+        "Examine documented procedures to verify wireless testing processes are defined",
+        "Interview personnel to verify wireless detection processes are implemented"
+      ],
+      "guidance": "Regular testing should detect both authorized and unauthorized wireless access points. Testing should be performed quarterly or more frequently.",
+      "customization": "The entity may customize wireless testing frequency and methods based on their environment and risk assessment.",
+      "external_references": {
+        "nist": "SI-4",
+        "iso": "A.13.1",
+        "cis": "11.1"
+      },
+      "related_controls": ["11.1.2", "11.2.1"],
+      "compliance_evidence": [
+        "Wireless testing procedures",
+        "Detection scan results",
+        "Quarterly testing records"
+      ]
+    },
+    {
+      "control_id": "12.1.1",
+      "title": "An overall information security policy is established and published",
+      "requirement": "12.1",
+      "requirement_title": "Establish, publish, maintain, and disseminate a security policy",
+      "category": "Maintain an Information Security Policy",
+      "validation_level": "All",
+      "description": "An overall information security policy is established, published, maintained, and disseminated to all relevant personnel.",
+      "testing_procedures": [
+        "Examine the information security policy to verify it is established and published",
+        "Interview personnel to verify the policy is disseminated and understood"
+      ],
+      "guidance": "The information security policy should address all aspects of protecting cardholder data and be reviewed and updated annually.",
+      "customization": "The entity may customize the information security policy based on their organizational structure and business requirements.",
+      "external_references": {
+        "nist": "PM-1",
+        "iso": "A.5.1",
+        "cis": "1.1"
+      },
+      "related_controls": ["12.1.2", "12.2.1"],
+      "compliance_evidence": [
+        "Information security policy document",
+        "Policy dissemination records",
+        "Annual review documentation"
+      ]
+    },
+    {
+      "control_id": "12.8.1",
+      "title": "Processes and mechanisms for managing service providers are defined and documented",
+      "requirement": "12.8",
+      "requirement_title": "Maintain and implement policies and procedures to manage service providers with whom cardholder data is shared or that could affect the security of cardholder data",
+      "category": "Maintain an Information Security Policy",
+      "validation_level": "All",
+      "description": "Processes and mechanisms for managing service providers with access to cardholder data or that could impact cardholder data security are defined, documented, and implemented.",
+      "testing_procedures": [
+        "Examine documented procedures to verify service provider management processes are defined",
+        "Interview personnel to verify service provider management processes are implemented"
+      ],
+      "guidance": "Service provider management should include due diligence, written agreements, and ongoing monitoring of compliance status.",
+      "customization": "The entity may customize service provider management based on the types and number of service providers used.",
+      "external_references": {
+        "nist": "SA-9",
+        "iso": "A.15.1",
+        "cis": "15.1"
+      },
+      "related_controls": ["12.8.2", "12.8.3"],
+      "compliance_evidence": [
+        "Service provider management procedures",
+        "Due diligence documentation",
+        "Service provider agreements"
+      ]
+    },
+    {
+      "control_id": "12.10.1",
+      "title": "An incident response plan exists and can be implemented in the event of suspected or confirmed security incident affecting cardholder data",
+      "requirement": "12.10",
+      "requirement_title": "Implement an incident response plan",
+      "category": "Maintain an Information Security Policy",
+      "validation_level": "All",
+      "description": "An incident response plan exists and can be implemented in the event of a suspected or confirmed security incident affecting cardholder data.",
+      "testing_procedures": [
+        "Examine the incident response plan to verify it exists and addresses cardholder data incidents",
+        "Interview personnel to verify the plan can be implemented when needed"
+      ],
+      "guidance": "The incident response plan should include immediate response procedures, escalation processes, and communication protocols for cardholder data incidents.",
+      "customization": "The entity may customize the incident response plan based on their organizational structure and incident types.",
+      "external_references": {
+        "nist": "IR-1",
+        "iso": "A.16.1",
+        "cis": "17.1"
+      },
+      "related_controls": ["12.10.2", "12.10.3"],
+      "compliance_evidence": [
+        "Incident response plan document",
+        "Response team contact information",
+        "Plan testing documentation"
+      ]
+    }
+  ]
+}
