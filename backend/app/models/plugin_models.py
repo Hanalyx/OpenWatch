@@ -111,7 +111,7 @@ class PluginManifest(BaseModel):
             raise ValueError(f"Invalid platforms: {invalid}")
         return v
     
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_config_schema(cls, values):
         """Validate config schema if provided"""
         schema = values.get('config_schema')
@@ -173,7 +173,7 @@ class PluginPackage(BaseModel):
             
         return hasher.hexdigest()
     
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_checksum(cls, values):
         """Validate package checksum"""
         # Skip during construction from trusted sources
