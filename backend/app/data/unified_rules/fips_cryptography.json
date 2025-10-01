@@ -1,0 +1,124 @@
+{
+  "rule_id": "fips_cryptography_001",
+  "title": "FIPS 140-2 Cryptographic Module Enforcement",
+  "description": "Ensures that FIPS 140-2 validated cryptographic modules are enabled and properly configured, exceeding baseline cryptographic requirements",
+  "version": "1.0",
+  "rule_type": "command_execution",
+  "execution_context": {
+    "command": "fips-mode-setup --check",
+    "expected_value": "FIPS mode is enabled.",
+    "comparison_operator": "contains",
+    "timeout": 30
+  },
+  "parameters": [
+    {
+      "name": "fips_check_command",
+      "type": "string",
+      "description": "Command to check FIPS mode status",
+      "default_value": "fips-mode-setup --check",
+      "required": true
+    },
+    {
+      "name": "expected_status",
+      "type": "string",
+      "description": "Expected FIPS status message",
+      "default_value": "FIPS mode is enabled.",
+      "required": true
+    }
+  ],
+  "supported_platforms": [
+    {
+      "platform": "rhel_8",
+      "min_version": "8.4",
+      "architecture": "x86_64"
+    },
+    {
+      "platform": "rhel_9",
+      "min_version": "9.0", 
+      "architecture": "x86_64"
+    },
+    {
+      "platform": "centos_8",
+      "min_version": "8.4",
+      "architecture": "x86_64"
+    }
+  ],
+  "framework_mappings": [
+    {
+      "framework_id": "nist_800_53_r5",
+      "control_ids": ["SC-13"],
+      "compliance_status": "exceeds",
+      "enhancement_description": "FIPS 140-2 validation provides stronger cryptographic assurance than basic SC-13 requirements",
+      "justification": "FIPS mode ensures cryptographic modules meet federal standards for sensitive data protection",
+      "evidence_artifacts": ["fips_status_check", "crypto_policy_config", "openssl_fips_config"]
+    },
+    {
+      "framework_id": "cis_v8",
+      "control_ids": ["3.11"],
+      "compliance_status": "exceeds",
+      "enhancement_description": "FIPS crypto exceeds CIS prohibition of SHA1 by enforcing stronger algorithms",
+      "justification": "FIPS mode automatically disables weak cryptographic algorithms including SHA1, providing superior protection",
+      "evidence_artifacts": ["cis_crypto_compliance", "algorithm_validation"]
+    },
+    {
+      "framework_id": "srg_os",
+      "control_ids": ["SRG-OS-000080-GPOS-00048", "SRG-OS-000184-GPOS-00078"],
+      "compliance_status": "compliant",
+      "justification": "Implements SRG requirements for cryptographic protection and FIPS-validated cryptography",
+      "evidence_artifacts": ["srg_crypto_evidence", "fips_validation_cert"]
+    },
+    {
+      "framework_id": "stig_rhel9",
+      "control_ids": ["RHEL-09-672010"],
+      "compliance_status": "compliant",
+      "justification": "Directly implements STIG requirement for NIST FIPS-validated cryptography",
+      "evidence_artifacts": ["stig_fips_implementation", "rhel_crypto_policy"]
+    },
+    {
+      "framework_id": "iso_27001_2022",
+      "control_ids": ["A.10.1"],
+      "compliance_status": "exceeds",
+      "enhancement_description": "FIPS validation provides documented cryptographic controls beyond ISO 27001 baseline",
+      "justification": "FIPS 140-2 certification demonstrates effective cryptographic control implementation",
+      "evidence_artifacts": ["iso_crypto_policy", "fips_certification_evidence"]
+    },
+    {
+      "framework_id": "pci_dss_v4",
+      "control_ids": ["3.4.1"],
+      "compliance_status": "exceeds", 
+      "enhancement_description": "FIPS cryptography exceeds PCI-DSS minimum encryption requirements",
+      "justification": "FIPS mode ensures strong cryptography for cardholder data protection during transmission",
+      "evidence_artifacts": ["pci_crypto_compliance", "transmission_encryption_config"]
+    }
+  ],
+  "pass_criteria": "FIPS mode is enabled and operational on the system",
+  "severity": "critical",
+  "category": "Cryptography",
+  "tags": ["cryptography", "fips", "encryption", "security_policy", "exceeds_baseline", "multi_framework"],
+  "remediation": {
+    "type": "command",
+    "description": "Enable FIPS mode on RHEL systems",
+    "commands": [
+      "fips-mode-setup --enable",
+      "reboot"
+    ],
+    "files_to_modify": [
+      {
+        "path": "/etc/system-fips",
+        "description": "FIPS mode indicator file"
+      },
+      {
+        "path": "/proc/sys/crypto/fips_enabled",
+        "description": "Kernel FIPS mode status"
+      }
+    ],
+    "services_to_restart": ["sshd", "httpd", "nginx"],
+    "risk_level": "medium",
+    "requires_reboot": true,
+    "backup_required": true
+  },
+  "created_by": "OpenWatch Unified Compliance System",
+  "is_active": true,
+  "is_validated": true,
+  "validation_notes": "Demonstrates compliance exceeding scenario where FIPS cryptography surpasses CIS SHA1 prohibition requirements"
+}

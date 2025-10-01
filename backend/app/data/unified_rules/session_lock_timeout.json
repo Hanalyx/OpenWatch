@@ -1,0 +1,127 @@
+{
+  "rule_id": "session_lock_timeout_001",
+  "title": "Enforce Session Lock Timeout Configuration",
+  "description": "Ensures that user sessions are automatically locked after a specified period of inactivity to prevent unauthorized access",
+  "version": "1.0",
+  "rule_type": "configuration_parse",
+  "execution_context": {
+    "file_path": "/etc/dconf/db/local.d/00-screensaver",
+    "config_section": "[org/gnome/desktop/session]",
+    "expected_value": 900,
+    "comparison_operator": "lte",
+    "timeout": 30
+  },
+  "parameters": [
+    {
+      "name": "max_idle_time",
+      "type": "integer", 
+      "description": "Maximum idle time in seconds before session lock",
+      "default_value": 900,
+      "required": true,
+      "validation_regex": "^[1-9][0-9]*$"
+    },
+    {
+      "name": "config_file_path",
+      "type": "string",
+      "description": "Path to the configuration file",
+      "default_value": "/etc/dconf/db/local.d/00-screensaver",
+      "required": true
+    }
+  ],
+  "supported_platforms": [
+    {
+      "platform": "rhel_8",
+      "min_version": "8.0",
+      "architecture": "x86_64"
+    },
+    {
+      "platform": "rhel_9", 
+      "min_version": "9.0",
+      "architecture": "x86_64"
+    },
+    {
+      "platform": "ubuntu_20_04",
+      "min_version": "20.04",
+      "architecture": "x86_64"
+    },
+    {
+      "platform": "ubuntu_22_04",
+      "min_version": "22.04", 
+      "architecture": "x86_64"
+    }
+  ],
+  "framework_mappings": [
+    {
+      "framework_id": "nist_800_53_r5",
+      "control_ids": ["AC-11"],
+      "compliance_status": "compliant",
+      "justification": "Implements NIST AC-11 requirement for session lock after period of inactivity",
+      "evidence_artifacts": ["dconf_session_config", "gnome_screensaver_settings"]
+    },
+    {
+      "framework_id": "cis_v8",
+      "control_ids": ["5.2"],
+      "compliance_status": "compliant", 
+      "justification": "Satisfies CIS Control 5.2 for account management and session controls",
+      "evidence_artifacts": ["session_timeout_config"]
+    },
+    {
+      "framework_id": "srg_os",
+      "control_ids": ["SRG-OS-000001-GPOS-00001", "SRG-OS-000002-GPOS-00002"],
+      "compliance_status": "compliant",
+      "justification": "Implements SRG requirements for session lock capability and override protection",
+      "evidence_artifacts": ["srg_session_lock_evidence"]
+    },
+    {
+      "framework_id": "stig_rhel9",
+      "control_ids": ["RHEL-09-412010", "RHEL-09-412020", "RHEL-09-412030"],
+      "compliance_status": "compliant",
+      "justification": "Implements STIG requirements for screen package, session timeout, and graphical lock",
+      "evidence_artifacts": ["stig_session_implementation"]
+    },
+    {
+      "framework_id": "iso_27001_2022",
+      "control_ids": ["A.9.1"],
+      "compliance_status": "compliant",
+      "justification": "Supports ISO 27001 A.9.1 access control policy through automatic session termination",
+      "evidence_artifacts": ["iso_access_control_evidence"]
+    },
+    {
+      "framework_id": "pci_dss_v4",
+      "control_ids": ["7.1.1", "8.1.1"],
+      "compliance_status": "compliant",
+      "justification": "Implements PCI-DSS access control and authentication requirements through session management",
+      "evidence_artifacts": ["pci_session_control_evidence"]
+    }
+  ],
+  "pass_criteria": "Session idle timeout is configured to 900 seconds (15 minutes) or less",
+  "severity": "medium",
+  "category": "Access Control",
+  "tags": ["session_management", "access_control", "gnome", "timeout", "multi_framework"],
+  "remediation": {
+    "type": "file_edit",
+    "description": "Configure session lock timeout in GNOME desktop environment",
+    "commands": [
+      "mkdir -p /etc/dconf/db/local.d",
+      "echo '[org/gnome/desktop/session]' > /etc/dconf/db/local.d/00-screensaver",
+      "echo 'idle-delay=uint32 900' >> /etc/dconf/db/local.d/00-screensaver",
+      "dconf update"
+    ],
+    "files_to_modify": [
+      {
+        "path": "/etc/dconf/db/local.d/00-screensaver",
+        "section": "[org/gnome/desktop/session]",
+        "key": "idle-delay",
+        "value": "uint32 900"
+      }
+    ],
+    "services_to_restart": ["gdm"],
+    "risk_level": "low",
+    "requires_reboot": false,
+    "backup_required": true
+  },
+  "created_by": "OpenWatch Unified Compliance System",
+  "is_active": true,
+  "is_validated": true,
+  "validation_notes": "Tested across RHEL 8/9, Ubuntu 20.04/22.04 with GNOME desktop environment"
+}
