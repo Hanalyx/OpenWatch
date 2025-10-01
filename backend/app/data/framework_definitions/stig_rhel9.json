@@ -1,0 +1,240 @@
+{
+  "framework_info": {
+    "id": "stig_rhel9",
+    "name": "Security Technical Implementation Guide - Red Hat Enterprise Linux 9",
+    "description": "Security Technical Implementation Guide for Red Hat Enterprise Linux 9",
+    "version": "1.2",
+    "published_date": "2023-10-26",
+    "updated_date": "2023-10-26",
+    "organization": "Defense Information Systems Agency (DISA)",
+    "url": "https://public.cyber.mil/stigs/downloads/",
+    "classification": "UNCLASSIFIED",
+    "implementation_framework": "srg_os",
+    "target_platform": "RHEL 9"
+  },
+  "requirement_categories": [
+    "Access Control",
+    "Audit and Accountability", 
+    "Configuration Management",
+    "Identification and Authentication",
+    "System and Communications Protection",
+    "System and Information Integrity"
+  ],
+  "severity_levels": ["CAT I", "CAT II", "CAT III"],
+  "controls": [
+    {
+      "control_id": "RHEL-09-412010",
+      "title": "RHEL 9 must have the screen package installed",
+      "severity": "CAT II",
+      "description": "RHEL 9 must have the screen package installed to enable session locking.",
+      "check_text": "Verify that RHEL 9 has the screen package installed with the following command:\n\n$ sudo dnf list --installed screen\n\nscreen.x86_64    4.8.0-6.el9    @rhel-9-for-x86_64-appstream-rpms\n\nIf the screen package is not installed, this is a finding.",
+      "fix_text": "The screen package can be installed with the following command:\n\n$ sudo dnf install screen",
+      "cci": ["CCI-000057"],
+      "nist_controls": ["AC-11"],
+      "srg_requirement": "SRG-OS-000001-GPOS-00001",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "A session time-out lock is a temporary action taken when a user stops work and moves away from the immediate physical vicinity of the information system but does not log out because of the temporary nature of the absence. Rather than relying on the user to manually lock their operating system session prior to vacating the vicinity, operating systems need to be able to identify when a user's session has idled and take action to initiate the session lock.",
+      "check_content_ref": {
+        "href": "RHEL-09-412010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-412020", "RHEL-09-412030"],
+      "implementation_details": {
+        "commands": ["dnf list --installed screen", "dnf install screen"],
+        "files": ["/usr/bin/screen"],
+        "services": [],
+        "packages": ["screen"]
+      }
+    },
+    {
+      "control_id": "RHEL-09-412020", 
+      "title": "RHEL 9 must initiate a session lock after a 15-minute period of inactivity",
+      "severity": "CAT II",
+      "description": "RHEL 9 must initiate a session lock after a 15-minute period of inactivity for all connection types.",
+      "check_text": "Verify RHEL 9 initiates a session lock after a 15-minute period of inactivity with the following command:\n\n$ gsettings get org.gnome.desktop.session idle-delay\nuint32 900\n\nIf \"idle-delay\" is set to \"0\", does not exist, is commented out, or is not set to \"900\" or less (but not \"0\"), this is a finding.",
+      "fix_text": "Configure RHEL 9 to initiate a session lock after a 15-minute period of inactivity with the following command:\n\n$ gsettings set org.gnome.desktop.session idle-delay 900",
+      "cci": ["CCI-000058"],
+      "nist_controls": ["AC-11"],
+      "srg_requirement": "SRG-OS-000002-GPOS-00002",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "A session lock is a temporary action taken when a user stops work and moves away from the immediate physical vicinity of the information system but does not log out because of the temporary nature of the absence.",
+      "check_content_ref": {
+        "href": "RHEL-09-412020",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-412010"],
+      "implementation_details": {
+        "commands": ["gsettings get org.gnome.desktop.session idle-delay", "gsettings set org.gnome.desktop.session idle-delay 900"],
+        "files": ["/etc/dconf/db/local.d/00-screensaver"],
+        "services": [],
+        "configuration": {
+          "gnome_setting": "org.gnome.desktop.session.idle-delay",
+          "expected_value": "900"
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-412030",
+      "title": "RHEL 9 must automatically lock graphical user sessions after 15 minutes of inactivity",
+      "severity": "CAT II", 
+      "description": "RHEL 9 must automatically lock graphical user sessions after 15 minutes of inactivity.",
+      "check_text": "Verify RHEL 9 automatically locks graphical user sessions after 15 minutes of inactivity with the following command:\n\n$ gsettings get org.gnome.desktop.screensaver lock-enabled\ntrue\n\nIf the setting is \"false\", this is a finding.",
+      "fix_text": "Configure RHEL 9 to automatically lock graphical user sessions after 15 minutes of inactivity with the following command:\n\n$ gsettings set org.gnome.desktop.screensaver lock-enabled true",
+      "cci": ["CCI-000163"],
+      "nist_controls": ["SC-10"],
+      "srg_requirement": "SRG-OS-000021-GPOS-00005",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Automatic session termination addresses the termination of user-initiated logical sessions in contrast to the termination of network connections that are associated with communications sessions (i.e., network disconnect). A logical session (for local, network, and remote access) is initiated whenever a user (or process acting on behalf of a user) accesses an organizational information system. Such user sessions can be terminated (and thus terminate user access) without terminating network sessions.",
+      "check_content_ref": {
+        "href": "RHEL-09-412030",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-412010", "RHEL-09-412020"],
+      "implementation_details": {
+        "commands": ["gsettings get org.gnome.desktop.screensaver lock-enabled", "gsettings set org.gnome.desktop.screensaver lock-enabled true"],
+        "files": ["/etc/dconf/db/local.d/00-screensaver"],
+        "services": [],
+        "configuration": {
+          "gnome_setting": "org.gnome.desktop.screensaver.lock-enabled",
+          "expected_value": "true"
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-271010",
+      "title": "RHEL 9 must display the Standard Mandatory DoD Notice and Consent Banner before granting local or remote access to the system via a graphical user logon",
+      "severity": "CAT II",
+      "description": "RHEL 9 must display the Standard Mandatory DoD Notice and Consent Banner before granting local or remote access to the system via a graphical user logon.",
+      "check_text": "Verify RHEL 9 displays the Standard Mandatory DoD Notice and Consent Banner before granting access to the operating system via a graphical user logon.\n\n$ sudo cat /etc/dconf/db/local.d/01-banner-message\n\n[org/gnome/login-screen]\nbanner-message-enable=true\nbanner-message-text='You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only...'",
+      "fix_text": "Configure RHEL 9 to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the system via the graphical user interface.\n\nCreate a database to contain the system-wide graphical user interface settings (if it does not already exist) with the following command:\n\n$ sudo touch /etc/dconf/db/local.d/01-banner-message\n\nAdd the banner message with the following command:\n\n$ sudo bash -c \"cat >> /etc/dconf/db/local.d/01-banner-message\" << 'EOF'\n[org/gnome/login-screen]\nbanner-message-enable=true\nbanner-message-text='You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only.'\nEOF",
+      "cci": ["CCI-000048"],
+      "nist_controls": ["AC-8"],
+      "srg_requirement": "SRG-OS-000028-GPOS-00009",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Display of a standardized and approved use notification before granting access to the operating system ensures privacy and security notification verbiage used is consistent with applicable federal laws, Executive Orders, directives, policies, regulations, standards, and guidance.",
+      "check_content_ref": {
+        "href": "RHEL-09-271010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-271020"],
+      "implementation_details": {
+        "commands": ["cat /etc/dconf/db/local.d/01-banner-message"],
+        "files": ["/etc/dconf/db/local.d/01-banner-message"],
+        "services": [],
+        "configuration": {
+          "dconf_setting": "org/gnome/login-screen",
+          "banner_message_enable": "true",
+          "banner_message_text": "Standard DoD Banner"
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-611010",
+      "title": "RHEL 9 passwords must have a minimum of 15 characters",
+      "severity": "CAT II",
+      "description": "RHEL 9 passwords must have a minimum of 15 characters.",
+      "check_text": "Verify that RHEL 9 enforces a minimum 15-character password length with the following command:\n\n$ grep -i minlen /etc/security/pwquality.conf\nminlen = 15\n\nIf the command does not return a \"minlen\" value of \"15\" or greater, does not return a line, or the line is commented out, this is a finding.",
+      "fix_text": "Configure RHEL 9 to enforce a minimum 15-character password length.\n\nAdd the following line to \"/etc/security/pwquality.conf\" (or modify the line to have the required value):\n\nminlen = 15",
+      "cci": ["CCI-000192"],
+      "nist_controls": ["IA-5(1)"],
+      "srg_requirement": "SRG-OS-000069-GPOS-00037",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "The shorter the password, the lower the number of possible combinations that need to be tested before the password is compromised. Password complexity, or strength, is a measure of the effectiveness of a password in resisting attempts at guessing and brute-force attacks.",
+      "check_content_ref": {
+        "href": "RHEL-09-611010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-611020", "RHEL-09-611030"],
+      "implementation_details": {
+        "commands": ["grep -i minlen /etc/security/pwquality.conf"],
+        "files": ["/etc/security/pwquality.conf"],
+        "services": [],
+        "configuration": {
+          "file": "/etc/security/pwquality.conf",
+          "setting": "minlen",
+          "expected_value": "15"
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-672010",
+      "title": "RHEL 9 must implement NIST FIPS-validated cryptography for the following: to provision digital signatures, to generate cryptographic hashes, and to protect data requiring data-at-rest protections in accordance with applicable federal laws, Executive Orders, directives, policies, regulations, and standards",
+      "severity": "CAT I",
+      "description": "RHEL 9 must implement NIST FIPS-validated cryptography for digital signatures, cryptographic hashes, and data-at-rest protection.",
+      "check_text": "Verify that RHEL 9 is in FIPS mode with the following command:\n\n$ fips-mode-setup --check\nFIPS mode is enabled.\n\nIf FIPS mode is not enabled, this is a finding.",
+      "fix_text": "Configure RHEL 9 to run in FIPS mode with the following command:\n\n$ sudo fips-mode-setup --enable\n\nReboot the system for the changes to take effect:\n\n$ sudo reboot",
+      "cci": ["CCI-002450"],
+      "nist_controls": ["SC-13"],
+      "srg_requirement": "SRG-OS-000184-GPOS-00078",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Use of weak or untested encryption algorithms undermines the purposes of utilizing encryption to protect data. The operating system must implement cryptographic modules adhering to the higher standards approved by the federal government since this provides assurance they have been tested and validated.",
+      "check_content_ref": {
+        "href": "RHEL-09-672010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-672020"],
+      "implementation_details": {
+        "commands": ["fips-mode-setup --check", "fips-mode-setup --enable"],
+        "files": ["/proc/sys/crypto/fips_enabled", "/etc/system-fips"],
+        "services": [],
+        "configuration": {
+          "fips_enabled": "1",
+          "requires_reboot": true
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-653010", 
+      "title": "RHEL 9 must generate audit records for successful/unsuccessful uses of the su command",
+      "severity": "CAT II",
+      "description": "RHEL 9 must generate audit records for successful/unsuccessful uses of the su command.",
+      "check_text": "Verify that RHEL 9 is configured to audit the execution of the \"su\" command with the following command:\n\n$ sudo auditctl -l | grep /usr/bin/su\n-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=unset -k privileged-priv_change\n\nIf the command does not return a line, or the line is commented out, this is a finding.",
+      "fix_text": "Configure RHEL 9 to generate audit records upon successful/unsuccessful attempts to use the \"su\" command by adding or updating the following rule in \"/etc/audit/rules.d/audit.rules\":\n\n-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=unset -k privileged-priv_change\n\nThe audit daemon must be restarted for the changes to take effect.",
+      "cci": ["CCI-000172"],
+      "nist_controls": ["AU-12"],
+      "srg_requirement": "SRG-OS-000122-GPOS-00063",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Without generating audit records that are specific to the security and mission needs of the organization, it would be difficult to establish, correlate, and investigate the events relating to an incident or identify those responsible for one.",
+      "check_content_ref": {
+        "href": "RHEL-09-653010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-653020", "RHEL-09-653030"],
+      "implementation_details": {
+        "commands": ["auditctl -l | grep /usr/bin/su"],
+        "files": ["/etc/audit/rules.d/audit.rules"],
+        "services": ["auditd"],
+        "configuration": {
+          "audit_rule": "-a always,exit -F path=/usr/bin/su -F perm=x -F auid>=1000 -F auid!=unset -k privileged-priv_change"
+        }
+      }
+    },
+    {
+      "control_id": "RHEL-09-232010",
+      "title": "RHEL 9 must prevent non-privileged users from executing privileged functions, including disabling, circumventing, or altering implemented security safeguards/countermeasures",
+      "severity": "CAT II",
+      "description": "RHEL 9 must prevent non-privileged users from executing privileged functions.",
+      "check_text": "Verify the \"noexec\" option is configured for /tmp with the following command:\n\n$ findmnt -nO noexec /tmp\n/tmp\n\nIf the /tmp file system does not have the \"noexec\" option set, this is a finding.",
+      "fix_text": "Configure the \"/tmp\" directory to be mounted with the \"noexec\" option.\n\nEdit the \"/etc/fstab\" file and add the \"noexec\" option to the fourth column of the line that starts with \"/tmp\".\n\nRemount /tmp with the new options:\n\n$ sudo mount -o remount /tmp",
+      "cci": ["CCI-002165"],
+      "nist_controls": ["AC-6"],
+      "srg_requirement": "SRG-OS-000250-GPOS-00093",
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Preventing non-privileged users from executing privileged functions mitigates the risk that unauthorized individuals or processes may gain capabilities they should not have. Privileged functions include, for example, establishing accounts, performing system integrity checks, or administering cryptographic key management activities.",
+      "check_content_ref": {
+        "href": "RHEL-09-232010",
+        "name": "M"
+      },
+      "related_controls": ["RHEL-09-232020"],
+      "implementation_details": {
+        "commands": ["findmnt -nO noexec /tmp"],
+        "files": ["/etc/fstab"],
+        "services": [],
+        "configuration": {
+          "mount_point": "/tmp",
+          "mount_option": "noexec"
+        }
+      }
+    }
+  ]
+}

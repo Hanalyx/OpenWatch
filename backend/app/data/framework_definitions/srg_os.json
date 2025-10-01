@@ -1,0 +1,177 @@
+{
+  "framework_info": {
+    "id": "srg_os",
+    "name": "Security Requirements Guide - Operating System",
+    "description": "Security Requirements Guide for General Purpose Operating Systems",
+    "version": "6.1",
+    "published_date": "2023-10-26",
+    "updated_date": "2023-10-26",
+    "organization": "Defense Information Systems Agency (DISA)",
+    "url": "https://public.cyber.mil/stigs/srg-stig-tools/",
+    "classification": "UNCLASSIFIED"
+  },
+  "requirement_categories": [
+    "Access Control",
+    "Audit and Accountability", 
+    "Configuration Management",
+    "Identification and Authentication",
+    "System and Communications Protection",
+    "System and Information Integrity"
+  ],
+  "severity_levels": ["CAT I", "CAT II", "CAT III"],
+  "controls": [
+    {
+      "control_id": "SRG-OS-000001-GPOS-00001",
+      "title": "Operating System Session Lock",
+      "severity": "CAT II",
+      "description": "The operating system must provide the capability to lock the session after a configurable period of inactivity.",
+      "check_text": "Verify the operating system provides the capability to lock the session after a configurable period of inactivity.",
+      "fix_text": "Configure the operating system to lock the session after a configurable period of inactivity.",
+      "cci": ["CCI-000057"],
+      "nist_controls": ["AC-11"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "A session time-out lock is a temporary action taken when a user stops work and moves away from the immediate physical vicinity of the information system but does not log out.",
+      "check_content_ref": {
+        "href": "SRG-OS-000001-GPOS-00001",
+        "name": "SRG-OS-000001-GPOS-00001"
+      },
+      "related_controls": ["SRG-OS-000002-GPOS-00002", "SRG-OS-000028-GPOS-00009"]
+    },
+    {
+      "control_id": "SRG-OS-000002-GPOS-00002", 
+      "title": "Operating System Session Lock Override",
+      "severity": "CAT II",
+      "description": "The operating system must retain the session lock until the user reestablishes access using established identification and authentication procedures.",
+      "check_text": "Verify the operating system retains the session lock until the user reestablishes access using established identification and authentication procedures.",
+      "fix_text": "Configure the operating system to retain the session lock until the user reestablishes access using established identification and authentication procedures.",
+      "cci": ["CCI-000058"],
+      "nist_controls": ["AC-11"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "The session lock is not a substitute for logging out of the information system. Session locks are temporary and should not be relied upon for access control in lieu of logging out of the information system.",
+      "check_content_ref": {
+        "href": "SRG-OS-000002-GPOS-00002",
+        "name": "SRG-OS-000002-GPOS-00002"
+      },
+      "related_controls": ["SRG-OS-000001-GPOS-00001"]
+    },
+    {
+      "control_id": "SRG-OS-000021-GPOS-00005",
+      "title": "Operating System Account Management",
+      "severity": "CAT II", 
+      "description": "The operating system must automatically terminate a user session after inactivity time-outs have expired or at shutdown.",
+      "check_text": "Verify the operating system automatically terminates a user session after inactivity time-outs have expired or at shutdown.",
+      "fix_text": "Configure the operating system to automatically terminate a user session after inactivity time-outs have expired or at shutdown.",
+      "cci": ["CCI-000163"],
+      "nist_controls": ["SC-10"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Automatic session termination addresses the termination of user-initiated logical sessions in contrast to the termination of network connections that are associated with communications sessions.",
+      "check_content_ref": {
+        "href": "SRG-OS-000021-GPOS-00005",
+        "name": "SRG-OS-000021-GPOS-00005"
+      },
+      "related_controls": ["SRG-OS-000001-GPOS-00001", "SRG-OS-000002-GPOS-00002"]
+    },
+    {
+      "control_id": "SRG-OS-000028-GPOS-00009",
+      "title": "Operating System Login Banner",
+      "severity": "CAT II",
+      "description": "The operating system must display the Standard Mandatory DoD Notice and Consent Banner before granting access to the system.",
+      "check_text": "Verify the operating system displays the Standard Mandatory DoD Notice and Consent Banner before granting access to the system.",
+      "fix_text": "Configure the operating system to display the Standard Mandatory DoD Notice and Consent Banner before granting access to the system.",
+      "cci": ["CCI-000048"],
+      "nist_controls": ["AC-8"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Display of a standardized and approved use notification before granting access to the operating system ensures privacy and security notification verbiage used is consistent with applicable federal laws.",
+      "check_content_ref": {
+        "href": "SRG-OS-000028-GPOS-00009", 
+        "name": "SRG-OS-000028-GPOS-00009"
+      },
+      "related_controls": ["SRG-OS-000029-GPOS-00010"]
+    },
+    {
+      "control_id": "SRG-OS-000069-GPOS-00037",
+      "title": "Operating System Password Complexity",
+      "severity": "CAT II",
+      "description": "The operating system must enforce password complexity by requiring that at least one upper-case character be used.",
+      "check_text": "Verify the operating system enforces password complexity by requiring that at least one upper-case character be used.",
+      "fix_text": "Configure the operating system to enforce password complexity by requiring that at least one upper-case character be used.",
+      "cci": ["CCI-000192"],
+      "nist_controls": ["IA-5(1)"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Use of a complex password helps to increase the time and resources required to compromise the password. Password complexity, or strength, is a measure of the effectiveness of a password in resisting attempts at guessing and brute-force attacks.",
+      "check_content_ref": {
+        "href": "SRG-OS-000069-GPOS-00037",
+        "name": "SRG-OS-000069-GPOS-00037"
+      },
+      "related_controls": ["SRG-OS-000070-GPOS-00038", "SRG-OS-000071-GPOS-00039"]
+    },
+    {
+      "control_id": "SRG-OS-000080-GPOS-00048",
+      "title": "Operating System Cryptographic Protection",
+      "severity": "CAT I",
+      "description": "The operating system must implement cryptographic modules adhering to the higher level of security specified by the government.",
+      "check_text": "Verify the operating system implements cryptographic modules adhering to the higher level of security specified by the government.",
+      "fix_text": "Configure the operating system to implement cryptographic modules adhering to the higher level of security specified by the government.",
+      "cci": ["CCI-000803"],
+      "nist_controls": ["SC-13"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Cryptography is only as strong as the encryption modules/algorithms employed to encrypt the data. Use of weak or untested encryption algorithms undermines the purposes of utilizing encryption to protect data.",
+      "check_content_ref": {
+        "href": "SRG-OS-000080-GPOS-00048",
+        "name": "SRG-OS-000080-GPOS-00048"
+      },
+      "related_controls": ["SRG-OS-000184-GPOS-00078"]
+    },
+    {
+      "control_id": "SRG-OS-000122-GPOS-00063",
+      "title": "Operating System Audit Record Generation",
+      "severity": "CAT II",
+      "description": "The operating system must generate audit records for successful and unsuccessful attempts to access objects.",
+      "check_text": "Verify the operating system generates audit records for successful and unsuccessful attempts to access objects.",
+      "fix_text": "Configure the operating system to generate audit records for successful and unsuccessful attempts to access objects.",
+      "cci": ["CCI-000172"],
+      "nist_controls": ["AU-12"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Without generating audit records that are specific to the security and mission needs of the organization, it would be difficult to establish, correlate, and investigate the events relating to an incident or identify those responsible for one.",
+      "check_content_ref": {
+        "href": "SRG-OS-000122-GPOS-00063",
+        "name": "SRG-OS-000122-GPOS-00063"
+      },
+      "related_controls": ["SRG-OS-000037-GPOS-00015", "SRG-OS-000038-GPOS-00016"]
+    },
+    {
+      "control_id": "SRG-OS-000184-GPOS-00078",
+      "title": "Operating System FIPS Mode",
+      "severity": "CAT I",
+      "description": "The operating system must implement NIST FIPS-validated cryptography for the following: to provision digital signatures, to generate cryptographic hashes, and to protect unclassified information requiring confidentiality and cryptographic protection.",
+      "check_text": "Verify the operating system implements NIST FIPS-validated cryptography for provisioning digital signatures, generating cryptographic hashes, and protecting unclassified information.",
+      "fix_text": "Configure the operating system to implement NIST FIPS-validated cryptography for the specified purposes.",
+      "cci": ["CCI-002450"],
+      "nist_controls": ["SC-13"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Use of weak or untested encryption algorithms undermines the purposes of utilizing encryption to protect data. FIPS-validated cryptography provides a higher level of assurance in cryptographic algorithm implementations.",
+      "check_content_ref": {
+        "href": "SRG-OS-000184-GPOS-00078",
+        "name": "SRG-OS-000184-GPOS-00078"
+      },
+      "related_controls": ["SRG-OS-000080-GPOS-00048"]
+    },
+    {
+      "control_id": "SRG-OS-000250-GPOS-00093",
+      "title": "Operating System Remote Access",
+      "severity": "CAT II",
+      "description": "The operating system must prevent non-privileged users from executing privileged functions to include disabling, circumventing, or altering implemented security safeguards/countermeasures.",
+      "check_text": "Verify the operating system prevents non-privileged users from executing privileged functions.",
+      "fix_text": "Configure the operating system to prevent non-privileged users from executing privileged functions.",
+      "cci": ["CCI-002165"],
+      "nist_controls": ["AC-6"],
+      "requirement_source": "NIST SP 800-53 Rev 4",
+      "vulnerability_discussion": "Preventing non-privileged users from executing privileged functions mitigates the risk that unauthorized individuals or processes may gain capabilities they should not have.",
+      "check_content_ref": {
+        "href": "SRG-OS-000250-GPOS-00093",
+        "name": "SRG-OS-000250-GPOS-00093"
+      },
+      "related_controls": ["SRG-OS-000134-GPOS-00068"]
+    }
+  ]
+}
