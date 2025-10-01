@@ -1,0 +1,185 @@
+{
+  "framework_info": {
+    "id": "cis_v8",
+    "name": "CIS Controls Version 8",
+    "description": "A prioritized set of actions for cybersecurity that form a defense-in-depth set of best practices",
+    "version": "8.0",
+    "published_date": "2021-05-18",
+    "updated_date": "2021-05-18",
+    "organization": "Center for Internet Security",
+    "url": "https://www.cisecurity.org/controls/v8"
+  },
+  "implementation_groups": [
+    {
+      "group": "IG1",
+      "description": "Basic cyber hygiene for small to medium enterprises with limited cybersecurity expertise",
+      "target_audience": "Small commercial enterprises, small government agencies"
+    },
+    {
+      "group": "IG2", 
+      "description": "Broader security program for enterprises with moderate cybersecurity risk management program",
+      "target_audience": "Medium-sized enterprises, large government agencies"
+    },
+    {
+      "group": "IG3",
+      "description": "Advanced security program for enterprises with significant cybersecurity risk management program",
+      "target_audience": "Large enterprises, critical infrastructure"
+    }
+  ],
+  "controls": [
+    {
+      "control_id": "1",
+      "title": "Inventory and Control of Enterprise Assets",
+      "description": "Actively manage (inventory, track, and correct) all enterprise assets (end-user devices, including portable and mobile; network devices; non-computing/IoT devices; and servers) connected to the infrastructure physically, virtually, remotely, and those within cloud environments, to accurately know the totality of assets that need to be monitored and protected within the enterprise.",
+      "asset_type": "Devices",
+      "security_function": "Identify",
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "1.1",
+          "title": "Establish and Maintain Detailed Enterprise Asset Inventory",
+          "description": "Establish and maintain an accurate, detailed, and up-to-date inventory of all enterprise assets with the potential to store or process data, to include: end-user devices (including portable and mobile), network devices, non-computing/IoT devices, and servers.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "1.2", 
+          "title": "Address Unauthorized Assets",
+          "description": "Ensure that a process exists to address unauthorized assets on a weekly basis.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "1.3",
+          "title": "Utilize an Active Discovery Tool",
+          "description": "Utilize an active discovery tool to identify assets connected to the enterprise's network.",
+          "implementation_groups": ["IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "5",
+      "title": "Account Management",
+      "description": "Use processes and tools to assign and manage authorization to credentials for user accounts, including administrator accounts, as well as service accounts, to enterprise assets and software.",
+      "asset_type": "Users",
+      "security_function": "Protect",
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "5.1",
+          "title": "Establish and Maintain an Inventory of Accounts",
+          "description": "Establish and maintain an inventory of all accounts managed in the enterprise.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "5.2",
+          "title": "Use Unique Passwords",
+          "description": "Use unique passwords for all enterprise assets.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "5.3",
+          "title": "Disable Dormant Accounts",
+          "description": "Delete or disable any dormant accounts after a period of 45 days of inactivity, where supported.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "5.3",
+      "title": "Password Management",
+      "description": "Establish and enforce password complexity and management requirements.",
+      "asset_type": "Users",
+      "security_function": "Protect", 
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "5.3.1",
+          "title": "Enforce Password Complexity",
+          "description": "Enforce minimum password length of 14 characters and complexity requirements.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "5.3.2",
+          "title": "Disable Weak Cryptographic Functions",
+          "description": "Disable or remove any cryptographic functions that are not meeting organizational requirements.",
+          "implementation_groups": ["IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "4.3",
+      "title": "Secure Configuration Management",
+      "description": "Implement and maintain secure configurations for enterprise assets and software.",
+      "asset_type": "Applications",
+      "security_function": "Protect",
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "4.3.1",
+          "title": "Securely Configure Network Infrastructure",
+          "description": "Securely configure network infrastructure to include secure administrative access controls.",
+          "implementation_groups": ["IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "1.11",
+      "title": "Cryptographic Controls",
+      "description": "Establish and maintain cryptographic controls to protect data in transit and at rest.",
+      "asset_type": "Data",
+      "security_function": "Protect",
+      "implementation_groups": ["IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "1.11.1",
+          "title": "Prohibit Weak Cryptographic Functions",
+          "description": "Prohibit the use of weak cryptographic functions such as MD5, SHA1, DES, and RC4.",
+          "implementation_groups": ["IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "8",
+      "title": "Audit Log Management",
+      "description": "Collect, alert, review, and retain audit logs of events that could help detect, understand, or recover from an attack.",
+      "asset_type": "Network",
+      "security_function": "Detect",
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "8.1",
+          "title": "Establish and Maintain an Audit Log Management Process",
+          "description": "Establish and maintain an audit log management process that defines the enterprise's logging requirements.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "8.2",
+          "title": "Collect Audit Logs",
+          "description": "Collect audit logs from enterprise assets and software, where possible, and review on a regular basis.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        }
+      ]
+    },
+    {
+      "control_id": "3",
+      "title": "Data Protection",
+      "description": "Develop processes and technical controls to identify, classify, securely handle, retain, and dispose of data.",
+      "asset_type": "Data",
+      "security_function": "Protect",
+      "implementation_groups": ["IG1", "IG2", "IG3"],
+      "safeguards": [
+        {
+          "safeguard_id": "3.1",
+          "title": "Establish and Maintain a Data Management Process",
+          "description": "Establish and maintain a data management process that includes classification of data.",
+          "implementation_groups": ["IG1", "IG2", "IG3"]
+        },
+        {
+          "safeguard_id": "3.11",
+          "title": "Encrypt Sensitive Data at Rest",
+          "description": "Encrypt sensitive data at rest on servers, applications, and databases containing sensitive data.",
+          "implementation_groups": ["IG2", "IG3"]
+        }
+      ]
+    }
+  ]
+}
