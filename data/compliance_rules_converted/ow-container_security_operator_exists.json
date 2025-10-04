@@ -1,0 +1,80 @@
+{
+  "_id": "ow-container_security_operator_exists",
+  "rule_id": "ow-container_security_operator_exists",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_container_security_operator_exists",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Make sure the Container Security Operator is installed",
+    "description": "<p>\nUsing the Red Hat Quay Container Security Operator, you can access\nvulnerability scan results from the OpenShift Container Platform web\nconsole for container images used in active pods on the cluster. The\nRed Hat Quay Container Security Operator:\n</p>\n<ul>\n  <li>Watches containers associated with pods on all or specified namespaces</li>\n  <li>Queries the container registry where the containers came from\n  for vulnerability information, provided an image’s registry is\n  running image scanning (such as Quay.io or a Red Hat Quay registry\n  with Clair scanning)</li>\n  <li>Exposes vulnerabilities via the ImageManifestVuln object in the\n  Kubernetes API</li>\n</ul>\n<p>\nFor more information on the Container Security Operator, follow the\nOpenShift documentation:\n  {{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/security/pod-vulnerability-scan.html\") }}}\n</p>",
+    "rationale": "Vulnerabilities in software packages can be exploited by hackers or malicious\nusers to obtain unauthorized access to resources.",
+    "source": {
+      "upstream_id": "container_security_operator_exists",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90613-1",
+      "imported_at": "2025-10-03T02:25:59.555763+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6(b)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001335"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_container_security_operator_exists",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "<p>\nUsing the Red Hat Quay Container Security Operator, you can access\nvulnerability scan results from the OpenShift Container Platform web\nconsole for container images used in active pods on the cluster. The\nRed Hat Quay Container Security Operator:\n</p>\n<ul>\n  <li>Watches containers associated with pods on all or specified namespaces</li>\n  <li>Queries the container registry where the containers came from\n  for vulnerability information, provided an image’s registry is\n  running image scanning (such as Quay.io or a Red Hat Quay registry\n  with Clair scanning)</li>\n  <li>Exposes vulnerabilities via the ImageManifestVuln object in the\n  Kubernetes API</li>\n</ul>\n<p>\nFor more information on the Container Security Operator, follow the\nOpenShift documentation:\n  {{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/security/pod-vulnerability-scan.html\") }}}\n</p>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/risk-assessment/container_security_operator_exists/rule.yml",
+  "source_hash": "sha256:eb1db4720bf8dd8b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.555887+00:00",
+  "updated_at": "2025-10-03T02:25:59.555890+00:00",
+  "identifiers": {
+    "cce": "CCE-90613-1"
+  }
+}

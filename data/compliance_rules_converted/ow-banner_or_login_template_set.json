@@ -1,0 +1,70 @@
+{
+  "_id": "ow-banner_or_login_template_set",
+  "rule_id": "ow-banner_or_login_template_set",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_banner_or_login_template_set",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that a OpenShift OAuth login template or a classification banner is set",
+    "description": "A legal notice must be configured.\n<br/>\n\nThis is achievable via the OAuth object by creating a custom login page,\nstoring it in a Kubernetes Secret and referencing it in the appropriate\nfield as\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/web_console/customizing-the-web-console.html#customizing-the-login-page_customizing-web-console\",\n            text=\"described in the documentation\") }}}\n\n<br/>\n\nAnother way of achieving this is via a custom classification banner\nwhich is possible to set via the ConsoleNotification CRD as \n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.7/web_console/customizing-the-web-console.html#creating-custom-notification-banners_customizing-web-console\",\n            text=\"described in the documentation\") }}}",
+    "rationale": "Displays to users organization-defined system use notification message or banner before granting\naccess to the system that provides privacy and security notices consistent with applicable federal laws.",
+    "source": {
+      "upstream_id": "banner_or_login_template_set",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84195-7",
+      "imported_at": "2025-10-03T02:25:59.150170+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-8"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000068-CTR-000120",
+        "SRG-APP-000069-CTR-000125"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_banner_or_login_template_set",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "A legal notice must be configured.\n<br/>\n\nThis is achievable via the OAuth object by creating a custom login page,\nstoring it in a Kubernetes Secret and referencing it in the appropriate\nfield as\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/web_console/customizing-the-web-console.html#customizing-the-login-page_customizing-web-console\",\n            text=\"described in the documentation\") }}}\n\n<br/>\n\nAnother way of achieving this is via a custom classification banner\nwhich is possible to set via the ConsoleNotification CRD as \n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.7/web_console/customizing-the-web-console.html#creating-custom-notification-banners_customizing-web-console\",\n            text=\"described in the documentation\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/banner_or_login_template_set/rule.yml",
+  "source_hash": "sha256:bf6506a0c4b02c78",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.150259+00:00",
+  "updated_at": "2025-10-03T02:25:59.150262+00:00",
+  "identifiers": {
+    "cce": "CCE-84195-7"
+  }
+}

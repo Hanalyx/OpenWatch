@@ -1,0 +1,68 @@
+{
+  "_id": "ow-no_user_host_based_files",
+  "rule_id": "ow-no_user_host_based_files",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_user_host_based_files",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Remove User Host-Based Authentication Files",
+    "description": "The <tt>~/.shosts</tt> (in each user's home directory) files\nlist remote hosts and users that are trusted by the\nlocal system. To remove these files, run the following command\nto delete them from any location:\n<pre>$ sudo find / -name '.shosts' -type f -delete</pre>",
+    "rationale": "The .shosts files are used to configure host-based authentication for\nindividual users or the system via SSH. Host-based authentication is not\nsufficient for preventing unauthorized access to the system, as it does not\nrequire interactive identification and authentication of a connection request,\nor for the use of two-factor authentication.",
+    "source": {
+      "upstream_id": "no_user_host_based_files",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84056-1",
+      "imported_at": "2025-10-03T02:25:56.907567+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "converted",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-040540",
+        "OL08-00-010470",
+        "SLES-12-010400",
+        "SLES-15-040020"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_user_host_based_files",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>~/.shosts</tt> (in each user's home directory) files\nlist remote hosts and users that are trusted by the\nlocal system. To remove these files, run the following command\nto delete them from any location:\n<pre>$ sudo find / -name '.shosts' -type f -delete</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/r_services/no_user_host_based_files/rule.yml",
+  "source_hash": "sha256:7d267ccc671a07a4",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.907687+00:00",
+  "updated_at": "2025-10-03T02:25:56.907690+00:00",
+  "identifiers": {
+    "cce": "CCE-84056-1"
+  }
+}

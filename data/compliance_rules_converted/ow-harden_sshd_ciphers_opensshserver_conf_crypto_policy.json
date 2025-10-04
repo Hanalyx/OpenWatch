@@ -1,0 +1,72 @@
+{
+  "_id": "ow-harden_sshd_ciphers_opensshserver_conf_crypto_policy",
+  "rule_id": "ow-harden_sshd_ciphers_opensshserver_conf_crypto_policy",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_harden_sshd_ciphers_opensshserver_conf_crypto_policy",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure SSH Server to Use FIPS 140-2 Validated Ciphers: opensshserver.config",
+    "description": "Crypto Policies provide a centralized control over crypto algorithms usage of many packages.\nOpenSSH is supported by system crypto policy, but the OpenSSH configuration may be\nset up incorrectly.\n\nTo check that Crypto Policies settings for ciphers are configured correctly, ensure that\n<tt>/etc/crypto-policies/back-ends/opensshserver.config</tt> contains the following\ntext and is not commented out:\n<pre>-oCiphers={{{ xccdf_value(\"sshd_approved_ciphers\") }}}</pre>",
+    "rationale": "Overriding the system crypto policy makes the behavior of the OpenSSH server\nviolate expectations, and makes system configuration more fragmented. By\nspecifying a cipher list with the order of ciphers being in a “strongest to\nweakest” orientation, the system will automatically attempt to use the\nstrongest cipher for securing SSH connections.",
+    "source": {
+      "upstream_id": "harden_sshd_ciphers_opensshserver_conf_crypto_policy",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85897-7",
+      "imported_at": "2025-10-03T02:25:57.761163+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "crypto",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-17(2)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000125-GPOS-00065",
+        "SRG-OS-000250-GPOS-00093",
+        "OL08-00-010291"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_harden_sshd_ciphers_opensshserver_conf_crypto_policy",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Crypto Policies provide a centralized control over crypto algorithms usage of many packages.\nOpenSSH is supported by system crypto policy, but the OpenSSH configuration may be\nset up incorrectly.\n\nTo check that Crypto Policies settings for ciphers are configured correctly, ensure that\n<tt>/etc/crypto-policies/back-ends/opensshserver.config</tt> contains the following\ntext and is not commented out:\n<pre>-oCiphers={{{ xccdf_value(\"sshd_approved_ciphers\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/crypto/harden_sshd_ciphers_opensshserver_conf_crypto_policy/rule.yml",
+  "source_hash": "sha256:7e6274aa9b81cbd9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.761266+00:00",
+  "updated_at": "2025-10-03T02:25:57.761269+00:00",
+  "identifiers": {
+    "cce": "CCE-85897-7"
+  }
+}

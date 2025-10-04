@@ -1,0 +1,71 @@
+{
+  "_id": "ow-accounts_user_dot_user_ownership",
+  "rule_id": "ow-accounts_user_dot_user_ownership",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_user_dot_user_ownership",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "User Initialization Files Must Be Owned By the Primary User",
+    "description": "Set the owner of the user initialization files for interactive users to\nthe primary owner with the following command:\n<pre>$ sudo chown <i>USER</i> /home/<i>USER</i>/.*</pre>\n\nThis rule ensures every initialization file related to an interactive user\nis owned by an interactive user.",
+    "rationale": "Local initialization files are used to configure the user's shell environment\nupon logon. Malicious modification of these files could compromise accounts upon\nlogon.",
+    "source": {
+      "upstream_id": "accounts_user_dot_user_ownership",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86316-7",
+      "imported_at": "2025-10-03T10:45:56.189897+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.8",
+        "6.2.8"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-020690"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_user_dot_user_ownership",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Set the owner of the user initialization files for interactive users to\nthe primary owner with the following command:\n<pre>$ sudo chown <i>USER</i> /home/<i>USER</i>/.*</pre>\n\nThis rule ensures every initialization file related to an interactive user\nis owned by an interactive user.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_user_dot_user_ownership/rule.yml",
+  "source_hash": "sha256:7aa49c2aac413a45",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.190005+00:00",
+  "updated_at": "2025-10-03T10:45:56.190007+00:00",
+  "identifiers": {
+    "cce": "CCE-86316-7"
+  }
+}

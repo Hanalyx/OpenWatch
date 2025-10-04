@@ -1,0 +1,91 @@
+{
+  "_id": "ow-dconf_gnome_screensaver_user_locks",
+  "rule_id": "ow-dconf_gnome_screensaver_user_locks",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_user_locks",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Users Cannot Change GNOME3 Screensaver Settings",
+    "description": "If not already configured, ensure that users cannot change GNOME3 screensaver lock settings\nby adding <tt>/org/gnome/desktop/screensaver/lock-delay</tt>\nto <tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/lock-delay</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+    "rationale": "A session time-out lock is a temporary action taken when a user stops work and moves away from the immediate\nphysical vicinity of the information system but does not logout because of the temporary nature of the absence.\nRather than relying on the user to manually lock their operating system session prior to vacating the vicinity,\nGNOME desktops can be configured to identify when a user's session has idled and take action to initiate the\nsession lock. As such, users should not be allowed to change session settings.",
+    "source": {
+      "upstream_id": "dconf_gnome_screensaver_user_locks",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80780-0",
+      "imported_at": "2025-10-03T02:25:57.956750+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.9.2.1",
+        "A.9.2.4",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.AC-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000029-GPOS-00010",
+        "SRG-OS-000031-GPOS-00012",
+        "OL07-00-010081",
+        "OL08-00-020080"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_user_locks",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "If not already configured, ensure that users cannot change GNOME3 screensaver lock settings\nby adding <tt>/org/gnome/desktop/screensaver/lock-delay</tt>\nto <tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/lock-delay</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/gnome/gnome_screen_locking/dconf_gnome_screensaver_user_locks/rule.yml",
+  "source_hash": "sha256:6215986d1869a190",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.956867+00:00",
+  "updated_at": "2025-10-03T02:25:57.956869+00:00",
+  "identifiers": {
+    "cce": "CCE-80780-0"
+  }
+}

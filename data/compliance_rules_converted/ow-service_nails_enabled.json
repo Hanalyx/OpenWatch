@@ -1,0 +1,119 @@
+{
+  "_id": "ow-service_nails_enabled",
+  "rule_id": "ow-service_nails_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_nails_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable nails Service",
+    "description": "The <tt>nails</tt> service is used to run McAfee VirusScan Enterprise\nfor Linux and McAfee Host-based Security System (HBSS) services.\n{{{ describe_service_enable(service=\"nails\") }}}",
+    "rationale": "Virus scanning software can be used to detect if a system has been compromised by\ncomputer viruses, as well as to limit their spread to other systems.",
+    "source": {
+      "upstream_id": "service_nails_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.775876+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "13",
+        "14",
+        "4",
+        "7",
+        "8"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.2.1",
+        "A.14.2.8",
+        "A.8.2.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "SC-28",
+        "SI-3(a)",
+        "DE.CM-4",
+        "DE.DP-3",
+        "PR.DS-1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "nails",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled nails",
+      "enable_command": "systemctl enable nails",
+      "disable_command": "systemctl disable nails",
+      "validation_command": "systemctl status nails",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "nails",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled nails",
+      "enable_command": "systemctl enable nails",
+      "disable_command": "systemctl disable nails",
+      "validation_command": "systemctl status nails",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_nails_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>nails</tt> service is used to run McAfee VirusScan Enterprise\nfor Linux and McAfee Host-based Security System (HBSS) services.\n{{{ describe_service_enable(service=\"nails\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/endpoint_security_software/mcafee_security_software/service_nails_enabled/rule.yml",
+  "source_hash": "sha256:4a6948c62e7aa9d4",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.775998+00:00",
+  "updated_at": "2025-10-03T02:25:57.776000+00:00",
+  "identifiers": {}
+}

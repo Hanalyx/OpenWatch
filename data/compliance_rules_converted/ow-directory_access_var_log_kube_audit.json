@@ -1,0 +1,72 @@
+{
+  "_id": "ow-directory_access_var_log_kube_audit",
+  "rule_id": "ow-directory_access_var_log_kube_audit",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_access_var_log_kube_audit",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Record Access Events to Kubernetes Audit Log Directory",
+    "description": "The audit system should collect access events to read the Kubernetes audit log directory.\nThe following audit rule will assure that access to audit log directory are\ncollected.\n<pre>-a always,exit -F dir=/var/log/kube-apiserver/ -F perm=r -F auid>={{{ auid }}} -F auid!=unset -F key=access-audit-trail</pre>\nIf the <tt>auditd</tt> daemon is configured to use the <tt>augenrules</tt>\nprogram to read audit rules during daemon startup (the default), add the\nrule to a file with suffix <tt>.rules</tt> in the directory\n<tt>/etc/audit/rules.d</tt>.\nIf the <tt>auditd</tt> daemon is configured to use the <tt>auditctl</tt>\nutility to read audit rules during daemon startup, add the rule to\n<tt>/etc/audit/audit.rules</tt> file.",
+    "rationale": "Attempts to read the logs should be recorded, suspicious access to audit log files could be an indicator of malicious activity on a system.\nAuditing these events could serve as evidence of potential system compromise.'",
+    "source": {
+      "upstream_id": "directory_access_var_log_kube_audit",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83640-3",
+      "imported_at": "2025-10-03T02:25:59.519669+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AU-2(d)",
+        "AU-12(c)",
+        "AC-6(9)",
+        "CM-6(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000343-CTR-000780"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_access_var_log_kube_audit",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The audit system should collect access events to read the Kubernetes audit log directory.\nThe following audit rule will assure that access to audit log directory are\ncollected.\n<pre>-a always,exit -F dir=/var/log/kube-apiserver/ -F perm=r -F auid>={{{ auid }}} -F auid!=unset -F key=access-audit-trail</pre>\nIf the <tt>auditd</tt> daemon is configured to use the <tt>augenrules</tt>\nprogram to read audit rules during daemon startup (the default), add the\nrule to a file with suffix <tt>.rules</tt> in the directory\n<tt>/etc/audit/rules.d</tt>.\nIf the <tt>auditd</tt> daemon is configured to use the <tt>auditctl</tt>\nutility to read audit rules during daemon startup, add the rule to\n<tt>/etc/audit/audit.rules</tt> file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/logging/directory_access_var_log_kube_audit/rule.yml",
+  "source_hash": "sha256:3d37beb9f89a345e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.519756+00:00",
+  "updated_at": "2025-10-03T02:25:59.519759+00:00",
+  "identifiers": {
+    "cce": "CCE-83640-3"
+  }
+}

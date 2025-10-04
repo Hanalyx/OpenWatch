@@ -1,0 +1,69 @@
+{
+  "_id": "ow-security_profiles_operator_exists",
+  "rule_id": "ow-security_profiles_operator_exists",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_security_profiles_operator_exists",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Make sure the Security Profiles Operator is installed",
+    "description": "Security Profiles Operator provides a way to define secure computing (seccomp) profiles and\nSELinux profiles as custom resources that are syncrhonized to every node in a given namespace.\n\nUsing security profiles can increase security at the container level in your cluster.\nSeccomp security profiles list the syscalls a process can make, and SELinux security profiles\nprovide a label-based system that restricts access and usage of processes, applications, and\nfiles.",
+    "rationale": "An application that runs with privileges can be attacked to have its privileges exploited.\nConfining applications limit the actions an attacker can perform when they are compromised.",
+    "source": {
+      "upstream_id": "security_profiles_operator_exists",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86168-2",
+      "imported_at": "2025-10-03T02:25:59.560451+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_security_profiles_operator_exists",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Security Profiles Operator provides a way to define secure computing (seccomp) profiles and\nSELinux profiles as custom resources that are syncrhonized to every node in a given namespace.\n\nUsing security profiles can increase security at the container level in your cluster.\nSeccomp security profiles list the syscalls a process can make, and SELinux security profiles\nprovide a label-based system that restricts access and usage of processes, applications, and\nfiles.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/confinement/security_profiles_operator_exists/rule.yml",
+  "source_hash": "sha256:b5da204dc2c61e19",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.560579+00:00",
+  "updated_at": "2025-10-03T02:25:59.560582+00:00",
+  "identifiers": {
+    "cce": "CCE-86168-2"
+  }
+}

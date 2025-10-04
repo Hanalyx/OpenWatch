@@ -1,0 +1,56 @@
+{
+  "_id": "ow-network_ipv6_privacy_extensions",
+  "rule_id": "ow-network_ipv6_privacy_extensions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_privacy_extensions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Use Privacy Extensions for Address",
+    "description": "To introduce randomness into the automatic generation of IPv6\naddresses, add or correct the following line in\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt>:\n<pre>IPV6_PRIVACY=rfc3041</pre>\nAutomatically-generated IPv6 addresses are based on the underlying hardware\n(e.g. Ethernet) address, and so it becomes possible to track a piece of\nhardware over its lifetime using its traffic. If it is important for a system's\nIP address to not trivially reveal its hardware address, this setting should be\napplied.",
+    "rationale": "",
+    "source": {
+      "upstream_id": "network_ipv6_privacy_extensions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.105497+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_privacy_extensions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To introduce randomness into the automatic generation of IPv6\naddresses, add or correct the following line in\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt>:\n<pre>IPV6_PRIVACY=rfc3041</pre>\nAutomatically-generated IPv6 addresses are based on the underlying hardware\n(e.g. Ethernet) address, and so it becomes possible to track a piece of\nhardware over its lifetime using its traffic. If it is important for a system's\nIP address to not trivially reveal its hardware address, this setting should be\napplied.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ipv6/configuring_ipv6/network_ipv6_privacy_extensions/rule.yml",
+  "source_hash": "sha256:7969487c05bf2a69",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.105600+00:00",
+  "updated_at": "2025-10-03T10:45:56.105603+00:00",
+  "identifiers": {}
+}

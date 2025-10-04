@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_permissions_journalctl",
+  "rule_id": "ow-file_permissions_journalctl",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_journalctl",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Permissions on the journal command",
+    "description": "Verify that the \"journalctl\" command has a permission set of \"740\" by\nusing the following command:\n<pre>\n $ sudo find /usr/bin/journalctl -exec stat -c \"%n %a\" {} \\;\n</pre>\nIf \"journalctl\" is not set to \"740\", this is a finding.",
+    "rationale": "Any operating system providing too much information in error messages risks\ncompromising the data and security of the structure, and content of error messages\nneeds to be carefully considered by the organization.",
+    "source": {
+      "upstream_id": "file_permissions_journalctl",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.178270+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_permissions check",
+      "enable_command": "# TODO: Implement file_permissions remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_journalctl",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Verify that the \"journalctl\" command has a permission set of \"740\" by\nusing the following command:\n<pre>\n $ sudo find /usr/bin/journalctl -exec stat -c \"%n %a\" {} \\;\n</pre>\nIf \"journalctl\" is not set to \"740\", this is a finding.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/journald/file_permissions_journalctl/rule.yml",
+  "source_hash": "sha256:8f6f48af5d4412bc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.178396+00:00",
+  "updated_at": "2025-10-03T10:45:56.178398+00:00",
+  "identifiers": {}
+}

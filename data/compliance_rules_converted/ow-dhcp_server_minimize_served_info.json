@@ -1,0 +1,85 @@
+{
+  "_id": "ow-dhcp_server_minimize_served_info",
+  "rule_id": "ow-dhcp_server_minimize_served_info",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dhcp_server_minimize_served_info",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Minimize Served Information",
+    "description": "Edit /etc/dhcp/dhcpd.conf. Examine each address range section within\nthe file, and ensure that the following options are not defined unless there is\nan operational need to provide this information via DHCP:\n<pre>option domain-name\noption domain-name-servers\noption nis-domain\noption nis-servers\noption ntp-servers\noption routers\noption time-offset</pre>",
+    "rationale": "Because the configuration information provided by the DHCP server\ncould be maliciously provided to clients by a rogue DHCP server, the amount of\ninformation provided via DHCP should be minimized. Remove these definitions\nfrom the DHCP server configuration to ensure that legitimate clients do not\nunnecessarily rely on DHCP for this information.",
+    "source": {
+      "upstream_id": "dhcp_server_minimize_served_info",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.892544+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dhcp_server_minimize_served_info",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Edit /etc/dhcp/dhcpd.conf. Examine each address range section within\nthe file, and ensure that the following options are not defined unless there is\nan operational need to provide this information via DHCP:\n<pre>option domain-name\noption domain-name-servers\noption nis-domain\noption nis-servers\noption ntp-servers\noption routers\noption time-offset</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/dhcp/dhcp_server_configuration/dhcp_server_minimize_served_info/rule.yml",
+  "source_hash": "sha256:a532e0fcb8103769",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.892660+00:00",
+  "updated_at": "2025-10-03T10:45:55.892662+00:00",
+  "identifiers": {}
+}

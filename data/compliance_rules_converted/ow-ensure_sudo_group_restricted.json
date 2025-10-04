@@ -1,0 +1,62 @@
+{
+  "_id": "ow-ensure_sudo_group_restricted",
+  "rule_id": "ow-ensure_sudo_group_restricted",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_sudo_group_restricted",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure sudo group has only necessary members",
+    "description": "Developers and implementers can increase the assurance in security\nfunctions by employing well-defined security policy models; structured,\ndisciplined, and rigorous hardware and software development techniques;\nand sound system/security engineering principles. Implementation may\ninclude isolation of memory space and libraries.\n\nThe Ubuntu operating system restricts access to security functions\nthrough the use of access control mechanisms and by implementing least\nprivilege capabilities.",
+    "rationale": "Any users assigned to the sudo group would be granted administrator\naccess to the system.",
+    "source": {
+      "upstream_id": "ensure_sudo_group_restricted",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.243502+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000134-GPOS-00068"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_sudo_group_restricted",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Developers and implementers can increase the assurance in security\nfunctions by employing well-defined security policy models; structured,\ndisciplined, and rigorous hardware and software development techniques;\nand sound system/security engineering principles. Implementation may\ninclude isolation of memory space and libraries.\n\nThe Ubuntu operating system restricts access to security functions\nthrough the use of access control mechanisms and by implementing least\nprivilege capabilities.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/password_storage/ensure_sudo_group_restricted/rule.yml",
+  "source_hash": "sha256:5efe066e3a4bd65e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.243603+00:00",
+  "updated_at": "2025-10-03T10:45:56.243606+00:00",
+  "identifiers": {}
+}

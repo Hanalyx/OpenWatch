@@ -1,0 +1,65 @@
+{
+  "_id": "ow-ssh_client_use_strong_rng_csh",
+  "rule_id": "ow-ssh_client_use_strong_rng_csh",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ssh_client_use_strong_rng_csh",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "SSH client uses strong entropy to seed (for CSH like shells)",
+    "description": "To set up SSH client to use entropy from a high-quality source, make sure\nthat the appropriate shell environment variable is configured. The\n<tt>SSH_USE_STRONG_RNG</tt> environment variable determines how many bytes\nof entropy to use. Make sure that the file\n<tt>/etc/profile.d/cc-ssh-strong-rng.csh</tt> contains line\n<pre>setenv SSH_USE_STRONG_RNG 32</pre>.",
+    "rationale": "Some SSH implementations use the openssl library for entropy, which by default, doesn't use high-entropy sources.\nRandomness is needed to generate considerably more secure data-encryption keys. Plaintext padding, initialization vectors\nin encryption algorithms, and high-quality entropy eliminates the possibility that the output of\nthe random number generator used by SSH would be known to potential attackers.",
+    "source": {
+      "upstream_id": "ssh_client_use_strong_rng_csh",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83349-1",
+      "imported_at": "2025-10-03T10:45:55.807159+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "ssg",
+    "severity_medium",
+    "converted",
+    "ssh",
+    "scap"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ssh_client_use_strong_rng_csh",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To set up SSH client to use entropy from a high-quality source, make sure\nthat the appropriate shell environment variable is configured. The\n<tt>SSH_USE_STRONG_RNG</tt> environment variable determines how many bytes\nof entropy to use. Make sure that the file\n<tt>/etc/profile.d/cc-ssh-strong-rng.csh</tt> contains line\n<pre>setenv SSH_USE_STRONG_RNG 32</pre>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_client/ssh_client_use_strong_rng_csh/rule.yml",
+  "source_hash": "sha256:4138828902ae3eda",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.807260+00:00",
+  "updated_at": "2025-10-03T10:45:55.807262+00:00",
+  "identifiers": {
+    "cce": "CCE-83349-1"
+  }
+}

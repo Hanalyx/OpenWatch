@@ -1,0 +1,69 @@
+{
+  "_id": "ow-systemd_tmp_mount_enabled",
+  "rule_id": "ow-systemd_tmp_mount_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_systemd_tmp_mount_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure tmp.mount Unit Is Enabled",
+    "description": "The <tt>/tmp</tt> directory is a world-writable directory used\nfor temporary file storage. This directory is managed by <tt>systemd-tmpfiles</tt>.\nEnsure that the <tt>tmp.mount</tt> systemd unit is enabled.",
+    "rationale": "The <tt>/tmp</tt> directory is used as temporary storage by many programs.\nPlacing <tt>/tmp</tt> in a tmpfs filesystem enables the setting of more\nrestrictive mount options, which can help protect programs which use it.\nThe <tt>tmp.mount</tt> unit configures the tmpfs filesystem and ensures\nthe <tt>/tmp</tt> directory is wiped during reboot.",
+    "source": {
+      "upstream_id": "systemd_tmp_mount_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86890-1",
+      "imported_at": "2025-10-03T02:25:57.685658+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement systemd_mount_enabled check",
+      "enable_command": "# TODO: Implement systemd_mount_enabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_systemd_tmp_mount_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>/tmp</tt> directory is a world-writable directory used\nfor temporary file storage. This directory is managed by <tt>systemd-tmpfiles</tt>.\nEnsure that the <tt>tmp.mount</tt> systemd unit is enabled.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/disk_partitioning/systemd_tmp_mount_enabled/rule.yml",
+  "source_hash": "sha256:5458f5775a2a1c40",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.685861+00:00",
+  "updated_at": "2025-10-03T02:25:57.685865+00:00",
+  "identifiers": {
+    "cce": "CCE-86890-1"
+  }
+}

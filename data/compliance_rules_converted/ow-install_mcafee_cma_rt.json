@@ -1,0 +1,56 @@
+{
+  "_id": "ow-install_mcafee_cma_rt",
+  "rule_id": "ow-install_mcafee_cma_rt",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_mcafee_cma_rt",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install the McAfee Runtime Libraries and Linux Agent",
+    "description": "Install the McAfee Runtime Libraries (MFErt) and Linux Agent (MFEcma).",
+    "rationale": "The McAfee Runtime Libraries (MFErt) and Linux Agent (MFEcma) are dependencies\nfor VirusScan Enterprise for Linux (VSEL) and Host-based Security System (HBSS)\nto run.",
+    "source": {
+      "upstream_id": "install_mcafee_cma_rt",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.974418+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_mcafee_cma_rt",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Install the McAfee Runtime Libraries (MFErt) and Linux Agent (MFEcma).",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/endpoint_security_software/mcafee_security_software/install_mcafee_cma_rt/rule.yml",
+  "source_hash": "sha256:a6fc6801bbbdb263",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.974525+00:00",
+  "updated_at": "2025-10-03T10:45:55.974527+00:00",
+  "identifiers": {}
+}

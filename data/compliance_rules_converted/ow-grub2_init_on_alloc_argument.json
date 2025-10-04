@@ -1,0 +1,69 @@
+{
+  "_id": "ow-grub2_init_on_alloc_argument",
+  "rule_id": "ow-grub2_init_on_alloc_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_init_on_alloc_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure kernel to zero out memory before allocation",
+    "description": "To configure the kernel to zero out memory before allocating it, add the\n<tt>init_on_alloc=1</tt> argument to the default GRUB 2 command line.\n{{{ describe_grub2_argument(\"init_on_alloc=1\") | indent(4) }}}",
+    "rationale": "When the kernel configuration option <tt>init_on_alloc</tt> is enabled,\nall page allocator and slab allocator memory will be zeroed when allocated,\neliminating many kinds of \"uninitialized heap memory\" flaws, effectively\npreventing data leaks.",
+    "source": {
+      "upstream_id": "grub2_init_on_alloc_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85867-0",
+      "imported_at": "2025-10-03T02:25:57.997389+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_init_on_alloc_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To configure the kernel to zero out memory before allocating it, add the\n<tt>init_on_alloc=1</tt> argument to the default GRUB 2 command line.\n{{{ describe_grub2_argument(\"init_on_alloc=1\") | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_init_on_alloc_argument/rule.yml",
+  "source_hash": "sha256:13203e00678544fc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.997507+00:00",
+  "updated_at": "2025-10-03T02:25:57.997509+00:00",
+  "identifiers": {
+    "cce": "CCE-85867-0"
+  }
+}

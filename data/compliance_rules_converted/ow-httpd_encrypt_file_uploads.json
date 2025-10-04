@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_encrypt_file_uploads",
+  "rule_id": "ow-httpd_encrypt_file_uploads",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_encrypt_file_uploads",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Encrypt All File Uploads",
+    "description": "Use only secure encrypted logons and connections for uploading files to the web\nsite.",
+    "rationale": "Logging in to a web server via an unencrypted protocol or service, to upload\ndocuments to the web site, is a risk if proper encryption is not utilized to\nprotect the data being transmitted. An encrypted protocol or service must be\nused for remote access to web administration tasks.",
+    "source": {
+      "upstream_id": "httpd_encrypt_file_uploads",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.846001+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_encrypt_file_uploads",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Use only secure encrypted logons and connections for uploading files to the web\nsite.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_secure_content/httpd_encrypt_file_uploads/rule.yml",
+  "source_hash": "sha256:f9e6a50cdb59006d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.846086+00:00",
+  "updated_at": "2025-10-03T10:45:55.846088+00:00",
+  "identifiers": {}
+}

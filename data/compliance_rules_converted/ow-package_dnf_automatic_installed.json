@@ -1,0 +1,90 @@
+{
+  "_id": "ow-package_dnf_automatic_installed",
+  "rule_id": "ow-package_dnf_automatic_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_dnf_automatic_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install dnf-automatic Package",
+    "description": "{{{ describe_package_install(package=\"dnf-automatic\") }}}",
+    "rationale": "<tt>dnf-automatic</tt> is an alternative command line interface (CLI)\nto <tt>dnf upgrade</tt> suitable for automatic, regular execution.",
+    "source": {
+      "upstream_id": "package_dnf_automatic_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82985-3",
+      "imported_at": "2025-10-03T02:25:57.903642+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000191-GPOS-00080"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q dnf-automatic",
+      "enable_command": "yum install -y dnf-automatic",
+      "disable_command": "yum remove -y dnf-automatic",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep dnf-automatic",
+      "enable_command": "apt-get install -y dnf-automatic",
+      "disable_command": "apt-get remove -y dnf-automatic",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_dnf_automatic_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"dnf-automatic\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/updating/package_dnf-automatic_installed/rule.yml",
+  "source_hash": "sha256:24be80096ab0d87a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.903748+00:00",
+  "updated_at": "2025-10-03T02:25:57.903751+00:00",
+  "identifiers": {
+    "cce": "CCE-82985-3"
+  }
+}

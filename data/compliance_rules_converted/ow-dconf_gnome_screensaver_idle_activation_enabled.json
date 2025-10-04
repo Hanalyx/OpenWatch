@@ -1,0 +1,95 @@
+{
+  "_id": "ow-dconf_gnome_screensaver_idle_activation_enabled",
+  "rule_id": "ow-dconf_gnome_screensaver_idle_activation_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_idle_activation_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable GNOME3 Screensaver Idle Activation",
+    "description": "To activate the screensaver in the GNOME3 desktop after a period of inactivity,\nadd or set <tt>idle-activation-enabled</tt> to <tt>true</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/desktop/screensaver]\nidle-activation-enabled=true</pre>\nOnce the setting has been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/idle-activation-enabled</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+    "rationale": "A session time-out lock is a temporary action taken when a user stops work and moves away from the immediate\nphysical vicinity of the information system but does not logout because of the temporary nature of the absence.\nRather than relying on the user to manually lock their operating system session prior to vacating the vicinity,\nGNOME desktops can be configured to identify when a user's session has idled and take action to initiate the\nsession lock.\n<br /><br />\nEnabling idle activation of the screensaver ensures the screensaver will\nbe activated after the idle delay.  Applications requiring continuous,\nreal-time screen display (such as network management products) require the\nlogin session does not have administrator rights and the display station is located in a\ncontrolled-access area.",
+    "source": {
+      "upstream_id": "dconf_gnome_screensaver_idle_activation_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80774-3",
+      "imported_at": "2025-10-03T10:45:56.049275+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.9.2.1",
+        "A.9.2.4",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "AC-11(a)",
+        "PR.AC-7"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.1.8"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000029-GPOS-00010",
+        "OL07-00-010100"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_idle_activation_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To activate the screensaver in the GNOME3 desktop after a period of inactivity,\nadd or set <tt>idle-activation-enabled</tt> to <tt>true</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/desktop/screensaver]\nidle-activation-enabled=true</pre>\nOnce the setting has been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/idle-activation-enabled</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/gnome/gnome_screen_locking/dconf_gnome_screensaver_idle_activation_enabled/rule.yml",
+  "source_hash": "sha256:8b3c284158fb14f0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.049415+00:00",
+  "updated_at": "2025-10-03T10:45:56.049418+00:00",
+  "identifiers": {
+    "cce": "CCE-80774-3"
+  }
+}

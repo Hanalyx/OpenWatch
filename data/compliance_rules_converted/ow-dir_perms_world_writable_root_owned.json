@@ -1,0 +1,65 @@
+{
+  "_id": "ow-dir_perms_world_writable_root_owned",
+  "rule_id": "ow-dir_perms_world_writable_root_owned",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_world_writable_root_owned",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure All World-Writable Directories Are Owned by root User",
+    "description": "All directories in local partitions which are world-writable should be owned by root.\nIf any world-writable directories are not owned by root, this should be investigated.\nFollowing this, the files should be deleted or assigned to root user.",
+    "rationale": "Allowing a user account to own a world-writable directory is undesirable because it allows the\nowner of that directory to remove or replace any files that may be placed in the directory by\nother users.",
+    "source": {
+      "upstream_id": "dir_perms_world_writable_root_owned",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83375-6",
+      "imported_at": "2025-10-03T02:25:57.523842+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000138-GPOS-00069"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_world_writable_root_owned",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "All directories in local partitions which are world-writable should be owned by root.\nIf any world-writable directories are not owned by root, this should be investigated.\nFollowing this, the files should be deleted or assigned to root user.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/dir_perms_world_writable_root_owned/rule.yml",
+  "source_hash": "sha256:103aea788a43d36d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.523935+00:00",
+  "updated_at": "2025-10-03T02:25:57.523937+00:00",
+  "identifiers": {
+    "cce": "CCE-83375-6"
+  }
+}

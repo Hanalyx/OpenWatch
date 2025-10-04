@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_server_activity_status",
+  "rule_id": "ow-httpd_server_activity_status",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_activity_status",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Server Activity Status",
+    "description": "The <tt>status</tt> module provides real-time access to statistics on the internal operation of\nthe web server. This may constitute an unnecessary information leak and should be disabled\nunless necessary. To do so, comment out the related module:\n<pre>#LoadModule status_module modules/mod_status.so</pre>\nIf there is a critical need for this module, ensure that access to the status\npage is properly restricted to a limited set of hosts in the status handler\nconfiguration.",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_server_activity_status",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.863078+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_activity_status",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>status</tt> module provides real-time access to statistics on the internal operation of\nthe web server. This may constitute an unnecessary information leak and should be disabled\nunless necessary. To do so, comment out the related module:\n<pre>#LoadModule status_module modules/mod_status.so</pre>\nIf there is a critical need for this module, ensure that access to the status\npage is properly restricted to a limited set of hosts in the status handler\nconfiguration.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_server_activity_status/rule.yml",
+  "source_hash": "sha256:9e28877326652c84",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.863173+00:00",
+  "updated_at": "2025-10-03T10:45:55.863175+00:00",
+  "identifiers": {}
+}

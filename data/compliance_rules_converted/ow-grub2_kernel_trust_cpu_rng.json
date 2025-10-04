@@ -1,0 +1,75 @@
+{
+  "_id": "ow-grub2_kernel_trust_cpu_rng",
+  "rule_id": "ow-grub2_kernel_trust_cpu_rng",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_kernel_trust_cpu_rng",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure kernel to trust the CPU random number generator",
+    "description": "There exist two ways how to ensure that the Linux kernel trusts the CPU\nhardware random number generator. If the option is configured during kernel\ncompilation, e.g. the option <tt>CONFIG_RANDOM_TRUST_CPU</tt> is set to\n<tt>Y</tt>, make sure that it is not overridden with the boot parameter.\nThere must not exist the boot parameter <tt>random.trust_cpu=off</tt>. If\nthe option is not compiled in, make sure that <tt>random.trust_cpu=on</tt>\nis configured as a boot parameter.\n{{{ describe_grub2_argument(\"random.trust_cpu=on\") | indent(4) }}}",
+    "rationale": "The Linux kernel offers an option which signifies if the kernel should trust\ndata provided by CPU hardware random number generator. Hardware random\nnumber generators can provide random data very quickly and are used to generate random cryptographic keys. They can\nbe useful during boot time when other means of getting random data can be\nslow because there is not yet enough entropy in the system.",
+    "source": {
+      "upstream_id": "grub2_kernel_trust_cpu_rng",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83314-5",
+      "imported_at": "2025-10-03T02:25:57.988087+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_kernel_trust_cpu_rng",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "There exist two ways how to ensure that the Linux kernel trusts the CPU\nhardware random number generator. If the option is configured during kernel\ncompilation, e.g. the option <tt>CONFIG_RANDOM_TRUST_CPU</tt> is set to\n<tt>Y</tt>, make sure that it is not overridden with the boot parameter.\nThere must not exist the boot parameter <tt>random.trust_cpu=off</tt>. If\nthe option is not compiled in, make sure that <tt>random.trust_cpu=on</tt>\nis configured as a boot parameter.\n{{{ describe_grub2_argument(\"random.trust_cpu=on\") | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_kernel_trust_cpu_rng/rule.yml",
+  "source_hash": "sha256:24d96fb800bc89ee",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.988211+00:00",
+  "updated_at": "2025-10-03T02:25:57.988214+00:00",
+  "identifiers": {
+    "cce": "CCE-83314-5"
+  }
+}

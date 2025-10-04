@@ -1,0 +1,92 @@
+{
+  "_id": "ow-accounts_max_concurrent_login_sessions",
+  "rule_id": "ow-accounts_max_concurrent_login_sessions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_max_concurrent_login_sessions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit the Number of Concurrent Login Sessions Allowed Per User",
+    "description": "Limiting the number of allowed users and sessions per user can limit risks related to Denial of\nService attacks. This addresses concurrent sessions for a single account and does not address\nconcurrent sessions by a single user via multiple accounts. To set the number of concurrent\nsessions per user add the following line in <tt>/etc/security/limits.conf</tt> or\na file under <tt>/etc/security/limits.d/</tt>:\n<pre>* hard maxlogins {{{ xccdf_value(\"var_accounts_max_concurrent_login_sessions\") }}}</pre>",
+    "rationale": "Limiting simultaneous user logins can insulate the system from denial of service\nproblems caused by excessive logins. Automated login processes operating improperly or\nmaliciously may result in an exceptional number of simultaneous login sessions.",
+    "source": {
+      "upstream_id": "accounts_max_concurrent_login_sessions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80955-8",
+      "imported_at": "2025-10-03T02:25:58.464701+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "14",
+        "15",
+        "18",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.13.1.1",
+        "A.13.1.3",
+        "A.13.2.1",
+        "A.14.1.2",
+        "A.14.1.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-10",
+        "CM-6(a)",
+        "PR.AC-5"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000027-GPOS-00008",
+        "OL07-00-040000",
+        "OL08-00-020024",
+        "SLES-12-010120",
+        "SLES-15-020020"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_max_concurrent_login_sessions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Limiting the number of allowed users and sessions per user can limit risks related to Denial of\nService attacks. This addresses concurrent sessions for a single account and does not address\nconcurrent sessions by a single user via multiple accounts. To set the number of concurrent\nsessions per user add the following line in <tt>/etc/security/limits.conf</tt> or\na file under <tt>/etc/security/limits.d/</tt>:\n<pre>* hard maxlogins {{{ xccdf_value(\"var_accounts_max_concurrent_login_sessions\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_max_concurrent_login_sessions/rule.yml",
+  "source_hash": "sha256:e0eb40e7e73a50c6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.464836+00:00",
+  "updated_at": "2025-10-03T02:25:58.464838+00:00",
+  "identifiers": {
+    "cce": "CCE-80955-8"
+  }
+}

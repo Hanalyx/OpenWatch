@@ -1,0 +1,98 @@
+{
+  "_id": "ow-fips_mode_enabled_on_all_nodes",
+  "rule_id": "ow-fips_mode_enabled_on_all_nodes",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_fips_mode_enabled_on_all_nodes",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that FIPS mode is enabled on all cluster nodes",
+    "description": "OpenShift has an installation-time flag that can enable FIPS mode\nfor the cluster. The flag <pre>fips: true</pre> must be enabled\nat install time in the <pre>install-config.yaml</pre> file.",
+    "rationale": "Use of weak or untested encryption algorithms undermines the purposes of utilizing encryption to\nprotect data. The system must implement cryptographic modules adhering to the higher\nstandards approved by the federal government since this provides assurance they have been tested\nand validated.",
+    "source": {
+      "upstream_id": "fips_mode_enabled_on_all_nodes",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85860-5",
+      "imported_at": "2025-10-03T02:25:59.098373+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "cryptography",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "ssg",
+    "converted",
+    "crypto"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-17(2)",
+        "CM-3(6)",
+        "SC-12(2)",
+        "SC-12(3)",
+        "SC-13",
+        "IA-7"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-3.4.1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000126-CTR-000275",
+        "SRG-APP-000219-CTR-000550",
+        "SRG-APP-000411-CTR-000995",
+        "SRG-APP-000412-CTR-001000",
+        "SRG-APP-000416-CTR-001015",
+        "SRG-APP-000514-CTR-001315",
+        "SRG-APP-000610-CTR-001385",
+        "SRG-APP-000635-CTR-001405"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_fips_mode_enabled_on_all_nodes",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "OpenShift has an installation-time flag that can enable FIPS mode\nfor the cluster. The flag <pre>fips: true</pre> must be enabled\nat install time in the <pre>install-config.yaml</pre> file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/integrity/crypto/fips_mode_enabled_on_all_nodes/rule.yml",
+  "source_hash": "sha256:b34f076506a33abc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.098512+00:00",
+  "updated_at": "2025-10-03T02:25:59.098515+00:00",
+  "identifiers": {
+    "cce": "CCE-85860-5"
+  }
+}

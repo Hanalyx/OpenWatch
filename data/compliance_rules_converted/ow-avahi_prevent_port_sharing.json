@@ -1,0 +1,87 @@
+{
+  "_id": "ow-avahi_prevent_port_sharing",
+  "rule_id": "ow-avahi_prevent_port_sharing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_avahi_prevent_port_sharing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Prevent Other Programs from Using Avahi's Port",
+    "description": "To prevent other mDNS stacks from running, edit <tt>/etc/avahi/avahi-daemon.conf</tt>\nand ensure the following line appears in the <tt>[server]</tt> section:\n<pre>disallow-other-stacks=yes</pre>",
+    "rationale": "This helps ensure that only Avahi is responsible for mDNS traffic coming from\nthat port on the system.",
+    "source": {
+      "upstream_id": "avahi_prevent_port_sharing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82376-5",
+      "imported_at": "2025-10-03T10:45:55.713704+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_avahi_prevent_port_sharing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To prevent other mDNS stacks from running, edit <tt>/etc/avahi/avahi-daemon.conf</tt>\nand ensure the following line appears in the <tt>[server]</tt> section:\n<pre>disallow-other-stacks=yes</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/avahi/avahi_configuration/avahi_prevent_port_sharing/rule.yml",
+  "source_hash": "sha256:df1c7bb6edd5c3bb",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.713889+00:00",
+  "updated_at": "2025-10-03T10:45:55.713893+00:00",
+  "identifiers": {
+    "cce": "CCE-82376-5"
+  }
+}

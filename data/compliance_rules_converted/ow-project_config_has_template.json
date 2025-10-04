@@ -1,0 +1,84 @@
+{
+  "_id": "ow-project_config_has_template",
+  "rule_id": "ow-project_config_has_template",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_project_config_has_template",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that project config references a project template",
+    "description": "The OpenShift Container Platform API server automatically provisions\nnew projects based on the project template that is identified by\nthe <tt>projectRequestTemplate</tt> parameter in the cluster’s project\nconfiguration resource.\n\nAs a cluster administrator, you can modify the default project template\nso that new projects created would satisfy the chosen compliance\nstandards.\n\nFor more information, follow\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.12/applications/projects/configuring-project-creation.html\",\ntext=\"the relevant documentation\") }}}.",
+    "rationale": "Ensuring that the project configuration references\na project template that sets up the required objects for new projects ensures\nthat all new projects will be set in accordance with centralized settings.",
+    "source": {
+      "upstream_id": "project_config_has_template",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86172-4",
+      "imported_at": "2025-10-03T02:25:59.120434+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-4",
+        "SC-5",
+        "SC-5(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000039-CTR-000110",
+        "SRG-APP-000246-CTR-000605",
+        "SRG-APP-000435-CTR-001070"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_project_config_has_template",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The OpenShift Container Platform API server automatically provisions\nnew projects based on the project template that is identified by\nthe <tt>projectRequestTemplate</tt> parameter in the cluster’s project\nconfiguration resource.\n\nAs a cluster administrator, you can modify the default project template\nso that new projects created would satisfy the chosen compliance\nstandards.\n\nFor more information, follow\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.12/applications/projects/configuring-project-creation.html\",\ntext=\"the relevant documentation\") }}}.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/project_config_has_template/rule.yml",
+  "source_hash": "sha256:9d3c3a9990c6f169",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.120560+00:00",
+  "updated_at": "2025-10-03T02:25:59.120563+00:00",
+  "identifiers": {
+    "cce": "CCE-86172-4"
+  }
+}

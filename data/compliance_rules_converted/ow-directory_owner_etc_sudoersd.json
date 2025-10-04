@@ -1,0 +1,69 @@
+{
+  "_id": "ow-directory_owner_etc_sudoersd",
+  "rule_id": "ow-directory_owner_etc_sudoersd",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_owner_etc_sudoersd",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify User Who Owns /etc/sudoers.d Directory",
+    "description": "{{{ describe_file_owner(file=\"/etc/sudoers.d\", owner=\"root\") }}}",
+    "rationale": "The ownership of the /etc/sudoers.d directory by the root user is important\nbecause this directory hosts sudo configuration. Protection of this\ndirectory is critical for system security. Assigning the ownership to root\nensures exclusive control of the sudo configuration.",
+    "source": {
+      "upstream_id": "directory_owner_etc_sudoersd",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86355-5",
+      "imported_at": "2025-10-03T02:25:57.852231+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_owner_etc_sudoersd",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_owner(file=\"/etc/sudoers.d\", owner=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/directory_owner_etc_sudoersd/rule.yml",
+  "source_hash": "sha256:45139b5bcd36b2b5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.852355+00:00",
+  "updated_at": "2025-10-03T02:25:57.852357+00:00",
+  "identifiers": {
+    "cce": "CCE-86355-5"
+  }
+}

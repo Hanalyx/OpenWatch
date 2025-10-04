@@ -1,0 +1,64 @@
+{
+  "_id": "ow-audit_logging",
+  "rule_id": "ow-audit_logging",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_audit_logging",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Audit Logging is Enabled",
+    "description": "The audit logs are part of the EKS managed Kubernetes control plane logs that\nare managed by Amazon EKS. Amazon EKS is integrated with AWS CloudTrail, a\nservice that provides a record of actions taken by a user, role, or an AWS\nservice in Amazon EKS. CloudTrail captures all API calls for Amazon EKS as\nevents. The calls captured include calls from the Amazon EKS console and code\ncalls to the Amazon EKS API operations.",
+    "rationale": "Exporting logs and metrics to a dedicated, persistent datastore such as\nCloudTrail ensures availability of audit data following a cluster security\nevent, and provides a central location for analysis of log and metric data\ncollated from multiple sources.",
+    "source": {
+      "upstream_id": "audit_logging",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87445-3",
+      "imported_at": "2025-10-03T10:45:56.527362+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "2.1.1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_audit_logging",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The audit logs are part of the EKS managed Kubernetes control plane logs that\nare managed by Amazon EKS. Amazon EKS is integrated with AWS CloudTrail, a\nservice that provides a record of actions taken by a user, role, or an AWS\nservice in Amazon EKS. CloudTrail captures all API calls for Amazon EKS as\nevents. The calls captured include calls from the Amazon EKS console and code\ncalls to the Amazon EKS API operations.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/logging/audit_logging/rule.yml",
+  "source_hash": "sha256:c90d94a9bdec27cd",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.527458+00:00",
+  "updated_at": "2025-10-03T10:45:56.527461+00:00",
+  "identifiers": {
+    "cce": "CCE-87445-3"
+  }
+}

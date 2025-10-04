@@ -1,0 +1,122 @@
+{
+  "_id": "ow-apparmor_configured",
+  "rule_id": "ow-apparmor_configured",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_apparmor_configured",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure AppArmor is Active and Configured",
+    "description": "Verify that the Apparmor tool is configured to\ncontrol whitelisted applications and user home directory access\ncontrol.<br/><br/>\n{{{ describe_service_enable(service=\"apparmor\") }}}",
+    "rationale": "Using a whitelist provides a configuration management method for allowing\nthe execution of only authorized software. Using only authorized software\ndecreases risk by limiting the number of potential vulnerabilities.<br/><br/>\n\nThe organization must identify authorized software programs and permit\nexecution of authorized software by adding each authorized program to the\n\"pam_apparmor\" exception policy. The process used to identify software\nprograms that are authorized to execute on organizational information\nsystems is commonly referred to as whitelisting.<br/><br/>\n\nVerification of whitelisted software occurs prior to execution or at system\nstartup.<br/><br/>\n\nUsers' home directories/folders may contain information of a sensitive\nnature. Nonprivileged users should coordinate any sharing of information\nwith a System Administrator (SA) through shared resources.<br/><br/>\n\nApparmor can confine users to their home directory, not allowing them to\nmake any changes outside of their own home directories. Confining users to\ntheir home directory will minimize the risk of sharing information.",
+    "source": {
+      "upstream_id": "apparmor_configured",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83194-1",
+      "imported_at": "2025-10-03T02:25:58.060778+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.7.1.2",
+        "1.7.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-3(4)",
+        "AC-6(8)",
+        "AC-6(10)",
+        "CM-7(5)(b)",
+        "CM-7(2)",
+        "SC-7(21)",
+        "CM-6(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000312-GPOS-00122",
+        "SRG-OS-000312-GPOS-00123",
+        "SRG-OS-000312-GPOS-00124",
+        "SRG-OS-000324-GPOS-00125",
+        "SRG-OS-000326-GPOS-00126",
+        "SRG-OS-000370-GPOS-00155",
+        "SRG-OS-000480-GPOS-00230",
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000480-GPOS-00231",
+        "SRG-OS-000480-GPOS-00232",
+        "SLES-12-010600",
+        "SLES-15-010390"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "apparmor",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled apparmor",
+      "enable_command": "systemctl enable apparmor",
+      "disable_command": "systemctl disable apparmor",
+      "validation_command": "systemctl status apparmor",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "apparmor",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled apparmor",
+      "enable_command": "systemctl enable apparmor",
+      "disable_command": "systemctl disable apparmor",
+      "validation_command": "systemctl status apparmor",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_apparmor_configured",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Verify that the Apparmor tool is configured to\ncontrol whitelisted applications and user home directory access\ncontrol.<br/><br/>\n{{{ describe_service_enable(service=\"apparmor\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/apparmor/apparmor_configured/rule.yml",
+  "source_hash": "sha256:e5f4f4aa40bf5bcd",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.060928+00:00",
+  "updated_at": "2025-10-03T02:25:58.060931+00:00",
+  "identifiers": {
+    "cce": "CCE-83194-1"
+  }
+}

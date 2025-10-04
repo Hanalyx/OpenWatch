@@ -1,0 +1,90 @@
+{
+  "_id": "ow-sysctl_kernel_core_uses_pid",
+  "rule_id": "ow-sysctl_kernel_core_uses_pid",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_core_uses_pid",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure file name of core dumps",
+    "description": "{{{ describe_sysctl_option_value(sysctl=\"kernel.core_uses_pid\", value=0) }}}",
+    "rationale": "The default coredump filename is <tt>core</tt>. By setting\n<tt>core_uses_pid</tt> to <tt>1</tt>, the coredump filename becomes\n<tt>core.PID</tt>. If <tt>core_pattern</tt> does not include\n<tt>%p</tt> (default does not) and <tt>core_uses_pid</tt> is set, then\n<tt>.PID</tt> will be appended to the filename.\nWhen combined with <tt>kernel.core_pattern = \"\"</tt> configuration, it\nis ensured that no core dumps are generated and also no confusing error\nmessages are printed by a shell.",
+    "source": {
+      "upstream_id": "sysctl_kernel_core_uses_pid",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86003-1",
+      "imported_at": "2025-10-03T02:25:57.397246+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl kernel.core_uses_pid | grep 'kernel.core_uses_pid = 0'",
+      "enable_command": "echo 'kernel.core_uses_pid = 0' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl kernel.core_uses_pid | grep 'kernel.core_uses_pid = 0'",
+      "enable_command": "echo 'kernel.core_uses_pid = 0' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_core_uses_pid",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_sysctl_option_value(sysctl=\"kernel.core_uses_pid\", value=0) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/restrictions/sysctl_kernel_core_uses_pid/rule.yml",
+  "source_hash": "sha256:1d297685677670de",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.397360+00:00",
+  "updated_at": "2025-10-03T02:25:57.397362+00:00",
+  "identifiers": {
+    "cce": "CCE-86003-1"
+  }
+}

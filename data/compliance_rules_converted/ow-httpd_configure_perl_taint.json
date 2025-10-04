@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_configure_perl_taint",
+  "rule_id": "ow-httpd_configure_perl_taint",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_perl_taint",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure HTTP PERL Scripts To Use TAINT Option",
+    "description": "If the <tt>mod_perl</tt> module is installed, enable Perl Taint checking in\n<tt>/etc/httpd/conf/httpd.conf</tt>. To enable Perl Taint\nchecking, add or uncomment the following to <tt>/etc/httpd/conf.d/perl.conf</tt>:\n<pre>PerlSwitches -T</pre>",
+    "rationale": "PERL (Practical Extraction and Report Language) is an interpreted language\noptimized for scanning arbitrary text files, extracting information from those\ntext files, and printing reports based on that information. The language is\noften used in shell scripting and is intended to be practical, easy to use, and\nefficient means of generating interactive web pages for the user. Unfortunately,\nmany widely available freeware PERL programs (scripts) are extremely insecure.\nThis is most readily accomplished by a malicious user substituting input to a\nPERL script during a POST or a GET operation.\n<br /><br />\nConsequently, the founders of\nPERL have developed a mechanism named TAINT that protects the system from\nmalicious input sent from outside the program. When the data is tainted, it\ncannot be used in programs or functions such as eval(), system(), exec(), pipes,\nor popen(). The script will exit with a warning message.",
+    "source": {
+      "upstream_id": "httpd_configure_perl_taint",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.842031+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_perl_taint",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "If the <tt>mod_perl</tt> module is installed, enable Perl Taint checking in\n<tt>/etc/httpd/conf/httpd.conf</tt>. To enable Perl Taint\nchecking, add or uncomment the following to <tt>/etc/httpd/conf.d/perl.conf</tt>:\n<pre>PerlSwitches -T</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_configure_perl_securely/httpd_configure_perl_taint/rule.yml",
+  "source_hash": "sha256:c78892833f18d078",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.842122+00:00",
+  "updated_at": "2025-10-03T10:45:55.842125+00:00",
+  "identifiers": {}
+}

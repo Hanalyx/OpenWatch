@@ -1,0 +1,65 @@
+{
+  "_id": "ow-ensure_pam_wheel_group_empty",
+  "rule_id": "ow-ensure_pam_wheel_group_empty",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_pam_wheel_group_empty",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure the Group Used by pam_wheel.so Module Exists on System and is Empty",
+    "description": "Ensure that the group <tt>{{{ xccdf_value(\"var_pam_wheel_group_for_su\") }}}</tt> referenced by\n<tt>var_pam_wheel_group_for_su</tt> variable and used as value for the <tt>pam_wheel.so</tt>\n<tt>group</tt> option exists and has no members. This empty group used by\n<tt>pam_wheel.so</tt> in <tt>/etc/pam.d/su</tt> ensures that no user can run commands with\naltered privileges through the <tt>su</tt> command.",
+    "rationale": "The <tt>su</tt> program allows to run commands with a substitute user and group ID.\nIt is commonly used to run commands as the root user.\nLimiting access to such command is considered a good security practice.",
+    "source": {
+      "upstream_id": "ensure_pam_wheel_group_empty",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86071-8",
+      "imported_at": "2025-10-03T02:25:58.505571+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.6",
+        "5.6"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_pam_wheel_group_empty",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Ensure that the group <tt>{{{ xccdf_value(\"var_pam_wheel_group_for_su\") }}}</tt> referenced by\n<tt>var_pam_wheel_group_for_su</tt> variable and used as value for the <tt>pam_wheel.so</tt>\n<tt>group</tt> option exists and has no members. This empty group used by\n<tt>pam_wheel.so</tt> in <tt>/etc/pam.d/su</tt> ensures that no user can run commands with\naltered privileges through the <tt>su</tt> command.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/ensure_pam_wheel_group_empty/rule.yml",
+  "source_hash": "sha256:bcba1b2a32adbced",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.505663+00:00",
+  "updated_at": "2025-10-03T02:25:58.505665+00:00",
+  "identifiers": {
+    "cce": "CCE-86071-8"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "_id": "ow-set_nftables_new_connections",
+  "rule_id": "ow-set_nftables_new_connections",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_nftables_new_connections",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure all outbound and established connections are configured for nftables",
+    "description": "Configure the nftables firewall rules for new outbound and established connections",
+    "rationale": "If rules are not in place for new outbound and established connections, all packets\nwill be dropped by the default policy preventing network usage.",
+    "source": {
+      "upstream_id": "set_nftables_new_connections",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92564-4",
+      "imported_at": "2025-10-03T10:45:56.126568+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "3.5.2.7"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_nftables_new_connections",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure the nftables firewall rules for new outbound and established connections",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-nftables/set_nftables_new_connections/rule.yml",
+  "source_hash": "sha256:4ce5217e05c81b5b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.126720+00:00",
+  "updated_at": "2025-10-03T10:45:56.126724+00:00",
+  "identifiers": {
+    "cce": "CCE-92564-4"
+  }
+}

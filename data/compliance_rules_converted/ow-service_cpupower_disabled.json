@@ -1,0 +1,98 @@
+{
+  "_id": "ow-service_cpupower_disabled",
+  "rule_id": "ow-service_cpupower_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_cpupower_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable CPU Speed (cpupower)",
+    "description": "The <tt>cpupower</tt> service can adjust the clock speed of supported CPUs based upon\nthe current processing load thereby conserving power and reducing heat.\n{{{ describe_service_disable(service=\"cpupower\") }}}",
+    "rationale": "The <tt>cpupower</tt> service is only necessary if adjusting the CPU clock speed\nprovides benefit. Traditionally this has included laptops (to enhance battery life),\nbut may also apply to server or desktop environments where conserving power is\nhighly desirable or necessary.",
+    "source": {
+      "upstream_id": "service_cpupower_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82382-3",
+      "imported_at": "2025-10-03T02:25:57.243895+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_cpupower_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>cpupower</tt> service can adjust the clock speed of supported CPUs based upon\nthe current processing load thereby conserving power and reducing heat.\n{{{ describe_service_disable(service=\"cpupower\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/base/service_cpupower_disabled/rule.yml",
+  "source_hash": "sha256:1c4fe99a582d334f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.244062+00:00",
+  "updated_at": "2025-10-03T02:25:57.244065+00:00",
+  "identifiers": {
+    "cce": "CCE-82382-3"
+  }
+}

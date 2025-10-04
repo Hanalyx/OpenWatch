@@ -1,0 +1,67 @@
+{
+  "_id": "ow-service_rpcidmapd_disabled",
+  "rule_id": "ow-service_rpcidmapd_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_rpcidmapd_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable RPC ID Mapping Service (rpcidmapd)",
+    "description": "The rpcidmapd service is used to map user names and groups to UID\nand GID numbers on NFSv4 mounts. If NFS is not in use on the local system then\nthis service should be disabled.\n{{{ describe_service_disable(service=\"rpcidmapd\") }}}",
+    "rationale": "",
+    "source": {
+      "upstream_id": "service_rpcidmapd_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.011750+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_rpcidmapd_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The rpcidmapd service is used to map user names and groups to UID\nand GID numbers on NFSv4 mounts. If NFS is not in use on the local system then\nthis service should be disabled.\n{{{ describe_service_disable(service=\"rpcidmapd\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/nfs_and_rpc/disabling_nfs/disabling_nfs_services/service_rpcidmapd_disabled/rule.yml",
+  "source_hash": "sha256:298b69960e10aa86",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.011880+00:00",
+  "updated_at": "2025-10-03T02:25:57.011883+00:00",
+  "identifiers": {}
+}

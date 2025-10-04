@@ -1,0 +1,56 @@
+{
+  "_id": "ow-no_all_squash_exports",
+  "rule_id": "ow-no_all_squash_exports",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_all_squash_exports",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure All-Squashing Disabled On All Exports",
+    "description": "The <tt>all_squash</tt> maps all uids and gids to an anonymous user.\nThis should be disabled by removing any instances of the\n<tt>all_squash</tt> option from the file <tt>/etc/exports</tt>.",
+    "rationale": "The all_squash option maps all client requests to a single anonymous\nuid/gid on the NFS server, negating the ability to track file access\nby user ID.",
+    "source": {
+      "upstream_id": "no_all_squash_exports",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.770675+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_all_squash_exports",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>all_squash</tt> maps all uids and gids to an anonymous user.\nThis should be disabled by removing any instances of the\n<tt>all_squash</tt> option from the file <tt>/etc/exports</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/nfs_and_rpc/nfs_configuring_servers/no_all_squash_exports/rule.yml",
+  "source_hash": "sha256:33bbf78bc1333171",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.770777+00:00",
+  "updated_at": "2025-10-03T10:45:55.770780+00:00",
+  "identifiers": {}
+}

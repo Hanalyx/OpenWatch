@@ -1,0 +1,124 @@
+{
+  "_id": "ow-auditd_audispd_syslog_plugin_activated",
+  "rule_id": "ow-auditd_audispd_syslog_plugin_activated",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_audispd_syslog_plugin_activated",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure auditd to use audispd's syslog plugin",
+    "description": "To configure the <tt>auditd</tt> service to use the\n<tt>syslog</tt> plug-in of the <tt>audispd</tt> audit event multiplexor, set\nthe <tt>active</tt> line in <tt>{{{ audisp_conf_path }}}/plugins.d/syslog.conf</tt> to <tt>yes</tt>.\nRestart the <tt>auditd</tt> service:\n<pre>$ sudo service auditd restart</pre>",
+    "rationale": "The auditd service does not include the ability to send audit\nrecords to a centralized server for management directly. It does, however,\ninclude a plug-in for audit event multiplexor (audispd) to pass audit records\nto the local syslog server.",
+    "source": {
+      "upstream_id": "auditd_audispd_syslog_plugin_activated",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80677-8",
+      "imported_at": "2025-10-03T02:25:56.419516+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "19",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(D)",
+        "164.308(a)(5)(ii)(B)",
+        "164.308(a)(5)(ii)(C)",
+        "164.308(a)(6)(ii)",
+        "164.308(a)(8)",
+        "164.310(d)(2)(iii)",
+        "164.312(b)",
+        "164.314(a)(2)(i)(C)",
+        "164.314(a)(2)(iii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1",
+        "A.16.1.4",
+        "A.16.1.5",
+        "A.16.1.7"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AU-4(1)",
+        "CM-6(a)",
+        "DE.AE-3",
+        "DE.AE-5",
+        "PR.PT-1",
+        "RS.AN-1",
+        "RS.AN-4"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-10.5.3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000479-GPOS-00224",
+        "SRG-OS-000342-GPOS-00133"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_audispd_syslog_plugin_activated",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To configure the <tt>auditd</tt> service to use the\n<tt>syslog</tt> plug-in of the <tt>audispd</tt> audit event multiplexor, set\nthe <tt>active</tt> line in <tt>{{{ audisp_conf_path }}}/plugins.d/syslog.conf</tt> to <tt>yes</tt>.\nRestart the <tt>auditd</tt> service:\n<pre>$ sudo service auditd restart</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/configure_auditd_data_retention/auditd_audispd_syslog_plugin_activated/rule.yml",
+  "source_hash": "sha256:f827b21fc84e3ec3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.419637+00:00",
+  "updated_at": "2025-10-03T02:25:56.419640+00:00",
+  "identifiers": {
+    "cce": "CCE-80677-8"
+  }
+}

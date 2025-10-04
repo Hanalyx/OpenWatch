@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_protocol_schemas",
+  "rule_id": "ow-chromium_disable_protocol_schemas",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_protocol_schemas",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Insecure And Obsolete Protocol Schemas",
+    "description": "Each access to a URL is handled by the browser according to the URL's \"scheme\".\nThe \"scheme\" of a URL is the section before the \":\". The term \"protocol\" is often\nmistakenly used for a \"scheme\". The difference is that the scheme is how the browser\nhandles a URL and the protocol is how the browser communicates with a service. To\ndisable insecure and obsolete protocol schema, set <tt>URLBlacklist</tt> to\n<tt><sub idref=\"var_url_blacklist\" /></tt> in the Chromium policy file.",
+    "rationale": "If a scheme or its associated protocol used by a browser is insecure or obsolete,\nvulnerabilities can be exploited resulting in exposed data or unrestricted access\nto the browser's system.",
+    "source": {
+      "upstream_id": "chromium_disable_protocol_schemas",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.411328+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0021"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_protocol_schemas",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Each access to a URL is handled by the browser according to the URL's \"scheme\".\nThe \"scheme\" of a URL is the section before the \":\". The term \"protocol\" is often\nmistakenly used for a \"scheme\". The difference is that the scheme is how the browser\nhandles a URL and the protocol is how the browser communicates with a service. To\ndisable insecure and obsolete protocol schema, set <tt>URLBlacklist</tt> to\n<tt><sub idref=\"var_url_blacklist\" /></tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_protocol_schemas/rule.yml",
+  "source_hash": "sha256:2807564a0762990d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.411421+00:00",
+  "updated_at": "2025-10-03T10:45:56.411424+00:00",
+  "identifiers": {}
+}

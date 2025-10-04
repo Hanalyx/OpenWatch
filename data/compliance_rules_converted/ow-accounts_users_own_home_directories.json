@@ -1,0 +1,65 @@
+{
+  "_id": "ow-accounts_users_own_home_directories",
+  "rule_id": "ow-accounts_users_own_home_directories",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_own_home_directories",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure users own their home directories",
+    "description": "The user home directory is space defined for the particular user to set local\nenvironment variables and to store personal files. Since the user is\naccountable for files stored in the user home directory, the user must be\nthe owner of the directory.",
+    "rationale": "Since the user is accountable for files stored in the user home directory,\nthe user must be the owner of the directory.",
+    "source": {
+      "upstream_id": "accounts_users_own_home_directories",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92294-8",
+      "imported_at": "2025-10-03T10:45:56.192734+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.7",
+        "6.2.7"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_own_home_directories",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The user home directory is space defined for the particular user to set local\nenvironment variables and to store personal files. Since the user is\naccountable for files stored in the user home directory, the user must be\nthe owner of the directory.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_users_own_home_directories/rule.yml",
+  "source_hash": "sha256:040ad15afc080e05",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.192832+00:00",
+  "updated_at": "2025-10-03T10:45:56.192834+00:00",
+  "identifiers": {
+    "cce": "CCE-92294-8"
+  }
+}

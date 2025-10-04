@@ -1,0 +1,80 @@
+{
+  "_id": "ow-coreos_page_poison_kernel_argument",
+  "rule_id": "ow-coreos_page_poison_kernel_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_coreos_page_poison_kernel_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable page allocator poisoning",
+    "description": "To enable poisoning of free pages, add the argument <tt>page_poison=1</tt> to all\nBLS (Boot Loader Specification) entries ('options' line) for the Linux\noperating system in <tt>/boot/loader/entries/*.conf</tt>.",
+    "rationale": "Poisoning writes an arbitrary value to freed pages, so any modification or\nreference to that page after being freed or before being initialized will be\ndetected and prevented.\nThis prevents many types of use-after-free vulnerabilities at little performance cost.\nAlso prevents leak of data and detection of corrupted memory.",
+    "source": {
+      "upstream_id": "coreos_page_poison_kernel_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82673-5",
+      "imported_at": "2025-10-03T10:45:55.899433+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000243-CTR-000600"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement coreos_kernel_option check",
+      "enable_command": "# TODO: Implement coreos_kernel_option remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_coreos_page_poison_kernel_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To enable poisoning of free pages, add the argument <tt>page_poison=1</tt> to all\nBLS (Boot Loader Specification) entries ('options' line) for the Linux\noperating system in <tt>/boot/loader/entries/*.conf</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/restrictions/poisoning/coreos_page_poison_kernel_argument/rule.yml",
+  "source_hash": "sha256:eec6cafdd1351bb1",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.899570+00:00",
+  "updated_at": "2025-10-03T10:45:55.899573+00:00",
+  "identifiers": {
+    "cce": "CCE-82673-5"
+  }
+}

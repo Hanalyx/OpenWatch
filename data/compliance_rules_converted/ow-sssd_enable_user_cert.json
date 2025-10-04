@@ -1,0 +1,56 @@
+{
+  "_id": "ow-sssd_enable_user_cert",
+  "rule_id": "ow-sssd_enable_user_cert",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_enable_user_cert",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Certificates Mapping in SSSD",
+    "description": "SSSD needs to be set up to link the authenticated identity to the user or group account\nfor PKI-based authentication. To implement this, confirm that the /etc/sssd/sssd.conf\nfile contains the following line\n<pre>\nldap_user_certificate=userCertificate;binary\n</pre>",
+    "rationale": "Without mapping the certificate used to authenticate to the user account, the ability to\ndetermine the identity of the individual user or group will not be available for forensic\nanalysis.",
+    "source": {
+      "upstream_id": "sssd_enable_user_cert",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.757751+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_enable_user_cert",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "SSSD needs to be set up to link the authenticated identity to the user or group account\nfor PKI-based authentication. To implement this, confirm that the /etc/sssd/sssd.conf\nfile contains the following line\n<pre>\nldap_user_certificate=userCertificate;binary\n</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/sssd/sssd_enable_user_cert/rule.yml",
+  "source_hash": "sha256:c499d5bf3429661f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.757828+00:00",
+  "updated_at": "2025-10-03T10:45:55.757830+00:00",
+  "identifiers": {}
+}

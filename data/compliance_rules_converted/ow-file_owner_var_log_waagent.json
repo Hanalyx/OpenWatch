@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_owner_var_log_waagent",
+  "rule_id": "ow-file_owner_var_log_waagent",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_var_log_waagent",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify User Who Owns /var/log/waagent.log File",
+    "description": "{{{ describe_file_owner(file=\"/var/log/waagent.log\", owner=\"syslog|root\") }}}",
+    "rationale": "The <tt>/var/log/waagent.log</tt> file contains Azure Linux Guest Agent records\nevents that can be used for troubleshooting and should only be accessed by authorized personnel.",
+    "source": {
+      "upstream_id": "file_owner_var_log_waagent",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.664266+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_var_log_waagent",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_owner(file=\"/var/log/waagent.log\", owner=\"syslog|root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_var_log_dir/file_owner_var_log_waagent/rule.yml",
+  "source_hash": "sha256:2998d539205a38ee",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.664379+00:00",
+  "updated_at": "2025-10-03T02:25:57.664381+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,56 @@
+{
+  "_id": "ow-check_ufw_active",
+  "rule_id": "ow-check_ufw_active",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_check_ufw_active",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify ufw Active",
+    "description": "Verify the ufw is enabled on the system with the following command:\n<pre># sudo ufw status</pre>\nIf the above command returns the status as \"inactive\" or any type of error, this is a finding.",
+    "rationale": "Remote access services, such as those providing remote access to network devices and information systems, \nwhich lack automated control capabilities, increase risk and make remote user access management difficult at best.  \nRemote access is access to nonpublic information systems by an authorized user (or an information system) communicating \nthrough an external, nonorganization-controlled network. Remote access methods include, for example, dial-up, broadband, and wireless.  \nUbuntu 22.04 LTS functionality (e.g., RDP) must be capable of taking enforcement action if the audit reveals unauthorized activity. \nAutomated control of remote access sessions allows organizations to ensure ongoing compliance with remote access policies by \nenforcing connection rules of remote access applications on a variety of information system components.",
+    "source": {
+      "upstream_id": "check_ufw_active",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.136522+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_check_ufw_active",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Verify the ufw is enabled on the system with the following command:\n<pre># sudo ufw status</pre>\nIf the above command returns the status as \"inactive\" or any type of error, this is a finding.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ufw/check_ufw_active/rule.yml",
+  "source_hash": "sha256:807af90f4d537085",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.136617+00:00",
+  "updated_at": "2025-10-03T10:45:56.136620+00:00",
+  "identifiers": {}
+}

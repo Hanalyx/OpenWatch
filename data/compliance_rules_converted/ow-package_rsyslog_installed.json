@@ -1,0 +1,126 @@
+{
+  "_id": "ow-package_rsyslog_installed",
+  "rule_id": "ow-package_rsyslog_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_rsyslog_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure rsyslog is Installed",
+    "description": "Rsyslog is installed by default. {{{ describe_package_install(package=\"rsyslog\") }}}",
+    "rationale": "The rsyslog package provides the rsyslog daemon, which provides\nsystem logging services.",
+    "source": {
+      "upstream_id": "package_rsyslog_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80847-7",
+      "imported_at": "2025-10-03T02:25:58.361450+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "14",
+        "15",
+        "16",
+        "3",
+        "5",
+        "6",
+        "4.2.1.1",
+        "4.2.1.1"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.312(a)(2)(ii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.PT-1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000479-GPOS-00224",
+        "SRG-OS-000051-GPOS-00024",
+        "SRG-OS-000480-GPOS-00227",
+        "OL08-00-030670"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q rsyslog",
+      "enable_command": "yum install -y rsyslog",
+      "disable_command": "yum remove -y rsyslog",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep rsyslog",
+      "enable_command": "apt-get install -y rsyslog",
+      "disable_command": "apt-get remove -y rsyslog",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_rsyslog_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Rsyslog is installed by default. {{{ describe_package_install(package=\"rsyslog\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/package_rsyslog_installed/rule.yml",
+  "source_hash": "sha256:35513f7c46ccb893",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.361574+00:00",
+  "updated_at": "2025-10-03T02:25:58.361577+00:00",
+  "identifiers": {
+    "cce": "CCE-80847-7"
+  }
+}

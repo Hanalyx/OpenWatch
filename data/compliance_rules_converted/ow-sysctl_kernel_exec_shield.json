@@ -1,0 +1,96 @@
+{
+  "_id": "ow-sysctl_kernel_exec_shield",
+  "rule_id": "ow-sysctl_kernel_exec_shield",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_exec_shield",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable ExecShield via sysctl",
+    "description": "By default on {{{ full_name }}} 64-bit systems, ExecShield is\nenabled and can only be disabled if the hardware does not support\nExecShield or is disabled in <tt>/etc/default/grub</tt>.\n\n{{# products that are available also in a 32 bits form #}}\n{{% if \"rhel\" not in product and product != \"fedora\" and \"ol\" not in families %}}\nFor {{{ full_name }}}  32-bit systems, <tt>sysctl</tt> can be used to enable\nExecShield.\n{{% endif %}}",
+    "rationale": "ExecShield uses the segmentation feature on all x86 systems to prevent\nexecution in memory higher than a certain address. It writes an address as\na limit in the code segment descriptor, to control where code can be\nexecuted, on a per-process basis. When the kernel places a process's memory\nregions such as the stack and heap higher than this address, the hardware\nprevents execution in that address range. This is enabled by default on the\nlatest Red Hat and Fedora systems if supported by the hardware.",
+    "source": {
+      "upstream_id": "sysctl_kernel_exec_shield",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80914-5",
+      "imported_at": "2025-10-03T02:25:57.441330+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "15",
+        "8"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(D)",
+        "164.308(a)(3)",
+        "164.308(a)(4)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.312(a)",
+        "164.312(e)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.13.1.1",
+        "A.13.2.1",
+        "A.14.1.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "SC-39",
+        "CM-6(a)",
+        "PR.PT-4"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000433-GPOS-00192"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_exec_shield",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "By default on {{{ full_name }}} 64-bit systems, ExecShield is\nenabled and can only be disabled if the hardware does not support\nExecShield or is disabled in <tt>/etc/default/grub</tt>.\n\n{{# products that are available also in a 32 bits form #}}\n{{% if \"rhel\" not in product and product != \"fedora\" and \"ol\" not in families %}}\nFor {{{ full_name }}}  32-bit systems, <tt>sysctl</tt> can be used to enable\nExecShield.\n{{% endif %}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/restrictions/enable_execshield_settings/sysctl_kernel_exec_shield/rule.yml",
+  "source_hash": "sha256:0d9bdf4580a6d46a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.441469+00:00",
+  "updated_at": "2025-10-03T02:25:57.441472+00:00",
+  "identifiers": {
+    "cce": "CCE-80914-5"
+  }
+}

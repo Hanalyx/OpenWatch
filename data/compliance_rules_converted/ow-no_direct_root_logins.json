@@ -1,0 +1,108 @@
+{
+  "_id": "ow-no_direct_root_logins",
+  "rule_id": "ow-no_direct_root_logins",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_direct_root_logins",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Direct root Logins Not Allowed",
+    "description": "To further limit access to the <tt>root</tt> account, administrators\ncan disable root logins at the console by editing the <tt>/etc/securetty</tt> file.\nThis file lists all devices the root user is allowed to login to. If the file does\nnot exist at all, the root user can login through any communication device on the\nsystem, whether via the console or via a raw network interface. This is dangerous\nas user can login to the system as root via Telnet, which sends the password in\nplain text over the network. By default, {{{ full_name }}}'s\n<tt>/etc/securetty</tt> file only allows the root user to login at the console\nphysically attached to the system. To prevent root from logging in, remove the\ncontents of this file. To prevent direct root logins, remove the contents of this\nfile by typing the following command:\n<pre>\n$ sudo echo &gt; /etc/securetty\n</pre>",
+    "rationale": "Disabling direct root logins ensures proper accountability and multifactor\nauthentication to privileged accounts. Users will first login, then escalate\nto privileged (root) access via su / sudo. This is required for FISMA Low\nand FISMA Moderate systems.",
+    "source": {
+      "upstream_id": "no_direct_root_logins",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82698-2",
+      "imported_at": "2025-10-03T02:25:58.513280+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16",
+        "5",
+        "5.5",
+        "5.5"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(B)",
+        "164.308(a)(7)(i)",
+        "164.308(a)(7)(ii)(A)",
+        "164.310(a)(1)",
+        "164.310(a)(2)(i)",
+        "164.310(a)(2)(ii)",
+        "164.310(a)(2)(iii)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.310(d)(1)",
+        "164.310(d)(2)(iii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.7.1.1",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "IA-2",
+        "CM-6(a)",
+        "PR.AC-1",
+        "PR.AC-6",
+        "PR.AC-7"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_direct_root_logins",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To further limit access to the <tt>root</tt> account, administrators\ncan disable root logins at the console by editing the <tt>/etc/securetty</tt> file.\nThis file lists all devices the root user is allowed to login to. If the file does\nnot exist at all, the root user can login through any communication device on the\nsystem, whether via the console or via a raw network interface. This is dangerous\nas user can login to the system as root via Telnet, which sends the password in\nplain text over the network. By default, {{{ full_name }}}'s\n<tt>/etc/securetty</tt> file only allows the root user to login at the console\nphysically attached to the system. To prevent root from logging in, remove the\ncontents of this file. To prevent direct root logins, remove the contents of this\nfile by typing the following command:\n<pre>\n$ sudo echo &gt; /etc/securetty\n</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/no_direct_root_logins/rule.yml",
+  "source_hash": "sha256:c9ccd507a868b2d8",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.513417+00:00",
+  "updated_at": "2025-10-03T02:25:58.513421+00:00",
+  "identifiers": {
+    "cce": "CCE-82698-2"
+  }
+}

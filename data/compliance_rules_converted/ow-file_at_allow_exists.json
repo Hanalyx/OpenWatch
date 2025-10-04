@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_at_allow_exists",
+  "rule_id": "ow-file_at_allow_exists",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_at_allow_exists",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that /etc/at.allow exists",
+    "description": "The file <tt>/etc/at.allow</tt> should exist and should be used instead\nof <tt>/etc/at.deny</tt>.",
+    "rationale": "Using the at.allow file to control who can run at jobs enforces this who can schedule jobs.\nIt is easier to manage an allow list than a deny list. ",
+    "source": {
+      "upstream_id": "file_at_allow_exists",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.721671+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_existence check",
+      "enable_command": "# TODO: Implement file_existence remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_at_allow_exists",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The file <tt>/etc/at.allow</tt> should exist and should be used instead\nof <tt>/etc/at.deny</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/cron_and_at/restrict_at_cron_users/file_at_allow_exists/rule.yml",
+  "source_hash": "sha256:247de8508814ff69",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.721798+00:00",
+  "updated_at": "2025-10-03T10:45:55.721802+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,87 @@
+{
+  "_id": "ow-avahi_restrict_published_information",
+  "rule_id": "ow-avahi_restrict_published_information",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_avahi_restrict_published_information",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict Information Published by Avahi",
+    "description": "If it is necessary to publish some information to the network, it should not be joined\nby any extraneous information, or by information supplied by a non-trusted source\non the system.\nPrevent user applications from using Avahi to publish services by adding or\ncorrecting the following line in the <tt>[publish]</tt> section:\n<pre>disable-user-service-publishing=yes</pre>\nImplement as many of the following lines as possible, to restrict the information\npublished by Avahi.\n<pre>publish-addresses=no\npublish-hinfo=no\npublish-workstation=no\npublish-domain=no</pre>\nInspect the files in the directory <tt>/etc/avahi/services/</tt>. Unless there\nis an operational need to publish information about each of these services,\ndelete the corresponding file.",
+    "rationale": "These options prevent publishing attempts from succeeding,\nand can be applied even if publishing is disabled entirely via\ndisable-publishing. Alternatively, these can be used to restrict\nthe types of published information in the event that some information\nmust be published.",
+    "source": {
+      "upstream_id": "avahi_restrict_published_information",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82375-7",
+      "imported_at": "2025-10-03T10:45:55.712174+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_avahi_restrict_published_information",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "If it is necessary to publish some information to the network, it should not be joined\nby any extraneous information, or by information supplied by a non-trusted source\non the system.\nPrevent user applications from using Avahi to publish services by adding or\ncorrecting the following line in the <tt>[publish]</tt> section:\n<pre>disable-user-service-publishing=yes</pre>\nImplement as many of the following lines as possible, to restrict the information\npublished by Avahi.\n<pre>publish-addresses=no\npublish-hinfo=no\npublish-workstation=no\npublish-domain=no</pre>\nInspect the files in the directory <tt>/etc/avahi/services/</tt>. Unless there\nis an operational need to publish information about each of these services,\ndelete the corresponding file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/avahi/avahi_configuration/avahi_restrict_published_information/rule.yml",
+  "source_hash": "sha256:8ef134790b9e9260",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.712406+00:00",
+  "updated_at": "2025-10-03T10:45:55.712410+00:00",
+  "identifiers": {
+    "cce": "CCE-82375-7"
+  }
+}

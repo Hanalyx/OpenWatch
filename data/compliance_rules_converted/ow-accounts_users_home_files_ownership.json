@@ -1,0 +1,71 @@
+{
+  "_id": "ow-accounts_users_home_files_ownership",
+  "rule_id": "ow-accounts_users_home_files_ownership",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_home_files_ownership",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "All User Files and Directories In The Home Directory Must Have a Valid Owner",
+    "description": "Either remove all files and directories from the system that\ndo not have a valid user, or assign a valid user to all unowned\nfiles and directories. To assign a valid owner to a local\ninteractive user's files and directories, use the following command:\n<pre>$ sudo chown -R <i>USER</i> /home/<i>USER</i></pre>\n\nThis rule ensures every file or directory under the home directory related\nto an interactive user is owned by an interactive user.",
+    "rationale": "If local interactive users do not own the files in their directories,\nunauthorized users may be able to access them. Additionally, if files are not\nowned by the user, this could be an indication of system compromise.",
+    "source": {
+      "upstream_id": "accounts_users_home_files_ownership",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87040-2",
+      "imported_at": "2025-10-03T10:45:56.203318+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.7",
+        "6.2.7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-020660"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_home_files_ownership",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Either remove all files and directories from the system that\ndo not have a valid user, or assign a valid user to all unowned\nfiles and directories. To assign a valid owner to a local\ninteractive user's files and directories, use the following command:\n<pre>$ sudo chown -R <i>USER</i> /home/<i>USER</i></pre>\n\nThis rule ensures every file or directory under the home directory related\nto an interactive user is owned by an interactive user.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_users_home_files_ownership/rule.yml",
+  "source_hash": "sha256:3cd8e9a369f7e42d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.203421+00:00",
+  "updated_at": "2025-10-03T10:45:56.203424+00:00",
+  "identifiers": {
+    "cce": "CCE-87040-2"
+  }
+}

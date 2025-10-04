@@ -1,0 +1,56 @@
+{
+  "_id": "ow-configure_etc_hosts_deny",
+  "rule_id": "ow-configure_etc_hosts_deny",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_etc_hosts_deny",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure /etc/hosts.deny is configured",
+    "description": "The file <tt>/etc/hosts.deny</tt> together with <tt>/etc/hosts.allow</tt> provides a\nsimple access control mechanism for network services supporting TCP wrappers.\nThe following line in the file ensures that access to services supporting this mechanism is denied to any clients\nnot mentioned in <tt>/etc/hosts.allow</tt>:\n<pre>ALL: ALL</pre>\nIt is advised to inspect available network services which might be affected by modification of file mentioned above prior to performing the remediation of this rule.\nIf there exist services which might be affected and access to them should not be blocked,\nmodify the <tt>/etc/hosts.allow</tt> file appropriately before performing the remediation.",
+    "rationale": "Correct configuration in <tt>/etc/hosts.deny</tt> ensures that no explicitly mentioned clients will be able to connect to services supporting this access control mechanism.",
+    "source": {
+      "upstream_id": "configure_etc_hosts_deny",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.739215+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_etc_hosts_deny",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The file <tt>/etc/hosts.deny</tt> together with <tt>/etc/hosts.allow</tt> provides a\nsimple access control mechanism for network services supporting TCP wrappers.\nThe following line in the file ensures that access to services supporting this mechanism is denied to any clients\nnot mentioned in <tt>/etc/hosts.allow</tt>:\n<pre>ALL: ALL</pre>\nIt is advised to inspect available network services which might be affected by modification of file mentioned above prior to performing the remediation of this rule.\nIf there exist services which might be affected and access to them should not be blocked,\nmodify the <tt>/etc/hosts.allow</tt> file appropriately before performing the remediation.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/inetd_and_xinetd/configure_etc_hosts_deny/rule.yml",
+  "source_hash": "sha256:00d2e5543b2b4bd7",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.739334+00:00",
+  "updated_at": "2025-10-03T10:45:55.739336+00:00",
+  "identifiers": {}
+}

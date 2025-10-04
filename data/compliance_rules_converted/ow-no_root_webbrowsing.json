@@ -1,0 +1,56 @@
+{
+  "_id": "ow-no_root_webbrowsing",
+  "rule_id": "ow-no_root_webbrowsing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_root_webbrowsing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict Web Browser Use for Administrative Accounts",
+    "description": "Enforce policy requiring administrative accounts use web browsers only for\nlocal service administration.",
+    "rationale": "If a browser vulnerability is exploited while running with administrative privileges,\nthe entire system could be compromised. Specific exceptions for local service\nadministration should be documented in site-defined policy.",
+    "source": {
+      "upstream_id": "no_root_webbrowsing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.222235+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_root_webbrowsing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Enforce policy requiring administrative accounts use web browsers only for\nlocal service administration.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/no_root_webbrowsing/rule.yml",
+  "source_hash": "sha256:453d95a5c56a07a9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.222325+00:00",
+  "updated_at": "2025-10-03T10:45:56.222327+00:00",
+  "identifiers": {}
+}

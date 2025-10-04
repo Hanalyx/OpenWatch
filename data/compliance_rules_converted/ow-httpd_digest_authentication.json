@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_digest_authentication",
+  "rule_id": "ow-httpd_digest_authentication",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_digest_authentication",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable HTTP Digest Authentication",
+    "description": "The <tt>auth_digest</tt> module provides encrypted authentication sessions.\nIf this functionality is unnecessary, comment out the related module:\n<pre>#LoadModule auth_digest_module modules/mod_auth_digest.so</pre>",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_digest_authentication",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.858446+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_digest_authentication",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>auth_digest</tt> module provides encrypted authentication sessions.\nIf this functionality is unnecessary, comment out the related module:\n<pre>#LoadModule auth_digest_module modules/mod_auth_digest.so</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_digest_authentication/rule.yml",
+  "source_hash": "sha256:3c839ae853319a3f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.858547+00:00",
+  "updated_at": "2025-10-03T10:45:55.858549+00:00",
+  "identifiers": {}
+}

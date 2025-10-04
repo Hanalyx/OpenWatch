@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_enable_encrypted_searching",
+  "rule_id": "ow-chromium_enable_encrypted_searching",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_enable_encrypted_searching",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Encrypted Searching",
+    "description": "Specifies the URL of the search engine used when doing a default search.\nThe URL should contain the string <tt>{searchTerms}</tt>. To set the URL of the\nsearch engine, set <tt>DefaultSearchProviderSearchURL</tt> to\n<tt><sub idref=\"var_enable_encrypted_searching\" /></tt> in the Chromium policy file.",
+    "rationale": "When doing internet searches, it is important to use an encrypted connection via https.",
+    "source": {
+      "upstream_id": "chromium_enable_encrypted_searching",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.397947+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0008"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_enable_encrypted_searching",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Specifies the URL of the search engine used when doing a default search.\nThe URL should contain the string <tt>{searchTerms}</tt>. To set the URL of the\nsearch engine, set <tt>DefaultSearchProviderSearchURL</tt> to\n<tt><sub idref=\"var_enable_encrypted_searching\" /></tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_enable_encrypted_searching/rule.yml",
+  "source_hash": "sha256:ddb754db278c8314",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.398041+00:00",
+  "updated_at": "2025-10-03T10:45:56.398044+00:00",
+  "identifiers": {}
+}

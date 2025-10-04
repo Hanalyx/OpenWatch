@@ -1,0 +1,92 @@
+{
+  "_id": "ow-ensure_logrotate_activated",
+  "rule_id": "ow-ensure_logrotate_activated",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_logrotate_activated",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Logrotate Runs Periodically",
+    "description": "The <tt>logrotate</tt> utility allows for the automatic rotation of\nlog files.  The frequency of rotation is specified in <tt>/etc/logrotate.conf</tt>,\nwhich triggers a cron task or a timer.  To configure logrotate to run daily, add or correct\nthe following line in <tt>/etc/logrotate.conf</tt>:\n<pre># rotate log files <i>frequency</i>\ndaily</pre>",
+    "rationale": "Log files that are not properly rotated run the risk of growing so large\nthat they fill up the /var/log partition. Valuable logging information could be lost\nif the /var/log partition becomes full.",
+    "source": {
+      "upstream_id": "ensure_logrotate_activated",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82689-1",
+      "imported_at": "2025-10-03T10:45:56.186433+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "14",
+        "15",
+        "16",
+        "3",
+        "5",
+        "6",
+        "4.2.4",
+        "4.2.4"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.PT-1"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-10.7"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_logrotate_activated",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>logrotate</tt> utility allows for the automatic rotation of\nlog files.  The frequency of rotation is specified in <tt>/etc/logrotate.conf</tt>,\nwhich triggers a cron task or a timer.  To configure logrotate to run daily, add or correct\nthe following line in <tt>/etc/logrotate.conf</tt>:\n<pre># rotate log files <i>frequency</i>\ndaily</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/log_rotation/ensure_logrotate_activated/rule.yml",
+  "source_hash": "sha256:4ba583c9a62deb05",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.186586+00:00",
+  "updated_at": "2025-10-03T10:45:56.186589+00:00",
+  "identifiers": {
+    "cce": "CCE-82689-1"
+  }
+}

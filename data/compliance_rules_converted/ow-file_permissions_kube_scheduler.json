@@ -1,0 +1,62 @@
+{
+  "_id": "ow-file_permissions_kube_scheduler",
+  "rule_id": "ow-file_permissions_kube_scheduler",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_kube_scheduler",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Permissions on the Kube Scheduler Pod Specification File",
+    "description": "{{{ describe_file_permissions(file=\"/etc/kubernetes/static-pod-resources/kube-scheduler-pod.yaml\", perms=\"0600\") }}}",
+    "rationale": "If the Kube specification file is writable by a group-owner or the\nworld the risk of its compromise is increased. The file contains the configuration of\nan OpenShift scheduler that is configured on the system. Protection of this file is\ncritical for OpenShift security.",
+    "source": {
+      "upstream_id": "file_permissions_kube_scheduler",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:59.432182+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.1.5"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_kube_scheduler",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_permissions(file=\"/etc/kubernetes/static-pod-resources/kube-scheduler-pod.yaml\", perms=\"0600\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/master/file_permissions_kube_scheduler/rule.yml",
+  "source_hash": "sha256:e2a6d258353da09d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.432279+00:00",
+  "updated_at": "2025-10-03T02:25:59.432282+00:00",
+  "identifiers": {}
+}

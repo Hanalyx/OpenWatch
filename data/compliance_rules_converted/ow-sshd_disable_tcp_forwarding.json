@@ -1,0 +1,104 @@
+{
+  "_id": "ow-sshd_disable_tcp_forwarding",
+  "rule_id": "ow-sshd_disable_tcp_forwarding",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_disable_tcp_forwarding",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable SSH TCP Forwarding",
+    "description": "The <tt>AllowTcpForwarding</tt> parameter specifies whether TCP forwarding is permitted.\nTo disable TCP forwarding, add or correct the following line in\n{{{ sshd_config_file() }}}\n<pre>AllowTcpForwarding no</pre>",
+    "rationale": "Leaving port forwarding enabled can expose the organization to security risks and back-doors.",
+    "source": {
+      "upstream_id": "sshd_disable_tcp_forwarding",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83301-2",
+      "imported_at": "2025-10-03T02:25:57.157158+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.20",
+        "5.2.20"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "sshd",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^AllowTcpForwarding\\s\\+no' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?AllowTcpForwarding.*/{ parameter } no/' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "ssh",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^AllowTcpForwarding\\s\\+no' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?AllowTcpForwarding.*/{ parameter } no/' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_disable_tcp_forwarding",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>AllowTcpForwarding</tt> parameter specifies whether TCP forwarding is permitted.\nTo disable TCP forwarding, add or correct the following line in\n{{{ sshd_config_file() }}}\n<pre>AllowTcpForwarding no</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_disable_tcp_forwarding/rule.yml",
+  "source_hash": "sha256:eab9fe5f8e741c64",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.157253+00:00",
+  "updated_at": "2025-10-03T02:25:57.157255+00:00",
+  "identifiers": {
+    "cce": "CCE-83301-2"
+  }
+}

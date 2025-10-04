@@ -1,0 +1,85 @@
+{
+  "_id": "ow-dir_permissions_library_dirs",
+  "rule_id": "ow-dir_permissions_library_dirs",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_permissions_library_dirs",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify that Shared Library Directories Have Restrictive Permissions",
+    "description": "System-wide shared library directories, which contain are linked to executables\nduring process load time or run time, are stored in the following directories\nby default:\n<pre>/lib\n/lib64\n/usr/lib\n/usr/lib64\n</pre>\nKernel modules, which can be added to the kernel during runtime, are\nstored in <tt>/lib/modules</tt>. All sub-directories in these directories\nshould not be group-writable or world-writable. If any file in these\ndirectories is found to be group-writable or world-writable, correct\nits permission with the following command:\n<pre>$ sudo chmod go-w <i>DIR</i></pre>",
+    "rationale": "If the operating system were to allow any user to make changes to software libraries,\nthen those changes might be implemented without undergoing the appropriate testing\nand approvals that are part of a robust change management process.\n\nThis requirement applies to operating systems with software libraries that are accessible\nand configurable, as in the case of interpreted languages. Software libraries also include\nprivileged programs which execute with escalated privileges. Only qualified and authorized\nindividuals must be allowed to obtain access to information system components for purposes\nof initiating changes, including upgrades and modifications.",
+    "source": {
+      "upstream_id": "dir_permissions_library_dirs",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-88692-9",
+      "imported_at": "2025-10-03T02:25:57.622769+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-5",
+        "CM-5(6)",
+        "CM-5(6).1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000259-GPOS-00100",
+        "OL08-00-010331",
+        "SLES-12-010872",
+        "SLES-15-010352"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_permissions check",
+      "enable_command": "# TODO: Implement file_permissions remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_permissions_library_dirs",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "System-wide shared library directories, which contain are linked to executables\nduring process load time or run time, are stored in the following directories\nby default:\n<pre>/lib\n/lib64\n/usr/lib\n/usr/lib64\n</pre>\nKernel modules, which can be added to the kernel during runtime, are\nstored in <tt>/lib/modules</tt>. All sub-directories in these directories\nshould not be group-writable or world-writable. If any file in these\ndirectories is found to be group-writable or world-writable, correct\nits permission with the following command:\n<pre>$ sudo chmod go-w <i>DIR</i></pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_within_important_dirs/dir_permissions_library_dirs/rule.yml",
+  "source_hash": "sha256:072a7e59621badae",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.622916+00:00",
+  "updated_at": "2025-10-03T02:25:57.622919+00:00",
+  "identifiers": {
+    "cce": "CCE-88692-9"
+  }
+}

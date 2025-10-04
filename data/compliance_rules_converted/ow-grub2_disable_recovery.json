@@ -1,0 +1,58 @@
+{
+  "_id": "ow-grub2_disable_recovery",
+  "rule_id": "ow-grub2_disable_recovery",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_disable_recovery",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Recovery Booting",
+    "description": "{{{ full_name }}} systems support an \"recovery boot\" option that can be used\nto prevent services from being started. The <tt>GRUB_DISABLE_RECOVERY</tt>\nconfiguration option in <tt>/etc/default/grub</tt> should be set to\n<tt>true</tt> to disable the generation of recovery mode menu entries. It is\nalso required to change the runtime configuration, run:\n<pre>$ sudo {{{ grub_command(\"update\") }}}</pre>",
+    "rationale": "Using recovery boot, the console user could disable auditing, firewalls,\nor other services, weakening system security.",
+    "source": {
+      "upstream_id": "grub2_disable_recovery",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86006-4",
+      "imported_at": "2025-10-03T02:25:58.003872+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_disable_recovery",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ full_name }}} systems support an \"recovery boot\" option that can be used\nto prevent services from being started. The <tt>GRUB_DISABLE_RECOVERY</tt>\nconfiguration option in <tt>/etc/default/grub</tt> should be set to\n<tt>true</tt> to disable the generation of recovery mode menu entries. It is\nalso required to change the runtime configuration, run:\n<pre>$ sudo {{{ grub_command(\"update\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_disable_recovery/rule.yml",
+  "source_hash": "sha256:379e274cb52fac38",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.003963+00:00",
+  "updated_at": "2025-10-03T02:25:58.003966+00:00",
+  "identifiers": {
+    "cce": "CCE-86006-4"
+  }
+}

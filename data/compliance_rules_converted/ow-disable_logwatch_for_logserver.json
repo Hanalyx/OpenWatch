@@ -1,0 +1,56 @@
+{
+  "_id": "ow-disable_logwatch_for_logserver",
+  "rule_id": "ow-disable_logwatch_for_logserver",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_disable_logwatch_for_logserver",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Logwatch on Clients if a Logserver Exists",
+    "description": "Does your site have a central logserver which has been configured to report\non logs received from all systems? If so:\n<pre>$ sudo rm /etc/cron.daily/0logwatch</pre>\nIf no logserver exists, it will be necessary for each system to run\nLogwatch individually. Using a central logserver provides the security and\nreliability benefits discussed earlier, and also makes monitoring logs\neasier and less time-intensive for administrators.",
+    "rationale": "",
+    "source": {
+      "upstream_id": "disable_logwatch_for_logserver",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.164543+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_disable_logwatch_for_logserver",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Does your site have a central logserver which has been configured to report\non logs received from all systems? If so:\n<pre>$ sudo rm /etc/cron.daily/0logwatch</pre>\nIf no logserver exists, it will be necessary for each system to run\nLogwatch individually. Using a central logserver provides the security and\nreliability benefits discussed earlier, and also makes monitoring logs\neasier and less time-intensive for administrators.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/disable_logwatch_for_logserver/rule.yml",
+  "source_hash": "sha256:aafb0ae408da38ec",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.164629+00:00",
+  "updated_at": "2025-10-03T10:45:56.164632+00:00",
+  "identifiers": {}
+}

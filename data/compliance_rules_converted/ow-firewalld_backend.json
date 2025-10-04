@@ -1,0 +1,86 @@
+{
+  "_id": "ow-firewalld_backend",
+  "rule_id": "ow-firewalld_backend",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firewalld_backend",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure Firewalld to Use the Nftables Backend",
+    "description": "Firewalld can be configured with many backends, such as nftables.",
+    "rationale": "Nftables is modern kernel module for controling network connections coming into a system.\nUtilizing the limit statement in \"nftables\" can help to mitigate DoS attacks.",
+    "source": {
+      "upstream_id": "firewalld_backend",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86506-3",
+      "imported_at": "2025-10-03T02:25:58.254372+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "3.5.2.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "SC-5"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000420-GPOS-00186",
+        "OL08-00-040150"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement shell_lineinfile check",
+      "enable_command": "# TODO: Implement shell_lineinfile remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firewalld_backend",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Firewalld can be configured with many backends, such as nftables.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-firewalld/firewalld-backend/rule.yml",
+  "source_hash": "sha256:d17b6b2b9309067e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.254510+00:00",
+  "updated_at": "2025-10-03T02:25:58.254513+00:00",
+  "identifiers": {
+    "cce": "CCE-86506-3"
+  }
+}

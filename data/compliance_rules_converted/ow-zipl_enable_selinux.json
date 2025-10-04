@@ -1,0 +1,56 @@
+{
+  "_id": "ow-zipl_enable_selinux",
+  "rule_id": "ow-zipl_enable_selinux",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_enable_selinux",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure SELinux Not Disabled in zIPL",
+    "description": "To ensure SELinux is not disabled at boot time,\ncheck that no boot entry in <tt>/boot/loader/entries/*.conf</tt> has <tt>selinux=0</tt>\nincluded in its options.<br />",
+    "rationale": "Disabling a major host protection feature, such as SELinux, at boot time prevents\nit from confining system services at boot time.  Further, it increases\nthe chances that it will remain off during system operation.",
+    "source": {
+      "upstream_id": "zipl_enable_selinux",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.081251+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_enable_selinux",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To ensure SELinux is not disabled at boot time,\ncheck that no boot entry in <tt>/boot/loader/entries/*.conf</tt> has <tt>selinux=0</tt>\nincluded in its options.<br />",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-zipl/zipl_enable_selinux/rule.yml",
+  "source_hash": "sha256:a290c1c3235d29de",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.081342+00:00",
+  "updated_at": "2025-10-03T10:45:56.081345+00:00",
+  "identifiers": {}
+}

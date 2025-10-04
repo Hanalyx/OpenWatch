@@ -1,0 +1,94 @@
+{
+  "_id": "ow-package_openssh_installed",
+  "rule_id": "ow-package_openssh_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_openssh_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install the OpenSSH Client and Server Package",
+    "description": "The <tt>openssh</tt> package should be installed.\n{{{ describe_package_install(package=\"openssh\") }}}",
+    "rationale": "Without protection of the transmitted information, confidentiality, and\nintegrity may be compromised because unprotected communications can be\nintercepted and either read or altered.",
+    "source": {
+      "upstream_id": "package_openssh_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.116517+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000423-GPOS-00187"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q openssh",
+      "enable_command": "yum install -y openssh",
+      "disable_command": "yum remove -y openssh",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep openssh",
+      "enable_command": "apt-get install -y openssh",
+      "disable_command": "apt-get remove -y openssh",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_openssh_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>openssh</tt> package should be installed.\n{{{ describe_package_install(package=\"openssh\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/package_openssh_installed/rule.yml",
+  "source_hash": "sha256:3dc62167a5c18fee",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.116603+00:00",
+  "updated_at": "2025-10-03T02:25:57.116606+00:00",
+  "identifiers": {}
+}

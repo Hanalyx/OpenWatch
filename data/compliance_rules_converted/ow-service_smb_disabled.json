@@ -1,0 +1,76 @@
+{
+  "_id": "ow-service_smb_disabled",
+  "rule_id": "ow-service_smb_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_smb_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Samba",
+    "description": "{{{ describe_service_disable(service=\"smb\") }}}",
+    "rationale": "Running a Samba server provides a network-based avenue of attack, and\nshould be disabled if not needed.",
+    "source": {
+      "upstream_id": "service_smb_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82759-2",
+      "imported_at": "2025-10-03T02:25:57.090723+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "2.2.13",
+        "2.2.13"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_smb_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_service_disable(service=\"smb\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/smb/disabling_samba/service_smb_disabled/rule.yml",
+  "source_hash": "sha256:714209f123b05517",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.090845+00:00",
+  "updated_at": "2025-10-03T02:25:57.090847+00:00",
+  "identifiers": {
+    "cce": "CCE-82759-2"
+  }
+}

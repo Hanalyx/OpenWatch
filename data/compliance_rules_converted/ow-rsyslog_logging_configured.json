@@ -1,0 +1,65 @@
+{
+  "_id": "ow-rsyslog_logging_configured",
+  "rule_id": "ow-rsyslog_logging_configured",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_rsyslog_logging_configured",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure logging is configured",
+    "description": "The <tt>/etc/rsyslog.conf</tt> and <tt>/etc/rsyslog.d/*.conf</tt> files\nspecifies rules for logging and which files are to be used to log certain\nclasses of messages.",
+    "rationale": "A great deal of important security-related information is sent via\nrsyslog (e.g., successful and failed su attempts, failed login attempts,\nroot login attempts, etc.).",
+    "source": {
+      "upstream_id": "rsyslog_logging_configured",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92379-7",
+      "imported_at": "2025-10-03T10:45:56.174210+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "4.2.1.4",
+        "4.2.1.4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_rsyslog_logging_configured",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>/etc/rsyslog.conf</tt> and <tt>/etc/rsyslog.d/*.conf</tt> files\nspecifies rules for logging and which files are to be used to log certain\nclasses of messages.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/ensure_rsyslog_log_file_configuration/rsyslog_logging_configured/rule.yml",
+  "source_hash": "sha256:e124f79e9c7b73de",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.174311+00:00",
+  "updated_at": "2025-10-03T10:45:56.174314+00:00",
+  "identifiers": {
+    "cce": "CCE-92379-7"
+  }
+}

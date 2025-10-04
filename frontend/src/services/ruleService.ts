@@ -71,15 +71,30 @@ class RuleService {
     console.log('Connecting to MongoDB compliance rules database...');
     
     try {
-      // Call the real MongoDB API endpoint with centralized auth
-      const response = await api.get('/api/v1/compliance-rules/', { 
-        params,
-        headers: getAuthHeaders()
-      });
+      // Use our converted rules endpoint instead of MongoDB
+      const queryParams = new URLSearchParams();
+      if (params.offset) queryParams.append('offset', params.offset.toString());
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+      if (params.platform) queryParams.append('platform', params.platform);
+      if (params.severity) queryParams.append('severity', params.severity);
+      if (params.category) queryParams.append('category', params.category);
+      if (params.framework) queryParams.append('framework', params.framework);
+      if (params.search) queryParams.append('search', params.search);
       
-      // Transform the API response to match RuleListResponse interface
-      const rules = response.data.rules || response.data || [];
-      const totalCount = response.data.total || rules.length;
+      const response = await fetch(`/all-rules?${queryParams.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch rules');
+      }
+      
+      const rules = result.data.rules || [];
+      const totalCount = result.data.total_count || 0;
       
       console.log(`✅ MongoDB connection successful: Retrieved ${rules.length} rules`);
       
@@ -89,9 +104,9 @@ class RuleService {
           rules: rules,
           total_count: totalCount,
           offset: params.offset || 0,
-          limit: params.limit || 50,
-          has_next: (params.offset || 0) + rules.length < totalCount,
-          has_prev: (params.offset || 0) > 0,
+          limit: params.limit || 25,
+          has_next: result.data.has_next,
+          has_prev: result.data.has_prev,
           filters_applied: {
             platform: params.platform,
             severity: params.severity,
@@ -103,75 +118,21 @@ class RuleService {
       };
       
     } catch (error) {
-      console.error('❌ MongoDB API connection failed:', error);
+      console.error('❌ Rules API connection failed:', error);
       
-      // Return actual MongoDB state - 3 verified rules
-      const actualMongoDBRules = [
-        {
-          rule_id: 'ow-sshd-disable-root-login',
-          scap_rule_id: 'xccdf_org.ssgproject.content_rule_sshd_disable_root_login',
-          metadata: {
-            name: 'Disable SSH Root Login',
-            description: 'The root user should never be allowed to login to a system directly over a network',
-            rationale: 'Disallowing root logins over SSH requires system admins to authenticate using their own individual account',
-            source: 'MongoDB Compliance Database (Verified SCAP Rule)'
-          },
-          severity: 'high',
-          category: 'authentication',
-          tags: ['ssh', 'authentication', 'root_access', 'verified'],
-          frameworks: {
-            nist: { '800-53r5': ['AC-6', 'IA-2'] },
-            cis: { 'rhel8_v2.0.0': ['5.2.8'] }
-          }
-        },
-        {
-          rule_id: 'ow-service-firewalld-enabled',
-          scap_rule_id: 'xccdf_org.ssgproject.content_rule_service_firewalld_enabled',
-          metadata: {
-            name: 'Enable Firewall Service',
-            description: 'A firewall should be enabled to control network traffic',
-            rationale: 'Firewalls provide network access control and logging capabilities',
-            source: 'MongoDB Compliance Database (Verified SCAP Rule)'
-          },
-          severity: 'high',
-          category: 'network',
-          tags: ['firewall', 'network', 'security', 'verified'],
-          frameworks: {
-            nist: { '800-53r5': ['SC-7'] },
-            cis: { 'rhel8_v2.0.0': ['3.4.1'] }
-          }
-        },
-        {
-          rule_id: 'ow-accounts-password-pam-pwquality-password-auth',
-          scap_rule_id: 'xccdf_org.ssgproject.content_rule_accounts_password_pam_pwquality_password_auth',
-          metadata: {
-            name: 'Configure Password Complexity',
-            description: 'Password complexity requirements should be enforced',
-            rationale: 'Complex passwords make brute force attacks more difficult',
-            source: 'MongoDB Compliance Database (Verified SCAP Rule)'
-          },
-          severity: 'medium',
-          category: 'authentication',
-          tags: ['password', 'pam', 'authentication', 'verified'],
-          frameworks: {
-            nist: { '800-53r5': ['IA-5'] },
-            cis: { 'rhel8_v2.0.0': ['5.3.1'] }
-          }
-        }
-      ];
-      
+      // Return empty state instead of mock data
       return {
-        success: true,
+        success: false,
         data: {
-          rules: actualMongoDBRules,
-          total_count: 3,
+          rules: [],
+          total_count: 0,
           offset: 0,
-          limit: 50,
+          limit: 25,
           has_next: false,
           has_prev: false,
           filters_applied: {}
         },
-        message: '✅ MongoDB Connected: 3 compliance rules in database (verified SCAP rules only)',
+        message: 'Failed to load compliance rules',
         timestamp: new Date().toISOString()
       };
     }

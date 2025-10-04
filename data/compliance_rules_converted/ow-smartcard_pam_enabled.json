@@ -1,0 +1,90 @@
+{
+  "_id": "ow-smartcard_pam_enabled",
+  "rule_id": "ow-smartcard_pam_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_smartcard_pam_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Smart Card Logins in PAM",
+    "description": "This requirement only applies to components where this is specific to the\nfunction of the device or has the concept of an organizational user (e.g.,\nVPN, proxy capability). This does not apply to authentication for the\npurpose of configuring the device itself (management).\n\n{{% if 'ubuntu' in product %}}\nAdd or update the following line in <tt>/etc/pam.d/common-auth</tt>,\nplacing it above any lines containing <tt>pam_unix.so</tt>:\n<pre>auth    [success=2 default=ignore] pam_pkcs11.so </pre>\n{{% else %}}\nCheck that the <tt>pam_pkcs11.so</tt> option is configured in the\n<tt>etc/pam.d/common-auth</tt> file with the following command:\n\n<pre># grep pam_pkcs11.so /etc/pam.d/common-auth\n\nauth sufficient pam_pkcs11.so</pre>\n{{% endif %}}\n\nFor general information about enabling smart card authentication, consult\nthe documentation at:\n{{% if 'ubuntu' in product %}}\n<ul>\n<li><b>{{{ weblink(link=\"https://pages.ubuntu.com/rs/066-EOV-335/images/SmartCardLogin_WhitePapaer_04.03.20.pdf\") }}}</b></li>\n</ul>\n{{% else %}}\n<ul>\n<li><b>{{{ weblink(link=\"https://www.suse.com/c/configuring-smart-card-authentication-suse-linux-enterprise/\") }}}</b></li>\n</ul>\n{{% endif %}}",
+    "rationale": "Smart card login provides two-factor authentication stronger than\nthat provided by a username and password combination. Smart cards leverage PKI\n(public key infrastructure) in order to provide and verify credentials.\n\nUsing an authentication device, such as a CAC or token that is separate\nfrom the information system, ensures that even if the information system is\ncompromised, that compromise will not affect credentials stored on the\nauthentication device.\n\nMultifactor solutions that require devices separate from information\nsystems gaining access include, for example, hardware tokens providing\ntime-based or challenge-response authenticators and smart cards\nor similar secure authentication devices issued by an organization or identity provider.",
+    "source": {
+      "upstream_id": "smartcard_pam_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83208-9",
+      "imported_at": "2025-10-03T02:25:58.770516+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "IA-2(1)",
+        "IA-2(1).1",
+        "IA-2(2)",
+        "IA-2(2).1",
+        "IA-2(3)",
+        "IA-2(3).1",
+        "IA-2(4)",
+        "IA-2(4).1",
+        "IA-5(2)",
+        "IA-5(2).1",
+        "IA-5(2)(c)",
+        "IA-2(11)",
+        "IA-2(12)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000068-GPOS-00036",
+        "SRG-OS-000105-GPOS-00052",
+        "SRG-OS-000106-GPOS-00053",
+        "SRG-OS-000107-GPOS-00054",
+        "SRG-OS-000108-GPOS-00055",
+        "SRG-OS-000375-GPOS-00160",
+        "SRG-OS-000375-GPOS-00161",
+        "SRG-OS-000375-GPOS-00162",
+        "SLES-12-030520",
+        "SLES-15-020030"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_smartcard_pam_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "This requirement only applies to components where this is specific to the\nfunction of the device or has the concept of an organizational user (e.g.,\nVPN, proxy capability). This does not apply to authentication for the\npurpose of configuring the device itself (management).\n\n{{% if 'ubuntu' in product %}}\nAdd or update the following line in <tt>/etc/pam.d/common-auth</tt>,\nplacing it above any lines containing <tt>pam_unix.so</tt>:\n<pre>auth    [success=2 default=ignore] pam_pkcs11.so </pre>\n{{% else %}}\nCheck that the <tt>pam_pkcs11.so</tt> option is configured in the\n<tt>etc/pam.d/common-auth</tt> file with the following command:\n\n<pre># grep pam_pkcs11.so /etc/pam.d/common-auth\n\nauth sufficient pam_pkcs11.so</pre>\n{{% endif %}}\n\nFor general information about enabling smart card authentication, consult\nthe documentation at:\n{{% if 'ubuntu' in product %}}\n<ul>\n<li><b>{{{ weblink(link=\"https://pages.ubuntu.com/rs/066-EOV-335/images/SmartCardLogin_WhitePapaer_04.03.20.pdf\") }}}</b></li>\n</ul>\n{{% else %}}\n<ul>\n<li><b>{{{ weblink(link=\"https://www.suse.com/c/configuring-smart-card-authentication-suse-linux-enterprise/\") }}}</b></li>\n</ul>\n{{% endif %}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-physical/screen_locking/smart_card_login/smartcard_pam_enabled/rule.yml",
+  "source_hash": "sha256:a59001de44aa0788",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.770642+00:00",
+  "updated_at": "2025-10-03T02:25:58.770645+00:00",
+  "identifiers": {
+    "cce": "CCE-83208-9"
+  }
+}

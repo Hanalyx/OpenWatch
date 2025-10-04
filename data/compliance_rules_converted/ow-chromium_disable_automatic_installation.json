@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_automatic_installation",
+  "rule_id": "ow-chromium_disable_automatic_installation",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_automatic_installation",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Automatic Search And Installation of Plugins",
+    "description": "Chromium will automatically detect, search, and install plugins as required. This\nshould be disabled by setting <tt>DisablePluginFinder</tt> to <tt>true</tt> in the\nChromium policy file.",
+    "rationale": "The automatic search and installation of missing or not installed plugins should be\ndisabled as this can cause significant risk if a unapproved or vulnerable plugin were\nto be installed without proper permissions or authorization.",
+    "source": {
+      "upstream_id": "chromium_disable_automatic_installation",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.410371+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0036"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_automatic_installation",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Chromium will automatically detect, search, and install plugins as required. This\nshould be disabled by setting <tt>DisablePluginFinder</tt> to <tt>true</tt> in the\nChromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_automatic_installation/rule.yml",
+  "source_hash": "sha256:d6b0de2234d6656e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.410464+00:00",
+  "updated_at": "2025-10-03T10:45:56.410466+00:00",
+  "identifiers": {}
+}

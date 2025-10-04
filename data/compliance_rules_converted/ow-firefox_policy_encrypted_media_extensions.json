@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_encrypted_media_extensions",
+  "rule_id": "ow-firefox_policy_encrypted_media_extensions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_encrypted_media_extensions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox encrypted media extensions must be disabled.",
+    "description": "Firefox's Encrypted Media Extensions support playback of media content that is subject to Digital Right Management.\nThese extensions may be disabled completely by setting\n<ul>\n<li><tt>Enabled</tt> under <tt>EncryptedMediaExtensions</tt> to <tt>false</tt></li>\n<li><tt>Locked</tt> under <tt>EncryptedMediaExtensions</tt> to <tt>true</tt></li>\n</ul>.",
+    "rationale": "Enable or disable Encrypted Media Extensions and optionally lock it.\nIf \"Enabled\" is set to \"false\", Firefox does not download encrypted media extensions (such as Widevine) unless the user consents to installing them.\nIf \"Locked\" is set to \"true\" and \"Enabled\" is set to \"false\", Firefox will not download encrypted media extensions (such as Widevine) or ask the user to install them.\nIt is detrimental for applications to provide, or install by default, functionality exceeding requirements or mission objectives. These unnecessary capabilities or services are often overlooked and therefore may remain unsecured. They increase the risk to the platform by providing additional attack vectors.\nApplications are capable of providing a wide variety of functions and services. Some of the functions and services, provided by default, may not be necessary to support essential organizational operations (e.g., key missions, functions).\nExamples of non-essential capabilities include but are not limited to advertising software or browser plug-ins that are not related to requirements or provide a wide array of functionality not required for every mission but that cannot be disabled.",
+    "source": {
+      "upstream_id": "firefox_policy_encrypted_media_extensions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.348259+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000037"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_encrypted_media_extensions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Firefox's Encrypted Media Extensions support playback of media content that is subject to Digital Right Management.\nThese extensions may be disabled completely by setting\n<ul>\n<li><tt>Enabled</tt> under <tt>EncryptedMediaExtensions</tt> to <tt>false</tt></li>\n<li><tt>Locked</tt> under <tt>EncryptedMediaExtensions</tt> to <tt>true</tt></li>\n</ul>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-encrypted_media_extensions/rule.yml",
+  "source_hash": "sha256:a1b4d00a7183e084",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.348386+00:00",
+  "updated_at": "2025-10-03T10:45:56.348389+00:00",
+  "identifiers": {}
+}

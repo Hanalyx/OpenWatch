@@ -1,0 +1,56 @@
+{
+  "_id": "ow-root_path_all_dirs",
+  "rule_id": "ow-root_path_all_dirs",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_all_dirs",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that All Entries in The Path of Root Are Directories",
+    "description": "For each element in root's path, run:\n<pre># ls -ld <i>DIR</i></pre>\nand ensure that the entry is a directory.",
+    "rationale": "Locations in root's path that are not directories could cause unexpected behavior,\nsuch as executing scrips from unintended locations. Ensuring that all locations in\nroot's path are directories helps maintain a secure environment for root.",
+    "source": {
+      "upstream_id": "root_path_all_dirs",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.207188+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_all_dirs",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "For each element in root's path, run:\n<pre># ls -ld <i>DIR</i></pre>\nand ensure that the entry is a directory.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/root_paths/root_path_all_dirs/rule.yml",
+  "source_hash": "sha256:2e383c6793e9cdce",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.207285+00:00",
+  "updated_at": "2025-10-03T10:45:56.207288+00:00",
+  "identifiers": {}
+}

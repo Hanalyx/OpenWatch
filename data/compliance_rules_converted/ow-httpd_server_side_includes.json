@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_server_side_includes",
+  "rule_id": "ow-httpd_server_side_includes",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_side_includes",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Server Side Includes",
+    "description": "Server Side Includes provide a method of dynamically generating web pages through the\ninsertion of server-side code. However, the technology is also deprecated and\nintroduces significant security concerns.\nIf this functionality is unnecessary, comment out the related module:\n<pre>#LoadModule include_module modules/mod_include.so</pre>\nIf there is a critical need for Server Side Includes, they should be enabled with the\noption <tt>IncludesNoExec</tt> to prevent arbitrary code execution. Additionally, user\nsupplied data should be encoded to prevent cross-site scripting vulnerabilities.",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_server_side_includes",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.859852+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_side_includes",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Server Side Includes provide a method of dynamically generating web pages through the\ninsertion of server-side code. However, the technology is also deprecated and\nintroduces significant security concerns.\nIf this functionality is unnecessary, comment out the related module:\n<pre>#LoadModule include_module modules/mod_include.so</pre>\nIf there is a critical need for Server Side Includes, they should be enabled with the\noption <tt>IncludesNoExec</tt> to prevent arbitrary code execution. Additionally, user\nsupplied data should be encoded to prevent cross-site scripting vulnerabilities.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_server_side_includes/rule.yml",
+  "source_hash": "sha256:1d2d6d05a5438c36",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.859998+00:00",
+  "updated_at": "2025-10-03T10:45:55.860002+00:00",
+  "identifiers": {}
+}

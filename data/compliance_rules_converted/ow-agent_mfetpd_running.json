@@ -1,0 +1,69 @@
+{
+  "_id": "ow-agent_mfetpd_running",
+  "rule_id": "ow-agent_mfetpd_running",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_agent_mfetpd_running",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure McAfee Endpoint Security for Linux (ENSL) is running",
+    "description": "Install McAfee Endpoint Security for Linux antivirus software\nwhich is provided for systems and uses signatures to search for the\npresence of viruses on the filesystem.",
+    "rationale": "Virus scanning software can be used to detect if a system has been compromised by\ncomputer viruses, as well as to limit their spread to other systems.",
+    "source": {
+      "upstream_id": "agent_mfetpd_running",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86261-5",
+      "imported_at": "2025-10-03T10:45:55.983855+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SI-2(2)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000191-GPOS-00080"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_agent_mfetpd_running",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Install McAfee Endpoint Security for Linux antivirus software\nwhich is provided for systems and uses signatures to search for the\npresence of viruses on the filesystem.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/endpoint_security_software/mcafee_security_software/mcafee_endpoint_security_software/agent_mfetpd_running/rule.yml",
+  "source_hash": "sha256:c172c2c214341ad8",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.983994+00:00",
+  "updated_at": "2025-10-03T10:45:55.983997+00:00",
+  "identifiers": {
+    "cce": "CCE-86261-5"
+  }
+}

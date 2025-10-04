@@ -1,0 +1,100 @@
+{
+  "_id": "ow-sudo_remove_no_authenticate",
+  "rule_id": "ow-sudo_remove_no_authenticate",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_remove_no_authenticate",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Users Re-Authenticate for Privilege Escalation - sudo !authenticate",
+    "description": "The sudo <tt>!authenticate</tt> option, when specified, allows a user to execute commands using\nsudo without having to authenticate. This should be disabled by making sure that the\n<tt>!authenticate</tt> option does not exist in <tt>/etc/sudoers</tt> configuration file or\nany sudo configuration snippets in <tt>/etc/sudoers.d/</tt>.",
+    "rationale": "Without re-authentication, users may access resources or perform tasks for which they\ndo not have authorization.\n<br /><br />\nWhen operating systems provide the capability to escalate a functional capability, it\nis critical that the user re-authenticate.",
+    "source": {
+      "upstream_id": "sudo_remove_no_authenticate",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82202-3",
+      "imported_at": "2025-10-03T02:25:57.856320+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16",
+        "5"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "IA-11",
+        "CM-6(a)",
+        "PR.AC-1",
+        "PR.AC-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000373-GPOS-00156",
+        "SRG-OS-000373-GPOS-00157",
+        "SRG-OS-000373-GPOS-00158",
+        "OL07-00-010350",
+        "OL08-00-010381",
+        "SLES-12-010110",
+        "SLES-15-010450"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_remove_no_authenticate",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The sudo <tt>!authenticate</tt> option, when specified, allows a user to execute commands using\nsudo without having to authenticate. This should be disabled by making sure that the\n<tt>!authenticate</tt> option does not exist in <tt>/etc/sudoers</tt> configuration file or\nany sudo configuration snippets in <tt>/etc/sudoers.d/</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudo_remove_no_authenticate/rule.yml",
+  "source_hash": "sha256:85abafd7a65db2a3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.856440+00:00",
+  "updated_at": "2025-10-03T02:25:57.856443+00:00",
+  "identifiers": {
+    "cce": "CCE-82202-3"
+  }
+}

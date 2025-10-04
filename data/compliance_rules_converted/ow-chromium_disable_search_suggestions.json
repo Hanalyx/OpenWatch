@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_search_suggestions",
+  "rule_id": "ow-chromium_disable_search_suggestions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_search_suggestions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Search Suggestion",
+    "description": "Chromium tries to guess what users are searching for when users enter\nsearch data in the search Omnibox. This should be disabled by \nsetting <tt>SearchSuggestEnabled</tt> to <tt>false</tt> in the Chromium \npolicy file.",
+    "rationale": "Search suggestion should be disabled as it could lead to searches being conducted\nthat were never intended to be made.",
+    "source": {
+      "upstream_id": "chromium_disable_search_suggestions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.390144+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0027"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_search_suggestions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Chromium tries to guess what users are searching for when users enter\nsearch data in the search Omnibox. This should be disabled by \nsetting <tt>SearchSuggestEnabled</tt> to <tt>false</tt> in the Chromium \npolicy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_search_suggestions/rule.yml",
+  "source_hash": "sha256:626cbbb011391e79",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.390231+00:00",
+  "updated_at": "2025-10-03T10:45:56.390234+00:00",
+  "identifiers": {}
+}

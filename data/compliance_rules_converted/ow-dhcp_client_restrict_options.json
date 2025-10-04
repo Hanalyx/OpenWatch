@@ -1,0 +1,56 @@
+{
+  "_id": "ow-dhcp_client_restrict_options",
+  "rule_id": "ow-dhcp_client_restrict_options",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dhcp_client_restrict_options",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Minimize the DHCP-Configured Options",
+    "description": "Create the file <tt>/etc/dhcp/dhclient.conf</tt>, and add an\nappropriate setting for each of the ten configuration settings which can be\nobtained via DHCP. For each setting, do one of the following:\n<br />\nIf the setting should <i>not</i> be configured remotely by the DHCP server,\nselect an appropriate static value, and add the line:\n<pre>supersede <tt>setting value</tt>;</pre>\nIf the setting should be configured remotely by the DHCP server, add the lines:\n<pre>request <tt>setting</tt>;\nrequire <tt>setting</tt>;</pre>\nFor example, suppose the DHCP server should provide only the IP address itself\nand the subnet mask. Then the entire file should look like:\n<pre>supersede domain-name \"example.com\";\nsupersede domain-name-servers 192.168.1.2;\nsupersede nis-domain \"\";\nsupersede nis-servers \"\";\nsupersede ntp-servers \"ntp.example.com \";\nsupersede routers 192.168.1.1;\nsupersede time-offset -18000;\nrequest subnet-mask;\nrequire subnet-mask;</pre>",
+    "rationale": "By default, the DHCP client program, dhclient, requests and applies\nten configuration options (in addition to the IP address) from the DHCP server.\nsubnet-mask, broadcast-address, time-offset, routers, domain-name,\ndomain-name-servers, host-name, nis-domain, nis-servers, and ntp-servers.  Many\nof the options requested and applied by dhclient may be the same for every\nsystem on a network. It is recommended that almost all configuration options be\nassigned statically, and only options which must vary on a host-by-host basis\nbe assigned via DHCP. This limits the damage which can be done by a rogue DHCP\nserver.  If appropriate for your site, it is also possible to supersede the\nhost-name directive in <tt>/etc/dhcp/dhclient.conf</tt>, establishing a static\nhostname for the system. However, dhclient does not use the host name option\nprovided by the DHCP server (instead using the value provided by a reverse DNS\nlookup).",
+    "source": {
+      "upstream_id": "dhcp_client_restrict_options",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.895035+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dhcp_client_restrict_options",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Create the file <tt>/etc/dhcp/dhclient.conf</tt>, and add an\nappropriate setting for each of the ten configuration settings which can be\nobtained via DHCP. For each setting, do one of the following:\n<br />\nIf the setting should <i>not</i> be configured remotely by the DHCP server,\nselect an appropriate static value, and add the line:\n<pre>supersede <tt>setting value</tt>;</pre>\nIf the setting should be configured remotely by the DHCP server, add the lines:\n<pre>request <tt>setting</tt>;\nrequire <tt>setting</tt>;</pre>\nFor example, suppose the DHCP server should provide only the IP address itself\nand the subnet mask. Then the entire file should look like:\n<pre>supersede domain-name \"example.com\";\nsupersede domain-name-servers 192.168.1.2;\nsupersede nis-domain \"\";\nsupersede nis-servers \"\";\nsupersede ntp-servers \"ntp.example.com \";\nsupersede routers 192.168.1.1;\nsupersede time-offset -18000;\nrequest subnet-mask;\nrequire subnet-mask;</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/dhcp/dhcp_client_configuration/dhcp_client_restrict_options/rule.yml",
+  "source_hash": "sha256:9814963b7d837d05",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.895124+00:00",
+  "updated_at": "2025-10-03T10:45:55.895127+00:00",
+  "identifiers": {}
+}

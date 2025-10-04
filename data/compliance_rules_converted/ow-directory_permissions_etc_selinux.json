@@ -1,0 +1,69 @@
+{
+  "_id": "ow-directory_permissions_etc_selinux",
+  "rule_id": "ow-directory_permissions_etc_selinux",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_permissions_etc_selinux",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Permissions On /etc/selinux Directory",
+    "description": "{{{ describe_file_permissions(file=\"/etc/selinux\", perms=\"0755\") }}}",
+    "rationale": "Setting correct permissions on the /etc/selinux directory is important\nbecause this directory hosts SELinux configuration. Protection of this\ndirectory is critical for system security. Restricting the permissions\nensures exclusive control of the SELinux configuration.",
+    "source": {
+      "upstream_id": "directory_permissions_etc_selinux",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86278-9",
+      "imported_at": "2025-10-03T02:25:58.825527+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_permissions check",
+      "enable_command": "# TODO: Implement file_permissions remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_permissions_etc_selinux",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_permissions(file=\"/etc/selinux\", perms=\"0755\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/selinux/directory_permissions_etc_selinux/rule.yml",
+  "source_hash": "sha256:984cbc3dc942913b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.825647+00:00",
+  "updated_at": "2025-10-03T02:25:58.825650+00:00",
+  "identifiers": {
+    "cce": "CCE-86278-9"
+  }
+}

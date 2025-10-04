@@ -1,0 +1,82 @@
+{
+  "_id": "ow-auditd_local_events",
+  "rule_id": "ow-auditd_local_events",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_local_events",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Include Local Events in Audit Logs",
+    "description": "To configure Audit daemon to include local events in Audit logs, set\n<tt>local_events</tt> to <tt>yes</tt> in <tt>/etc/audit/auditd.conf</tt>.\nThis is the default setting.",
+    "rationale": "If option <tt>local_events</tt> isn't set to <tt>yes</tt> only events from\nnetwork will be aggregated.",
+    "source": {
+      "upstream_id": "auditd_local_events",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82509-1",
+      "imported_at": "2025-10-03T02:25:56.412018+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000062-GPOS-00031",
+        "SRG-OS-000480-GPOS-00227",
+        "OL08-00-030061"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement auditd_lineinfile check",
+      "enable_command": "# TODO: Implement auditd_lineinfile remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_local_events",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To configure Audit daemon to include local events in Audit logs, set\n<tt>local_events</tt> to <tt>yes</tt> in <tt>/etc/audit/auditd.conf</tt>.\nThis is the default setting.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/configure_auditd_data_retention/auditd_local_events/rule.yml",
+  "source_hash": "sha256:42a7cabf0316dbe9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.412148+00:00",
+  "updated_at": "2025-10-03T02:25:56.412153+00:00",
+  "identifiers": {
+    "cce": "CCE-82509-1"
+  }
+}

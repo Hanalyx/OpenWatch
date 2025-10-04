@@ -1,0 +1,84 @@
+{
+  "_id": "ow-enable_authselect",
+  "rule_id": "ow-enable_authselect",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_enable_authselect",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable authselect",
+    "description": "Configure user authentication setup to use the <tt>authselect</tt> tool.\nIf authselect profile is selected, the rule will enable the {{{ xccdf_value(\"var_authselect_profile\") }}} profile.",
+    "rationale": "Authselect is a successor to authconfig.\nIt is a tool to select system authentication and identity sources from a list of supported\nprofiles instead of letting the administrator manually build the PAM stack.\n\nThat way, it avoids potential breakage of configuration, as it ships several tested profiles\nthat are well tested and supported to solve different use-cases.",
+    "source": {
+      "upstream_id": "enable_authselect",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-88248-0",
+      "imported_at": "2025-10-03T02:25:58.423972+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(B)",
+        "164.308(a)(7)(i)",
+        "164.308(a)(7)(ii)(A)",
+        "164.310(a)(1)",
+        "164.310(a)(2)(i)",
+        "164.310(a)(2)(ii)",
+        "164.310(a)(2)(iii)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.310(d)(1)",
+        "164.310(d)(2)(iii)"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_enable_authselect",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure user authentication setup to use the <tt>authselect</tt> tool.\nIf authselect profile is selected, the rule will enable the {{{ xccdf_value(\"var_authselect_profile\") }}} profile.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/enable_authselect/rule.yml",
+  "source_hash": "sha256:76cae57be98850db",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.424076+00:00",
+  "updated_at": "2025-10-03T02:25:58.424079+00:00",
+  "identifiers": {
+    "cce": "CCE-88248-0"
+  }
+}

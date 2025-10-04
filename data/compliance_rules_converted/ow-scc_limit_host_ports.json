@@ -1,0 +1,70 @@
+{
+  "_id": "ow-scc_limit_host_ports",
+  "rule_id": "ow-scc_limit_host_ports",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_host_ports",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit Containers Ability to bind to privileged ports",
+    "description": "Containers should be limited to bind to non-privileged ports directly\non the hosts. To prevent containers from binding to privileged ports\non the host the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostPorts</tt> to <tt>false</tt>.",
+    "rationale": "Privileged ports are those ports below 1024 and that require system\nprivileges for their use. If containers are able to use these ports,\nthe container must be run as a privileged user. The container platform\nmust stop containers that try to map to these ports directly. Allowing\nnon-privileged ports to be mapped to the container-privileged port\nis the allowable method when a certain port is needed. An example is\nmapping port 8080 externally to port 80 in the container.",
+    "source": {
+      "upstream_id": "scc_limit_host_ports",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86205-2",
+      "imported_at": "2025-10-03T10:45:56.467315+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000142-CTR-000330"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_host_ports",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Containers should be limited to bind to non-privileged ports directly\non the hosts. To prevent containers from binding to privileged ports\non the host the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostPorts</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/scc/scc_limit_host_ports/rule.yml",
+  "source_hash": "sha256:59674b45add53d39",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.467408+00:00",
+  "updated_at": "2025-10-03T10:45:56.467411+00:00",
+  "identifiers": {
+    "cce": "CCE-86205-2"
+  }
+}

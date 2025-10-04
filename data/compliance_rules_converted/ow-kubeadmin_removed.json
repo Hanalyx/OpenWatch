@@ -1,0 +1,98 @@
+{
+  "_id": "ow-kubeadmin_removed",
+  "rule_id": "ow-kubeadmin_removed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kubeadmin_removed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that the kubeadmin secret has been removed",
+    "description": "The kubeadmin user is meant to be a temporary user used for\nbootstrapping purposes. It is preferable to assign system\nadministrators whose users are backed by an Identity Provider.\n\n<br />\nMake sure to remove the user as\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/authentication/remove-kubeadmin.html\",\n            text=\"described in the documentation\") }}}",
+    "rationale": "The kubeadmin user has an auto-generated password\nand a self-signed certificate, and has effectively <pre>cluster-admin</pre>\npermissions; therefore, it's considered a security liability.",
+    "source": {
+      "upstream_id": "kubeadmin_removed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90387-2",
+      "imported_at": "2025-10-03T02:25:59.107113+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "3.1.1",
+        "5.1.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-2(2)",
+        "AC-2(7)",
+        "AC-2(9)",
+        "AC-2(10)",
+        "AC-12(1)",
+        "IA-2(5)",
+        "MA-4",
+        "SC-12(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000023-CTR-000055"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement compliance_operator_not_found check",
+      "enable_command": "# TODO: Implement compliance_operator_not_found remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kubeadmin_removed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The kubeadmin user is meant to be a temporary user used for\nbootstrapping purposes. It is preferable to assign system\nadministrators whose users are backed by an Identity Provider.\n\n<br />\nMake sure to remove the user as\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/authentication/remove-kubeadmin.html\",\n            text=\"described in the documentation\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/kubeadmin_removed/rule.yml",
+  "source_hash": "sha256:708621f326e544f2",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.107254+00:00",
+  "updated_at": "2025-10-03T02:25:59.107257+00:00",
+  "identifiers": {
+    "cce": "CCE-90387-2"
+  }
+}

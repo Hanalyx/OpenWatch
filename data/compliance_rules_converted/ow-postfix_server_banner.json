@@ -1,0 +1,88 @@
+{
+  "_id": "ow-postfix_server_banner",
+  "rule_id": "ow-postfix_server_banner",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_postfix_server_banner",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure SMTP Greeting Banner",
+    "description": "Edit <tt>/etc/postfix/main.cf</tt>, and add or correct the\nfollowing line, substituting some other wording for the banner information if\nyou prefer:\n<pre>smtpd_banner = $myhostname ESMTP</pre>",
+    "rationale": "The default greeting banner discloses that the listening mail\nprocess is Postfix.  When remote mail senders connect to the MTA on port 25,\nthey are greeted by an initial banner as part of the SMTP dialogue. This banner\nis necessary, but it frequently gives away too much information, including the\nMTA software which is in use, and sometimes also its version number. Remote\nmail senders do not need this information in order to send mail, so the banner\nshould be changed to reveal only the hostname (which is already known and may\nbe useful) and the word ESMTP, to indicate that the modern SMTP protocol\nvariant is supported.",
+    "source": {
+      "upstream_id": "postfix_server_banner",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82379-9",
+      "imported_at": "2025-10-03T10:45:55.828767+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "14",
+        "15",
+        "16",
+        "3",
+        "5",
+        "6",
+        "7"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-8(a)",
+        "AC-8(c)",
+        "DE.CM-3",
+        "PR.PT-1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_postfix_server_banner",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Edit <tt>/etc/postfix/main.cf</tt>, and add or correct the\nfollowing line, substituting some other wording for the banner information if\nyou prefer:\n<pre>smtpd_banner = $myhostname ESMTP</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/mail/postfix_harden_os/postfix_server_cfg/postfix_server_banner/rule.yml",
+  "source_hash": "sha256:435daeba54262f26",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.828928+00:00",
+  "updated_at": "2025-10-03T10:45:55.828931+00:00",
+  "identifiers": {
+    "cce": "CCE-82379-9"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "_id": "ow-accounts_umask_interactive_users",
+  "rule_id": "ow-accounts_umask_interactive_users",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_umask_interactive_users",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure the Default Umask is Set Correctly For Interactive Users",
+    "description": "Remove the <tt>UMASK</tt> environment variable from all interactive users initialization files.",
+    "rationale": "The umask controls the default access mode assigned to newly created files. A\numask of 077 limits new files to mode 700 or less permissive. Although umask can\nbe represented as a four-digit number, the first digit representing special\naccess modes is typically ignored or required to be 0. This requirement\napplies to the globally configured system defaults and the local interactive\nuser defaults for each account on the system.",
+    "source": {
+      "upstream_id": "accounts_umask_interactive_users",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84044-7",
+      "imported_at": "2025-10-03T02:25:58.473670+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000480-GPOS-00228",
+        "OL07-00-021040",
+        "OL08-00-020352"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_umask_interactive_users",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Remove the <tt>UMASK</tt> environment variable from all interactive users initialization files.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/user_umask/accounts_umask_interactive_users/rule.yml",
+  "source_hash": "sha256:ab932bec47661130",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.473770+00:00",
+  "updated_at": "2025-10-03T02:25:58.473773+00:00",
+  "identifiers": {
+    "cce": "CCE-84044-7"
+  }
+}

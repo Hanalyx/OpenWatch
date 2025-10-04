@@ -1,0 +1,56 @@
+{
+  "_id": "ow-docker_selinux_enabled",
+  "rule_id": "ow-docker_selinux_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_docker_selinux_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure SELinux support is enabled in Docker",
+    "description": "To enable the SELinux for the Docker service, the Docker service must be\nconfigured to run the Docker daemon with <tt>--selinux-enabled</tt> option.\nIn <tt>/etc/sysconfig/docker</tt> configuration file, add or correct\nthe following line to enable SELinux support in the Docker daemon:\n<pre>OPTIONS='--selinux-enabled'</pre>",
+    "rationale": "If SELinux is not explicitely enabled in the Docker daemon configuration,\nDocker does not use SELinux which means Docker runs unconfined,\nand SELinux will not provide security separation for Docker container\nprocesses. However enabling SELinux for the Docker service prevents\nan attacker or rogue container from attacking other container processes\nand content as well as prevents taking over the host operating system.",
+    "source": {
+      "upstream_id": "docker_selinux_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.830170+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_docker_selinux_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To enable the SELinux for the Docker service, the Docker service must be\nconfigured to run the Docker daemon with <tt>--selinux-enabled</tt> option.\nIn <tt>/etc/sysconfig/docker</tt> configuration file, add or correct\nthe following line to enable SELinux support in the Docker daemon:\n<pre>OPTIONS='--selinux-enabled'</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/docker/docker_selinux_enabled/rule.yml",
+  "source_hash": "sha256:969001758520e358",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.830304+00:00",
+  "updated_at": "2025-10-03T10:45:55.830307+00:00",
+  "identifiers": {}
+}

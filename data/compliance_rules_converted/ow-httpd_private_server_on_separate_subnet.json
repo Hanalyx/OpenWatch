@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_private_server_on_separate_subnet",
+  "rule_id": "ow-httpd_private_server_on_separate_subnet",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_private_server_on_separate_subnet",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "A private web server must be located on a separate controlled access subnet",
+    "description": "Private web servers, which host sites that serve controlled access data,\nmust be protected from outside threats in addition to insider threats.\n\nIsolate the private web server from the public DMZ and separate it from the\ninternal general population LAN.",
+    "rationale": "Insider threat may be accidental or intentional but, in either case, can\ncause a disruption in service of the web server. To protect the private\nweb server from these threats, it must be located on a separate controlled\naccess subnet and must not be part of the public DMZ that houses the public\nweb servers. it also cannot be located inside the enclave as part of the\nlocal general population LAN.",
+    "source": {
+      "upstream_id": "httpd_private_server_on_separate_subnet",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.832165+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_private_server_on_separate_subnet",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Private web servers, which host sites that serve controlled access data,\nmust be protected from outside threats in addition to insider threats.\n\nIsolate the private web server from the public DMZ and separate it from the\ninternal general population LAN.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_private_server_on_separate_subnet/rule.yml",
+  "source_hash": "sha256:2892e1ebdb7b7da2",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.832275+00:00",
+  "updated_at": "2025-10-03T10:45:55.832278+00:00",
+  "identifiers": {}
+}

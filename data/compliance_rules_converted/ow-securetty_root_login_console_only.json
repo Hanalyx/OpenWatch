@@ -1,0 +1,128 @@
+{
+  "_id": "ow-securetty_root_login_console_only",
+  "rule_id": "ow-securetty_root_login_console_only",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_securetty_root_login_console_only",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict Virtual Console Root Logins",
+    "description": "To restrict root logins through the (deprecated) virtual console devices,\nensure lines of this form do not appear in <tt>/etc/securetty</tt>:\n<pre>vc/1\nvc/2\nvc/3\nvc/4</pre>",
+    "rationale": "Preventing direct root login to virtual console devices\nhelps ensure accountability for actions taken on the system\nusing the root account.",
+    "source": {
+      "upstream_id": "securetty_root_login_console_only",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80864-2",
+      "imported_at": "2025-10-03T10:45:56.225497+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "18",
+        "3",
+        "5",
+        "5.5",
+        "5.5"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(B)",
+        "164.308(a)(7)(i)",
+        "164.308(a)(7)(ii)(A)",
+        "164.310(a)(1)",
+        "164.310(a)(2)(i)",
+        "164.310(a)(2)(ii)",
+        "164.310(a)(2)(iii)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.310(d)(1)",
+        "164.310(d)(2)(iii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.10.1.1",
+        "A.11.1.4",
+        "A.11.1.5",
+        "A.11.2.1",
+        "A.13.1.1",
+        "A.13.1.3",
+        "A.13.2.1",
+        "A.13.2.3",
+        "A.13.2.4",
+        "A.14.1.2",
+        "A.14.1.3",
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.7.1.2",
+        "A.7.3.1",
+        "A.8.2.2",
+        "A.8.2.3",
+        "A.9.1.1",
+        "A.9.1.2",
+        "A.9.2.3",
+        "A.9.4.1",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-6",
+        "CM-6(a)",
+        "PR.AC-4",
+        "PR.DS-5"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000324-GPOS-00125"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_securetty_root_login_console_only",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To restrict root logins through the (deprecated) virtual console devices,\nensure lines of this form do not appear in <tt>/etc/securetty</tt>:\n<pre>vc/1\nvc/2\nvc/3\nvc/4</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/securetty_root_login_console_only/rule.yml",
+  "source_hash": "sha256:a2b0bf28b2b214e0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.225619+00:00",
+  "updated_at": "2025-10-03T10:45:56.225621+00:00",
+  "identifiers": {
+    "cce": "CCE-80864-2"
+  }
+}

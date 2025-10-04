@@ -1,0 +1,58 @@
+{
+  "_id": "ow-sudoers_no_command_negation",
+  "rule_id": "ow-sudoers_no_command_negation",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_no_command_negation",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Don't define allowed commands in sudoers by means of exclusion",
+    "description": "Policies applied by sudo through the sudoers file should not involve negation.\n\nEach user specification in the <code>sudoers</code> file contains a comma-delimited list of command specifications.\nThe definition can make use glob patterns, as well as of negations.\nIndirect definition of those commands by means of exclusion of a set of commands is trivial to bypass, so it is not allowed to use such constructs.",
+    "rationale": "Specifying access right using negation is inefficient and can be easily circumvented.\nFor example, it is expected that a specification like <pre>\n# To avoid absolutely , this rule can be easily circumvented!\nuser ALL = ALL ,!/ bin/sh\n</pre> prevents the execution of the shell\nbut that’s not the case: just copy the binary <code>/bin/sh</code> to a different name to make it executable\nagain through the rule keyword <code>ALL</code>.",
+    "source": {
+      "upstream_id": "sudoers_no_command_negation",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83518-1",
+      "imported_at": "2025-10-03T10:45:56.007294+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_no_command_negation",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Policies applied by sudo through the sudoers file should not involve negation.\n\nEach user specification in the <code>sudoers</code> file contains a comma-delimited list of command specifications.\nThe definition can make use glob patterns, as well as of negations.\nIndirect definition of those commands by means of exclusion of a set of commands is trivial to bypass, so it is not allowed to use such constructs.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudoers_no_command_negation/rule.yml",
+  "source_hash": "sha256:27fe2f8034c618ee",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.007394+00:00",
+  "updated_at": "2025-10-03T10:45:56.007396+00:00",
+  "identifiers": {
+    "cce": "CCE-83518-1"
+  }
+}

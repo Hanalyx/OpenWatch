@@ -1,0 +1,73 @@
+{
+  "_id": "ow-auditd_audispd_configure_sufficiently_large_partition",
+  "rule_id": "ow-auditd_audispd_configure_sufficiently_large_partition",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_audispd_configure_sufficiently_large_partition",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure a Sufficiently Large Partition for Audit Logs",
+    "description": "The {{{ full_name }}} operating system must allocate audit record storage\ncapacity to store at least one weeks worth of audit records when audit\nrecords are not immediately sent to a central audit record storage\nfacility.\n\nThe partition size needed to capture a week's worth of audit records is\nbased on the activity level of the system and the total storage capacity\navailable.\n{{% if product not in ['ubuntu2204', 'ubuntu2404'] %}}\nIn normal circumstances, 10.0 GB of storage space for audit\nrecords will be sufficient.\n{{% endif %}}\n\nDetermine which partition the audit records are being written to with the\nfollowing command:\n\n<pre>$ sudo grep log_file /etc/audit/auditd.conf\nlog_file = /var/log/audit/audit.log</pre>\n\nCheck the size of the partition that audit records are written to with the\nfollowing command:\n\n<pre>$ sudo df -h /var/log/audit/\n/dev/sda2 24G 10.4G 13.6G 43% /var/log/audit</pre>",
+    "rationale": "Information stored in one location is vulnerable to accidental or incidental\ndeletion or alteration. Off-loading is a common process in information\nsystems with limited audit storage capacity.",
+    "source": {
+      "upstream_id": "auditd_audispd_configure_sufficiently_large_partition",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84005-8",
+      "imported_at": "2025-10-03T02:25:56.400045+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AU-4"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000341-GPOS-00132",
+        "SRG-OS-000342-GPOS-00133",
+        "OL08-00-030660",
+        "SLES-12-020020",
+        "SLES-15-030660"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_audispd_configure_sufficiently_large_partition",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The {{{ full_name }}} operating system must allocate audit record storage\ncapacity to store at least one weeks worth of audit records when audit\nrecords are not immediately sent to a central audit record storage\nfacility.\n\nThe partition size needed to capture a week's worth of audit records is\nbased on the activity level of the system and the total storage capacity\navailable.\n{{% if product not in ['ubuntu2204', 'ubuntu2404'] %}}\nIn normal circumstances, 10.0 GB of storage space for audit\nrecords will be sufficient.\n{{% endif %}}\n\nDetermine which partition the audit records are being written to with the\nfollowing command:\n\n<pre>$ sudo grep log_file /etc/audit/auditd.conf\nlog_file = /var/log/audit/audit.log</pre>\n\nCheck the size of the partition that audit records are written to with the\nfollowing command:\n\n<pre>$ sudo df -h /var/log/audit/\n/dev/sda2 24G 10.4G 13.6G 43% /var/log/audit</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/configure_auditd_data_retention/auditd_audispd_configure_sufficiently_large_partition/rule.yml",
+  "source_hash": "sha256:52c11841ca81b24a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.400163+00:00",
+  "updated_at": "2025-10-03T02:25:56.400166+00:00",
+  "identifiers": {
+    "cce": "CCE-84005-8"
+  }
+}

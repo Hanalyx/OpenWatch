@@ -1,0 +1,91 @@
+{
+  "_id": "ow-package_openssh_clients_installed",
+  "rule_id": "ow-package_openssh_clients_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_openssh_clients_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install OpenSSH client software",
+    "description": "{{{ describe_package_install(package=\"openssh-clients\") }}}",
+    "rationale": "This package includes utilities to make encrypted connections and transfer\nfiles securely to SSH servers.",
+    "source": {
+      "upstream_id": "package_openssh_clients_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82722-0",
+      "imported_at": "2025-10-03T02:25:57.115540+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q openssh-clients",
+      "enable_command": "yum install -y openssh-clients",
+      "disable_command": "yum remove -y openssh-clients",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep openssh-clients",
+      "enable_command": "apt-get install -y openssh-clients",
+      "disable_command": "apt-get remove -y openssh-clients",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_openssh_clients_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"openssh-clients\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/package_openssh-clients_installed/rule.yml",
+  "source_hash": "sha256:b8691e83cacf92dd",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.115634+00:00",
+  "updated_at": "2025-10-03T02:25:57.115636+00:00",
+  "identifiers": {
+    "cce": "CCE-82722-0"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "_id": "ow-kernel_module_overlayfs_disabled",
+  "rule_id": "ow-kernel_module_overlayfs_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_module_overlayfs_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure overlayfs kernel module is not available",
+    "description": "{{{ describe_module_disable(module=\"overlayfs\") }}}\noverlayfs is a Linux filesystem that layers multiple filesystems to create a single\nunified view which allows a user to \"merge\" several mount points into a unified\nfilesystem.",
+    "rationale": "The overlayfs has known CVE's. Disabling the overlayfs reduces the local attack \nsurface by removing support for unnecessary filesystem types and mitigates potential\nrisks associated with unauthorized execution of setuid files, enhancing the overall\nsystem security.",
+    "source": {
+      "upstream_id": "kernel_module_overlayfs_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.490253+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement kernel_module_disabled check",
+      "enable_command": "# TODO: Implement kernel_module_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_module_overlayfs_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_module_disable(module=\"overlayfs\") }}}\noverlayfs is a Linux filesystem that layers multiple filesystems to create a single\nunified view which allows a user to \"merge\" several mount points into a unified\nfilesystem.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/mounting/kernel_module_overlayfs_disabled/rule.yml",
+  "source_hash": "sha256:a66f0d9118f984a9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.490388+00:00",
+  "updated_at": "2025-10-03T02:25:57.490391+00:00",
+  "identifiers": {}
+}

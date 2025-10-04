@@ -1,0 +1,80 @@
+{
+  "_id": "ow-scc_limit_ipc_namespace",
+  "rule_id": "ow-scc_limit_ipc_namespace",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_ipc_namespace",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit Access to the Host IPC Namespace",
+    "description": "Containers should not be allowed access to the host's Interprocess Communication (IPC)\nnamespace. To prevent containers from getting access to a host's\nIPC namespace, the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostIPC</tt> to <tt>false</tt>.",
+    "rationale": "A container running in the host's IPC namespace can use IPC\nto interact with processes outside the container potentially\nallowing an attacker to exploit a host process thereby enabling an\nattacker to exploit other services.",
+    "source": {
+      "upstream_id": "scc_limit_ipc_namespace",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84042-1",
+      "imported_at": "2025-10-03T10:45:56.464725+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_ipc_namespace",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Containers should not be allowed access to the host's Interprocess Communication (IPC)\nnamespace. To prevent containers from getting access to a host's\nIPC namespace, the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostIPC</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/scc/scc_limit_ipc_namespace/rule.yml",
+  "source_hash": "sha256:17a48eb4c410006b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.464840+00:00",
+  "updated_at": "2025-10-03T10:45:56.464842+00:00",
+  "identifiers": {
+    "cce": "CCE-84042-1"
+  }
+}

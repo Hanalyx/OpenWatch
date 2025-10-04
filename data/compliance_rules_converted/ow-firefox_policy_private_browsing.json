@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_private_browsing",
+  "rule_id": "ow-firefox_policy_private_browsing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_private_browsing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox private browsing must be disabled.",
+    "description": "Private browsing may be disabled in an administrative policy by setting\nthe <tt>DisablePrivateBrowsing</tt> key under <tt>policies</tt> to <tt>true</tt>.",
+    "rationale": "Private browsing allows the user to browse the internet without recording their browsing history/activity. From a forensics perspective, this is unacceptable. Best practice requires that browser history is retained.",
+    "source": {
+      "upstream_id": "firefox_policy_private_browsing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.339932+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000019"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_private_browsing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Private browsing may be disabled in an administrative policy by setting\nthe <tt>DisablePrivateBrowsing</tt> key under <tt>policies</tt> to <tt>true</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-private_browsing/rule.yml",
+  "source_hash": "sha256:c9785be3ffa8e4ce",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.340049+00:00",
+  "updated_at": "2025-10-03T10:45:56.340052+00:00",
+  "identifiers": {}
+}

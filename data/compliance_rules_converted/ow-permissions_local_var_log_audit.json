@@ -1,0 +1,73 @@
+{
+  "_id": "ow-permissions_local_var_log_audit",
+  "rule_id": "ow-permissions_local_var_log_audit",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_permissions_local_var_log_audit",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify that Local Logs of the audit Daemon are not World-Readable",
+    "description": "Files containing sensitive informations should be protected by restrictive\npermissions. Most of the time, there is no need that these files need to be\nread by any non-root user.\n\nCheck that \"permissions.local\" file contains the correct permissions rules with the following command:\n\n<pre># grep -i audit /etc/permissions.local\n\n/var/log/audit/ root:root 600\n/var/log/audit/audit.log root:root 600\n/etc/audit/audit.rules root:root 640\n/etc/audit/rules.d/audit.rules root:root 640</pre>\n\n{{% if product in slmicro %}}\nCheck that all of the audit information files and folders have the correct permissions with the following command:\n<pre>$ sudo chkstat /etc/permissions.local</pre>\n\nIf the command returns any output, this is a finding.\n{{% endif %}}",
+    "rationale": "Without the capability to restrict which roles and individuals can select\nwhich events are audited, unauthorized personnel may be able to prevent the\nauditing of critical events. Misconfigured audits may degrade the system's\nperformance by overwhelming the audit log. Misconfigured audits may also\nmake it more difficult to establish, correlate, and investigate the events\nrelating to an incident or identify those responsible for one.",
+    "source": {
+      "upstream_id": "permissions_local_var_log_audit",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83117-2",
+      "imported_at": "2025-10-03T02:25:57.508997+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AU-9"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000057-GPOS-00027",
+        "SRG-OS-000058-GPOS-00028",
+        "SRG-OS-000059-GPOS-00029",
+        "SLES-12-020120",
+        "SLES-15-030600"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_permissions_local_var_log_audit",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Files containing sensitive informations should be protected by restrictive\npermissions. Most of the time, there is no need that these files need to be\nread by any non-root user.\n\nCheck that \"permissions.local\" file contains the correct permissions rules with the following command:\n\n<pre># grep -i audit /etc/permissions.local\n\n/var/log/audit/ root:root 600\n/var/log/audit/audit.log root:root 600\n/etc/audit/audit.rules root:root 640\n/etc/audit/rules.d/audit.rules root:root 640</pre>\n\n{{% if product in slmicro %}}\nCheck that all of the audit information files and folders have the correct permissions with the following command:\n<pre>$ sudo chkstat /etc/permissions.local</pre>\n\nIf the command returns any output, this is a finding.\n{{% endif %}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/permissions_local/permissions_local_var_log_audit/rule.yml",
+  "source_hash": "sha256:a527bdf8dd547cf9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.509154+00:00",
+  "updated_at": "2025-10-03T02:25:57.509157+00:00",
+  "identifiers": {
+    "cce": "CCE-83117-2"
+  }
+}

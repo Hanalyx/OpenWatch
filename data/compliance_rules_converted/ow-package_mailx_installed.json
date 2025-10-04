@@ -1,0 +1,99 @@
+{
+  "_id": "ow-package_mailx_installed",
+  "rule_id": "ow-package_mailx_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_mailx_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "The mailx Package Is Installed",
+    "description": "A mail server is required for sending emails.\n{{{ describe_package_install(package=\"mailx\") }}}",
+    "rationale": "Emails can be used to notify designated personnel about important\nsystem events such as failures or warnings.",
+    "source": {
+      "upstream_id": "package_mailx_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87036-0",
+      "imported_at": "2025-10-03T02:25:57.271566+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-3(5)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000363-GPOS-00150",
+        "OL07-00-020028",
+        "OL08-00-010358",
+        "SLES-12-010498",
+        "SLES-15-010418"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q mailx",
+      "enable_command": "yum install -y mailx",
+      "disable_command": "yum remove -y mailx",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep mailx",
+      "enable_command": "apt-get install -y mailx",
+      "disable_command": "apt-get remove -y mailx",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_mailx_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "A mail server is required for sending emails.\n{{{ describe_package_install(package=\"mailx\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/mail/package_mailx_installed/rule.yml",
+  "source_hash": "sha256:8a67c1abbd935f03",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.271669+00:00",
+  "updated_at": "2025-10-03T02:25:57.271672+00:00",
+  "identifiers": {
+    "cce": "CCE-87036-0"
+  }
+}

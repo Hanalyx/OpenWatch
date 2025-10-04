@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_restrict_web_directory",
+  "rule_id": "ow-httpd_restrict_web_directory",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_restrict_web_directory",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict Web Directory",
+    "description": "The default configuration for the web (<tt>/var/www/html</tt>) Directory allows directory\nindexing (<tt>Indexes</tt>) and the following of symbolic links (<tt>FollowSymLinks</tt>).\nNeither of these is recommended.\n<br /><br />\nThe <tt>/var/www/html</tt> directory hierarchy should not be viewable via the web, and\nsymlinks should only be followed if the owner of the symlink also owns the linked file.\n<br /><br />\nEnsure that this policy is adhered to by altering the related section of the configuration:\n<pre>&lt;Directory \"/var/www/html\"&gt;\n#  ...\n   Options SymLinksIfOwnerMatch\n#  ...\n&lt;/Directory&gt;</pre>",
+    "rationale": "Access to the web server's directory hierarchy could allow access to unauthorized files\nby web clients. Following symbolic links could also allow such access.",
+    "source": {
+      "upstream_id": "httpd_restrict_web_directory",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.866854+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_restrict_web_directory",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The default configuration for the web (<tt>/var/www/html</tt>) Directory allows directory\nindexing (<tt>Indexes</tt>) and the following of symbolic links (<tt>FollowSymLinks</tt>).\nNeither of these is recommended.\n<br /><br />\nThe <tt>/var/www/html</tt> directory hierarchy should not be viewable via the web, and\nsymlinks should only be followed if the owner of the symlink also owns the linked file.\n<br /><br />\nEnsure that this policy is adhered to by altering the related section of the configuration:\n<pre>&lt;Directory \"/var/www/html\"&gt;\n#  ...\n   Options SymLinksIfOwnerMatch\n#  ...\n&lt;/Directory&gt;</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_directory_restrictions/httpd_restrict_web_directory/rule.yml",
+  "source_hash": "sha256:ea2b3b087c51509c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.866939+00:00",
+  "updated_at": "2025-10-03T10:45:55.866941+00:00",
+  "identifiers": {}
+}

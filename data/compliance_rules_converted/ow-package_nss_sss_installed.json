@@ -1,0 +1,82 @@
+{
+  "_id": "ow-package_nss_sss_installed",
+  "rule_id": "ow-package_nss_sss_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_nss_sss_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install nss-sss Package",
+    "description": "{{{ describe_package_install(package=\"libnss-sss\") }}}",
+    "rationale": "libnss-sss contains library that is needed\nby SSSD (System Security Services Daemon)..",
+    "source": {
+      "upstream_id": "package_nss_sss_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:58.616150+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q libnss-sss",
+      "enable_command": "yum install -y libnss-sss",
+      "disable_command": "yum remove -y libnss-sss",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep libnss-sss",
+      "enable_command": "apt-get install -y libnss-sss",
+      "disable_command": "apt-get remove -y libnss-sss",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_nss_sss_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"libnss-sss\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-pam/package_nss_sss_installed/rule.yml",
+  "source_hash": "sha256:0b3d6d12b552fd97",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.616239+00:00",
+  "updated_at": "2025-10-03T02:25:58.616242+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,82 @@
+{
+  "_id": "ow-package_glibc_installed",
+  "rule_id": "ow-package_glibc_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_glibc_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Package glibc Installed",
+    "description": "The package <tt>glibc</tt> is installed on Linux by default, but the\n<tt>glibc</tt> version might not be sufficient for SAP. Please refer to\nSAP note of your Linux version for the minimum requirement on <tt>glibc</tt>.\n{{{ describe_package_install(package=\"glibc\") }}}",
+    "rationale": "The <tt>glibc</tt> package contains standard C and math libraries used by\nmultiple programs on Linux. The <tt>glibc</tt> shipped with first release\nof each major Linux version is often not sufficient for SAP.\nAn update is required after the first OS installation.",
+    "source": {
+      "upstream_id": "package_glibc_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.842419+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q glibc",
+      "enable_command": "yum install -y glibc",
+      "disable_command": "yum remove -y glibc",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep glibc",
+      "enable_command": "apt-get install -y glibc",
+      "disable_command": "apt-get remove -y glibc",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_glibc_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The package <tt>glibc</tt> is installed on Linux by default, but the\n<tt>glibc</tt> version might not be sufficient for SAP. Please refer to\nSAP note of your Linux version for the minimum requirement on <tt>glibc</tt>.\n{{{ describe_package_install(package=\"glibc\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sap_host/package_glibc_installed/rule.yml",
+  "source_hash": "sha256:ba5990127cdf84f5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.842509+00:00",
+  "updated_at": "2025-10-03T02:25:57.842511+00:00",
+  "identifiers": {}
+}

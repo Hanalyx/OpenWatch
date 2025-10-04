@@ -1,0 +1,95 @@
+{
+  "_id": "ow-sudo_require_authentication",
+  "rule_id": "ow-sudo_require_authentication",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_require_authentication",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Users Re-Authenticate for Privilege Escalation - sudo",
+    "description": "The sudo <tt>NOPASSWD</tt> and <tt>!authenticate</tt> option, when\nspecified, allows a user to execute commands using sudo without having to\nauthenticate. This should be disabled by making sure that\n<tt>NOPASSWD</tt> and/or <tt>!authenticate</tt> do not exist in\n<tt>/etc/sudoers</tt> configuration file or any sudo configuration snippets\nin <tt>/etc/sudoers.d/</tt>.\"",
+    "rationale": "Without re-authentication, users may access resources or perform tasks for which they\ndo not have authorization.\n<br /><br />\nWhen operating systems provide the capability to escalate a functional capability, it\nis critical that the user re-authenticate.",
+    "source": {
+      "upstream_id": "sudo_require_authentication",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82279-1",
+      "imported_at": "2025-10-03T10:45:56.015883+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16",
+        "5"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "IA-11",
+        "CM-6(a)",
+        "PR.AC-1",
+        "PR.AC-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000373-GPOS-00156",
+        "SLES-15-010450"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_require_authentication",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The sudo <tt>NOPASSWD</tt> and <tt>!authenticate</tt> option, when\nspecified, allows a user to execute commands using sudo without having to\nauthenticate. This should be disabled by making sure that\n<tt>NOPASSWD</tt> and/or <tt>!authenticate</tt> do not exist in\n<tt>/etc/sudoers</tt> configuration file or any sudo configuration snippets\nin <tt>/etc/sudoers.d/</tt>.\"",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudo_require_authentication/rule.yml",
+  "source_hash": "sha256:650a47e565146e28",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.016020+00:00",
+  "updated_at": "2025-10-03T10:45:56.016023+00:00",
+  "identifiers": {
+    "cce": "CCE-82279-1"
+  }
+}

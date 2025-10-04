@@ -1,0 +1,91 @@
+{
+  "_id": "ow-restrict_nfs_clients_to_privileged_ports",
+  "rule_id": "ow-restrict_nfs_clients_to_privileged_ports",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_restrict_nfs_clients_to_privileged_ports",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict NFS Clients to Privileged Ports",
+    "description": "By default, the server NFS implementation requires that all client requests be made\nfrom ports less than 1024. If your organization has control over systems connected to its\nnetwork, and if NFS requests are prohibited at the border firewall, this offers some protection\nagainst malicious requests from unprivileged users. Therefore, the default should not be changed.\n<br /><br />\nTo ensure that the default has not been changed, ensure no line in\n<tt>/etc/exports</tt> contains the option <tt>insecure</tt>.",
+    "rationale": "Allowing client requests to be made from ports higher than 1024 could allow a unprivileged\nuser to initiate an NFS connection. If the unprivileged user account has been compromised, an\nattacker could gain access to data on the NFS server.",
+    "source": {
+      "upstream_id": "restrict_nfs_clients_to_privileged_ports",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.771924+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "18",
+        "3",
+        "5"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.9.1.2",
+        "A.9.2.1",
+        "A.9.2.3",
+        "A.9.4.1",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.AC-4",
+        "PR.AC-6",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_restrict_nfs_clients_to_privileged_ports",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "By default, the server NFS implementation requires that all client requests be made\nfrom ports less than 1024. If your organization has control over systems connected to its\nnetwork, and if NFS requests are prohibited at the border firewall, this offers some protection\nagainst malicious requests from unprivileged users. Therefore, the default should not be changed.\n<br /><br />\nTo ensure that the default has not been changed, ensure no line in\n<tt>/etc/exports</tt> contains the option <tt>insecure</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/nfs_and_rpc/nfs_configuring_servers/restrict_nfs_clients_to_privileged_ports/rule.yml",
+  "source_hash": "sha256:b01bbe7306aa532a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.772030+00:00",
+  "updated_at": "2025-10-03T10:45:55.772033+00:00",
+  "identifiers": {}
+}

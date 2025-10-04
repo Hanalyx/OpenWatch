@@ -1,0 +1,70 @@
+{
+  "_id": "ow-ensure_shadow_group_empty",
+  "rule_id": "ow-ensure_shadow_group_empty",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_shadow_group_empty",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure shadow Group is Empty",
+    "description": "The shadow group allows system programs which require access the ability\nto read the /etc/shadow file. No users should be assigned to the shadow group.",
+    "rationale": "Any users assigned to the shadow group would be granted read access to the\n/etc/shadow file. If attackers can gain read access to the /etc/shadow file,\nthey can easily run a password cracking program against the hashed passwords\nto break them. Other security information that is stored in the /etc/shadow\nfile (such as expiration) could also be useful to subvert additional user\naccounts.",
+    "source": {
+      "upstream_id": "ensure_shadow_group_empty",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92213-8",
+      "imported_at": "2025-10-03T10:45:56.227438+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.18",
+        "6.2.18"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.2.1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_shadow_group_empty",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The shadow group allows system programs which require access the ability\nto read the /etc/shadow file. No users should be assigned to the shadow group.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/account_expiration/ensure_shadow_group_empty/rule.yml",
+  "source_hash": "sha256:25cc300cba06a716",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.227540+00:00",
+  "updated_at": "2025-10-03T10:45:56.227542+00:00",
+  "identifiers": {
+    "cce": "CCE-92213-8"
+  }
+}

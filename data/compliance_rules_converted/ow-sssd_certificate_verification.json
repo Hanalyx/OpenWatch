@@ -1,0 +1,71 @@
+{
+  "_id": "ow-sssd_certificate_verification",
+  "rule_id": "ow-sssd_certificate_verification",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_certificate_verification",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Certificate status checking in SSSD",
+    "description": "Multifactor solutions that require devices separate from information systems gaining access include,\nfor example, hardware tokens providing time-based or challenge-response authenticators and smart cards.\nConfiguring <tt>certificate_verification</tt> to <tt>ocsp_dgst={{{ xccdf_value(\"var_sssd_certificate_verification_digest_function\") }}}</tt> ensures that certificates for\nmultifactor solutions are checked via Online Certificate Status Protocol (OCSP).",
+    "rationale": "Ensuring that multifactor solutions certificates are checked via Online Certificate Status Protocol (OCSP)\nensures the security of the system.",
+    "source": {
+      "upstream_id": "sssd_certificate_verification",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86120-3",
+      "imported_at": "2025-10-03T02:25:56.993160+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "IA-2(11)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000375-GPOS-00160",
+        "SRG-OS-000377-GPOS-00162",
+        "OL08-00-010400"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_certificate_verification",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Multifactor solutions that require devices separate from information systems gaining access include,\nfor example, hardware tokens providing time-based or challenge-response authenticators and smart cards.\nConfiguring <tt>certificate_verification</tt> to <tt>ocsp_dgst={{{ xccdf_value(\"var_sssd_certificate_verification_digest_function\") }}}</tt> ensures that certificates for\nmultifactor solutions are checked via Online Certificate Status Protocol (OCSP).",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/sssd/sssd_certificate_verification/rule.yml",
+  "source_hash": "sha256:5f33fcf003b868fe",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.993286+00:00",
+  "updated_at": "2025-10-03T02:25:56.993289+00:00",
+  "identifiers": {
+    "cce": "CCE-86120-3"
+  }
+}

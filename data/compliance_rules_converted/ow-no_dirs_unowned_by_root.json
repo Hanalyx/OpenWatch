@@ -1,0 +1,56 @@
+{
+  "_id": "ow-no_dirs_unowned_by_root",
+  "rule_id": "ow-no_dirs_unowned_by_root",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_dirs_unowned_by_root",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that All Root's Path Directories Are Owned by Root",
+    "description": "For each element in root's path, run:\n<pre># ls -ld <i>DIR</i></pre>\nand ensure that the directory is owned by the root user.",
+    "rationale": "Directories in root's path that are not owned by root could allow\nunprivileged users to manipulate the execution environment of root,\npotentially leading to privilege escalation or execution of malicious code.",
+    "source": {
+      "upstream_id": "no_dirs_unowned_by_root",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.207835+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_dirs_unowned_by_root",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "For each element in root's path, run:\n<pre># ls -ld <i>DIR</i></pre>\nand ensure that the directory is owned by the root user.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/root_paths/no_dirs_unowned_by_root/rule.yml",
+  "source_hash": "sha256:f0db523258f8baac",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.207924+00:00",
+  "updated_at": "2025-10-03T10:45:56.207926+00:00",
+  "identifiers": {}
+}

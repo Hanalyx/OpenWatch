@@ -1,0 +1,65 @@
+{
+  "_id": "ow-no_legacy_plus_entries_etc_shadow",
+  "rule_id": "ow-no_legacy_plus_entries_etc_shadow",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_legacy_plus_entries_etc_shadow",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure there are no legacy + NIS entries in /etc/shadow",
+    "description": "The <tt>+</tt> character in <tt>/etc/shadow</tt> file marks a place where\nentries from a network information service (NIS) should be directly inserted.",
+    "rationale": "Using this method to include entries into <tt>/etc/shadow</tt> is considered legacy\nand should be avoided. These entries may provide a way for an attacker\nto gain access to the system.",
+    "source": {
+      "upstream_id": "no_legacy_plus_entries_etc_shadow",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84290-6",
+      "imported_at": "2025-10-03T10:45:56.233398+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.2",
+        "6.2.2"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_legacy_plus_entries_etc_shadow",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>+</tt> character in <tt>/etc/shadow</tt> file marks a place where\nentries from a network information service (NIS) should be directly inserted.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/password_storage/no_legacy_plus_entries_etc_shadow/rule.yml",
+  "source_hash": "sha256:c79e33962331f4b0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.233488+00:00",
+  "updated_at": "2025-10-03T10:45:56.233490+00:00",
+  "identifiers": {
+    "cce": "CCE-84290-6"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "_id": "ow-api_server_tls_security_profile_not_old",
+  "rule_id": "ow-api_server_tls_security_profile_not_old",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_api_server_tls_security_profile_not_old",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure APIServer is not configured with Old tlsSecurityProfile",
+    "description": "The configuration <tt>tlsSecurityProfile</tt> specifies TLS configurations\nto be used while establishing connections with the externally exposed\nservers. Though secure transport mode is used for establishing connections,\nthe protocols used may not always be strong enough to avoid interception and\nmanipulation of the data in transport. TLS Security profile Old should be\navoided, as it supports vulnerable protocols, ciphers, and algorithms which\ncould lead to security breaches.\n\nUpdate tlsSecurityProfile from Old to Intermediate using the following command:\n{{% raw %}}<pre>oc patch apiservers.config.openshift.io cluster --type 'json' --patch '[{\"op\": \"add\", \"path\": \"/spec/tlsSecurityProfile/intermediate\", \"value\": {}}, {\"op\": \"replace\", \"path\": \"/spec/tlsSecurityProfile/type\", \"value\": \"Intermediate\"}, {\"op\": \"remove\", \"path\": \"/spec/tlsSecurityProfile/old\"}]'</pre>{{% endraw %}}\n\nFor more information, follow\nOpenShift documentation:\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/security/tls-security-profiles.html\",\n            text=\"the relevant documentation\") }}}.",
+    "rationale": "The authenticity and integrity of the container platform and communication\nbetween nodes and components must be secure. If an insecure protocol,\ncipher, or algorithms is used, during transmission of data, the data can be\nintercepted and manipulated. To thwart the manipulation of the data during\ntransmission secure protocol, cipher and algorithms must be used.",
+    "source": {
+      "upstream_id": "api_server_tls_security_profile_not_old",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86223-5",
+      "imported_at": "2025-10-03T02:25:59.214817+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-8",
+        "SC-8(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000014-CTR-000040"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_api_server_tls_security_profile_not_old",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The configuration <tt>tlsSecurityProfile</tt> specifies TLS configurations\nto be used while establishing connections with the externally exposed\nservers. Though secure transport mode is used for establishing connections,\nthe protocols used may not always be strong enough to avoid interception and\nmanipulation of the data in transport. TLS Security profile Old should be\navoided, as it supports vulnerable protocols, ciphers, and algorithms which\ncould lead to security breaches.\n\nUpdate tlsSecurityProfile from Old to Intermediate using the following command:\n{{% raw %}}<pre>oc patch apiservers.config.openshift.io cluster --type 'json' --patch '[{\"op\": \"add\", \"path\": \"/spec/tlsSecurityProfile/intermediate\", \"value\": {}}, {\"op\": \"replace\", \"path\": \"/spec/tlsSecurityProfile/type\", \"value\": \"Intermediate\"}, {\"op\": \"remove\", \"path\": \"/spec/tlsSecurityProfile/old\"}]'</pre>{{% endraw %}}\n\nFor more information, follow\nOpenShift documentation:\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/security/tls-security-profiles.html\",\n            text=\"the relevant documentation\") }}}.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/api-server/api_server_tls_security_profile_not_old/rule.yml",
+  "source_hash": "sha256:7df7f341e6624261",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.214940+00:00",
+  "updated_at": "2025-10-03T02:25:59.214943+00:00",
+  "identifiers": {
+    "cce": "CCE-86223-5"
+  }
+}

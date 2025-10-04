@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_install_mod_security",
+  "rule_id": "ow-httpd_install_mod_security",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_install_mod_security",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install mod_security",
+    "description": "Install the <tt>security</tt> module:\n{{{ describe_package_install(package=\"mod_security\") }}}",
+    "rationale": "<tt>mod_security</tt> provides an additional level of protection for the web server by\nenabling the administrator to implement content access policies and filters at the\napplication layer.",
+    "source": {
+      "upstream_id": "httpd_install_mod_security",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.316783+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_install_mod_security",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Install the <tt>security</tt> module:\n{{{ describe_package_install(package=\"mod_security\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_modules_improve_security/httpd_deploy_mod_security/httpd_install_mod_security/rule.yml",
+  "source_hash": "sha256:c2e7cec16030031f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.316875+00:00",
+  "updated_at": "2025-10-03T02:25:57.316877+00:00",
+  "identifiers": {}
+}

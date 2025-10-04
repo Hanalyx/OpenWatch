@@ -1,0 +1,91 @@
+{
+  "_id": "ow-file_owner_backup_etc_shadow",
+  "rule_id": "ow-file_owner_backup_etc_shadow",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_backup_etc_shadow",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns Backup shadow File",
+    "description": "{{{ describe_file_owner(file=\"/etc/shadow-\", owner=\"root\") }}}",
+    "rationale": "The <tt>/etc/shadow-</tt> file is a backup file of <tt>/etc/shadow</tt>, and as such,\nit contains the list of local system accounts and password hashes.\nProtection of this file is critical for system security.",
+    "source": {
+      "upstream_id": "file_owner_backup_etc_shadow",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83413-5",
+      "imported_at": "2025-10-03T02:25:57.561780+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.1.6",
+        "6.1.6"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-6 (1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.7.c"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_backup_etc_shadow",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_owner(file=\"/etc/shadow-\", owner=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_important_account_files/file_owner_backup_etc_shadow/rule.yml",
+  "source_hash": "sha256:89eae1069f61fb7a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.561916+00:00",
+  "updated_at": "2025-10-03T02:25:57.561919+00:00",
+  "identifiers": {
+    "cce": "CCE-83413-5"
+  }
+}

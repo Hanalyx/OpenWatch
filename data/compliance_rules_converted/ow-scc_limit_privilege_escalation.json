@@ -1,0 +1,80 @@
+{
+  "_id": "ow-scc_limit_privilege_escalation",
+  "rule_id": "ow-scc_limit_privilege_escalation",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_privilege_escalation",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit Containers Ability to Escalate Privileges",
+    "description": "Containers should be limited to only the privileges required\nto run and should not be allowed to escalate their privileges.\nTo prevent containers from escalating privileges,\nthe appropriate Security Context Constraints (SCCs)\nshould set <tt>allowPrivilegeEscalation</tt> to <tt>false</tt>.",
+    "rationale": "Privileged containers have access to more of the Linux Kernel\ncapabilities and devices. If a privileged container were\ncompromised, an attacker would have full access to the container\nand host.",
+    "source": {
+      "upstream_id": "scc_limit_privilege_escalation",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83447-3",
+      "imported_at": "2025-10-03T10:45:56.475951+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_privilege_escalation",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Containers should be limited to only the privileges required\nto run and should not be allowed to escalate their privileges.\nTo prevent containers from escalating privileges,\nthe appropriate Security Context Constraints (SCCs)\nshould set <tt>allowPrivilegeEscalation</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/scc/scc_limit_privilege_escalation/rule.yml",
+  "source_hash": "sha256:cf0ac398caf74160",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.476053+00:00",
+  "updated_at": "2025-10-03T10:45:56.476056+00:00",
+  "identifiers": {
+    "cce": "CCE-83447-3"
+  }
+}

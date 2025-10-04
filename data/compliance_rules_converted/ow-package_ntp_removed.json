@@ -1,0 +1,67 @@
+{
+  "_id": "ow-package_ntp_removed",
+  "rule_id": "ow-package_ntp_removed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_ntp_removed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Remove the ntp service",
+    "description": "The ntpd service should not be installed.",
+    "rationale": "Inaccurate time stamps make it more difficult to correlate events\nand can lead to an inaccurate analysis. Determining the correct\ntime a particular event occurred on a system is critical when\nconducting forensic analysis and investigating system events.\nSources outside the configured acceptable allowance (drift)\nmay be inaccurate.\n",
+    "source": {
+      "upstream_id": "package_ntp_removed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.785671+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement package_removed check",
+      "enable_command": "# TODO: Implement package_removed remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_ntp_removed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The ntpd service should not be installed.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/package_ntp_removed/rule.yml",
+  "source_hash": "sha256:9fbe7a62af192ea8",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.785820+00:00",
+  "updated_at": "2025-10-03T10:45:55.785823+00:00",
+  "identifiers": {}
+}

@@ -18,6 +18,21 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/platform-stats': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/framework-stats': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/all-rules': {
+        target: 'http://localhost:8002',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   build: {

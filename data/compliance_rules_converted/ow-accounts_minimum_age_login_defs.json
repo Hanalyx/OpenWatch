@@ -1,0 +1,105 @@
+{
+  "_id": "ow-accounts_minimum_age_login_defs",
+  "rule_id": "ow-accounts_minimum_age_login_defs",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_minimum_age_login_defs",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set Password Minimum Age",
+    "description": "To specify password minimum age for new accounts,\nedit the file <tt>{{{ login_defs_path }}}</tt>\nand add or correct the following line:\n<pre>PASS_MIN_DAYS {{{ xccdf_value(\"var_accounts_minimum_age_login_defs\") }}}</pre>\nA value of 1 day is considered sufficient for many\nenvironments.\nThe profile requirement is <tt>{{{ xccdf_value(\"var_accounts_minimum_age_login_defs\") }}}</tt>.",
+    "rationale": "Enforcing a minimum password lifetime helps to prevent repeated password\nchanges to defeat the password reuse or history enforcement requirement. If\nusers are allowed to immediately and continually change their password,\nthen the password could be repeatedly changed in a short period of time to\ndefeat the organization's policy regarding password reuse.\n<br /><br />\nSetting the minimum password age protects against users cycling back to a\nfavorite password after satisfying the password reuse requirement.",
+    "source": {
+      "upstream_id": "accounts_minimum_age_login_defs",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80648-9",
+      "imported_at": "2025-10-03T02:25:58.573837+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16",
+        "5",
+        "5.4.1.3",
+        "5.4.1.3"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.7.1.1",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "IA-5(f)",
+        "IA-5(1)(d)",
+        "CM-6(a)",
+        "PR.AC-1",
+        "PR.AC-6",
+        "PR.AC-7",
+        "IA-5(1)(d)",
+        "IA-5(1).1(v)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000075-GPOS-00043",
+        "OL07-00-010230",
+        "OL08-00-020190",
+        "SLES-12-010260",
+        "SLES-15-020200"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_minimum_age_login_defs",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To specify password minimum age for new accounts,\nedit the file <tt>{{{ login_defs_path }}}</tt>\nand add or correct the following line:\n<pre>PASS_MIN_DAYS {{{ xccdf_value(\"var_accounts_minimum_age_login_defs\") }}}</pre>\nA value of 1 day is considered sufficient for many\nenvironments.\nThe profile requirement is <tt>{{{ xccdf_value(\"var_accounts_minimum_age_login_defs\") }}}</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/password_expiration/accounts_minimum_age_login_defs/rule.yml",
+  "source_hash": "sha256:f85a94629576ff73",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.573977+00:00",
+  "updated_at": "2025-10-03T02:25:58.573979+00:00",
+  "identifiers": {
+    "cce": "CCE-80648-9"
+  }
+}

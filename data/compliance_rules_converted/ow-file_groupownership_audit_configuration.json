@@ -1,0 +1,75 @@
+{
+  "_id": "ow-file_groupownership_audit_configuration",
+  "rule_id": "ow-file_groupownership_audit_configuration",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupownership_audit_configuration",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Audit Configuration Files Must Be Owned By Group root",
+    "description": "All audit configuration files must be owned by group root.\n<pre>chown :root /etc/audit/audit*.{rules,conf} /etc/audit/rules.d/*</pre>",
+    "rationale": "Without the capability to restrict which roles and individuals can\nselect which events are audited, unauthorized personnel may be able\nto prevent the auditing of critical events.\nMisconfigured audits may degrade the system's performance by\noverwhelming the audit log. Misconfigured audits may also make it more\ndifficult to establish, correlate, and investigate the events relating\nto an incident or identify those responsible for one.",
+    "source": {
+      "upstream_id": "file_groupownership_audit_configuration",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86405-8",
+      "imported_at": "2025-10-03T02:25:56.543880+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000063-GPOS-00032"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupownership_audit_configuration",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "All audit configuration files must be owned by group root.\n<pre>chown :root /etc/audit/audit*.{rules,conf} /etc/audit/rules.d/*</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/auditd_configure_rules/file_groupownership_audit_configuration/rule.yml",
+  "source_hash": "sha256:a54c953938e6816f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.544001+00:00",
+  "updated_at": "2025-10-03T02:25:56.544004+00:00",
+  "identifiers": {
+    "cce": "CCE-86405-8"
+  }
+}

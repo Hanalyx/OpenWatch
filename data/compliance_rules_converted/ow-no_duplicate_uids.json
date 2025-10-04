@@ -1,0 +1,63 @@
+{
+  "_id": "ow-no_duplicate_uids",
+  "rule_id": "ow-no_duplicate_uids",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_duplicate_uids",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure no duplicate UIDs exist",
+    "description": "Although the useradd program will not let you create a duplicate User ID (UID),\nit is possible for an administrator to manually edit the /etc/passwd file\nand change the UID field. Users must be assigned unique UIDs for\naccountability and to ensure appropriate access protections.",
+    "rationale": "Users must be assigned unique UIDs for accountability and to ensure\nappropriate access protections.",
+    "source": {
+      "upstream_id": "no_duplicate_uids",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.235672+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000104-GPOS-00051",
+        "SRG-OS-000121-GPOS-00062"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_duplicate_uids",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Although the useradd program will not let you create a duplicate User ID (UID),\nit is possible for an administrator to manually edit the /etc/passwd file\nand change the UID field. Users must be assigned unique UIDs for\naccountability and to ensure appropriate access protections.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/password_storage/no_duplicate_uids/rule.yml",
+  "source_hash": "sha256:4ceca6d4273cdfdd",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.235757+00:00",
+  "updated_at": "2025-10-03T10:45:56.235759+00:00",
+  "identifiers": {}
+}

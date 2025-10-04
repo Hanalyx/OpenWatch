@@ -1,0 +1,62 @@
+{
+  "_id": "ow-rule_2",
+  "rule_id": "ow-rule_2",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_rule_2",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "rule_2",
+    "description": "This is a rule with no template.",
+    "rationale": "This is a rationale",
+    "source": {
+      "upstream_id": "rule_2",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:56.383305+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-12"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_rule_2",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "This is a rule with no template.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "tests/unit/utils/oscal/data/test_root/applications/test_application/rule_2/rule.yml",
+  "source_hash": "sha256:5514edfc7889bb75",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.383408+00:00",
+  "updated_at": "2025-10-03T02:25:56.383410+00:00",
+  "identifiers": {}
+}

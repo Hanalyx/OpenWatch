@@ -1,0 +1,67 @@
+{
+  "_id": "ow-service_dnsmasq_disabled",
+  "rule_id": "ow-service_dnsmasq_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_dnsmasq_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable dnsmasq Service",
+    "description": "{{{ describe_service_disable(service=\"dnsmasq\") }}}",
+    "rationale": "Unless a system is specifically designated to act as a DNS\ncaching, DNS forwarding and/or DHCP server, it is recommended\nthat the package be removed to reduce the potential attack surface.",
+    "source": {
+      "upstream_id": "service_dnsmasq_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:56.953021+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_dnsmasq_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_service_disable(service=\"dnsmasq\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/dns/service_dnsmasq_disabled/rule.yml",
+  "source_hash": "sha256:c3dc864d0c8acc25",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.953138+00:00",
+  "updated_at": "2025-10-03T02:25:56.953141+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,86 @@
+{
+  "_id": "ow-kubelet_configure_tls_cipher_suites",
+  "rule_id": "ow-kubelet_configure_tls_cipher_suites",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kubelet_configure_tls_cipher_suites",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that the Kubelet only makes use of Strong Cryptographic Ciphers",
+    "description": "Ensure that the Kubelet is configured to only use strong cryptographic ciphers.\nTo set the cipher suites for the kubelet, create new or modify existing\n<tt>KubeletConfig</tt> object along these lines, one for every\n<tt>MachineConfigPool</tt>:\n  <pre>\n  apiVersion: machineconfiguration.openshift.io/v1\n  kind: KubeletConfig\n  metadata:\n     name: kubelet-config-$pool\n  spec:\n      machineConfigPoolSelector:\n          matchLabels:\n              pools.operator.machineconfiguration.openshift.io/$pool_name: \"\"\n      kubeletConfig:\n        tlsCipherSuites:\n        - TLS_AES_128_GCM_SHA256\n        - TLS_AES_256_GCM_SHA384\n        - TLS_CHACHA20_POLY1305_SHA256\n        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384\n        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\n        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\n        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256\n        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256\n        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256\n  </pre>\nIn order to configure this rule to check for an alternative cipher, both var_kubelet_tls_cipher_suites_regex\nand var_kubelet_tls_cipher_suites have to be set",
+    "rationale": "TLS ciphers have had a number of known vulnerabilities and weaknesses,\nwhich can reduce the protection provided by them. By default Kubernetes\nsupports a number of TLS ciphersuites including some that have security\nconcerns, weakening the protection provided.",
+    "source": {
+      "upstream_id": "kubelet_configure_tls_cipher_suites",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86030-4",
+      "imported_at": "2025-10-03T10:45:56.481608+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "4.2.12"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kubelet_configure_tls_cipher_suites",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Ensure that the Kubelet is configured to only use strong cryptographic ciphers.\nTo set the cipher suites for the kubelet, create new or modify existing\n<tt>KubeletConfig</tt> object along these lines, one for every\n<tt>MachineConfigPool</tt>:\n  <pre>\n  apiVersion: machineconfiguration.openshift.io/v1\n  kind: KubeletConfig\n  metadata:\n     name: kubelet-config-$pool\n  spec:\n      machineConfigPoolSelector:\n          matchLabels:\n              pools.operator.machineconfiguration.openshift.io/$pool_name: \"\"\n      kubeletConfig:\n        tlsCipherSuites:\n        - TLS_AES_128_GCM_SHA256\n        - TLS_AES_256_GCM_SHA384\n        - TLS_CHACHA20_POLY1305_SHA256\n        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384\n        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\n        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\n        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256\n        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256\n        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256\n  </pre>\nIn order to configure this rule to check for an alternative cipher, both var_kubelet_tls_cipher_suites_regex\nand var_kubelet_tls_cipher_suites have to be set",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/kubelet/kubelet_configure_tls_cipher_suites/rule.yml",
+  "source_hash": "sha256:c3a5a3ba1c4cc3ab",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.481752+00:00",
+  "updated_at": "2025-10-03T10:45:56.481756+00:00",
+  "identifiers": {
+    "cce": "CCE-86030-4"
+  }
+}

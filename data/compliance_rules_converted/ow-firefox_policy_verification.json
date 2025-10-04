@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_verification",
+  "rule_id": "ow-firefox_policy_verification",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_verification",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Certificate Verification",
+    "description": "Firefox can be configured to prompt the user to choose a certificate\nto present to a website when asked. To enable certificate verification,\nset <tt>security.default_personal_cert</tt> to <tt>Ask Every Time</tt>\nin an administrative policies file",
+    "rationale": "Websites within the organization require user authentication for access which increases\nsecurity for the information within. Access will be denied to the user if\ncertificate management is not configured.",
+    "source": {
+      "upstream_id": "firefox_policy_verification",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.350871+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "IA-5(2)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000003"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_verification",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Firefox can be configured to prompt the user to choose a certificate\nto present to a website when asked. To enable certificate verification,\nset <tt>security.default_personal_cert</tt> to <tt>Ask Every Time</tt>\nin an administrative policies file",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-verification/rule.yml",
+  "source_hash": "sha256:38ca5d3e76d1110d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.350985+00:00",
+  "updated_at": "2025-10-03T10:45:56.350988+00:00",
+  "identifiers": {}
+}

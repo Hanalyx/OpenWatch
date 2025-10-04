@@ -1,0 +1,58 @@
+{
+  "_id": "ow-dconf_gnome_disable_power_settings",
+  "rule_id": "ow-dconf_gnome_disable_power_settings",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_disable_power_settings",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Power Settings in GNOME3",
+    "description": "By default, <tt>GNOME</tt> enables a power profile designed for mobile devices\nwith battery usage. While useful for mobile devices, this setting should be disabled\nfor all other systems. To configure the system to disable the power setting, add or set\n<tt>active</tt> to <tt>false</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/settings-daemon/plugins/power]\nactive=false\n</pre>\nOnce the settings have been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/settings-daemon/plugins/power</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+    "rationale": "Power settings should not be enabled on systems that are not mobile devices.\nEnabling power settings on non-mobile devices could have unintended processing\nconsequences on standard systems.",
+    "source": {
+      "upstream_id": "dconf_gnome_disable_power_settings",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87338-0",
+      "imported_at": "2025-10-03T10:45:56.041763+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_disable_power_settings",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "By default, <tt>GNOME</tt> enables a power profile designed for mobile devices\nwith battery usage. While useful for mobile devices, this setting should be disabled\nfor all other systems. To configure the system to disable the power setting, add or set\n<tt>active</tt> to <tt>false</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/settings-daemon/plugins/power]\nactive=false\n</pre>\nOnce the settings have been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/settings-daemon/plugins/power</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/gnome/gnome_system_settings/dconf_gnome_disable_power_settings/rule.yml",
+  "source_hash": "sha256:0119e8955741d710",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.041847+00:00",
+  "updated_at": "2025-10-03T10:45:56.041850+00:00",
+  "identifiers": {
+    "cce": "CCE-87338-0"
+  }
+}

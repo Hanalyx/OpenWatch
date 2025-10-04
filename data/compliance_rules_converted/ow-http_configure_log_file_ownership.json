@@ -1,0 +1,56 @@
+{
+  "_id": "ow-http_configure_log_file_ownership",
+  "rule_id": "ow-http_configure_log_file_ownership",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_http_configure_log_file_ownership",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "HTTPD Log Files Must Be Owned By Root",
+    "description": "All <tt>httpd</tt> logs must be owned by root user and group. By default,\nthe path for httpd logs is <tt>/var/log/httpd/</tt>\n{{{ describe_file_owner(file=\"/var/log/httpd\", owner=\"root\") }}}\n{{{ describe_file_owner(file=\"/var/log/httpd/*\", owner=\"root\") }}}",
+    "rationale": "A major tool in exploring the web site use, attempted use, unusual conditions,\nand problems are the access and error logs. In the event of a security incident,\nthese logs can provide the SA and the web administrator with valuable\ninformation. Because of the information that is captured in the logs, it is\ncritical that only authorized individuals have access to the logs.",
+    "source": {
+      "upstream_id": "http_configure_log_file_ownership",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.328888+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_http_configure_log_file_ownership",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "All <tt>httpd</tt> logs must be owned by root user and group. By default,\nthe path for httpd logs is <tt>/var/log/httpd/</tt>\n{{{ describe_file_owner(file=\"/var/log/httpd\", owner=\"root\") }}}\n{{{ describe_file_owner(file=\"/var/log/httpd/*\", owner=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_configure_os_protect_web_server/httpd_restrict_file_dir_access/http_configure_log_file_ownership/rule.yml",
+  "source_hash": "sha256:7aaaa4e9f5df0ad3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.328981+00:00",
+  "updated_at": "2025-10-03T02:25:57.328983+00:00",
+  "identifiers": {}
+}

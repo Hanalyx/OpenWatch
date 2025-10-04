@@ -1,0 +1,70 @@
+{
+  "_id": "ow-fips_crypto_policy_symlinks",
+  "rule_id": "ow-fips_crypto_policy_symlinks",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_fips_crypto_policy_symlinks",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "System Wide Crypto Policy Files Must Point to FIPS Policy",
+    "description": "All files in /etc/crypto-policies/back-ends/ except for nss.config should be symlinks pointing\nto /usr/share/crypto-policies/FIPS/\n<pre>\n$ stat -c%N /etc/crypto-policies/back-ends/*\n'/etc/crypto-policies/back-ends/bind.config' -> '/usr/share/crypto-policies/FIPS/bind.txt'\n'/etc/crypto-policies/back-ends/gnutls.config' -> '/usr/share/crypto-policies/FIPS/gnutls.txt'\n'/etc/crypto-policies/back-ends/java.config' -> '/usr/share/crypto-policies/FIPS/java.txt'\n'/etc/crypto-policies/back-ends/javasystem.config' -> '/usr/share/crypto-policies/FIPS/javasystem.txt'\n'/etc/crypto-policies/back-ends/krb5.config' -> '/usr/share/crypto-policies/FIPS/krb5.txt'\n'/etc/crypto-policies/back-ends/libreswan.config' -> '/usr/share/crypto-policies/FIPS/libreswan.txt'\n'/etc/crypto-policies/back-ends/libssh.config' -> '/usr/share/crypto-policies/FIPS/libssh.txt'\n'/etc/crypto-policies/back-ends/nss.config'\n'/etc/crypto-policies/back-ends/openssh.config' -> '/usr/share/crypto-policies/FIPS/openssh.txt'\n'/etc/crypto-policies/back-ends/opensshserver.config' -> '/usr/share/crypto-policies/FIPS/opensshserver.txt'\n'/etc/crypto-policies/back-ends/opensslcnf.config' -> '/usr/share/crypto-policies/FIPS/opensslcnf.txt'\n'/etc/crypto-policies/back-ends/openssl.config' -> '/usr/share/crypto-policies/FIPS/openssl.txt'\n'/etc/crypto-policies/back-ends/openssl_fips.config' -> '/usr/share/crypto-policies/FIPS/openssl_fips.txt'\n</pre>",
+    "rationale": "Centralized cryptographic policies simplify applying secure ciphers across an operating\nsystem and the applications that run on that operating system. Use of weak or untested\nencryption algorithms undermines the purposes of using encryption to protect data.",
+    "source": {
+      "upstream_id": "fips_crypto_policy_symlinks",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.987760+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "cryptography",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-13",
+        "MA-4(6)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000396-GPOS-00176",
+        "SRG-OS-000393-GPOS-00173",
+        "SRG-OS-000394-GPOS-00174"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_fips_crypto_policy_symlinks",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "All files in /etc/crypto-policies/back-ends/ except for nss.config should be symlinks pointing\nto /usr/share/crypto-policies/FIPS/\n<pre>\n$ stat -c%N /etc/crypto-policies/back-ends/*\n'/etc/crypto-policies/back-ends/bind.config' -> '/usr/share/crypto-policies/FIPS/bind.txt'\n'/etc/crypto-policies/back-ends/gnutls.config' -> '/usr/share/crypto-policies/FIPS/gnutls.txt'\n'/etc/crypto-policies/back-ends/java.config' -> '/usr/share/crypto-policies/FIPS/java.txt'\n'/etc/crypto-policies/back-ends/javasystem.config' -> '/usr/share/crypto-policies/FIPS/javasystem.txt'\n'/etc/crypto-policies/back-ends/krb5.config' -> '/usr/share/crypto-policies/FIPS/krb5.txt'\n'/etc/crypto-policies/back-ends/libreswan.config' -> '/usr/share/crypto-policies/FIPS/libreswan.txt'\n'/etc/crypto-policies/back-ends/libssh.config' -> '/usr/share/crypto-policies/FIPS/libssh.txt'\n'/etc/crypto-policies/back-ends/nss.config'\n'/etc/crypto-policies/back-ends/openssh.config' -> '/usr/share/crypto-policies/FIPS/openssh.txt'\n'/etc/crypto-policies/back-ends/opensshserver.config' -> '/usr/share/crypto-policies/FIPS/opensshserver.txt'\n'/etc/crypto-policies/back-ends/opensslcnf.config' -> '/usr/share/crypto-policies/FIPS/opensslcnf.txt'\n'/etc/crypto-policies/back-ends/openssl.config' -> '/usr/share/crypto-policies/FIPS/openssl.txt'\n'/etc/crypto-policies/back-ends/openssl_fips.config' -> '/usr/share/crypto-policies/FIPS/openssl_fips.txt'\n</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/fips/fips_crypto_policy_symlinks/rule.yml",
+  "source_hash": "sha256:dee832e1b596f7bc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.987875+00:00",
+  "updated_at": "2025-10-03T10:45:55.987878+00:00",
+  "identifiers": {}
+}

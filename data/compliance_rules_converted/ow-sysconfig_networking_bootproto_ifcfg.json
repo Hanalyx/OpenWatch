@@ -1,0 +1,83 @@
+{
+  "_id": "ow-sysconfig_networking_bootproto_ifcfg",
+  "rule_id": "ow-sysconfig_networking_bootproto_ifcfg",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysconfig_networking_bootproto_ifcfg",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable DHCP Client in ifcfg",
+    "description": "For each interface on the system (e.g. eth0), edit\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt> and make the\nfollowing changes:\n<ul>\n<li> Correct the BOOTPROTO line to read:\n<pre>BOOTPROTO=none</pre>\n</li>\n<li> Add or correct the following lines, substituting the appropriate\nvalues based on your site's addressing scheme:\n<pre>NETMASK=255.255.255.0\nIPADDR=192.168.1.2\nGATEWAY=192.168.1.1</pre>\n</li>\n</ul>",
+    "rationale": "DHCP relies on trusting the local network. If the local network is not trusted,\nthen it should not be used.  However, the automatic configuration provided by\nDHCP is commonly used and the alternative, manual configuration, presents an\nunacceptable burden in many circumstances.",
+    "source": {
+      "upstream_id": "sysconfig_networking_bootproto_ifcfg",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.887320+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysconfig_networking_bootproto_ifcfg",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "For each interface on the system (e.g. eth0), edit\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt> and make the\nfollowing changes:\n<ul>\n<li> Correct the BOOTPROTO line to read:\n<pre>BOOTPROTO=none</pre>\n</li>\n<li> Add or correct the following lines, substituting the appropriate\nvalues based on your site's addressing scheme:\n<pre>NETMASK=255.255.255.0\nIPADDR=192.168.1.2\nGATEWAY=192.168.1.1</pre>\n</li>\n</ul>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/dhcp/disabling_dhcp_client/sysconfig_networking_bootproto_ifcfg/rule.yml",
+  "source_hash": "sha256:786b62a0618c5a7d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.887433+00:00",
+  "updated_at": "2025-10-03T10:45:55.887436+00:00",
+  "identifiers": {}
+}

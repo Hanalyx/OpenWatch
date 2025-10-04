@@ -1,0 +1,76 @@
+{
+  "_id": "ow-file_groupowner_etc_shells",
+  "rule_id": "ow-file_groupowner_etc_shells",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_etc_shells",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns /etc/shells File",
+    "description": "{{{ describe_file_group_owner(file=\"/etc/shells\", group=\"root\") }}}",
+    "rationale": "The <tt>/etc/shells</tt> file contains the list of full pathnames to shells on the system.\nSince this file is used by many system programs this file should be protected.",
+    "source": {
+      "upstream_id": "file_groupowner_etc_shells",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87030-3",
+      "imported_at": "2025-10-03T02:25:57.583164+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-3",
+        "MP-2"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_etc_shells",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/etc/shells\", group=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_important_account_files/file_groupowner_etc_shells/rule.yml",
+  "source_hash": "sha256:d1e1f3d70652c527",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.583298+00:00",
+  "updated_at": "2025-10-03T02:25:57.583300+00:00",
+  "identifiers": {
+    "cce": "CCE-87030-3"
+  }
+}

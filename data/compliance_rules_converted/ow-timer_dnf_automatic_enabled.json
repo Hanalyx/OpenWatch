@@ -1,0 +1,82 @@
+{
+  "_id": "ow-timer_dnf_automatic_enabled",
+  "rule_id": "ow-timer_dnf_automatic_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_timer_dnf_automatic_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable dnf-automatic Timer",
+    "description": "{{{ describe_timer_enable(timer=\"dnf-automatic\") }}}",
+    "rationale": "The <tt>dnf-automatic</tt> is an alternative command line interface (CLI) to <tt>dnf upgrade</tt> with specific facilities to make it suitable to be executed automatically and regularly from systemd timers, cron jobs and similar.\nThe tool is controlled by <tt>dnf-automatic.timer</tt> SystemD timer.",
+    "source": {
+      "upstream_id": "timer_dnf_automatic_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82360-9",
+      "imported_at": "2025-10-03T02:25:57.897852+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SI-2(5)",
+        "CM-6(a)",
+        "SI-2(c)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000191-GPOS-00080"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement timer_enabled check",
+      "enable_command": "# TODO: Implement timer_enabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_timer_dnf_automatic_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_timer_enable(timer=\"dnf-automatic\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/updating/timer_dnf-automatic_enabled/rule.yml",
+  "source_hash": "sha256:2eb40829f0bd9a14",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.897987+00:00",
+  "updated_at": "2025-10-03T02:25:57.897990+00:00",
+  "identifiers": {
+    "cce": "CCE-82360-9"
+  }
+}

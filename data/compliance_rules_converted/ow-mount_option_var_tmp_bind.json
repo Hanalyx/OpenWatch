@@ -1,0 +1,88 @@
+{
+  "_id": "ow-mount_option_var_tmp_bind",
+  "rule_id": "ow-mount_option_var_tmp_bind",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_mount_option_var_tmp_bind",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Bind Mount /var/tmp To /tmp",
+    "description": "The <tt>/var/tmp</tt> directory is a world-writable directory. Bind-mount\nit to <tt>/tmp</tt> in order to consolidate temporary storage into one\nlocation protected by the same techniques as <tt>/tmp</tt>. To do so, edit\n<tt>/etc/fstab</tt> and add the following line:\n<pre>/tmp     /var/tmp     none     rw,nodev,noexec,nosuid,bind     0 0</pre>\nSee the <tt>mount(8)</tt> man page for further explanation of bind mounting.",
+    "rationale": "Having multiple locations for temporary storage is not required. Unless absolutely\nnecessary to meet requirements, the storage location <tt>/var/tmp</tt> should be bind mounted to\n<tt>/tmp</tt> and thus share the same protections.",
+    "source": {
+      "upstream_id": "mount_option_var_tmp_bind",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.906605+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "AC-6",
+        "AC-6(1)",
+        "MP-7",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_mount_option_var_tmp_bind",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>/var/tmp</tt> directory is a world-writable directory. Bind-mount\nit to <tt>/tmp</tt> in order to consolidate temporary storage into one\nlocation protected by the same techniques as <tt>/tmp</tt>. To do so, edit\n<tt>/etc/fstab</tt> and add the following line:\n<pre>/tmp     /var/tmp     none     rw,nodev,noexec,nosuid,bind     0 0</pre>\nSee the <tt>mount(8)</tt> man page for further explanation of bind mounting.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/partitions/mount_option_var_tmp_bind/rule.yml",
+  "source_hash": "sha256:dad87a6b2bc19723",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.906724+00:00",
+  "updated_at": "2025-10-03T10:45:55.906726+00:00",
+  "identifiers": {}
+}

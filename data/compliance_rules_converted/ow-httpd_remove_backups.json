@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_remove_backups",
+  "rule_id": "ow-httpd_remove_backups",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_remove_backups",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Backup interactive scripts on the production web server are prohibited",
+    "description": "Copies of backup files will not execute on the server, but they can be\nread by the anonymous user if special precautions are not taken.",
+    "rationale": "Such backup copies contain the same sensitive information as the actual\nscripts being executed and, as such, are useful to malicious users.\nTechniques and systems exist today that search web servers for such files\nand are able to exploit the information contained in them.\n\nBackup copies of files are automatically created by some text editors such\nsuch as emacs and VIM. Editors may write a backup file with an extension\n~ added to the name of the original file. The edit plus editor will\ncreate a .bak file. Of course, this would imply the presence and use of\ndevelopment tools on the web server, which is a finding under WG130. Having\nbackup scripts on the web server provides one more opportunity for\nmalicious persons to view these scripts and use the information found in\nthem.",
+    "source": {
+      "upstream_id": "httpd_remove_backups",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.840105+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_remove_backups",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Copies of backup files will not execute on the server, but they can be\nread by the anonymous user if special precautions are not taken.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_remove_backups/rule.yml",
+  "source_hash": "sha256:455b193a40b4b910",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.840194+00:00",
+  "updated_at": "2025-10-03T10:45:55.840197+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_search_suggestion",
+  "rule_id": "ow-firefox_policy_search_suggestion",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_search_suggestion",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox search suggestions must be disabled.",
+    "description": "Search Suggestions may be disabled in an administrative policy by setting\nthe <tt>SearchSuggestEnabled</tt> key under <tt>policies</tt> to <tt>false</tt>.",
+    "rationale": "Search suggestions must be disabled as this could lead to searches being conducted that were never intended to be made.",
+    "source": {
+      "upstream_id": "firefox_policy_search_suggestion",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.341114+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000020"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_search_suggestion",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Search Suggestions may be disabled in an administrative policy by setting\nthe <tt>SearchSuggestEnabled</tt> key under <tt>policies</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-search_suggestion/rule.yml",
+  "source_hash": "sha256:fb6309e6e05fecc3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.341247+00:00",
+  "updated_at": "2025-10-03T10:45:56.341250+00:00",
+  "identifiers": {}
+}

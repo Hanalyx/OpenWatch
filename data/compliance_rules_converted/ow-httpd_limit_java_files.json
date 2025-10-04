@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_limit_java_files",
+  "rule_id": "ow-httpd_limit_java_files",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_limit_java_files",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Remove .java And .jpp Files",
+    "description": "<tt>.java</tt> and <tt>.jpp</tt> files should not exist and should be removed\nfrom the web server.",
+    "rationale": "From the source code in a .java or a .jpp file, the Java compiler produces a\nbinary file with an extension of .class. The .java or .jpp file would,\ntherefore, reveal sensitive information regarding an application's logic and\npermissions to resources on the server. By contrast, the .class file, because it\nis intended to be machine independent, is referred to as bytecode. Bytecodes are\nrun by the Java Virtual Machine (JVM), or the Java Runtime Environment (JRE),\nvia a browser configured to permit Java code.",
+    "source": {
+      "upstream_id": "httpd_limit_java_files",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.846801+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_limit_java_files",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "<tt>.java</tt> and <tt>.jpp</tt> files should not exist and should be removed\nfrom the web server.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_secure_content/httpd_limit_java_files/rule.yml",
+  "source_hash": "sha256:ee89433a35c14e4b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.846888+00:00",
+  "updated_at": "2025-10-03T10:45:55.846890+00:00",
+  "identifiers": {}
+}

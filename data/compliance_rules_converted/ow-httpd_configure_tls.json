@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_configure_tls",
+  "rule_id": "ow-httpd_configure_tls",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_tls",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Transport Layer Security (TLS) Encryption",
+    "description": "Disable old SSL and TLS version and enable the latest TLS encryption by setting\nthe following in <tt>/etc/httpd/conf.modules.d/ssl.conf</tt>:\n<pre>SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1</pre>\nMake sure to also set <tt>SSLEngine</tt> to <tt>on</tt> in\n<tt>/etc/httpd/conf.modules.d/ssl.conf</tt> like the following:\n<pre>SSLEngine on</pre>",
+    "rationale": "Transport Layer Security (TLS) encryption is a required security setting for a\nprivate web server. Encryption of private information is essential to ensuring\ndata confidentiality. If private information is not encrypted, it can be\nintercepted and easily read by an unauthorized party. A web server must\nuse a FIPS 140-2 approved TLS version, and all non-FIPS-approved SSL versions\nmust be disabled.",
+    "source": {
+      "upstream_id": "httpd_configure_tls",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.849489+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_tls",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Disable old SSL and TLS version and enable the latest TLS encryption by setting\nthe following in <tt>/etc/httpd/conf.modules.d/ssl.conf</tt>:\n<pre>SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1</pre>\nMake sure to also set <tt>SSLEngine</tt> to <tt>on</tt> in\n<tt>/etc/httpd/conf.modules.d/ssl.conf</tt> like the following:\n<pre>SSLEngine on</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_modules_improve_security/httpd_deploy_mod_ssl/httpd_configure_tls/rule.yml",
+  "source_hash": "sha256:7c60665991403be1",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.849576+00:00",
+  "updated_at": "2025-10-03T10:45:55.849578+00:00",
+  "identifiers": {}
+}

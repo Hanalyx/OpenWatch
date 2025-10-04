@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_anonymous_content_sharing",
+  "rule_id": "ow-httpd_anonymous_content_sharing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_anonymous_content_sharing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Web Content Directories Must Not Be Shared Anonymously",
+    "description": "Web content directories should not be shared anonymously over remote filesystems\nsuch as <tt>nfs</tt> and <tt>smb</tt>. Remove the shares from the applicable\ndirectories.",
+    "rationale": "Sharing web content is a security risk when a web server is involved. Users\naccessing the share anonymously could experience privileged access to the\ncontent of such directories. Network sharable directories expose those\ndirectories and their contents to unnecessary access. Any unnecessary exposure\nincreases the risk that someone could exploit that access and either compromises\nthe web content or cause web server performance problems.",
+    "source": {
+      "upstream_id": "httpd_anonymous_content_sharing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.871065+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_anonymous_content_sharing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Web content directories should not be shared anonymously over remote filesystems\nsuch as <tt>nfs</tt> and <tt>smb</tt>. Remove the shares from the applicable\ndirectories.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_directory_restrictions/httpd_anonymous_content_sharing/rule.yml",
+  "source_hash": "sha256:2fa0287677b25449",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.871145+00:00",
+  "updated_at": "2025-10-03T10:45:55.871147+00:00",
+  "identifiers": {}
+}

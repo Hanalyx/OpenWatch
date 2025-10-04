@@ -1,0 +1,56 @@
+{
+  "_id": "ow-banner_etc_profiled_ssh_confirm",
+  "rule_id": "ow-banner_etc_profiled_ssh_confirm",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_banner_etc_profiled_ssh_confirm",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable the SSH login confirmation banner",
+    "description": "This rule verifies that that the SSH login confirmation banner is set \ncorrectly.\n\nThe DoD required text is:\n<br /><br />\n<tt>if [ -n \"$SSH_CLIENT\" ] || [ -n \"$SSH_TTY\" ]; then<br/>\n        while true; do<br/>\n            read -p \"<br/>\nYou are accessing a U.S. Government (USG) Information System (IS) that is provided for\nUSG-authorized use only.<br/>\nBy using this IS (which includes any device attached to this IS), you consent to the\nfollowing conditions:<br/>\n-The USG routinely intercepts and monitors communications on this IS for purposes\nincluding, but not limited to, penetration testing, COMSEC monitoring, network\noperations and defense, personnel misconduct (PM), law enforcement (LE), and\ncounterintelligence (CI) investigations.<br/>\n-At any time, the USG may inspect and seize data stored on this IS.<br/>\n-Communications using, or data stored on, this IS are not private, are subject to routine\nmonitoring, interception, and search, and may be disclosed or used for any USG-\nauthorized purpose.<br/>\n-This IS includes security measures (e.g., authentication and access controls) to protect\nUSG interests--not for your personal benefit or privacy.<br/>\n-Notwithstanding the above, using this IS does not constitute consent to PM, LE or CI\ninvestigative searching or monitoring of the content of privileged communications, or\nwork product, related to personal representation or services by attorneys,\npsychotherapists, or clergy, and their assistants. Such communications and work product\nare private and confidential. See User Agreement for details.<br/>\nDo you agree? [y/N] \" yn<br/>\n            case $yn in\n                [Yy]* ) break ;;<br/>\n                [Nn]* ) exit 1 ;;<br/>\n            esac<br/>\n        done<br/>\n    fi<br/>\n</tt>",
+    "rationale": "Display of a standardized and approved use notification before granting\naccess to the operating system ensures privacy and security notification\nverbiage used is consistent with applicable federal laws, Executive Orders,\ndirectives, policies, regulations, standards, and guidance.",
+    "source": {
+      "upstream_id": "banner_etc_profiled_ssh_confirm",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.254409+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_banner_etc_profiled_ssh_confirm",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "This rule verifies that that the SSH login confirmation banner is set \ncorrectly.\n\nThe DoD required text is:\n<br /><br />\n<tt>if [ -n \"$SSH_CLIENT\" ] || [ -n \"$SSH_TTY\" ]; then<br/>\n        while true; do<br/>\n            read -p \"<br/>\nYou are accessing a U.S. Government (USG) Information System (IS) that is provided for\nUSG-authorized use only.<br/>\nBy using this IS (which includes any device attached to this IS), you consent to the\nfollowing conditions:<br/>\n-The USG routinely intercepts and monitors communications on this IS for purposes\nincluding, but not limited to, penetration testing, COMSEC monitoring, network\noperations and defense, personnel misconduct (PM), law enforcement (LE), and\ncounterintelligence (CI) investigations.<br/>\n-At any time, the USG may inspect and seize data stored on this IS.<br/>\n-Communications using, or data stored on, this IS are not private, are subject to routine\nmonitoring, interception, and search, and may be disclosed or used for any USG-\nauthorized purpose.<br/>\n-This IS includes security measures (e.g., authentication and access controls) to protect\nUSG interests--not for your personal benefit or privacy.<br/>\n-Notwithstanding the above, using this IS does not constitute consent to PM, LE or CI\ninvestigative searching or monitoring of the content of privileged communications, or\nwork product, related to personal representation or services by attorneys,\npsychotherapists, or clergy, and their assistants. Such communications and work product\nare private and confidential. See User Agreement for details.<br/>\nDo you agree? [y/N] \" yn<br/>\n            case $yn in\n                [Yy]* ) break ;;<br/>\n                [Nn]* ) exit 1 ;;<br/>\n            esac<br/>\n        done<br/>\n    fi<br/>\n</tt>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-banners/banner_etc_profiled_ssh_confirm/rule.yml",
+  "source_hash": "sha256:6e1991c85b32ed3b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.254489+00:00",
+  "updated_at": "2025-10-03T10:45:56.254492+00:00",
+  "identifiers": {}
+}

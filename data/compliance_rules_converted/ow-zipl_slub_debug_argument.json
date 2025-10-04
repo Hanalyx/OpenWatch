@@ -1,0 +1,69 @@
+{
+  "_id": "ow-zipl_slub_debug_argument",
+  "rule_id": "ow-zipl_slub_debug_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_slub_debug_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable SLUB/SLAB allocator poisoning in zIPL",
+    "description": "To enable poisoning of SLUB/SLAB objects,\ncheck that all boot entries in <tt>/boot/loader/entries/*.conf</tt> have <tt>slub_debug=P</tt>\nincluded in its options.<br />\nTo ensure that new kernels and boot entries continue to enable poisoning of SLUB/SLAB objects,\nadd <tt>slub_debug=P</tt> to <tt>/etc/kernel/cmdline</tt>.",
+    "rationale": "Poisoning writes an arbitrary value to freed objects, so any modification or\nreference to that object after being freed or before being initialized will be\ndetected and prevented.\nThis prevents many types of use-after-free vulnerabilities at little performance cost.\nAlso prevents leak of data and detection of corrupted memory.",
+    "source": {
+      "upstream_id": "zipl_slub_debug_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83371-5",
+      "imported_at": "2025-10-03T10:45:56.074723+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement zipl_bls_entries_option check",
+      "enable_command": "# TODO: Implement zipl_bls_entries_option remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_slub_debug_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To enable poisoning of SLUB/SLAB objects,\ncheck that all boot entries in <tt>/boot/loader/entries/*.conf</tt> have <tt>slub_debug=P</tt>\nincluded in its options.<br />\nTo ensure that new kernels and boot entries continue to enable poisoning of SLUB/SLAB objects,\nadd <tt>slub_debug=P</tt> to <tt>/etc/kernel/cmdline</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-zipl/zipl_slub_debug_argument/rule.yml",
+  "source_hash": "sha256:ae53d00b99b94ec0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.074826+00:00",
+  "updated_at": "2025-10-03T10:45:56.074828+00:00",
+  "identifiers": {
+    "cce": "CCE-83371-5"
+  }
+}

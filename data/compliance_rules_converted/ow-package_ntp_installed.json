@@ -1,0 +1,116 @@
+{
+  "_id": "ow-package_ntp_installed",
+  "rule_id": "ow-package_ntp_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_ntp_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install the ntp service",
+    "description": "The ntpd service should be installed.",
+    "rationale": "Time synchronization (using NTP) is required by almost all network and administrative tasks (syslog, cryptographic based services (authentication, etc.), etc.). Ntpd is regulary maintained and updated, supporting security features such as RFC 5906.",
+    "source": {
+      "upstream_id": "package_ntp_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-91656-9",
+      "imported_at": "2025-10-03T02:25:57.079828+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "converted",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "14",
+        "15",
+        "16",
+        "3",
+        "5",
+        "6"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.PT-1"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-10.4"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q ntp",
+      "enable_command": "yum install -y ntp",
+      "disable_command": "yum remove -y ntp",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep ntp",
+      "enable_command": "apt-get install -y ntp",
+      "disable_command": "apt-get remove -y ntp",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_ntp_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The ntpd service should be installed.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/package_ntp_installed/rule.yml",
+  "source_hash": "sha256:7c7540b1845e6d8e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.079934+00:00",
+  "updated_at": "2025-10-03T02:25:57.079936+00:00",
+  "identifiers": {
+    "cce": "CCE-91656-9"
+  }
+}

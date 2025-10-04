@@ -1,0 +1,58 @@
+{
+  "_id": "ow-sudoers_no_root_target",
+  "rule_id": "ow-sudoers_no_root_target",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_no_root_target",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Don't target root user in the sudoers file",
+    "description": "The targeted users of a user specification should be, as much as possible, non privileged users (i.e.: non-root).\n\nUser specifications have to explicitly list the runas spec (i.e. the list of target users that can be impersonated), and <tt>ALL</tt> or <tt>root</tt> should not be used.",
+    "rationale": "It is common that the command to be executed does not require superuser rights (editing a file\nwhose the owner is not root, sending a signal to an unprivileged process,etc.). In order to limit\nany attempt of privilege escalation through a command, it is better to apply normal user rights.",
+    "source": {
+      "upstream_id": "sudoers_no_root_target",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83598-3",
+      "imported_at": "2025-10-03T10:45:56.002192+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_no_root_target",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The targeted users of a user specification should be, as much as possible, non privileged users (i.e.: non-root).\n\nUser specifications have to explicitly list the runas spec (i.e. the list of target users that can be impersonated), and <tt>ALL</tt> or <tt>root</tt> should not be used.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudoers_no_root_target/rule.yml",
+  "source_hash": "sha256:d08529b3064a28b0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.002292+00:00",
+  "updated_at": "2025-10-03T10:45:56.002295+00:00",
+  "identifiers": {
+    "cce": "CCE-83598-3"
+  }
+}

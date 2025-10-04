@@ -1,0 +1,71 @@
+{
+  "_id": "ow-sshd_use_strong_kex",
+  "rule_id": "ow-sshd_use_strong_kex",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_strong_kex",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Use Only Strong Key Exchange algorithms",
+    "description": "Limit the Key Exchange to strong algorithms.\nThe following line in <tt>/etc/ssh/sshd_config</tt> demonstrates use\nof those:\n<pre>KexAlgorithms {{{ xccdf_value(\"sshd_strong_kex\") }}}</pre>",
+    "rationale": "Key exchange is any method in cryptography by which cryptographic keys are exchanged\nbetween two parties, allowing use of a cryptographic algorithm. If the sender and receiver\nwish to exchange encrypted messages, each must be equipped to encrypt messages to be\nsent and decrypt messages received",
+    "source": {
+      "upstream_id": "sshd_use_strong_kex",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86518-8",
+      "imported_at": "2025-10-03T02:25:57.151778+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.15",
+        "5.2.15"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_strong_kex",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Limit the Key Exchange to strong algorithms.\nThe following line in <tt>/etc/ssh/sshd_config</tt> demonstrates use\nof those:\n<pre>KexAlgorithms {{{ xccdf_value(\"sshd_strong_kex\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_use_strong_kex/rule.yml",
+  "source_hash": "sha256:54c51254207170bc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.151886+00:00",
+  "updated_at": "2025-10-03T02:25:57.151889+00:00",
+  "identifiers": {
+    "cce": "CCE-86518-8"
+  }
+}

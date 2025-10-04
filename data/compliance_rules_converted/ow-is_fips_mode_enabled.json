@@ -1,0 +1,74 @@
+{
+  "_id": "ow-is_fips_mode_enabled",
+  "rule_id": "ow-is_fips_mode_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_is_fips_mode_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify '/proc/sys/crypto/fips_enabled' exists",
+    "description": "On a system where FIPS 140-2 mode is enabled, <tt>/proc/sys/crypto/fips_enabled</tt> must exist.\nTo verify FIPS mode, run the following command:\n<pre>cat /proc/sys/crypto/fips_enabled</pre>",
+    "rationale": "Use of weak or untested encryption algorithms undermines the purposes of utilizing encryption to\nprotect data. The operating system must implement cryptographic modules adhering to the higher\nstandards approved by the federal government since this provides assurance they have been tested\nand validated.",
+    "source": {
+      "upstream_id": "is_fips_mode_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83224-6",
+      "imported_at": "2025-10-03T02:25:57.797722+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "converted",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-12(2)",
+        "SC-12(3)",
+        "SC-13"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000396-GPOS-00176",
+        "SRG-OS-000478-GPOS-00223",
+        "SLES-12-010420",
+        "SLES-15-010510"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_is_fips_mode_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "On a system where FIPS 140-2 mode is enabled, <tt>/proc/sys/crypto/fips_enabled</tt> must exist.\nTo verify FIPS mode, run the following command:\n<pre>cat /proc/sys/crypto/fips_enabled</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/fips/is_fips_mode_enabled/rule.yml",
+  "source_hash": "sha256:126a8d1502a2cafc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.797839+00:00",
+  "updated_at": "2025-10-03T02:25:57.797842+00:00",
+  "identifiers": {
+    "cce": "CCE-83224-6"
+  }
+}

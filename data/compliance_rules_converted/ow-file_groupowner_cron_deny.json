@@ -1,0 +1,80 @@
+{
+  "_id": "ow-file_groupowner_cron_deny",
+  "rule_id": "ow-file_groupowner_cron_deny",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_cron_deny",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns cron.deny",
+    "description": "{{{ describe_file_group_owner(file=\"/etc/cron.deny\", group=\"root\") }}}",
+    "rationale": "Service configuration files enable or disable features of their respective services that if configured incorrectly\ncan lead to insecure and vulnerable configurations. Therefore, service configuration files should be owned by the\ncorrect group to prevent unauthorized changes.",
+    "source": {
+      "upstream_id": "file_groupowner_cron_deny",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86537-8",
+      "imported_at": "2025-10-03T02:25:56.855249+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6 b"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_cron_deny",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/etc/cron.deny\", group=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/cron_and_at/file_groupowner_cron_deny/rule.yml",
+  "source_hash": "sha256:cc846477186be2cb",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.855384+00:00",
+  "updated_at": "2025-10-03T02:25:56.855386+00:00",
+  "identifiers": {
+    "cce": "CCE-86537-8"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "_id": "ow-package_uuidd_installed",
+  "rule_id": "ow-package_uuidd_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_uuidd_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Package uuidd Installed",
+    "description": "The package <tt>uuidd</tt> is not installed on normal Linux distribution\nby default. Applications require this package to avoid database\ninconsistences caused by duplicated UUIDs. Especially in banking services\nwith SAP where massive UUIDs are created in a short time period, it is\nimportant to install the package <tt>uuidd</tt>. More information can be\nfound in SAP note 1391070.\n{{{ describe_package_install(package=\"uuidd\") }}}",
+    "rationale": "The <tt>uuidd</tt> package contains a userspace daemon (uuidd) which is\nused to generate unique identifiers even at very high rates on\nSMP systems.",
+    "source": {
+      "upstream_id": "package_uuidd_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.844924+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q uuidd",
+      "enable_command": "yum install -y uuidd",
+      "disable_command": "yum remove -y uuidd",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep uuidd",
+      "enable_command": "apt-get install -y uuidd",
+      "disable_command": "apt-get remove -y uuidd",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_uuidd_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The package <tt>uuidd</tt> is not installed on normal Linux distribution\nby default. Applications require this package to avoid database\ninconsistences caused by duplicated UUIDs. Especially in banking services\nwith SAP where massive UUIDs are created in a short time period, it is\nimportant to install the package <tt>uuidd</tt>. More information can be\nfound in SAP note 1391070.\n{{{ describe_package_install(package=\"uuidd\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sap_host/package_uuidd_installed/rule.yml",
+  "source_hash": "sha256:447afbcaa4d6d261",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.845008+00:00",
+  "updated_at": "2025-10-03T02:25:57.845010+00:00",
+  "identifiers": {}
+}

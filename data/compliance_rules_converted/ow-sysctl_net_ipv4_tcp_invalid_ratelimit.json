@@ -1,0 +1,102 @@
+{
+  "_id": "ow-sysctl_net_ipv4_tcp_invalid_ratelimit",
+  "rule_id": "ow-sysctl_net_ipv4_tcp_invalid_ratelimit",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_tcp_invalid_ratelimit",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure Kernel to Rate Limit Sending of Duplicate TCP Acknowledgments",
+    "description": "Make sure that the system is configured to limit the maximal rate for sending\nduplicate acknowledgments in response to incoming TCP packets that are for\nan existing connection but that are invalid due to any of these reasons:\n\n(a) out-of-window sequence number, (b) out-of-window acknowledgment number,\nor (c) PAWS (Protection Against Wrapped Sequence numbers) check failure\nThis measure protects against or limits effects of DoS attacks against the system.\nSet the system to implement rate-limiting measures by adding the following line to\n<tt>/etc/sysctl.conf</tt> or a configuration file in the <tt>/etc/sysctl.d/</tt> directory\n(or modify the line to have the required value):\n<pre>net.ipv4.tcp_invalid_ratelimit = {{{ xccdf_value(\"sysctl_net_ipv4_tcp_invalid_ratelimit_value\") }}}</pre>\nIssue the following command to make the changes take effect:\n<pre># sysctl --system</pre>",
+    "rationale": "Denial of Service (DoS) is a condition when a resource is not available for legitimate users. When\nthis occurs, the organization either cannot accomplish its mission or must\noperate at degraded capacity.\n<br /><br />\nThis can help mitigate simple “ack loop” DoS attacks, wherein a buggy or\nmalicious middlebox or man-in-the-middle can rewrite TCP header fields in\nmanner that causes each endpoint to think that the other is sending invalid\nTCP segments, thus causing each side to send an unterminating stream of\nduplicate acknowledgments for invalid segments.",
+    "source": {
+      "upstream_id": "sysctl_net_ipv4_tcp_invalid_ratelimit",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86394-4",
+      "imported_at": "2025-10-03T02:25:58.212100+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-5"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000420-GPOS-00186",
+        "OL07-00-040510"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl net.ipv4.tcp_invalid_ratelimit | grep 'net.ipv4.tcp_invalid_ratelimit = '",
+      "enable_command": "echo 'net.ipv4.tcp_invalid_ratelimit = ' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl net.ipv4.tcp_invalid_ratelimit | grep 'net.ipv4.tcp_invalid_ratelimit = '",
+      "enable_command": "echo 'net.ipv4.tcp_invalid_ratelimit = ' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_net_ipv4_tcp_invalid_ratelimit",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Make sure that the system is configured to limit the maximal rate for sending\nduplicate acknowledgments in response to incoming TCP packets that are for\nan existing connection but that are invalid due to any of these reasons:\n\n(a) out-of-window sequence number, (b) out-of-window acknowledgment number,\nor (c) PAWS (Protection Against Wrapped Sequence numbers) check failure\nThis measure protects against or limits effects of DoS attacks against the system.\nSet the system to implement rate-limiting measures by adding the following line to\n<tt>/etc/sysctl.conf</tt> or a configuration file in the <tt>/etc/sysctl.d/</tt> directory\n(or modify the line to have the required value):\n<pre>net.ipv4.tcp_invalid_ratelimit = {{{ xccdf_value(\"sysctl_net_ipv4_tcp_invalid_ratelimit_value\") }}}</pre>\nIssue the following command to make the changes take effect:\n<pre># sysctl --system</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-kernel/network_host_and_router_parameters/sysctl_net_ipv4_tcp_invalid_ratelimit/rule.yml",
+  "source_hash": "sha256:044bac07a9beee11",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.212260+00:00",
+  "updated_at": "2025-10-03T02:25:58.212265+00:00",
+  "identifiers": {
+    "cce": "CCE-86394-4"
+  }
+}

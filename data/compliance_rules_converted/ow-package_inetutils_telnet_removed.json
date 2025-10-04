@@ -1,0 +1,67 @@
+{
+  "_id": "ow-package_inetutils_telnet_removed",
+  "rule_id": "ow-package_inetutils_telnet_removed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_inetutils_telnet_removed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Remove telnet Clients",
+    "description": "The telnet client allows users to start connections to other systems via\nthe telnet protocol.",
+    "rationale": "The <tt>telnet</tt> protocol is insecure and unencrypted. The use\nof an unencrypted transmission medium could allow an unauthorized user\nto steal credentials. The <tt>ssh</tt> package provides an\nencrypted session and stronger security and is included in {{{ full_name }}}.",
+    "source": {
+      "upstream_id": "package_inetutils_telnet_removed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:56.950926+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement package_removed check",
+      "enable_command": "# TODO: Implement package_removed remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_inetutils_telnet_removed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The telnet client allows users to start connections to other systems via\nthe telnet protocol.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/telnet/package_inetutils-telnet_removed/rule.yml",
+  "source_hash": "sha256:753b5aa2d8973125",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.951044+00:00",
+  "updated_at": "2025-10-03T02:25:56.951047+00:00",
+  "identifiers": {}
+}

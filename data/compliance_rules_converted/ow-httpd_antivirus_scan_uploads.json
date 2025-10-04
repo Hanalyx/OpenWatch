@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_antivirus_scan_uploads",
+  "rule_id": "ow-httpd_antivirus_scan_uploads",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_antivirus_scan_uploads",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Scan All Uploaded Content for Malicious Software",
+    "description": "Install anti-virus software on the system and set it to automatically scan new\nfiles that are introduced to the web server.",
+    "rationale": "Remote web authors should not be able to upload files to the Document Root\ndirectory structure without virus checking and checking for malicious or mobile\ncode. A remote web user, whose agency has a Memorandum of Agreement (MOA) with\nthe hosting agency and has submitted a DoD form 2875 (System Authorization\nAccess Request (SAAR)) or an equivalent document, will be allowed to post files\nto a temporary location on the server. All posted files to this temporary\nlocation will be scanned for viruses and content checked for malicious or mobile\ncode. Only files free of viruses and malicious or mobile code will be posted to\nthe appropriate DocumentRoot directory.",
+    "source": {
+      "upstream_id": "httpd_antivirus_scan_uploads",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.851284+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_antivirus_scan_uploads",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Install anti-virus software on the system and set it to automatically scan new\nfiles that are introduced to the web server.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_configure_os_protect_web_server/httpd_antivirus_scan_uploads/rule.yml",
+  "source_hash": "sha256:83940f1bec0dbe86",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.851370+00:00",
+  "updated_at": "2025-10-03T10:45:55.851373+00:00",
+  "identifiers": {}
+}

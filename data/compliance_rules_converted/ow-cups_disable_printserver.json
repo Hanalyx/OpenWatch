@@ -1,0 +1,85 @@
+{
+  "_id": "ow-cups_disable_printserver",
+  "rule_id": "ow-cups_disable_printserver",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_cups_disable_printserver",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Print Server Capabilities",
+    "description": "To prevent remote users from potentially connecting to and using\nlocally configured printers, disable the CUPS print server sharing\ncapabilities. To do so, limit how the server will listen for print jobs by\nremoving the more generic port directive from /etc/cups/cupsd.conf:\n<pre>Port 631</pre>\nand replacing it with the <tt>Listen</tt> directive:\n<pre>Listen localhost:631</pre>\nThis will prevent remote users from printing to locally configured printers\nwhile still allowing local users on the system to print normally.",
+    "rationale": "By default, locally configured printers will not be shared over the\nnetwork, but if this functionality has somehow been enabled, these\nrecommendations will disable it again. Be sure to disable outgoing printer list\nbroadcasts, or remote users will still be able to see the locally configured\nprinters, even if they cannot actually print to them. To limit print serving to\na particular set of users, use the Policy directive.",
+    "source": {
+      "upstream_id": "cups_disable_printserver",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.750985+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_cups_disable_printserver",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To prevent remote users from potentially connecting to and using\nlocally configured printers, disable the CUPS print server sharing\ncapabilities. To do so, limit how the server will listen for print jobs by\nremoving the more generic port directive from /etc/cups/cupsd.conf:\n<pre>Port 631</pre>\nand replacing it with the <tt>Listen</tt> directive:\n<pre>Listen localhost:631</pre>\nThis will prevent remote users from printing to locally configured printers\nwhile still allowing local users on the system to print normally.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/printing/configure_printing/cups_disable_printserver/rule.yml",
+  "source_hash": "sha256:031bbe56b7498ec0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.751093+00:00",
+  "updated_at": "2025-10-03T10:45:55.751096+00:00",
+  "identifiers": {}
+}

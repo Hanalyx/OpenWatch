@@ -1,0 +1,64 @@
+{
+  "_id": "ow-fargate",
+  "rule_id": "ow-fargate",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_fargate",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Consider Fargate for Untrusted Workloads",
+    "description": "It is Best Practice to restrict or fence untrusted workloads when running in\na multi-tenant environment.",
+    "rationale": "AWS Fargate is a technology that provides on-demand, right-sized compute\ncapacity for containers. With AWS Fargate, you no longer have to provision,\nconfigure, or scale groups of virtual machines to run containers. This\nremoves the need to choose server types, decide when to scale your node\ngroups, or optimize cluster packing.\n\nYou can control which pods start on Fargate and how they run with Fargate\nprofiles, which are defined as part of your Amazon EKS cluster.\n\nAmazon EKS integrates Kubernetes with AWS Fargate by using controllers that\nare built by AWS using the upstream, extensible model provided by Kubernetes.\nThese controllers run as part of the Amazon EKS managed Kubernetes control\nplane and are responsible for scheduling native Kubernetes pods onto Fargate.\nThe Fargate controllers include a new scheduler that runs alongside the\ndefault Kubernetes scheduler in addition to several mutating and validating\nadmission controllers. When you start a pod that meets the criteria for\nrunning on Fargate, the Fargate controllers running in the cluster recognize,\nupdate, and schedule the pod onto Fargate.\n\nEach pod running on Fargate has its own isolation boundary and does not share\nthe underlying kernel, CPU resources, memory resources, or elastic network\ninterface with another pod.",
+    "source": {
+      "upstream_id": "fargate",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89091-3",
+      "imported_at": "2025-10-03T10:45:56.434003+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.6.1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_fargate",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "It is Best Practice to restrict or fence untrusted workloads when running in\na multi-tenant environment.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/fargate/rule.yml",
+  "source_hash": "sha256:ab3e63fb75d67d1a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.434094+00:00",
+  "updated_at": "2025-10-03T10:45:56.434097+00:00",
+  "identifiers": {
+    "cce": "CCE-89091-3"
+  }
+}
