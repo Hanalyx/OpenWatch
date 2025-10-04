@@ -192,7 +192,7 @@ async def security_headers_middleware(request: Request, call_next):
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
-                "connect-src 'self' http://localhost:8000 ws://localhost:3000; "
+                "connect-src 'self' http://localhost:8000 http://localhost:8002 ws://localhost:3000; "
                 "font-src 'self'; "
                 "frame-src 'none'; "
                 "object-src 'none'"
