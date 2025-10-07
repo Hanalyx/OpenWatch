@@ -103,6 +103,15 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
     }
   };
 
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    dispatch(fetchRules({
+      offset: pagination.offset,
+      limit: pagination.limit,
+      ...activeFilters,
+    }));
+  }, [pagination, activeFilters, dispatch]);
+
   // Search function
   const performSearch = async (searchParams: any) => {
     try {
@@ -126,18 +135,18 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
           framework: activeFilters.frameworks.length > 0 ? activeFilters.frameworks : undefined,
         },
         limit: 50,
-      }));
+      });
     } else {
       // Clear search and reload regular rules
       handleRefresh();
     }
-  }, [activeFilters, dispatch]);
+  }, [activeFilters, dispatch, handleRefresh]);
 
   // Handle filter changes
   const handleFilterChange = useCallback((filters: any) => {
     dispatch(updateFilters(filters));
     dispatch(setPagination({ offset: 0, limit: pagination.limit }));
-    
+
     // Reload rules with new filters
     dispatch(fetchRules({
       offset: 0,
@@ -146,15 +155,6 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
       ...filters,
     }));
   }, [activeFilters, pagination.limit, dispatch]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    dispatch(fetchRules({
-      offset: pagination.offset,
-      limit: pagination.limit,
-      ...activeFilters,
-    }));
-  }, [pagination, activeFilters, dispatch]);
 
   // Handle rule selection
   const handleRuleSelect = useCallback(async (rule: Rule) => {
