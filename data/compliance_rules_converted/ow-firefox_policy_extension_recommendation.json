@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_extension_recommendation",
+  "rule_id": "ow-firefox_policy_extension_recommendation",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_extension_recommendation",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disabled Firefox Extension Recommendations",
+    "description": "Extension recommendations may be disabled by setting\n<tt>extensions.htmlaboutaddons.recommendations.enabled</tt> to <tt>false</tt> in the policy file.",
+    "rationale": "The Recommended Extensions program will make it easier for users to discover extensions that have been reviewed for security, functionality, and user experience.",
+    "source": {
+      "upstream_id": "firefox_policy_extension_recommendation",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.367023+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000026"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_extension_recommendation",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Extension recommendations may be disabled by setting\n<tt>extensions.htmlaboutaddons.recommendations.enabled</tt> to <tt>false</tt> in the policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-extension_recommendation/rule.yml",
+  "source_hash": "sha256:0a08a57917d25511",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.367139+00:00",
+  "updated_at": "2025-10-03T10:45:56.367141+00:00",
+  "identifiers": {}
+}

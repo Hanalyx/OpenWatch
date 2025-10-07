@@ -1,0 +1,65 @@
+{
+  "_id": "ow-group_unique_name",
+  "rule_id": "ow-group_unique_name",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_group_unique_name",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure All Groups on the System Have Unique Group Names",
+    "description": "Change the group name or delete groups, so each has a unique name.",
+    "rationale": "To assure accountability and prevent unauthenticated access, groups must be identified uniquely to prevent potential misuse and compromise of the system.",
+    "source": {
+      "upstream_id": "group_unique_name",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86328-2",
+      "imported_at": "2025-10-03T10:45:56.211256+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.17",
+        "6.2.17"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_group_unique_name",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Change the group name or delete groups, so each has a unique name.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/group_unique_name/rule.yml",
+  "source_hash": "sha256:7e506ab26a94d34c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.211476+00:00",
+  "updated_at": "2025-10-03T10:45:56.211480+00:00",
+  "identifiers": {
+    "cce": "CCE-86328-2"
+  }
+}

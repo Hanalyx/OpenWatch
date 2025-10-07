@@ -20,7 +20,6 @@ RUN dnf update -y && \
         openssl-devel \
         gcc \
         postgresql-devel \
-        curl \
         shadow-utils && \
     dnf clean all && \
     rm -rf /var/cache/dnf
@@ -28,11 +27,11 @@ RUN dnf update -y && \
 # Enable FIPS mode with proper error handling
 RUN fips-mode-setup --enable 2>/dev/null || echo "FIPS mode configuration applied"
 
-# Create application user with explicit UID/GID for rootless compatibility
-RUN groupadd -g 1000 openwatch && \
-    useradd -m -u 1000 -g 1000 -s /bin/bash openwatch && \
+# Create application user with high UID/GID for rootless compatibility
+RUN groupadd -g 10001 openwatch && \
+    useradd -m -u 10001 -g 10001 -s /bin/bash openwatch && \
     mkdir -p /app /app/data /app/logs /app/security && \
-    chown -R 1000:1000 /app
+    chown -R 10001:10001 /app
 
 # Set working directory
 WORKDIR /app
@@ -43,25 +42,26 @@ RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
     pip3 install --no-cache-dir --user -r requirements.txt
 
 # Copy application code with proper ownership
-COPY --chown=1000:1000 backend/ ./backend/
-COPY --chown=1000:1000 security/ ./security/
+COPY --chown=10001:10001 backend/ ./backend/
+COPY --chown=10001:10001 security/ ./security/
 
 # Create directories with proper permissions for rootless execution
 RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
-    chown -R 1000:1000 /app && \
+    chown -R 10001:10001 /app && \
     chmod -R 755 /app && \
+    chmod -R 755 /app/logs && \
     chmod -R 700 /app/security && \
     chmod +x /app/backend/app/*.py
 
 # Switch to non-root user for security
-USER 1000:1000
+USER 10001:10001
 
 # Expose port (rootless containers use unprivileged ports)
 EXPOSE 8000
 
 # Health check with timeout optimization
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health 2>/dev/null || wget -q --spider http://localhost:8000/health || exit 1
 
 # Environment variables for rootless operation
 ENV PYTHONPATH=/app \

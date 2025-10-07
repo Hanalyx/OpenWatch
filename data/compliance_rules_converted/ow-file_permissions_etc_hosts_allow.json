@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_permissions_etc_hosts_allow",
+  "rule_id": "ow-file_permissions_etc_hosts_allow",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_etc_hosts_allow",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Permissions on /etc/hosts.allow",
+    "description": "{{{ describe_file_permissions(file=\"/etc/hosts.allow\", perms=\"0644\") }}}",
+    "rationale": "The <tt>/etc/hosts.allow</tt> file is used to control access of clients to daemons in the\nserver. Insecure groupownership of this file could allow users to grant clients unrestricted\naccess or no access at all to services in the server.",
+    "source": {
+      "upstream_id": "file_permissions_etc_hosts_allow",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:56.928091+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_permissions check",
+      "enable_command": "# TODO: Implement file_permissions remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_etc_hosts_allow",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_permissions(file=\"/etc/hosts.allow\", perms=\"0644\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/inetd_and_xinetd/file_permissions_etc_hosts_allow/rule.yml",
+  "source_hash": "sha256:cc8f05ccbbcdac06",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.928217+00:00",
+  "updated_at": "2025-10-03T02:25:56.928220+00:00",
+  "identifiers": {}
+}

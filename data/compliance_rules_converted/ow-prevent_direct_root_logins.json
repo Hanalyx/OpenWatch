@@ -1,0 +1,62 @@
+{
+  "_id": "ow-prevent_direct_root_logins",
+  "rule_id": "ow-prevent_direct_root_logins",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_prevent_direct_root_logins",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Direct root Logins Are Not Allowed",
+    "description": "Configure the operating system to prevent direct logins to the\n<tt>root</tt> account by performing the following operations:\n<pre>$ sudo passwd -l root</pre>",
+    "rationale": "Disabling direct root logins ensures proper accountability and\nmultifactor authentication to privileged accounts.",
+    "source": {
+      "upstream_id": "prevent_direct_root_logins",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.221318+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000109-GPOS-00056"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_prevent_direct_root_logins",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure the operating system to prevent direct logins to the\n<tt>root</tt> account by performing the following operations:\n<pre>$ sudo passwd -l root</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/prevent_direct_root_logins/rule.yml",
+  "source_hash": "sha256:8d84501d2ec871fc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.221422+00:00",
+  "updated_at": "2025-10-03T10:45:56.221424+00:00",
+  "identifiers": {}
+}

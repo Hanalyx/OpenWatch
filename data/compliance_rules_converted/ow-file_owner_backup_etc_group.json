@@ -1,0 +1,91 @@
+{
+  "_id": "ow-file_owner_backup_etc_group",
+  "rule_id": "ow-file_owner_backup_etc_group",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_backup_etc_group",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify User Who Owns Backup group File",
+    "description": "{{{ describe_file_owner(file=\"/etc/group-\", owner=\"root\") }}}",
+    "rationale": "The <tt>/etc/group-</tt> file is a backup file of <tt>/etc/group</tt>, and as such,\nit contains information regarding groups that are configured on the system.\nProtection of this file is important for system security.",
+    "source": {
+      "upstream_id": "file_owner_backup_etc_group",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83473-9",
+      "imported_at": "2025-10-03T02:25:57.556306+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.1.7",
+        "6.1.7"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-6 (1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.7.c"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_backup_etc_group",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_owner(file=\"/etc/group-\", owner=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_important_account_files/file_owner_backup_etc_group/rule.yml",
+  "source_hash": "sha256:f9be0570ba5b902a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.556440+00:00",
+  "updated_at": "2025-10-03T02:25:57.556443+00:00",
+  "identifiers": {
+    "cce": "CCE-83473-9"
+  }
+}

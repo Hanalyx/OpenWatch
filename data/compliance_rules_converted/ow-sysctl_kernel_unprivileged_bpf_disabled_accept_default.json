@@ -1,0 +1,103 @@
+{
+  "_id": "ow-sysctl_kernel_unprivileged_bpf_disabled_accept_default",
+  "rule_id": "ow-sysctl_kernel_unprivileged_bpf_disabled_accept_default",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_unprivileged_bpf_disabled_accept_default",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Access to Network bpf() Syscall From Unprivileged Processes",
+    "description": "To prevent unprivileged processes from using the <code>bpf()</code> syscall\nthe <code>kernel.unprivileged_bpf_disabled</code> kernel parameter must\nbe set to <code>1</code> or <code>2</code>.\n\nWriting <code>1</code> to this entry will disable unprivileged calls to <code>bpf()</code>; once\ndisabled, calling <code>bpf()</code> without <code>CAP_SYS_ADMIN</code> or <code>CAP_BPF</code> will return <code>-EPERM</code>.\nOnce set to <code>1</code>, this can't be cleared from the running kernel anymore.\n\n{{{ describe_sysctl_option_value(sysctl=\"kernel.unprivileged_bpf_disabled\", value=\"1\") }}}\n\nWriting <code>2</code> to this entry will also disable unprivileged calls to <code>bpf()</code>,\nhowever, an admin can still change this setting later on, if needed, by\nwriting <code>0</code> or <code>1</code> to this entry.\n\n{{{ describe_sysctl_option_value(sysctl=\"kernel.unprivileged_bpf_disabled\", value=\"2\") }}}",
+    "rationale": "Loading and accessing the packet filters programs and maps using the bpf()\nsyscall has the potential of revealing sensitive information about the kernel state.",
+    "source": {
+      "upstream_id": "sysctl_kernel_unprivileged_bpf_disabled_accept_default",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87712-6",
+      "imported_at": "2025-10-03T02:25:57.406993+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-6",
+        "SC-7(10)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000132-GPOS-00067",
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl kernel.unprivileged_bpf_disabled | grep 'kernel.unprivileged_bpf_disabled = ['1', '2']'",
+      "enable_command": "echo 'kernel.unprivileged_bpf_disabled = ['1', '2']' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "sysctl",
+      "check_command": "sysctl kernel.unprivileged_bpf_disabled | grep 'kernel.unprivileged_bpf_disabled = ['1', '2']'",
+      "enable_command": "echo 'kernel.unprivileged_bpf_disabled = ['1', '2']' >> /etc/sysctl.conf && sysctl -p",
+      "config_files": [
+        "/etc/sysctl.conf",
+        "/etc/sysctl.d/*.conf"
+      ],
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sysctl_kernel_unprivileged_bpf_disabled_accept_default",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To prevent unprivileged processes from using the <code>bpf()</code> syscall\nthe <code>kernel.unprivileged_bpf_disabled</code> kernel parameter must\nbe set to <code>1</code> or <code>2</code>.\n\nWriting <code>1</code> to this entry will disable unprivileged calls to <code>bpf()</code>; once\ndisabled, calling <code>bpf()</code> without <code>CAP_SYS_ADMIN</code> or <code>CAP_BPF</code> will return <code>-EPERM</code>.\nOnce set to <code>1</code>, this can't be cleared from the running kernel anymore.\n\n{{{ describe_sysctl_option_value(sysctl=\"kernel.unprivileged_bpf_disabled\", value=\"1\") }}}\n\nWriting <code>2</code> to this entry will also disable unprivileged calls to <code>bpf()</code>,\nhowever, an admin can still change this setting later on, if needed, by\nwriting <code>0</code> or <code>1</code> to this entry.\n\n{{{ describe_sysctl_option_value(sysctl=\"kernel.unprivileged_bpf_disabled\", value=\"2\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/restrictions/sysctl_kernel_unprivileged_bpf_disabled_accept_default/rule.yml",
+  "source_hash": "sha256:9d51515bb0979a4e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.407123+00:00",
+  "updated_at": "2025-10-03T02:25:57.407132+00:00",
+  "identifiers": {
+    "cce": "CCE-87712-6"
+  }
+}

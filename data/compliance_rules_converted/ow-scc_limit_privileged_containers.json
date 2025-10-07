@@ -1,0 +1,79 @@
+{
+  "_id": "ow-scc_limit_privileged_containers",
+  "rule_id": "ow-scc_limit_privileged_containers",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_privileged_containers",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit Privileged Container Use",
+    "description": "Containers should be limited to only the privileges required\nto run. To prevent containers from running as privileged containers,\nthe appropriate Security Context Constraints (SCCs) should set\n<tt>allowPrivilegedContainer</tt> to <tt>false</tt>.",
+    "rationale": "Privileged containers have access to all Linux Kernel\ncapabilities and devices. If a privileged container were\ncompromised, an attacker would have full access to the container\nand host.",
+    "source": {
+      "upstream_id": "scc_limit_privileged_containers",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.470193+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000342-CTR-000775",
+        "SRG-APP-000142-CTR-000330"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_privileged_containers",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Containers should be limited to only the privileges required\nto run. To prevent containers from running as privileged containers,\nthe appropriate Security Context Constraints (SCCs) should set\n<tt>allowPrivilegedContainer</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/scc/scc_limit_privileged_containers/rule.yml",
+  "source_hash": "sha256:38d4a61b8b52f384",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.470284+00:00",
+  "updated_at": "2025-10-03T10:45:56.470286+00:00",
+  "identifiers": {}
+}

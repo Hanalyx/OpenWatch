@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_http_authentication",
+  "rule_id": "ow-chromium_http_authentication",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_http_authentication",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set Chromium's HTTP Authentication Scheme",
+    "description": "To set the default Chromium's HTTP Authentication Scheme, set <tt>AuthSchemes</tt> to <tt>{{{ xccdf_value(\"var_auth_schema\") }}}</tt> in the Chromium policy file.",
+    "rationale": "Specifies which HTTP Authentication schemes are supported by Google Chromium.",
+    "source": {
+      "upstream_id": "chromium_http_authentication",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:59.062549+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0012"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_http_authentication",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To set the default Chromium's HTTP Authentication Scheme, set <tt>AuthSchemes</tt> to <tt>{{{ xccdf_value(\"var_auth_schema\") }}}</tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_http_authentication/rule.yml",
+  "source_hash": "sha256:20dcd883fdae1327",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.062640+00:00",
+  "updated_at": "2025-10-03T02:25:59.062642+00:00",
+  "identifiers": {}
+}

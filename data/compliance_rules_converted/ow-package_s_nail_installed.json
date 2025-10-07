@@ -1,0 +1,95 @@
+{
+  "_id": "ow-package_s_nail_installed",
+  "rule_id": "ow-package_s_nail_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_s_nail_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "The s-nail Package Is Installed",
+    "description": "A mail server is required for sending emails.\n{{{ describe_package_install(package=\"s-nail\") }}}",
+    "rationale": "Emails can be used to notify designated personnel about important\nsystem events such as failures or warnings.",
+    "source": {
+      "upstream_id": "package_s_nail_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86608-7",
+      "imported_at": "2025-10-03T02:25:57.272782+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-3(5)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000363-GPOS-00150"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q s-nail",
+      "enable_command": "yum install -y s-nail",
+      "disable_command": "yum remove -y s-nail",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep s-nail",
+      "enable_command": "apt-get install -y s-nail",
+      "disable_command": "apt-get remove -y s-nail",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_s_nail_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "A mail server is required for sending emails.\n{{{ describe_package_install(package=\"s-nail\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/mail/package_s-nail_installed/rule.yml",
+  "source_hash": "sha256:e1c4c76c0c117258",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.272870+00:00",
+  "updated_at": "2025-10-03T02:25:57.272872+00:00",
+  "identifiers": {
+    "cce": "CCE-86608-7"
+  }
+}

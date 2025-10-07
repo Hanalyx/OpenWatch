@@ -1,0 +1,112 @@
+{
+  "_id": "ow-ensure_redhat_gpgkey_installed",
+  "rule_id": "ow-ensure_redhat_gpgkey_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_redhat_gpgkey_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Red Hat GPG Key Installed",
+    "description": "To ensure the system can cryptographically verify base software packages\ncome from Red Hat (and to connect to the Red Hat Network to receive them),\nthe Red Hat GPG key must properly be installed. To install the Red Hat GPG\nkey, run:\n<pre>$ sudo subscription-manager register</pre>\n\nIf the system is not connected to the Internet or an RHN Satellite, then\ninstall the Red Hat GPG key from trusted media such as the Red Hat\ninstallation CD-ROM or DVD. Assuming the disc is mounted in\n<tt>/media/cdrom</tt>, use the following command as the root user to import\nit into the keyring:\n<pre>$ sudo rpm --import /media/cdrom/RPM-GPG-KEY</pre>\n\nAlternatively, the key may be pre-loaded during the RHEL installation. In\nsuch cases, the key can be installed by running the following command:\n<pre>sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release</pre>",
+    "rationale": "Changes to software components can have significant effects on the overall\nsecurity of the operating system. This requirement ensures the software has\nnot been tampered with and that it has been provided by a trusted vendor.\nThe Red Hat GPG key is necessary to cryptographically verify packages are\nfrom Red Hat.",
+    "source": {
+      "upstream_id": "ensure_redhat_gpgkey_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82754-3",
+      "imported_at": "2025-10-03T02:25:57.912610+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "converted",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "2",
+        "3",
+        "9"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(D)",
+        "164.312(b)",
+        "164.312(c)(1)",
+        "164.312(c)(2)",
+        "164.312(e)(2)(i)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.4",
+        "A.12.1.2",
+        "A.12.2.1",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.1.2",
+        "A.14.1.3",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-5(3)",
+        "SI-7",
+        "SC-12",
+        "SC-12(3)",
+        "CM-6(a)",
+        "PR.DS-6",
+        "PR.DS-8",
+        "PR.IP-1"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-6.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000366-GPOS-00153"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_redhat_gpgkey_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To ensure the system can cryptographically verify base software packages\ncome from Red Hat (and to connect to the Red Hat Network to receive them),\nthe Red Hat GPG key must properly be installed. To install the Red Hat GPG\nkey, run:\n<pre>$ sudo subscription-manager register</pre>\n\nIf the system is not connected to the Internet or an RHN Satellite, then\ninstall the Red Hat GPG key from trusted media such as the Red Hat\ninstallation CD-ROM or DVD. Assuming the disc is mounted in\n<tt>/media/cdrom</tt>, use the following command as the root user to import\nit into the keyring:\n<pre>$ sudo rpm --import /media/cdrom/RPM-GPG-KEY</pre>\n\nAlternatively, the key may be pre-loaded during the RHEL installation. In\nsuch cases, the key can be installed by running the following command:\n<pre>sudo rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/updating/ensure_redhat_gpgkey_installed/rule.yml",
+  "source_hash": "sha256:1a546458d6b7e986",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.912738+00:00",
+  "updated_at": "2025-10-03T02:25:57.912741+00:00",
+  "identifiers": {
+    "cce": "CCE-82754-3"
+  }
+}

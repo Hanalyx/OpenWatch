@@ -1,0 +1,67 @@
+{
+  "_id": "ow-firefox_policy_content_blocker",
+  "rule_id": "ow-firefox_policy_content_blocker",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_content_blocker",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure the Content Blocker uBlock Origin is Installed",
+    "description": "The uBlock Origin will be installed automatically by configuring Firefox policy, and updates will be enabled. It can also be installed through the Mozilla Add-Ons store at https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/.",
+    "rationale": "The content blocking feature of uBlock Origin stops Firefox from loading content from malicious sites. The content might be a script or an image, for example. If a site is on one of the lists uBlock Origin uses, then the content will not be loaded from that site.\nThis may prevent malicious ads from confusing users and concealing the page contents, as well as the loading of content that may contain malware.",
+    "source": {
+      "upstream_id": "firefox_policy_content_blocker",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.356273+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_content_blocker",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The uBlock Origin will be installed automatically by configuring Firefox policy, and updates will be enabled. It can also be installed through the Mozilla Add-Ons store at https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-content_blocker/rule.yml",
+  "source_hash": "sha256:dba6d6f9a52041d6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.356385+00:00",
+  "updated_at": "2025-10-03T10:45:56.356387+00:00",
+  "identifiers": {}
+}

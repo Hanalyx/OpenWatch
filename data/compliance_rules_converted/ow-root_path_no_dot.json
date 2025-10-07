@@ -1,0 +1,85 @@
+{
+  "_id": "ow-root_path_no_dot",
+  "rule_id": "ow-root_path_no_dot",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_no_dot",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that Root's Path Does Not Include Relative Paths or Null Directories",
+    "description": "Ensure that none of the directories in root's path is equal to a single\n<tt>.</tt> character, or\nthat it contains any instances that lead to relative path traversal, such as\n<tt>..</tt> or beginning a path without the slash (<tt>/</tt>) character.\nAlso ensure that there are no \"empty\" elements in the path, such as in these examples:\n<pre>PATH=:/bin\nPATH=/bin:\nPATH=/bin::/sbin</pre>\nThese empty elements have the same effect as a single <tt>.</tt> character.",
+    "rationale": "Including these entries increases the risk that root could\nexecute code from an untrusted location.",
+    "source": {
+      "upstream_id": "root_path_no_dot",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85914-0",
+      "imported_at": "2025-10-03T10:45:56.206494+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "3",
+        "9",
+        "6.2.4",
+        "6.2.4"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "CM-6(a)",
+        "PR.IP-1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_no_dot",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Ensure that none of the directories in root's path is equal to a single\n<tt>.</tt> character, or\nthat it contains any instances that lead to relative path traversal, such as\n<tt>..</tt> or beginning a path without the slash (<tt>/</tt>) character.\nAlso ensure that there are no \"empty\" elements in the path, such as in these examples:\n<pre>PATH=:/bin\nPATH=/bin:\nPATH=/bin::/sbin</pre>\nThese empty elements have the same effect as a single <tt>.</tt> character.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/root_paths/root_path_no_dot/rule.yml",
+  "source_hash": "sha256:90ddce5819875676",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.206613+00:00",
+  "updated_at": "2025-10-03T10:45:56.206616+00:00",
+  "identifiers": {
+    "cce": "CCE-85914-0"
+  }
+}

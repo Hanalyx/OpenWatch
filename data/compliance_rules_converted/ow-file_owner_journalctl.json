@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_owner_journalctl",
+  "rule_id": "ow-file_owner_journalctl",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_journalctl",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Owner on the journalctl Command",
+    "description": "Verify that the \"journalctl\" command is owned by \"root\" by\nusing the following command:\n<pre>\n$ sudo find /usr/bin/journalctl -exec stat -c \"%n %U\" {} \\;\n</pre>\nIf any output returned is not owned by \"root\", this is a finding.",
+    "rationale": "Only authorized personnel should be aware of errors and the details of the errors.\nError messages are an indicator of an organization's operational state or can\nidentify the operating system or platform. Additionally, personally identifiable\ninformation (PII) and operational information must not be revealed through error\nmessages to unauthorized personnel or their designated representatives.",
+    "source": {
+      "upstream_id": "file_owner_journalctl",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.183974+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_journalctl",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Verify that the \"journalctl\" command is owned by \"root\" by\nusing the following command:\n<pre>\n$ sudo find /usr/bin/journalctl -exec stat -c \"%n %U\" {} \\;\n</pre>\nIf any output returned is not owned by \"root\", this is a finding.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/journald/file_owner_journalctl/rule.yml",
+  "source_hash": "sha256:c5087f49476fcbe7",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.184100+00:00",
+  "updated_at": "2025-10-03T10:45:56.184103+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,74 @@
+{
+  "_id": "ow-sudo_restrict_privilege_elevation_to_authorized",
+  "rule_id": "ow-sudo_restrict_privilege_elevation_to_authorized",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_restrict_privilege_elevation_to_authorized",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "The operating system must restrict privilege elevation to authorized personnel",
+    "description": "The sudo command allows a user to execute programs with elevated\n(administrator) privileges. It prompts the user for their password\nand confirms your request to execute a command by checking a file,\ncalled sudoers.\nRestrict privileged actions by removing the following entries from the sudoers file:\n<tt>ALL ALL=(ALL) ALL</tt>\n<tt>ALL ALL=(ALL:ALL) ALL</tt>",
+    "rationale": "If the \"sudoers\" file is not configured correctly, any user defined\non the system can initiate privileged actions on the target system.",
+    "source": {
+      "upstream_id": "sudo_restrict_privilege_elevation_to_authorized",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83425-9",
+      "imported_at": "2025-10-03T02:25:57.850945+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6(b)",
+        "CM-6(iv)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-010341",
+        "OL08-00-010382",
+        "SLES-12-010111",
+        "SLES-15-020101"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_restrict_privilege_elevation_to_authorized",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The sudo command allows a user to execute programs with elevated\n(administrator) privileges. It prompts the user for their password\nand confirms your request to execute a command by checking a file,\ncalled sudoers.\nRestrict privileged actions by removing the following entries from the sudoers file:\n<tt>ALL ALL=(ALL) ALL</tt>\n<tt>ALL ALL=(ALL:ALL) ALL</tt>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudo_restrict_privilege_elevation_to_authorized/rule.yml",
+  "source_hash": "sha256:589517ec32b2e368",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.851052+00:00",
+  "updated_at": "2025-10-03T02:25:57.851054+00:00",
+  "identifiers": {
+    "cce": "CCE-83425-9"
+  }
+}

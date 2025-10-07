@@ -1,0 +1,66 @@
+{
+  "_id": "ow-postfix_prevent_unrestricted_relay",
+  "rule_id": "ow-postfix_prevent_unrestricted_relay",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_postfix_prevent_unrestricted_relay",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Prevent Unrestricted Mail Relaying",
+    "description": "Modify the <pre>/etc/postfix/main.cf</pre> file to restrict client connections\nto the local network with the following command:\n<pre>$ sudo postconf -e 'smtpd_client_restrictions = permit_mynetworks,reject'</pre>",
+    "rationale": "If unrestricted mail relaying is permitted, unauthorized senders could use this\nhost as a mail relay for the purpose of sending spam or other unauthorized\nactivity.",
+    "source": {
+      "upstream_id": "postfix_prevent_unrestricted_relay",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84054-6",
+      "imported_at": "2025-10-03T02:25:57.281880+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-040680",
+        "OL08-00-040290"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_postfix_prevent_unrestricted_relay",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Modify the <pre>/etc/postfix/main.cf</pre> file to restrict client connections\nto the local network with the following command:\n<pre>$ sudo postconf -e 'smtpd_client_restrictions = permit_mynetworks,reject'</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/mail/postfix_harden_os/postfix_server_cfg/postfix_server_relay/postfix_prevent_unrestricted_relay/rule.yml",
+  "source_hash": "sha256:35fc907fedab8743",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.281979+00:00",
+  "updated_at": "2025-10-03T02:25:57.281981+00:00",
+  "identifiers": {
+    "cce": "CCE-84054-6"
+  }
+}

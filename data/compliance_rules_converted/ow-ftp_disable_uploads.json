@@ -1,0 +1,56 @@
+{
+  "_id": "ow-ftp_disable_uploads",
+  "rule_id": "ow-ftp_disable_uploads",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ftp_disable_uploads",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable FTP Uploads if Possible",
+    "description": "Is there a mission-critical reason for users to upload files via FTP? If not,\nedit the vsftpd configuration file to add or correct the following configuration options:\n<pre>write_enable=NO</pre>\nIf FTP uploads are necessary, follow the guidance in the remainder of this section to secure these transactions\nas much as possible.",
+    "rationale": "Anonymous FTP can be a convenient way to make files available for universal download. However, it is less\ncommon to have a need to allow unauthenticated users to place files on the FTP server. If this must be done, it\nis necessary to ensure that files cannot be uploaded and downloaded from the same directory.",
+    "source": {
+      "upstream_id": "ftp_disable_uploads",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.875135+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ftp_disable_uploads",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Is there a mission-critical reason for users to upload files via FTP? If not,\nedit the vsftpd configuration file to add or correct the following configuration options:\n<pre>write_enable=NO</pre>\nIf FTP uploads are necessary, follow the guidance in the remainder of this section to secure these transactions\nas much as possible.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ftp/ftp_configure_vsftpd/ftp_disable_uploads/rule.yml",
+  "source_hash": "sha256:cc5bdac71106fb91",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.875217+00:00",
+  "updated_at": "2025-10-03T10:45:55.875219+00:00",
+  "identifiers": {}
+}

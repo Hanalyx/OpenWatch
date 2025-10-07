@@ -1,0 +1,67 @@
+{
+  "_id": "ow-accounts_user_interactive_home_directory_defined",
+  "rule_id": "ow-accounts_user_interactive_home_directory_defined",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_user_interactive_home_directory_defined",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "All Interactive Users Must Have A Home Directory Defined",
+    "description": "Assign home directories to all interactive users that currently do not\nhave a home directory assigned.\n\nThis rule checks if the home directory is properly defined in a folder which has\nat least one parent folder, like \"user\" in \"/home/user\" or \"/remote/users/user\".\nTherefore, this rule will report a finding for home directories like <tt>/users</tt>,\n<tt>/tmp</tt> or <tt>/</tt>.",
+    "rationale": "If local interactive users are not assigned a valid home directory, there is no\nplace for the storage and control of files they should own.",
+    "source": {
+      "upstream_id": "accounts_user_interactive_home_directory_defined",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84036-3",
+      "imported_at": "2025-10-03T02:25:58.444721+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL08-00-010720",
+        "SLES-12-010710",
+        "SLES-15-040070"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_user_interactive_home_directory_defined",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Assign home directories to all interactive users that currently do not\nhave a home directory assigned.\n\nThis rule checks if the home directory is properly defined in a folder which has\nat least one parent folder, like \"user\" in \"/home/user\" or \"/remote/users/user\".\nTherefore, this rule will report a finding for home directories like <tt>/users</tt>,\n<tt>/tmp</tt> or <tt>/</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_user_interactive_home_directory_defined/rule.yml",
+  "source_hash": "sha256:07a622f1e0c09370",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.444833+00:00",
+  "updated_at": "2025-10-03T02:25:58.444835+00:00",
+  "identifiers": {
+    "cce": "CCE-84036-3"
+  }
+}

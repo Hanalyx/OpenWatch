@@ -1,0 +1,111 @@
+{
+  "_id": "ow-package_vsftpd_installed",
+  "rule_id": "ow-package_vsftpd_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_vsftpd_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install vsftpd Package",
+    "description": "If this system must operate as an FTP server, install the <tt>vsftpd</tt> package via the standard channels.\n{{{ describe_package_install(package=\"vsftpd\") }}}",
+    "rationale": "After Red Hat Enterprise Linux 2.1, Red Hat switched from distributing <tt>wu-ftpd</tt> with\nRed Hat Enterprise Linux to distributing <tt>vsftpd</tt>. For security\nand for consistency with future Red Hat releases, the use of <tt>vsftpd</tt> is recommended.",
+    "source": {
+      "upstream_id": "package_vsftpd_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82411-0",
+      "imported_at": "2025-10-03T02:25:57.361106+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q vsftpd",
+      "enable_command": "yum install -y vsftpd",
+      "disable_command": "yum remove -y vsftpd",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep vsftpd",
+      "enable_command": "apt-get install -y vsftpd",
+      "disable_command": "apt-get remove -y vsftpd",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_vsftpd_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "If this system must operate as an FTP server, install the <tt>vsftpd</tt> package via the standard channels.\n{{{ describe_package_install(package=\"vsftpd\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ftp/ftp_use_vsftpd/package_vsftpd_installed/rule.yml",
+  "source_hash": "sha256:8095b4ef106b744b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.361237+00:00",
+  "updated_at": "2025-10-03T02:25:57.361240+00:00",
+  "identifiers": {
+    "cce": "CCE-82411-0"
+  }
+}

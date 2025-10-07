@@ -1,0 +1,58 @@
+{
+  "_id": "ow-configure_network_bandwidth",
+  "rule_id": "ow-configure_network_bandwidth",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_network_bandwidth",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limiting Network Bandwidth in Pods",
+    "description": "Network bandwidth, SHOULD be appropriately reserved and limited.",
+    "rationale": "Extend pod configuration with network bandwidth annotations to prevent\na bad actor or a malfunction in the pod to consume all the bandwidth in the cluster.\nA network bandwidth limitation on the pod level can mitigate the bearing onto the cluster.",
+    "source": {
+      "upstream_id": "configure_network_bandwidth",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87610-2",
+      "imported_at": "2025-10-03T02:25:59.453178+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_network_bandwidth",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Network bandwidth, SHOULD be appropriately reserved and limited.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/networking/configure_network_bandwidth/rule.yml",
+  "source_hash": "sha256:e67afbb0f8d6e70d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.453269+00:00",
+  "updated_at": "2025-10-03T02:25:59.453272+00:00",
+  "identifiers": {
+    "cce": "CCE-87610-2"
+  }
+}

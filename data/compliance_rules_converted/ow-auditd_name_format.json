@@ -1,0 +1,74 @@
+{
+  "_id": "ow-auditd_name_format",
+  "rule_id": "ow-auditd_name_format",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_name_format",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set type of computer node name logging in audit logs",
+    "description": "To configure Audit daemon to use a unique identifier\nas computer node name in the audit events,\nset <tt>name_format</tt> to <tt>{{{ xccdf_value(\"var_auditd_name_format\") }}}</tt>\nin <tt>/etc/audit/auditd.conf</tt>.",
+    "rationale": "If option <tt>name_format</tt> is left at its default value of\n<tt>none</tt>, audit events from different computers may be hard\nto distinguish.",
+    "source": {
+      "upstream_id": "auditd_name_format",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82513-3",
+      "imported_at": "2025-10-03T02:25:56.440953+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "AU-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000039-GPOS-00017",
+        "SRG-OS-000342-GPOS-00133",
+        "SRG-OS-000479-GPOS-00224",
+        "OL07-00-030211",
+        "OL08-00-030062"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_name_format",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To configure Audit daemon to use a unique identifier\nas computer node name in the audit events,\nset <tt>name_format</tt> to <tt>{{{ xccdf_value(\"var_auditd_name_format\") }}}</tt>\nin <tt>/etc/audit/auditd.conf</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/configure_auditd_data_retention/auditd_name_format/rule.yml",
+  "source_hash": "sha256:2151fa95145dd8c7",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.441051+00:00",
+  "updated_at": "2025-10-03T02:25:56.441054+00:00",
+  "identifiers": {
+    "cce": "CCE-82513-3"
+  }
+}

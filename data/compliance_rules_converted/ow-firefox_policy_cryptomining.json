@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_cryptomining",
+  "rule_id": "ow-firefox_policy_cryptomining",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_cryptomining",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enabled Firefox Cryptomining protection",
+    "description": "Cryptomining protection may be enabled by setting\n<tt>privacy.trackingprotection.cryptomining.enabled</tt> to <tt>true</tt>.",
+    "rationale": "The Content Blocking/Tracking Protection feature stops Firefox from loading content from malicious sites. The content might be a script or an image, for example. If a site is on one of the tracker lists you set Firefox to use, then the fingerprinting script (or other tracking script/image) will not be loaded from that site.\nCryptomining scripts use your computer’s central processing unit (CPU) to invisibly mine cryptocurrency.",
+    "source": {
+      "upstream_id": "firefox_policy_cryptomining",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.349494+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "cryptography",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000024"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_cryptomining",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Cryptomining protection may be enabled by setting\n<tt>privacy.trackingprotection.cryptomining.enabled</tt> to <tt>true</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-cryptomining/rule.yml",
+  "source_hash": "sha256:1128abf2a61a1a10",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.349611+00:00",
+  "updated_at": "2025-10-03T10:45:56.349614+00:00",
+  "identifiers": {}
+}

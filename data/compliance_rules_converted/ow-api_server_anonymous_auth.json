@@ -1,0 +1,89 @@
+{
+  "_id": "ow-api_server_anonymous_auth",
+  "rule_id": "ow-api_server_anonymous_auth",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_api_server_anonymous_auth",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that anonymous requests to the API Server are authorized",
+    "description": "By default, anonymous access to the OpenShift API is enabled, but at\nthe same time, all requests must be authorized. If no authentication\nmechanism is used, the request is assigned the <tt>system:anonymous</tt>\nvirtual user and the <tt>system:unauthenticated</tt> virtual group.\nThis allows the authorization layer to determine which requests, if any,\nis an anonymous user authorized to make.\n\nTo verify the authorization rules for anonymous requests run the following:\n<pre>$ oc describe clusterrolebindings</pre>\nand inspect the bindings of the <tt>system:anonymous</tt>\nvirtual user and the <tt>system:unauthenticated</tt> virtual group.\n\nTo test that an anonymous request is authorized to access the <tt>readyz</tt>\nendpoint, run:\n<pre>$ oc get --as=\"system:anonymous\" --raw='/readyz?verbose'</pre>\nIn contrast, a request to list all projects should not be authorized:\n<pre>$ oc get --as=\"system:anonymous\" projects</pre>",
+    "rationale": "When enabled, requests that are not rejected by other configured\nauthentication methods are treated as anonymous requests. These requests\nare then served by the API server. If you are using RBAC authorization,\nit is generally considered reasonable to allow anonymous access to the\nAPI Server for health checks and discovery purposes, and hence this\nrecommendation is not scored. However, you should consider whether\nanonymous discovery is an acceptable risk for your purposes.",
+    "source": {
+      "upstream_id": "api_server_anonymous_auth",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:59.234054+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.2.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_api_server_anonymous_auth",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "By default, anonymous access to the OpenShift API is enabled, but at\nthe same time, all requests must be authorized. If no authentication\nmechanism is used, the request is assigned the <tt>system:anonymous</tt>\nvirtual user and the <tt>system:unauthenticated</tt> virtual group.\nThis allows the authorization layer to determine which requests, if any,\nis an anonymous user authorized to make.\n\nTo verify the authorization rules for anonymous requests run the following:\n<pre>$ oc describe clusterrolebindings</pre>\nand inspect the bindings of the <tt>system:anonymous</tt>\nvirtual user and the <tt>system:unauthenticated</tt> virtual group.\n\nTo test that an anonymous request is authorized to access the <tt>readyz</tt>\nendpoint, run:\n<pre>$ oc get --as=\"system:anonymous\" --raw='/readyz?verbose'</pre>\nIn contrast, a request to list all projects should not be authorized:\n<pre>$ oc get --as=\"system:anonymous\" projects</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/api-server/api_server_anonymous_auth/rule.yml",
+  "source_hash": "sha256:d528dfca3aa8eaea",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.234201+00:00",
+  "updated_at": "2025-10-03T02:25:59.234204+00:00",
+  "identifiers": {}
+}

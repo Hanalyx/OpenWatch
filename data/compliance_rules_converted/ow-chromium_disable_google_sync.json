@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_google_sync",
+  "rule_id": "ow-chromium_disable_google_sync",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_google_sync",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Data Synchronization to Google",
+    "description": "<tt>SyncDisabled</tt> to <tt>true</tt> in the Chromium policy file.",
+    "rationale": "Google Sync is used to sync information between different user devices,\nthis data is then stored on Google owned servers. The synced data may consist\nof information such as email, calendars, viewing history, etc. This feature must\nbe disabled because the organization does not have control over the servers the\ndata is stored on.",
+    "source": {
+      "upstream_id": "chromium_disable_google_sync",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.391852+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0020"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_google_sync",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "<tt>SyncDisabled</tt> to <tt>true</tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_google_sync/rule.yml",
+  "source_hash": "sha256:59b62e87f1123dd2",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.391945+00:00",
+  "updated_at": "2025-10-03T10:45:56.391947+00:00",
+  "identifiers": {}
+}

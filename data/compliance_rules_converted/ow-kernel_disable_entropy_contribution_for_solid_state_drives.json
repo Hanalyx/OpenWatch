@@ -1,0 +1,56 @@
+{
+  "_id": "ow-kernel_disable_entropy_contribution_for_solid_state_drives",
+  "rule_id": "ow-kernel_disable_entropy_contribution_for_solid_state_drives",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_disable_entropy_contribution_for_solid_state_drives",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Solid State Drives Do Not Contribute To Random-Number Entropy Pool",
+    "description": "For each solid-state drive on the system, run:\n<pre> # echo 0 &gt; /sys/block/DRIVE/queue/add_random</pre>",
+    "rationale": "In contrast to traditional electromechanical magnetic disks, containing\nspinning disks and / or movable read / write heads, the solid-state storage\ndevices (SSDs) do not contain moving / mechanical components. Therefore the\nI/O operation completion times are much more predictable for them.",
+    "source": {
+      "upstream_id": "kernel_disable_entropy_contribution_for_solid_state_drives",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.086144+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_disable_entropy_contribution_for_solid_state_drives",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "For each solid-state drive on the system, run:\n<pre> # echo 0 &gt; /sys/block/DRIVE/queue/add_random</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/entropy/kernel_disable_entropy_contribution_for_solid_state_drives/rule.yml",
+  "source_hash": "sha256:1567e3f3c395b789",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.086240+00:00",
+  "updated_at": "2025-10-03T10:45:56.086243+00:00",
+  "identifiers": {}
+}

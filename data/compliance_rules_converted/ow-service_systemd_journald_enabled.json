@@ -1,0 +1,99 @@
+{
+  "_id": "ow-service_systemd_journald_enabled",
+  "rule_id": "ow-service_systemd_journald_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_systemd_journald_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable systemd-journald Service",
+    "description": "The <tt>systemd-journald</tt> service is an essential component of\nsystemd.\n{{{ describe_service_enable(service=\"systemd-journald\") }}}",
+    "rationale": "In the event of a system failure, {{{ full_name }}} must preserve any information necessary to determine cause of failure and any information necessary to return to operations with least disruption to system processes.",
+    "source": {
+      "upstream_id": "service_systemd_journald_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85921-5",
+      "imported_at": "2025-10-03T02:25:58.412394+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-24"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000269-GPOS-00103"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "systemd-journald",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled systemd-journald",
+      "enable_command": "systemctl enable systemd-journald",
+      "disable_command": "systemctl disable systemd-journald",
+      "validation_command": "systemctl status systemd-journald",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "systemd-journald",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled systemd-journald",
+      "enable_command": "systemctl enable systemd-journald",
+      "disable_command": "systemctl disable systemd-journald",
+      "validation_command": "systemctl status systemd-journald",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_systemd_journald_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>systemd-journald</tt> service is an essential component of\nsystemd.\n{{{ describe_service_enable(service=\"systemd-journald\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/journald/service_systemd-journald_enabled/rule.yml",
+  "source_hash": "sha256:c7e008d53d19423d",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.412539+00:00",
+  "updated_at": "2025-10-03T02:25:58.412542+00:00",
+  "identifiers": {
+    "cce": "CCE-85921-5"
+  }
+}

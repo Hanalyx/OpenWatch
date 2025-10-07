@@ -1,0 +1,81 @@
+{
+  "_id": "ow-grub2_init_on_free",
+  "rule_id": "ow-grub2_init_on_free",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_init_on_free",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "The system must booted with init_on_free=1",
+    "description": "Setting <tt>init_on_free=1</tt> on boot guarantees that pages and heap objects are initialized right after they're freed, so it won't be possible to access stale data by using a dangling pointer.",
+    "rationale": "<tt>init_on_free</tt> is a Linux kernel boot parameter that enhances security by initializing memory regions when they are freed, preventing data leakage.\nThis process ensures that stale data in freed memory cannot be accessed by malicious programs.",
+    "source": {
+      "upstream_id": "grub2_init_on_free",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90682-6",
+      "imported_at": "2025-10-03T10:45:56.066743+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000134-GPOS-00068",
+        "OL08-00-010423"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_init_on_free",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Setting <tt>init_on_free=1</tt> on boot guarantees that pages and heap objects are initialized right after they're freed, so it won't be possible to access stale data by using a dangling pointer.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_init_on_free/rule.yml",
+  "source_hash": "sha256:c61277c081303d55",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.066874+00:00",
+  "updated_at": "2025-10-03T10:45:56.066876+00:00",
+  "identifiers": {
+    "cce": "CCE-90682-6"
+  }
+}

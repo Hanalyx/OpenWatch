@@ -1,0 +1,67 @@
+{
+  "_id": "ow-chronyd_server_directive",
+  "rule_id": "ow-chronyd_server_directive",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chronyd_server_directive",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Chrony is only configured with the server directive",
+    "description": "Check that Chrony only has time sources configured with the <tt>server</tt> directive.",
+    "rationale": "Depending on the infrastructure being used the <tt>pool</tt> directive may not be supported.\nUsing the <tt>server</tt> directive allows for better control of where the system gets time data from.",
+    "source": {
+      "upstream_id": "chronyd_server_directive",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86077-5",
+      "imported_at": "2025-10-03T02:25:57.044010+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000355-GPOS-00143",
+        "SRG-OS-000356-GPOS-00144",
+        "SRG-OS-000359-GPOS-00146",
+        "OL08-00-030740"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chronyd_server_directive",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Check that Chrony only has time sources configured with the <tt>server</tt> directive.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/chronyd_server_directive/rule.yml",
+  "source_hash": "sha256:58da80132b53e734",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.044101+00:00",
+  "updated_at": "2025-10-03T02:25:57.044103+00:00",
+  "identifiers": {
+    "cce": "CCE-86077-5"
+  }
+}

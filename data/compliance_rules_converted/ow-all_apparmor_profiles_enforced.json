@@ -1,0 +1,65 @@
+{
+  "_id": "ow-all_apparmor_profiles_enforced",
+  "rule_id": "ow-all_apparmor_profiles_enforced",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_all_apparmor_profiles_enforced",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enforce all AppArmor Profiles",
+    "description": "AppArmor profiles define what resources applications are able to access.\nTo set all profiles to enforce mode run the following command:\n<pre>$ sudo aa-enforce /etc/apparmor.d/*</pre>\nTo list unconfined processes run the following command:\n{{% if 'ubuntu' in product or 'debian' in product %}}\n<pre>$ sudo apparmor_status | grep processes</pre>\n{{% else %}}\n<pre>$ sudo aa-unconfined</pre>\n{{% endif %}}\nAny unconfined processes may need to have a profile created or activated\nfor them and then be restarted.",
+    "rationale": "Security configuration requirements vary from site to site. Some sites may\nmandate a policy that is stricter than the default policy, which is perfectly\nacceptable. This recommendation is intended to ensure that any policies that\nexist on the system are activated.",
+    "source": {
+      "upstream_id": "all_apparmor_profiles_enforced",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92371-4",
+      "imported_at": "2025-10-03T02:25:58.057799+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.7.1.4",
+        "1.7.1.4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_all_apparmor_profiles_enforced",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "AppArmor profiles define what resources applications are able to access.\nTo set all profiles to enforce mode run the following command:\n<pre>$ sudo aa-enforce /etc/apparmor.d/*</pre>\nTo list unconfined processes run the following command:\n{{% if 'ubuntu' in product or 'debian' in product %}}\n<pre>$ sudo apparmor_status | grep processes</pre>\n{{% else %}}\n<pre>$ sudo aa-unconfined</pre>\n{{% endif %}}\nAny unconfined processes may need to have a profile created or activated\nfor them and then be restarted.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/apparmor/all_apparmor_profiles_enforced/rule.yml",
+  "source_hash": "sha256:9a498bac3ede6fcf",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.057900+00:00",
+  "updated_at": "2025-10-03T02:25:58.057903+00:00",
+  "identifiers": {
+    "cce": "CCE-92371-4"
+  }
+}

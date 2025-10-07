@@ -1,0 +1,64 @@
+{
+  "_id": "ow-set_nftables_base_chain",
+  "rule_id": "ow-set_nftables_base_chain",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_nftables_base_chain",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Base Chains Exist for Nftables",
+    "description": "Tables in nftables hold chains. Each table only has one address family and only applies\nto packets of this family. Tables can have one of six families.\nChains are containers for rules. They exist in two kinds, base chains and regular chains.\nA base chain is an entry point for packets from the networking stack, a regular chain may\nbe used as jump target and is used for better rule organization.",
+    "rationale": "If a base chain doesn't exist with a hook for input, forward, and delete, packets that would\nflow through those chains will not be touched by nftables.",
+    "source": {
+      "upstream_id": "set_nftables_base_chain",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92578-4",
+      "imported_at": "2025-10-03T10:45:56.130729+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "3.5.2.5"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_nftables_base_chain",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Tables in nftables hold chains. Each table only has one address family and only applies\nto packets of this family. Tables can have one of six families.\nChains are containers for rules. They exist in two kinds, base chains and regular chains.\nA base chain is an entry point for packets from the networking stack, a regular chain may\nbe used as jump target and is used for better rule organization.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-nftables/set_nftables_base_chain/rule.yml",
+  "source_hash": "sha256:ce6bda524d09892c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.130938+00:00",
+  "updated_at": "2025-10-03T10:45:56.130941+00:00",
+  "identifiers": {
+    "cce": "CCE-92578-4"
+  }
+}

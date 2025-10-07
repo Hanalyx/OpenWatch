@@ -1,0 +1,69 @@
+{
+  "_id": "ow-socket_systemd_journal_remote_disabled",
+  "rule_id": "ow-socket_systemd_journal_remote_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_socket_systemd_journal_remote_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable systemd-journal-remote Socket",
+    "description": "Journald supports the ability to receive messages from remote hosts,\nthus acting as a log server. Clients should not receive data from\nother hosts.\nNOTE:\n    The same package, systemd-journal-remote , is used for both sending\n    logs to remote hosts and receiving incoming logs.\n    With regards to receiving logs, there are two Systemd unit files;\n    systemd-journal-remote.socket and systemd-journal-remote.service.",
+    "rationale": "If a client is configured to also receive data, thus turning it into\na server, the client system is acting outside it's operational boundary.",
+    "source": {
+      "upstream_id": "socket_systemd_journal_remote_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87605-2",
+      "imported_at": "2025-10-03T02:25:58.397014+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement socket_disabled check",
+      "enable_command": "# TODO: Implement socket_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_socket_systemd_journal_remote_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Journald supports the ability to receive messages from remote hosts,\nthus acting as a log server. Clients should not receive data from\nother hosts.\nNOTE:\n    The same package, systemd-journal-remote , is used for both sending\n    logs to remote hosts and receiving incoming logs.\n    With regards to receiving logs, there are two Systemd unit files;\n    systemd-journal-remote.socket and systemd-journal-remote.service.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/journald/socket_systemd-journal-remote_disabled/rule.yml",
+  "source_hash": "sha256:3ed7cb2a36ee6165",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.397137+00:00",
+  "updated_at": "2025-10-03T02:25:58.397140+00:00",
+  "identifiers": {
+    "cce": "CCE-87605-2"
+  }
+}

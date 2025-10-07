@@ -1,0 +1,56 @@
+{
+  "_id": "ow-network_ipv6_default_gateway",
+  "rule_id": "ow-network_ipv6_default_gateway",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_default_gateway",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Manually Assign IPv6 Router Address",
+    "description": "Edit the file\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt>, and add or correct\nthe following line (substituting your gateway IP as appropriate):\n<pre>IPV6_DEFAULTGW=2001:0DB8::0001</pre>\nRouter addresses should be manually set and not accepted via any\nauto-configuration or router advertisement.",
+    "rationale": "",
+    "source": {
+      "upstream_id": "network_ipv6_default_gateway",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.108081+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_default_gateway",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Edit the file\n<tt>/etc/sysconfig/network-scripts/ifcfg-<i>interface</i></tt>, and add or correct\nthe following line (substituting your gateway IP as appropriate):\n<pre>IPV6_DEFAULTGW=2001:0DB8::0001</pre>\nRouter addresses should be manually set and not accepted via any\nauto-configuration or router advertisement.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ipv6/configuring_ipv6/network_ipv6_default_gateway/rule.yml",
+  "source_hash": "sha256:28147f2b32ac8a81",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.108169+00:00",
+  "updated_at": "2025-10-03T10:45:56.108171+00:00",
+  "identifiers": {}
+}

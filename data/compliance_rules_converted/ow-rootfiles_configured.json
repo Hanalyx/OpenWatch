@@ -1,0 +1,64 @@
+{
+  "_id": "ow-rootfiles_configured",
+  "rule_id": "ow-rootfiles_configured",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_rootfiles_configured",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure rootfiles tmpfile.d is Configured Correctly",
+    "description": "To set the mode of the root user initialization file <tt>/root/.bash_profile</tt>,\nensure the following lines are is included in a file ending in <tt>.conf</tt> under\n<tt>/etc/tmpfiles.d/</tt>.\n<pre>\n    C /root/.bash_logout   600 root root - /usr/share/rootfiles/.bash_logout\n    C /root/.bash_profile  600 root root - /usr/share/rootfiles/.bash_profile\n    C /root/.bashrc        600 root root - /usr/share/rootfiles/.bashrc\n    C /root/.cshrc         600 root root - /usr/share/rootfiles/.cshrc\n    C /root/.tcshrc        600 root root - /usr/share/rootfiles/.tcshrc\n</pre>",
+    "rationale": "Local initialization files are used to configure the user's shell environment\nupon logon. Malicious modification of these files could compromise accounts upon\nlogon.",
+    "source": {
+      "upstream_id": "rootfiles_configured",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86473-6",
+      "imported_at": "2025-10-03T10:45:55.936497+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_rootfiles_configured",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To set the mode of the root user initialization file <tt>/root/.bash_profile</tt>,\nensure the following lines are is included in a file ending in <tt>.conf</tt> under\n<tt>/etc/tmpfiles.d/</tt>.\n<pre>\n    C /root/.bash_logout   600 root root - /usr/share/rootfiles/.bash_logout\n    C /root/.bash_profile  600 root root - /usr/share/rootfiles/.bash_profile\n    C /root/.bashrc        600 root root - /usr/share/rootfiles/.bashrc\n    C /root/.cshrc         600 root root - /usr/share/rootfiles/.cshrc\n    C /root/.tcshrc        600 root root - /usr/share/rootfiles/.tcshrc\n</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/rootfiles/rootfiles_configured/rule.yml",
+  "source_hash": "sha256:8b1552c765f7dd4e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.936613+00:00",
+  "updated_at": "2025-10-03T10:45:55.936616+00:00",
+  "identifiers": {
+    "cce": "CCE-86473-6"
+  }
+}

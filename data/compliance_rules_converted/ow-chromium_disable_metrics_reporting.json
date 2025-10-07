@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_metrics_reporting",
+  "rule_id": "ow-chromium_disable_metrics_reporting",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_metrics_reporting",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Metrics Reporting",
+    "description": "Whenever Chromium crashes, it sends its usage and crash-related data to Google.\nThis should be disabled by setting <tt>MetricsReportingEnabled</tt> to \n<tt>false</tt> in the Chromium policy file.",
+    "rationale": "Anonymous reporting of usage and crash-related data is sent to Google.\nA crash report could contain sensitive information from the computer's memory.",
+    "source": {
+      "upstream_id": "chromium_disable_metrics_reporting",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.407086+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0026"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_metrics_reporting",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Whenever Chromium crashes, it sends its usage and crash-related data to Google.\nThis should be disabled by setting <tt>MetricsReportingEnabled</tt> to \n<tt>false</tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_metrics_reporting/rule.yml",
+  "source_hash": "sha256:300fff8f99f7cc31",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.407171+00:00",
+  "updated_at": "2025-10-03T10:45:56.407174+00:00",
+  "identifiers": {}
+}

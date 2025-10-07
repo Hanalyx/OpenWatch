@@ -1,0 +1,98 @@
+{
+  "_id": "ow-service_certmonger_disabled",
+  "rule_id": "ow-service_certmonger_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_certmonger_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Certmonger Service (certmonger)",
+    "description": "Certmonger is a D-Bus based service that attempts to simplify interaction\nwith certifying authorities on networks which use public-key infrastructure. It is often\ncombined with Red Hat's IPA (Identity Policy Audit) security information management\nsolution to aid in the management of certificates.\n{{{ describe_service_disable(service=\"certmonger\") }}}",
+    "rationale": "The services provided by certmonger may be essential for systems\nfulfilling some roles a PKI infrastructure, but its functionality is not necessary\nfor many other use cases.",
+    "source": {
+      "upstream_id": "service_certmonger_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82452-4",
+      "imported_at": "2025-10-03T02:25:57.230634+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_certmonger_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Certmonger is a D-Bus based service that attempts to simplify interaction\nwith certifying authorities on networks which use public-key infrastructure. It is often\ncombined with Red Hat's IPA (Identity Policy Audit) security information management\nsolution to aid in the management of certificates.\n{{{ describe_service_disable(service=\"certmonger\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/base/service_certmonger_disabled/rule.yml",
+  "source_hash": "sha256:f2e5d16eddb4ca8a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.230796+00:00",
+  "updated_at": "2025-10-03T02:25:57.230799+00:00",
+  "identifiers": {
+    "cce": "CCE-82452-4"
+  }
+}

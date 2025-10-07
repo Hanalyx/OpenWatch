@@ -1,0 +1,64 @@
+{
+  "_id": "ow-iam_integration",
+  "rule_id": "ow-iam_integration",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_iam_integration",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Manage Users with AWS IAM",
+    "description": "Amazon EKS uses IAM to provide authentication to your Kubernetes cluster\nthrough the AWS IAM Authenticator for Kubernetes. You can configure the stock\nkubectl client to work with Amazon EKS by installing the AWS IAM\nAuthenticator for Kubernetes and modifying your kubectl configuration file to\nuse it for authentication.",
+    "rationale": "On- and off-boarding users is often difficult to automate and prone to error.\nUsing a single source of truth for user permissions reduces the number of\nlocations that an individual must be off-boarded from, and prevents users\ngaining unique permissions sets that increase the cost of audit.",
+    "source": {
+      "upstream_id": "iam_integration",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86301-9",
+      "imported_at": "2025-10-03T10:45:56.416151+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.5.1"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_iam_integration",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Amazon EKS uses IAM to provide authentication to your Kubernetes cluster\nthrough the AWS IAM Authenticator for Kubernetes. You can configure the stock\nkubectl client to work with Amazon EKS by installing the AWS IAM\nAuthenticator for Kubernetes and modifying your kubectl configuration file to\nuse it for authentication.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/authentication/iam_integration/rule.yml",
+  "source_hash": "sha256:9a818d2cc30e37d0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.416253+00:00",
+  "updated_at": "2025-10-03T10:45:56.416256+00:00",
+  "identifiers": {
+    "cce": "CCE-86301-9"
+  }
+}

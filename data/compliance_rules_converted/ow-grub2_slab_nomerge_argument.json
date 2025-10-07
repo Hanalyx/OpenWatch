@@ -1,0 +1,69 @@
+{
+  "_id": "ow-grub2_slab_nomerge_argument",
+  "rule_id": "ow-grub2_slab_nomerge_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_slab_nomerge_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable merging of slabs with similar size",
+    "description": "The kernel may merge similar slabs together to reduce overhead and increase\ncache hotness of objects.\nDisabling merging of slabs keeps the slabs separate and reduces the risk of\nkernel heap overflows overwriting objects in merged caches.\n\nTo disable merging of slabs in the Kernel add the argument <tt>slab_nomerge=yes</tt>\nto the default GRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"slab_nomerge=yes\") | indent(4) }}}",
+    "rationale": "Disabling the merge of slabs of similar sizes prevents the kernel from\nmerging a seemingly useless but vulnerable slab with a useful and valuable slab.\nThis increase the risk that a heap overflow could overwrite objects from merged caches,\nwith unmerged caches the heap overflow would only affect the objects in the same cache.\nOverall, this reduces the kernel attack surface area by isolating slabs from each other.",
+    "source": {
+      "upstream_id": "grub2_slab_nomerge_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86777-0",
+      "imported_at": "2025-10-03T02:25:57.996157+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_slab_nomerge_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The kernel may merge similar slabs together to reduce overhead and increase\ncache hotness of objects.\nDisabling merging of slabs keeps the slabs separate and reduces the risk of\nkernel heap overflows overwriting objects in merged caches.\n\nTo disable merging of slabs in the Kernel add the argument <tt>slab_nomerge=yes</tt>\nto the default GRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"slab_nomerge=yes\") | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_slab_nomerge_argument/rule.yml",
+  "source_hash": "sha256:fa0adf31e04030a5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.996304+00:00",
+  "updated_at": "2025-10-03T02:25:57.996307+00:00",
+  "identifiers": {
+    "cce": "CCE-86777-0"
+  }
+}

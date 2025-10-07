@@ -1,0 +1,90 @@
+{
+  "_id": "ow-install_antivirus",
+  "rule_id": "ow-install_antivirus",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_antivirus",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install Virus Scanning Software",
+    "description": "Virus scanning software can be used to protect a system from penetration from\ncomputer viruses and to limit their spread through intermediate systems.\n\nThe virus scanning software should be configured to perform scans dynamically\non accessed files. If this capability is not available, the system must be\nconfigured to scan, at a minimum, all altered files on the system on a daily\nbasis.\n\nIf the system processes inbound SMTP mail, the virus scanner must be configured\nto scan all received mail.",
+    "rationale": "Virus scanning software can be used to detect if a system has been compromised by\ncomputer viruses, as well as to limit their spread to other systems.",
+    "source": {
+      "upstream_id": "install_antivirus",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83879-7",
+      "imported_at": "2025-10-03T10:45:55.972326+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "13",
+        "14",
+        "4",
+        "7",
+        "8"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.2.1",
+        "A.14.2.8",
+        "A.8.2.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "DE.CM-4",
+        "DE.DP-3",
+        "PR.DS-1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-032000"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_antivirus",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Virus scanning software can be used to protect a system from penetration from\ncomputer viruses and to limit their spread through intermediate systems.\n\nThe virus scanning software should be configured to perform scans dynamically\non accessed files. If this capability is not available, the system must be\nconfigured to scan, at a minimum, all altered files on the system on a daily\nbasis.\n\nIf the system processes inbound SMTP mail, the virus scanner must be configured\nto scan all received mail.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/endpoint_security_software/install_antivirus/rule.yml",
+  "source_hash": "sha256:64aad8fa73989438",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.972537+00:00",
+  "updated_at": "2025-10-03T10:45:55.972541+00:00",
+  "identifiers": {
+    "cce": "CCE-83879-7"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "_id": "ow-ntpd_run_as_ntp_user",
+  "rule_id": "ow-ntpd_run_as_ntp_user",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ntpd_run_as_ntp_user",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure ntpd To Run As ntp User",
+    "description": "ntp is a daemon which implements the Network Time Protocol (NTP). It is designed to\nsynchronize system clocks across a variety of systems and use a source that is highly\naccurate. More information on NTP can be found at\n{{{ weblink(link=\"http://www.ntp.org\")}}}.\nntp can be configured to be a client and/or a server.\nTo ensure that ntpd is running as ntp user, Add or edit the\n<tt>OPTIONS</tt> variable in <tt>/etc/sysconfig/ntpd</tt> to include ' -u ntp:ntp ':\n<pre>OPTIONS=\"-u ntp:ntp\"</pre>\nThis recommendation only applies if ntp is in use on the system.",
+    "rationale": "If ntp is in use on the system proper configuration is vital to ensuring time synchronization\nis working properly. Running ntpd under dedicated user accounts limits the attack surface for\npotential attacker exploiting security flaws in the daemon or the protocol.",
+    "source": {
+      "upstream_id": "ntpd_run_as_ntp_user",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.058097+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "2.2.1.4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ntpd_run_as_ntp_user",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "ntp is a daemon which implements the Network Time Protocol (NTP). It is designed to\nsynchronize system clocks across a variety of systems and use a source that is highly\naccurate. More information on NTP can be found at\n{{{ weblink(link=\"http://www.ntp.org\")}}}.\nntp can be configured to be a client and/or a server.\nTo ensure that ntpd is running as ntp user, Add or edit the\n<tt>OPTIONS</tt> variable in <tt>/etc/sysconfig/ntpd</tt> to include ' -u ntp:ntp ':\n<pre>OPTIONS=\"-u ntp:ntp\"</pre>\nThis recommendation only applies if ntp is in use on the system.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/ntpd_run_as_ntp_user/rule.yml",
+  "source_hash": "sha256:f9d88aa6165eb638",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.058215+00:00",
+  "updated_at": "2025-10-03T02:25:57.058218+00:00",
+  "identifiers": {}
+}

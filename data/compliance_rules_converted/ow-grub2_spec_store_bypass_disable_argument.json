@@ -1,0 +1,69 @@
+{
+  "_id": "ow-grub2_spec_store_bypass_disable_argument",
+  "rule_id": "ow-grub2_spec_store_bypass_disable_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_spec_store_bypass_disable_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure Speculative Store Bypass Mitigation",
+    "description": "Certain CPUs are vulnerable to an exploit against a common wide industry wide performance\noptimization known as Speculative Store Bypass (SSB).\n\nIn such cases, recent stores to the same memory location cannot always be observed by later\nloads during speculative execution. However, such stores are unlikely and thus they can be\ndetected prior to instruction retirement at the end of a particular speculation execution\nwindow.\n\nSince Linux Kernel 4.17 you can check the SSB mitigation state with the following command:\n<tt>cat /sys/devices/system/cpu/vulnerabilities/spec_store_bypass</tt>\n\nSelect the appropriate SSB state by adding the argument\n<tt>spec_store_bypass_disable={{{ xccdf_value(\"var_spec_store_bypass_disable_options\") }}}</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"spec_store_bypass_disable=\" + xccdf_value(\"var_spec_store_bypass_disable_options\")) | indent(4) }}}",
+    "rationale": "In vulnerable processsors, the speculatively forwarded store can be used in a cache side channel\nattack. An example of this is reading memory to which the attacker does not directly have access,\nfor example inside the sandboxed code.",
+    "source": {
+      "upstream_id": "grub2_spec_store_bypass_disable_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89234-9",
+      "imported_at": "2025-10-03T02:25:58.002648+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_spec_store_bypass_disable_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Certain CPUs are vulnerable to an exploit against a common wide industry wide performance\noptimization known as Speculative Store Bypass (SSB).\n\nIn such cases, recent stores to the same memory location cannot always be observed by later\nloads during speculative execution. However, such stores are unlikely and thus they can be\ndetected prior to instruction retirement at the end of a particular speculation execution\nwindow.\n\nSince Linux Kernel 4.17 you can check the SSB mitigation state with the following command:\n<tt>cat /sys/devices/system/cpu/vulnerabilities/spec_store_bypass</tt>\n\nSelect the appropriate SSB state by adding the argument\n<tt>spec_store_bypass_disable={{{ xccdf_value(\"var_spec_store_bypass_disable_options\") }}}</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"spec_store_bypass_disable=\" + xccdf_value(\"var_spec_store_bypass_disable_options\")) | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_spec_store_bypass_disable_argument/rule.yml",
+  "source_hash": "sha256:c59909d37e50796c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.002757+00:00",
+  "updated_at": "2025-10-03T02:25:58.002760+00:00",
+  "identifiers": {
+    "cce": "CCE-89234-9"
+  }
+}

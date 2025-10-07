@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_owner_var_log_localmessages",
+  "rule_id": "ow-file_owner_var_log_localmessages",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_var_log_localmessages",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify User Who Owns /var/log/localmessages File",
+    "description": "{{{ describe_file_owner(file=\"/var/log/localmessages\", owner=\"syslog|root\") }}}",
+    "rationale": "The <tt>/var/log/localmessages</tt> file contains log messages from certain boot scripts,\nincluding the DHCP client, and should only be accessed by authorized personnel.",
+    "source": {
+      "upstream_id": "file_owner_var_log_localmessages",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.657777+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_var_log_localmessages",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_owner(file=\"/var/log/localmessages\", owner=\"syslog|root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_var_log_dir/file_owner_var_log_localmessages/rule.yml",
+  "source_hash": "sha256:89474b455e0e608f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.657884+00:00",
+  "updated_at": "2025-10-03T02:25:57.657887+00:00",
+  "identifiers": {}
+}

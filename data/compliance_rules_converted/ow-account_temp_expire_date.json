@@ -1,0 +1,117 @@
+{
+  "_id": "ow-account_temp_expire_date",
+  "rule_id": "ow-account_temp_expire_date",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_account_temp_expire_date",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Assign Expiration Date to Temporary Accounts",
+    "description": "Temporary accounts are established as part of normal account activation\nprocedures when there is a need for short-term accounts. In the event\ntemporary accounts are required, configure the system to\nterminate them after a documented time period. For every temporary account, run the following command to set an expiration date on\nit, substituting <tt><i>USER</i></tt> and <tt><i>YYYY-MM-DD</i></tt>\nappropriately:\n<pre>$ sudo chage -E <i>YYYY-MM-DD USER</i></pre>\n<tt><i>YYYY-MM-DD</i></tt> indicates the documented expiration date for the\naccount. For U.S. Government systems, the operating system must be\nconfigured to automatically terminate these types of accounts after a\nperiod of 72 hours.",
+    "rationale": "If temporary user accounts remain active when no longer needed or for\nan excessive period, these accounts may be used to gain unauthorized access.\nTo mitigate this risk, automated termination of all temporary accounts\nmust be set upon account creation.\n<br />",
+    "source": {
+      "upstream_id": "account_temp_expire_date",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82474-8",
+      "imported_at": "2025-10-03T02:25:58.523297+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "18",
+        "3",
+        "5",
+        "7",
+        "8"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.3",
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.9.1.2",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.1",
+        "A.9.4.2",
+        "A.9.4.3",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-2(2)",
+        "AC-2(3)",
+        "CM-6(a)",
+        "DE.CM-1",
+        "DE.CM-3",
+        "PR.AC-1",
+        "PR.AC-4",
+        "PR.AC-6"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000123-GPOS-00064",
+        "SRG-OS-000002-GPOS-00002",
+        "OL07-00-010271",
+        "OL08-00-020000",
+        "OL08-00-020270",
+        "SLES-12-010331",
+        "SLES-15-020061"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_account_temp_expire_date",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Temporary accounts are established as part of normal account activation\nprocedures when there is a need for short-term accounts. In the event\ntemporary accounts are required, configure the system to\nterminate them after a documented time period. For every temporary account, run the following command to set an expiration date on\nit, substituting <tt><i>USER</i></tt> and <tt><i>YYYY-MM-DD</i></tt>\nappropriately:\n<pre>$ sudo chage -E <i>YYYY-MM-DD USER</i></pre>\n<tt><i>YYYY-MM-DD</i></tt> indicates the documented expiration date for the\naccount. For U.S. Government systems, the operating system must be\nconfigured to automatically terminate these types of accounts after a\nperiod of 72 hours.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/account_expiration/account_temp_expire_date/rule.yml",
+  "source_hash": "sha256:c5e25e69dad45013",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.523430+00:00",
+  "updated_at": "2025-10-03T02:25:58.523433+00:00",
+  "identifiers": {
+    "cce": "CCE-82474-8"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "_id": "ow-firewall_single_service_active",
+  "rule_id": "ow-firewall_single_service_active",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firewall_single_service_active",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Only One Firewall Service is Active",
+    "description": "The system must have exactly one active firewall service running to avoid conflicts\nand ensure consistent packet filtering. Only one of the following services should\nbe enabled and active at any time:\n<ul>\n    <li>ufw - Uncomplicated Firewall (Ubuntu/Debian default)</li>\n    <li>iptables - Classic Linux firewall</li>\n    <li>nftables - Next Generation Firewall replacement for iptables</li>\n</ul>\nHaving zero active firewalls leaves the system vulnerable, while having multiple\nactive firewalls can lead to rule conflicts and security gaps.",
+    "rationale": "Running multiple firewall services simultaneously can lead to conflicts in rule\nprocessing, unpredictable behavior, and potential security gaps. A single\nfirewall service ensures consistent and predictable packet filtering.\n\nHaving no active firewall service leaves the system exposed to network-based\nattacks and unauthorized access.",
+    "source": {
+      "upstream_id": "firewall_single_service_active",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.087244+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firewall_single_service_active",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The system must have exactly one active firewall service running to avoid conflicts\nand ensure consistent packet filtering. Only one of the following services should\nbe enabled and active at any time:\n<ul>\n    <li>ufw - Uncomplicated Firewall (Ubuntu/Debian default)</li>\n    <li>iptables - Classic Linux firewall</li>\n    <li>nftables - Next Generation Firewall replacement for iptables</li>\n</ul>\nHaving zero active firewalls leaves the system vulnerable, while having multiple\nactive firewalls can lead to rule conflicts and security gaps.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/firewall_single_service_active/rule.yml",
+  "source_hash": "sha256:a66ada18b99a3e0b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.087329+00:00",
+  "updated_at": "2025-10-03T10:45:56.087331+00:00",
+  "identifiers": {}
+}

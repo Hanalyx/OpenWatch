@@ -1,0 +1,72 @@
+{
+  "_id": "ow-accounts_users_home_files_groupownership",
+  "rule_id": "ow-accounts_users_home_files_groupownership",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_home_files_groupownership",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "All User Files and Directories In The Home Directory Must Be Group-Owned By The Primary Group",
+    "description": "Change the group of a local interactive users files and directories to a\ngroup that the interactive user is a member of. To change the group owner of a\nlocal interactive users files and directories, use the following command:\n<pre>$ sudo chgrp <i>USER_GROUP</i> /home/<i>USER</i>/<i>FILE_DIR</i></pre>\n\nThis rule ensures every file or directory under the home directory related\nto an interactive user is group-owned by an interactive user.",
+    "rationale": "If a local interactive users files are group-owned by a group of which the\nuser is not a member, unintended users may be able to access them.",
+    "source": {
+      "upstream_id": "accounts_users_home_files_groupownership",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86534-5",
+      "imported_at": "2025-10-03T10:45:56.196210+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "6.2.7",
+        "6.2.7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-020670",
+        "OL08-00-010741"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_users_home_files_groupownership",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Change the group of a local interactive users files and directories to a\ngroup that the interactive user is a member of. To change the group owner of a\nlocal interactive users files and directories, use the following command:\n<pre>$ sudo chgrp <i>USER_GROUP</i> /home/<i>USER</i>/<i>FILE_DIR</i></pre>\n\nThis rule ensures every file or directory under the home directory related\nto an interactive user is group-owned by an interactive user.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/accounts_users_home_files_groupownership/rule.yml",
+  "source_hash": "sha256:e1d5c1b192b5600b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.196380+00:00",
+  "updated_at": "2025-10-03T10:45:56.196383+00:00",
+  "identifiers": {
+    "cce": "CCE-86534-5"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "_id": "ow-endpoint_configuration",
+  "rule_id": "ow-endpoint_configuration",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_endpoint_configuration",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Private Endpoint Access",
+    "description": "Disable access to the Kubernetes API from outside the node network if it is\nnot required.",
+    "rationale": "In a private cluster, the master node has two endpoints, a private and public\nendpoint. The private endpoint is the internal IP address of the master,\nbehind an internal load balancer in the master's VPC network. Nodes\ncommunicate with the master using the private endpoint. The public endpoint\nenables the Kubernetes API to be accessed from outside the master's VPC\nnetwork.\n\nAlthough Kubernetes API requires an authorized token to perform sensitive\nactions, a vulnerability could potentially expose the Kubernetes publicly\nwith unrestricted access. Additionally, an attacker may be able to identify\nthe current cluster and Kubernetes API version and determine whether it is\nvulnerable to an attack. Unless required, disabling public endpoint will help\nprevent such threats, and require the attacker to be on the master's VPC\nnetwork to perform any attack on the Kubernetes API.",
+    "source": {
+      "upstream_id": "endpoint_configuration",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-88813-1",
+      "imported_at": "2025-10-03T10:45:56.518425+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.4.2"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_endpoint_configuration",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Disable access to the Kubernetes API from outside the node network if it is\nnot required.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/networking/endpoint_configuration/rule.yml",
+  "source_hash": "sha256:8522e9f734659a3c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.518510+00:00",
+  "updated_at": "2025-10-03T10:45:56.518512+00:00",
+  "identifiers": {
+    "cce": "CCE-88813-1"
+  }
+}

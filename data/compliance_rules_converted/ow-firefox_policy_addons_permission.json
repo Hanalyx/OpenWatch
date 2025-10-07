@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_addons_permission",
+  "rule_id": "ow-firefox_policy_addons_permission",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_addons_permission",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox must be configured to disable the installation of extensions.",
+    "description": "Addon installation may be disabled in an administrative policy by setting\nthe <tt>InstallAddonsPermission</tt> key under <tt>policies</tt> to <tt>false</tt>.",
+    "rationale": "A browser extension is a program that has been installed into the browser to add functionality. Where a plug-in interacts only with a web page and usually a third-party external application (e.g., Flash, Adobe Reader), an extension interacts with the browser program itself. Extensions are not embedded in web pages and must be downloaded and installed in order to work. Extensions allow browsers to avoid restrictions that apply to web pages.\nFor example, an extension can be written to combine data from multiple domains and present it when a certain page is accessed, which can be considered cross-site scripting. If a browser is configured to allow unrestricted use of extensions, plug-ins can be loaded and installed from malicious sources and used on the browser.",
+    "source": {
+      "upstream_id": "firefox_policy_addons_permission",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.354676+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000013"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_addons_permission",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Addon installation may be disabled in an administrative policy by setting\nthe <tt>InstallAddonsPermission</tt> key under <tt>policies</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-addons_permission/rule.yml",
+  "source_hash": "sha256:840f01462fb79586",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.354812+00:00",
+  "updated_at": "2025-10-03T10:45:56.354815+00:00",
+  "identifiers": {}
+}

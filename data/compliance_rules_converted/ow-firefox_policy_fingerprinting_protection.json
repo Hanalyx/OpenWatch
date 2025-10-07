@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_fingerprinting_protection",
+  "rule_id": "ow-firefox_policy_fingerprinting_protection",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_fingerprinting_protection",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enabled Firefox Fingerprinting Protection",
+    "description": "Fingerprinting protection may be enabled by setting\n<tt>Fingerprinting</tt> to <tt>true</tt> under <tt>EnableTrackingProtection</tt>\nin the policies file.",
+    "rationale": "The Content Blocking/Tracking Protection feature stops Firefox from loading content from malicious sites. The content might be a script or an image, for example. If a site is on one of the tracker lists you set Firefox to use, then the fingerprinting script (or other tracking script/image) will not be loaded from that site.\nFingerprinting scripts collect information about your browser and device configuration, such as your operating system, screen resolution, and other settings. By compiling these pieces of data, fingerprinters create a unique profile of you that can be used to track you around the Web.",
+    "source": {
+      "upstream_id": "firefox_policy_fingerprinting_protection",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.352089+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000023"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_fingerprinting_protection",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Fingerprinting protection may be enabled by setting\n<tt>Fingerprinting</tt> to <tt>true</tt> under <tt>EnableTrackingProtection</tt>\nin the policies file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-fingerprinting_protection/rule.yml",
+  "source_hash": "sha256:320191efa81d78da",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.352213+00:00",
+  "updated_at": "2025-10-03T10:45:56.352216+00:00",
+  "identifiers": {}
+}

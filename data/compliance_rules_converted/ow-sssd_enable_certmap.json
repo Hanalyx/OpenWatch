@@ -1,0 +1,81 @@
+{
+  "_id": "ow-sssd_enable_certmap",
+  "rule_id": "ow-sssd_enable_certmap",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_enable_certmap",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable Certmap in SSSD",
+    "description": "SSSD should be configured to verify the certificate of the user or group. To set this up\n ensure that section like <tt>certmap/testing.test/rule_name</tt> is setup in\n<tt>/etc/sssd/sssd.conf</tt>. For example\n<pre>\n[certmap/testing.test/rule_name]\nmatchrule =&lt;SAN&gt;.*EDIPI@mil\nmaprule = (userCertificate;binary={cert!bin})\ndomains = testing.test\n</pre>",
+    "rationale": "Without mapping the certificate used to authenticate to the user account, the ability to\ndetermine the identity of the individual user or group will not be available for forensic\nanalysis.",
+    "source": {
+      "upstream_id": "sssd_enable_certmap",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86060-1",
+      "imported_at": "2025-10-03T02:25:56.995171+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "IA-5 (2) (c)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000068-GPOS-00036",
+        "OL08-00-020090"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement lineinfile check",
+      "enable_command": "# TODO: Implement lineinfile remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sssd_enable_certmap",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "SSSD should be configured to verify the certificate of the user or group. To set this up\n ensure that section like <tt>certmap/testing.test/rule_name</tt> is setup in\n<tt>/etc/sssd/sssd.conf</tt>. For example\n<pre>\n[certmap/testing.test/rule_name]\nmatchrule =&lt;SAN&gt;.*EDIPI@mil\nmaprule = (userCertificate;binary={cert!bin})\ndomains = testing.test\n</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/sssd/sssd_enable_certmap/rule.yml",
+  "source_hash": "sha256:a82cab2be8fcc467",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.995364+00:00",
+  "updated_at": "2025-10-03T02:25:56.995367+00:00",
+  "identifiers": {
+    "cce": "CCE-86060-1"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "_id": "ow-directory_groupowner_etc_sysctld",
+  "rule_id": "ow-directory_groupowner_etc_sysctld",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_groupowner_etc_sysctld",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns /etc/sysctl.d Directory",
+    "description": "{{{ describe_file_group_owner(file=\"/etc/sysctl.d\", group=\"root\") }}}",
+    "rationale": "The ownership of the /etc/sysctl.d directory by the root group is important\nbecause this directory hosts kernel configuration. Protection of this\ndirectory is critical for system security. Assigning the ownership to root\nensures exclusive control of the kernel configuration.",
+    "source": {
+      "upstream_id": "directory_groupowner_etc_sysctld",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86324-1",
+      "imported_at": "2025-10-03T02:25:57.607233+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_directory_groupowner_etc_sysctld",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/etc/sysctl.d\", group=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_within_important_dirs/directory_groupowner_etc_sysctld/rule.yml",
+  "source_hash": "sha256:60ede081e68a1338",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.607377+00:00",
+  "updated_at": "2025-10-03T02:25:57.607381+00:00",
+  "identifiers": {
+    "cce": "CCE-86324-1"
+  }
+}

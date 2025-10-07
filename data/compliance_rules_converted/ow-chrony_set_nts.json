@@ -1,0 +1,64 @@
+{
+  "_id": "ow-chrony_set_nts",
+  "rule_id": "ow-chrony_set_nts",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chrony_set_nts",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure Time Service to use NTS",
+    "description": "The system should be configured to use time servers that support Network Time Security (NTS).\nThe specified time server must support NTS and must be configured to use NTS.\nTo configure NTS for given time server add <tt>nts</tt> to each <tt>server</tt> or <tt>pool</tt> line in <tt>{{{ chrony_conf_path }}}</tt>.",
+    "rationale": "Network Time Security (NTS) uses Transport Layer Security (TLS) to secure Network Time Protocol (NTP) communications.\nNot using NTS could allow an attacker to interpret and modify the data sent back from the time server\nInaccurate time stamps make it more difficult to correlate events and can lead to an inaccurate analysis.\nDetermining the correct time a particular event occurred on a system is critical when conducting forensic analysis and investigating system events.\nSources outside the configured acceptable allowance (drift) may be inaccurate.",
+    "source": {
+      "upstream_id": "chrony_set_nts",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86471-0",
+      "imported_at": "2025-10-03T02:25:57.039288+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chrony_set_nts",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The system should be configured to use time servers that support Network Time Security (NTS).\nThe specified time server must support NTS and must be configured to use NTS.\nTo configure NTS for given time server add <tt>nts</tt> to each <tt>server</tt> or <tt>pool</tt> line in <tt>{{{ chrony_conf_path }}}</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/chrony_set_nts/rule.yml",
+  "source_hash": "sha256:fcc4d1903eebda59",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.039376+00:00",
+  "updated_at": "2025-10-03T02:25:57.039379+00:00",
+  "identifiers": {
+    "cce": "CCE-86471-0"
+  }
+}

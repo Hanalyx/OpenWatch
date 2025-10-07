@@ -1,0 +1,64 @@
+{
+  "_id": "ow-nftables_rules_permanent",
+  "rule_id": "ow-nftables_rules_permanent",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_nftables_rules_permanent",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure nftables Rules are Permanent",
+    "description": "nftables is a subsystem of the Linux kernel providing filtering and classification of\nnetwork packets/datagrams/frames. The nftables service reads the\n{{{ xccdf_value(\"var_nftables_master_config_file\") }}} file for a nftables file or files to\ninclude in the nftables ruleset. A nftables ruleset containing the input, forward, and output\nbase chains allow network traffic to be filtered.",
+    "rationale": "Changes made to nftables ruleset only affect the live system, you will also need to configure\nthe nftables ruleset to apply on boot",
+    "source": {
+      "upstream_id": "nftables_rules_permanent",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92485-2",
+      "imported_at": "2025-10-03T02:25:58.227297+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "3.5.2.10"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_nftables_rules_permanent",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "nftables is a subsystem of the Linux kernel providing filtering and classification of\nnetwork packets/datagrams/frames. The nftables service reads the\n{{{ xccdf_value(\"var_nftables_master_config_file\") }}} file for a nftables file or files to\ninclude in the nftables ruleset. A nftables ruleset containing the input, forward, and output\nbase chains allow network traffic to be filtered.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-nftables/nftables_rules_permanent/rule.yml",
+  "source_hash": "sha256:64bac9a9188d1b90",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.227394+00:00",
+  "updated_at": "2025-10-03T02:25:58.227396+00:00",
+  "identifiers": {
+    "cce": "CCE-92485-2"
+  }
+}

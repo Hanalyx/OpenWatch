@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_cache_support",
+  "rule_id": "ow-httpd_cache_support",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_cache_support",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Cache Support",
+    "description": "The <tt>cache</tt> module allows <tt>httpd</tt> to cache data, optimizing access to\nfrequently accessed content. However, it introduces potential security flaws\nsuch as the possibility of circumventing <tt>Allow</tt> and\n<tt>Deny</tt> directives.\n<br /><br /> If this functionality is\nunnecessary, comment out the module:\n<pre>#LoadModule cache_module modules/mod_cache.so</pre>\nIf caching is required, it should not be enabled for any limited-access content.",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_cache_support",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.857638+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_cache_support",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>cache</tt> module allows <tt>httpd</tt> to cache data, optimizing access to\nfrequently accessed content. However, it introduces potential security flaws\nsuch as the possibility of circumventing <tt>Allow</tt> and\n<tt>Deny</tt> directives.\n<br /><br /> If this functionality is\nunnecessary, comment out the module:\n<pre>#LoadModule cache_module modules/mod_cache.so</pre>\nIf caching is required, it should not be enabled for any limited-access content.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_cache_support/rule.yml",
+  "source_hash": "sha256:dcaf7e60dd7d958c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.857742+00:00",
+  "updated_at": "2025-10-03T10:45:55.857745+00:00",
+  "identifiers": {}
+}

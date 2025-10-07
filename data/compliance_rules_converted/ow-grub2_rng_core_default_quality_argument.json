@@ -1,0 +1,69 @@
+{
+  "_id": "ow-grub2_rng_core_default_quality_argument",
+  "rule_id": "ow-grub2_rng_core_default_quality_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_rng_core_default_quality_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure the confidence in TPM for entropy",
+    "description": "The TPM security chip that is available in most modern systems has a hardware RNG.\nIt is also used to feed the entropy pool, but generally not credited entropy.\n\nUse <tt>rng_core.default_quality</tt> in the kernel command line to set the trust\nlevel on the hardware generators. The trust level defines the amount of entropy to credit.\nA value of <tt>0</tt> tells the system not to trust the hardware random number generators\navailable, and doesn't credit any entropy to the pool.\nA value of <tt>1000</tt> assigns full confidence in the generators, and credits all the\nentropy it provides to the pool.\n\nNote that the value of <tt>rng_core.default_quality</tt> is global, affecting the trust\non all hardware random number generators.\n\nSelect the appropriate confidence by adding the argument\n<tt>rng_core.default_quality={{{ xccdf_value(\"var_rng_core_default_quality\") }}}</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"rng_core.default_quality=\" + xccdf_value(\"var_rng_core_default_quality\")) | indent(4) }}}",
+    "rationale": "A system may struggle to initialize its entropy pool and end up starving. Crediting entropy\nfrom the hardware number generators available in the system helps fill up the entropy pool.",
+    "source": {
+      "upstream_id": "grub2_rng_core_default_quality_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89567-2",
+      "imported_at": "2025-10-03T02:25:57.998746+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_rng_core_default_quality_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The TPM security chip that is available in most modern systems has a hardware RNG.\nIt is also used to feed the entropy pool, but generally not credited entropy.\n\nUse <tt>rng_core.default_quality</tt> in the kernel command line to set the trust\nlevel on the hardware generators. The trust level defines the amount of entropy to credit.\nA value of <tt>0</tt> tells the system not to trust the hardware random number generators\navailable, and doesn't credit any entropy to the pool.\nA value of <tt>1000</tt> assigns full confidence in the generators, and credits all the\nentropy it provides to the pool.\n\nNote that the value of <tt>rng_core.default_quality</tt> is global, affecting the trust\non all hardware random number generators.\n\nSelect the appropriate confidence by adding the argument\n<tt>rng_core.default_quality={{{ xccdf_value(\"var_rng_core_default_quality\") }}}</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"rng_core.default_quality=\" + xccdf_value(\"var_rng_core_default_quality\")) | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-grub2/grub2_rng_core_default_quality_argument/rule.yml",
+  "source_hash": "sha256:32dc7d2acb036b29",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.998859+00:00",
+  "updated_at": "2025-10-03T02:25:57.998861+00:00",
+  "identifiers": {
+    "cce": "CCE-89567-2"
+  }
+}

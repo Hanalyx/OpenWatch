@@ -1,0 +1,76 @@
+{
+  "_id": "ow-root_path_default",
+  "rule_id": "ow-root_path_default",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_default",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Root Path Must Be Vendor Default",
+    "description": "Assuming root shell is bash, edit the following files:\n<pre>~/.profile</pre>\n<pre>~/.bashrc</pre>\nChange any <tt>PATH</tt> variables to the vendor default for root and remove any\nempty <tt>PATH</tt> entries or references to relative paths.",
+    "rationale": "The root account's executable search path must be the vendor default, and must\ncontain only absolute paths.",
+    "source": {
+      "upstream_id": "root_path_default",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.223444+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "18"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.14.1.1",
+        "A.14.2.1",
+        "A.14.2.5",
+        "A.6.1.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.IP-2"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_root_path_default",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Assuming root shell is bash, edit the following files:\n<pre>~/.profile</pre>\n<pre>~/.bashrc</pre>\nChange any <tt>PATH</tt> variables to the vendor default for root and remove any\nempty <tt>PATH</tt> entries or references to relative paths.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/root_logins/root_path_default/rule.yml",
+  "source_hash": "sha256:bc1f64dfa5785629",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.223552+00:00",
+  "updated_at": "2025-10-03T10:45:56.223554+00:00",
+  "identifiers": {}
+}

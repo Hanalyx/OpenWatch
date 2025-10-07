@@ -1,0 +1,86 @@
+{
+  "_id": "ow-audit_rules_privileged_commands_insmod",
+  "rule_id": "ow-audit_rules_privileged_commands_insmod",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_audit_rules_privileged_commands_insmod",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure auditd Collects Information on the Use of Privileged Commands - insmod",
+    "description": "At a minimum, the audit system should collect the execution of\nprivileged commands for all users and root. If the <tt>auditd</tt> daemon is\nconfigured to use the <tt>augenrules</tt> program to read audit rules during\ndaemon startup (the default), add a line of the following form to a file with\nsuffix <tt>.rules</tt> in the directory <tt>/etc/audit/rules.d</tt>:\n<pre>-w /sbin/insmod -p x -k modules</pre>",
+    "rationale": "Misuse of privileged functions, either intentionally or unintentionally by\nauthorized users, or by unauthorized external entities that have compromised system accounts,\nis a serious and ongoing concern and can have significant adverse impacts on organizations.\nAuditing the use of privileged functions is one way to detect such misuse and identify\nthe risk from insider and advanced persistent threats.\n<br /><br />\nPrivileged programs are subject to escalation-of-privilege attacks,\nwhich attempt to subvert their normal role of providing some necessary but\nlimited capability. As such, motivation exists to monitor these programs for\nunusual activity.",
+    "source": {
+      "upstream_id": "audit_rules_privileged_commands_insmod",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85919-9",
+      "imported_at": "2025-10-03T02:25:56.800370+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "4.1.16",
+        "4.1.16"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AU-12(c)",
+        "AU-12.1(iv)",
+        "AU-3",
+        "AU-3.1",
+        "AU-12(a)",
+        "AU-12.1(ii)",
+        "MA-4(1)(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000037-GPOS-00015",
+        "SRG-OS-000062-GPOS-00031",
+        "SRG-OS-000392-GPOS-00172",
+        "SRG-OS-000462-GPOS-00206",
+        "SRG-OS-000471-GPOS-00215",
+        "SLES-15-030380"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_audit_rules_privileged_commands_insmod",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "At a minimum, the audit system should collect the execution of\nprivileged commands for all users and root. If the <tt>auditd</tt> daemon is\nconfigured to use the <tt>augenrules</tt> program to read audit rules during\ndaemon startup (the default), add a line of the following form to a file with\nsuffix <tt>.rules</tt> in the directory <tt>/etc/audit/rules.d</tt>:\n<pre>-w /sbin/insmod -p x -k modules</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/auditd_configure_rules/audit_privileged_commands/audit_rules_privileged_commands_insmod/rule.yml",
+  "source_hash": "sha256:774fe91b842d02bd",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.800479+00:00",
+  "updated_at": "2025-10-03T02:25:56.800482+00:00",
+  "identifiers": {
+    "cce": "CCE-85919-9"
+  }
+}

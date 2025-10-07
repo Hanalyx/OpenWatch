@@ -1,0 +1,104 @@
+{
+  "_id": "ow-sshd_set_maxstartups",
+  "rule_id": "ow-sshd_set_maxstartups",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_maxstartups",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure SSH MaxStartups is configured",
+    "description": "The MaxStartups parameter specifies the maximum number of concurrent unauthenticated\nconnections to the SSH daemon. Additional connections will be dropped until authentication\nsucceeds or the LoginGraceTime expires for a connection. To configure MaxStartups, you should\nadd or edit the following line in the <tt>/etc/ssh/sshd_config</tt> file:\n<pre>MaxStartups {{{ xccdf_value(\"var_sshd_set_maxstartups\") }}}</pre>",
+    "rationale": "To protect a system from denial of service due to a large number of pending authentication\nconnection attempts, use the rate limiting function of MaxStartups to protect availability of\nsshd logins and prevent overwhelming the daemon.",
+    "source": {
+      "upstream_id": "sshd_set_maxstartups",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90718-8",
+      "imported_at": "2025-10-03T02:25:57.160973+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.21",
+        "5.2.21"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "sshd",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^MaxStartups\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?MaxStartups.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "ssh",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^MaxStartups\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?MaxStartups.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_maxstartups",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The MaxStartups parameter specifies the maximum number of concurrent unauthenticated\nconnections to the SSH daemon. Additional connections will be dropped until authentication\nsucceeds or the LoginGraceTime expires for a connection. To configure MaxStartups, you should\nadd or edit the following line in the <tt>/etc/ssh/sshd_config</tt> file:\n<pre>MaxStartups {{{ xccdf_value(\"var_sshd_set_maxstartups\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_set_maxstartups/rule.yml",
+  "source_hash": "sha256:63f074deeef09204",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.161067+00:00",
+  "updated_at": "2025-10-03T02:25:57.161070+00:00",
+  "identifiers": {
+    "cce": "CCE-90718-8"
+  }
+}

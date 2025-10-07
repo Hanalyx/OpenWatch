@@ -1,0 +1,94 @@
+{
+  "_id": "ow-service_systemd_journal_upload_enabled",
+  "rule_id": "ow-service_systemd_journal_upload_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_systemd_journal_upload_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable systemd-journal-upload Service",
+    "description": "{{{ full_name }}} must offload rsyslog messages for networked systems in real time and\noffload standalone systems at least weekly.\n{{{ describe_service_enable(service=\"systemd-journal-upload\") }}}",
+    "rationale": "{{{ full_name }}} must offload rsyslog messages for networked systems in real time and\noffload standalone systems at least weekly.",
+    "source": {
+      "upstream_id": "service_systemd_journal_upload_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-94084-1",
+      "imported_at": "2025-10-03T02:25:58.395729+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000479-GPOS-00224"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "systemd-journal-upload",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled systemd-journal-upload",
+      "enable_command": "systemctl enable systemd-journal-upload",
+      "disable_command": "systemctl disable systemd-journal-upload",
+      "validation_command": "systemctl status systemd-journal-upload",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "systemd-journal-upload",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled systemd-journal-upload",
+      "enable_command": "systemctl enable systemd-journal-upload",
+      "disable_command": "systemctl disable systemd-journal-upload",
+      "validation_command": "systemctl status systemd-journal-upload",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_systemd_journal_upload_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ full_name }}} must offload rsyslog messages for networked systems in real time and\noffload standalone systems at least weekly.\n{{{ describe_service_enable(service=\"systemd-journal-upload\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/journald/service_systemd-journal-upload_enabled/rule.yml",
+  "source_hash": "sha256:40f15d66c4b4c944",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.395825+00:00",
+  "updated_at": "2025-10-03T02:25:58.395827+00:00",
+  "identifiers": {
+    "cce": "CCE-94084-1"
+  }
+}

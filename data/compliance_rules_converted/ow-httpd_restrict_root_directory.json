@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_restrict_root_directory",
+  "rule_id": "ow-httpd_restrict_root_directory",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_restrict_root_directory",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Restrict Root Directory",
+    "description": "The <tt>httpd</tt> root directory should always have the most restrictive configuration enabled.\n<pre>&lt;Directory / &gt;\n   Options None\n   AllowOverride None\n   Order allow,deny\n&lt;/Directory&gt;</pre>",
+    "rationale": "The Web Server's root directory content should be protected from unauthorized access\nby web clients.",
+    "source": {
+      "upstream_id": "httpd_restrict_root_directory",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.865985+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_restrict_root_directory",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>httpd</tt> root directory should always have the most restrictive configuration enabled.\n<pre>&lt;Directory / &gt;\n   Options None\n   AllowOverride None\n   Order allow,deny\n&lt;/Directory&gt;</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_directory_restrictions/httpd_restrict_root_directory/rule.yml",
+  "source_hash": "sha256:4b22b9132eafdf82",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.866074+00:00",
+  "updated_at": "2025-10-03T10:45:55.866076+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,68 @@
+{
+  "_id": "ow-sudoers_default_includedir",
+  "rule_id": "ow-sudoers_default_includedir",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_default_includedir",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure sudo only includes the default configuration directory",
+    "description": "Administrators can configure authorized <tt>sudo</tt> users via drop-in files, and it is possible to include\nother directories and configuration files from the file currently being parsed.\n\nMake sure that <tt>/etc/sudoers</tt> only includes drop-in configuration files from <tt>/etc/sudoers.d</tt>,\nor that no drop-in file is included.\nEither the <tt>/etc/sudoers</tt> should contain only one <tt>#includedir</tt> directive pointing to\n<tt>/etc/sudoers.d</tt>, and no file in <tt>/etc/sudoers.d/</tt> should include other files or directories;\nOr the <tt>/etc/sudoers</tt> should not contain any <tt>#include</tt>,\n<tt>@include</tt>, <tt>#includedir</tt> or <tt>@includedir</tt> directives.\nNote that the '#' character doesn't denote a comment in the configuration file.",
+    "rationale": "Some <tt>sudo</tt> configurtion options allow users to run programs without re-authenticating.\nUse of these configuration options makes it easier for one compromised accound to be used to\ncompromise other accounts.",
+    "source": {
+      "upstream_id": "sudoers_default_includedir",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86377-9",
+      "imported_at": "2025-10-03T10:45:56.010723+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-010339",
+        "OL08-00-010379",
+        "SLES-12-010109",
+        "SLES-15-020099"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_default_includedir",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Administrators can configure authorized <tt>sudo</tt> users via drop-in files, and it is possible to include\nother directories and configuration files from the file currently being parsed.\n\nMake sure that <tt>/etc/sudoers</tt> only includes drop-in configuration files from <tt>/etc/sudoers.d</tt>,\nor that no drop-in file is included.\nEither the <tt>/etc/sudoers</tt> should contain only one <tt>#includedir</tt> directive pointing to\n<tt>/etc/sudoers.d</tt>, and no file in <tt>/etc/sudoers.d/</tt> should include other files or directories;\nOr the <tt>/etc/sudoers</tt> should not contain any <tt>#include</tt>,\n<tt>@include</tt>, <tt>#includedir</tt> or <tt>@includedir</tt> directives.\nNote that the '#' character doesn't denote a comment in the configuration file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudoers_default_includedir/rule.yml",
+  "source_hash": "sha256:ded2aabe1c17320a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.011088+00:00",
+  "updated_at": "2025-10-03T10:45:56.011094+00:00",
+  "identifiers": {
+    "cce": "CCE-86377-9"
+  }
+}

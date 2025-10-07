@@ -1,0 +1,111 @@
+{
+  "_id": "ow-sshd_x11_use_localhost",
+  "rule_id": "ow-sshd_x11_use_localhost",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_x11_use_localhost",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Prevent remote hosts from connecting to the proxy display",
+    "description": "The SSH daemon should prevent remote hosts from connecting to the proxy\ndisplay.\n<br />\nThe default SSH configuration for <tt>X11UseLocalhost</tt> is <tt>yes</tt>,\nwhich prevents remote hosts from connecting to the proxy display.\n<br />\nTo explicitly prevent remote connections to the proxy display, add or correct\nthe following line in\n{{{ sshd_config_file() }}}\n<tt>X11UseLocalhost yes</tt>",
+    "rationale": "When X11 forwarding is enabled, there may be additional exposure to the\nserver and client displays if the sshd proxy display is configured to listen\non the wildcard address. By default, sshd binds the forwarding server to the\nloopback address and sets the hostname part of the <tt>DISPLAY</tt>\nenvironment variable to localhost. This prevents remote hosts from\nconnecting to the proxy display.",
+    "source": {
+      "upstream_id": "sshd_x11_use_localhost",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-84058-7",
+      "imported_at": "2025-10-03T02:25:57.211249+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6(b)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL07-00-040711",
+        "OL08-00-040341",
+        "SLES-12-030261"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "sshd",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^X11UseLocalhost\\s\\+yes' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?X11UseLocalhost.*/{ parameter } yes/' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "ssh",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^X11UseLocalhost\\s\\+yes' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?X11UseLocalhost.*/{ parameter } yes/' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_x11_use_localhost",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The SSH daemon should prevent remote hosts from connecting to the proxy\ndisplay.\n<br />\nThe default SSH configuration for <tt>X11UseLocalhost</tt> is <tt>yes</tt>,\nwhich prevents remote hosts from connecting to the proxy display.\n<br />\nTo explicitly prevent remote connections to the proxy display, add or correct\nthe following line in\n{{{ sshd_config_file() }}}\n<tt>X11UseLocalhost yes</tt>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_x11_use_localhost/rule.yml",
+  "source_hash": "sha256:fd01759101001468",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.211383+00:00",
+  "updated_at": "2025-10-03T02:25:57.211386+00:00",
+  "identifiers": {
+    "cce": "CCE-84058-7"
+  }
+}

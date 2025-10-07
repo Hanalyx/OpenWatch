@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_url_correction",
+  "rule_id": "ow-httpd_url_correction",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_url_correction",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable URL Correction on Misspelled Entries",
+    "description": "The <tt>speling</tt> module attempts to find a document match by allowing one misspelling in an\notherwise failed request. If this functionality is unnecessary, comment out the module:\n<pre>#LoadModule speling_module modules/mod_speling.so</pre>\nThis functionality weakens server security by making site enumeration easier.",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_url_correction",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.856905+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_url_correction",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>speling</tt> module attempts to find a document match by allowing one misspelling in an\notherwise failed request. If this functionality is unnecessary, comment out the module:\n<pre>#LoadModule speling_module modules/mod_speling.so</pre>\nThis functionality weakens server security by making site enumeration easier.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_url_correction/rule.yml",
+  "source_hash": "sha256:4d4740575223a6a3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.857000+00:00",
+  "updated_at": "2025-10-03T10:45:55.857002+00:00",
+  "identifiers": {}
+}

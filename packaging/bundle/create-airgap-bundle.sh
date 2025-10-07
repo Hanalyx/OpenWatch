@@ -130,7 +130,8 @@ pull_and_save_images() {
       "file": "${image_name}.tar",
       "size": $(stat -c%s "$image_file"),
       "sha256": "$(sha256sum "$image_file" | cut -d' ' -f1)"
-    }EOF
+    }
+EOF
                 
                 log_success "Saved $pulled_image as ${image_name}.tar"
             else
@@ -191,9 +192,9 @@ copy_rpm_dependencies() {
         log_warning "OpenWatch RPM not found - you may need to build it first"
     fi
     
-    # Download dependencies (this would need to be run on a connected system)
-    log_info "Note: Dependencies should be downloaded on a connected system:"
-    cat > "$WORK_DIR/rpm/download-dependencies.sh" << 'EOF'
+    # Create dependencies download script
+    log_info "Creating dependencies download script..."
+    cat > "$WORK_DIR/rpm/download-dependencies.sh" << 'DEPS_EOF'
 #!/bin/bash
 # Download RPM dependencies for air-gapped installation
 # Run this script on a system with internet access
@@ -221,7 +222,7 @@ for dep in "${DEPENDENCIES[@]}"; do
 done
 
 echo "Dependencies downloaded to dependencies/"
-EOF
+DEPS_EOF
     chmod +x "$WORK_DIR/rpm/download-dependencies.sh"
 }
 
@@ -557,4 +558,3 @@ trap cleanup EXIT
 
 # Run main function
 main "$@"
-EOF

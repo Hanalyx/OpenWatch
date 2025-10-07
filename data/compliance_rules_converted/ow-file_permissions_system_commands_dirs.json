@@ -1,0 +1,72 @@
+{
+  "_id": "ow-file_permissions_system_commands_dirs",
+  "rule_id": "ow-file_permissions_system_commands_dirs",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_system_commands_dirs",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify that system commands are protected from unauthorized access",
+    "description": "System commands are stored in the following directories by default:\n<pre>/bin\n/sbin\n/usr/bin\n/usr/sbin\n/usr/local/bin\n/usr/local/sbin</pre>\nAll files in these directories should not be group-writable or world-writable.\nIf any file <i>FILE</i> in these directories is found\nto be group-writable or world-writable, correct its permission with the\nfollowing command:\n<pre>$ sudo chmod 755 <i>FILE</i></pre>",
+    "rationale": "System binaries are executed by privileged users, as well as system services,\nand restrictive permissions are necessary to ensure execution of these programs\ncannot be co-opted.",
+    "source": {
+      "upstream_id": "file_permissions_system_commands_dirs",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83239-4",
+      "imported_at": "2025-10-03T10:45:55.945147+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-5(6)",
+        "CM-5(6).1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000259-GPOS-00100",
+        "SLES-12-010877",
+        "SLES-15-010357"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_permissions_system_commands_dirs",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "System commands are stored in the following directories by default:\n<pre>/bin\n/sbin\n/usr/bin\n/usr/sbin\n/usr/local/bin\n/usr/local/sbin</pre>\nAll files in these directories should not be group-writable or world-writable.\nIf any file <i>FILE</i> in these directories is found\nto be group-writable or world-writable, correct its permission with the\nfollowing command:\n<pre>$ sudo chmod 755 <i>FILE</i></pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/permissions_within_important_dirs/file_permissions_system_commands_dirs/rule.yml",
+  "source_hash": "sha256:67e89377896460d6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.945281+00:00",
+  "updated_at": "2025-10-03T10:45:55.945286+00:00",
+  "identifiers": {
+    "cce": "CCE-83239-4"
+  }
+}

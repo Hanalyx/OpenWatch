@@ -1,0 +1,58 @@
+{
+  "_id": "ow-no_nis_in_nsswitch",
+  "rule_id": "ow-no_nis_in_nsswitch",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_nis_in_nsswitch",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Name Service Switch does not use NIS",
+    "description": "Each call to a function which retrieves data from a system database like the\npassword or group database is handled by the Name Service Switch\nimplementation in the GNU C library.  The various services provided are\nimplemented by independent modules, each of which naturally varies widely\nfrom the other. One of such modules is the <tt>nis</tt> module, which allows\nto get information from NIS servers.",
+    "rationale": "NIS service is insecure and should not be used.",
+    "source": {
+      "upstream_id": "no_nis_in_nsswitch",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86076-7",
+      "imported_at": "2025-10-03T10:45:55.742117+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_nis_in_nsswitch",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Each call to a function which retrieves data from a system database like the\npassword or group database is handled by the Name Service Switch\nimplementation in the GNU C library.  The various services provided are\nimplemented by independent modules, each of which naturally varies widely\nfrom the other. One of such modules is the <tt>nis</tt> module, which allows\nto get information from NIS servers.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/nis/no_nis_in_nsswitch/rule.yml",
+  "source_hash": "sha256:7c46d81ef15f83ae",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.742218+00:00",
+  "updated_at": "2025-10-03T10:45:55.742221+00:00",
+  "identifiers": {
+    "cce": "CCE-86076-7"
+  }
+}

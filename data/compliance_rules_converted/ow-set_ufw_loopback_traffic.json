@@ -1,0 +1,56 @@
+{
+  "_id": "ow-set_ufw_loopback_traffic",
+  "rule_id": "ow-set_ufw_loopback_traffic",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_ufw_loopback_traffic",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set UFW Loopback Traffic",
+    "description": "Configure the loopback interface to accept traffic.\nConfigure all other interfaces to deny traffic to the loopback\nnetwork.",
+    "rationale": "Loopback traffic is generated between processes on machine and is\ntypically critical to operation of the system. The loopback interface\nis the only place that loopback network traffic should be seen, all\nother interfaces should ignore traffic on this network as an\nanti-spoofing measure.",
+    "source": {
+      "upstream_id": "set_ufw_loopback_traffic",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.137602+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_ufw_loopback_traffic",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure the loopback interface to accept traffic.\nConfigure all other interfaces to deny traffic to the loopback\nnetwork.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ufw/set_ufw_loopback_traffic/rule.yml",
+  "source_hash": "sha256:4abd018f8df7afe6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.137690+00:00",
+  "updated_at": "2025-10-03T10:45:56.137693+00:00",
+  "identifiers": {}
+}

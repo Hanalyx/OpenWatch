@@ -1,0 +1,64 @@
+{
+  "_id": "ow-configure_tls",
+  "rule_id": "ow-configure_tls",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_tls",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Encrypt Traffic to Load Balancers and Workloads",
+    "description": "Encrypt traffic to HTTPS load balancers using TLS certificates.",
+    "rationale": "Encrypting traffic between users and your Kubernetes workload is fundamental\nto protecting data sent over the web.",
+    "source": {
+      "upstream_id": "configure_tls",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89133-3",
+      "imported_at": "2025-10-03T10:45:56.520632+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.4.5"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_configure_tls",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Encrypt traffic to HTTPS load balancers using TLS certificates.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/networking/configure_tls/rule.yml",
+  "source_hash": "sha256:9480a10381497360",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.520715+00:00",
+  "updated_at": "2025-10-03T10:45:56.520717+00:00",
+  "identifiers": {
+    "cce": "CCE-89133-3"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "_id": "ow-accounts_set_post_pw_existing",
+  "rule_id": "ow-accounts_set_post_pw_existing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_set_post_pw_existing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set existing passwords a period of inactivity before they been locked",
+    "description": "Configure user accounts that have been inactive for over a given period of time\nto be automatically disabled by running the following command:\n<pre>$ sudo chage --inactive 30 USER</pre>",
+    "rationale": "Inactive accounts pose a threat to system security since the users are not logging in to\nnotice failed login attempts or other anomalies.",
+    "source": {
+      "upstream_id": "accounts_set_post_pw_existing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86758-0",
+      "imported_at": "2025-10-03T02:25:58.571341+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.4.1.5",
+        "5.4.1.5"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.3",
+        "A.18.1.4",
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.9.1.2",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.1",
+        "A.9.4.2",
+        "A.9.4.3",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "IA-4(e)",
+        "AC-2(3)",
+        "CM-6(a)",
+        "DE.CM-1",
+        "DE.CM-3",
+        "PR.AC-1",
+        "PR.AC-4",
+        "PR.AC-6",
+        "PR.AC-7"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.1.4"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000118-GPOS-00060"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_set_post_pw_existing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure user accounts that have been inactive for over a given period of time\nto be automatically disabled by running the following command:\n<pre>$ sudo chage --inactive 30 USER</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/password_expiration/accounts_set_post_pw_existing/rule.yml",
+  "source_hash": "sha256:7b77859a554e4f02",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.571472+00:00",
+  "updated_at": "2025-10-03T02:25:58.571475+00:00",
+  "identifiers": {
+    "cce": "CCE-86758-0"
+  }
+}

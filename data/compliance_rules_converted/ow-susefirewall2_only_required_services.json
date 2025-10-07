@@ -1,0 +1,75 @@
+{
+  "_id": "ow-susefirewall2_only_required_services",
+  "rule_id": "ow-susefirewall2_only_required_services",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_susefirewall2_only_required_services",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Only Allow Authorized Network Services in SuSEfirewall2",
+    "description": "{{{ describe_package_install(package=\"SuSEfirewall2\") }}}\n{{{ describe_service_enable(service=\"SuSEfirewall2\") }}}\n\nCheck the firewall configuration for any unnecessary or prohibited\nfunctions, ports, protocols, and/or services by running the following\ncommand:\n\n<pre># grep ^FW_ /etc/sysconfig/SuSEfirewall2\nFW_SERVICES_ACCEPT_EXT=\"0/0,tcp,22,,hitcount=3,blockseconds=60,recentname=ssh\"</pre>\n\nAsk the System Administrator for the site or program PPSM Component Local\nServices Assessment (Component Local Services Assessment (CLSA). Verify the\nservices allowed by the firewall match the PPSM CLSA. ",
+    "rationale": "To prevent unauthorized connection of devices, unauthorized transfer of\ninformation, or unauthorized tunneling (i.e., embedding of data types\nwithin data types), organizations must disable or restrict unused or\nunnecessary physical and logical ports/protocols on information systems.\n\nSUSE operating systems are capable of providing a wide variety of functions\nand services. Some of the functions and services provided by default may not\nbe necessary to support essential organizational operations. Additionally,\nit is sometimes convenient to provide multiple services from a single\ncomponent (e.g., VPN and IPS); however, doing so increases risk over\nlimiting the services provided by any one component.\n\nTo support the requirements and principles of least functionality, the SUSE\noperating system must support the organizational requirements, providing\nonly essential capabilities and limiting the use of ports, protocols,\nand/or services to only those required, authorized, and approved to conduct\nofficial business or address authorized quality-of-life issues.",
+    "source": {
+      "upstream_id": "susefirewall2_only_required_services",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83165-1",
+      "imported_at": "2025-10-03T02:25:58.155850+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7",
+        "CA-3(5)",
+        "AC-17(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000096-GPOS-00050",
+        "SRG-OS-000297-GPOS-00115",
+        "SRG-OS-000480-GPOS-00231",
+        "SRG-OS-000480-GPOS-00232",
+        "SLES-12-030030"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_susefirewall2_only_required_services",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"SuSEfirewall2\") }}}\n{{{ describe_service_enable(service=\"SuSEfirewall2\") }}}\n\nCheck the firewall configuration for any unnecessary or prohibited\nfunctions, ports, protocols, and/or services by running the following\ncommand:\n\n<pre># grep ^FW_ /etc/sysconfig/SuSEfirewall2\nFW_SERVICES_ACCEPT_EXT=\"0/0,tcp,22,,hitcount=3,blockseconds=60,recentname=ssh\"</pre>\n\nAsk the System Administrator for the site or program PPSM Component Local\nServices Assessment (Component Local Services Assessment (CLSA). Verify the\nservices allowed by the firewall match the PPSM CLSA. ",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-susefirewall2/susefirewall2_only_required_services/rule.yml",
+  "source_hash": "sha256:5b0182909cbc2097",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.155949+00:00",
+  "updated_at": "2025-10-03T02:25:58.155952+00:00",
+  "identifiers": {
+    "cce": "CCE-83165-1"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "_id": "ow-general_namespace_separation",
+  "rule_id": "ow-general_namespace_separation",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_general_namespace_separation",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Each Namespace should only host one application",
+    "description": "Use namespaces to isolate your Kubernetes objects.",
+    "rationale": "Assigning a dedicated namespace to an application (or parts of an application)\nallows you to granularly control the access to this application on a kubernetes\nlevel. It also allows you control the network flow from and to other namespaces\nmore easily.",
+    "source": {
+      "upstream_id": "general_namespace_separation",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90279-1",
+      "imported_at": "2025-10-03T10:45:56.438292+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_general_namespace_separation",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Use namespaces to isolate your Kubernetes objects.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/general_namespace_separation/rule.yml",
+  "source_hash": "sha256:f622ceac2efaf3de",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.438372+00:00",
+  "updated_at": "2025-10-03T10:45:56.438374+00:00",
+  "identifiers": {
+    "cce": "CCE-90279-1"
+  }
+}

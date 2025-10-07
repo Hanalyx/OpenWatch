@@ -152,8 +152,8 @@ podman-compose up -d                    # Production
 ## Migration from Legacy Scripts
 
 The following legacy scripts have been replaced by owadm:
-- `start-podman.sh` → `owadm start`
-- `stop-podman.sh` → `owadm stop`
+- `start-openwatch.sh` → `owadm start`
+- `stop-openwatch.sh` → `owadm stop`
 - `install.sh` → `owadm start` (with auto-setup)
 
 ---

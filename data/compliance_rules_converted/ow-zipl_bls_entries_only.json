@@ -1,0 +1,58 @@
+{
+  "_id": "ow-zipl_bls_entries_only",
+  "rule_id": "ow-zipl_bls_entries_only",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_bls_entries_only",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure all zIPL boot entries are BLS compliant",
+    "description": "Ensure that zIPL boot entries fully adheres to Boot Loader Specification (BLS)\nby checking that <tt>/etc/zipl.conf</tt> doesn't contain <tt>image = </tt>.",
+    "rationale": "{{{ full_name }}} adheres to Boot Loader Specification (BLS) and is the prefered method of\nconfiguration.",
+    "source": {
+      "upstream_id": "zipl_bls_entries_only",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83485-3",
+      "imported_at": "2025-10-03T02:25:58.046119+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_zipl_bls_entries_only",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Ensure that zIPL boot entries fully adheres to Boot Loader Specification (BLS)\nby checking that <tt>/etc/zipl.conf</tt> doesn't contain <tt>image = </tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/bootloader-zipl/zipl_bls_entries_only/rule.yml",
+  "source_hash": "sha256:6c95dc2d4df878ae",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.046235+00:00",
+  "updated_at": "2025-10-03T02:25:58.046238+00:00",
+  "identifiers": {
+    "cce": "CCE-83485-3"
+  }
+}

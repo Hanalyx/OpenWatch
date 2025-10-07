@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_configure_valid_server_cert",
+  "rule_id": "ow-httpd_configure_valid_server_cert",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_valid_server_cert",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure A Valid Server Certificate",
+    "description": "Configure the web site to use a valid organizationally defined certificate.\nFor DoD, this is a DoD server certificate issued by the DoD CA.",
+    "rationale": "This check verifies that DoD is a hosted web site's CA. The certificate is\nactually a DoD-issued server certificate used by the organization being\nreviewed. This is used to verify the authenticity of the web site to the user.\nIf the certificate is not for the server (Certificate belongs to), if the\ncertificate is not issued by DoD (Certificate was issued by), or if the current\ndate is not included in the valid date (Certificate is valid from), then there\nis no assurance that the use of the certificate is valid. The entire purpose of\nusing a certificate is, therefore, compromised.",
+    "source": {
+      "upstream_id": "httpd_configure_valid_server_cert",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.850399+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_configure_valid_server_cert",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure the web site to use a valid organizationally defined certificate.\nFor DoD, this is a DoD server certificate issued by the DoD CA.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_modules_improve_security/httpd_deploy_mod_ssl/httpd_configure_valid_server_cert/rule.yml",
+  "source_hash": "sha256:b8f8a532cfe5ec0e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.850484+00:00",
+  "updated_at": "2025-10-03T10:45:55.850486+00:00",
+  "identifiers": {}
+}

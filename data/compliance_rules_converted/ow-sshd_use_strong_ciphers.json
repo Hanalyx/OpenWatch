@@ -1,0 +1,67 @@
+{
+  "_id": "ow-sshd_use_strong_ciphers",
+  "rule_id": "ow-sshd_use_strong_ciphers",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_strong_ciphers",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Use Only Strong Ciphers",
+    "description": "Limit the ciphers to strong algorithms.\nCounter (CTR) mode is also preferred over cipher-block chaining (CBC) mode.\nThe following line in <tt>/etc/ssh/sshd_config</tt>\ndemonstrates use of those ciphers:\n<pre>Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr</pre>\nThe man page <tt>sshd_config(5)</tt> contains a list of supported ciphers.",
+    "rationale": "Based on research conducted at various institutions, it was determined that the symmetric\nportion of the SSH Transport Protocol (as described in RFC 4253) has security weaknesses\nthat allowed recovery of up to 32 bits of plaintext from a block of ciphertext that was\nencrypted with the Cipher Block Chaining (CBD) method. From that research, new Counter\nmode algorithms (as described in RFC4344) were designed that are not vulnerable to these\ntypes of attacks and these algorithms are now recommended for standard use.",
+    "source": {
+      "upstream_id": "sshd_use_strong_ciphers",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92279-9",
+      "imported_at": "2025-10-03T10:45:55.812753+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "ssg",
+    "severity_medium",
+    "converted",
+    "ssh",
+    "scap"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "9.3.11",
+        "5.2.13",
+        "5.2.13"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_strong_ciphers",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Limit the ciphers to strong algorithms.\nCounter (CTR) mode is also preferred over cipher-block chaining (CBC) mode.\nThe following line in <tt>/etc/ssh/sshd_config</tt>\ndemonstrates use of those ciphers:\n<pre>Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr</pre>\nThe man page <tt>sshd_config(5)</tt> contains a list of supported ciphers.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_use_strong_ciphers/rule.yml",
+  "source_hash": "sha256:5970d791ea3cc8df",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.812877+00:00",
+  "updated_at": "2025-10-03T10:45:55.812880+00:00",
+  "identifiers": {
+    "cce": "CCE-92279-9"
+  }
+}

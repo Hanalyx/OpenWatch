@@ -1,0 +1,110 @@
+{
+  "_id": "ow-no_rsh_trust_files",
+  "rule_id": "ow-no_rsh_trust_files",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_rsh_trust_files",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Remove Rsh Trust Files",
+    "description": "The files <tt>/etc/hosts.equiv</tt> and <tt>~/.rhosts</tt> (in\neach user's home directory) list remote hosts and users that are trusted by the\nlocal system when using the rshd daemon.\nTo remove these files, run the following command to delete them from any\nlocation:\n<pre>$ sudo rm /etc/hosts.equiv</pre>\n<pre>$ rm ~/.rhosts</pre>",
+    "rationale": "This action is only meaningful if <tt>.rhosts</tt> support is permitted\nthrough PAM. Trust files are convenient, but when used in conjunction with\nthe R-services, they can allow unauthenticated access to a system.",
+    "source": {
+      "upstream_id": "no_rsh_trust_files",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80842-8",
+      "imported_at": "2025-10-03T10:45:55.733926+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "12",
+        "14",
+        "15",
+        "3",
+        "8",
+        "9",
+        "6.2.12",
+        "6.2.12"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(4)(i)",
+        "164.308(b)(1)",
+        "164.308(b)(3)",
+        "164.310(b)",
+        "164.312(e)(1)",
+        "164.312(e)(2)(ii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.6",
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.13.1.1",
+        "A.13.2.1",
+        "A.14.1.3",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.6.2.1",
+        "A.6.2.2",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.AC-3",
+        "PR.IP-1",
+        "PR.PT-3",
+        "PR.PT-4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_no_rsh_trust_files",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The files <tt>/etc/hosts.equiv</tt> and <tt>~/.rhosts</tt> (in\neach user's home directory) list remote hosts and users that are trusted by the\nlocal system when using the rshd daemon.\nTo remove these files, run the following command to delete them from any\nlocation:\n<pre>$ sudo rm /etc/hosts.equiv</pre>\n<pre>$ rm ~/.rhosts</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/r_services/no_rsh_trust_files/rule.yml",
+  "source_hash": "sha256:57ee9eff4478533a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.734060+00:00",
+  "updated_at": "2025-10-03T10:45:55.734063+00:00",
+  "identifiers": {
+    "cce": "CCE-80842-8"
+  }
+}

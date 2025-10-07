@@ -1,0 +1,56 @@
+{
+  "_id": "ow-accounts_authorized_local_users_sidadm_orasid",
+  "rule_id": "ow-accounts_authorized_local_users_sidadm_orasid",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_authorized_local_users_sidadm_orasid",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Only sidadm and orasid/oracle User Accounts Exist on Operating System",
+    "description": "SAP tends to use the server or virtual machine exclusively. There should be only\nSAP system users <tt>sidadm</tt> and <tt>orasid</tt> that exist on the operating\nsystem (or virtual machine). If SAP Host Agent is installed, the user <tt>sapadm</tt>\nmust exist too. With Oracle Database using <tt>oracle</tt> user, the user <tt>oracle</tt>\nshould exist as well. While <tt>SID</tt> is the SAP System ID, which is always\nthree alphanumeric characters in upper case, beginning with an alphabetic character,\nthe user names <tt>sidadm</tt> and <tt>orasid</tt> are in lower case.\n<br /> <br />\nBesides the above SAP users that are automatically detected, other operating system\nusers can be customized in the refine value variable\n<tt>var_accounts_authorized_local_users_regex</tt>.\nOVAL regular expression is used for the user list.\n<br /> <br />\nTest result of both <tt>fail</tt> or <tt>error</tt> means mismatch of user names and\nSAP system. The bash remediation commands can be used to delete unexpected users on\nthe operating system.",
+    "rationale": "Accounts providing no operational purpose provide additional opportunities for\nsystem compromise. Unnecessary accounts include user accounts for individuals not\nrequiring access to the system and application accounts for applications not installed\non the system.",
+    "source": {
+      "upstream_id": "accounts_authorized_local_users_sidadm_orasid",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.998959+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_accounts_authorized_local_users_sidadm_orasid",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "SAP tends to use the server or virtual machine exclusively. There should be only\nSAP system users <tt>sidadm</tt> and <tt>orasid</tt> that exist on the operating\nsystem (or virtual machine). If SAP Host Agent is installed, the user <tt>sapadm</tt>\nmust exist too. With Oracle Database using <tt>oracle</tt> user, the user <tt>oracle</tt>\nshould exist as well. While <tt>SID</tt> is the SAP System ID, which is always\nthree alphanumeric characters in upper case, beginning with an alphabetic character,\nthe user names <tt>sidadm</tt> and <tt>orasid</tt> are in lower case.\n<br /> <br />\nBesides the above SAP users that are automatically detected, other operating system\nusers can be customized in the refine value variable\n<tt>var_accounts_authorized_local_users_regex</tt>.\nOVAL regular expression is used for the user list.\n<br /> <br />\nTest result of both <tt>fail</tt> or <tt>error</tt> means mismatch of user names and\nSAP system. The bash remediation commands can be used to delete unexpected users on\nthe operating system.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sap_host/accounts_authorized_local_users_sidadm_orasid/rule.yml",
+  "source_hash": "sha256:49105952d5162170",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.999107+00:00",
+  "updated_at": "2025-10-03T10:45:55.999110+00:00",
+  "identifiers": {}
+}

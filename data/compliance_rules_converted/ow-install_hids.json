@@ -1,0 +1,114 @@
+{
+  "_id": "ow-install_hids",
+  "rule_id": "ow-install_hids",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_hids",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install Intrusion Detection Software",
+    "description": "The base {{{ full_name }}} platform already includes a sophisticated auditing system that\ncan detect intruder activity, as well as SELinux, which provides host-based\nintrusion prevention capabilities by confining privileged programs and user\nsessions which may become compromised.",
+    "rationale": "Host-based intrusion detection tools provide a system-level defense when an\nintruder gains access to a system or network.",
+    "source": {
+      "upstream_id": "install_hids",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80831-1",
+      "imported_at": "2025-10-03T02:25:57.771316+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "converted",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "18",
+        "7",
+        "8",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.10.1.1",
+        "A.11.1.4",
+        "A.11.1.5",
+        "A.11.2.1",
+        "A.13.1.1",
+        "A.13.1.3",
+        "A.13.2.1",
+        "A.13.2.3",
+        "A.13.2.4",
+        "A.14.1.2",
+        "A.14.1.3",
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.7.1.2",
+        "A.7.3.1",
+        "A.8.2.2",
+        "A.8.2.3",
+        "A.9.1.1",
+        "A.9.1.2",
+        "A.9.2.3",
+        "A.9.4.1",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "DE.CM-1",
+        "PR.AC-5",
+        "PR.DS-5",
+        "PR.PT-4"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-11.4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_install_hids",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The base {{{ full_name }}} platform already includes a sophisticated auditing system that\ncan detect intruder activity, as well as SELinux, which provides host-based\nintrusion prevention capabilities by confining privileged programs and user\nsessions which may become compromised.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/endpoint_security_software/install_hids/rule.yml",
+  "source_hash": "sha256:ed42a720e996eb9f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.771432+00:00",
+  "updated_at": "2025-10-03T02:25:57.771435+00:00",
+  "identifiers": {
+    "cce": "CCE-80831-1"
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "_id": "ow-sshd_set_max_sessions",
+  "rule_id": "ow-sshd_set_max_sessions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_max_sessions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set SSH MaxSessions limit",
+    "description": "The <tt>MaxSessions</tt> parameter specifies the maximum number of open sessions permitted\nfrom a given connection. To set MaxSessions edit\n<tt>/etc/ssh/sshd_config</tt> as follows: <pre>MaxSessions {{{ xccdf_value(\"var_sshd_max_sessions\") }}}</pre>",
+    "rationale": "To protect a system from denial of service due to a large number of concurrent\nsessions, use the rate limiting function of MaxSessions to protect availability\nof sshd logins and prevent overwhelming the daemon.",
+    "source": {
+      "upstream_id": "sshd_set_max_sessions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83357-4",
+      "imported_at": "2025-10-03T02:25:57.153388+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.22",
+        "5.2.22"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "sshd",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^MaxSessions\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?MaxSessions.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "ssh",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^MaxSessions\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?MaxSessions.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_max_sessions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>MaxSessions</tt> parameter specifies the maximum number of open sessions permitted\nfrom a given connection. To set MaxSessions edit\n<tt>/etc/ssh/sshd_config</tt> as follows: <pre>MaxSessions {{{ xccdf_value(\"var_sshd_max_sessions\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_set_max_sessions/rule.yml",
+  "source_hash": "sha256:446005d4daf95539",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.153485+00:00",
+  "updated_at": "2025-10-03T02:25:57.153487+00:00",
+  "identifiers": {
+    "cce": "CCE-83357-4"
+  }
+}

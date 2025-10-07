@@ -1,0 +1,81 @@
+{
+  "_id": "ow-file_groupownership_lastlog",
+  "rule_id": "ow-file_groupownership_lastlog",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupownership_lastlog",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns lastlog Command",
+    "description": "{{{ describe_file_group_owner(file=\"/var/log/lastlog\", group=\"root\") }}}",
+    "rationale": "Unauthorized disclosure of the contents of the /var/log/lastlog file can reveal system data to\nattackers, thus compromising its confidentiality.",
+    "source": {
+      "upstream_id": "file_groupownership_lastlog",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:58.443021+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SI-11(b)",
+        "SI-11(c)",
+        "SI-11.1(iv)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000206-GPOS-00084",
+        "OL08-00-020264"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupownership_lastlog",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/var/log/lastlog\", group=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-session/file_groupownership_lastlog/rule.yml",
+  "source_hash": "sha256:b37498606240c535",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.443211+00:00",
+  "updated_at": "2025-10-03T02:25:58.443215+00:00",
+  "identifiers": {}
+}

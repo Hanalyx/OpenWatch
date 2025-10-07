@@ -1,0 +1,70 @@
+{
+  "_id": "ow-configured_firewalld_default_deny",
+  "rule_id": "ow-configured_firewalld_default_deny",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_configured_firewalld_default_deny",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firewalld Must Employ a Deny-all, Allow-by-exception Policy for Allowing Connections to Other Systems",
+    "description": "{{{ full_name }}} incorporates the \"firewalld\" daemon, which allows for many different configurations. One of these configurations is zones.\nZones can be utilized to a deny-all, allow-by-exception approach.\nThe default \"drop\" zone will drop all incoming network packets unless it is explicitly allowed by the configuration file or is related to an outgoing network connection.",
+    "rationale": "Failure to restrict network connectivity only to authorized systems permits inbound connections from malicious systems.\nIt also permits outbound connections that may facilitate exfiltration of data.",
+    "source": {
+      "upstream_id": "configured_firewalld_default_deny",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86266-4",
+      "imported_at": "2025-10-03T02:25:58.260150+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-17 (1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000297-GPOS-00115",
+        "OL08-00-040090"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_configured_firewalld_default_deny",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ full_name }}} incorporates the \"firewalld\" daemon, which allows for many different configurations. One of these configurations is zones.\nZones can be utilized to a deny-all, allow-by-exception approach.\nThe default \"drop\" zone will drop all incoming network packets unless it is explicitly allowed by the configuration file or is related to an outgoing network connection.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-firewalld/ruleset_modifications/configured_firewalld_default_deny/rule.yml",
+  "source_hash": "sha256:4813683b4a3f7c2f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.260262+00:00",
+  "updated_at": "2025-10-03T02:25:58.260265+00:00",
+  "identifiers": {
+    "cce": "CCE-86266-4"
+  }
+}

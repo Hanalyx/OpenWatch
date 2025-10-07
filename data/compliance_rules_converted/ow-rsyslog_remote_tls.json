@@ -1,0 +1,71 @@
+{
+  "_id": "ow-rsyslog_remote_tls",
+  "rule_id": "ow-rsyslog_remote_tls",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_rsyslog_remote_tls",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Configure TLS for rsyslog remote logging",
+    "description": "Configure <tt>rsyslog</tt> to use Transport Layer\nSecurity (TLS) support for logging to remote server\nfor the Forwarding Output Module in <tt>/etc/rsyslog.conf</tt>\nusing action. You can use the following command:\n<pre>echo 'action(type=\"omfwd\" protocol=\"tcp\" Target=\"&lt;remote system>\" port=\"6514\"\n    StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" streamdriver.CheckExtendedKeyPurpose=\"on\")' >> /etc/rsyslog.conf\n</pre>\nReplace the <tt>&lt;remote system></tt> in the above command with an IP address or a host name of the remote logging server.",
+    "rationale": "For protection of data being logged, the connection to the\nremote logging server needs to be authenticated and encrypted.",
+    "source": {
+      "upstream_id": "rsyslog_remote_tls",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82457-3",
+      "imported_at": "2025-10-03T10:45:56.169978+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AU-9(3)",
+        "CM-6(a)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000120-GPOS-00061"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_rsyslog_remote_tls",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure <tt>rsyslog</tt> to use Transport Layer\nSecurity (TLS) support for logging to remote server\nfor the Forwarding Output Module in <tt>/etc/rsyslog.conf</tt>\nusing action. You can use the following command:\n<pre>echo 'action(type=\"omfwd\" protocol=\"tcp\" Target=\"&lt;remote system>\" port=\"6514\"\n    StreamDriver=\"gtls\" StreamDriverMode=\"1\" StreamDriverAuthMode=\"x509/name\" streamdriver.CheckExtendedKeyPurpose=\"on\")' >> /etc/rsyslog.conf\n</pre>\nReplace the <tt>&lt;remote system></tt> in the above command with an IP address or a host name of the remote logging server.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/logging/rsyslog_sending_messages/rsyslog_remote_tls/rule.yml",
+  "source_hash": "sha256:b91498397985fef1",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.170071+00:00",
+  "updated_at": "2025-10-03T10:45:56.170073+00:00",
+  "identifiers": {
+    "cce": "CCE-82457-3"
+  }
+}

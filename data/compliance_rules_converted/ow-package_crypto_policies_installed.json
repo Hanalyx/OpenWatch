@@ -1,0 +1,93 @@
+{
+  "_id": "ow-package_crypto_policies_installed",
+  "rule_id": "ow-package_crypto_policies_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_crypto_policies_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install crypto-policies package",
+    "description": "{{{ describe_package_install(package=\"crypto-policies\") }}}",
+    "rationale": "Centralized cryptographic policies simplify applying secure ciphers across an operating system and\nthe applications that run on that operating system. Use of weak or untested encryption algorithms\nundermines the purposes of utilizing encryption to protect data.",
+    "source": {
+      "upstream_id": "package_crypto_policies_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82723-8",
+      "imported_at": "2025-10-03T02:25:57.747927+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "cryptography",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "crypto",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000396-GPOS-00176",
+        "SRG-OS-000393-GPOS-00173",
+        "SRG-OS-000394-GPOS-00174"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q crypto-policies",
+      "enable_command": "yum install -y crypto-policies",
+      "disable_command": "yum remove -y crypto-policies",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep crypto-policies",
+      "enable_command": "apt-get install -y crypto-policies",
+      "disable_command": "apt-get remove -y crypto-policies",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_crypto_policies_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"crypto-policies\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/crypto/package_crypto-policies_installed/rule.yml",
+  "source_hash": "sha256:b5ce0f18445941f7",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.748034+00:00",
+  "updated_at": "2025-10-03T02:25:57.748036+00:00",
+  "identifiers": {
+    "cce": "CCE-82723-8"
+  }
+}

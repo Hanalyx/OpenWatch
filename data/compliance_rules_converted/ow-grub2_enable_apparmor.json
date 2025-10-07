@@ -1,0 +1,56 @@
+{
+  "_id": "ow-grub2_enable_apparmor",
+  "rule_id": "ow-grub2_enable_apparmor",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_enable_apparmor",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure AppArmor is enabled in the bootloader configuration",
+    "description": "Configure AppArmor to be enabled at boot time and verify that it has not been\noverwritten by the bootloader boot parameters.\n\nNote: This recommendation is designed around the grub bootloader, if LILO or\nanother bootloader is in use in your environment, enact equivalent settings.",
+    "rationale": "AppArmor must be enabled at boot time in your bootloader configuration to\nensure that the controls it provides are not overridden.",
+    "source": {
+      "upstream_id": "grub2_enable_apparmor",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.084451+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_enable_apparmor",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configure AppArmor to be enabled at boot time and verify that it has not been\noverwritten by the bootloader boot parameters.\n\nNote: This recommendation is designed around the grub bootloader, if LILO or\nanother bootloader is in use in your environment, enact equivalent settings.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/apparmor/grub2_enable_apparmor/rule.yml",
+  "source_hash": "sha256:30c09bd1817db883",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.084534+00:00",
+  "updated_at": "2025-10-03T10:45:56.084537+00:00",
+  "identifiers": {}
+}

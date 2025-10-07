@@ -1,0 +1,292 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "description": "Predefined cross-framework control mappings for OpenWatch unified compliance",
+    "last_updated": "2024-10-01",
+    "mapping_sources": [
+      "NIST SP 800-53 Rev 5 Control Mappings",
+      "CIS Controls v8 Framework Mappings", 
+      "ISO/IEC 27001:2022 Control Objectives",
+      "PCI-DSS v4.0 Requirements",
+      "DISA STIG/SRG Control Mappings"
+    ]
+  },
+  "mappings": [
+    {
+      "source_framework": "nist_800_53_r5",
+      "source_control": "AC-11",
+      "target_framework": "cis_v8",
+      "target_control": "5.2",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both controls address session lock/timeout requirements",
+      "evidence": [
+        "NIST AC-11 requires session lock after period of inactivity",
+        "CIS 5.2 requires session timeout configuration",
+        "Both prevent unauthorized access to unattended sessions"
+      ],
+      "implementation_notes": "Both require configurable timeout period, typically 15 minutes or less",
+      "exceptions": []
+    },
+    {
+      "source_framework": "nist_800_53_r5",
+      "source_control": "AC-11",
+      "target_framework": "iso_27001_2022",
+      "target_control": "A.9.1",
+      "mapping_type": "subset",
+      "confidence": "high",
+      "rationale": "NIST AC-11 is more specific implementation of ISO A.9.1 access control",
+      "evidence": [
+        "ISO A.9.1 covers general access control policy",
+        "NIST AC-11 provides specific session lock requirements",
+        "Session lock is a subset of broader access control"
+      ],
+      "implementation_notes": "NIST provides technical details, ISO provides policy framework"
+    },
+    {
+      "source_framework": "nist_800_53_r5",
+      "source_control": "SC-13",
+      "target_framework": "cis_v8",
+      "target_control": "3.11",
+      "mapping_type": "overlap",
+      "confidence": "high",
+      "rationale": "Both address cryptographic controls with different focus areas",
+      "evidence": [
+        "NIST SC-13 covers cryptographic protection requirements",
+        "CIS 3.11 addresses encryption implementation",
+        "Both ensure data protection through cryptography"
+      ],
+      "implementation_notes": "NIST focuses on policy, CIS on technical implementation"
+    },
+    {
+      "source_framework": "nist_800_53_r5",
+      "source_control": "SC-13",
+      "target_framework": "iso_27001_2022",
+      "target_control": "A.10.1",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Direct mapping for cryptographic controls",
+      "evidence": [
+        "Both require cryptographic key management",
+        "Both address encryption algorithm selection",
+        "Both cover cryptographic policy implementation"
+      ]
+    },
+    {
+      "source_framework": "nist_800_53_r5",
+      "source_control": "IA-5",
+      "target_framework": "cis_v8",
+      "target_control": "5.3",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both controls address authenticator/password management",
+      "evidence": [
+        "NIST IA-5 covers authenticator management lifecycle",
+        "CIS 5.3 addresses password policy enforcement",
+        "Both ensure strong authentication mechanisms"
+      ],
+      "implementation_notes": "Both require password complexity, length, and rotation policies"
+    },
+    {
+      "source_framework": "cis_v8",
+      "source_control": "5.3",
+      "target_framework": "pci_dss_v4",
+      "target_control": "8.1.1",
+      "mapping_type": "overlap",
+      "confidence": "medium",
+      "rationale": "Both address password/authentication requirements",
+      "evidence": [
+        "CIS 5.3 covers general password management",
+        "PCI 8.1.1 addresses user authentication for cardholder data",
+        "Both require strong authentication policies"
+      ],
+      "implementation_notes": "PCI is more specific to cardholder data environment"
+    },
+    {
+      "source_framework": "srg_os",
+      "source_control": "SRG-OS-000001-GPOS-00001",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "AC-11",
+      "mapping_type": "derived",
+      "confidence": "high",
+      "rationale": "SRG requirement derived from NIST control",
+      "evidence": [
+        "SRG-OS-000001 addresses session lock requirements",
+        "Directly implements NIST AC-11 for operating systems",
+        "SRG provides OS-specific implementation guidance"
+      ],
+      "implementation_notes": "SRG provides technical implementation of NIST policy requirement"
+    },
+    {
+      "source_framework": "stig_rhel9",
+      "source_control": "RHEL-09-412010",
+      "target_framework": "srg_os",
+      "target_control": "SRG-OS-000001-GPOS-00001",
+      "mapping_type": "derived",
+      "confidence": "high",
+      "rationale": "STIG rule implements SRG requirement for RHEL 9",
+      "evidence": [
+        "RHEL-09-412010 implements session lock timeout",
+        "Directly derives from SRG-OS-000001 requirement",
+        "Platform-specific implementation of general SRG rule"
+      ],
+      "implementation_notes": "RHEL 9 specific commands and configuration files"
+    },
+    {
+      "source_framework": "stig_rhel9",
+      "source_control": "RHEL-09-672010",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "SC-13",
+      "mapping_type": "derived",
+      "confidence": "high",
+      "rationale": "FIPS cryptography requirement implements NIST cryptographic controls",
+      "evidence": [
+        "RHEL-09-672010 requires FIPS mode enablement",
+        "Implements NIST SC-13 cryptographic protection",
+        "FIPS compliance satisfies NIST requirements"
+      ],
+      "implementation_notes": "FIPS mode provides NIST-approved cryptographic algorithms"
+    },
+    {
+      "source_framework": "iso_27001_2022",
+      "source_control": "A.9.1",
+      "target_framework": "pci_dss_v4",
+      "target_control": "7.1.1",
+      "mapping_type": "overlap",
+      "confidence": "medium",
+      "rationale": "Both address access control but different scopes",
+      "evidence": [
+        "ISO A.9.1 covers general access control policy",
+        "PCI 7.1.1 addresses cardholder data access restriction",
+        "Both implement principle of least privilege"
+      ],
+      "implementation_notes": "PCI more specific to payment card data, ISO covers all information assets"
+    },
+    {
+      "source_framework": "iso_27001_2022",
+      "source_control": "A.10.1", 
+      "target_framework": "pci_dss_v4",
+      "target_control": "3.4.1",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both require cryptographic protection of sensitive data",
+      "evidence": [
+        "ISO A.10.1 addresses cryptographic controls",
+        "PCI 3.4.1 requires encryption of cardholder data",
+        "Both mandate strong cryptographic protection"
+      ],
+      "implementation_notes": "Both require encryption of data at rest and in transit"
+    },
+    {
+      "source_framework": "cis_v8",
+      "source_control": "1.1",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "CM-8",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both controls address asset inventory management",
+      "evidence": [
+        "CIS 1.1 requires hardware asset inventory",
+        "NIST CM-8 covers information system component inventory",
+        "Both ensure complete asset visibility"
+      ],
+      "implementation_notes": "Both require automated discovery and tracking of assets"
+    },
+    {
+      "source_framework": "cis_v8",
+      "source_control": "2.1",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "CM-7",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both address software inventory and unauthorized software prevention",
+      "evidence": [
+        "CIS 2.1 requires software asset inventory",
+        "NIST CM-7 covers least functionality principle",
+        "Both prevent unauthorized software installation"
+      ],
+      "implementation_notes": "Both require whitelisting and software restriction policies"
+    },
+    {
+      "source_framework": "cis_v8",
+      "source_control": "4.1",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "CM-2",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both controls address baseline configuration management",
+      "evidence": [
+        "CIS 4.1 requires secure configuration baselines",
+        "NIST CM-2 covers baseline configuration",
+        "Both ensure systems are securely configured"
+      ],
+      "implementation_notes": "Both require documented baselines and configuration monitoring"
+    },
+    {
+      "source_framework": "cis_v8",
+      "source_control": "6.1",
+      "target_framework": "nist_800_53_r5",
+      "target_control": "AU-2",
+      "mapping_type": "equivalent",
+      "confidence": "high",
+      "rationale": "Both address audit logging and event monitoring",
+      "evidence": [
+        "CIS 6.1 requires audit log collection",
+        "NIST AU-2 covers audit events definition",
+        "Both ensure comprehensive logging"
+      ],
+      "implementation_notes": "Both require centralized logging and log retention policies"
+    },
+    {
+      "source_framework": "pci_dss_v4",
+      "source_control": "2.1.1",
+      "target_framework": "cis_v8",
+      "target_control": "4.1",
+      "mapping_type": "overlap",
+      "confidence": "medium",
+      "rationale": "Both address secure configuration but different scopes",
+      "evidence": [
+        "PCI 2.1.1 requires secure configuration for cardholder data environment",
+        "CIS 4.1 covers general secure configuration baselines",
+        "Both implement security hardening"
+      ],
+      "implementation_notes": "PCI specific to payment processing, CIS applies broadly"
+    }
+  ],
+  "framework_relationships": {
+    "nist_iso_alignment": {
+      "frameworks": ["nist_800_53_r5", "iso_27001_2022"],
+      "relationship_type": "highly_aligned",
+      "strength": 0.85,
+      "description": "NIST and ISO have strong alignment in security control objectives"
+    },
+    "srg_stig_hierarchy": {
+      "frameworks": ["srg_os", "stig_rhel9"],
+      "relationship_type": "parent_child",
+      "strength": 0.95,
+      "description": "STIG implements SRG requirements for specific platforms"
+    },
+    "cis_nist_overlap": {
+      "frameworks": ["cis_v8", "nist_800_53_r5"],
+      "relationship_type": "well_aligned",
+      "strength": 0.75,
+      "description": "CIS and NIST have significant overlap in technical controls"
+    }
+  },
+  "exceeding_compliance_patterns": [
+    {
+      "pattern": "fips_exceeds_cis_crypto",
+      "description": "FIPS cryptography mode exceeds CIS SHA1 prohibition requirements",
+      "frameworks_involved": ["stig_rhel9", "cis_v8"],
+      "enhancement": "FIPS mode automatically disables weak algorithms including SHA1",
+      "business_value": "Enhanced security posture beyond baseline requirements"
+    },
+    {
+      "pattern": "enterprise_timeouts_exceed_baseline",
+      "description": "Enterprise session timeouts often exceed framework minimums",
+      "frameworks_involved": ["nist_800_53_r5", "cis_v8", "iso_27001_2022"],
+      "enhancement": "15-minute timeouts exceed typical 30-minute baselines",
+      "business_value": "Reduced exposure window for unattended sessions"
+    }
+  ]
+}

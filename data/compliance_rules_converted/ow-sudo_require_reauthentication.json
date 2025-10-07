@@ -1,0 +1,75 @@
+{
+  "_id": "ow-sudo_require_reauthentication",
+  "rule_id": "ow-sudo_require_reauthentication",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_require_reauthentication",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Require Re-Authentication When Using the sudo Command",
+    "description": "The sudo <tt>timestamp_timeout</tt> tag sets the amount of time sudo password prompt waits.\nThe default <tt>timestamp_timeout</tt> value is 5 minutes.\nThe timestamp_timeout should be configured by making sure that the\n<tt>timestamp_timeout</tt> tag exists in\n<tt>/etc/sudoers</tt> configuration file or any sudo configuration snippets\nin <tt>/etc/sudoers.d/</tt>.\nIf the value is set to an integer less than 0, the user's time stamp will not expire\nand the user will not have to re-authenticate for privileged actions until the user's session is terminated.",
+    "rationale": "Without re-authentication, users may access resources or perform tasks for which they\ndo not have authorization.\n<br /><br />\nWhen operating systems provide the capability to escalate a functional capability, it\nis critical that the user re-authenticate.",
+    "source": {
+      "upstream_id": "sudo_require_reauthentication",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87838-9",
+      "imported_at": "2025-10-03T02:25:57.862234+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "IA-11"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000373-GPOS-00156",
+        "SRG-OS-000373-GPOS-00157",
+        "SRG-OS-000373-GPOS-00158",
+        "OL07-00-010343",
+        "OL08-00-010384",
+        "SLES-12-010113",
+        "SLES-15-020102"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudo_require_reauthentication",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The sudo <tt>timestamp_timeout</tt> tag sets the amount of time sudo password prompt waits.\nThe default <tt>timestamp_timeout</tt> value is 5 minutes.\nThe timestamp_timeout should be configured by making sure that the\n<tt>timestamp_timeout</tt> tag exists in\n<tt>/etc/sudoers</tt> configuration file or any sudo configuration snippets\nin <tt>/etc/sudoers.d/</tt>.\nIf the value is set to an integer less than 0, the user's time stamp will not expire\nand the user will not have to re-authenticate for privileged actions until the user's session is terminated.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudo_require_reauthentication/rule.yml",
+  "source_hash": "sha256:f1deefd925611400",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.862339+00:00",
+  "updated_at": "2025-10-03T02:25:57.862341+00:00",
+  "identifiers": {
+    "cce": "CCE-87838-9"
+  }
+}

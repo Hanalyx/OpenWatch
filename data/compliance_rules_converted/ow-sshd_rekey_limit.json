@@ -1,0 +1,67 @@
+{
+  "_id": "ow-sshd_rekey_limit",
+  "rule_id": "ow-sshd_rekey_limit",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_rekey_limit",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Force frequent session key renegotiation",
+    "description": "The <tt>RekeyLimit</tt> parameter specifies how often\nthe session key of the is renegotiated, both in terms of\namount of data that may be transmitted and the time\nelapsed.<br/>\nTo decrease the default limits, add or correct the following line in\n{{{ sshd_config_file() }}}\n<pre>RekeyLimit {{{ xccdf_value(\"var_rekey_limit_size\") }}} {{{ xccdf_value(\"var_rekey_limit_time\") }}}</pre>",
+    "rationale": "By decreasing the limit based on the amount of data and enabling\ntime-based limit, effects of potential attacks against\nencryption keys are limited.",
+    "source": {
+      "upstream_id": "sshd_rekey_limit",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82177-7",
+      "imported_at": "2025-10-03T02:25:57.174836+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000033-GPOS-00014",
+        "OL08-00-040161"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_rekey_limit",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>RekeyLimit</tt> parameter specifies how often\nthe session key of the is renegotiated, both in terms of\namount of data that may be transmitted and the time\nelapsed.<br/>\nTo decrease the default limits, add or correct the following line in\n{{{ sshd_config_file() }}}\n<pre>RekeyLimit {{{ xccdf_value(\"var_rekey_limit_size\") }}} {{{ xccdf_value(\"var_rekey_limit_time\") }}}</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_rekey_limit/rule.yml",
+  "source_hash": "sha256:fbb1e363222638b2",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.174943+00:00",
+  "updated_at": "2025-10-03T02:25:57.174946+00:00",
+  "identifiers": {
+    "cce": "CCE-82177-7"
+  }
+}

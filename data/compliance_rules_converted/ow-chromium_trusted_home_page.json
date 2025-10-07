@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_trusted_home_page",
+  "rule_id": "ow-chromium_trusted_home_page",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_trusted_home_page",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set the Default Home Page",
+    "description": "When a browser is started the first web page displayed is the \"home page\".\nWhile the home page can be selected by the user, the default home page needs\nto be defined to display an approved page. To set the default home page,\nset <tt>HomepageLocation</tt> to <tt><sub idref=\"var_trusted_home_page\" /></tt>\nin the Chromium policy file.",
+    "rationale": "If no home page is defined then there is a possibility that a URL to a malicious\nsite may be used as a home page which could effectively cause a denial of service\nto the browser.",
+    "source": {
+      "upstream_id": "chromium_trusted_home_page",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.402304+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0048"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_trusted_home_page",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "When a browser is started the first web page displayed is the \"home page\".\nWhile the home page can be selected by the user, the default home page needs\nto be defined to display an approved page. To set the default home page,\nset <tt>HomepageLocation</tt> to <tt><sub idref=\"var_trusted_home_page\" /></tt>\nin the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_trusted_home_page/rule.yml",
+  "source_hash": "sha256:9d0e28cd6a743ae6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.402394+00:00",
+  "updated_at": "2025-10-03T10:45:56.402396+00:00",
+  "identifiers": {}
+}

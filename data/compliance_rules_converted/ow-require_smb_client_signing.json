@@ -1,0 +1,56 @@
+{
+  "_id": "ow-require_smb_client_signing",
+  "rule_id": "ow-require_smb_client_signing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_require_smb_client_signing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Require Client SMB Packet Signing, if using smbclient",
+    "description": "To require samba clients running <tt>smbclient</tt> to use\npacket signing, add the following to the <tt>[global]</tt> section\nof the Samba configuration file, <tt>/etc/samba/smb.conf</tt>:\n<pre>client signing = mandatory</pre>\nRequiring samba clients such as <tt>smbclient</tt> to use packet\nsigning ensures they can\nonly communicate with servers that support packet signing.",
+    "rationale": "Packet signing can prevent\nman-in-the-middle attacks which modify SMB packets in\ntransit.",
+    "source": {
+      "upstream_id": "require_smb_client_signing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.791750+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_require_smb_client_signing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To require samba clients running <tt>smbclient</tt> to use\npacket signing, add the following to the <tt>[global]</tt> section\nof the Samba configuration file, <tt>/etc/samba/smb.conf</tt>:\n<pre>client signing = mandatory</pre>\nRequiring samba clients such as <tt>smbclient</tt> to use packet\nsigning ensures they can\nonly communicate with servers that support packet signing.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/smb/configuring_samba/require_smb_client_signing/rule.yml",
+  "source_hash": "sha256:7a654030584583ff",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.791829+00:00",
+  "updated_at": "2025-10-03T10:45:55.791831+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,116 @@
+{
+  "_id": "ow-package_sssd_installed",
+  "rule_id": "ow-package_sssd_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_sssd_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install the SSSD Package",
+    "description": "The <tt>sssd</tt> package should be installed.\n{{{ describe_package_install(package=\"sssd\") }}}",
+    "rationale": "",
+    "source": {
+      "upstream_id": "package_sssd_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82444-1",
+      "imported_at": "2025-10-03T02:25:56.979000+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16",
+        "5"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.7.1.1",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.AC-1",
+        "PR.AC-6",
+        "PR.AC-7"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q sssd",
+      "enable_command": "yum install -y sssd",
+      "disable_command": "yum remove -y sssd",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep sssd",
+      "enable_command": "apt-get install -y sssd",
+      "disable_command": "apt-get remove -y sssd",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_sssd_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>sssd</tt> package should be installed.\n{{{ describe_package_install(package=\"sssd\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/sssd/package_sssd_installed/rule.yml",
+  "source_hash": "sha256:ab0eb1d4caa85d80",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.979140+00:00",
+  "updated_at": "2025-10-03T02:25:56.979143+00:00",
+  "identifiers": {
+    "cce": "CCE-82444-1"
+  }
+}

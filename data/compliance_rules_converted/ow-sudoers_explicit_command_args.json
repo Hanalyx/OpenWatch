@@ -1,0 +1,58 @@
+{
+  "_id": "ow-sudoers_explicit_command_args",
+  "rule_id": "ow-sudoers_explicit_command_args",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_explicit_command_args",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Explicit arguments in sudo specifications",
+    "description": "All commands in the sudoers file must strictly specify the arguments allowed to be used for a given user.\nIf the command is supposed to be executed only without arguments, pass \"\" as an argument in the corresponding user specification.",
+    "rationale": "Any argument can modify quite significantly the behavior of a program, whether regarding the\nrealized operation (read, write, delete, etc.) or accessed resources (path in a file system tree). To\navoid any possibility of misuse of a command by a user, the ambiguities must be removed at the\nlevel of its specification.\n\nFor example, on some systems, the kernel messages are only accessible by root.\nIf a user nevertheless must have the privileges to read them, the argument of the dmesg command has to be restricted\nin order to prevent the user from flushing the buffer through the -c option:\n<pre>\nuser ALL = dmesg \"\"\n</pre>",
+    "source": {
+      "upstream_id": "sudoers_explicit_command_args",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83632-0",
+      "imported_at": "2025-10-03T10:45:56.020396+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sudoers_explicit_command_args",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "All commands in the sudoers file must strictly specify the arguments allowed to be used for a given user.\nIf the command is supposed to be executed only without arguments, pass \"\" as an argument in the corresponding user specification.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/sudo/sudoers_explicit_command_args/rule.yml",
+  "source_hash": "sha256:9c0826bce7d52e13",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.020515+00:00",
+  "updated_at": "2025-10-03T10:45:56.020518+00:00",
+  "identifiers": {
+    "cce": "CCE-83632-0"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "_id": "ow-file_groupowner_ovs_conf_db_lock_hugetlbfs",
+  "rule_id": "ow-file_groupowner_ovs_conf_db_lock_hugetlbfs",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_ovs_conf_db_lock_hugetlbfs",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Who Owns The Open vSwitch Configuration Database Lock is hugetlbfs",
+    "description": "{{{ describe_file_group_owner(file=\"/etc/openvswitch/.conf.db.~lock~\", group=\"hugetlbfs\") }}}",
+    "rationale": "CNI (Container Network Interface) files consist of a specification and libraries for\nwriting plugins to configure network interfaces in Linux containers, along with a number\nof supported plugins. Allowing writeable access to the files could allow an attacker to modify\nthe networking configuration potentially adding a rogue network connection.",
+    "source": {
+      "upstream_id": "file_groupowner_ovs_conf_db_lock_hugetlbfs",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-85936-3",
+      "imported_at": "2025-10-03T02:25:59.356838+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.1.9"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_ovs_conf_db_lock_hugetlbfs",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/etc/openvswitch/.conf.db.~lock~\", group=\"hugetlbfs\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/master/file_groupowner_ovs_conf_db_lock_hugetlbfs/rule.yml",
+  "source_hash": "sha256:0afcbe660b2f39a5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.356960+00:00",
+  "updated_at": "2025-10-03T02:25:59.356962+00:00",
+  "identifiers": {
+    "cce": "CCE-85936-3"
+  }
+}

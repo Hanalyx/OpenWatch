@@ -1,0 +1,72 @@
+{
+  "_id": "ow-dir_system_commands_root_owned",
+  "rule_id": "ow-dir_system_commands_root_owned",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_system_commands_root_owned",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify that system commands directories have root ownership",
+    "description": "System commands are stored in the following directories by default:\n<pre>/bin \n/sbin \n/usr/bin \n/usr/sbin \n/usr/local/bin \n/usr/local/sbin\n</pre>\nAll these directories should be owned by the <tt>root</tt> user. \nIf any system command directory is not owned by a user other than root \ncorrect its ownership with the following command:\n<pre>$ sudo chown root <i>DIR</i></pre>",
+    "rationale": "If the operating system were to allow any user to make changes to \nsoftware libraries, then those changes might be implemented without \nundergoing the appropriate testing and approvals that are part of a \nrobust change management process.\n\nThis requirement applies to operating systems with software libraries\nthat are accessible and configurable, as in the case of interpreted languages. \nSoftware libraries also include privileged programs which execute with escalated \nprivileges. Only qualified and authorized individuals must be allowed to obtain \naccess to information system components for purposes of initiating changes, \nincluding upgrades and modifications.",
+    "source": {
+      "upstream_id": "dir_system_commands_root_owned",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87028-7",
+      "imported_at": "2025-10-03T10:45:55.921241+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-5(6)",
+        "CM-5(6).1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000259-GPOS-00100",
+        "SLES-12-010881",
+        "SLES-15-010360"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_system_commands_root_owned",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "System commands are stored in the following directories by default:\n<pre>/bin \n/sbin \n/usr/bin \n/usr/sbin \n/usr/local/bin \n/usr/local/sbin\n</pre>\nAll these directories should be owned by the <tt>root</tt> user. \nIf any system command directory is not owned by a user other than root \ncorrect its ownership with the following command:\n<pre>$ sudo chown root <i>DIR</i></pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/files/dir_system_commands_root_owned/rule.yml",
+  "source_hash": "sha256:d38e5b4628a4a007",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.921332+00:00",
+  "updated_at": "2025-10-03T10:45:55.921335+00:00",
+  "identifiers": {
+    "cce": "CCE-87028-7"
+  }
+}

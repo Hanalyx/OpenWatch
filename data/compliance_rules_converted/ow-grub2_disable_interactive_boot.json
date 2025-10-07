@@ -1,0 +1,112 @@
+{
+  "_id": "ow-grub2_disable_interactive_boot",
+  "rule_id": "ow-grub2_disable_interactive_boot",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_disable_interactive_boot",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify that Interactive Boot is Disabled",
+    "description": "{{{ full_name }}} systems support an \"interactive boot\" option that can\nbe used to prevent services from being started. On a {{{ full_name }}}\nsystem, interactive boot can be enabled by providing a <tt>1</tt>,\n<tt>yes</tt>, <tt>true</tt>, or <tt>on</tt> value to the\n<tt>systemd.confirm_spawn</tt> kernel argument in <tt>/etc/default/grub</tt>.\nRemove any instance of <pre>systemd.confirm_spawn=(1|yes|true|on)</pre> from\nthe kernel arguments in that file to disable interactive boot.\nRecovery booting must also be disabled. Confirm that\n<tt>GRUB_DISABLE_RECOVERY=true</tt> is set in  <tt>/etc/default/grub</tt>.\nIt is also required to change the runtime configuration, run:\n{{% if 'sle' in product %}}\n<pre>/usr/bin/grub2-editenv - unset systemd.confirm_spawn></pre>\n{{% else %}}\n<pre>/sbin/grubby --update-kernel=ALL --remove-args=\"systemd.confirm_spawn\"</pre>\n{{% endif %}}\n<pre>grub2-mkconfig -o {{{ grub2_boot_path }}}/grub.cfg</pre>",
+    "rationale": "Using interactive or recovery boot, the console user could disable auditing, firewalls,\nor other services, weakening system security.",
+    "source": {
+      "upstream_id": "grub2_disable_interactive_boot",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82551-3",
+      "imported_at": "2025-10-03T02:25:58.741308+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "18",
+        "3",
+        "5"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(B)",
+        "164.308(a)(7)(i)",
+        "164.308(a)(7)(ii)(A)",
+        "164.310(a)(1)",
+        "164.310(a)(2)(i)",
+        "164.310(a)(2)(ii)",
+        "164.310(a)(2)(iii)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.310(d)(1)",
+        "164.310(d)(2)(iii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.6.1.2",
+        "A.7.1.1",
+        "A.9.1.2",
+        "A.9.2.1",
+        "A.9.2.3",
+        "A.9.4.1",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "SC-2(1)",
+        "CM-6(a)",
+        "PR.AC-4",
+        "PR.AC-6",
+        "PR.PT-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_disable_interactive_boot",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ full_name }}} systems support an \"interactive boot\" option that can\nbe used to prevent services from being started. On a {{{ full_name }}}\nsystem, interactive boot can be enabled by providing a <tt>1</tt>,\n<tt>yes</tt>, <tt>true</tt>, or <tt>on</tt> value to the\n<tt>systemd.confirm_spawn</tt> kernel argument in <tt>/etc/default/grub</tt>.\nRemove any instance of <pre>systemd.confirm_spawn=(1|yes|true|on)</pre> from\nthe kernel arguments in that file to disable interactive boot.\nRecovery booting must also be disabled. Confirm that\n<tt>GRUB_DISABLE_RECOVERY=true</tt> is set in  <tt>/etc/default/grub</tt>.\nIt is also required to change the runtime configuration, run:\n{{% if 'sle' in product %}}\n<pre>/usr/bin/grub2-editenv - unset systemd.confirm_spawn></pre>\n{{% else %}}\n<pre>/sbin/grubby --update-kernel=ALL --remove-args=\"systemd.confirm_spawn\"</pre>\n{{% endif %}}\n<pre>grub2-mkconfig -o {{{ grub2_boot_path }}}/grub.cfg</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-physical/grub2_disable_interactive_boot/rule.yml",
+  "source_hash": "sha256:c012ffdf81372012",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.741442+00:00",
+  "updated_at": "2025-10-03T02:25:58.741445+00:00",
+  "identifiers": {
+    "cce": "CCE-82551-3"
+  }
+}

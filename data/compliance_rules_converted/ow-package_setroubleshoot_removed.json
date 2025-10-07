@@ -1,0 +1,69 @@
+{
+  "_id": "ow-package_setroubleshoot_removed",
+  "rule_id": "ow-package_setroubleshoot_removed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_setroubleshoot_removed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Uninstall setroubleshoot Package",
+    "description": "The SETroubleshoot service notifies desktop users of SELinux\ndenials. The service provides information around configuration errors,\nunauthorized intrusions, and other potential errors.\n{{{ describe_package_remove(package=\"setroubleshoot\") }}}",
+    "rationale": "The SETroubleshoot service is an unnecessary daemon to\nhave running on a server, especially if\nX Windows is removed or disabled.",
+    "source": {
+      "upstream_id": "package_setroubleshoot_removed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82755-0",
+      "imported_at": "2025-10-03T02:25:58.802375+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement package_removed check",
+      "enable_command": "# TODO: Implement package_removed remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_setroubleshoot_removed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The SETroubleshoot service notifies desktop users of SELinux\ndenials. The service provides information around configuration errors,\nunauthorized intrusions, and other potential errors.\n{{{ describe_package_remove(package=\"setroubleshoot\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/selinux/package_setroubleshoot_removed/rule.yml",
+  "source_hash": "sha256:b0dbe77bd50e8759",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.802497+00:00",
+  "updated_at": "2025-10-03T02:25:58.802500+00:00",
+  "identifiers": {
+    "cce": "CCE-82755-0"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "_id": "ow-grub2_nousb_argument",
+  "rule_id": "ow-grub2_nousb_argument",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_nousb_argument",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Kernel Support for USB via Bootloader Configuration",
+    "description": "All USB support can be disabled by adding the <tt>nousb</tt>\nargument to the kernel's boot loader configuration. To do so,\nadd the argument <tt>nousb</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"nousb\") | indent(4) }}}",
+    "rationale": "Disabling the USB subsystem within the Linux kernel at system boot will\nprotect against potentially malicious USB devices, although it is only practical\nin specialized systems.",
+    "source": {
+      "upstream_id": "grub2_nousb_argument",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82661-0",
+      "imported_at": "2025-10-03T02:25:57.500328+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "16"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(3)(i)",
+        "164.308(a)(3)(ii)(A)",
+        "164.310(d)(1)",
+        "164.310(d)(2)",
+        "164.312(a)(1)",
+        "164.312(a)(2)(iv)",
+        "164.312(b)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.6",
+        "A.13.1.1",
+        "A.13.2.1",
+        "A.6.2.1",
+        "A.6.2.2",
+        "A.7.1.1",
+        "A.9.2.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "MP-7",
+        "CM-6(a)",
+        "PR.AC-3",
+        "PR.AC-6"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement grub2_bootloader_argument check",
+      "enable_command": "# TODO: Implement grub2_bootloader_argument remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_grub2_nousb_argument",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "All USB support can be disabled by adding the <tt>nousb</tt>\nargument to the kernel's boot loader configuration. To do so,\nadd the argument <tt>nousb</tt> to the default\nGRUB 2 command line for the Linux operating system.\n{{{ describe_grub2_argument(\"nousb\") | indent(4) }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/mounting/grub2_nousb_argument/rule.yml",
+  "source_hash": "sha256:7db8f84714663694",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.500469+00:00",
+  "updated_at": "2025-10-03T02:25:57.500472+00:00",
+  "identifiers": {
+    "cce": "CCE-82661-0"
+  }
+}

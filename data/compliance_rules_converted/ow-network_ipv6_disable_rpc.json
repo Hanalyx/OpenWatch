@@ -1,0 +1,85 @@
+{
+  "_id": "ow-network_ipv6_disable_rpc",
+  "rule_id": "ow-network_ipv6_disable_rpc",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_disable_rpc",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Support for RPC IPv6",
+    "description": "RPC services for NFSv4 try to load transport modules for\n<tt>udp6</tt> and <tt>tcp6</tt> by default, even if IPv6 has been disabled in\n<tt>/etc/modprobe.d</tt>. To prevent RPC services such as <tt>rpc.mountd</tt>\nfrom attempting to start IPv6 network listeners, remove or comment out the\nfollowing two lines in <tt>/etc/netconfig</tt>:\n<pre>udp6       tpi_clts      v     inet6    udp     -       -\ntcp6       tpi_cots_ord  v     inet6    tcp     -       -</pre>",
+    "rationale": "",
+    "source": {
+      "upstream_id": "network_ipv6_disable_rpc",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.103149+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_network_ipv6_disable_rpc",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "RPC services for NFSv4 try to load transport modules for\n<tt>udp6</tt> and <tt>tcp6</tt> by default, even if IPv6 has been disabled in\n<tt>/etc/modprobe.d</tt>. To prevent RPC services such as <tt>rpc.mountd</tt>\nfrom attempting to start IPv6 network listeners, remove or comment out the\nfollowing two lines in <tt>/etc/netconfig</tt>:\n<pre>udp6       tpi_clts      v     inet6    udp     -       -\ntcp6       tpi_cots_ord  v     inet6    tcp     -       -</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ipv6/disabling_ipv6/network_ipv6_disable_rpc/rule.yml",
+  "source_hash": "sha256:7f7350f7a3874bde",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.103304+00:00",
+  "updated_at": "2025-10-03T10:45:56.103307+00:00",
+  "identifiers": {}
+}

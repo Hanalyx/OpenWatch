@@ -1,0 +1,67 @@
+{
+  "_id": "ow-file_groupowner_etc_hosts_deny",
+  "rule_id": "ow-file_groupowner_etc_hosts_deny",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_etc_hosts_deny",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify Group Ownership of /etc/hosts.deny",
+    "description": "{{{ describe_file_group_owner(file=\"/etc/hosts.deny\", group=\"root\") }}}",
+    "rationale": "The <tt>/etc/hosts.deny</tt> file is used to control access of clients to daemons in the\nserver. Insecure groupownership of this file could allow users to grant clients unrestricted\naccess or no access at all to services in the server.",
+    "source": {
+      "upstream_id": "file_groupowner_etc_hosts_deny",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:56.932613+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {},
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_groupowner check",
+      "enable_command": "# TODO: Implement file_groupowner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_groupowner_etc_hosts_deny",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_group_owner(file=\"/etc/hosts.deny\", group=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/obsolete/inetd_and_xinetd/file_groupowner_etc_hosts_deny/rule.yml",
+  "source_hash": "sha256:fad2b9216b218a4b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.932725+00:00",
+  "updated_at": "2025-10-03T02:25:56.932727+00:00",
+  "identifiers": {}
+}

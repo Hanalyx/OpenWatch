@@ -1,0 +1,86 @@
+{
+  "_id": "ow-dir_perms_var_log_httpd",
+  "rule_id": "ow-dir_perms_var_log_httpd",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_var_log_httpd",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set Permissions on the /var/log/httpd/ Directory",
+    "description": "Ensure that the permissions on the web server log directory is set to 700:\n<pre>$ sudo chmod 700 /var/log/httpd/</pre>\nThis is its default setting.",
+    "rationale": "A major tool in exploring the web site use, attempted use, unusual conditions,\nand problems are the access and error logs. In the event of a security incident,\nthese logs can provide the SA and the web manager with valuable information. To\nensure the integrity of the log files and protect the SA and the web manager\nfrom a conflict of interest related to the maintenance of these files, only the\nmembers of the Auditors group will be granted permissions to move, copy, and\ndelete these files in the course of their duties related to the archiving of\nthese files.",
+    "source": {
+      "upstream_id": "dir_perms_var_log_httpd",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.852848+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "AC-6(1)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_var_log_httpd",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Ensure that the permissions on the web server log directory is set to 700:\n<pre>$ sudo chmod 700 /var/log/httpd/</pre>\nThis is its default setting.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_configure_os_protect_web_server/httpd_restrict_file_dir_access/dir_perms_var_log_httpd/rule.yml",
+  "source_hash": "sha256:b49ed8b76d59a0b1",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.852970+00:00",
+  "updated_at": "2025-10-03T10:45:55.852972+00:00",
+  "identifiers": {}
+}

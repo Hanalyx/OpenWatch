@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_server_configuration_display",
+  "rule_id": "ow-httpd_server_configuration_display",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_configuration_display",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Web Server Configuration Display",
+    "description": "The <tt>info</tt> module creates a web page illustrating the configuration of the web server. This\ncan create an unnecessary security leak and should be disabled.\nIf its functionality is unnecessary, comment out the module:\n<pre>#LoadModule info_module modules/mod_info.so</pre>\nIf there is a critical need for this module, use the <tt>Location</tt> directive to provide\nan access control list to restrict access to the information.",
+    "rationale": "Minimizing the number of loadable modules available to the web server reduces risk\nby limiting the capabilities allowed by the web server.",
+    "source": {
+      "upstream_id": "httpd_server_configuration_display",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.860753+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_server_configuration_display",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>info</tt> module creates a web page illustrating the configuration of the web server. This\ncan create an unnecessary security leak and should be disabled.\nIf its functionality is unnecessary, comment out the module:\n<pre>#LoadModule info_module modules/mod_info.so</pre>\nIf there is a critical need for this module, use the <tt>Location</tt> directive to provide\nan access control list to restrict access to the information.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_server_configuration_display/rule.yml",
+  "source_hash": "sha256:5541b9580d840300",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.860945+00:00",
+  "updated_at": "2025-10-03T10:45:55.860947+00:00",
+  "identifiers": {}
+}

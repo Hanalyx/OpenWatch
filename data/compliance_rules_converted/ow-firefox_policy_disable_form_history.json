@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_disable_form_history",
+  "rule_id": "ow-firefox_policy_disable_form_history",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_disable_form_history",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox must be configured to disable form fill assistance.",
+    "description": "The update check may be disabled in an administrative policy by setting\nthe <tt>DisableFormHistory</tt> key under <tt>policies</tt> to <tt>true</tt>.",
+    "rationale": "To protect privacy and sensitive data, Firefox provides the ability to configure the program so that data entered into forms is not saved. This mitigates the risk of a website gleaning private information from prefilled information.",
+    "source": {
+      "upstream_id": "firefox_policy_disable_form_history",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.377987+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000007"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_disable_form_history",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The update check may be disabled in an administrative policy by setting\nthe <tt>DisableFormHistory</tt> key under <tt>policies</tt> to <tt>true</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-disable_form_history/rule.yml",
+  "source_hash": "sha256:0034f0d03a97c38e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.378114+00:00",
+  "updated_at": "2025-10-03T10:45:56.378117+00:00",
+  "identifiers": {}
+}

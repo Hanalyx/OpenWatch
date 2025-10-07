@@ -1,0 +1,180 @@
+{
+  "_id": "ow-sshd_set_keepalive",
+  "rule_id": "ow-sshd_set_keepalive",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_keepalive",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set SSH Client Alive Count Max",
+    "description": "The SSH server sends at most <tt>ClientAliveCountMax</tt> messages\nduring a SSH session and waits for a response from the SSH client.\nThe option <tt>ClientAliveInterval</tt> configures timeout after\neach <tt>ClientAliveCountMax</tt> message. If the SSH server does not\nreceive a response from the client, then the connection is considered unresponsive\nand terminated.\nFor SSH earlier than v8.2, a <tt>ClientAliveCountMax</tt> value of <tt>0</tt>\ncauses a timeout precisely when the <tt>ClientAliveInterval</tt> is set.\nStarting with v8.2, a value of <tt>0</tt> disables the timeout functionality\ncompletely. If the option is set to a number greater than <tt>0</tt>, then\nthe session will be disconnected after\n<tt>ClientAliveInterval * ClientAliveCountMax</tt> seconds without receiving\na keep alive message.",
+    "rationale": "This ensures a user login will be terminated as soon as the <tt>ClientAliveInterval</tt>\nis reached.",
+    "source": {
+      "upstream_id": "sshd_set_keepalive",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82464-9",
+      "imported_at": "2025-10-03T02:25:57.146568+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "18",
+        "3",
+        "5",
+        "7",
+        "8",
+        "5.2.16",
+        "5.2.16"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(4)(i)",
+        "164.308(b)(1)",
+        "164.308(b)(3)",
+        "164.310(b)",
+        "164.312(e)(1)",
+        "164.312(e)(2)(ii)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.3",
+        "A.14.1.1",
+        "A.14.2.1",
+        "A.14.2.5",
+        "A.18.1.4",
+        "A.6.1.2",
+        "A.6.1.5",
+        "A.7.1.1",
+        "A.9.1.2",
+        "A.9.2.1",
+        "A.9.2.2",
+        "A.9.2.3",
+        "A.9.2.4",
+        "A.9.2.6",
+        "A.9.3.1",
+        "A.9.4.1",
+        "A.9.4.2",
+        "A.9.4.3",
+        "A.9.4.4",
+        "A.9.4.5"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-2(5)",
+        "AC-12",
+        "AC-17(a)",
+        "SC-10",
+        "CM-6(a)",
+        "DE.CM-1",
+        "DE.CM-3",
+        "PR.AC-1",
+        "PR.AC-4",
+        "PR.AC-6",
+        "PR.AC-7",
+        "PR.IP-2"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.1.8"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000163-GPOS-00072",
+        "SRG-OS-000279-GPOS-00109",
+        "OL08-00-010200",
+        "SLES-12-030191",
+        "SLES-15-010320"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "sshd",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^ClientAliveCountMax\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?ClientAliveCountMax.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "ssh",
+      "config_files": [
+        "/etc/ssh/sshd_config"
+      ],
+      "check_method": "file",
+      "check_command": "grep '^ClientAliveCountMax\\s\\+' /etc/ssh/sshd_config",
+      "enable_command": "sed -i 's/^#\\?ClientAliveCountMax.*/{ parameter } /' /etc/ssh/sshd_config",
+      "validation_command": "sshd -t",
+      "service_dependencies": [
+        "openssh-server"
+      ]
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_set_keepalive",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The SSH server sends at most <tt>ClientAliveCountMax</tt> messages\nduring a SSH session and waits for a response from the SSH client.\nThe option <tt>ClientAliveInterval</tt> configures timeout after\neach <tt>ClientAliveCountMax</tt> message. If the SSH server does not\nreceive a response from the client, then the connection is considered unresponsive\nand terminated.\nFor SSH earlier than v8.2, a <tt>ClientAliveCountMax</tt> value of <tt>0</tt>\ncauses a timeout precisely when the <tt>ClientAliveInterval</tt> is set.\nStarting with v8.2, a value of <tt>0</tt> disables the timeout functionality\ncompletely. If the option is set to a number greater than <tt>0</tt>, then\nthe session will be disconnected after\n<tt>ClientAliveInterval * ClientAliveCountMax</tt> seconds without receiving\na keep alive message.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_set_keepalive/rule.yml",
+  "source_hash": "sha256:5e1052dc69623c5f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.146724+00:00",
+  "updated_at": "2025-10-03T02:25:57.146727+00:00",
+  "identifiers": {
+    "cce": "CCE-82464-9"
+  }
+}

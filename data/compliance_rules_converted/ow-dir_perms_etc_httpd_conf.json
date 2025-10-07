@@ -1,0 +1,56 @@
+{
+  "_id": "ow-dir_perms_etc_httpd_conf",
+  "rule_id": "ow-dir_perms_etc_httpd_conf",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_etc_httpd_conf",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set Permissions on the /etc/httpd/conf/ Directory",
+    "description": "{{{ describe_file_permissions(file=\"/etc/http/conf\", perms=\"0750\") }}}",
+    "rationale": "Access to the web server's configuration files may allow an unauthorized user or attacker\nto access information about the web server or alter the server's configuration files.",
+    "source": {
+      "upstream_id": "dir_perms_etc_httpd_conf",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.326717+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "severity_unknown",
+    "scap",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dir_perms_etc_httpd_conf",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_file_permissions(file=\"/etc/http/conf\", perms=\"0750\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_configure_os_protect_web_server/httpd_restrict_file_dir_access/dir_perms_etc_httpd_conf/rule.yml",
+  "source_hash": "sha256:3d248e4eb1ed740c",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.326813+00:00",
+  "updated_at": "2025-10-03T02:25:57.326815+00:00",
+  "identifiers": {}
+}

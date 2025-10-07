@@ -1,0 +1,57 @@
+{
+  "_id": "ow-ssh_use_approved_macs_ordered_stig",
+  "rule_id": "ow-ssh_use_approved_macs_ordered_stig",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ssh_use_approved_macs_ordered_stig",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Use Only FIPS 140-3 Validated MACs",
+    "description": "Limit the MACs to those hash algorithms which are FIPS-approved.\nThe following line in <tt>/etc/ssh/ssh_config</tt>\ndemonstrates use of FIPS-approved MACs:\n\n<pre>MACs {{{ ssh_approved_macs }}}</pre>\nIf this line does not contain these MACs in exact order,\nis commented out, or is missing, this is a finding.",
+    "rationale": "DoD Information Systems are required to use FIPS-approved cryptographic hash\nfunctions. The only hash algorithms meeting this requirement is SHA2.",
+    "source": {
+      "upstream_id": "ssh_use_approved_macs_ordered_stig",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:57.138624+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "ssg",
+    "converted",
+    "severity_medium",
+    "ssh"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ssh_use_approved_macs_ordered_stig",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Limit the MACs to those hash algorithms which are FIPS-approved.\nThe following line in <tt>/etc/ssh/ssh_config</tt>\ndemonstrates use of FIPS-approved MACs:\n\n<pre>MACs {{{ ssh_approved_macs }}}</pre>\nIf this line does not contain these MACs in exact order,\nis commented out, or is missing, this is a finding.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_client/ssh_use_approved_macs_ordered_stig/rule.yml",
+  "source_hash": "sha256:2dd544d9e040d9bc",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.138712+00:00",
+  "updated_at": "2025-10-03T02:25:57.138714+00:00",
+  "identifiers": {}
+}

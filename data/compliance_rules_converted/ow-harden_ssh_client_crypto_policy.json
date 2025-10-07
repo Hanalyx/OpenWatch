@@ -1,0 +1,77 @@
+{
+  "_id": "ow-harden_ssh_client_crypto_policy",
+  "rule_id": "ow-harden_ssh_client_crypto_policy",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_harden_ssh_client_crypto_policy",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Harden SSH client Crypto Policy",
+    "description": "Crypto Policies are means of enforcing certain cryptographic settings for selected applications including OpenSSH client.\nTo override the system wide crypto policy for Openssh client, place a file in the <tt>/etc/ssh/ssh_config.d/</tt> so that it is loaded before the <tt>05-redhat.conf</tt>. In this case it is file named <tt>02-ospp.conf</tt> containing parameters which need to be changed with respect to the crypto policy.\nThis rule checks if the file exists and if it contains required parameters and values which modify the Crypto Policy.\nDuring the parsing process, as soon as Openssh client parses some configuration option and its value, it remembers it and ignores any subsequent overrides. The customization mechanism provided by crypto policies appends eventual customizations at the end of the system wide crypto policy. Therefore, if the crypto policy customization overrides some parameter which is already configured in the system wide crypto policy, the SSH client will not honor that customized parameter.",
+    "rationale": "The Common Criteria requirements specify how certain parameters for OpenSSH Client are configured. Particular parameters are RekeyLimit, GSSAPIAuthentication, Ciphers, PubkeyAcceptedKeyTypes, MACs and KexAlgorithms. Currently particular requirements specified by CC are stricter compared to any existing Crypto Policy.",
+    "source": {
+      "upstream_id": "harden_ssh_client_crypto_policy",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82543-0",
+      "imported_at": "2025-10-03T10:45:55.968312+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "ssg",
+    "crypto",
+    "severity_medium",
+    "converted",
+    "scap"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-17(a)",
+        "AC-17(2)",
+        "CM-6(a)",
+        "MA-4(6)",
+        "SC-13"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000033-GPOS-00014",
+        "SRG-OS-000250-GPOS-00093",
+        "SRG-OS-000393-GPOS-00173",
+        "SRG-OS-000394-GPOS-00174"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_harden_ssh_client_crypto_policy",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Crypto Policies are means of enforcing certain cryptographic settings for selected applications including OpenSSH client.\nTo override the system wide crypto policy for Openssh client, place a file in the <tt>/etc/ssh/ssh_config.d/</tt> so that it is loaded before the <tt>05-redhat.conf</tt>. In this case it is file named <tt>02-ospp.conf</tt> containing parameters which need to be changed with respect to the crypto policy.\nThis rule checks if the file exists and if it contains required parameters and values which modify the Crypto Policy.\nDuring the parsing process, as soon as Openssh client parses some configuration option and its value, it remembers it and ignores any subsequent overrides. The customization mechanism provided by crypto policies appends eventual customizations at the end of the system wide crypto policy. Therefore, if the crypto policy customization overrides some parameter which is already configured in the system wide crypto policy, the SSH client will not honor that customized parameter.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/integrity/crypto/harden_ssh_client_crypto_policy/rule.yml",
+  "source_hash": "sha256:b5950a04917e2145",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.968430+00:00",
+  "updated_at": "2025-10-03T10:45:55.968433+00:00",
+  "identifiers": {
+    "cce": "CCE-82543-0"
+  }
+}

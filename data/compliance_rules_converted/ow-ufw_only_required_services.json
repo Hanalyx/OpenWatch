@@ -1,0 +1,62 @@
+{
+  "_id": "ow-ufw_only_required_services",
+  "rule_id": "ow-ufw_only_required_services",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ufw_only_required_services",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Only Allow Authorized Network Services in ufw",
+    "description": "Check the firewall configuration for any unnecessary or prohibited\nfunctions, ports, protocols, and/or services by running the following\ncommand:\n<pre>$ sudo ufw show raw\nChain OUTPUT (policy ACCEPT)\ntarget prot opt sources destination\nChain INPUT (policy ACCEPT 1 packets, 40 bytes)\npkts bytes target prot opt in out source destination\nChain FORWARD (policy ACCEPT 0 packets, 0 bytes)\npkts bytes target prot opt in out source destination\nChain OUTPUT (policy ACCEPT 0 packets, 0 bytes)\npkts bytes target prot opt in out source destination</pre>\n\nAsk the System Administrator for the site or program PPSM CLSA. Verify\nthe services allowed by the firewall match the PPSM CLSA.",
+    "rationale": "To prevent unauthorized connection of devices, unauthorized transfer of\ninformation, or unauthorized tunneling (i.e., embedding of data types\nwithin data types), organizations must disable or restrict unused or\nunnecessary physical and logical ports/protocols on information systems.\n\nOperating systems are capable of providing a wide variety of functions\nand services. Some of the functions and services provided by default\nmay not be necessary to support essential organizational operations.\nAdditionally, it is sometimes convenient to provide multiple services\nfrom a single component (e.g., VPN and IPS); however, doing so\nincreases risk over limiting the services provided by any one component.\n\nTo support the requirements and principles of least functionality, the\noperating system must support the organizational requirements, providing\nonly essential capabilities and limiting the use of ports, protocols,\nand/or services to only those required, authorized, and approved to\nconduct official business or to address authorized quality of life\nissues.",
+    "source": {
+      "upstream_id": "ufw_only_required_services",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.135575+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000096-GPOS-00050"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ufw_only_required_services",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Check the firewall configuration for any unnecessary or prohibited\nfunctions, ports, protocols, and/or services by running the following\ncommand:\n<pre>$ sudo ufw show raw\nChain OUTPUT (policy ACCEPT)\ntarget prot opt sources destination\nChain INPUT (policy ACCEPT 1 packets, 40 bytes)\npkts bytes target prot opt in out source destination\nChain FORWARD (policy ACCEPT 0 packets, 0 bytes)\npkts bytes target prot opt in out source destination\nChain OUTPUT (policy ACCEPT 0 packets, 0 bytes)\npkts bytes target prot opt in out source destination</pre>\n\nAsk the System Administrator for the site or program PPSM CLSA. Verify\nthe services allowed by the firewall match the PPSM CLSA.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ufw/ufw_only_required_services/rule.yml",
+  "source_hash": "sha256:90b9c4babd11e104",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.135673+00:00",
+  "updated_at": "2025-10-03T10:45:56.135675+00:00",
+  "identifiers": {}
+}

@@ -1,0 +1,102 @@
+{
+  "_id": "ow-service_usbguard_enabled",
+  "rule_id": "ow-service_usbguard_enabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_usbguard_enabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable the USBGuard Service",
+    "description": "The USBGuard service should be enabled.\n{{{ describe_service_enable(service=\"usbguard\") }}}",
+    "rationale": "The <tt>usbguard</tt> service must be running in order to\nenforce the USB device authorization policy for all USB devices.",
+    "source": {
+      "upstream_id": "service_usbguard_enabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82537-2",
+      "imported_at": "2025-10-03T02:25:57.252182+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-8(3)(a)",
+        "IA-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000378-GPOS-00163",
+        "SRG-APP-000141-CTR-000315",
+        "OL08-00-040141"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "service_name": "usbguard",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled usbguard",
+      "enable_command": "systemctl enable usbguard",
+      "disable_command": "systemctl disable usbguard",
+      "validation_command": "systemctl status usbguard",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "service_name": "usbguard",
+      "check_method": "systemd",
+      "check_command": "systemctl is-enabled usbguard",
+      "enable_command": "systemctl enable usbguard",
+      "disable_command": "systemctl disable usbguard",
+      "validation_command": "systemctl status usbguard",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_usbguard_enabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The USBGuard service should be enabled.\n{{{ describe_service_enable(service=\"usbguard\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/usbguard/service_usbguard_enabled/rule.yml",
+  "source_hash": "sha256:7cfa78c5811ebcaf",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.252291+00:00",
+  "updated_at": "2025-10-03T02:25:57.252293+00:00",
+  "identifiers": {
+    "cce": "CCE-82537-2"
+  }
+}

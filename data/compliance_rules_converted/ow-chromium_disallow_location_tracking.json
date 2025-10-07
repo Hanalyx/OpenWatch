@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disallow_location_tracking",
+  "rule_id": "ow-chromium_disallow_location_tracking",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disallow_location_tracking",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Location Tracking",
+    "description": "Location tracking is enabled by default and can track user's browsing habits.\nLocation tracking should be disabled by setting <tt>DefaultGeolocationSetting</tt> \nto <tt>2</tt> in the Chromium policy file.",
+    "rationale": "Website tracking is the practice of gathering information as to which websites\nwere accesses by a browser. The common method of doing this is to have a website\ncreate a tracking cookie on the browser. If the information of what sites are\nbeing accessed is made available to unauthorized persons, this violates \nconfidentiality requirements, and over time poses a significant OPSEC issue.",
+    "source": {
+      "upstream_id": "chromium_disallow_location_tracking",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.386305+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0002"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disallow_location_tracking",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Location tracking is enabled by default and can track user's browsing habits.\nLocation tracking should be disabled by setting <tt>DefaultGeolocationSetting</tt> \nto <tt>2</tt> in the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disallow_location_tracking/rule.yml",
+  "source_hash": "sha256:ab7fa31496ab44aa",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.386387+00:00",
+  "updated_at": "2025-10-03T10:45:56.386389+00:00",
+  "identifiers": {}
+}

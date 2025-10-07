@@ -1,0 +1,90 @@
+{
+  "_id": "ow-package_nss_tools_installed",
+  "rule_id": "ow-package_nss_tools_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_nss_tools_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure nss-tools is installed",
+    "description": "{{{ describe_package_install(package=\"nss-tools\") }}}",
+    "rationale": "Network Security Services (NSS) is a set of libraries designed to\nsupport cross-platform development of security-enabled client and\nserver applications. Install the <tt>nss-tools</tt> package\nto install command-line tools to manipulate the NSS certificate\nand key database.",
+    "source": {
+      "upstream_id": "package_nss_tools_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82396-3",
+      "imported_at": "2025-10-03T02:25:57.817401+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q nss-tools",
+      "enable_command": "yum install -y nss-tools",
+      "disable_command": "yum remove -y nss-tools",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep nss-tools",
+      "enable_command": "apt-get install -y nss-tools",
+      "disable_command": "apt-get remove -y nss-tools",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_nss_tools_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"nss-tools\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/system-tools/package_nss-tools_installed/rule.yml",
+  "source_hash": "sha256:03f906d2f1447e8e",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.817504+00:00",
+  "updated_at": "2025-10-03T02:25:57.817506+00:00",
+  "identifiers": {
+    "cce": "CCE-82396-3"
+  }
+}

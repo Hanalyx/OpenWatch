@@ -21,9 +21,9 @@ class FrameworkVersions(BaseModel):
         default_factory=dict,
         description="CIS Controls mappings by version (e.g., {'rhel8_v2.0.0': ['5.1.1']})"
     )
-    stig: Optional[Dict[str, str]] = Field(
+    stig: Optional[Dict[str, Union[str, List[str]]]] = Field(
         default_factory=dict,
-        description="DISA STIG mappings by version (e.g., {'rhel8_v1r11': 'RHEL-08-020070'})"
+        description="DISA STIG mappings by version (e.g., {'rhel8_v1r11': 'RHEL-08-020070'} or {'current': ['SRG-APP-000516']})"
     )
     pci_dss: Optional[Dict[str, List[str]]] = Field(
         default_factory=dict,
@@ -200,7 +200,7 @@ class ComplianceRule(Document):
     
     # Enhanced Classification
     severity: str = Field(
-        pattern="^(info|low|medium|high|critical)$",
+        pattern="^(info|low|medium|high|critical|unknown)$",
         description="Rule severity level"
     )
     category: str = Field(
@@ -269,7 +269,7 @@ class ComplianceRule(Document):
     # Assessment Logic (Enhanced)
     check_type: str = Field(
         default="custom",
-        pattern="^(script|command|file|package|service|kernel|multi_parameter|oval|custom)$",
+        pattern="^(script|command|file|package|service|kernel|multi_parameter|oval|custom|scap|template)$",
         description="Type of check to perform"
     )
     check_content: Dict[str, Any] = Field(

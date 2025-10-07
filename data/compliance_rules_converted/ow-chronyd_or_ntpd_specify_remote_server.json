@@ -1,0 +1,99 @@
+{
+  "_id": "ow-chronyd_or_ntpd_specify_remote_server",
+  "rule_id": "ow-chronyd_or_ntpd_specify_remote_server",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chronyd_or_ntpd_specify_remote_server",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Specify a Remote NTP Server",
+    "description": "Depending on specific functional requirements of a concrete\nproduction environment, the {{{ full_name }}} system can be\nconfigured to utilize the services of the <tt>chronyd</tt> NTP daemon (the\ndefault), or services of the <tt>ntpd</tt> NTP daemon. Refer to\n{{% if product == \"ol7\" %}}\n     {{{ weblink(link=\"https://docs.oracle.com/en/operating-systems/oracle-linux/7/network/ol7-nettime.html\") }}}\n {{% elif product == \"ol8\" %}}\n     {{{ weblink(link=\"https://docs.oracle.com/en/operating-systems/oracle-linux/8/network/network-ConfiguringNetworkTime.html#ol-nettime\") }}}\n{{% elif \"rhel\" in product %}}\n    {{{ weblink(link=\"https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html-single/configuring_basic_system_settings/index#proc_migrating-to-chrony_configuring-time-synchronization\") }}}\n{{% endif %}}\nfor more detailed comparison of the features of both of the choices, and for\nfurther guidance how to choose between the two NTP daemons.\n<br />\nTo specify a remote NTP server for time synchronization, perform the following:\n<ul>\n<li> if the system is configured to use the <tt>chronyd</tt> as the NTP daemon (the\ndefault), edit the file <tt>{{{ chrony_conf_path }}}</tt> as follows,</li>\n<li> if the system is configured to use the <tt>ntpd</tt> as the NTP daemon,\nedit the file <tt>/etc/ntp.conf</tt> as documented below.</li>\n</ul>\nAdd or correct the following lines, substituting the IP or hostname of a remote\nNTP server for <em>ntpserver</em>:\n<pre>server <i>ntpserver</i></pre>\nThis instructs the NTP software to contact that remote server to obtain time\ndata.\n{{% if product == \"rhcos4\" %}}\n<p>\nNote that if the remediation shipping with this content is being used, the\n<b>MachineConfig</b> shipped does not include reference NTP servers to point\nto. It is up to the admin to set these which will vary depending on the\ncluster's requirements.\n</p>\n\n<p>\nThe aforementioned remediation does include the directory <tt>/etc/chrony.d</tt>\nwhich would allow the creation of configuration files to set these servers.\n</p>\n\nIf we'd like to set a configuration like the following:\n\n<pre>\npool 2.rhel.pool.ntp.org iburst\n\nserver 0.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 1.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 2.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 3.rhel.pool.ntp.org minpoll 4 maxpoll 10\n</pre>\n\nThis could be done with to the following manifest:\n\n<pre>\napiVersion: machineconfiguration.openshift.io/v1\nkind: MachineConfig\nmetadata:\n  labels:\n    machineconfiguration.openshift.io/role: master\n  name: 75-master-chrony-servers\nspec:\n  config:\n    ignition:\n      version: 3.1.0\n    storage:\n      files:\n      - contents:\n          source: data:,pool%202.rhel.pool.ntp.org%20iburst%0A%0Aserver%200.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%201.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%202.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%203.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010\n        mode: 0600\n        path: /etc/chrony.d/10-rhel-pool-and-servers.conf\n        overwrite: true\n</pre>\n\nNote that this needs to be done for each <pre>MachineConfigPool</pre>\n{{% endif %}}",
+    "rationale": "Synchronizing with an NTP server makes it possible to collate system\nlogs from multiple sources or correlate computer events with real time events.",
+    "source": {
+      "upstream_id": "chronyd_or_ntpd_specify_remote_server",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82683-4",
+      "imported_at": "2025-10-03T02:25:57.063046+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "14",
+        "15",
+        "16",
+        "3",
+        "5",
+        "6"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.4.1",
+        "A.12.4.2",
+        "A.12.4.3",
+        "A.12.4.4",
+        "A.12.7.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "AU-8(1)(a)",
+        "AU-8(2)",
+        "AU-12(1)",
+        "PR.PT-1"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-10.4.1",
+        "Req-10.4.3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000116-CTR-000235"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chronyd_or_ntpd_specify_remote_server",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Depending on specific functional requirements of a concrete\nproduction environment, the {{{ full_name }}} system can be\nconfigured to utilize the services of the <tt>chronyd</tt> NTP daemon (the\ndefault), or services of the <tt>ntpd</tt> NTP daemon. Refer to\n{{% if product == \"ol7\" %}}\n     {{{ weblink(link=\"https://docs.oracle.com/en/operating-systems/oracle-linux/7/network/ol7-nettime.html\") }}}\n {{% elif product == \"ol8\" %}}\n     {{{ weblink(link=\"https://docs.oracle.com/en/operating-systems/oracle-linux/8/network/network-ConfiguringNetworkTime.html#ol-nettime\") }}}\n{{% elif \"rhel\" in product %}}\n    {{{ weblink(link=\"https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html-single/configuring_basic_system_settings/index#proc_migrating-to-chrony_configuring-time-synchronization\") }}}\n{{% endif %}}\nfor more detailed comparison of the features of both of the choices, and for\nfurther guidance how to choose between the two NTP daemons.\n<br />\nTo specify a remote NTP server for time synchronization, perform the following:\n<ul>\n<li> if the system is configured to use the <tt>chronyd</tt> as the NTP daemon (the\ndefault), edit the file <tt>{{{ chrony_conf_path }}}</tt> as follows,</li>\n<li> if the system is configured to use the <tt>ntpd</tt> as the NTP daemon,\nedit the file <tt>/etc/ntp.conf</tt> as documented below.</li>\n</ul>\nAdd or correct the following lines, substituting the IP or hostname of a remote\nNTP server for <em>ntpserver</em>:\n<pre>server <i>ntpserver</i></pre>\nThis instructs the NTP software to contact that remote server to obtain time\ndata.\n{{% if product == \"rhcos4\" %}}\n<p>\nNote that if the remediation shipping with this content is being used, the\n<b>MachineConfig</b> shipped does not include reference NTP servers to point\nto. It is up to the admin to set these which will vary depending on the\ncluster's requirements.\n</p>\n\n<p>\nThe aforementioned remediation does include the directory <tt>/etc/chrony.d</tt>\nwhich would allow the creation of configuration files to set these servers.\n</p>\n\nIf we'd like to set a configuration like the following:\n\n<pre>\npool 2.rhel.pool.ntp.org iburst\n\nserver 0.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 1.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 2.rhel.pool.ntp.org minpoll 4 maxpoll 10\nserver 3.rhel.pool.ntp.org minpoll 4 maxpoll 10\n</pre>\n\nThis could be done with to the following manifest:\n\n<pre>\napiVersion: machineconfiguration.openshift.io/v1\nkind: MachineConfig\nmetadata:\n  labels:\n    machineconfiguration.openshift.io/role: master\n  name: 75-master-chrony-servers\nspec:\n  config:\n    ignition:\n      version: 3.1.0\n    storage:\n      files:\n      - contents:\n          source: data:,pool%202.rhel.pool.ntp.org%20iburst%0A%0Aserver%200.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%201.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%202.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010%0Aserver%203.rhel.pool.ntp.org%20minpoll%204%20maxpoll%2010\n        mode: 0600\n        path: /etc/chrony.d/10-rhel-pool-and-servers.conf\n        overwrite: true\n</pre>\n\nNote that this needs to be done for each <pre>MachineConfigPool</pre>\n{{% endif %}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ntp/chronyd_or_ntpd_specify_remote_server/rule.yml",
+  "source_hash": "sha256:6dc8a053f9d574ea",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.063170+00:00",
+  "updated_at": "2025-10-03T02:25:57.063172+00:00",
+  "identifiers": {
+    "cce": "CCE-82683-4"
+  }
+}

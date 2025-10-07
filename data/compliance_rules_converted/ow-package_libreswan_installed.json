@@ -1,0 +1,126 @@
+{
+  "_id": "ow-package_libreswan_installed",
+  "rule_id": "ow-package_libreswan_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_libreswan_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install libreswan Package",
+    "description": "The libreswan package provides an implementation of IPsec\nand IKE, which permits the creation of secure tunnels over\nuntrusted networks. {{{ describe_package_install(package=\"libreswan\") }}}",
+    "rationale": "Providing the ability for remote users or systems\nto initiate a secure VPN connection protects information when it is\ntransmitted over a wide area network.",
+    "source": {
+      "upstream_id": "package_libreswan_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82525-7",
+      "imported_at": "2025-10-03T02:25:58.101730+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "12",
+        "15",
+        "3",
+        "5",
+        "8"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.4",
+        "A.11.2.6",
+        "A.13.1.1",
+        "A.13.2.1",
+        "A.14.1.3",
+        "A.15.1.1",
+        "A.15.2.1",
+        "A.6.2.1",
+        "A.6.2.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6(a)",
+        "PR.AC-3",
+        "PR.MA-2",
+        "PR.PT-4"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-4.1"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-OS-000120-GPOS-00061"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q libreswan",
+      "enable_command": "yum install -y libreswan",
+      "disable_command": "yum remove -y libreswan",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep libreswan",
+      "enable_command": "apt-get install -y libreswan",
+      "disable_command": "apt-get remove -y libreswan",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_libreswan_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The libreswan package provides an implementation of IPsec\nand IKE, which permits the creation of secure tunnels over\nuntrusted networks. {{{ describe_package_install(package=\"libreswan\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ipsec/package_libreswan_installed/rule.yml",
+  "source_hash": "sha256:7fdd059f8afefed5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.101856+00:00",
+  "updated_at": "2025-10-03T02:25:58.101858+00:00",
+  "identifiers": {
+    "cce": "CCE-82525-7"
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "_id": "ow-mount_option_nodev_removable_partitions",
+  "rule_id": "ow-mount_option_nodev_removable_partitions",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_mount_option_nodev_removable_partitions",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Add nodev Option to Removable Media Partitions",
+    "description": "The <tt>nodev</tt> mount option prevents files from being\ninterpreted as character or block devices.\nLegitimate character and block devices should exist only in\nthe <tt>/dev</tt> directory on the root partition or within chroot\njails built for system services.\n{{{ describe_mount(option=\"nodev\", part=\"any removable media partitions\") }}}",
+    "rationale": "The only legitimate location for device files is the <tt>/dev</tt> directory\nlocated on the root partition. An exception to this is chroot jails, and it is\nnot advised to set <tt>nodev</tt> on partitions which contain their root\nfilesystems.",
+    "source": {
+      "upstream_id": "mount_option_nodev_removable_partitions",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82865-7",
+      "imported_at": "2025-10-03T02:25:57.454621+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "12",
+        "13",
+        "14",
+        "16",
+        "3",
+        "8",
+        "9",
+        "1.1.20",
+        "1.1.20"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.6",
+        "A.11.2.9",
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.13.1.1",
+        "A.13.2.1",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.6.2.1",
+        "A.6.2.2",
+        "A.7.1.1",
+        "A.8.2.1",
+        "A.8.2.2",
+        "A.8.2.3",
+        "A.8.3.1",
+        "A.8.3.3",
+        "A.9.1.2",
+        "A.9.2.1"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "AC-6",
+        "AC-6(1)",
+        "MP-7",
+        "PR.AC-3",
+        "PR.AC-6",
+        "PR.IP-1",
+        "PR.PT-2",
+        "PR.PT-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000480-GPOS-00227",
+        "OL08-00-010600"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement mount_option_removable_partitions check",
+      "enable_command": "# TODO: Implement mount_option_removable_partitions remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_mount_option_nodev_removable_partitions",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "The <tt>nodev</tt> mount option prevents files from being\ninterpreted as character or block devices.\nLegitimate character and block devices should exist only in\nthe <tt>/dev</tt> directory on the root partition or within chroot\njails built for system services.\n{{{ describe_mount(option=\"nodev\", part=\"any removable media partitions\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/partitions/mount_option_nodev_removable_partitions/rule.yml",
+  "source_hash": "sha256:4303ae46f0f17de6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.454804+00:00",
+  "updated_at": "2025-10-03T02:25:57.454807+00:00",
+  "identifiers": {
+    "cce": "CCE-82865-7"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "_id": "ow-mask_nonessential_services",
+  "rule_id": "ow-mask_nonessential_services",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_mask_nonessential_services",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure nonessential services are removed or masked",
+    "description": "A network port is identified by its number, the associated IP address, \nand the type of the communication protocol such as TCP or UDP.\nA listening port is a network port on which an application or process \nlistens on, acting as a communication endpoint.\nEach listening port can be open or closed (filtered) using a firewall. \nIn general terms, an open port is a network port that accepts \nincoming packets from remote locations.",
+    "rationale": "Services listening on the system pose a potential risk as an attack vector. These services should be reviewed, and if not required, the service should be stopped, and the package containing the service should be removed. If required packages have a dependency, the service should be stopped and masked to reduce the attack surface of the system.",
+    "source": {
+      "upstream_id": "mask_nonessential_services",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89970-8",
+      "imported_at": "2025-10-03T10:45:55.706924+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "2.4",
+        "2.4"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_mask_nonessential_services",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "A network port is identified by its number, the associated IP address, \nand the type of the communication protocol such as TCP or UDP.\nA listening port is a network port on which an application or process \nlistens on, acting as a communication endpoint.\nEach listening port can be open or closed (filtered) using a firewall. \nIn general terms, an open port is a network port that accepts \nincoming packets from remote locations.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/mask_nonessential_services/rule.yml",
+  "source_hash": "sha256:0894c33df8d7790f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.707056+00:00",
+  "updated_at": "2025-10-03T10:45:55.707059+00:00",
+  "identifiers": {
+    "cce": "CCE-89970-8"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "_id": "ow-liveness_readiness_probe_in_workload",
+  "rule_id": "ow-liveness_readiness_probe_in_workload",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_liveness_readiness_probe_in_workload",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that all workloads have liveness and readiness probes",
+    "description": "Configuring Kubernetes liveness and readiness probes is essential for ensuring the security and\nreliability of a system. These probes actively monitor container health and readiness, facilitating\nautomatic actions like restarting or rescheduling unresponsive instances for improved reliability.\nThey play a proactive role in issue detection, allowing timely problem resolution and contribute\nto efficient scaling and traffic distribution.",
+    "rationale": "Many applications running for long periods of time eventually transition to broken states, and\ncannot recover except by being restarted. Kubernetes provides liveness probes to detect and remedy\nsuch situations.\nSometimes, applications are temporarily unable to serve traffic. For example, an application might\nneed to load large data or configuration files during startup, or depend on external services after\nstartup. In such cases, you don't want to kill the application, but you don't want to send it\nrequests either. Kubernetes provides readiness probes to detect and mitigate these situations.\nA pod with containers reporting that they are not ready does not receive traffic through Kubernetes\nServices.",
+    "source": {
+      "upstream_id": "liveness_readiness_probe_in_workload",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.441357+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_liveness_readiness_probe_in_workload",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Configuring Kubernetes liveness and readiness probes is essential for ensuring the security and\nreliability of a system. These probes actively monitor container health and readiness, facilitating\nautomatic actions like restarting or rescheduling unresponsive instances for improved reliability.\nThey play a proactive role in issue detection, allowing timely problem resolution and contribute\nto efficient scaling and traffic distribution.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/liveness_readiness_probe_in_workload/rule.yml",
+  "source_hash": "sha256:5058ce101ebcd07a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.441428+00:00",
+  "updated_at": "2025-10-03T10:45:56.441430+00:00",
+  "identifiers": {}
+}

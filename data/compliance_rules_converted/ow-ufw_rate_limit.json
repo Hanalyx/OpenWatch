@@ -1,0 +1,62 @@
+{
+  "_id": "ow-ufw_rate_limit",
+  "rule_id": "ow-ufw_rate_limit",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ufw_rate_limit",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "ufw Must rate-limit network interfaces",
+    "description": "The operating system must configure the uncomplicated firewall to\nrate-limit impacted network interfaces.\n\nCheck all the services listening to the ports with the following\ncommand:\n<pre>$ sudo ss -l46ut\nNetid State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\ntcp LISTEN 0 128 [::]:ssh [::]:*</pre>\n\nFor each entry, verify that the ufw is configured to rate limit the\nservice ports with the following command:\n<pre>$ sudo ufw status</pre>\n\nIf any port with a state of \"LISTEN\" is not marked with the \"LIMIT\"\naction, run the following command, replacing \"service\" with the\nservice that needs to be rate limited:\n<pre>$ sudo ufw limit \"service\"</pre>\n\nRate-limiting can also be done on an interface. An example of adding\na rate-limit on the eth0 interface follows:\n<pre>$ sudo ufw limit in on eth0</pre>",
+    "rationale": "This requirement addresses the configuration of the operating system to\nmitigate the impact of DoS attacks that have occurred or are ongoing on\nsystem availability. For each system, known and potential DoS attacks\nmust be identified and solutions for each type implemented. A variety\nof technologies exist to limit or, in some cases, eliminate the effects\nof DoS attacks (e.g., limiting processes or establishing memory\npartitions). Employing increased capacity and bandwidth, combined with\nservice redundancy, may reduce the susceptibility to some DoS attacks.",
+    "source": {
+      "upstream_id": "ufw_rate_limit",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.133942+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000420-GPOS-00186"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ufw_rate_limit",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The operating system must configure the uncomplicated firewall to\nrate-limit impacted network interfaces.\n\nCheck all the services listening to the ports with the following\ncommand:\n<pre>$ sudo ss -l46ut\nNetid State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\ntcp LISTEN 0 128 [::]:ssh [::]:*</pre>\n\nFor each entry, verify that the ufw is configured to rate limit the\nservice ports with the following command:\n<pre>$ sudo ufw status</pre>\n\nIf any port with a state of \"LISTEN\" is not marked with the \"LIMIT\"\naction, run the following command, replacing \"service\" with the\nservice that needs to be rate limited:\n<pre>$ sudo ufw limit \"service\"</pre>\n\nRate-limiting can also be done on an interface. An example of adding\na rate-limit on the eth0 interface follows:\n<pre>$ sudo ufw limit in on eth0</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ufw/ufw_rate_limit/rule.yml",
+  "source_hash": "sha256:24e081307855250f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.134050+00:00",
+  "updated_at": "2025-10-03T10:45:56.134053+00:00",
+  "identifiers": {}
+}

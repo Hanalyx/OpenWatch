@@ -1,0 +1,112 @@
+{
+  "_id": "ow-ensure_suse_gpgkey_installed",
+  "rule_id": "ow-ensure_suse_gpgkey_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_suse_gpgkey_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure SUSE GPG Key Installed",
+    "description": "To ensure the system can cryptographically verify base software packages\ncome from SUSE (and to connect to the SUSE to receive them),\nthe SUSE GPG key must properly be installed. To install the SUSE GPG\nkey, run:\n<pre>$ sudo zypper install suse-build-key</pre>\n\nIf the system is not connected to the Internet or an RHN Satellite, then\ninstall the SUSE GPG key from trusted media such as the SUSE\ninstallation CD-ROM or DVD. Assuming the disc is mounted in\n<tt>/media/cdrom</tt>, use the following command as the root user to import\nit into the keyring:\n<pre>$ sudo rpm --import /media/cdrom/content.key</pre> or\n<pre>$ sudo rpm --import /media/cdrom/repodata/repomd.xml.key</pre>\n\nAlternatively, the key may be pre-loaded during the SUSE installation. In\nsuch cases, one can use the repository cache files to install the key,\nfor example by running the following command:\n<pre>sudo rpm --import /var/cache/zypp/raw/Basesystem_Module_15_SP2_x86_64:SLE-Module-Basesystem15-SP2-Pool/repodata/repomd.xml.key</pre>",
+    "rationale": "Changes to software components can have significant effects on the overall\nsecurity of the operating system. This requirement ensures the software has\nnot been tampered with and that it has been provided by a trusted vendor.\nThe SUSE GPG key is necessary to cryptographically verify packages are\nfrom SUSE.",
+    "source": {
+      "upstream_id": "ensure_suse_gpgkey_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-89006-1",
+      "imported_at": "2025-10-03T10:45:56.025799+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "high",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_high",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "2",
+        "3",
+        "9"
+      ]
+    },
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(D)",
+        "164.312(b)",
+        "164.312(c)(1)",
+        "164.312(c)(2)",
+        "164.312(e)(2)(i)"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.11.2.4",
+        "A.12.1.2",
+        "A.12.2.1",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.1.2",
+        "A.14.1.3",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-5(3)",
+        "SI-7",
+        "SC-12",
+        "SC-12(3)",
+        "CM-6(a)",
+        "PR.DS-6",
+        "PR.DS-8",
+        "PR.IP-1"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-6.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000366-GPOS-00153"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_suse_gpgkey_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "To ensure the system can cryptographically verify base software packages\ncome from SUSE (and to connect to the SUSE to receive them),\nthe SUSE GPG key must properly be installed. To install the SUSE GPG\nkey, run:\n<pre>$ sudo zypper install suse-build-key</pre>\n\nIf the system is not connected to the Internet or an RHN Satellite, then\ninstall the SUSE GPG key from trusted media such as the SUSE\ninstallation CD-ROM or DVD. Assuming the disc is mounted in\n<tt>/media/cdrom</tt>, use the following command as the root user to import\nit into the keyring:\n<pre>$ sudo rpm --import /media/cdrom/content.key</pre> or\n<pre>$ sudo rpm --import /media/cdrom/repodata/repomd.xml.key</pre>\n\nAlternatively, the key may be pre-loaded during the SUSE installation. In\nsuch cases, one can use the repository cache files to install the key,\nfor example by running the following command:\n<pre>sudo rpm --import /var/cache/zypp/raw/Basesystem_Module_15_SP2_x86_64:SLE-Module-Basesystem15-SP2-Pool/repodata/repomd.xml.key</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/updating/ensure_suse_gpgkey_installed/rule.yml",
+  "source_hash": "sha256:ca7eb53ed703583b",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.025937+00:00",
+  "updated_at": "2025-10-03T10:45:56.025939+00:00",
+  "identifiers": {
+    "cce": "CCE-89006-1"
+  }
+}

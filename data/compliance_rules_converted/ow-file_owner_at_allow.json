@@ -1,0 +1,76 @@
+{
+  "_id": "ow-file_owner_at_allow",
+  "rule_id": "ow-file_owner_at_allow",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_at_allow",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Verify User Who Owns /etc/at.allow file",
+    "description": "If <tt>/etc/at.allow</tt> exists, it must be owned by <tt>root</tt>.\n{{{ describe_file_owner(file=\"/etc/at.allow\", owner=\"root\") }}}",
+    "rationale": "If the owner of the at.allow file is not set to root, the possibility exists for an\nunauthorized user to view or edit sensitive information.",
+    "source": {
+      "upstream_id": "file_owner_at_allow",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-86345-6",
+      "imported_at": "2025-10-03T02:25:56.894372+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.1.9",
+        "5.1.9"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement file_owner check",
+      "enable_command": "# TODO: Implement file_owner remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_file_owner_at_allow",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "If <tt>/etc/at.allow</tt> exists, it must be owned by <tt>root</tt>.\n{{{ describe_file_owner(file=\"/etc/at.allow\", owner=\"root\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/cron_and_at/restrict_at_cron_users/file_owner_at_allow/rule.yml",
+  "source_hash": "sha256:6d2e84beadb4add5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.894556+00:00",
+  "updated_at": "2025-10-03T02:25:56.894560+00:00",
+  "identifiers": {
+    "cce": "CCE-86345-6"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "_id": "ow-dconf_gnome_screensaver_mode_blank",
+  "rule_id": "ow-dconf_gnome_screensaver_mode_blank",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_mode_blank",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Implement Blank Screensaver",
+    "description": "{{# The SLE12 and SLE15 STIG unfortunately requires per-user settings, #}}\n{{# not a globally locked one, so we don't require but only suggest the latter. #}}\n{{% if product in [\"sle12\",\"sle15\"] %}}\nOn SUSE users should set the screensaver to use publicly viewable images or blank screen\nby doing the following:\nFind the Settings menu and then navigate to the Background selection section\n{{% if product == \"sle15\" %}}\n<tt>- Click \"Activities\" on the top left.</tt>\n<tt>- Click \"Show Applications\" at the bottom of the Activities menu.</tt>\n<tt>- Click the \"Settings\" icon.</tt>\n<tt>- Click \"Background\" from left hand menu.</tt>\n<tt>- Select image and set the Lock Screen image to the user's choice.</tt>\n<tt>- Exit Settings Dialog.</tt>\n{{% else %}}\n<tt>- Click \"Applications\" on the bottom left.</tt>\n<tt>- Hover over \"System Tools\" with the mouse.</tt>\n<tt>- Click the \"Settings\" icon under System Tools.</tt>\n<tt>- Click \"Background\" and then \"Lock Screen\".</tt>\n<tt>- Select image and set the Lock Screen image to the user's choice.</tt>\n<tt>- Click \"Select\".</tt>\n<tt>- Exit Settings Dialog.</tt>\n{{% endif %}}\n{{% endif %}}\nTo set the screensaver mode in the GNOME3 desktop to a blank screen,\nadd or set <tt>picture-uri</tt> to <tt>string ''</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/desktop/screensaver]\npicture-uri=string ''\n</pre>\nOnce the settings have been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/picture-uri</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+    "rationale": "Setting the screensaver mode to blank-only conceals the\ncontents of the display from passersby.",
+    "source": {
+      "upstream_id": "dconf_gnome_screensaver_mode_blank",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-80778-4",
+      "imported_at": "2025-10-03T02:25:57.964564+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1",
+        "12",
+        "15",
+        "16"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.18.1.4",
+        "A.9.2.1",
+        "A.9.2.4",
+        "A.9.3.1",
+        "A.9.4.2",
+        "A.9.4.3"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "AC-11(1)",
+        "CM-6(a)",
+        "AC-11(1).1",
+        "PR.AC-7"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-8.1.8"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000031-GPOS-00012",
+        "SLES-12-010100",
+        "SLES-15-010140"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dconf_gnome_screensaver_mode_blank",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "{{# The SLE12 and SLE15 STIG unfortunately requires per-user settings, #}}\n{{# not a globally locked one, so we don't require but only suggest the latter. #}}\n{{% if product in [\"sle12\",\"sle15\"] %}}\nOn SUSE users should set the screensaver to use publicly viewable images or blank screen\nby doing the following:\nFind the Settings menu and then navigate to the Background selection section\n{{% if product == \"sle15\" %}}\n<tt>- Click \"Activities\" on the top left.</tt>\n<tt>- Click \"Show Applications\" at the bottom of the Activities menu.</tt>\n<tt>- Click the \"Settings\" icon.</tt>\n<tt>- Click \"Background\" from left hand menu.</tt>\n<tt>- Select image and set the Lock Screen image to the user's choice.</tt>\n<tt>- Exit Settings Dialog.</tt>\n{{% else %}}\n<tt>- Click \"Applications\" on the bottom left.</tt>\n<tt>- Hover over \"System Tools\" with the mouse.</tt>\n<tt>- Click the \"Settings\" icon under System Tools.</tt>\n<tt>- Click \"Background\" and then \"Lock Screen\".</tt>\n<tt>- Select image and set the Lock Screen image to the user's choice.</tt>\n<tt>- Click \"Select\".</tt>\n<tt>- Exit Settings Dialog.</tt>\n{{% endif %}}\n{{% endif %}}\nTo set the screensaver mode in the GNOME3 desktop to a blank screen,\nadd or set <tt>picture-uri</tt> to <tt>string ''</tt> in\n<tt>/etc/dconf/db/local.d/00-security-settings</tt>. For example:\n<pre>[org/gnome/desktop/screensaver]\npicture-uri=string ''\n</pre>\nOnce the settings have been added, add a lock to\n<tt>/etc/dconf/db/local.d/locks/00-security-settings-lock</tt> to prevent user modification.\nFor example:\n<pre>/org/gnome/desktop/screensaver/picture-uri</pre>\nAfter the settings have been set, run <tt>dconf update</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/gnome/gnome_screen_locking/dconf_gnome_screensaver_mode_blank/rule.yml",
+  "source_hash": "sha256:a5d78ec3ccf3b32f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.964696+00:00",
+  "updated_at": "2025-10-03T02:25:57.964698+00:00",
+  "identifiers": {
+    "cce": "CCE-80778-4"
+  }
+}

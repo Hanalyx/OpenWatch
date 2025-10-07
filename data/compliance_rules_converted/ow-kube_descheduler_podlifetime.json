@@ -1,0 +1,56 @@
+{
+  "_id": "ow-kube_descheduler_podlifetime",
+  "rule_id": "ow-kube_descheduler_podlifetime",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kube_descheduler_podlifetime",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Set Pod Lifetime for the Deschedulers",
+    "description": "If there is an increased risk of external influences and a very high need for protection, pods should be stopped and restarted regularly.\nNo pod should run for more than 24 hours. The availability of the applications in the pod should be ensured.",
+    "rationale": "If there is an increased risk of external influences and a very high need for protection, pods should be stopped and restarted regularly. With this an attacker who gained control over a pod loses it and the pod gets restarted from a known good state (the image).",
+    "source": {
+      "upstream_id": "kube_descheduler_podlifetime",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.421570+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kube_descheduler_podlifetime",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "If there is an increased risk of external influences and a very high need for protection, pods should be stopped and restarted regularly.\nNo pod should run for more than 24 hours. The availability of the applications in the pod should be ensured.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/kube_descheduler_podlifetime/rule.yml",
+  "source_hash": "sha256:86299292ae3b0be3",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.421651+00:00",
+  "updated_at": "2025-10-03T10:45:56.421653+00:00",
+  "identifiers": {}
+}

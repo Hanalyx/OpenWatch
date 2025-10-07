@@ -1,0 +1,72 @@
+{
+  "_id": "ow-account_emergency_admin",
+  "rule_id": "ow-account_emergency_admin",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_account_emergency_admin",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Never Automatically Remove or Disable Emergency Administrator Accounts",
+    "description": "Emergency accounts are privileged accounts that are established in response\nto crisis situations where the need for rapid account activation is\nrequired. Therefore, emergency account activation may bypass normal account\nauthorization processes. If these accounts are automatically disabled,\nsystem maintenance during emergencies may not be possible, thus adversely\naffecting system availability.\n\nCheck to see if an emergency administrator account password or account expires with the following command:\n\n<pre># sudo chage -l [Emergency_Administrator]\n\nPassword expires:never</pre>\n\nIf <tt>Password expires</tt> or <tt>Account expires</tt> is set to anything other than <tt>never</tt>, this is a finding.",
+    "rationale": "Emergency accounts are different from infrequently used accounts (i.e.,\nlocal logon accounts used by the organization's system administrators when\nnetwork or normal logon/access is not available). Infrequently used\naccounts are not subject to automatic termination dates. Emergency accounts\nare accounts created in response to crisis situations, usually for use by\nmaintenance personnel. The automatic expiration or disabling time period\nmay be extended as needed until the crisis is resolved; however, it must\nnot be extended indefinitely. A permanent account should be established for\nprivileged users who need long-term maintenance accounts.\n\nTo address access requirements the SUSE operating system can be integrated\nwith enterprise-level authentication/access mechanisms that meet or exceed\naccess control policy requirements.",
+    "source": {
+      "upstream_id": "account_emergency_admin",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83175-0",
+      "imported_at": "2025-10-03T10:45:56.230873+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "AC-2(2)",
+        "AC-2(2).1(ii)"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000123-GPOS-00064",
+        "SLES-12-010330",
+        "SLES-15-020060"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_account_emergency_admin",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Emergency accounts are privileged accounts that are established in response\nto crisis situations where the need for rapid account activation is\nrequired. Therefore, emergency account activation may bypass normal account\nauthorization processes. If these accounts are automatically disabled,\nsystem maintenance during emergencies may not be possible, thus adversely\naffecting system availability.\n\nCheck to see if an emergency administrator account password or account expires with the following command:\n\n<pre># sudo chage -l [Emergency_Administrator]\n\nPassword expires:never</pre>\n\nIf <tt>Password expires</tt> or <tt>Account expires</tt> is set to anything other than <tt>never</tt>, this is a finding.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-restrictions/account_expiration/account_emergency_admin/rule.yml",
+  "source_hash": "sha256:37980624411633bf",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.230966+00:00",
+  "updated_at": "2025-10-03T10:45:56.230969+00:00",
+  "identifiers": {
+    "cce": "CCE-83175-0"
+  }
+}

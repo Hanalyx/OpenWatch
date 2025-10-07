@@ -1,0 +1,64 @@
+{
+  "_id": "ow-private_nodes",
+  "rule_id": "ow-private_nodes",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_private_nodes",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure Cluster Private Nodes",
+    "description": "Disable public IP addresses for cluster nodes, so that they only have private\nIP addresses. Private Nodes are nodes with no public IP addresses.",
+    "rationale": "Disabling public IP addresses on cluster nodes restricts access to only\ninternal networks, forcing attackers to obtain local network access before\nattempting to compromise the underlying Kubernetes hosts.",
+    "source": {
+      "upstream_id": "private_nodes",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-88669-7",
+      "imported_at": "2025-10-03T10:45:56.517219+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.4.3"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_private_nodes",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Disable public IP addresses for cluster nodes, so that they only have private\nIP addresses. Private Nodes are nodes with no public IP addresses.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/networking/private_nodes/rule.yml",
+  "source_hash": "sha256:32f8b23ddf4f3fe0",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.517303+00:00",
+  "updated_at": "2025-10-03T10:45:56.517305+00:00",
+  "identifiers": {
+    "cce": "CCE-88669-7"
+  }
+}

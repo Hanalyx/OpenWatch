@@ -1,0 +1,73 @@
+{
+  "_id": "ow-general_configure_imagepolicywebhook",
+  "rule_id": "ow-general_configure_imagepolicywebhook",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_general_configure_imagepolicywebhook",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Manage Image Provenance Using ImagePolicyWebhook",
+    "description": "OpenShift administrators can control which images can be imported, tagged, and run in a cluster.\nThere are two facilities for this purpose: (1) Allowed Registries, allowing administrators to\nrestrict image origins to known external registries; and (2) ImagePolicy Admission plug-in which lets\nadministrators specify specific images which are allowed to run on the OpenShift cluster.\n\nConfigure an Image policy per the Image Policy chapter in the OpenShift documentation:\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.4/openshift_images/image-configuration.html\") }}}",
+    "rationale": "Image Policy ensures that only approved container images are allowed to be ran on the OpenShift platform.",
+    "source": {
+      "upstream_id": "general_configure_imagepolicywebhook",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T02:25:59.130648+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000516-CTR-001325"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_general_configure_imagepolicywebhook",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "OpenShift administrators can control which images can be imported, tagged, and run in a cluster.\nThere are two facilities for this purpose: (1) Allowed Registries, allowing administrators to\nrestrict image origins to known external registries; and (2) ImagePolicy Admission plug-in which lets\nadministrators specify specific images which are allowed to run on the OpenShift cluster.\n\nConfigure an Image policy per the Image Policy chapter in the OpenShift documentation:\n{{{ weblink(link=\"https://docs.openshift.com/container-platform/4.4/openshift_images/image-configuration.html\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/general/general_configure_imagepolicywebhook/rule.yml",
+  "source_hash": "sha256:6ef5dc87b34c6832",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.130757+00:00",
+  "updated_at": "2025-10-03T02:25:59.130759+00:00",
+  "identifiers": {}
+}

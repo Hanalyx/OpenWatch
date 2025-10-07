@@ -1,0 +1,62 @@
+{
+  "_id": "ow-chromium_disable_background_processing",
+  "rule_id": "ow-chromium_disable_background_processing",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_background_processing",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Background Processing",
+    "description": "Chromium can be set to run at all times and process in the background. This\nshould be disabled by setting <tt>BackgroundModeEnabled</tt> to <tt>false</tt>\nin the Chromium policy file.",
+    "rationale": "There is two reasons that this is not wanted. First, it can tie up system\nresources that might otherwise be needed. Second, it does not make it\nobvious to the user that it is running and poorly written extensions could\ncause instability on the system.",
+    "source": {
+      "upstream_id": "chromium_disable_background_processing",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.407896+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "DTBC0017"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_chromium_disable_background_processing",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Chromium can be set to run at all times and process in the background. This\nshould be disabled by setting <tt>BackgroundModeEnabled</tt> to <tt>false</tt>\nin the Chromium policy file.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/chromium/guide/chromium/chromium_disable_background_processing/rule.yml",
+  "source_hash": "sha256:a09889c08f2dd662",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.407972+00:00",
+  "updated_at": "2025-10-03T10:45:56.407974+00:00",
+  "identifiers": {}
+}

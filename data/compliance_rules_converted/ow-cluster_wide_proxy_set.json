@@ -1,0 +1,75 @@
+{
+  "_id": "ow-cluster_wide_proxy_set",
+  "rule_id": "ow-cluster_wide_proxy_set",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_cluster_wide_proxy_set",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure that cluster-wide proxy is set",
+    "description": "<p>\nProduction environments can deny direct access to the Internet and instead have\nan HTTP or HTTPS proxy available.\n</p>\n<p>\nThe Proxy object is used to manage the cluster-wide egress proxy. Setting this\nwill ensure that containers get the appropriate environment variables set\nto ensure traffic goes to the proxy per organizational requirements.\n</p>\n<p>\nFor more information, see {{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/networking/enable-cluster-wide-proxy.html\",\n                                      text=\"the relevant documentation.\") }}}\n</p>",
+    "rationale": "External networks tend to be outside of organizational control. By ensuring\nthat egress traffic goes through an authorized proxy, one is able to ensure\nthat expected and safe traffic is coming out, and malicious actors\naren't leaking sensitive information, or calling back from a central command\ncenter to get further instructions upon intrusion.",
+    "source": {
+      "upstream_id": "cluster_wide_proxy_set",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-90765-9",
+      "imported_at": "2025-10-03T02:25:59.460928+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "SC-7(8)"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement yamlfile_value check",
+      "enable_command": "# TODO: Implement yamlfile_value remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_cluster_wide_proxy_set",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "<p>\nProduction environments can deny direct access to the Internet and instead have\nan HTTP or HTTPS proxy available.\n</p>\n<p>\nThe Proxy object is used to manage the cluster-wide egress proxy. Setting this\nwill ensure that containers get the appropriate environment variables set\nto ensure traffic goes to the proxy per organizational requirements.\n</p>\n<p>\nFor more information, see {{{ weblink(link=\"https://docs.openshift.com/container-platform/latest/networking/enable-cluster-wide-proxy.html\",\n                                      text=\"the relevant documentation.\") }}}\n</p>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/networking/cluster_wide_proxy_set/rule.yml",
+  "source_hash": "sha256:7cfe9b14e8e1cdb5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:59.461050+00:00",
+  "updated_at": "2025-10-03T02:25:59.461053+00:00",
+  "identifiers": {
+    "cce": "CCE-90765-9"
+  }
+}

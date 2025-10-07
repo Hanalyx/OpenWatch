@@ -1,0 +1,65 @@
+{
+  "_id": "ow-ensure_package_repositories_are_configured",
+  "rule_id": "ow-ensure_package_repositories_are_configured",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_package_repositories_are_configured",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure package manager repositories are configured",
+    "description": "Systems need to have package manager repositories configured to ensure they receive the\nlatest patches and updates.",
+    "rationale": "If the system's package repositories are misconfigured important patches may not be\nidentified or a rogue repository could introduce compromised software.",
+    "source": {
+      "upstream_id": "ensure_package_repositories_are_configured",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-92389-6",
+      "imported_at": "2025-10-03T10:45:56.022291+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "1.2.2",
+        "1.2.2"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_ensure_package_repositories_are_configured",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Systems need to have package manager repositories configured to ensure they receive the\nlatest patches and updates.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/updating/ensure_package_repositories_are_configured/rule.yml",
+  "source_hash": "sha256:f05814953953a367",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.022408+00:00",
+  "updated_at": "2025-10-03T10:45:56.022411+00:00",
+  "identifiers": {
+    "cce": "CCE-92389-6"
+  }
+}

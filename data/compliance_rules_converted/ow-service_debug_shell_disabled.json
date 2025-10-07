@@ -1,0 +1,97 @@
+{
+  "_id": "ow-service_debug_shell_disabled",
+  "rule_id": "ow-service_debug_shell_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_debug_shell_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable debug-shell SystemD Service",
+    "description": "SystemD's <tt>debug-shell</tt> service is intended to\ndiagnose SystemD related boot issues with various <tt>systemctl</tt>\ncommands. Once enabled and following a system reboot, the root shell\nwill be available on <tt>tty9</tt> which is access by pressing\n<tt>CTRL-ALT-F9</tt>. The <tt>debug-shell</tt> service should only be used\nfor SystemD related issues and should otherwise be disabled.\n<br /><br />\nBy default, the <tt>debug-shell</tt> SystemD service is already disabled.\n{{{ describe_service_disable(service=\"debug-shell\") }}}",
+    "rationale": "This prevents attackers with physical access from trivially bypassing security\non the machine through valid troubleshooting configurations and gaining root\naccess when the system is rebooted.",
+    "source": {
+      "upstream_id": "service_debug_shell_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82496-1",
+      "imported_at": "2025-10-03T02:25:58.737195+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "hipaa": {
+      "current": [
+        "164.308(a)(1)(ii)(B)",
+        "164.308(a)(7)(i)",
+        "164.308(a)(7)(ii)(A)",
+        "164.310(a)(1)",
+        "164.310(a)(2)(i)",
+        "164.310(a)(2)(ii)",
+        "164.310(a)(2)(iii)",
+        "164.310(b)",
+        "164.310(c)",
+        "164.310(d)(1)",
+        "164.310(d)(2)(iii)"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000324-GPOS-00125",
+        "SRG-OS-000480-GPOS-00227",
+        "OL08-00-040180"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement service_disabled check",
+      "enable_command": "# TODO: Implement service_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_service_debug_shell_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "SystemD's <tt>debug-shell</tt> service is intended to\ndiagnose SystemD related boot issues with various <tt>systemctl</tt>\ncommands. Once enabled and following a system reboot, the root shell\nwill be available on <tt>tty9</tt> which is access by pressing\n<tt>CTRL-ALT-F9</tt>. The <tt>debug-shell</tt> service should only be used\nfor SystemD related issues and should otherwise be disabled.\n<br /><br />\nBy default, the <tt>debug-shell</tt> SystemD service is already disabled.\n{{{ describe_service_disable(service=\"debug-shell\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/accounts/accounts-physical/service_debug-shell_disabled/rule.yml",
+  "source_hash": "sha256:4a3aebc1c261360a",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:58.737347+00:00",
+  "updated_at": "2025-10-03T02:25:58.737350+00:00",
+  "identifiers": {
+    "cce": "CCE-82496-1"
+  }
+}

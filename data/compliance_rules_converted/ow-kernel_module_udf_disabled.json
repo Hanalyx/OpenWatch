@@ -1,0 +1,100 @@
+{
+  "_id": "ow-kernel_module_udf_disabled",
+  "rule_id": "ow-kernel_module_udf_disabled",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_module_udf_disabled",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Mounting of udf",
+    "description": "{{{ describe_module_disable(module=\"udf\") }}}\nThis effectively prevents usage of this uncommon filesystem.\n\nThe <tt>udf</tt> filesystem type is the universal disk format\nused to implement the ISO/IEC 13346 and ECMA-167 specifications.\nThis is an open vendor filesystem type for data storage on a broad\nrange of media. This filesystem type is neccessary to support\nwriting DVDs and newer optical disc formats.",
+    "rationale": "Removing support for unneeded filesystem types reduces the local\nattack surface of the system.",
+    "source": {
+      "upstream_id": "kernel_module_udf_disabled",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82718-8",
+      "imported_at": "2025-10-03T02:25:57.504162+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "access_control",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "11",
+        "14",
+        "3",
+        "9",
+        "1.1.1.2",
+        "1.1.1.2"
+      ]
+    },
+    "iso27001": {
+      "2013": [
+        "A.12.1.2",
+        "A.12.5.1",
+        "A.12.6.2",
+        "A.14.2.2",
+        "A.14.2.3",
+        "A.14.2.4",
+        "A.9.1.2"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-7(a)",
+        "CM-7(b)",
+        "CM-6(a)",
+        "PR.IP-1",
+        "PR.PT-3"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement kernel_module_disabled check",
+      "enable_command": "# TODO: Implement kernel_module_disabled remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_kernel_module_udf_disabled",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_module_disable(module=\"udf\") }}}\nThis effectively prevents usage of this uncommon filesystem.\n\nThe <tt>udf</tt> filesystem type is the universal disk format\nused to implement the ISO/IEC 13346 and ECMA-167 specifications.\nThis is an open vendor filesystem type for data storage on a broad\nrange of media. This filesystem type is neccessary to support\nwriting DVDs and newer optical disc formats.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/permissions/mounting/kernel_module_udf_disabled/rule.yml",
+  "source_hash": "sha256:018d08a4c570acd4",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.504300+00:00",
+  "updated_at": "2025-10-03T02:25:57.504302+00:00",
+  "identifiers": {
+    "cce": "CCE-82718-8"
+  }
+}

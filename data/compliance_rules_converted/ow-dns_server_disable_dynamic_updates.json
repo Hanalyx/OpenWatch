@@ -1,0 +1,56 @@
+{
+  "_id": "ow-dns_server_disable_dynamic_updates",
+  "rule_id": "ow-dns_server_disable_dynamic_updates",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_dns_server_disable_dynamic_updates",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Disable Dynamic Updates",
+    "description": "Is there a mission-critical reason to enable the risky dynamic\nupdate functionality? If not, edit <tt>/etc/named.conf</tt>. For each zone\nspecification, correct the following directive if necessary:\n<pre>zone \"example.com \" IN {\n  allow-update { none; };\n  ...\n};</pre>",
+    "rationale": "Dynamic updates allow remote servers to add, delete, or modify any\nentries in your zone file. Therefore, they should be considered highly risky,\nand disabled unless there is a very good reason for their use. If dynamic\nupdates must be allowed, IP-based ACLs are insufficient protection, since they\nare easily spoofed. Instead, use TSIG keys (see the previous section for an\nexample), and consider using the update-policy directive to restrict changes to\nonly the precise type of change needed.",
+    "source": {
+      "upstream_id": "dns_server_disable_dynamic_updates",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.747555+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "unknown",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "scap",
+    "converted",
+    "ssg",
+    "severity_unknown"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_dns_server_disable_dynamic_updates",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Is there a mission-critical reason to enable the risky dynamic\nupdate functionality? If not, edit <tt>/etc/named.conf</tt>. For each zone\nspecification, correct the following directive if necessary:\n<pre>zone \"example.com \" IN {\n  allow-update { none; };\n  ...\n};</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/dns/dns_server_protection/dns_server_disable_dynamic_updates/rule.yml",
+  "source_hash": "sha256:8d006306f7fcb7ec",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.747650+00:00",
+  "updated_at": "2025-10-03T10:45:55.747653+00:00",
+  "identifiers": {}
+}

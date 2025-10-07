@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_no_compilers_in_prod",
+  "rule_id": "ow-httpd_no_compilers_in_prod",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_no_compilers_in_prod",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Installation of a compiler on production web server is prohibited",
+    "description": "The presence of a compiler on a production server facilitates the malicious\nuser's task of creating custom versions of programs and installing Trojan\nHorses or viruses.",
+    "rationale": "An attacker's code could be uploaded and compiled on the server\nunder attack.",
+    "source": {
+      "upstream_id": "httpd_no_compilers_in_prod",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.836091+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_no_compilers_in_prod",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The presence of a compiler on a production server facilitates the malicious\nuser's task of creating custom versions of programs and installing Trojan\nHorses or viruses.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_no_compilers_in_prod/rule.yml",
+  "source_hash": "sha256:6a7a857ef7e8012f",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.836211+00:00",
+  "updated_at": "2025-10-03T10:45:55.836214+00:00",
+  "identifiers": {}
+}

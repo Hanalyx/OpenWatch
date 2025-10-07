@@ -1,0 +1,78 @@
+{
+  "_id": "ow-firefox_policy_autoplay_video",
+  "rule_id": "ow-firefox_policy_autoplay_video",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_autoplay_video",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Firefox autoplay must be disabled.",
+    "description": "Audio/Video autoplay may be disabled in an administrative policy by setting\nthe <tt>Default</tt> key under <tt>Permissions</tt>, <tt>Autoplay</tt> to <tt>\"block-audio-video\"</tt>.",
+    "rationale": "Autoplay allows the user to control whether videos can play automatically (without user consent) with audio content. The user must be able to select content that is run within the browser window.",
+    "source": {
+      "upstream_id": "firefox_policy_autoplay_video",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.362006+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-7"
+      ]
+    },
+    "stig": {
+      "current": [
+        "FFOX-00-000021"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement firefox_policy-setting check",
+      "enable_command": "# TODO: Implement firefox_policy-setting remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_firefox_policy_autoplay_video",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "Audio/Video autoplay may be disabled in an administrative policy by setting\nthe <tt>Default</tt> key under <tt>Permissions</tt>, <tt>Autoplay</tt> to <tt>\"block-audio-video\"</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "products/firefox/guide/firefox/firefox_policy-autoplay_video/rule.yml",
+  "source_hash": "sha256:8ead970a16e76872",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.362133+00:00",
+  "updated_at": "2025-10-03T10:45:56.362135+00:00",
+  "identifiers": {}
+}

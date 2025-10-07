@@ -1,0 +1,92 @@
+{
+  "_id": "ow-auditd_log_format",
+  "rule_id": "ow-auditd_log_format",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_log_format",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Resolve information before writing to audit logs",
+    "description": "To configure Audit daemon to resolve all uid, gid, syscall,\narchitecture, and socket address information before writing the\nevents to disk, set <tt>log_format</tt> to <tt>ENRICHED</tt>\nin <tt>/etc/audit/auditd.conf</tt>.",
+    "rationale": "If option <tt>log_format</tt> isn't set to <tt>ENRICHED</tt>, the\naudit records will be stored in a format exactly as the kernel sends them.",
+    "source": {
+      "upstream_id": "auditd_log_format",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82511-7",
+      "imported_at": "2025-10-03T02:25:56.407394+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "low",
+  "category": "audit_logging",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_low"
+  ],
+  "frameworks": {
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "AU-3"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-OS-000255-GPOS-00096",
+        "SRG-OS-000480-GPOS-00227",
+        "SRG-APP-000096-CTR-000175",
+        "SRG-APP-000097-CTR-000180",
+        "SRG-APP-000098-CTR-000185",
+        "SRG-APP-000099-CTR-000190",
+        "SRG-APP-000100-CTR-000195",
+        "SRG-APP-000100-CTR-000200",
+        "SRG-APP-000109-CTR-000215",
+        "SRG-APP-000290-CTR-000670",
+        "SRG-APP-000357-CTR-000800",
+        "OL08-00-030063"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "8",
+        "9"
+      ],
+      "check_method": "custom",
+      "check_command": "# TODO: Implement auditd_lineinfile check",
+      "enable_command": "# TODO: Implement auditd_lineinfile remediation",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_auditd_log_format",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "To configure Audit daemon to resolve all uid, gid, syscall,\narchitecture, and socket address information before writing the\nevents to disk, set <tt>log_format</tt> to <tt>ENRICHED</tt>\nin <tt>/etc/audit/auditd.conf</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/auditing/configure_auditd_data_retention/auditd_log_format/rule.yml",
+  "source_hash": "sha256:c14360cb6453d0c9",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:56.407523+00:00",
+  "updated_at": "2025-10-03T02:25:56.407526+00:00",
+  "identifiers": {
+    "cce": "CCE-82511-7"
+  }
+}

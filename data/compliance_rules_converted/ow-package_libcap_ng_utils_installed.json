@@ -1,0 +1,90 @@
+{
+  "_id": "ow-package_libcap_ng_utils_installed",
+  "rule_id": "ow-package_libcap_ng_utils_installed",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_libcap_ng_utils_installed",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Install libcap-ng-utils Package",
+    "description": "{{{ describe_package_install(package=\"libcap-ng-utils\") }}}",
+    "rationale": "<tt>libcap-ng-utils</tt> contains applications to analyze the posix\nposix capabilities of all the programs running on a system.\n<tt>libcap-ng-utils</tt> also lets system operators set the file\nsystem based capabilities.",
+    "source": {
+      "upstream_id": "package_libcap_ng_utils_installed",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-82979-6",
+      "imported_at": "2025-10-03T02:25:57.833680+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "converted",
+    "scap",
+    "ssg",
+    "severity_medium"
+  ],
+  "frameworks": {
+    "stig": {
+      "current": [
+        "SRG-OS-000445-GPOS-00199"
+      ]
+    }
+  },
+  "platform_implementations": {
+    "rhel": {
+      "versions": [
+        "7",
+        "8",
+        "9"
+      ],
+      "check_method": "package",
+      "check_command": "rpm -q libcap-ng-utils",
+      "enable_command": "yum install -y libcap-ng-utils",
+      "disable_command": "yum remove -y libcap-ng-utils",
+      "service_dependencies": []
+    },
+    "ubuntu": {
+      "versions": [
+        "18.04",
+        "20.04",
+        "22.04",
+        "24.04"
+      ],
+      "check_method": "package",
+      "check_command": "dpkg -l | grep libcap-ng-utils",
+      "enable_command": "apt-get install -y libcap-ng-utils",
+      "disable_command": "apt-get remove -y libcap-ng-utils",
+      "service_dependencies": []
+    }
+  },
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "template",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_package_libcap_ng_utils_installed",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": true,
+  "fix_content": {},
+  "manual_remediation": "{{{ describe_package_install(package=\"libcap-ng-utils\") }}}",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/software/system-tools/package_libcap-ng-utils_installed/rule.yml",
+  "source_hash": "sha256:c364242976db52f7",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T02:25:57.833822+00:00",
+  "updated_at": "2025-10-03T02:25:57.833826+00:00",
+  "identifiers": {
+    "cce": "CCE-82979-6"
+  }
+}

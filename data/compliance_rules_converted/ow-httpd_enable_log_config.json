@@ -1,0 +1,56 @@
+{
+  "_id": "ow-httpd_enable_log_config",
+  "rule_id": "ow-httpd_enable_log_config",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_enable_log_config",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Enable log_config_module For HTTPD Logging",
+    "description": "The <tt>log_config_module</tt> should exist and be configured in\nthe <tt>/etc/httpd/conf/httpd.conf</tt> file by adding the following module to\nconfigure logging:\n<pre>log_config_module</pre>",
+    "rationale": "A major tool in exploring the web site use, attempted use, unusual conditions,\nand problems are reported in the access and error logs. In the event of a\nsecurity incident, these logs can provide the SA and the web manager with\nvaluable information. Without these log files, SAs and web managers are\nseriously hindered in their efforts to respond appropriately to suspicious or\ncriminal actions targeted at the web site.",
+    "source": {
+      "upstream_id": "httpd_enable_log_config",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:55.856233+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "system_hardening",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_httpd_enable_log_config",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "The <tt>log_config_module</tt> should exist and be configured in\nthe <tt>/etc/httpd/conf/httpd.conf</tt> file by adding the following module to\nconfigure logging:\n<pre>log_config_module</pre>",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/http/securing_httpd/httpd_minimize_loadable_modules/httpd_core_modules/httpd_enable_log_config/rule.yml",
+  "source_hash": "sha256:b37e408e29728ec6",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.856332+00:00",
+  "updated_at": "2025-10-03T10:45:55.856335+00:00",
+  "identifiers": {}
+}

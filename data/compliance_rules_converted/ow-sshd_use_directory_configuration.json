@@ -1,0 +1,65 @@
+{
+  "_id": "ow-sshd_use_directory_configuration",
+  "rule_id": "ow-sshd_use_directory_configuration",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_directory_configuration",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Distribute the SSH Server configuration to multiple files in a config directory.",
+    "description": "Make sure to have the <tt>Include /etc/ssh/sshd_config.d/*.conf</tt> line in the <tt>/etc/ssh/sshd_config</tt> file.\nIdeally, don't have any active configuration directives in that file, and distribute the service configuration\nto several files in the <tt>/etc/ssh/sshd_config.d</tt> directory.",
+    "rationale": "This form of distributed configuration is considered as a good practice, and as other sshd rules assume that directives in files in the <tt>/etc/ssh/sshd_config.d</tt> config directory are effective, there has to be a rule that ensures this.\nAside from that, having multiple configuration files makes the SSH Server configuration changes easier to partition according to the reason that they were introduced, and therefore it should help to perform merges of hardening updates.",
+    "source": {
+      "upstream_id": "sshd_use_directory_configuration",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-87681-3",
+      "imported_at": "2025-10-03T10:45:55.816069+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "authentication",
+  "security_function": "access_control",
+  "tags": [
+    "ssg",
+    "severity_medium",
+    "converted",
+    "ssh",
+    "scap"
+  ],
+  "frameworks": {
+    "hipaa": {
+      "current": [
+        "164.312(a)"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_use_directory_configuration",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Make sure to have the <tt>Include /etc/ssh/sshd_config.d/*.conf</tt> line in the <tt>/etc/ssh/sshd_config</tt> file.\nIdeally, don't have any active configuration directives in that file, and distribute the service configuration\nto several files in the <tt>/etc/ssh/sshd_config.d</tt> directory.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/services/ssh/ssh_server/sshd_use_directory_configuration/rule.yml",
+  "source_hash": "sha256:f65e1db5cffec812",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:55.816170+00:00",
+  "updated_at": "2025-10-03T10:45:55.816172+00:00",
+  "identifiers": {
+    "cce": "CCE-87681-3"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "_id": "ow-scc_limit_network_namespace",
+  "rule_id": "ow-scc_limit_network_namespace",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_network_namespace",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Limit Access to the Host Network Namespace",
+    "description": "Containers should not be allowed access to the host's network\nnamespace. To prevent containers from getting access to a host's\nnetwork namespace, the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostNetwork</tt> to <tt>false</tt>.",
+    "rationale": "A container running in the host's network namespace could\naccess the host network traffic to and from other pods\npotentially allowing an attacker to exploit pods and network\ntraffic.",
+    "source": {
+      "upstream_id": "scc_limit_network_namespace",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "CCE-83492-9",
+      "imported_at": "2025-10-03T10:45:56.474402+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {
+    "cis": {
+      "controls_v8": [
+        "5.2.4"
+      ]
+    },
+    "nist": {
+      "800-53r5": [
+        "CM-6",
+        "CM-6(1)"
+      ]
+    },
+    "pci": {
+      "v4.0": [
+        "Req-2.2"
+      ]
+    },
+    "stig": {
+      "current": [
+        "SRG-APP-000142-CTR-000330"
+      ]
+    }
+  },
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_scc_limit_network_namespace",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "Containers should not be allowed access to the host's network\nnamespace. To prevent containers from getting access to a host's\nnetwork namespace, the appropriate Security Context Constraints (SCCs)\nshould set <tt>allowHostNetwork</tt> to <tt>false</tt>.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "applications/openshift/scc/scc_limit_network_namespace/rule.yml",
+  "source_hash": "sha256:c60084deb8c926f5",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.474491+00:00",
+  "updated_at": "2025-10-03T10:45:56.474494+00:00",
+  "identifiers": {
+    "cce": "CCE-83492-9"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "_id": "ow-set_ufw_default_rule",
+  "rule_id": "ow-set_ufw_default_rule",
+  "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_ufw_default_rule",
+  "parent_rule_id": null,
+  "metadata": {
+    "name": "Ensure ufw Default Deny Firewall Policy",
+    "description": "A default deny policy on connections ensures that any unconfigured\nnetwork usage will be rejected.\n\nNote: Any port or protocol without a explicit allow before the default\ndeny will be blocked.",
+    "rationale": "With a default accept policy the firewall will accept any packet that\nis not configured to be denied. It is easier to allow acceptable\nusage than to block unacceptable usage.",
+    "source": {
+      "upstream_id": "set_ufw_default_rule",
+      "complianceascode_version": "0.1.73",
+      "source_file": "converted_from_yaml",
+      "cce_id": "",
+      "imported_at": "2025-10-03T10:45:56.138663+00:00"
+    }
+  },
+  "abstract": false,
+  "severity": "medium",
+  "category": "network_security",
+  "security_function": "access_control",
+  "tags": [
+    "severity_medium",
+    "scap",
+    "converted",
+    "ssg"
+  ],
+  "frameworks": {},
+  "platform_implementations": {},
+  "platform_requirements": {
+    "required_capabilities": [],
+    "excluded_environments": []
+  },
+  "check_type": "scap",
+  "check_content": {
+    "scap_rule_id": "xccdf_org.ssgproject.content_rule_set_ufw_default_rule",
+    "method": "xccdf_evaluation",
+    "expected_result": "pass"
+  },
+  "fix_available": false,
+  "fix_content": {},
+  "manual_remediation": "A default deny policy on connections ensures that any unconfigured\nnetwork usage will be rejected.\n\nNote: Any port or protocol without a explicit allow before the default\ndeny will be blocked.",
+  "remediation_complexity": "medium",
+  "remediation_risk": "low",
+  "dependencies": {
+    "requires": [],
+    "conflicts": [],
+    "related": []
+  },
+  "source_file": "linux_os/guide/system/network/network-ufw/set_ufw_default_rule/rule.yml",
+  "source_hash": "sha256:19ecec3e8bc0dc90",
+  "version": "2024.2",
+  "imported_at": "2025-10-03T10:45:56.138751+00:00",
+  "updated_at": "2025-10-03T10:45:56.138754+00:00",
+  "identifiers": {}
+}
