@@ -38,6 +38,10 @@ import {
   clearFilters,
   setPagination,
   clearError,
+  fetchRules,
+  fetchRuleDetails,
+  fetchRuleDependencies,
+  exportRules,
   Rule,
 } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
@@ -89,13 +93,22 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
     loadRules();
   }, []);
 
+  // Helper to convert filter state to API params
+  const getFilterParams = () => ({
+    platform: activeFilters.platforms?.[0],
+    severity: activeFilters.severities?.[0],
+    category: activeFilters.categories?.[0],
+    framework: activeFilters.frameworks?.[0],
+    abstract: activeFilters.abstract ?? undefined,
+  });
+
   // Load rules function
   const loadRules = async () => {
     try {
       const rulesData = await ruleService.getRules({
         offset: pagination.offset,
         limit: pagination.limit,
-        ...activeFilters,
+        ...getFilterParams(),
       });
       // Handle rules data - this would typically update the store
     } catch (error) {
@@ -105,10 +118,18 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
+    const filterParams = {
+      platform: activeFilters.platforms?.[0],
+      severity: activeFilters.severities?.[0],
+      category: activeFilters.categories?.[0],
+      framework: activeFilters.frameworks?.[0],
+      abstract: activeFilters.abstract ?? undefined,
+    };
+
     dispatch(fetchRules({
       offset: pagination.offset,
       limit: pagination.limit,
-      ...activeFilters,
+      ...filterParams,
     }));
   }, [pagination, activeFilters, dispatch]);
 
@@ -147,12 +168,21 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
     dispatch(updateFilters(filters));
     dispatch(setPagination({ offset: 0, limit: pagination.limit }));
 
+    // Combine active filters with new filters
+    const combinedFilters = { ...activeFilters, ...filters };
+    const filterParams = {
+      platform: combinedFilters.platforms?.[0],
+      severity: combinedFilters.severities?.[0],
+      category: combinedFilters.categories?.[0],
+      framework: combinedFilters.frameworks?.[0],
+      abstract: combinedFilters.abstract ?? undefined,
+    };
+
     // Reload rules with new filters
     dispatch(fetchRules({
       offset: 0,
       limit: pagination.limit,
-      ...activeFilters,
-      ...filters,
+      ...filterParams,
     }));
   }, [activeFilters, pagination.limit, dispatch]);
 
@@ -192,13 +222,21 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
   const handlePageChange = (event: React.ChangeEvent<unknown>, page: number) => {
     const newOffset = (page - 1) * pagination.limit;
     dispatch(setPagination({ offset: newOffset, limit: pagination.limit }));
-    
+
+    const filterParams = {
+      platform: activeFilters.platforms?.[0],
+      severity: activeFilters.severities?.[0],
+      category: activeFilters.categories?.[0],
+      framework: activeFilters.frameworks?.[0],
+      abstract: activeFilters.abstract ?? undefined,
+    };
+
     dispatch(fetchRules({
       offset: newOffset,
       limit: pagination.limit,
-      ...activeFilters,
+      ...filterParams,
     }));
-    
+
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -306,32 +344,29 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {!isLoading && displayRules.length === 0 ? (
           <EmptyState
-            icon={searchQuery ? SearchIcon : FilterIcon}
+            icon={searchQuery ? <SearchIcon /> : <FilterIcon />}
             title={searchQuery ? 'No rules found' : 'No rules available'}
             description={
               searchQuery
                 ? `No rules match your search for "${searchQuery}"`
-                : activeFilters && Object.values(activeFilters).some(f => 
+                : activeFilters && Object.values(activeFilters).some(f =>
                     Array.isArray(f) ? f.length > 0 : f !== null
                   )
                 ? 'No rules match the selected filters'
                 : 'No rules have been imported yet'
             }
             action={
-              searchQuery || Object.values(activeFilters).some(f => 
+              searchQuery || Object.values(activeFilters).some(f =>
                 Array.isArray(f) ? f.length > 0 : f !== null
-              ) ? (
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    dispatch(clearFilters());
-                    dispatch(setSearchQuery(''));
-                    handleRefresh();
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              ) : undefined
+              ) ? {
+                label: 'Clear Filters',
+                onClick: () => {
+                  dispatch(clearFilters());
+                  dispatch(setSearchQuery(''));
+                  handleRefresh();
+                },
+                variant: 'contained' as const,
+              } : undefined
             }
           />
         ) : (

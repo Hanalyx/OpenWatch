@@ -11,9 +11,9 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 
 interface AuthHeaders {
-  [key: string]: string;
   'Authorization'?: string;
   'Content-Type': string;
+  [key: string]: string | undefined;
 }
 
 interface AuthHeadersResult {
@@ -66,7 +66,7 @@ export const useAuthHeaders = (): AuthHeadersResult => {
  * Utility function for non-hook contexts
  * Use this in service classes or utility functions where hooks can't be used
  */
-export const getAuthHeaders = (): AuthHeaders => {
+export const getAuthHeaders = (): Record<string, string> => {
   let token: string | null = null;
 
   // Try localStorage (most reliable in non-React contexts)
@@ -74,7 +74,7 @@ export const getAuthHeaders = (): AuthHeaders => {
     token = localStorage.getItem('auth_token');
   }
 
-  const headers: AuthHeaders = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
 
