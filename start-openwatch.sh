@@ -281,7 +281,7 @@ start_services() {
             log_info "  Frontend: http://localhost:8080 (HTTPS: https://localhost:8443)"
             log_info "  Backend API: http://localhost:8000"
         else
-            log_info "  Frontend: http://localhost:3001"
+            log_info "  Frontend: http://localhost:3000"
             log_info "  Backend API: http://localhost:8000"
         fi
         log_info "  API Docs: http://localhost:8000/docs"
@@ -315,7 +315,7 @@ check_health() {
     fi
     
     # Check frontend
-    if curl -f -s http://localhost:3001 &> /dev/null; then
+    if curl -f -s http://localhost:3000 &> /dev/null; then
         log_success "Frontend is healthy"
     else
         log_warning "Frontend health check failed - may still be starting"

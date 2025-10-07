@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import logging
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ..database import get_db, Host
 from ..auth import get_current_user
