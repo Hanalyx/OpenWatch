@@ -296,10 +296,10 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
   const endItem = Math.min(pagination.page * pagination.rowsPerPage, pagination.total);
 
   return (
-    <Box sx={{ 
-      height: "100vh", 
-      display: "flex", 
-      flexDirection: "column", 
+    <Box sx={{
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
       overflow: "hidden"
     }}>
       {/* Compact Header */}
@@ -631,26 +631,28 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
         </Box>
       ) : (
         // Optimized table view for 'all' mode with fixed pagination
-        <Box sx={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          minHeight: 0
+        <Box sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden'
         }}>
-          <TableContainer sx={{ 
+          <TableContainer sx={{
             flex: 1,
             overflow: 'auto',
-            minHeight: 0
+            minHeight: 0,
+            marginBottom: 0
           }}>
-            <Table stickyHeader size="small">
+            <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ minWidth: 280, maxWidth: 400 }}>Rule Information</TableCell>
-                  <TableCell align="center" sx={{ width: 100 }}>Severity</TableCell>
-                  <TableCell align="center" sx={{ width: 120 }}>Category</TableCell>
-                  <TableCell align="center" sx={{ width: 140 }}>Frameworks</TableCell>
-                  <TableCell align="center" sx={{ width: 120 }}>Platforms</TableCell>
-                  <TableCell align="center" sx={{ width: 80 }}>Actions</TableCell>
+                  <TableCell sx={{ width: 400, minWidth: 280, maxWidth: 400 }}>Rule Information</TableCell>
+                  <TableCell align="center" sx={{ width: 100, minWidth: 100 }}>Severity</TableCell>
+                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>Category</TableCell>
+                  <TableCell align="center" sx={{ width: 140, minWidth: 140 }}>Frameworks</TableCell>
+                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>Platforms</TableCell>
+                  <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -683,27 +685,45 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                       hover 
                       sx={{ '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) } }}
                     >
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium" sx={{ mb: 0.5 }}>
+                      <TableCell sx={{
+                        py: 1.5,
+                        maxWidth: 400,
+                        minWidth: 280,
+                        width: 400,
+                        overflow: 'hidden'
+                      }}>
+                        <Box sx={{ maxWidth: '100%' }}>
+                          <Typography variant="body2" fontWeight="medium" sx={{
+                            mb: 0.5,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
                             {rule.metadata.name}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{
+                            mb: 0.5,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
                             {rule.rule_id}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ 
+                          <Typography variant="caption" color="text.secondary" sx={{
                             display: '-webkit-box',
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
-                            lineHeight: 1.4
+                            lineHeight: 1.4,
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word'
                           }}>
                             {rule.metadata.description}
                           </Typography>
                         </Box>
                       </TableCell>
                       
-                      <TableCell align="center">
+                      <TableCell align="center" sx={{ width: 100, minWidth: 100 }}>
                         <Chip
                           label={rule.severity}
                           size="small"
@@ -714,10 +734,10 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                           }}
                         />
                       </TableCell>
-                      
-                      <TableCell align="center">
+
+                      <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>
                         <Chip
-                          label={rule.category.split('_').map(word => 
+                          label={rule.category.split('_').map(word =>
                             word.charAt(0).toUpperCase() + word.slice(1)
                           ).join(' ')}
                           size="small"
@@ -725,35 +745,50 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                           icon={<CategoryIcon fontSize="small" />}
                         />
                       </TableCell>
-                      
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
-                          {rule.frameworks && Object.keys(rule.frameworks).map(framework => (
-                            <Chip
-                              key={framework}
-                              label={framework.toUpperCase()}
-                              size="small"
-                              variant="outlined"
-                            />
-                          ))}
+
+                      <TableCell align="center" sx={{ width: 140, minWidth: 140, overflow: 'hidden' }}>
+                        <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ flexWrap: 'wrap' }}>
+                          {rule.frameworks && Object.keys(rule.frameworks)
+                            .filter(framework => {
+                              const fwData = rule.frameworks[framework];
+                              // Only show if framework has actual mappings (not empty object)
+                              return fwData && typeof fwData === 'object' && Object.keys(fwData).length > 0;
+                            })
+                            .map(framework => (
+                              <Chip
+                                key={framework}
+                                label={framework.toUpperCase()}
+                                size="small"
+                                variant="outlined"
+                              />
+                            ))
+                          }
                         </Stack>
                       </TableCell>
-                      
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
-                          {rule.platform_implementations && Object.keys(rule.platform_implementations).map(platform => (
-                            <Chip
-                              key={platform}
-                              label={platform.toUpperCase()}
-                              size="small"
-                              variant="outlined"
-                              icon={<PlatformIcon fontSize="small" />}
-                            />
-                          ))}
+
+                      <TableCell align="center" sx={{ width: 120, minWidth: 120, overflow: 'hidden' }}>
+                        <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ flexWrap: 'wrap' }}>
+                          {rule.platform_implementations && Object.keys(rule.platform_implementations)
+                            .filter(platform => {
+                              const impl = rule.platform_implementations[platform];
+                              // Only show if platform has actual implementation data (not empty/null object)
+                              return impl && typeof impl === 'object' && Object.keys(impl).length > 0 &&
+                                     (impl.versions?.length > 0 || impl.check_command || impl.enable_command);
+                            })
+                            .map(platform => (
+                              <Chip
+                                key={platform}
+                                label={platform.toUpperCase()}
+                                size="small"
+                                variant="outlined"
+                                icon={<PlatformIcon fontSize="small" />}
+                              />
+                            ))
+                          }
                         </Stack>
                       </TableCell>
-                      
-                      <TableCell align="center">
+
+                      <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>
                         <Tooltip title="View rule details">
                           <span>
                             <IconButton
@@ -773,9 +808,9 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
           </TableContainer>
 
           
-          {/* Pagination - Always visible at bottom of table container */}
+          {/* Pagination - Fixed at bottom */}
           {pagination.total > 0 && (
-            <Box sx={{ 
+            <Box sx={{
               p: 2,
               borderTop: `2px solid ${theme.palette.primary.main}`,
               backgroundColor: theme.palette.background.paper,
@@ -784,8 +819,6 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               alignItems: 'center',
               flexShrink: 0,
               minHeight: 80,
-              position: 'sticky',
-              bottom: 0,
               zIndex: 100,
               boxShadow: `0 -4px 8px ${alpha(theme.palette.common.black, 0.2)}`
             }}>
