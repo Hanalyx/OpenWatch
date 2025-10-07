@@ -81,7 +81,7 @@ class RuleService {
       if (params.framework) queryParams.append('framework', params.framework);
       if (params.search) queryParams.append('search', params.search);
       
-      const response = await fetch(`/all-rules?${queryParams.toString()}`);
+      const response = await fetch(`/api/v1/compliance-rules/?${queryParams.toString()}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

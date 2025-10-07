@@ -24,8 +24,8 @@ export const useComplianceStatistics = (): UseComplianceStatisticsReturn => {
       setLoading(true);
       setError(null);
 
-      // Use Vite proxy to statistics server
-      const response = await fetch('/platform-stats');
+      // Use MongoDB compliance rules API endpoint
+      const response = await fetch('/api/v1/compliance-rules/?view_mode=platform_statistics');
 
       if (!response.ok) {
         console.warn('Platform statistics endpoint not available, using fallback data');

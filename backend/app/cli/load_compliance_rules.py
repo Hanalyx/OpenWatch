@@ -36,9 +36,18 @@ class ComplianceRulesLoader:
     async def initialize_mongodb(self):
         """Initialize MongoDB connection"""
         try:
-            # Initialize MongoDB connection
-            mongodb_url = "mongodb://localhost:27017"
-            await mongo_manager.initialize(mongodb_url, "openwatch_rules")
+            # Import settings to get correct MongoDB URL
+            from ..config import get_settings
+            settings = get_settings()
+
+            # Initialize MongoDB connection with correct URL from settings
+            logger.info(f"Connecting to MongoDB: {settings.mongodb_url}")
+            await mongo_manager.initialize(
+                settings.mongodb_url,
+                settings.mongodb_database,
+                min_pool_size=settings.mongodb_min_pool_size,
+                max_pool_size=settings.mongodb_max_pool_size
+            )
             
             # Initialize mongo service
             self.mongo_service = MongoIntegrationService()

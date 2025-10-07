@@ -43,8 +43,8 @@ export const useFrameworkStatistics = (): UseFrameworkStatisticsReturn => {
       setLoading(true);
       setError(null);
 
-      // Use Vite proxy to statistics server
-      const response = await fetch('/framework-stats');
+      // Use MongoDB compliance rules API endpoint
+      const response = await fetch('/api/v1/compliance-rules/?view_mode=framework_statistics');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

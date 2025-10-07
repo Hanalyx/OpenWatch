@@ -494,9 +494,15 @@ fi
             for rule in all_rules:
                 platforms = rule.platform_implementations or {}
                 rule_category = rule.category or "other"
-                
+
                 for platform_key, impl in platforms.items():
-                    versions = impl.get('versions', ['Unknown'])
+                    # Handle both dict and PlatformImplementation object
+                    if hasattr(impl, 'versions'):
+                        versions = impl.versions if impl.versions else ['Unknown']
+                    elif isinstance(impl, dict):
+                        versions = impl.get('versions', ['Unknown'])
+                    else:
+                        versions = ['Unknown']
                     
                     for version in versions:
                         platform_id = f"{platform_key}_{version}"
@@ -519,8 +525,17 @@ fi
                         
                         # Collect frameworks
                         if rule.frameworks:
-                            for framework in rule.frameworks.keys():
-                                platform_analysis[platform_id]["frameworks"].add(framework)
+                            # Handle both dict and FrameworkVersions object
+                            if hasattr(rule.frameworks, 'dict'):
+                                # It's a Pydantic model
+                                fw_dict = rule.frameworks.dict()
+                                for framework in fw_dict.keys():
+                                    if fw_dict[framework]:  # Only add if framework has data
+                                        platform_analysis[platform_id]["frameworks"].add(framework)
+                            elif isinstance(rule.frameworks, dict):
+                                for framework in rule.frameworks.keys():
+                                    if rule.frameworks[framework]:
+                                        platform_analysis[platform_id]["frameworks"].add(framework)
             
             # Convert to final format
             platform_stats = []
