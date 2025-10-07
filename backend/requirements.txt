@@ -1,0 +1,80 @@
+# OpenWatch Backend Dependencies
+# Core web framework
+fastapi==0.109.2
+uvicorn[standard]==0.32.1
+starlette==0.36.3
+python-multipart==0.0.18
+
+# Database
+SQLAlchemy==2.0.35
+alembic==1.14.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+
+# MongoDB / Beanie ODM
+motor==3.6.0
+pymongo==4.9.2
+beanie==1.26.0
+
+# Redis & Celery
+redis==5.2.1
+celery==5.4.0
+kombu==5.5.4
+amqp==5.3.1
+
+# Authentication & Security
+PyJWT==2.8.0
+passlib==1.7.4
+bcrypt==5.0.0
+argon2-cffi==23.1.0
+python-multipart==0.0.18
+pyotp==2.9.0
+qrcode==7.4.2
+cryptography==44.0.1
+
+# SSH / Remote execution
+paramiko==3.5.0
+
+# HTTP Client
+requests==2.32.5
+httpx==0.28.1
+aiohttp==3.12.14
+
+# Data Validation
+pydantic==2.10.4
+pydantic-settings==2.8.0
+email-validator==2.3.0
+
+# Configuration
+python-dotenv==1.1.1
+PyYAML==6.0.3
+
+# Observability & Monitoring
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-sqlalchemy==0.42b0
+opentelemetry-instrumentation-redis==0.42b0
+opentelemetry-exporter-otlp==1.21.0
+prometheus-client==0.19.0
+
+# File handling
+aiofiles==24.1.0
+python-magic==0.4.27
+pillow==11.3.0
+lxml==5.3.0
+
+# Email
+aiosmtplib==3.0.1
+
+# Task scheduling
+APScheduler==3.10.4
+schedule==1.2.0
+
+# XML processing
+xmltodict==0.13.0
+
+# Utilities
+python-dateutil==2.9.0.post0
+pytz==2025.2
+chardet==4.0.0
