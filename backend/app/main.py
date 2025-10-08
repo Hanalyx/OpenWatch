@@ -74,9 +74,22 @@ async def lifespan(app: FastAPI):
     
     for attempt in range(max_retries):
         try:
-            create_tables()
-            logger.info("Database tables created successfully")
-            
+            # Initialize complete database schema (includes tables without ORM models)
+            from .init_database_schema import initialize_database_schema
+            schema_success = initialize_database_schema()
+
+            if not schema_success:
+                logger.error("Critical database schema initialization failed!")
+                logger.error("Application cannot start without required tables.")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    raise Exception("Database schema initialization failed after all retries")
+
+            logger.info("✅ Complete database schema initialized successfully")
+
             # Initialize RBAC system
             try:
                 from .init_roles import initialize_rbac_system
