@@ -2,216 +2,202 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Container Support](https://img.shields.io/badge/Container-Docker%20%7C%20Podman-green)](https://podman.io/)
-[![Kubernetes Ready](https://img.shields.io/badge/Kubernetes-Ready-326ce5)](https://kubernetes.io/)
 
-OpenWatch is a modern, open-source SCAP (Security Content Automation Protocol) compliance scanner designed for enterprise environments. Built with a plugin-first architecture, OpenWatch provides comprehensive security compliance assessment capabilities with support for STIG, CIS, and custom security profiles.
+OpenWatch is an open-source SCAP (Security Content Automation Protocol) compliance scanner for automated security assessments. Scan your infrastructure against STIG, CIS, and custom security profiles.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- **Container Runtime**: Docker or Podman
-- **System**: Linux (RHEL/Ubuntu recommended)
-- **Resources**: 4GB RAM, 2CPU cores minimum
+- Docker or Podman
+- Linux system (RHEL/Ubuntu recommended)
+- 4GB RAM, 2 CPU cores minimum
 
 ### Installation
 
 ```bash
-# Clone the repository
+# Clone and start
 git clone https://github.com/hanalyx/openwatch.git
 cd openwatch
+./start-openwatch.sh --runtime docker --build
 
-# Quick start (automatic runtime detection)
-./start-openwatch.sh
-
-# Or use container compose directly
-podman-compose -f podman-compose-fixed.yml up -d  # Rootless Podman (recommended)
-# OR
-docker-compose up -d  # Standard Docker
-
-# To stop services
-./stop-openwatch.sh
+# Wait 60-90 seconds for services to start
+# Access web interface at http://localhost:3000
+# Default credentials: admin / admin
 ```
+
+**Important**: Change the default admin password immediately after first login.
 
 ### First Scan
-```bash
-# Access the web interface
-open https://localhost:3000
 
-# Or use CLI scanning
-owadm exec backend python -m app.cli scan --profile stig-rhel8 --target 192.168.1.100
+1. **Add SSH credentials** (Settings → System Credentials)
+   - Name: `default-ssh`
+   - Username: Your SSH user
+   - Authentication: Password or SSH key
+
+2. **Add a host** (Hosts → Add Host)
+   - Hostname/IP: Your target system
+   - SSH Port: 22 (default)
+   - Credentials: Select `default-ssh`
+
+3. **Upload SCAP content** (Content → Upload)
+   - Download SCAP content from [NIST NCP](https://ncp.nist.gov/repository)
+   - Upload the `.xml` data-stream file
+
+4. **Run a scan** (Scanning → New Scan)
+   - Select host and SCAP profile
+   - Click "Start Scan"
+   - View results in real-time
+
+## Architecture
+
+```
+┌─────────────┬─────────────┬─────────────┐
+│  Frontend   │   Backend   │   Scanner   │
+│   (React)   │  (FastAPI)  │  (OpenSCAP) │
+└──────┬──────┴──────┬──────┴──────┬──────┘
+       │             │             │
+   ┌───▼───┬────────▼────────┬────▼────┐
+   │ NGINX │   PostgreSQL    │  Redis  │
+   └───────┴─────────────────┴─────────┘
 ```
 
-## 🏗️ Architecture
+**Components:**
+- **Frontend**: React with Material Design 3
+- **Backend**: FastAPI with OpenSCAP integration
+- **Database**: PostgreSQL for compliance data
+- **Task Queue**: Celery with Redis
+- **Web Server**: NGINX with TLS
 
-OpenWatch follows a modern, cloud-native architecture with plugin extensibility:
+## Features
 
-```
-┌─────────────────┬─────────────────┬─────────────────┐
-│   Frontend      │    Backend      │   Extensions    │
-│   (React)       │   (FastAPI)     │   (Plugins)     │
-├─────────────────┼─────────────────┼─────────────────┤
-│ • Scan Results  │ • SCAP Engine   │ • Custom Rules  │
-│ • Dashboard     │ • Host Mgmt     │ • Integrations  │
-│ • Reports       │ • API Gateway   │ • Remediation   │
-└─────────────────┴─────────────────┴─────────────────┘
-         │                 │                 │
-    ┌────▼────┬───────────▼──────────┬──────▼──────┐
-    │ NGINX   │    PostgreSQL        │    Redis    │
-    │ (TLS)   │    (Compliance       │  (Tasks)    │
-    │         │     Data)            │             │
-    └─────────┴──────────────────────┴─────────────┘
-```
+- **Multi-host scanning**: Scan 100+ hosts in parallel
+- **STIG/CIS profiles**: Pre-configured security baselines
+- **Real-time results**: Live scan progress and results
+- **SSH authentication**: Password and key-based auth
+- **Container deployment**: Docker/Podman ready
+- **REST API**: Full automation support
 
-### Core Components
+## Configuration
 
-- **SCAP Scanning Engine**: OpenSCAP integration with parallel processing
-- **Web Interface**: Modern React frontend with Material Design 3
-- **API Gateway**: FastAPI backend with comprehensive REST API
-- **Plugin System**: Extensible architecture for custom functionality
-- **Container-First**: Docker/Podman ready with Kubernetes support
+### Environment Variables
 
-## 📋 Features
-
-### ✅ Current Capabilities
-- **Multi-Host Scanning**: Parallel SCAP scanning for 100+ hosts
-- **STIG/CIS Support**: Built-in security profiles and baselines
-- **Web Dashboard**: Interactive compliance reporting and visualization
-- **Container Deployment**: Docker/Podman with health monitoring
-- **REST API**: Complete API for automation and integration
-- **Audit Logging**: Comprehensive security event tracking
-
-### 🚧 Roadmap (Community Contributions Welcome)
-- **Plugin Marketplace**: Community-driven extension ecosystem
-- **Advanced Analytics**: ML-powered compliance insights
-- **Multi-Cloud Support**: AWS/Azure/GCP native integrations
-- **Kubernetes Operator**: Native K8s deployment and scaling
-- **SIEM Integration**: Splunk, QRadar, Sentinel connectors
-
-## 🛠️ Development
-
-### Development Setup
-
-#### Required Environment Variables
-Before starting OpenWatch, you **must** configure these critical environment variables:
+Create `backend/.env` with required settings:
 
 ```bash
-# 1. Copy the example environment file
-cp backend/.env.example backend/.env
-
-# 2. Generate secure keys
+# Generate secure keys
 SECRET_KEY=$(openssl rand -hex 32)
 MASTER_KEY=$(openssl rand -hex 32)
 
-# 3. Edit backend/.env with your values
-SECRET_KEY=your-generated-secret-key-here
-MASTER_KEY=your-generated-master-key-here
-DATABASE_URL=postgresql://openwatch:password@localhost:5432/openwatch
+# Database connection
+DATABASE_URL=postgresql://openwatch:password@db:5432/openwatch
+
+# Optional settings
+OPENWATCH_DEBUG=false
+OPENWATCH_REQUIRE_HTTPS=true
 ```
 
-#### Backend Development
+See [`backend/.env.example`](backend/.env.example) for complete configuration options.
+
+### Container Runtime
+
+**Docker:**
+```bash
+docker-compose up -d
+docker-compose down
+```
+
+**Podman (rootless):**
+```bash
+podman-compose -f podman-compose-fixed.yml up -d
+podman-compose -f podman-compose-fixed.yml down
+```
+
+## Troubleshooting
+
+### Services won't start
+```bash
+# Check container logs
+docker-compose logs backend
+docker-compose logs frontend
+
+# Restart services
+./stop-openwatch.sh
+./start-openwatch.sh --runtime docker --build
+```
+
+### Database connection errors
+```bash
+# Verify database is running
+docker-compose ps
+
+# Check database logs
+docker-compose logs db
+```
+
+### Scan failures
+- Verify SSH credentials are correct
+- Ensure target host is reachable
+- Check target host has `oscap` installed (for remote scans)
+- Review scan logs in Scanning → Scan History
+
+See [docs/FIRST_RUN_SETUP.md](docs/FIRST_RUN_SETUP.md) for detailed troubleshooting.
+
+## Development
+
+### Backend Development
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Ensure environment variables are set
+# Set environment variables
 export SECRET_KEY="your-secret-key"
 export MASTER_KEY="your-master-key"
 
+# Start backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-#### Frontend Development  
+### Frontend Development
 ```bash
 cd frontend
 npm install
 npm run dev  # Runs on port 3001
 ```
 
-#### Environment Variables Reference
+### Running Tests
+```bash
+# Backend tests
+cd backend
+pip install pytest pytest-asyncio pytest-cov
+pytest tests/ -v
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SECRET_KEY` | **Yes** | None | JWT signing key (min 32 chars) |
-| `MASTER_KEY` | **Yes** | None | Data encryption key (min 32 chars) |
-| `DATABASE_URL` | **Yes** | None | PostgreSQL connection string |
-| `SCAP_CONTENT_DIR` | No | `/app/data/scap` | SCAP content files location |
-| `SCAN_RESULTS_DIR` | No | `/app/data/results` | Scan results storage location |
-| `OPENWATCH_DEBUG` | No | `false` | Enable debug mode |
-| `OPENWATCH_REQUIRE_HTTPS` | No | `true` | Enforce HTTPS connections |
+# Frontend tests
+cd frontend
+npm test
+```
 
-For complete environment configuration, see [`backend/.env.example`](backend/.env.example).
+**Important:** Always run tests before committing. See [docs/STOP_BREAKING_THINGS.md](docs/STOP_BREAKING_THINGS.md) for testing strategy.
 
-### Architecture Documentation
-- [Directory Structure](DIRECTORY_ARCHITECTURE.md) - Project organization and rationale
-- [Kubernetes Migration](KUBERNETES_READINESS.md) - Container orchestration strategy
-- [API Documentation](http://localhost:8000/docs) - Interactive API explorer (when running)
+## Security
 
-### Contributing
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
-- Development workflow and standards
-- Plugin development guidelines
-- Security review process
-- Community communication
+- **Encryption**: AES-256-GCM for credentials, TLS for transport
+- **Authentication**: JWT with RS256 signing
+- **FIPS compliance**: FIPS 140-2 Level 1 cryptography
+- **Audit logging**: All security events logged
 
-## 📊 Performance & Scale
+**Report vulnerabilities**: security@hanalyx.com
 
-### Benchmarks
-- **Scanning Performance**: 100+ hosts in parallel
-- **SCAP Processing**: <30s for standard STIG profiles
-- **Resource Usage**: <2GB RAM for standard deployments
-- **Container Startup**: <30s cold start time
+## License
 
-### Enterprise Scale
-OpenWatch is designed for enterprise environments:
-- **High Availability**: Multi-instance deployment support
-- **Horizontal Scaling**: Stateless backend architecture
-- **Data Persistence**: PostgreSQL with backup automation
-- **Security**: FIPS-compliant cryptography and audit logging
+Apache License 2.0 - see [LICENSE](LICENSE)
 
-## 🔒 Security
+## Acknowledgments
 
-### Security Features
-- **FIPS Compliance**: FIPS 140-2 Level 1 cryptographic modules
-- **JWT Authentication**: RS256 with key rotation support
-- **TLS Encryption**: End-to-end encrypted communications
-- **Audit Logging**: Complete security event tracking
-- **Rootless Containers**: Enhanced container security posture
-
-### Security Reporting
-- **Vulnerability Reports**: Email security@hanalyx.com
-- **Security Advisories**: Published via GitHub Security Advisories
-- **Response Time**: <48 hours for critical vulnerabilities
-
-## 📄 License
-
-OpenWatch is licensed under the [Apache License 2.0](LICENSE).
-
-## 🤝 Community & Support
-
-### Community Resources
-- **Documentation**: [docs.openwatch.io](https://docs.openwatch.io)
-- **Discussions**: [GitHub Discussions](https://github.com/hanalyx/openwatch/discussions)
-- **Issues**: [GitHub Issues](https://github.com/hanalyx/openwatch/issues)
-- **Discord**: [OpenWatch Community](https://discord.gg/openwatch)
-
-### Commercial Support
-Enterprise support and services available through [Hanalyx](https://hanalyx.com):
-- Professional services and consulting
-- Custom plugin development
-- Enterprise deployment assistance
-- 24/7 technical support options
-
----
-
-## 🙏 Acknowledgments
-
-OpenWatch is built on excellent open-source foundations:
-- [OpenSCAP](https://www.open-scap.org/) - SCAP toolkit and scanner
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [React](https://reactjs.org/) - User interface library
-- [Material-UI](https://mui.com/) - React component library
-- [Podman](https://podman.io/) - Rootless container runtime
-
-**Made with ❤️ by the Hanalyx team and OpenWatch community**
+Built with:
+- [OpenSCAP](https://www.open-scap.org/) - SCAP scanning engine
+- [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
+- [React](https://reactjs.org/) - Frontend framework
+- [Material-UI](https://mui.com/) - UI components
+- [Podman](https://podman.io/) - Container runtime
