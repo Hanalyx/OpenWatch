@@ -102,27 +102,39 @@ See [`backend/.env.example`](backend/.env.example) for complete configuration op
 
 **Docker:**
 ```bash
-docker-compose up -d
-docker-compose down
+./start-openwatch.sh --runtime docker
+./stop-openwatch.sh                # Safe stop (preserves data)
 ```
 
 **Podman (rootless):**
 ```bash
-podman-compose -f podman-compose-fixed.yml up -d
-podman-compose -f podman-compose-fixed.yml down
+./start-openwatch.sh --runtime podman
+./stop-openwatch.sh                # Safe stop (preserves data)
 ```
+
+**⚠️ IMPORTANT:** By default, `./stop-openwatch.sh` preserves all data. Use `OPENWATCH_CLEAN_STOP=true ./stop-openwatch.sh` only when you want to delete all data.
 
 ## Troubleshooting
 
 ### Services won't start
 ```bash
 # Check container logs
-docker-compose logs backend
-docker-compose logs frontend
+docker logs openwatch-backend
+docker logs openwatch-frontend
 
-# Restart services
+# Restart services (preserves data)
 ./stop-openwatch.sh
 ./start-openwatch.sh --runtime docker --build
+```
+
+### Data disappeared after restart
+```bash
+# This is caused by running old versions of stop-openwatch.sh
+# Update to latest version (safe by default):
+git pull origin main
+
+# Data is lost and must be re-entered
+# Future restarts will preserve data
 ```
 
 ### Database connection errors
