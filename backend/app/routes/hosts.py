@@ -99,6 +99,93 @@ class HostUpdate(BaseModel):
     description: Optional[str] = None  # Allow description updates
 
 
+@router.post("/validate-credentials")
+async def validate_credentials(
+    validation_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Validate SSH credentials without creating a host.
+
+    This endpoint allows the Add Host frontend to validate SSH keys
+    before submission, providing immediate feedback to users.
+
+    Request body:
+    {
+        "auth_method": "ssh_key" | "password",
+        "ssh_key": "string (optional)",
+        "password": "string (optional)"
+    }
+
+    Returns:
+    {
+        "is_valid": boolean,
+        "auth_method": string,
+        "key_type": string (for SSH keys),
+        "key_bits": integer (for SSH keys),
+        "security_level": string (for SSH keys),
+        "error_message": string (if invalid),
+        "warnings": list (if any),
+        "recommendations": list (if any)
+    }
+    """
+    try:
+        auth_method = validation_data.get('auth_method')
+        ssh_key = validation_data.get('ssh_key')
+        password = validation_data.get('password')
+
+        # Validate SSH key
+        if auth_method == 'ssh_key' and ssh_key:
+            logger.info("Validating SSH key credentials via validate-credentials endpoint")
+            validation_result = validate_ssh_key(ssh_key)
+
+            return {
+                "is_valid": validation_result.is_valid,
+                "auth_method": "ssh_key",
+                "key_type": validation_result.key_type.value if validation_result.key_type else None,
+                "key_bits": validation_result.key_size,
+                "security_level": validation_result.security_level.value if validation_result.security_level else None,
+                "error_message": validation_result.error_message,
+                "warnings": validation_result.warnings,
+                "recommendations": validation_result.recommendations
+            }
+
+        # Password validation (basic check)
+        elif auth_method == 'password' and password:
+            # Basic password validation - just check it's not empty
+            if len(password.strip()) == 0:
+                return {
+                    "is_valid": False,
+                    "auth_method": "password",
+                    "error_message": "Password cannot be empty",
+                    "warnings": [],
+                    "recommendations": ["Use a strong password with at least 12 characters"]
+                }
+
+            return {
+                "is_valid": True,
+                "auth_method": "password",
+                "error_message": None,
+                "warnings": [] if len(password) >= 12 else ["Password should be at least 12 characters for security"],
+                "recommendations": ["Use a password manager", "Consider using SSH key authentication instead"]
+            }
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing credentials: provide either ssh_key or password based on auth_method"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Credential validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Validation failed: {str(e)}"
+        )
+
+
 @router.get("/", response_model=List[Host])
 async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all managed hosts"""
@@ -218,6 +305,26 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
             encrypted_creds = encrypt_credentials(json.dumps(cred_data))
             logger.info(f"Encrypting password credentials for new host {host.hostname}")
         elif host.auth_method == "ssh_key" and host.ssh_key:
+            # Validate SSH key before storing
+            logger.info(f"Validating SSH key for host '{host.hostname}'")
+            validation_result = validate_ssh_key(host.ssh_key)
+
+            if not validation_result.is_valid:
+                logger.error(f"SSH key validation failed for host '{host.hostname}': {validation_result.error_message}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid SSH key: {validation_result.error_message}"
+                )
+
+            # Log warnings if any (non-blocking)
+            if validation_result.warnings:
+                logger.warning(f"SSH key warnings for host '{host.hostname}': {'; '.join(validation_result.warnings)}")
+
+            # Log recommendations
+            if validation_result.recommendations:
+                logger.info(f"SSH key recommendations for host '{host.hostname}': {'; '.join(validation_result.recommendations)}")
+
+            # Validation passed - encrypt and store
             from ..services.crypto import encrypt_credentials
             cred_data = {
                 "username": host.username,
@@ -225,7 +332,7 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
                 "auth_method": "ssh_key"
             }
             encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-            logger.info(f"Encrypting SSH key credentials for new host {host.hostname}")
+            logger.info(f"Encrypting validated SSH key credentials for new host {host.hostname}")
         
         db.execute(text("""
             INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, 
@@ -397,7 +504,22 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
                 encrypted_creds = encrypt_credentials(json.dumps(cred_data))
                 logger.info(f"Encrypting password credentials for host {host_id}")
             elif host_update.auth_method == "ssh_key" and host_update.ssh_key:
-                # Encrypt SSH key credentials
+                # Validate SSH key before updating
+                logger.info(f"Validating SSH key for host update '{host_id}'")
+                validation_result = validate_ssh_key(host_update.ssh_key)
+
+                if not validation_result.is_valid:
+                    logger.error(f"SSH key validation failed for host update '{host_id}': {validation_result.error_message}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid SSH key: {validation_result.error_message}"
+                    )
+
+                # Log warnings if any (non-blocking)
+                if validation_result.warnings:
+                    logger.warning(f"SSH key warnings for host update '{host_id}': {'; '.join(validation_result.warnings)}")
+
+                # Validation passed - encrypt SSH key credentials
                 from ..services.crypto import encrypt_credentials
                 cred_data = {
                     "username": host_update.username or current_host.username,
@@ -405,7 +527,7 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
                     "auth_method": "ssh_key"
                 }
                 encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-                logger.info(f"Encrypting SSH key credentials for host {host_id}")
+                logger.info(f"Encrypting validated SSH key credentials for host {host_id}")
             elif host_update.auth_method == "system_default":
                 # Clear host-specific credentials when using system default
                 encrypted_creds = None

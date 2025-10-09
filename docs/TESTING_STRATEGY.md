@@ -5,11 +5,57 @@
 **Current State:**
 - ✅ CI/CD pipeline exists
 - ✅ GitHub Actions configured
-- ❌ **Zero actual tests written**
-- ❌ Tests skip with `--passWithNoTests`
-- ❌ **No protection against regressions**
+- ✅ **Critical regression tests written** (unified_credentials, host SSH validation)
+- ⚠️ **Partial test coverage** - core security features protected
+- ⚠️ **Need more integration tests**
 
-**Result:** Every code change risks breaking working functionality.
+**Result:** Critical security features are protected, but broader coverage needed.
+
+## Critical Component Testing
+
+### SSH Key Validation for Host Management (NEW - 2025-10-09)
+
+**Priority: CRITICAL** - SSH key validation is essential for secure host management.
+
+**Test Coverage:**
+- ✅ `backend/tests/test_host_ssh_validation.py` - 15 comprehensive tests
+- ✅ `backend/tests/test_regression_unified_credentials.py` - System credentials tests
+
+**Why This is Critical:**
+1. **Security** - Invalid SSH keys can compromise host access
+2. **User Experience** - Misleading errors when validation missing
+3. **Data Integrity** - Prevent malformed keys in database
+4. **Historical Bug** - hosts.py previously imported but never called validate_ssh_key()
+
+**Key Scenarios Tested:**
+- ✅ Valid Ed25519/RSA keys pass validation
+- ✅ Invalid/malformed keys are rejected with clear errors
+- ✅ Empty keys are rejected
+- ✅ Weak RSA-1024 keys flagged as deprecated
+- ✅ `/api/hosts/validate-credentials` endpoint exists
+- ✅ `POST /api/hosts/` validates keys before storing
+- ✅ Security levels correctly assessed (SECURE/ACCEPTABLE/DEPRECATED)
+- ✅ Validation matches Settings → System Credentials behavior
+
+**Test Command:**
+```bash
+pytest backend/tests/test_host_ssh_validation.py -v
+```
+
+**Expected Output:**
+```
+test_host_ssh_key_validation_import PASSED
+test_valid_ssh_key_passes_validation PASSED
+test_invalid_ssh_key_fails_validation PASSED
+test_empty_ssh_key_fails_validation PASSED
+test_rsa_2048_key_validation PASSED
+test_rsa_1024_key_rejected PASSED
+test_validate_credentials_endpoint_exists PASSED
+test_validate_credentials_accepts_ssh_key PASSED
+test_validate_credentials_rejects_invalid_key PASSED
+test_security_levels_are_assessed PASSED
+... 15 tests total
+```
 
 ## Practical Solution: Progressive Test Coverage
 
