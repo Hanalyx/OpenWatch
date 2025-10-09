@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 PROJECT_NAME="openwatch"
 RUNTIME=""
 COMPOSE_FILE=""
-CLEAN_MODE=${OPENWATCH_CLEAN_STOP:-true}  # Default to clean stop for development
+CLEAN_MODE=${OPENWATCH_CLEAN_STOP:-false}  # Default to SAFE stop - preserves data
 
 # Container names (matching actual docker-compose service names)
 CONTAINER_NAMES=(
@@ -148,10 +148,13 @@ stop_services() {
     
     cd "$SCRIPT_DIR"
     
-    local compose_down_flags=""
+    local compose_down_flags="--remove-orphans"  # Always remove orphans
     if [ "$CLEAN_MODE" = true ]; then
         compose_down_flags="--volumes --remove-orphans"
-        log_info "Development mode: Will remove volumes and orphaned containers"
+        log_warning "⚠️  CLEAN MODE: Will DELETE ALL DATA (volumes will be removed)"
+        log_warning "⚠️  This includes hosts, credentials, scan results, and SCAP content"
+    else
+        log_info "Safe mode: Stopping containers but preserving data volumes"
     fi
     
     case "$RUNTIME" in
@@ -263,10 +266,13 @@ main() {
             stop_services
             ;;
         *)
-            # Default behavior: clean stop for development
+            # Default behavior: safe stop (preserves data)
             if [ "$CLEAN_MODE" = true ]; then
-                log_info "Development mode: Performing clean stop (removes volumes and orphans)"
-                log_info "Use --simple to stop without removing volumes"
+                log_warning "CLEAN MODE: Performing destructive stop (removes volumes)"
+                log_warning "All data will be deleted! Use --simple to preserve data."
+            else
+                log_info "Safe mode: Preserving data volumes"
+                log_info "Use OPENWATCH_CLEAN_STOP=true for clean development environment"
             fi
             stop_services
             ;;
@@ -301,17 +307,19 @@ case "$1" in
         echo "  --dev-clean       Alias for --deep-clean"
         echo ""
         echo "Default Behavior (no options):"
-        echo "  Stops containers and removes volumes/orphans for clean development state"
+        echo "  Stops containers and preserves data volumes (SAFE MODE)"
         echo ""
         echo "Environment Variables:"
-        echo "  OPENWATCH_CLEAN_STOP=false   Disable default clean mode"
+        echo "  OPENWATCH_CLEAN_STOP=true    Enable clean mode (DELETES ALL DATA)"
         echo ""
         echo "Examples:"
-        echo "  $0                    # Clean stop (default for development)"
-        echo "  $0 --simple          # Quick stop, preserve volumes"
-        echo "  $0 --deep-clean      # Nuclear option: remove everything"
+        echo "  $0                           # Safe stop (preserves data)"
+        echo "  $0 --simple                  # Alias for safe stop"
+        echo "  OPENWATCH_CLEAN_STOP=true $0 # Clean stop (DELETES DATA)"
+        echo "  $0 --deep-clean              # Nuclear option: remove everything"
         echo ""
-        echo "For production environments, use --simple to preserve data."
+        echo "⚠️  WARNING: --deep-clean and CLEAN_MODE will DELETE ALL DATA!"
+        echo "    This includes: hosts, credentials, scan results, SCAP content"
         echo ""
         exit 0
         ;;

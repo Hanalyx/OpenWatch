@@ -403,13 +403,12 @@ $RECYCLE.BIN/
 .nfs*
 
 # ======================================
-# TEST AND DOCUMENTATION DIRECTORIES - NEVER COMMIT
+# TEST DIRECTORIES - NEVER COMMIT
 # ======================================
 
-# Project-specific test and documentation directories
+# Project-specific test directories
 /test/
 /tests/
-/docs/
 backend/test/
 backend/tests/
 frontend/test/
@@ -597,7 +596,7 @@ test_comprehensive*.py
 
 # Test report and summary files
 *_TEST_REPORT.md
-*_SUMMARY.md
+*_TEST_SUMMARY.md
 COMPREHENSIVE_TEST_REPORT.md
 TROUBLESHOOTING_SUMMARY.md
 gitignore_recommendations.md
@@ -695,3 +694,21 @@ scripts/*phase*.py
 # Demo and phase files
 *phase*.py
 *demo*.py
+# ======================================
+# TEMPORARY AND DEBUG FILES
+# ======================================
+
+# Debug logs in docs
+docs/log_*.txt
+docs/*-output
+docs/*-log
+docs/*.log
+
+# Temporary CLI fix scripts
+backend/app/cli/*_fixed.py
+backend/app/cli/*_backup.py
+backend/app/cli/*_temp.py
+
+# Installation/migration outputs
+*-installation-output
+*-migration-output

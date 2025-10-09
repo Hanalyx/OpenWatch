@@ -430,13 +430,13 @@ class RuleService {
     // Generate additional rules to match the 1,584 rules now in MongoDB
     const allRules: Rule[] = [...baseRules];
     const categories = ['authentication', 'network_security', 'system_maintenance', 'audit', 'configuration', 'access_control'];
-    const severities = ['high', 'medium', 'low', 'info'];
-    
+    const severities: Array<'high' | 'medium' | 'low' | 'info'> = ['high', 'medium', 'low', 'info'];
+
     // Generate additional rules to reach 1,584 total (matching MongoDB import)
     for (let i = baseRules.length; i < 1584; i++) {
       const severity = severities[i % severities.length];
       const category = categories[i % categories.length];
-      
+
       allRules.push({
         rule_id: `ow-scap-rule-${String(i).padStart(4, '0')}`,
         scap_rule_id: `xccdf_org.ssgproject.content_rule_rhel8_${String(i).padStart(4, '0')}`,
@@ -535,10 +535,10 @@ class RuleService {
       // Use the MongoDB compliance rules search endpoint
       const params = {
         search: searchRequest.query,
-        platform: searchRequest.platform,
-        severity: searchRequest.severity,
-        category: searchRequest.category,
-        framework: searchRequest.framework,
+        platform: searchRequest.filters?.platform?.join(','),
+        severity: searchRequest.filters?.severity?.join(','),
+        category: searchRequest.filters?.category?.join(','),
+        framework: searchRequest.filters?.framework?.join(','),
         limit: searchRequest.limit || 50,
         offset: searchRequest.offset || 0
       };
@@ -560,10 +560,10 @@ class RuleService {
           search_query: searchRequest.query,
           search_time_ms: 10, // Mock search time for now
           filters_applied: {
-            platform: searchRequest.platform,
-            severity: searchRequest.severity,
-            category: searchRequest.category,
-            framework: searchRequest.framework
+            platform: searchRequest.filters?.platform,
+            severity: searchRequest.filters?.severity,
+            category: searchRequest.filters?.category,
+            framework: searchRequest.filters?.framework
           }
         },
         message: `Found ${totalCount} rules matching your search`,

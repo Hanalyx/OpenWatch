@@ -362,32 +362,42 @@ const AddHost: React.FC = () => {
         return;
       }
 
-      // Test the key with backend validation
-      const testData = {
-        hostname: 'validation-test',
-        port: 22,
-        username: formData.username || 'test',
+      // Validate with backend using the new validate-credentials endpoint
+      const validationData = {
         auth_method: 'ssh_key',
-        ssh_key: keyContent,
-        timeout: 5
+        ssh_key: keyContent
       };
 
-      const response = await fetch('/api/hosts/test-connection', {
+      const response = await fetch('/api/hosts/validate-credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
-        body: JSON.stringify(testData)
+        body: JSON.stringify(validationData)
       });
 
-      // Even if connection fails, we can get SSH key validation info
+      if (!response.ok) {
+        const error = await response.json();
+        setSshKeyValidation({
+          status: 'invalid',
+          message: error.detail || 'SSH key validation failed.'
+        });
+        return;
+      }
+
       const result = await response.json();
-      
-      if (result.ssh_key_valid === true || result.message?.includes('SSH key is valid')) {
+
+      if (result.is_valid) {
+        // Build detailed success message
+        let message = 'SSH key is valid and properly formatted.';
+        if (result.key_type && result.key_bits) {
+          message += ` (${result.key_type.toUpperCase()}-${result.key_bits})`;
+        }
+
         setSshKeyValidation({
           status: 'valid',
-          message: 'SSH key is valid and properly formatted.',
+          message: message,
           keyType: result.key_type,
           keyBits: result.key_bits,
           securityLevel: result.security_level
@@ -396,7 +406,7 @@ const AddHost: React.FC = () => {
       } else {
         setSshKeyValidation({
           status: 'invalid',
-          message: result.message || 'SSH key validation failed.'
+          message: result.error_message || 'SSH key validation failed.'
         });
       }
     } catch (error) {
