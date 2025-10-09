@@ -2,7 +2,7 @@
 # Core web framework
 fastapi==0.109.2
 uvicorn[standard]==0.32.1
-starlette==0.36.3
+starlette==0.47.2  # Security: CVE-2025-59343, DoS via multipart forms
 python-multipart==0.0.18
 
 # Database
@@ -48,6 +48,7 @@ email-validator==2.3.0
 # Configuration
 python-dotenv==1.1.1
 PyYAML==6.0.3
+Jinja2==3.1.6  # Security: Sandbox escape fix
 
 # Observability & Monitoring
 opentelemetry-api==1.21.0
