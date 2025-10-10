@@ -698,11 +698,17 @@ scripts/*phase*.py
 # TEMPORARY AND DEBUG FILES
 # ======================================
 
-# Debug logs in docs
+# Debug logs and temporary files in docs
 docs/log_*.txt
 docs/*-output
 docs/*-log
 docs/*.log
+docs/ow-*.txt
+docs/ow-*.text
+docs/analysis/
+docs/security/
+docs/services/
+docs/*-installation-output
 
 # Temporary CLI fix scripts
 backend/app/cli/*_fixed.py
