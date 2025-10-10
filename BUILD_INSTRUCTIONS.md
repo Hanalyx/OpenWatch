@@ -21,20 +21,19 @@ The owladm source code fixes have been implemented and are ready for RPM packagi
 
 ## Build Process
 
-To build the new RPM with the owladm fixes:
+**Note:** RPM packaging has been deprecated in favor of container-based deployment. Use Docker/Podman instead:
+
+```bash
+cd /home/rracine/hanalyx/openwatch
+./start-openwatch.sh --runtime docker --build
+```
+
+For legacy RPM builds (deprecated):
 
 ```bash
 cd /home/rracine/hanalyx/openwatch/packaging/rpm
 chmod +x build-rpm.sh
 ./build-rpm.sh
-```
-
-Or use the minimal build script:
-
-```bash
-cd /home/rracine/hanalyx/openwatch
-chmod +x build-minimal.sh
-./build-minimal.sh
 ```
 
 ## Expected Results
