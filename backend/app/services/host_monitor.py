@@ -188,8 +188,8 @@ class HostMonitor:
                 logger.debug(f"SSH connectivity check successful for {ip_address}")
                 return True, None
             else:
-                error_msg = "SSH command execution failed"
-                logger.warning(f"SSH command test failed: {command_result.error_type}")
+                error_msg = f"SSH command execution failed: {command_result.error_message or 'unknown error'}"
+                logger.warning(f"SSH command test failed: {error_msg}")
                 return False, error_msg
                 
         except Exception as e:
@@ -199,9 +199,10 @@ class HostMonitor:
                     connection_result.connection.close()
             except:
                 pass
-            
+
             error_msg = "SSH test command error"
-            logger.error(f"SSH test command failed: {type(e).__name__}")
+            logger.error(f"SSH test command failed: {type(e).__name__}: {str(e)}")
+            logger.debug(f"Full traceback:", exc_info=True)
             return False, error_msg
     
     async def get_effective_ssh_credentials(self, host_data: Dict, db) -> Dict:

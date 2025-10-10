@@ -271,7 +271,9 @@ logs/
 *.log.bz2
 
 # Application data (covered by data/.gitignore but adding here for safety)
+data/*
 data/scap/*
+data/compliance_*
 data/results/*
 data/uploads/*
 !data/**/.gitkeep

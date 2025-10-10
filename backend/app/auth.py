@@ -45,19 +45,22 @@ class FIPSJWTManager:
     
     def _load_or_generate_keys(self):
         """Load existing RSA keys or generate new FIPS-compliant ones"""
-        # Use secure absolute paths to prevent path traversal attacks
-        if settings.debug:
-            # Development mode - use secure absolute path
-            private_key_path = os.path.abspath("/app/security/keys/jwt_private.pem")
-            public_key_path = os.path.abspath("/app/security/keys/jwt_public.pem")
-            # Validate paths are within allowed directory
-            keys_dir = os.path.abspath("/app/security/keys/")
-            if not (private_key_path.startswith(keys_dir) and public_key_path.startswith(keys_dir)):
-                raise ValueError("Key paths must be within security/keys directory")
+        # Use environment variables for key paths, with fallback to default
+        import tempfile
+
+        # Check if running in test environment
+        testing_mode = os.getenv('TESTING', 'false').lower() == 'true'
+
+        if testing_mode:
+            # Test mode - use temp directory
+            keys_dir = tempfile.gettempdir()
+            private_key_path = os.path.join(keys_dir, "jwt_private_test.pem")
+            public_key_path = os.path.join(keys_dir, "jwt_public_test.pem")
         else:
-            # Production mode - use absolute paths
-            private_key_path = "/app/security/keys/jwt_private.pem"
-            public_key_path = "/app/security/keys/jwt_public.pem"
+            # Production/Development mode - use /app/security/keys/
+            keys_dir = os.getenv('JWT_KEYS_DIR', '/app/security/keys')
+            private_key_path = os.path.join(keys_dir, "jwt_private.pem")
+            public_key_path = os.path.join(keys_dir, "jwt_public.pem")
         
         try:
             # Try to load existing keys

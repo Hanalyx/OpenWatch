@@ -8,11 +8,13 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 
 from ..database import get_db
 from ..services.semantic_scap_engine import get_semantic_scap_engine
+from ..services.compliance_rules_upload_service import ComplianceRulesUploadService
+from ..services.compliance_rules_deduplication_service import DeduplicationStrategy
 from ..auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -446,7 +448,144 @@ async def compliance_health_check():
     except Exception as e:
         logger.error(f"Compliance health check failed: {e}")
         return {
-            "status": "unhealthy", 
+            "status": "unhealthy",
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+
+@router.post("/upload-rules")
+async def upload_compliance_rules(
+    file: UploadFile = File(...),
+    deduplication_strategy: str = Query(
+        DeduplicationStrategy.SKIP_UNCHANGED_UPDATE_CHANGED,
+        description="Deduplication strategy: skip_unchanged_update_changed, skip_existing, update_all, fail_on_duplicate"
+    ),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload compliance rules archive (tar.gz with BSON or JSON files)
+
+    Supports:
+    - BSON (Binary JSON) format (preferred)
+    - JSON format (backward compatibility)
+    - Smart deduplication (skip unchanged, update changed)
+    - Dependency validation
+    - Inheritance resolution
+
+    Args:
+        file: tar.gz archive containing manifest and rule files
+        deduplication_strategy: How to handle duplicate rule_ids
+        current_user: Authenticated user (from JWT token)
+
+    Returns:
+        Upload result with statistics and impact analysis
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith('.tar.gz'):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Only .tar.gz archives are allowed."
+            )
+
+        # Read file content
+        file_content = await file.read()
+
+        if len(file_content) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty"
+            )
+
+        logger.info(
+            f"Upload initiated by {current_user.get('username', 'unknown')}: "
+            f"{file.filename} ({len(file_content):,} bytes)"
+        )
+
+        # Validate deduplication strategy
+        if not DeduplicationStrategy.is_valid(deduplication_strategy):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid deduplication strategy. Valid options: {DeduplicationStrategy.all_strategies()}"
+            )
+
+        # Initialize upload service
+        upload_service = ComplianceRulesUploadService()
+
+        # Process upload
+        result = await upload_service.upload_rules_archive(
+            archive_data=file_content,
+            archive_filename=file.filename,
+            deduplication_strategy=deduplication_strategy,
+            user_id=current_user.get('user_id')
+        )
+
+        # Return success or failure
+        if result['success']:
+            logger.info(
+                f"Upload {result['upload_id']} completed: "
+                f"{result['statistics']['imported']} imported, "
+                f"{result['statistics']['updated']} updated, "
+                f"{result['statistics']['skipped']} skipped"
+            )
+
+            return {
+                "success": True,
+                "upload_id": result['upload_id'],
+                "filename": result['filename'],
+                "file_hash": result['file_hash'],
+                "statistics": result['statistics'],
+                "manifest": result.get('manifest', {}),
+                "dependency_validation": result.get('dependency_validation', {}),
+                "inheritance_impact": result.get('inheritance_impact', {}),
+                "warnings": result.get('warnings', []),
+                "processing_time_seconds": result.get('processing_time_seconds', 0)
+            }
+        else:
+            # Upload failed - return error details
+            logger.error(f"Upload {result['upload_id']} failed: {result['errors']}")
+
+            return {
+                "success": False,
+                "upload_id": result['upload_id'],
+                "filename": result['filename'],
+                "phase": result.get('phase', 'unknown'),
+                "errors": result.get('errors', []),
+                "warnings": result.get('warnings', []),
+                "security_validation": result.get('security_validation', {})
+            }
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+
+    except Exception as e:
+        logger.error(f"Upload endpoint error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload failed: {str(e)}"
+        )
+
+
+@router.get("/upload-history")
+async def get_upload_history(
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of uploads to return"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get compliance rules upload history
+
+    Args:
+        limit: Maximum number of uploads to return
+        current_user: Authenticated user
+
+    Returns:
+        List of recent uploads with statistics
+    """
+    # TODO: Implement upload history tracking in database
+    # For now, return placeholder
+    return {
+        "uploads": [],
+        "total_count": 0,
+        "message": "Upload history tracking not yet implemented"
+    }

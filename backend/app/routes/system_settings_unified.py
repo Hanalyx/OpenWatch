@@ -667,9 +667,9 @@ async def start_scheduler(
                 from ..database import get_db
                 db = next(get_db())
                 db.execute(text("""
-                    UPDATE scheduler_config 
-                    SET enabled = TRUE, 
-                        last_started = CURRENT_TIMESTAMP,
+                    UPDATE scheduler_config
+                    SET enabled = TRUE,
+                        last_run = CURRENT_TIMESTAMP,
                         interval_minutes = :interval,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
@@ -872,8 +872,8 @@ def restore_scheduler_state():
                         
                         # Update database with start time
                         db.execute(text("""
-                            UPDATE scheduler_config 
-                            SET last_started = CURRENT_TIMESTAMP,
+                            UPDATE scheduler_config
+                            SET last_run = CURRENT_TIMESTAMP,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE service_name = 'host_monitoring'
                         """))

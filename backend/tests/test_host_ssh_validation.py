@@ -13,6 +13,53 @@ import io
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 import paramiko
+from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+
+
+def generate_ed25519_key() -> str:
+    """
+    Generate a valid Ed25519 SSH private key for testing.
+
+    Uses cryptography library instead of paramiko.Ed25519Key.generate()
+    for compatibility with older paramiko versions.
+    """
+    # Generate Ed25519 private key using cryptography
+    private_key = ed25519.Ed25519PrivateKey.generate()
+
+    # Serialize to OpenSSH format
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.OpenSSH,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    return pem.decode('utf-8')
+
+
+def generate_rsa_key(key_size: int = 2048) -> str:
+    """
+    Generate an RSA SSH private key for testing.
+
+    Args:
+        key_size: Key size in bits (1024, 2048, 4096, etc.)
+    """
+    # Generate RSA private key
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=key_size,
+        backend=default_backend()
+    )
+
+    # Serialize to OpenSSH format
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.OpenSSH,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    return pem.decode('utf-8')
 
 
 def test_host_ssh_key_validation_import(db_session: Session):
@@ -21,7 +68,7 @@ def test_host_ssh_key_validation_import(db_session: Session):
 
     This test ensures the validation function is available in the hosts module.
     """
-    from backend.app.routes import hosts
+    from app.routes import hosts
 
     # Verify the module has the validate_ssh_key function
     assert hasattr(hosts, 'validate_ssh_key'), (
@@ -30,7 +77,7 @@ def test_host_ssh_key_validation_import(db_session: Session):
     )
 
     # Verify it's the correct function from unified_ssh_service
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
     assert hosts.validate_ssh_key == validate_ssh_key, (
         "❌ CRITICAL: hosts.py imports wrong validate_ssh_key function!\n\n"
         "Must import from unified_ssh_service, not elsewhere."
@@ -43,13 +90,10 @@ def test_valid_ssh_key_passes_validation():
 
     This uses the same validation logic that should be in hosts.py.
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
 
     # Generate a valid Ed25519 key for testing
-    private_key = paramiko.Ed25519Key.generate()
-    key_file = io.StringIO()
-    private_key.write_private_key(key_file)
-    key_content = key_file.getvalue()
+    key_content = generate_ed25519_key()
 
     # Validate the key
     result = validate_ssh_key(key_content)
@@ -66,7 +110,7 @@ def test_invalid_ssh_key_fails_validation():
     """
     Test that an invalid SSH key fails paramiko validation.
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
 
     invalid_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nINVALID_GARBAGE\n-----END OPENSSH PRIVATE KEY-----"
 
@@ -83,7 +127,7 @@ def test_empty_ssh_key_fails_validation():
     """
     Test that an empty SSH key fails validation.
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
 
     result = validate_ssh_key("")
 
@@ -98,13 +142,10 @@ def test_rsa_2048_key_validation():
     """
     Test that RSA-2048 keys are validated (acceptable security level).
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
 
     # Generate RSA-2048 key
-    private_key = paramiko.RSAKey.generate(bits=2048)
-    key_file = io.StringIO()
-    private_key.write_private_key(key_file)
-    key_content = key_file.getvalue()
+    key_content = generate_rsa_key(key_size=2048)
 
     result = validate_ssh_key(key_content)
 
@@ -113,7 +154,7 @@ def test_rsa_2048_key_validation():
 
     # RSA-2048 should be "acceptable" not "secure"
     # (RSA-4096 is "secure", RSA-2048 is "acceptable")
-    from backend.app.services.unified_ssh_service import SSHKeySecurityLevel
+    from app.services.unified_ssh_service import SSHKeySecurityLevel
     assert result.security_level in [SSHKeySecurityLevel.ACCEPTABLE, SSHKeySecurityLevel.SECURE], (
         f"RSA-2048 should be acceptable or secure, got {result.security_level}"
     )
@@ -123,13 +164,10 @@ def test_rsa_1024_key_rejected():
     """
     Test that weak RSA-1024 keys are rejected as deprecated.
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key, SSHKeySecurityLevel
+    from app.services.unified_ssh_service import validate_ssh_key, SSHKeySecurityLevel
 
     # Generate weak RSA-1024 key
-    private_key = paramiko.RSAKey.generate(bits=1024)
-    key_file = io.StringIO()
-    private_key.write_private_key(key_file)
-    key_content = key_file.getvalue()
+    key_content = generate_rsa_key(key_size=1024)
 
     result = validate_ssh_key(key_content)
 
@@ -147,7 +185,7 @@ def test_validate_credentials_endpoint_exists():
 
     This endpoint is required for frontend pre-validation of SSH keys.
     """
-    from backend.app.routes import hosts
+    from app.routes import hosts
     from fastapi.routing import APIRoute
 
     # Get all routes from the hosts router
@@ -167,14 +205,10 @@ def test_validate_credentials_accepts_ssh_key():
 
     This simulates the frontend calling the endpoint.
     """
-    from backend.app.routes.hosts import validate_credentials
-    from backend.app.models import User
+    from app.routes.hosts import validate_credentials
 
     # Create a valid Ed25519 key
-    private_key = paramiko.Ed25519Key.generate()
-    key_file = io.StringIO()
-    private_key.write_private_key(key_file)
-    key_content = key_file.getvalue()
+    key_content = generate_ed25519_key()
 
     # Mock current user (required by endpoint)
     mock_user = {"id": 1, "username": "test_user"}
@@ -200,7 +234,7 @@ def test_validate_credentials_rejects_invalid_key():
     """
     Test that validate-credentials endpoint rejects invalid SSH keys.
     """
-    from backend.app.routes.hosts import validate_credentials
+    from app.routes.hosts import validate_credentials
 
     invalid_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nGARBAGE\n-----END OPENSSH PRIVATE KEY-----"
 
@@ -238,7 +272,7 @@ def test_create_host_validates_ssh_key():
     #
     # Example implementation:
     # from fastapi.testclient import TestClient
-    # from backend.app.main import app
+    # from app.main import app
     #
     # client = TestClient(app)
     # response = client.post("/api/hosts/", json={
@@ -259,7 +293,7 @@ def test_hosts_table_does_not_store_invalid_keys(db_session: Session):
 
     This test ensures our validation prevents bad data from entering the database.
     """
-    from backend.app.services.unified_ssh_service import validate_ssh_key
+    from app.services.unified_ssh_service import validate_ssh_key
 
     invalid_key = "NOT_A_VALID_SSH_KEY"
 
@@ -287,26 +321,22 @@ def test_security_levels_are_assessed():
     """
     Test that security levels are properly assessed for different key types.
     """
-    from backend.app.services.unified_ssh_service import (
+    from app.services.unified_ssh_service import (
         validate_ssh_key,
         SSHKeySecurityLevel
     )
 
     # Test Ed25519 (should be SECURE)
-    ed25519_key = paramiko.Ed25519Key.generate()
-    key_file = io.StringIO()
-    ed25519_key.write_private_key(key_file)
-    result = validate_ssh_key(key_file.getvalue())
+    ed25519_key_content = generate_ed25519_key()
+    result = validate_ssh_key(ed25519_key_content)
 
     assert result.security_level == SSHKeySecurityLevel.SECURE, (
         f"Ed25519 should be SECURE, got {result.security_level}"
     )
 
     # Test RSA-4096 (should be SECURE)
-    rsa_4096_key = paramiko.RSAKey.generate(bits=4096)
-    key_file = io.StringIO()
-    rsa_4096_key.write_private_key(key_file)
-    result = validate_ssh_key(key_file.getvalue())
+    rsa_4096_key_content = generate_rsa_key(key_size=4096)
+    result = validate_ssh_key(rsa_4096_key_content)
 
     assert result.security_level == SSHKeySecurityLevel.SECURE, (
         f"RSA-4096 should be SECURE, got {result.security_level}"

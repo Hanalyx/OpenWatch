@@ -12,6 +12,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from .database import engine, SessionLocal, Base
 
+# Import all models to ensure they're registered with Base.metadata
+from .models.system_models import SystemSettings  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 

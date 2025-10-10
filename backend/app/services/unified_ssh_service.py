@@ -1016,6 +1016,9 @@ class UnifiedSSHService:
                 
         except Exception as e:
             logger.error(f"Error getting setting {key}: {e}")
+            # Rollback transaction on error to prevent "aborted transaction" state
+            if self.db:
+                self.db.rollback()
             return default
     
     def set_setting(self, key: str, value: Any, setting_type: str, description: str, user_id: int) -> bool:

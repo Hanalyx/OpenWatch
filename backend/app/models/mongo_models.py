@@ -2,8 +2,19 @@
 MongoDB Models for OpenWatch Compliance Rules
 Enhanced models with inheritance and multi-platform support
 """
-from motor.motor_asyncio import AsyncIOMotorClient
-from beanie import Document, Indexed, init_beanie
+# Optional motor/beanie imports for test compatibility
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from beanie import Document, Indexed, init_beanie
+    MOTOR_AVAILABLE = True
+except ImportError:
+    # Allow imports to work without motor/beanie for testing
+    MOTOR_AVAILABLE = False
+    AsyncIOMotorClient = type('AsyncIOMotorClient', (), {})
+    Document = object
+    Indexed = lambda *args, **kwargs: lambda x: x
+    init_beanie = None
+
 from pydantic import Field, BaseModel, validator
 from typing import List, Dict, Optional, Any, Union
 from datetime import datetime

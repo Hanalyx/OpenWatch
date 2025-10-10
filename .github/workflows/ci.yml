@@ -94,6 +94,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
           JWT_SECRET_KEY: test_secret_key_for_ci
           ENVIRONMENT: test
+          TESTING: true
         run: |
           # Check if tests directory exists
           if [ -d "tests" ] && [ "$(find tests -name '*.py' | head -1)" ]; then
@@ -300,6 +301,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
           JWT_SECRET_KEY: test_secret_key_for_e2e
           ENVIRONMENT: test
+          TESTING: true
         run: |
           # Start backend in background
           python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &

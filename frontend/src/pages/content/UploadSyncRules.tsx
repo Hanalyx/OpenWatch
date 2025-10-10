@@ -130,23 +130,72 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
     setUploading(true);
     setUploadProgress(0);
     setError(null);
-    
+    setValidationResults(null);
+
     try {
-      // Simulate upload process
-      for (let i = 0; i <= 100; i += 5) {
-        setUploadProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      // Get auth token
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
       }
-      
-      // Simulate validation results
-      setValidationResults({
-        fileHash: 'sha512:abc123def456...',
-        rulesCount: 1584,
-        validationPassed: true,
-        issues: []
+
+      // Call upload API
+      setUploadProgress(10);
+      const response = await fetch('/api/v1/compliance/upload-rules?deduplication_strategy=skip_unchanged_update_changed', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
       });
-      
-      setSuccess(`Successfully uploaded and validated ${selectedFile.name}`);
+
+      setUploadProgress(90);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Upload failed');
+      }
+
+      const result = await response.json();
+      setUploadProgress(100);
+
+      if (result.success) {
+        // Extract validation results
+        setValidationResults({
+          fileHash: result.file_hash,
+          rulesCount: result.manifest?.rules_count || result.statistics?.imported + result.statistics?.updated + result.statistics?.skipped || 0,
+          validationPassed: true,
+          imported: result.statistics?.imported || 0,
+          updated: result.statistics?.updated || 0,
+          skipped: result.statistics?.skipped || 0,
+          processingTime: result.processing_time_seconds,
+          inheritanceImpact: result.inheritance_impact,
+          issues: result.warnings || []
+        });
+
+        setSuccess(
+          `Successfully uploaded ${selectedFile.name}: ` +
+          `${result.statistics?.imported || 0} imported, ` +
+          `${result.statistics?.updated || 0} updated, ` +
+          `${result.statistics?.skipped || 0} skipped`
+        );
+      } else {
+        // Upload failed
+        setValidationResults({
+          fileHash: result.file_hash || '',
+          rulesCount: 0,
+          validationPassed: false,
+          issues: result.errors || []
+        });
+
+        throw new Error(
+          result.errors?.[0]?.message || 'Upload validation failed'
+        );
+      }
     } catch (err: any) {
       setError(`Upload failed: ${err.message}`);
     } finally {

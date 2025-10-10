@@ -37,11 +37,11 @@ function TabPanel(props: TabPanelProps) {
       hidden={value !== index}
       id={`content-tabpanel-${index}`}
       aria-labelledby={`content-tab-${index}`}
-      style={{ height: '100%', display: value === index ? 'flex' : 'none', flexDirection: 'column' }}
+      style={{ display: value === index ? 'block' : 'none' }}
       {...other}
     >
       {value === index && (
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Box sx={{ width: '100%' }}>
           {children}
         </Box>
       )}
@@ -65,7 +65,7 @@ const Content: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Container maxWidth="xl" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', pb: 4 }}>
       {/* Header */}
       <Box sx={{ py: 3 }}>
         <Typography variant="h4" gutterBottom>
@@ -78,9 +78,9 @@ const Content: React.FC = () => {
 
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs 
-          value={currentTab} 
-          onChange={handleTabChange} 
+        <Tabs
+          value={currentTab}
+          onChange={handleTabChange}
           aria-label="content library tabs"
           sx={{
             '& .MuiTab-root': {
@@ -118,7 +118,7 @@ const Content: React.FC = () => {
       </Box>
 
       {/* Tab Content */}
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, overflow: 'visible' }}>
         {/* Compliance Rules Tab */}
         <TabPanel value={currentTab} index={0}>
           <ComplianceRulesContent />
