@@ -97,70 +97,22 @@ docker-compose logs -f backend | grep -E "(ERROR|Exception|500)"
 docker-compose logs backend --since 1h | grep "validation failed" | wc -l
 ```
 
-### 3. Create Monitoring Dashboard Script
+### 3. Monitoring (Optional)
 
-```python
-#!/usr/bin/env python3
-# save as: monitor_ssh_validation.py
+**Note:** The monitoring script has been removed as SSH validation is now stable. Use standard logging tools instead:
 
-import subprocess
-import time
-from datetime import datetime, timedelta
+```bash
+# Monitor credential creation success
+docker-compose logs backend --since 1h | grep "Stored system credential" | wc -l
 
-def get_log_stats(since_minutes=60):
-    """Get statistics from backend logs"""
-    since = datetime.now() - timedelta(minutes=since_minutes)
-    since_str = since.strftime("%Y-%m-%d %H:%M:%S")
-    
-    cmd = f'docker-compose logs backend --since "{since_str}"'
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    logs = result.stdout
-    
-    stats = {
-        "credential_creates": logs.count("POST /api/system/credentials"),
-        "successful_stores": logs.count("Stored system credential"),
-        "validation_errors": logs.count("validation failed"),
-        "500_errors": logs.count("500 Internal Server Error"),
-        "ssh_key_creates": logs.count("auth_method='ssh_key'"),
-        "password_creates": logs.count("auth_method='password'")
-    }
-    
-    return stats
-
-def print_dashboard():
-    """Print monitoring dashboard"""
-    print("🔍 SSH Validation Monitoring Dashboard")
+# Check for validation errors
+docker-compose logs backend --since 1h | grep "validation failed" | wc -l
+```
     print("=" * 50)
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("\nLast Hour Statistics:")
     
     stats = get_log_stats(60)
-    
-    total_attempts = stats["credential_creates"]
-    success_rate = (stats["successful_stores"] / total_attempts * 100) if total_attempts > 0 else 0
-    
-    print(f"📊 Credential Creation Attempts: {total_attempts}")
-    print(f"✅ Successful: {stats['successful_stores']} ({success_rate:.1f}%)")
-    print(f"❌ Validation Errors: {stats['validation_errors']}")
-    print(f"💥 500 Errors: {stats['500_errors']}")
-    print(f"\n🔑 By Type:")
-    print(f"   SSH Keys: {stats['ssh_key_creates']}")
-    print(f"   Passwords: {stats['password_creates']}")
-
-if __name__ == "__main__":
-    while True:
-        print("\033[2J\033[H")  # Clear screen
-        print_dashboard()
-        time.sleep(30)  # Update every 30 seconds
-```
-
-## Known Issues and Workarounds
-
-### Issue 1: SSH Key Format Not Recognized
-**Symptom**: "Invalid SSH key format" error
-**Workaround**: Ensure SSH key includes full headers:
-```
------BEGIN OPENSSH PRIVATE KEY-----
 [key content]
 -----END OPENSSH PRIVATE KEY-----
 ```

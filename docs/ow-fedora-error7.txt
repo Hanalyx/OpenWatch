@@ -1,0 +1,1563 @@
+Sep 20 20:20:38 fedora owadm[81766]:   ✓ SSL mode: require
+Sep 20 20:20:38 fedora owadm[81766]: Web: Web interface
+Sep 20 20:20:38 fedora owadm[81766]:   ✓ Port: 3001
+Sep 20 20:20:38 fedora owadm[81766]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:20:38 fedora owadm[81766]: Scanning: Scanning configuration
+Sep 20 20:20:38 fedora owadm[81766]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:38 fedora owadm[81766]:   ✓ Concurrent scans: 5
+Sep 20 20:20:38 fedora owadm[81766]: Security: Security settings
+Sep 20 20:20:38 fedora owadm[81766]:   ℹ FIPS mode: disabled
+Sep 20 20:20:38 fedora owadm[81766]: Secrets: Secrets configuration
+Sep 20 20:20:38 fedora owadm[81766]:   ✓ Secrets file found with correct permissions
+Sep 20 20:20:38 fedora owadm[81766]: ────────────────────────────────────────────────────────────
+Sep 20 20:20:38 fedora owadm[81766]: ✓ Configuration validation PASSED
+Sep 20 20:20:38 fedora owadm[81766]: Warnings:
+Sep 20 20:20:38 fedora owadm[81766]:   • SSL is disabled - not recommended for production
+Sep 20 20:20:38 fedora owadm[81766]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:38 fedora owadm[81772]: Starting OpenWatch
+Sep 20 20:20:38 fedora owadm[81772]: ===================
+Sep 20 20:20:38 fedora owadm[81772]: [INFO] Checking prerequisites...
+Sep 20 20:20:38 fedora owadm[81772]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:20:38 fedora owadm[81772]: [SUCCESS] Prerequisites check passed
+Sep 20 20:20:38 fedora owadm[81772]: [INFO] Auto-detecting container runtime...
+Sep 20 20:20:38 fedora owadm[81772]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:20:38 fedora owadm[81772]: [INFO] Environment:
+Sep 20 20:20:38 fedora owadm[81772]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:20:38 fedora owadm[81772]: [SUCCESS] Created default .env file
+Sep 20 20:20:38 fedora owadm[81772]: [INFO] Creating required directories...
+Sep 20 20:20:38 fedora owadm[81772]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:38 fedora owadm[81772]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:38 fedora owadm[81772]: Usage:
+Sep 20 20:20:38 fedora owadm[81772]:   owadm start [flags]
+Sep 20 20:20:38 fedora owadm[81772]: Flags:
+Sep 20 20:20:38 fedora owadm[81772]:       --build            Build images before starting
+Sep 20 20:20:38 fedora owadm[81772]:       --daemon           Run in daemon mode
+Sep 20 20:20:38 fedora owadm[81772]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:20:38 fedora owadm[81772]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:20:38 fedora owadm[81772]:   -h, --help             help for start
+Sep 20 20:20:38 fedora owadm[81772]:       --notify           Send systemd notifications
+Sep 20 20:20:38 fedora owadm[81772]:       --service string   Specific service to manage (default "all")
+Sep 20 20:20:38 fedora owadm[81772]: Global Flags:
+Sep 20 20:20:38 fedora owadm[81772]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:20:38 fedora owadm[81772]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:20:38 fedora owadm[81772]:       --no-color         Disable colored output
+Sep 20 20:20:38 fedora owadm[81772]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:20:38 fedora owadm[81772]:   -v, --verbose          Enable verbose output
+Sep 20 20:20:38 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:20:38 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:20:38 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 272622 and the job result is failed.
+Sep 20 20:20:43 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 84.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:20:43 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 272779.
+Sep 20 20:20:43 fedora owadm[81778]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:20:43 fedora owadm[81778]: Runtime: Runtime configuration
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ Container runtime: podman
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ Rootless mode: false
+Sep 20 20:20:43 fedora owadm[81778]: Database: Database configuration
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ SSL mode: require
+Sep 20 20:20:43 fedora owadm[81778]: Web: Web interface
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ Port: 3001
+Sep 20 20:20:43 fedora owadm[81778]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:20:43 fedora owadm[81778]: Scanning: Scanning configuration
+Sep 20 20:20:43 fedora owadm[81778]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ Concurrent scans: 5
+Sep 20 20:20:43 fedora owadm[81778]: Security: Security settings
+Sep 20 20:20:43 fedora owadm[81778]:   ℹ FIPS mode: disabled
+Sep 20 20:20:43 fedora owadm[81778]: Secrets: Secrets configuration
+Sep 20 20:20:43 fedora owadm[81778]:   ✓ Secrets file found with correct permissions
+Sep 20 20:20:43 fedora owadm[81778]: ────────────────────────────────────────────────────────────
+Sep 20 20:20:43 fedora owadm[81778]: ✓ Configuration validation PASSED
+Sep 20 20:20:43 fedora owadm[81778]: Warnings:
+Sep 20 20:20:43 fedora owadm[81778]:   • SSL is disabled - not recommended for production
+Sep 20 20:20:43 fedora owadm[81778]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:43 fedora owadm[81784]: Starting OpenWatch
+Sep 20 20:20:43 fedora owadm[81784]: ===================
+Sep 20 20:20:43 fedora owadm[81784]: [INFO] Checking prerequisites...
+Sep 20 20:20:43 fedora owadm[81784]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:20:43 fedora owadm[81784]: [SUCCESS] Prerequisites check passed
+Sep 20 20:20:43 fedora owadm[81784]: [INFO] Auto-detecting container runtime...
+Sep 20 20:20:43 fedora owadm[81784]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:20:43 fedora owadm[81784]: [INFO] Environment:
+Sep 20 20:20:43 fedora owadm[81784]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:20:43 fedora owadm[81784]: [SUCCESS] Created default .env file
+Sep 20 20:20:43 fedora owadm[81784]: [INFO] Creating required directories...
+Sep 20 20:20:43 fedora owadm[81784]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:43 fedora owadm[81784]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:43 fedora owadm[81784]: Usage:
+Sep 20 20:20:43 fedora owadm[81784]:   owadm start [flags]
+Sep 20 20:20:43 fedora owadm[81784]: Flags:
+Sep 20 20:20:43 fedora owadm[81784]:       --build            Build images before starting
+Sep 20 20:20:43 fedora owadm[81784]:       --daemon           Run in daemon mode
+Sep 20 20:20:43 fedora owadm[81784]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:20:43 fedora owadm[81784]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:20:43 fedora owadm[81784]:   -h, --help             help for start
+Sep 20 20:20:43 fedora owadm[81784]:       --notify           Send systemd notifications
+Sep 20 20:20:43 fedora owadm[81784]:       --service string   Specific service to manage (default "all")
+Sep 20 20:20:43 fedora owadm[81784]: Global Flags:
+Sep 20 20:20:43 fedora owadm[81784]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:20:43 fedora owadm[81784]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:20:43 fedora owadm[81784]:       --no-color         Disable colored output
+Sep 20 20:20:43 fedora owadm[81784]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:20:43 fedora owadm[81784]:   -v, --verbose          Enable verbose output
+Sep 20 20:20:43 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:20:43 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:20:43 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 272779 and the job result is failed.
+Sep 20 20:20:48 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 85.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:20:48 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 272936.
+Sep 20 20:20:48 fedora owadm[81790]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:20:48 fedora owadm[81790]: Runtime: Runtime configuration
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ Container runtime: podman
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ Rootless mode: false
+Sep 20 20:20:48 fedora owadm[81790]: Database: Database configuration
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ SSL mode: require
+Sep 20 20:20:48 fedora owadm[81790]: Web: Web interface
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ Port: 3001
+Sep 20 20:20:48 fedora owadm[81790]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:20:48 fedora owadm[81790]: Scanning: Scanning configuration
+Sep 20 20:20:48 fedora owadm[81790]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ Concurrent scans: 5
+Sep 20 20:20:48 fedora owadm[81790]: Security: Security settings
+Sep 20 20:20:48 fedora owadm[81790]:   ℹ FIPS mode: disabled
+Sep 20 20:20:48 fedora owadm[81790]: Secrets: Secrets configuration
+Sep 20 20:20:48 fedora owadm[81790]:   ✓ Secrets file found with correct permissions
+Sep 20 20:20:48 fedora owadm[81790]: ────────────────────────────────────────────────────────────
+Sep 20 20:20:48 fedora owadm[81790]: ✓ Configuration validation PASSED
+Sep 20 20:20:48 fedora owadm[81790]: Warnings:
+Sep 20 20:20:48 fedora owadm[81790]:   • SSL is disabled - not recommended for production
+Sep 20 20:20:48 fedora owadm[81790]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:48 fedora owadm[81796]: Starting OpenWatch
+Sep 20 20:20:48 fedora owadm[81796]: ===================
+Sep 20 20:20:48 fedora owadm[81796]: [INFO] Checking prerequisites...
+Sep 20 20:20:48 fedora owadm[81796]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:20:48 fedora owadm[81796]: [SUCCESS] Prerequisites check passed
+Sep 20 20:20:48 fedora owadm[81796]: [INFO] Auto-detecting container runtime...
+Sep 20 20:20:48 fedora owadm[81796]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:20:48 fedora owadm[81796]: [INFO] Environment:
+Sep 20 20:20:48 fedora owadm[81796]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:20:48 fedora owadm[81796]: [SUCCESS] Created default .env file
+Sep 20 20:20:48 fedora owadm[81796]: [INFO] Creating required directories...
+Sep 20 20:20:48 fedora owadm[81796]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:48 fedora owadm[81796]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:48 fedora owadm[81796]: Usage:
+Sep 20 20:20:48 fedora owadm[81796]:   owadm start [flags]
+Sep 20 20:20:48 fedora owadm[81796]: Flags:
+Sep 20 20:20:48 fedora owadm[81796]:       --build            Build images before starting
+Sep 20 20:20:48 fedora owadm[81796]:       --daemon           Run in daemon mode
+Sep 20 20:20:48 fedora owadm[81796]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:20:48 fedora owadm[81796]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:20:48 fedora owadm[81796]:   -h, --help             help for start
+Sep 20 20:20:48 fedora owadm[81796]:       --notify           Send systemd notifications
+Sep 20 20:20:48 fedora owadm[81796]:       --service string   Specific service to manage (default "all")
+Sep 20 20:20:48 fedora owadm[81796]: Global Flags:
+Sep 20 20:20:48 fedora owadm[81796]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:20:48 fedora owadm[81796]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:20:48 fedora owadm[81796]:       --no-color         Disable colored output
+Sep 20 20:20:48 fedora owadm[81796]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:20:48 fedora owadm[81796]:   -v, --verbose          Enable verbose output
+Sep 20 20:20:48 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:20:48 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:20:48 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 272936 and the job result is failed.
+Sep 20 20:20:53 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 86.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:20:53 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273093.
+Sep 20 20:20:53 fedora owadm[81802]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:20:53 fedora owadm[81802]: Runtime: Runtime configuration
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ Container runtime: podman
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ Rootless mode: false
+Sep 20 20:20:53 fedora owadm[81802]: Database: Database configuration
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ SSL mode: require
+Sep 20 20:20:53 fedora owadm[81802]: Web: Web interface
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ Port: 3001
+Sep 20 20:20:53 fedora owadm[81802]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:20:53 fedora owadm[81802]: Scanning: Scanning configuration
+Sep 20 20:20:53 fedora owadm[81802]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ Concurrent scans: 5
+Sep 20 20:20:53 fedora owadm[81802]: Security: Security settings
+Sep 20 20:20:53 fedora owadm[81802]:   ℹ FIPS mode: disabled
+Sep 20 20:20:53 fedora owadm[81802]: Secrets: Secrets configuration
+Sep 20 20:20:53 fedora owadm[81802]:   ✓ Secrets file found with correct permissions
+Sep 20 20:20:53 fedora owadm[81802]: ────────────────────────────────────────────────────────────
+Sep 20 20:20:53 fedora owadm[81802]: ✓ Configuration validation PASSED
+Sep 20 20:20:53 fedora owadm[81802]: Warnings:
+Sep 20 20:20:53 fedora owadm[81802]:   • SSL is disabled - not recommended for production
+Sep 20 20:20:53 fedora owadm[81802]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:53 fedora owadm[81808]: Starting OpenWatch
+Sep 20 20:20:53 fedora owadm[81808]: ===================
+Sep 20 20:20:53 fedora owadm[81808]: [INFO] Checking prerequisites...
+Sep 20 20:20:53 fedora owadm[81808]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:20:53 fedora owadm[81808]: [SUCCESS] Prerequisites check passed
+Sep 20 20:20:53 fedora owadm[81808]: [INFO] Auto-detecting container runtime...
+Sep 20 20:20:53 fedora owadm[81808]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:20:53 fedora owadm[81808]: [INFO] Environment:
+Sep 20 20:20:53 fedora owadm[81808]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:20:53 fedora owadm[81808]: [SUCCESS] Created default .env file
+Sep 20 20:20:53 fedora owadm[81808]: [INFO] Creating required directories...
+Sep 20 20:20:53 fedora owadm[81808]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:53 fedora owadm[81808]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:53 fedora owadm[81808]: Usage:
+Sep 20 20:20:53 fedora owadm[81808]:   owadm start [flags]
+Sep 20 20:20:53 fedora owadm[81808]: Flags:
+Sep 20 20:20:53 fedora owadm[81808]:       --build            Build images before starting
+Sep 20 20:20:53 fedora owadm[81808]:       --daemon           Run in daemon mode
+Sep 20 20:20:53 fedora owadm[81808]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:20:53 fedora owadm[81808]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:20:53 fedora owadm[81808]:   -h, --help             help for start
+Sep 20 20:20:53 fedora owadm[81808]:       --notify           Send systemd notifications
+Sep 20 20:20:53 fedora owadm[81808]:       --service string   Specific service to manage (default "all")
+Sep 20 20:20:53 fedora owadm[81808]: Global Flags:
+Sep 20 20:20:53 fedora owadm[81808]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:20:53 fedora owadm[81808]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:20:53 fedora owadm[81808]:       --no-color         Disable colored output
+Sep 20 20:20:53 fedora owadm[81808]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:20:53 fedora owadm[81808]:   -v, --verbose          Enable verbose output
+Sep 20 20:20:53 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:20:53 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:20:53 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273093 and the job result is failed.
+Sep 20 20:20:58 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 87.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:20:58 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273250.
+Sep 20 20:20:58 fedora owadm[81815]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:20:58 fedora owadm[81815]: Runtime: Runtime configuration
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ Container runtime: podman
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ Rootless mode: false
+Sep 20 20:20:58 fedora owadm[81815]: Database: Database configuration
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ SSL mode: require
+Sep 20 20:20:58 fedora owadm[81815]: Web: Web interface
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ Port: 3001
+Sep 20 20:20:58 fedora owadm[81815]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:20:58 fedora owadm[81815]: Scanning: Scanning configuration
+Sep 20 20:20:58 fedora owadm[81815]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ Concurrent scans: 5
+Sep 20 20:20:58 fedora owadm[81815]: Security: Security settings
+Sep 20 20:20:58 fedora owadm[81815]:   ℹ FIPS mode: disabled
+Sep 20 20:20:58 fedora owadm[81815]: Secrets: Secrets configuration
+Sep 20 20:20:58 fedora owadm[81815]:   ✓ Secrets file found with correct permissions
+Sep 20 20:20:58 fedora owadm[81815]: ────────────────────────────────────────────────────────────
+Sep 20 20:20:58 fedora owadm[81815]: ✓ Configuration validation PASSED
+Sep 20 20:20:58 fedora owadm[81815]: Warnings:
+Sep 20 20:20:58 fedora owadm[81815]:   • SSL is disabled - not recommended for production
+Sep 20 20:20:58 fedora owadm[81815]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:20:59 fedora owadm[81820]: Starting OpenWatch
+Sep 20 20:20:59 fedora owadm[81820]: ===================
+Sep 20 20:20:59 fedora owadm[81820]: [INFO] Checking prerequisites...
+Sep 20 20:20:59 fedora owadm[81820]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:20:59 fedora owadm[81820]: [SUCCESS] Prerequisites check passed
+Sep 20 20:20:59 fedora owadm[81820]: [INFO] Auto-detecting container runtime...
+Sep 20 20:20:59 fedora owadm[81820]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:20:59 fedora owadm[81820]: [INFO] Environment:
+Sep 20 20:20:59 fedora owadm[81820]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:20:59 fedora owadm[81820]: [SUCCESS] Created default .env file
+Sep 20 20:20:59 fedora owadm[81820]: [INFO] Creating required directories...
+Sep 20 20:20:59 fedora owadm[81820]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:59 fedora owadm[81820]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:20:59 fedora owadm[81820]: Usage:
+Sep 20 20:20:59 fedora owadm[81820]:   owadm start [flags]
+Sep 20 20:20:59 fedora owadm[81820]: Flags:
+Sep 20 20:20:59 fedora owadm[81820]:       --build            Build images before starting
+Sep 20 20:20:59 fedora owadm[81820]:       --daemon           Run in daemon mode
+Sep 20 20:20:59 fedora owadm[81820]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:20:59 fedora owadm[81820]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:20:59 fedora owadm[81820]:   -h, --help             help for start
+Sep 20 20:20:59 fedora owadm[81820]:       --notify           Send systemd notifications
+Sep 20 20:20:59 fedora owadm[81820]:       --service string   Specific service to manage (default "all")
+Sep 20 20:20:59 fedora owadm[81820]: Global Flags:
+Sep 20 20:20:59 fedora owadm[81820]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:20:59 fedora owadm[81820]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:20:59 fedora owadm[81820]:       --no-color         Disable colored output
+Sep 20 20:20:59 fedora owadm[81820]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:20:59 fedora owadm[81820]:   -v, --verbose          Enable verbose output
+Sep 20 20:20:59 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:20:59 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:20:59 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273250 and the job result is failed.
+Sep 20 20:21:04 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 88.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:04 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273407.
+Sep 20 20:21:04 fedora owadm[81827]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:04 fedora owadm[81827]: Runtime: Runtime configuration
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ Container runtime: podman
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ Rootless mode: false
+Sep 20 20:21:04 fedora owadm[81827]: Database: Database configuration
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ SSL mode: require
+Sep 20 20:21:04 fedora owadm[81827]: Web: Web interface
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ Port: 3001
+Sep 20 20:21:04 fedora owadm[81827]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:04 fedora owadm[81827]: Scanning: Scanning configuration
+Sep 20 20:21:04 fedora owadm[81827]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ Concurrent scans: 5
+Sep 20 20:21:04 fedora owadm[81827]: Security: Security settings
+Sep 20 20:21:04 fedora owadm[81827]:   ℹ FIPS mode: disabled
+Sep 20 20:21:04 fedora owadm[81827]: Secrets: Secrets configuration
+Sep 20 20:21:04 fedora owadm[81827]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:04 fedora owadm[81827]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:04 fedora owadm[81827]: ✓ Configuration validation PASSED
+Sep 20 20:21:04 fedora owadm[81827]: Warnings:
+Sep 20 20:21:04 fedora owadm[81827]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:04 fedora owadm[81827]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:04 fedora owadm[81832]: Starting OpenWatch
+Sep 20 20:21:04 fedora owadm[81832]: ===================
+Sep 20 20:21:04 fedora owadm[81832]: [INFO] Checking prerequisites...
+Sep 20 20:21:04 fedora owadm[81832]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:04 fedora owadm[81832]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:04 fedora owadm[81832]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:04 fedora owadm[81832]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:04 fedora owadm[81832]: [INFO] Environment:
+Sep 20 20:21:04 fedora owadm[81832]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:04 fedora owadm[81832]: [SUCCESS] Created default .env file
+Sep 20 20:21:04 fedora owadm[81832]: [INFO] Creating required directories...
+Sep 20 20:21:04 fedora owadm[81832]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:04 fedora owadm[81832]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:04 fedora owadm[81832]: Usage:
+Sep 20 20:21:04 fedora owadm[81832]:   owadm start [flags]
+Sep 20 20:21:04 fedora owadm[81832]: Flags:
+Sep 20 20:21:04 fedora owadm[81832]:       --build            Build images before starting
+Sep 20 20:21:04 fedora owadm[81832]:       --daemon           Run in daemon mode
+Sep 20 20:21:04 fedora owadm[81832]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:04 fedora owadm[81832]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:04 fedora owadm[81832]:   -h, --help             help for start
+Sep 20 20:21:04 fedora owadm[81832]:       --notify           Send systemd notifications
+Sep 20 20:21:04 fedora owadm[81832]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:04 fedora owadm[81832]: Global Flags:
+Sep 20 20:21:04 fedora owadm[81832]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:04 fedora owadm[81832]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:04 fedora owadm[81832]:       --no-color         Disable colored output
+Sep 20 20:21:04 fedora owadm[81832]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:04 fedora owadm[81832]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:04 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:04 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:04 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273407 and the job result is failed.
+Sep 20 20:21:09 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 89.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:09 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273564.
+Sep 20 20:21:09 fedora owadm[81839]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:09 fedora owadm[81839]: Runtime: Runtime configuration
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ Container runtime: podman
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ Rootless mode: false
+Sep 20 20:21:09 fedora owadm[81839]: Database: Database configuration
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ SSL mode: require
+Sep 20 20:21:09 fedora owadm[81839]: Web: Web interface
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ Port: 3001
+Sep 20 20:21:09 fedora owadm[81839]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:09 fedora owadm[81839]: Scanning: Scanning configuration
+Sep 20 20:21:09 fedora owadm[81839]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ Concurrent scans: 5
+Sep 20 20:21:09 fedora owadm[81839]: Security: Security settings
+Sep 20 20:21:09 fedora owadm[81839]:   ℹ FIPS mode: disabled
+Sep 20 20:21:09 fedora owadm[81839]: Secrets: Secrets configuration
+Sep 20 20:21:09 fedora owadm[81839]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:09 fedora owadm[81839]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:09 fedora owadm[81839]: ✓ Configuration validation PASSED
+Sep 20 20:21:09 fedora owadm[81839]: Warnings:
+Sep 20 20:21:09 fedora owadm[81839]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:09 fedora owadm[81839]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:09 fedora owadm[81844]: Starting OpenWatch
+Sep 20 20:21:09 fedora owadm[81844]: ===================
+Sep 20 20:21:09 fedora owadm[81844]: [INFO] Checking prerequisites...
+Sep 20 20:21:09 fedora owadm[81844]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:09 fedora owadm[81844]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:09 fedora owadm[81844]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:09 fedora owadm[81844]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:09 fedora owadm[81844]: [INFO] Environment:
+Sep 20 20:21:09 fedora owadm[81844]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:09 fedora owadm[81844]: [SUCCESS] Created default .env file
+Sep 20 20:21:09 fedora owadm[81844]: [INFO] Creating required directories...
+Sep 20 20:21:09 fedora owadm[81844]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:09 fedora owadm[81844]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:09 fedora owadm[81844]: Usage:
+Sep 20 20:21:09 fedora owadm[81844]:   owadm start [flags]
+Sep 20 20:21:09 fedora owadm[81844]: Flags:
+Sep 20 20:21:09 fedora owadm[81844]:       --build            Build images before starting
+Sep 20 20:21:09 fedora owadm[81844]:       --daemon           Run in daemon mode
+Sep 20 20:21:09 fedora owadm[81844]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:09 fedora owadm[81844]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:09 fedora owadm[81844]:   -h, --help             help for start
+Sep 20 20:21:09 fedora owadm[81844]:       --notify           Send systemd notifications
+Sep 20 20:21:09 fedora owadm[81844]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:09 fedora owadm[81844]: Global Flags:
+Sep 20 20:21:09 fedora owadm[81844]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:09 fedora owadm[81844]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:09 fedora owadm[81844]:       --no-color         Disable colored output
+Sep 20 20:21:09 fedora owadm[81844]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:09 fedora owadm[81844]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:09 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:09 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:09 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273564 and the job result is failed.
+Sep 20 20:21:14 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 90.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:14 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273721.
+Sep 20 20:21:14 fedora owadm[81851]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:14 fedora owadm[81851]: Runtime: Runtime configuration
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ Container runtime: podman
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ Rootless mode: false
+Sep 20 20:21:14 fedora owadm[81851]: Database: Database configuration
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ SSL mode: require
+Sep 20 20:21:14 fedora owadm[81851]: Web: Web interface
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ Port: 3001
+Sep 20 20:21:14 fedora owadm[81851]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:14 fedora owadm[81851]: Scanning: Scanning configuration
+Sep 20 20:21:14 fedora owadm[81851]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ Concurrent scans: 5
+Sep 20 20:21:14 fedora owadm[81851]: Security: Security settings
+Sep 20 20:21:14 fedora owadm[81851]:   ℹ FIPS mode: disabled
+Sep 20 20:21:14 fedora owadm[81851]: Secrets: Secrets configuration
+Sep 20 20:21:14 fedora owadm[81851]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:14 fedora owadm[81851]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:14 fedora owadm[81851]: ✓ Configuration validation PASSED
+Sep 20 20:21:14 fedora owadm[81851]: Warnings:
+Sep 20 20:21:14 fedora owadm[81851]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:14 fedora owadm[81851]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:14 fedora owadm[81857]: Starting OpenWatch
+Sep 20 20:21:14 fedora owadm[81857]: ===================
+Sep 20 20:21:14 fedora owadm[81857]: [INFO] Checking prerequisites...
+Sep 20 20:21:14 fedora owadm[81857]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:14 fedora owadm[81857]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:14 fedora owadm[81857]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:14 fedora owadm[81857]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:14 fedora owadm[81857]: [INFO] Environment:
+Sep 20 20:21:14 fedora owadm[81857]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:14 fedora owadm[81857]: [SUCCESS] Created default .env file
+Sep 20 20:21:14 fedora owadm[81857]: [INFO] Creating required directories...
+Sep 20 20:21:14 fedora owadm[81857]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:14 fedora owadm[81857]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:14 fedora owadm[81857]: Usage:
+Sep 20 20:21:14 fedora owadm[81857]:   owadm start [flags]
+Sep 20 20:21:14 fedora owadm[81857]: Flags:
+Sep 20 20:21:14 fedora owadm[81857]:       --build            Build images before starting
+Sep 20 20:21:14 fedora owadm[81857]:       --daemon           Run in daemon mode
+Sep 20 20:21:14 fedora owadm[81857]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:14 fedora owadm[81857]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:14 fedora owadm[81857]:   -h, --help             help for start
+Sep 20 20:21:14 fedora owadm[81857]:       --notify           Send systemd notifications
+Sep 20 20:21:14 fedora owadm[81857]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:14 fedora owadm[81857]: Global Flags:
+Sep 20 20:21:14 fedora owadm[81857]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:14 fedora owadm[81857]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:14 fedora owadm[81857]:       --no-color         Disable colored output
+Sep 20 20:21:14 fedora owadm[81857]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:14 fedora owadm[81857]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:14 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:14 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:14 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273721 and the job result is failed.
+Sep 20 20:21:19 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 91.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:19 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 273878.
+Sep 20 20:21:19 fedora owadm[81864]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:19 fedora owadm[81864]: Runtime: Runtime configuration
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ Container runtime: podman
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ Rootless mode: false
+Sep 20 20:21:19 fedora owadm[81864]: Database: Database configuration
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ SSL mode: require
+Sep 20 20:21:19 fedora owadm[81864]: Web: Web interface
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ Port: 3001
+Sep 20 20:21:19 fedora owadm[81864]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:19 fedora owadm[81864]: Scanning: Scanning configuration
+Sep 20 20:21:19 fedora owadm[81864]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ Concurrent scans: 5
+Sep 20 20:21:19 fedora owadm[81864]: Security: Security settings
+Sep 20 20:21:19 fedora owadm[81864]:   ℹ FIPS mode: disabled
+Sep 20 20:21:19 fedora owadm[81864]: Secrets: Secrets configuration
+Sep 20 20:21:19 fedora owadm[81864]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:19 fedora owadm[81864]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:19 fedora owadm[81864]: ✓ Configuration validation PASSED
+Sep 20 20:21:19 fedora owadm[81864]: Warnings:
+Sep 20 20:21:19 fedora owadm[81864]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:19 fedora owadm[81864]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:20 fedora owadm[81870]: Starting OpenWatch
+Sep 20 20:21:20 fedora owadm[81870]: ===================
+Sep 20 20:21:20 fedora owadm[81870]: [INFO] Checking prerequisites...
+Sep 20 20:21:20 fedora owadm[81870]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:20 fedora owadm[81870]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:20 fedora owadm[81870]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:20 fedora owadm[81870]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:20 fedora owadm[81870]: [INFO] Environment:
+Sep 20 20:21:20 fedora owadm[81870]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:20 fedora owadm[81870]: [SUCCESS] Created default .env file
+Sep 20 20:21:20 fedora owadm[81870]: [INFO] Creating required directories...
+Sep 20 20:21:20 fedora owadm[81870]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:20 fedora owadm[81870]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:20 fedora owadm[81870]: Usage:
+Sep 20 20:21:20 fedora owadm[81870]:   owadm start [flags]
+Sep 20 20:21:20 fedora owadm[81870]: Flags:
+Sep 20 20:21:20 fedora owadm[81870]:       --build            Build images before starting
+Sep 20 20:21:20 fedora owadm[81870]:       --daemon           Run in daemon mode
+Sep 20 20:21:20 fedora owadm[81870]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:20 fedora owadm[81870]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:20 fedora owadm[81870]:   -h, --help             help for start
+Sep 20 20:21:20 fedora owadm[81870]:       --notify           Send systemd notifications
+Sep 20 20:21:20 fedora owadm[81870]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:20 fedora owadm[81870]: Global Flags:
+Sep 20 20:21:20 fedora owadm[81870]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:20 fedora owadm[81870]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:20 fedora owadm[81870]:       --no-color         Disable colored output
+Sep 20 20:21:20 fedora owadm[81870]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:20 fedora owadm[81870]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:20 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:20 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:20 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 273878 and the job result is failed.
+Sep 20 20:21:25 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 92.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:25 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274035.
+Sep 20 20:21:25 fedora owadm[81877]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:25 fedora owadm[81877]: Runtime: Runtime configuration
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ Container runtime: podman
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ Rootless mode: false
+Sep 20 20:21:25 fedora owadm[81877]: Database: Database configuration
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ SSL mode: require
+Sep 20 20:21:25 fedora owadm[81877]: Web: Web interface
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ Port: 3001
+Sep 20 20:21:25 fedora owadm[81877]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:25 fedora owadm[81877]: Scanning: Scanning configuration
+Sep 20 20:21:25 fedora owadm[81877]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ Concurrent scans: 5
+Sep 20 20:21:25 fedora owadm[81877]: Security: Security settings
+Sep 20 20:21:25 fedora owadm[81877]:   ℹ FIPS mode: disabled
+Sep 20 20:21:25 fedora owadm[81877]: Secrets: Secrets configuration
+Sep 20 20:21:25 fedora owadm[81877]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:25 fedora owadm[81877]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:25 fedora owadm[81877]: ✓ Configuration validation PASSED
+Sep 20 20:21:25 fedora owadm[81877]: Warnings:
+Sep 20 20:21:25 fedora owadm[81877]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:25 fedora owadm[81877]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:25 fedora owadm[81882]: Starting OpenWatch
+Sep 20 20:21:25 fedora owadm[81882]: ===================
+Sep 20 20:21:25 fedora owadm[81882]: [INFO] Checking prerequisites...
+Sep 20 20:21:25 fedora owadm[81882]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:25 fedora owadm[81882]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:25 fedora owadm[81882]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:25 fedora owadm[81882]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:25 fedora owadm[81882]: [INFO] Environment:
+Sep 20 20:21:25 fedora owadm[81882]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:25 fedora owadm[81882]: [SUCCESS] Created default .env file
+Sep 20 20:21:25 fedora owadm[81882]: [INFO] Creating required directories...
+Sep 20 20:21:25 fedora owadm[81882]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:25 fedora owadm[81882]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:25 fedora owadm[81882]: Usage:
+Sep 20 20:21:25 fedora owadm[81882]:   owadm start [flags]
+Sep 20 20:21:25 fedora owadm[81882]: Flags:
+Sep 20 20:21:25 fedora owadm[81882]:       --build            Build images before starting
+Sep 20 20:21:25 fedora owadm[81882]:       --daemon           Run in daemon mode
+Sep 20 20:21:25 fedora owadm[81882]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:25 fedora owadm[81882]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:25 fedora owadm[81882]:   -h, --help             help for start
+Sep 20 20:21:25 fedora owadm[81882]:       --notify           Send systemd notifications
+Sep 20 20:21:25 fedora owadm[81882]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:25 fedora owadm[81882]: Global Flags:
+Sep 20 20:21:25 fedora owadm[81882]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:25 fedora owadm[81882]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:25 fedora owadm[81882]:       --no-color         Disable colored output
+Sep 20 20:21:25 fedora owadm[81882]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:25 fedora owadm[81882]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:25 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:25 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:25 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274035 and the job result is failed.
+Sep 20 20:21:30 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 93.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:30 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274192.
+Sep 20 20:21:30 fedora owadm[81889]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:30 fedora owadm[81889]: Runtime: Runtime configuration
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ Container runtime: podman
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ Rootless mode: false
+Sep 20 20:21:30 fedora owadm[81889]: Database: Database configuration
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ SSL mode: require
+Sep 20 20:21:30 fedora owadm[81889]: Web: Web interface
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ Port: 3001
+Sep 20 20:21:30 fedora owadm[81889]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:30 fedora owadm[81889]: Scanning: Scanning configuration
+Sep 20 20:21:30 fedora owadm[81889]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ Concurrent scans: 5
+Sep 20 20:21:30 fedora owadm[81889]: Security: Security settings
+Sep 20 20:21:30 fedora owadm[81889]:   ℹ FIPS mode: disabled
+Sep 20 20:21:30 fedora owadm[81889]: Secrets: Secrets configuration
+Sep 20 20:21:30 fedora owadm[81889]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:30 fedora owadm[81889]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:30 fedora owadm[81889]: ✓ Configuration validation PASSED
+Sep 20 20:21:30 fedora owadm[81889]: Warnings:
+Sep 20 20:21:30 fedora owadm[81889]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:30 fedora owadm[81889]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:30 fedora owadm[81895]: Starting OpenWatch
+Sep 20 20:21:30 fedora owadm[81895]: ===================
+Sep 20 20:21:30 fedora owadm[81895]: [INFO] Checking prerequisites...
+Sep 20 20:21:30 fedora owadm[81895]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:30 fedora owadm[81895]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:30 fedora owadm[81895]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:30 fedora owadm[81895]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:30 fedora owadm[81895]: [INFO] Environment:
+Sep 20 20:21:30 fedora owadm[81895]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:30 fedora owadm[81895]: [SUCCESS] Created default .env file
+Sep 20 20:21:30 fedora owadm[81895]: [INFO] Creating required directories...
+Sep 20 20:21:30 fedora owadm[81895]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:30 fedora owadm[81895]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:30 fedora owadm[81895]: Usage:
+Sep 20 20:21:30 fedora owadm[81895]:   owadm start [flags]
+Sep 20 20:21:30 fedora owadm[81895]: Flags:
+Sep 20 20:21:30 fedora owadm[81895]:       --build            Build images before starting
+Sep 20 20:21:30 fedora owadm[81895]:       --daemon           Run in daemon mode
+Sep 20 20:21:30 fedora owadm[81895]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:30 fedora owadm[81895]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:30 fedora owadm[81895]:   -h, --help             help for start
+Sep 20 20:21:30 fedora owadm[81895]:       --notify           Send systemd notifications
+Sep 20 20:21:30 fedora owadm[81895]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:30 fedora owadm[81895]: Global Flags:
+Sep 20 20:21:30 fedora owadm[81895]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:30 fedora owadm[81895]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:30 fedora owadm[81895]:       --no-color         Disable colored output
+Sep 20 20:21:30 fedora owadm[81895]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:30 fedora owadm[81895]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:30 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:30 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:30 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274192 and the job result is failed.
+Sep 20 20:21:35 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 94.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:35 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274349.
+Sep 20 20:21:35 fedora owadm[81901]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:35 fedora owadm[81901]: Runtime: Runtime configuration
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ Container runtime: podman
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ Rootless mode: false
+Sep 20 20:21:35 fedora owadm[81901]: Database: Database configuration
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ SSL mode: require
+Sep 20 20:21:35 fedora owadm[81901]: Web: Web interface
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ Port: 3001
+Sep 20 20:21:35 fedora owadm[81901]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:35 fedora owadm[81901]: Scanning: Scanning configuration
+Sep 20 20:21:35 fedora owadm[81901]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ Concurrent scans: 5
+Sep 20 20:21:35 fedora owadm[81901]: Security: Security settings
+Sep 20 20:21:35 fedora owadm[81901]:   ℹ FIPS mode: disabled
+Sep 20 20:21:35 fedora owadm[81901]: Secrets: Secrets configuration
+Sep 20 20:21:35 fedora owadm[81901]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:35 fedora owadm[81901]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:35 fedora owadm[81901]: ✓ Configuration validation PASSED
+Sep 20 20:21:35 fedora owadm[81901]: Warnings:
+Sep 20 20:21:35 fedora owadm[81901]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:35 fedora owadm[81901]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:35 fedora owadm[81907]: Starting OpenWatch
+Sep 20 20:21:35 fedora owadm[81907]: ===================
+Sep 20 20:21:35 fedora owadm[81907]: [INFO] Checking prerequisites...
+Sep 20 20:21:35 fedora owadm[81907]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:35 fedora owadm[81907]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:35 fedora owadm[81907]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:35 fedora owadm[81907]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:35 fedora owadm[81907]: [INFO] Environment:
+Sep 20 20:21:35 fedora owadm[81907]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:35 fedora owadm[81907]: [SUCCESS] Created default .env file
+Sep 20 20:21:35 fedora owadm[81907]: [INFO] Creating required directories...
+Sep 20 20:21:35 fedora owadm[81907]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:35 fedora owadm[81907]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:35 fedora owadm[81907]: Usage:
+Sep 20 20:21:35 fedora owadm[81907]:   owadm start [flags]
+Sep 20 20:21:35 fedora owadm[81907]: Flags:
+Sep 20 20:21:35 fedora owadm[81907]:       --build            Build images before starting
+Sep 20 20:21:35 fedora owadm[81907]:       --daemon           Run in daemon mode
+Sep 20 20:21:35 fedora owadm[81907]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:35 fedora owadm[81907]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:35 fedora owadm[81907]:   -h, --help             help for start
+Sep 20 20:21:35 fedora owadm[81907]:       --notify           Send systemd notifications
+Sep 20 20:21:35 fedora owadm[81907]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:35 fedora owadm[81907]: Global Flags:
+Sep 20 20:21:35 fedora owadm[81907]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:35 fedora owadm[81907]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:35 fedora owadm[81907]:       --no-color         Disable colored output
+Sep 20 20:21:35 fedora owadm[81907]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:35 fedora owadm[81907]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:35 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:35 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:35 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274349 and the job result is failed.
+Sep 20 20:21:40 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 95.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:40 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274506.
+Sep 20 20:21:40 fedora owadm[81917]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:40 fedora owadm[81917]: Runtime: Runtime configuration
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ Container runtime: podman
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ Rootless mode: false
+Sep 20 20:21:40 fedora owadm[81917]: Database: Database configuration
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ SSL mode: require
+Sep 20 20:21:40 fedora owadm[81917]: Web: Web interface
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ Port: 3001
+Sep 20 20:21:40 fedora owadm[81917]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:40 fedora owadm[81917]: Scanning: Scanning configuration
+Sep 20 20:21:40 fedora owadm[81917]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ Concurrent scans: 5
+Sep 20 20:21:40 fedora owadm[81917]: Security: Security settings
+Sep 20 20:21:40 fedora owadm[81917]:   ℹ FIPS mode: disabled
+Sep 20 20:21:40 fedora owadm[81917]: Secrets: Secrets configuration
+Sep 20 20:21:40 fedora owadm[81917]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:40 fedora owadm[81917]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:40 fedora owadm[81917]: ✓ Configuration validation PASSED
+Sep 20 20:21:40 fedora owadm[81917]: Warnings:
+Sep 20 20:21:40 fedora owadm[81917]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:40 fedora owadm[81917]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:41 fedora owadm[81923]: Starting OpenWatch
+Sep 20 20:21:41 fedora owadm[81923]: ===================
+Sep 20 20:21:41 fedora owadm[81923]: [INFO] Checking prerequisites...
+Sep 20 20:21:41 fedora owadm[81923]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:41 fedora owadm[81923]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:41 fedora owadm[81923]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:41 fedora owadm[81923]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:41 fedora owadm[81923]: [INFO] Environment:
+Sep 20 20:21:41 fedora owadm[81923]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:41 fedora owadm[81923]: [SUCCESS] Created default .env file
+Sep 20 20:21:41 fedora owadm[81923]: [INFO] Creating required directories...
+Sep 20 20:21:41 fedora owadm[81923]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:41 fedora owadm[81923]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:41 fedora owadm[81923]: Usage:
+Sep 20 20:21:41 fedora owadm[81923]:   owadm start [flags]
+Sep 20 20:21:41 fedora owadm[81923]: Flags:
+Sep 20 20:21:41 fedora owadm[81923]:       --build            Build images before starting
+Sep 20 20:21:41 fedora owadm[81923]:       --daemon           Run in daemon mode
+Sep 20 20:21:41 fedora owadm[81923]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:41 fedora owadm[81923]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:41 fedora owadm[81923]:   -h, --help             help for start
+Sep 20 20:21:41 fedora owadm[81923]:       --notify           Send systemd notifications
+Sep 20 20:21:41 fedora owadm[81923]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:41 fedora owadm[81923]: Global Flags:
+Sep 20 20:21:41 fedora owadm[81923]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:41 fedora owadm[81923]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:41 fedora owadm[81923]:       --no-color         Disable colored output
+Sep 20 20:21:41 fedora owadm[81923]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:41 fedora owadm[81923]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:41 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:41 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:41 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274506 and the job result is failed.
+Sep 20 20:21:46 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 96.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:46 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274663.
+Sep 20 20:21:46 fedora owadm[81930]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:46 fedora owadm[81930]: Runtime: Runtime configuration
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ Container runtime: podman
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ Rootless mode: false
+Sep 20 20:21:46 fedora owadm[81930]: Database: Database configuration
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ SSL mode: require
+Sep 20 20:21:46 fedora owadm[81930]: Web: Web interface
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ Port: 3001
+Sep 20 20:21:46 fedora owadm[81930]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:46 fedora owadm[81930]: Scanning: Scanning configuration
+Sep 20 20:21:46 fedora owadm[81930]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ Concurrent scans: 5
+Sep 20 20:21:46 fedora owadm[81930]: Security: Security settings
+Sep 20 20:21:46 fedora owadm[81930]:   ℹ FIPS mode: disabled
+Sep 20 20:21:46 fedora owadm[81930]: Secrets: Secrets configuration
+Sep 20 20:21:46 fedora owadm[81930]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:46 fedora owadm[81930]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:46 fedora owadm[81930]: ✓ Configuration validation PASSED
+Sep 20 20:21:46 fedora owadm[81930]: Warnings:
+Sep 20 20:21:46 fedora owadm[81930]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:46 fedora owadm[81930]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:46 fedora owadm[81935]: Starting OpenWatch
+Sep 20 20:21:46 fedora owadm[81935]: ===================
+Sep 20 20:21:46 fedora owadm[81935]: [INFO] Checking prerequisites...
+Sep 20 20:21:46 fedora owadm[81935]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:46 fedora owadm[81935]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:46 fedora owadm[81935]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:46 fedora owadm[81935]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:46 fedora owadm[81935]: [INFO] Environment:
+Sep 20 20:21:46 fedora owadm[81935]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:46 fedora owadm[81935]: [SUCCESS] Created default .env file
+Sep 20 20:21:46 fedora owadm[81935]: [INFO] Creating required directories...
+Sep 20 20:21:46 fedora owadm[81935]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:46 fedora owadm[81935]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:46 fedora owadm[81935]: Usage:
+Sep 20 20:21:46 fedora owadm[81935]:   owadm start [flags]
+Sep 20 20:21:46 fedora owadm[81935]: Flags:
+Sep 20 20:21:46 fedora owadm[81935]:       --build            Build images before starting
+Sep 20 20:21:46 fedora owadm[81935]:       --daemon           Run in daemon mode
+Sep 20 20:21:46 fedora owadm[81935]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:46 fedora owadm[81935]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:46 fedora owadm[81935]:   -h, --help             help for start
+Sep 20 20:21:46 fedora owadm[81935]:       --notify           Send systemd notifications
+Sep 20 20:21:46 fedora owadm[81935]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:46 fedora owadm[81935]: Global Flags:
+Sep 20 20:21:46 fedora owadm[81935]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:46 fedora owadm[81935]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:46 fedora owadm[81935]:       --no-color         Disable colored output
+Sep 20 20:21:46 fedora owadm[81935]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:46 fedora owadm[81935]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:46 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:46 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:46 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274663 and the job result is failed.
+Sep 20 20:21:51 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 97.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:51 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274820.
+Sep 20 20:21:51 fedora owadm[81942]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:51 fedora owadm[81942]: Runtime: Runtime configuration
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ Container runtime: podman
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ Rootless mode: false
+Sep 20 20:21:51 fedora owadm[81942]: Database: Database configuration
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ SSL mode: require
+Sep 20 20:21:51 fedora owadm[81942]: Web: Web interface
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ Port: 3001
+Sep 20 20:21:51 fedora owadm[81942]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:51 fedora owadm[81942]: Scanning: Scanning configuration
+Sep 20 20:21:51 fedora owadm[81942]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ Concurrent scans: 5
+Sep 20 20:21:51 fedora owadm[81942]: Security: Security settings
+Sep 20 20:21:51 fedora owadm[81942]:   ℹ FIPS mode: disabled
+Sep 20 20:21:51 fedora owadm[81942]: Secrets: Secrets configuration
+Sep 20 20:21:51 fedora owadm[81942]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:51 fedora owadm[81942]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:51 fedora owadm[81942]: ✓ Configuration validation PASSED
+Sep 20 20:21:51 fedora owadm[81942]: Warnings:
+Sep 20 20:21:51 fedora owadm[81942]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:51 fedora owadm[81942]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:51 fedora owadm[81948]: Starting OpenWatch
+Sep 20 20:21:51 fedora owadm[81948]: ===================
+Sep 20 20:21:51 fedora owadm[81948]: [INFO] Checking prerequisites...
+Sep 20 20:21:51 fedora owadm[81948]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:51 fedora owadm[81948]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:51 fedora owadm[81948]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:51 fedora owadm[81948]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:51 fedora owadm[81948]: [INFO] Environment:
+Sep 20 20:21:51 fedora owadm[81948]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:51 fedora owadm[81948]: [SUCCESS] Created default .env file
+Sep 20 20:21:51 fedora owadm[81948]: [INFO] Creating required directories...
+Sep 20 20:21:51 fedora owadm[81948]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:51 fedora owadm[81948]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:51 fedora owadm[81948]: Usage:
+Sep 20 20:21:51 fedora owadm[81948]:   owadm start [flags]
+Sep 20 20:21:51 fedora owadm[81948]: Flags:
+Sep 20 20:21:51 fedora owadm[81948]:       --build            Build images before starting
+Sep 20 20:21:51 fedora owadm[81948]:       --daemon           Run in daemon mode
+Sep 20 20:21:51 fedora owadm[81948]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:51 fedora owadm[81948]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:51 fedora owadm[81948]:   -h, --help             help for start
+Sep 20 20:21:51 fedora owadm[81948]:       --notify           Send systemd notifications
+Sep 20 20:21:51 fedora owadm[81948]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:51 fedora owadm[81948]: Global Flags:
+Sep 20 20:21:51 fedora owadm[81948]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:51 fedora owadm[81948]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:51 fedora owadm[81948]:       --no-color         Disable colored output
+Sep 20 20:21:51 fedora owadm[81948]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:51 fedora owadm[81948]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:51 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:51 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:51 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274820 and the job result is failed.
+Sep 20 20:21:56 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 98.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:21:56 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 274977.
+Sep 20 20:21:56 fedora owadm[81954]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:21:56 fedora owadm[81954]: Runtime: Runtime configuration
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ Container runtime: podman
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ Rootless mode: false
+Sep 20 20:21:56 fedora owadm[81954]: Database: Database configuration
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ SSL mode: require
+Sep 20 20:21:56 fedora owadm[81954]: Web: Web interface
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ Port: 3001
+Sep 20 20:21:56 fedora owadm[81954]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:21:56 fedora owadm[81954]: Scanning: Scanning configuration
+Sep 20 20:21:56 fedora owadm[81954]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ Concurrent scans: 5
+Sep 20 20:21:56 fedora owadm[81954]: Security: Security settings
+Sep 20 20:21:56 fedora owadm[81954]:   ℹ FIPS mode: disabled
+Sep 20 20:21:56 fedora owadm[81954]: Secrets: Secrets configuration
+Sep 20 20:21:56 fedora owadm[81954]:   ✓ Secrets file found with correct permissions
+Sep 20 20:21:56 fedora owadm[81954]: ────────────────────────────────────────────────────────────
+Sep 20 20:21:56 fedora owadm[81954]: ✓ Configuration validation PASSED
+Sep 20 20:21:56 fedora owadm[81954]: Warnings:
+Sep 20 20:21:56 fedora owadm[81954]:   • SSL is disabled - not recommended for production
+Sep 20 20:21:56 fedora owadm[81954]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:21:56 fedora owadm[81960]: Starting OpenWatch
+Sep 20 20:21:56 fedora owadm[81960]: ===================
+Sep 20 20:21:56 fedora owadm[81960]: [INFO] Checking prerequisites...
+Sep 20 20:21:56 fedora owadm[81960]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:21:56 fedora owadm[81960]: [SUCCESS] Prerequisites check passed
+Sep 20 20:21:56 fedora owadm[81960]: [INFO] Auto-detecting container runtime...
+Sep 20 20:21:56 fedora owadm[81960]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:21:56 fedora owadm[81960]: [INFO] Environment:
+Sep 20 20:21:56 fedora owadm[81960]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:21:56 fedora owadm[81960]: [SUCCESS] Created default .env file
+Sep 20 20:21:56 fedora owadm[81960]: [INFO] Creating required directories...
+Sep 20 20:21:56 fedora owadm[81960]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:56 fedora owadm[81960]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:21:56 fedora owadm[81960]: Usage:
+Sep 20 20:21:56 fedora owadm[81960]:   owadm start [flags]
+Sep 20 20:21:56 fedora owadm[81960]: Flags:
+Sep 20 20:21:56 fedora owadm[81960]:       --build            Build images before starting
+Sep 20 20:21:56 fedora owadm[81960]:       --daemon           Run in daemon mode
+Sep 20 20:21:56 fedora owadm[81960]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:21:56 fedora owadm[81960]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:21:56 fedora owadm[81960]:   -h, --help             help for start
+Sep 20 20:21:56 fedora owadm[81960]:       --notify           Send systemd notifications
+Sep 20 20:21:56 fedora owadm[81960]:       --service string   Specific service to manage (default "all")
+Sep 20 20:21:56 fedora owadm[81960]: Global Flags:
+Sep 20 20:21:56 fedora owadm[81960]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:21:56 fedora owadm[81960]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:21:56 fedora owadm[81960]:       --no-color         Disable colored output
+Sep 20 20:21:56 fedora owadm[81960]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:21:56 fedora owadm[81960]:   -v, --verbose          Enable verbose output
+Sep 20 20:21:56 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:21:56 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:21:56 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 274977 and the job result is failed.
+Sep 20 20:22:01 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 99.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:22:01 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 275134.
+Sep 20 20:22:01 fedora owadm[81967]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:22:01 fedora owadm[81967]: Runtime: Runtime configuration
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ Container runtime: podman
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ Rootless mode: false
+Sep 20 20:22:01 fedora owadm[81967]: Database: Database configuration
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ SSL mode: require
+Sep 20 20:22:01 fedora owadm[81967]: Web: Web interface
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ Port: 3001
+Sep 20 20:22:01 fedora owadm[81967]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:22:01 fedora owadm[81967]: Scanning: Scanning configuration
+Sep 20 20:22:01 fedora owadm[81967]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ Concurrent scans: 5
+Sep 20 20:22:01 fedora owadm[81967]: Security: Security settings
+Sep 20 20:22:01 fedora owadm[81967]:   ℹ FIPS mode: disabled
+Sep 20 20:22:01 fedora owadm[81967]: Secrets: Secrets configuration
+Sep 20 20:22:01 fedora owadm[81967]:   ✓ Secrets file found with correct permissions
+Sep 20 20:22:01 fedora owadm[81967]: ────────────────────────────────────────────────────────────
+Sep 20 20:22:01 fedora owadm[81967]: ✓ Configuration validation PASSED
+Sep 20 20:22:01 fedora owadm[81967]: Warnings:
+Sep 20 20:22:01 fedora owadm[81967]:   • SSL is disabled - not recommended for production
+Sep 20 20:22:01 fedora owadm[81967]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:22:02 fedora owadm[81973]: Starting OpenWatch
+Sep 20 20:22:02 fedora owadm[81973]: ===================
+Sep 20 20:22:02 fedora owadm[81973]: [INFO] Checking prerequisites...
+Sep 20 20:22:02 fedora owadm[81973]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:22:02 fedora owadm[81973]: [SUCCESS] Prerequisites check passed
+Sep 20 20:22:02 fedora owadm[81973]: [INFO] Auto-detecting container runtime...
+Sep 20 20:22:02 fedora owadm[81973]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:22:02 fedora owadm[81973]: [INFO] Environment:
+Sep 20 20:22:02 fedora owadm[81973]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:22:02 fedora owadm[81973]: [SUCCESS] Created default .env file
+Sep 20 20:22:02 fedora owadm[81973]: [INFO] Creating required directories...
+Sep 20 20:22:02 fedora owadm[81973]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:22:02 fedora owadm[81973]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:22:02 fedora owadm[81973]: Usage:
+Sep 20 20:22:02 fedora owadm[81973]:   owadm start [flags]
+Sep 20 20:22:02 fedora owadm[81973]: Flags:
+Sep 20 20:22:02 fedora owadm[81973]:       --build            Build images before starting
+Sep 20 20:22:02 fedora owadm[81973]:       --daemon           Run in daemon mode
+Sep 20 20:22:02 fedora owadm[81973]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:22:02 fedora owadm[81973]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:22:02 fedora owadm[81973]:   -h, --help             help for start
+Sep 20 20:22:02 fedora owadm[81973]:       --notify           Send systemd notifications
+Sep 20 20:22:02 fedora owadm[81973]:       --service string   Specific service to manage (default "all")
+Sep 20 20:22:02 fedora owadm[81973]: Global Flags:
+Sep 20 20:22:02 fedora owadm[81973]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:22:02 fedora owadm[81973]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:22:02 fedora owadm[81973]:       --no-color         Disable colored output
+Sep 20 20:22:02 fedora owadm[81973]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:22:02 fedora owadm[81973]:   -v, --verbose          Enable verbose output
+Sep 20 20:22:02 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:22:02 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:22:02 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 275134 and the job result is failed.
+Sep 20 20:22:07 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 100.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 20 20:22:07 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 275291.
+Sep 20 20:22:07 fedora owadm[81979]: 🔍 Configuration validation for: /etc/openwatch/ow.yml
+Sep 20 20:22:07 fedora owadm[81979]: Runtime: Runtime configuration
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ Container runtime: podman
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ Rootless mode: false
+Sep 20 20:22:07 fedora owadm[81979]: Database: Database configuration
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ PostgreSQL: localhost:5432
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ SSL mode: require
+Sep 20 20:22:07 fedora owadm[81979]: Web: Web interface
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ Port: 3001
+Sep 20 20:22:07 fedora owadm[81979]:   ⚠ SSL disabled (not recommended for production)
+Sep 20 20:22:07 fedora owadm[81979]: Scanning: Scanning configuration
+Sep 20 20:22:07 fedora owadm[81979]:   ⚠ SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ Concurrent scans: 5
+Sep 20 20:22:07 fedora owadm[81979]: Security: Security settings
+Sep 20 20:22:07 fedora owadm[81979]:   ℹ FIPS mode: disabled
+Sep 20 20:22:07 fedora owadm[81979]: Secrets: Secrets configuration
+Sep 20 20:22:07 fedora owadm[81979]:   ✓ Secrets file found with correct permissions
+Sep 20 20:22:07 fedora owadm[81979]: ────────────────────────────────────────────────────────────
+Sep 20 20:22:07 fedora owadm[81979]: ✓ Configuration validation PASSED
+Sep 20 20:22:07 fedora owadm[81979]: Warnings:
+Sep 20 20:22:07 fedora owadm[81979]:   • SSL is disabled - not recommended for production
+Sep 20 20:22:07 fedora owadm[81979]:   • SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 20 20:22:07 fedora owadm[81985]: Starting OpenWatch
+Sep 20 20:22:07 fedora owadm[81985]: ===================
+Sep 20 20:22:07 fedora owadm[81985]: [INFO] Checking prerequisites...
+Sep 20 20:22:07 fedora owadm[81985]: ⚠️  Running as root user. Consider using rootless containers for better security.
+Sep 20 20:22:07 fedora owadm[81985]: [SUCCESS] Prerequisites check passed
+Sep 20 20:22:07 fedora owadm[81985]: [INFO] Auto-detecting container runtime...
+Sep 20 20:22:07 fedora owadm[81985]: [SUCCESS] Detected runtime: Podman
+Sep 20 20:22:07 fedora owadm[81985]: [INFO] Environment:
+Sep 20 20:22:07 fedora owadm[81985]: [WARNING] Environment check: not in OpenWatch directory (missing backend/app/main.py)
+Sep 20 20:22:07 fedora owadm[81985]: [SUCCESS] Created default .env file
+Sep 20 20:22:07 fedora owadm[81985]: [INFO] Creating required directories...
+Sep 20 20:22:07 fedora owadm[81985]: [ERROR] Failed to create directories: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:22:07 fedora owadm[81985]: Error: failed to set permissions on security/keys: chmod security/keys: operation not permitted
+Sep 20 20:22:07 fedora owadm[81985]: Usage:
+Sep 20 20:22:07 fedora owadm[81985]:   owadm start [flags]
+Sep 20 20:22:07 fedora owadm[81985]: Flags:
+Sep 20 20:22:07 fedora owadm[81985]:       --build            Build images before starting
+Sep 20 20:22:07 fedora owadm[81985]:       --daemon           Run in daemon mode
+Sep 20 20:22:07 fedora owadm[81985]:   -d, --detach           Run containers in background (default true)
+Sep 20 20:22:07 fedora owadm[81985]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 20 20:22:07 fedora owadm[81985]:   -h, --help             help for start
+Sep 20 20:22:07 fedora owadm[81985]:       --notify           Send systemd notifications
+Sep 20 20:22:07 fedora owadm[81985]:       --service string   Specific service to manage (default "all")
+Sep 20 20:22:07 fedora owadm[81985]: Global Flags:
+Sep 20 20:22:07 fedora owadm[81985]:       --config string    Config file (default: .owadm.yaml)
+Sep 20 20:22:07 fedora owadm[81985]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 20 20:22:07 fedora owadm[81985]:       --no-color         Disable colored output
+Sep 20 20:22:07 fedora owadm[81985]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 20 20:22:07 fedora owadm[81985]:   -v, --verbose          Enable verbose output
+Sep 20 20:22:07 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 20 20:22:07 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 20 20:22:07 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 275291 and the job result is failed.

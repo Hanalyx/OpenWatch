@@ -1,0 +1,1444 @@
+Sep 21 09:54:06 fedora owadm[105957]: [SUCCESS] Created default .env file
+Sep 21 09:54:06 fedora owadm[105957]: [INFO] Creating required directories...
+Sep 21 09:54:06 fedora owadm[105957]: [SUCCESS] Security keys are ready
+Sep 21 09:54:06 fedora owadm[105957]: [INFO] Starting containers with Podman...
+Sep 21 09:54:06 fedora owadm[105997]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:54:06 fedora owadm[105997]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:54:06 fedora owadm[105998]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:06 fedora owadm[105999]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:06 fedora owadm[105998]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:06 fedora owadm[105999]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:06 fedora owadm[105997]: Getting image source signatures
+Sep 21 09:54:06 fedora owadm[105997]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:54:06 fedora owadm[105997]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:54:06 fedora owadm[105997]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:54:06 fedora owadm[105997]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:54:06 fedora owadm[105999]: Getting image source signatures
+Sep 21 09:54:06 fedora owadm[105998]: Getting image source signatures
+Sep 21 09:54:07 fedora owadm[105999]: Checking if image destination supports signatures
+Sep 21 09:54:07 fedora owadm[105999]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:07 fedora owadm[105998]: Checking if image destination supports signatures
+Sep 21 09:54:07 fedora owadm[105998]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:10 fedora podman[105997]: 2025-09-21 09:54:10.407502069 -0400 EDT m=+4.056842816 image build  
+Sep 21 09:54:10 fedora owadm[105997]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:17 fedora podman[105998]: 2025-09-21 09:54:17.865176749 -0400 EDT m=+11.507148431 image build  
+Sep 21 09:54:17 fedora owadm[105998]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:20 fedora podman[105999]: 2025-09-21 09:54:20.108013079 -0400 EDT m=+13.747443383 image build  
+Sep 21 09:54:20 fedora owadm[105999]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:20 fedora owadm[105962]: ERROR:podman_compose:Build command failed
+Sep 21 09:54:20 fedora owadm[105957]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:54:20 fedora owadm[105957]: Error: exit status 1
+Sep 21 09:54:20 fedora owadm[105957]: Usage:
+Sep 21 09:54:20 fedora owadm[105957]:   owadm start [flags]
+Sep 21 09:54:20 fedora owadm[105957]: Flags:
+Sep 21 09:54:20 fedora owadm[105957]:       --build            Build images before starting
+Sep 21 09:54:20 fedora owadm[105957]:       --daemon           Run in daemon mode
+Sep 21 09:54:20 fedora owadm[105957]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:54:20 fedora owadm[105957]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:54:20 fedora owadm[105957]:   -h, --help             help for start
+Sep 21 09:54:20 fedora owadm[105957]:       --notify           Send systemd notifications
+Sep 21 09:54:20 fedora owadm[105957]:       --service string   Specific service to manage (default "all")
+Sep 21 09:54:20 fedora owadm[105957]: Global Flags:
+Sep 21 09:54:20 fedora owadm[105957]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:54:20 fedora owadm[105957]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:54:20 fedora owadm[105957]:       --no-color         Disable colored output
+Sep 21 09:54:20 fedora owadm[105957]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:54:20 fedora owadm[105957]:   -v, --verbose          Enable verbose output
+Sep 21 09:54:20 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:54:20 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:54:20 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392058 and the job result is failed.
+Sep 21 09:54:20 fedora systemd[1]: openwatch-db.service: Consumed 23.005s CPU time, 210.8M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:54:25 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 21.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:54:25 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 392215.
+Sep 21 09:54:25 fedora owadm[106097]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:54:25 fedora owadm[106097]: Runtime: Runtime configuration
+Sep 21 09:54:25 fedora owadm[106097]:   OK: Container runtime: podman
+Sep 21 09:54:25 fedora owadm[106097]:   OK: Rootless mode: false
+Sep 21 09:54:25 fedora owadm[106097]: Database: Database configuration
+Sep 21 09:54:25 fedora owadm[106097]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:54:25 fedora owadm[106097]:   OK: SSL mode: require
+Sep 21 09:54:25 fedora owadm[106097]: Web: Web interface
+Sep 21 09:54:25 fedora owadm[106097]:   OK: Port: 3001
+Sep 21 09:54:25 fedora owadm[106097]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:54:25 fedora owadm[106097]: Scanning: Scanning configuration
+Sep 21 09:54:25 fedora owadm[106097]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:54:25 fedora owadm[106097]:   OK: Concurrent scans: 5
+Sep 21 09:54:25 fedora owadm[106097]: Security: Security settings
+Sep 21 09:54:25 fedora owadm[106097]:   INFO: FIPS mode: disabled
+Sep 21 09:54:25 fedora owadm[106097]: Secrets: Secrets configuration
+Sep 21 09:54:25 fedora owadm[106097]:   OK: Secrets file found with correct permissions
+Sep 21 09:54:25 fedora owadm[106097]: ────────────────────────────────────────────────────────────
+Sep 21 09:54:25 fedora owadm[106097]: OK: Configuration validation PASSED
+Sep 21 09:54:25 fedora owadm[106097]: Warnings:
+Sep 21 09:54:25 fedora owadm[106097]:   - SSL is disabled - not recommended for production
+Sep 21 09:54:25 fedora owadm[106097]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:54:25 fedora owadm[106104]: Starting OpenWatch
+Sep 21 09:54:25 fedora owadm[106104]: ===================
+Sep 21 09:54:25 fedora owadm[106104]: [INFO] Checking prerequisites...
+Sep 21 09:54:25 fedora owadm[106104]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:54:25 fedora owadm[106104]: [SUCCESS] Prerequisites check passed
+Sep 21 09:54:25 fedora owadm[106104]: [INFO] Auto-detecting container runtime...
+Sep 21 09:54:25 fedora owadm[106104]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:54:25 fedora owadm[106104]: [INFO] Environment:
+Sep 21 09:54:25 fedora owadm[106104]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:54:25 fedora owadm[106104]: [SUCCESS] Created default .env file
+Sep 21 09:54:25 fedora owadm[106104]: [INFO] Creating required directories...
+Sep 21 09:54:25 fedora owadm[106104]: [SUCCESS] Security keys are ready
+Sep 21 09:54:25 fedora owadm[106104]: [INFO] Starting containers with Podman...
+Sep 21 09:54:25 fedora owadm[106144]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:54:25 fedora owadm[106145]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:25 fedora owadm[106144]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:54:25 fedora owadm[106143]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:25 fedora owadm[106145]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:25 fedora owadm[106143]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:26 fedora owadm[106145]: Getting image source signatures
+Sep 21 09:54:26 fedora owadm[106143]: Getting image source signatures
+Sep 21 09:54:26 fedora owadm[106144]: Getting image source signatures
+Sep 21 09:54:26 fedora owadm[106144]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:54:26 fedora owadm[106144]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:54:26 fedora owadm[106144]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:54:26 fedora owadm[106144]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:54:26 fedora owadm[106143]: Checking if image destination supports signatures
+Sep 21 09:54:26 fedora owadm[106143]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:26 fedora owadm[106145]: Checking if image destination supports signatures
+Sep 21 09:54:26 fedora owadm[106145]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:31 fedora podman[106144]: 2025-09-21 09:54:31.58625496 -0400 EDT m=+5.710420848 image build  
+Sep 21 09:54:31 fedora owadm[106144]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:35 fedora podman[106143]: 2025-09-21 09:54:35.299350317 -0400 EDT m=+9.424396437 image build  
+Sep 21 09:54:35 fedora owadm[106143]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:38 fedora podman[106145]: 2025-09-21 09:54:38.817067857 -0400 EDT m=+12.940196089 image build  
+Sep 21 09:54:38 fedora owadm[106145]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:38 fedora owadm[106109]: ERROR:podman_compose:Build command failed
+Sep 21 09:54:38 fedora owadm[106104]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:54:38 fedora owadm[106104]: Error: exit status 1
+Sep 21 09:54:38 fedora owadm[106104]: Usage:
+Sep 21 09:54:38 fedora owadm[106104]:   owadm start [flags]
+Sep 21 09:54:38 fedora owadm[106104]: Flags:
+Sep 21 09:54:38 fedora owadm[106104]:       --build            Build images before starting
+Sep 21 09:54:38 fedora owadm[106104]:       --daemon           Run in daemon mode
+Sep 21 09:54:38 fedora owadm[106104]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:54:38 fedora owadm[106104]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:54:38 fedora owadm[106104]:   -h, --help             help for start
+Sep 21 09:54:38 fedora owadm[106104]:       --notify           Send systemd notifications
+Sep 21 09:54:38 fedora owadm[106104]:       --service string   Specific service to manage (default "all")
+Sep 21 09:54:38 fedora owadm[106104]: Global Flags:
+Sep 21 09:54:38 fedora owadm[106104]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:54:38 fedora owadm[106104]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:54:38 fedora owadm[106104]:       --no-color         Disable colored output
+Sep 21 09:54:38 fedora owadm[106104]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:54:38 fedora owadm[106104]:   -v, --verbose          Enable verbose output
+Sep 21 09:54:38 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:54:38 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:54:38 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392215 and the job result is failed.
+Sep 21 09:54:38 fedora systemd[1]: openwatch-db.service: Consumed 23.006s CPU time, 187.6M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:54:44 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 22.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:54:44 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 392372.
+Sep 21 09:54:44 fedora owadm[106245]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:54:44 fedora owadm[106245]: Runtime: Runtime configuration
+Sep 21 09:54:44 fedora owadm[106245]:   OK: Container runtime: podman
+Sep 21 09:54:44 fedora owadm[106245]:   OK: Rootless mode: false
+Sep 21 09:54:44 fedora owadm[106245]: Database: Database configuration
+Sep 21 09:54:44 fedora owadm[106245]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:54:44 fedora owadm[106245]:   OK: SSL mode: require
+Sep 21 09:54:44 fedora owadm[106245]: Web: Web interface
+Sep 21 09:54:44 fedora owadm[106245]:   OK: Port: 3001
+Sep 21 09:54:44 fedora owadm[106245]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:54:44 fedora owadm[106245]: Scanning: Scanning configuration
+Sep 21 09:54:44 fedora owadm[106245]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:54:44 fedora owadm[106245]:   OK: Concurrent scans: 5
+Sep 21 09:54:44 fedora owadm[106245]: Security: Security settings
+Sep 21 09:54:44 fedora owadm[106245]:   INFO: FIPS mode: disabled
+Sep 21 09:54:44 fedora owadm[106245]: Secrets: Secrets configuration
+Sep 21 09:54:44 fedora owadm[106245]:   OK: Secrets file found with correct permissions
+Sep 21 09:54:44 fedora owadm[106245]: ────────────────────────────────────────────────────────────
+Sep 21 09:54:44 fedora owadm[106245]: OK: Configuration validation PASSED
+Sep 21 09:54:44 fedora owadm[106245]: Warnings:
+Sep 21 09:54:44 fedora owadm[106245]:   - SSL is disabled - not recommended for production
+Sep 21 09:54:44 fedora owadm[106245]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:54:44 fedora owadm[106250]: Starting OpenWatch
+Sep 21 09:54:44 fedora owadm[106250]: ===================
+Sep 21 09:54:44 fedora owadm[106250]: [INFO] Checking prerequisites...
+Sep 21 09:54:44 fedora owadm[106250]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:54:44 fedora owadm[106250]: [SUCCESS] Prerequisites check passed
+Sep 21 09:54:44 fedora owadm[106250]: [INFO] Auto-detecting container runtime...
+Sep 21 09:54:44 fedora owadm[106250]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:54:44 fedora owadm[106250]: [INFO] Environment:
+Sep 21 09:54:44 fedora owadm[106250]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:54:44 fedora owadm[106250]: [SUCCESS] Created default .env file
+Sep 21 09:54:44 fedora owadm[106250]: [INFO] Creating required directories...
+Sep 21 09:54:44 fedora owadm[106250]: [SUCCESS] Security keys are ready
+Sep 21 09:54:44 fedora owadm[106250]: [INFO] Starting containers with Podman...
+Sep 21 09:54:44 fedora owadm[106292]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:54:44 fedora owadm[106296]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:44 fedora owadm[106292]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:54:44 fedora owadm[106295]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:54:44 fedora owadm[106296]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:44 fedora owadm[106295]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:54:45 fedora owadm[106292]: Getting image source signatures
+Sep 21 09:54:45 fedora owadm[106292]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:54:45 fedora owadm[106292]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:54:45 fedora owadm[106292]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:54:45 fedora owadm[106292]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:54:45 fedora owadm[106295]: Getting image source signatures
+Sep 21 09:54:45 fedora owadm[106296]: Getting image source signatures
+Sep 21 09:54:45 fedora owadm[106295]: Checking if image destination supports signatures
+Sep 21 09:54:45 fedora owadm[106295]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:45 fedora owadm[106296]: Checking if image destination supports signatures
+Sep 21 09:54:45 fedora owadm[106296]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:54:49 fedora podman[106292]: 2025-09-21 09:54:49.535902101 -0400 EDT m=+4.906179246 image build  
+Sep 21 09:54:49 fedora owadm[106292]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:54:59 fedora podman[106296]: 2025-09-21 09:54:59.87244575 -0400 EDT m=+15.236176233 image build  
+Sep 21 09:54:59 fedora owadm[106296]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:01 fedora podman[106295]: 2025-09-21 09:55:01.710575796 -0400 EDT m=+17.076436769 image build  
+Sep 21 09:55:01 fedora owadm[106295]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:01 fedora owadm[106256]: ERROR:podman_compose:Build command failed
+Sep 21 09:55:01 fedora owadm[106250]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:55:01 fedora owadm[106250]: Error: exit status 1
+Sep 21 09:55:01 fedora owadm[106250]: Usage:
+Sep 21 09:55:01 fedora owadm[106250]:   owadm start [flags]
+Sep 21 09:55:01 fedora owadm[106250]: Flags:
+Sep 21 09:55:01 fedora owadm[106250]:       --build            Build images before starting
+Sep 21 09:55:01 fedora owadm[106250]:       --daemon           Run in daemon mode
+Sep 21 09:55:01 fedora owadm[106250]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:55:01 fedora owadm[106250]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:55:01 fedora owadm[106250]:   -h, --help             help for start
+Sep 21 09:55:01 fedora owadm[106250]:       --notify           Send systemd notifications
+Sep 21 09:55:01 fedora owadm[106250]:       --service string   Specific service to manage (default "all")
+Sep 21 09:55:01 fedora owadm[106250]: Global Flags:
+Sep 21 09:55:01 fedora owadm[106250]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:55:01 fedora owadm[106250]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:55:01 fedora owadm[106250]:       --no-color         Disable colored output
+Sep 21 09:55:01 fedora owadm[106250]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:55:01 fedora owadm[106250]:   -v, --verbose          Enable verbose output
+Sep 21 09:55:01 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:55:01 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:55:01 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392372 and the job result is failed.
+Sep 21 09:55:01 fedora systemd[1]: openwatch-db.service: Consumed 24.456s CPU time, 217.2M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:55:06 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 23.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:55:06 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 392529.
+Sep 21 09:55:06 fedora owadm[106393]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:55:06 fedora owadm[106393]: Runtime: Runtime configuration
+Sep 21 09:55:06 fedora owadm[106393]:   OK: Container runtime: podman
+Sep 21 09:55:06 fedora owadm[106393]:   OK: Rootless mode: false
+Sep 21 09:55:06 fedora owadm[106393]: Database: Database configuration
+Sep 21 09:55:06 fedora owadm[106393]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:55:06 fedora owadm[106393]:   OK: SSL mode: require
+Sep 21 09:55:06 fedora owadm[106393]: Web: Web interface
+Sep 21 09:55:06 fedora owadm[106393]:   OK: Port: 3001
+Sep 21 09:55:06 fedora owadm[106393]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:55:06 fedora owadm[106393]: Scanning: Scanning configuration
+Sep 21 09:55:06 fedora owadm[106393]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:06 fedora owadm[106393]:   OK: Concurrent scans: 5
+Sep 21 09:55:06 fedora owadm[106393]: Security: Security settings
+Sep 21 09:55:06 fedora owadm[106393]:   INFO: FIPS mode: disabled
+Sep 21 09:55:06 fedora owadm[106393]: Secrets: Secrets configuration
+Sep 21 09:55:06 fedora owadm[106393]:   OK: Secrets file found with correct permissions
+Sep 21 09:55:06 fedora owadm[106393]: ────────────────────────────────────────────────────────────
+Sep 21 09:55:06 fedora owadm[106393]: OK: Configuration validation PASSED
+Sep 21 09:55:06 fedora owadm[106393]: Warnings:
+Sep 21 09:55:06 fedora owadm[106393]:   - SSL is disabled - not recommended for production
+Sep 21 09:55:06 fedora owadm[106393]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:07 fedora owadm[106399]: Starting OpenWatch
+Sep 21 09:55:07 fedora owadm[106399]: ===================
+Sep 21 09:55:07 fedora owadm[106399]: [INFO] Checking prerequisites...
+Sep 21 09:55:07 fedora owadm[106399]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:55:07 fedora owadm[106399]: [SUCCESS] Prerequisites check passed
+Sep 21 09:55:07 fedora owadm[106399]: [INFO] Auto-detecting container runtime...
+Sep 21 09:55:07 fedora owadm[106399]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:55:07 fedora owadm[106399]: [INFO] Environment:
+Sep 21 09:55:07 fedora owadm[106399]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:55:07 fedora owadm[106399]: [SUCCESS] Created default .env file
+Sep 21 09:55:07 fedora owadm[106399]: [INFO] Creating required directories...
+Sep 21 09:55:07 fedora owadm[106399]: [SUCCESS] Security keys are ready
+Sep 21 09:55:07 fedora owadm[106399]: [INFO] Starting containers with Podman...
+Sep 21 09:55:07 fedora owadm[106439]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:55:07 fedora owadm[106439]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:55:07 fedora owadm[106441]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:07 fedora owadm[106441]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:07 fedora owadm[106447]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:07 fedora owadm[106447]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:07 fedora owadm[106439]: Getting image source signatures
+Sep 21 09:55:07 fedora owadm[106439]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:55:07 fedora owadm[106439]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:55:07 fedora owadm[106439]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:55:07 fedora owadm[106439]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:55:07 fedora owadm[106447]: Getting image source signatures
+Sep 21 09:55:08 fedora owadm[106441]: Getting image source signatures
+Sep 21 09:55:08 fedora owadm[106447]: Checking if image destination supports signatures
+Sep 21 09:55:08 fedora owadm[106447]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:08 fedora owadm[106441]: Checking if image destination supports signatures
+Sep 21 09:55:08 fedora owadm[106441]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:11 fedora podman[106439]: 2025-09-21 09:55:11.802612587 -0400 EDT m=+4.444003130 image build  
+Sep 21 09:55:11 fedora owadm[106439]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:20 fedora podman[106441]: 2025-09-21 09:55:20.383281405 -0400 EDT m=+13.015536415 image build  
+Sep 21 09:55:20 fedora owadm[106441]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:22 fedora podman[106447]: 2025-09-21 09:55:22.146744474 -0400 EDT m=+14.773582391 image build  
+Sep 21 09:55:22 fedora owadm[106447]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:22 fedora owadm[106404]: ERROR:podman_compose:Build command failed
+Sep 21 09:55:22 fedora owadm[106399]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:55:22 fedora owadm[106399]: Error: exit status 1
+Sep 21 09:55:22 fedora owadm[106399]: Usage:
+Sep 21 09:55:22 fedora owadm[106399]:   owadm start [flags]
+Sep 21 09:55:22 fedora owadm[106399]: Flags:
+Sep 21 09:55:22 fedora owadm[106399]:       --build            Build images before starting
+Sep 21 09:55:22 fedora owadm[106399]:       --daemon           Run in daemon mode
+Sep 21 09:55:22 fedora owadm[106399]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:55:22 fedora owadm[106399]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:55:22 fedora owadm[106399]:   -h, --help             help for start
+Sep 21 09:55:22 fedora owadm[106399]:       --notify           Send systemd notifications
+Sep 21 09:55:22 fedora owadm[106399]:       --service string   Specific service to manage (default "all")
+Sep 21 09:55:22 fedora owadm[106399]: Global Flags:
+Sep 21 09:55:22 fedora owadm[106399]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:55:22 fedora owadm[106399]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:55:22 fedora owadm[106399]:       --no-color         Disable colored output
+Sep 21 09:55:22 fedora owadm[106399]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:55:22 fedora owadm[106399]:   -v, --verbose          Enable verbose output
+Sep 21 09:55:22 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:55:22 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:55:22 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392529 and the job result is failed.
+Sep 21 09:55:22 fedora systemd[1]: openwatch-db.service: Consumed 23.663s CPU time, 234.5M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:55:27 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 24.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:55:27 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 392686.
+Sep 21 09:55:27 fedora owadm[106548]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:55:27 fedora owadm[106548]: Runtime: Runtime configuration
+Sep 21 09:55:27 fedora owadm[106548]:   OK: Container runtime: podman
+Sep 21 09:55:27 fedora owadm[106548]:   OK: Rootless mode: false
+Sep 21 09:55:27 fedora owadm[106548]: Database: Database configuration
+Sep 21 09:55:27 fedora owadm[106548]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:55:27 fedora owadm[106548]:   OK: SSL mode: require
+Sep 21 09:55:27 fedora owadm[106548]: Web: Web interface
+Sep 21 09:55:27 fedora owadm[106548]:   OK: Port: 3001
+Sep 21 09:55:27 fedora owadm[106548]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:55:27 fedora owadm[106548]: Scanning: Scanning configuration
+Sep 21 09:55:27 fedora owadm[106548]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:27 fedora owadm[106548]:   OK: Concurrent scans: 5
+Sep 21 09:55:27 fedora owadm[106548]: Security: Security settings
+Sep 21 09:55:27 fedora owadm[106548]:   INFO: FIPS mode: disabled
+Sep 21 09:55:27 fedora owadm[106548]: Secrets: Secrets configuration
+Sep 21 09:55:27 fedora owadm[106548]:   OK: Secrets file found with correct permissions
+Sep 21 09:55:27 fedora owadm[106548]: ────────────────────────────────────────────────────────────
+Sep 21 09:55:27 fedora owadm[106548]: OK: Configuration validation PASSED
+Sep 21 09:55:27 fedora owadm[106548]: Warnings:
+Sep 21 09:55:27 fedora owadm[106548]:   - SSL is disabled - not recommended for production
+Sep 21 09:55:27 fedora owadm[106548]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:27 fedora owadm[106553]: Starting OpenWatch
+Sep 21 09:55:27 fedora owadm[106553]: ===================
+Sep 21 09:55:27 fedora owadm[106553]: [INFO] Checking prerequisites...
+Sep 21 09:55:27 fedora owadm[106553]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:55:27 fedora owadm[106553]: [SUCCESS] Prerequisites check passed
+Sep 21 09:55:27 fedora owadm[106553]: [INFO] Auto-detecting container runtime...
+Sep 21 09:55:27 fedora owadm[106553]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:55:27 fedora owadm[106553]: [INFO] Environment:
+Sep 21 09:55:27 fedora owadm[106553]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:55:27 fedora owadm[106553]: [SUCCESS] Created default .env file
+Sep 21 09:55:27 fedora owadm[106553]: [INFO] Creating required directories...
+Sep 21 09:55:27 fedora owadm[106553]: [SUCCESS] Security keys are ready
+Sep 21 09:55:27 fedora owadm[106553]: [INFO] Starting containers with Podman...
+Sep 21 09:55:27 fedora owadm[106596]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:27 fedora owadm[106597]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:27 fedora owadm[106596]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:27 fedora owadm[106597]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:27 fedora owadm[106593]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:55:27 fedora owadm[106593]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:55:28 fedora owadm[106597]: Getting image source signatures
+Sep 21 09:55:28 fedora owadm[106596]: Getting image source signatures
+Sep 21 09:55:28 fedora owadm[106593]: Getting image source signatures
+Sep 21 09:55:28 fedora owadm[106593]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:55:28 fedora owadm[106593]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:55:28 fedora owadm[106593]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:55:28 fedora owadm[106593]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:55:28 fedora owadm[106597]: Checking if image destination supports signatures
+Sep 21 09:55:28 fedora owadm[106597]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:28 fedora owadm[106596]: Checking if image destination supports signatures
+Sep 21 09:55:28 fedora owadm[106596]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:32 fedora podman[106593]: 2025-09-21 09:55:32.23654653 -0400 EDT m=+4.374176597 image build  
+Sep 21 09:55:32 fedora owadm[106593]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:39 fedora podman[106596]: 2025-09-21 09:55:39.223192426 -0400 EDT m=+11.358946800 image build  
+Sep 21 09:55:39 fedora owadm[106596]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:40 fedora podman[106597]: 2025-09-21 09:55:40.826428006 -0400 EDT m=+12.954604738 image build  
+Sep 21 09:55:40 fedora owadm[106597]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:40 fedora owadm[106559]: ERROR:podman_compose:Build command failed
+Sep 21 09:55:40 fedora owadm[106553]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:55:40 fedora owadm[106553]: Error: exit status 1
+Sep 21 09:55:40 fedora owadm[106553]: Usage:
+Sep 21 09:55:40 fedora owadm[106553]:   owadm start [flags]
+Sep 21 09:55:40 fedora owadm[106553]: Flags:
+Sep 21 09:55:40 fedora owadm[106553]:       --build            Build images before starting
+Sep 21 09:55:40 fedora owadm[106553]:       --daemon           Run in daemon mode
+Sep 21 09:55:40 fedora owadm[106553]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:55:40 fedora owadm[106553]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:55:40 fedora owadm[106553]:   -h, --help             help for start
+Sep 21 09:55:40 fedora owadm[106553]:       --notify           Send systemd notifications
+Sep 21 09:55:40 fedora owadm[106553]:       --service string   Specific service to manage (default "all")
+Sep 21 09:55:40 fedora owadm[106553]: Global Flags:
+Sep 21 09:55:40 fedora owadm[106553]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:55:40 fedora owadm[106553]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:55:40 fedora owadm[106553]:       --no-color         Disable colored output
+Sep 21 09:55:40 fedora owadm[106553]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:55:40 fedora owadm[106553]:   -v, --verbose          Enable verbose output
+Sep 21 09:55:40 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:55:40 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:55:40 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392686 and the job result is failed.
+Sep 21 09:55:40 fedora systemd[1]: openwatch-db.service: Consumed 23.212s CPU time, 220.3M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:55:46 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 25.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:55:46 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 392843.
+Sep 21 09:55:46 fedora owadm[106697]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:55:46 fedora owadm[106697]: Runtime: Runtime configuration
+Sep 21 09:55:46 fedora owadm[106697]:   OK: Container runtime: podman
+Sep 21 09:55:46 fedora owadm[106697]:   OK: Rootless mode: false
+Sep 21 09:55:46 fedora owadm[106697]: Database: Database configuration
+Sep 21 09:55:46 fedora owadm[106697]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:55:46 fedora owadm[106697]:   OK: SSL mode: require
+Sep 21 09:55:46 fedora owadm[106697]: Web: Web interface
+Sep 21 09:55:46 fedora owadm[106697]:   OK: Port: 3001
+Sep 21 09:55:46 fedora owadm[106697]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:55:46 fedora owadm[106697]: Scanning: Scanning configuration
+Sep 21 09:55:46 fedora owadm[106697]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:46 fedora owadm[106697]:   OK: Concurrent scans: 5
+Sep 21 09:55:46 fedora owadm[106697]: Security: Security settings
+Sep 21 09:55:46 fedora owadm[106697]:   INFO: FIPS mode: disabled
+Sep 21 09:55:46 fedora owadm[106697]: Secrets: Secrets configuration
+Sep 21 09:55:46 fedora owadm[106697]:   OK: Secrets file found with correct permissions
+Sep 21 09:55:46 fedora owadm[106697]: ────────────────────────────────────────────────────────────
+Sep 21 09:55:46 fedora owadm[106697]: OK: Configuration validation PASSED
+Sep 21 09:55:46 fedora owadm[106697]: Warnings:
+Sep 21 09:55:46 fedora owadm[106697]:   - SSL is disabled - not recommended for production
+Sep 21 09:55:46 fedora owadm[106697]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:55:46 fedora owadm[106702]: Starting OpenWatch
+Sep 21 09:55:46 fedora owadm[106702]: ===================
+Sep 21 09:55:46 fedora owadm[106702]: [INFO] Checking prerequisites...
+Sep 21 09:55:46 fedora owadm[106702]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:55:46 fedora owadm[106702]: [SUCCESS] Prerequisites check passed
+Sep 21 09:55:46 fedora owadm[106702]: [INFO] Auto-detecting container runtime...
+Sep 21 09:55:46 fedora owadm[106702]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:55:46 fedora owadm[106702]: [INFO] Environment:
+Sep 21 09:55:46 fedora owadm[106702]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:55:46 fedora owadm[106702]: [SUCCESS] Created default .env file
+Sep 21 09:55:46 fedora owadm[106702]: [INFO] Creating required directories...
+Sep 21 09:55:46 fedora owadm[106702]: [SUCCESS] Security keys are ready
+Sep 21 09:55:46 fedora owadm[106702]: [INFO] Starting containers with Podman...
+Sep 21 09:55:46 fedora owadm[106742]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:55:46 fedora owadm[106742]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:55:46 fedora owadm[106752]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:46 fedora owadm[106745]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:55:46 fedora owadm[106752]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:46 fedora owadm[106745]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:55:47 fedora owadm[106745]: Getting image source signatures
+Sep 21 09:55:47 fedora owadm[106752]: Getting image source signatures
+Sep 21 09:55:47 fedora owadm[106742]: Getting image source signatures
+Sep 21 09:55:47 fedora owadm[106742]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:55:47 fedora owadm[106742]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:55:47 fedora owadm[106742]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:55:47 fedora owadm[106742]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:55:47 fedora owadm[106752]: Checking if image destination supports signatures
+Sep 21 09:55:47 fedora owadm[106752]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:47 fedora owadm[106745]: Checking if image destination supports signatures
+Sep 21 09:55:47 fedora owadm[106745]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:55:55 fedora podman[106742]: 2025-09-21 09:55:55.682836869 -0400 EDT m=+9.080111986 image build  
+Sep 21 09:55:55 fedora owadm[106742]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:56 fedora podman[106745]: 2025-09-21 09:55:56.243608393 -0400 EDT m=+9.629592966 image build  
+Sep 21 09:55:56 fedora owadm[106745]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:58 fedora podman[106752]: 2025-09-21 09:55:58.786107152 -0400 EDT m=+12.167397954 image build  
+Sep 21 09:55:58 fedora owadm[106752]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:55:58 fedora owadm[106708]: ERROR:podman_compose:Build command failed
+Sep 21 09:55:58 fedora owadm[106702]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:55:58 fedora owadm[106702]: Error: exit status 1
+Sep 21 09:55:58 fedora owadm[106702]: Usage:
+Sep 21 09:55:58 fedora owadm[106702]:   owadm start [flags]
+Sep 21 09:55:58 fedora owadm[106702]: Flags:
+Sep 21 09:55:58 fedora owadm[106702]:       --build            Build images before starting
+Sep 21 09:55:58 fedora owadm[106702]:       --daemon           Run in daemon mode
+Sep 21 09:55:58 fedora owadm[106702]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:55:58 fedora owadm[106702]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:55:58 fedora owadm[106702]:   -h, --help             help for start
+Sep 21 09:55:58 fedora owadm[106702]:       --notify           Send systemd notifications
+Sep 21 09:55:58 fedora owadm[106702]:       --service string   Specific service to manage (default "all")
+Sep 21 09:55:58 fedora owadm[106702]: Global Flags:
+Sep 21 09:55:58 fedora owadm[106702]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:55:58 fedora owadm[106702]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:55:58 fedora owadm[106702]:       --no-color         Disable colored output
+Sep 21 09:55:58 fedora owadm[106702]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:55:58 fedora owadm[106702]:   -v, --verbose          Enable verbose output
+Sep 21 09:55:58 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:55:58 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:55:58 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 392843 and the job result is failed.
+Sep 21 09:55:58 fedora systemd[1]: openwatch-db.service: Consumed 22.669s CPU time, 247.3M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:56:04 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 26.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:56:04 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393000.
+Sep 21 09:56:04 fedora owadm[106843]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:56:04 fedora owadm[106843]: Runtime: Runtime configuration
+Sep 21 09:56:04 fedora owadm[106843]:   OK: Container runtime: podman
+Sep 21 09:56:04 fedora owadm[106843]:   OK: Rootless mode: false
+Sep 21 09:56:04 fedora owadm[106843]: Database: Database configuration
+Sep 21 09:56:04 fedora owadm[106843]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:56:04 fedora owadm[106843]:   OK: SSL mode: require
+Sep 21 09:56:04 fedora owadm[106843]: Web: Web interface
+Sep 21 09:56:04 fedora owadm[106843]:   OK: Port: 3001
+Sep 21 09:56:04 fedora owadm[106843]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:56:04 fedora owadm[106843]: Scanning: Scanning configuration
+Sep 21 09:56:04 fedora owadm[106843]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:04 fedora owadm[106843]:   OK: Concurrent scans: 5
+Sep 21 09:56:04 fedora owadm[106843]: Security: Security settings
+Sep 21 09:56:04 fedora owadm[106843]:   INFO: FIPS mode: disabled
+Sep 21 09:56:04 fedora owadm[106843]: Secrets: Secrets configuration
+Sep 21 09:56:04 fedora owadm[106843]:   OK: Secrets file found with correct permissions
+Sep 21 09:56:04 fedora owadm[106843]: ────────────────────────────────────────────────────────────
+Sep 21 09:56:04 fedora owadm[106843]: OK: Configuration validation PASSED
+Sep 21 09:56:04 fedora owadm[106843]: Warnings:
+Sep 21 09:56:04 fedora owadm[106843]:   - SSL is disabled - not recommended for production
+Sep 21 09:56:04 fedora owadm[106843]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:04 fedora owadm[106848]: Starting OpenWatch
+Sep 21 09:56:04 fedora owadm[106848]: ===================
+Sep 21 09:56:04 fedora owadm[106848]: [INFO] Checking prerequisites...
+Sep 21 09:56:04 fedora owadm[106848]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:56:04 fedora owadm[106848]: [SUCCESS] Prerequisites check passed
+Sep 21 09:56:04 fedora owadm[106848]: [INFO] Auto-detecting container runtime...
+Sep 21 09:56:04 fedora owadm[106848]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:56:04 fedora owadm[106848]: [INFO] Environment:
+Sep 21 09:56:04 fedora owadm[106848]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:56:04 fedora owadm[106848]: [SUCCESS] Created default .env file
+Sep 21 09:56:04 fedora owadm[106848]: [INFO] Creating required directories...
+Sep 21 09:56:04 fedora owadm[106848]: [SUCCESS] Security keys are ready
+Sep 21 09:56:04 fedora owadm[106848]: [INFO] Starting containers with Podman...
+Sep 21 09:56:04 fedora owadm[106891]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:56:04 fedora owadm[106889]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:04 fedora owadm[106891]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:56:04 fedora owadm[106889]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:04 fedora owadm[106898]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:04 fedora owadm[106898]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:05 fedora owadm[106889]: Getting image source signatures
+Sep 21 09:56:05 fedora owadm[106898]: Getting image source signatures
+Sep 21 09:56:05 fedora owadm[106891]: Getting image source signatures
+Sep 21 09:56:05 fedora owadm[106891]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:56:05 fedora owadm[106891]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:56:05 fedora owadm[106891]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:56:05 fedora owadm[106891]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:56:05 fedora owadm[106898]: Checking if image destination supports signatures
+Sep 21 09:56:05 fedora owadm[106898]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:05 fedora owadm[106889]: Checking if image destination supports signatures
+Sep 21 09:56:05 fedora owadm[106889]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:08 fedora podman[106891]: 2025-09-21 09:56:08.790052621 -0400 EDT m=+4.174347521 image build  
+Sep 21 09:56:08 fedora owadm[106891]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:15 fedora podman[106898]: 2025-09-21 09:56:15.476256521 -0400 EDT m=+10.851029292 image build  
+Sep 21 09:56:15 fedora owadm[106898]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:17 fedora podman[106889]: 2025-09-21 09:56:17.262947316 -0400 EDT m=+12.652244622 image build  
+Sep 21 09:56:17 fedora owadm[106889]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:17 fedora owadm[106854]: ERROR:podman_compose:Build command failed
+Sep 21 09:56:17 fedora owadm[106848]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:56:17 fedora owadm[106848]: Error: exit status 1
+Sep 21 09:56:17 fedora owadm[106848]: Usage:
+Sep 21 09:56:17 fedora owadm[106848]:   owadm start [flags]
+Sep 21 09:56:17 fedora owadm[106848]: Flags:
+Sep 21 09:56:17 fedora owadm[106848]:       --build            Build images before starting
+Sep 21 09:56:17 fedora owadm[106848]:       --daemon           Run in daemon mode
+Sep 21 09:56:17 fedora owadm[106848]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:56:17 fedora owadm[106848]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:56:17 fedora owadm[106848]:   -h, --help             help for start
+Sep 21 09:56:17 fedora owadm[106848]:       --notify           Send systemd notifications
+Sep 21 09:56:17 fedora owadm[106848]:       --service string   Specific service to manage (default "all")
+Sep 21 09:56:17 fedora owadm[106848]: Global Flags:
+Sep 21 09:56:17 fedora owadm[106848]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:56:17 fedora owadm[106848]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:56:17 fedora owadm[106848]:       --no-color         Disable colored output
+Sep 21 09:56:17 fedora owadm[106848]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:56:17 fedora owadm[106848]:   -v, --verbose          Enable verbose output
+Sep 21 09:56:17 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:56:17 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:56:17 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393000 and the job result is failed.
+Sep 21 09:56:17 fedora systemd[1]: openwatch-db.service: Consumed 23.664s CPU time, 216.4M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:56:22 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 27.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:56:22 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393157.
+Sep 21 09:56:22 fedora owadm[106987]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:56:22 fedora owadm[106987]: Runtime: Runtime configuration
+Sep 21 09:56:22 fedora owadm[106987]:   OK: Container runtime: podman
+Sep 21 09:56:22 fedora owadm[106987]:   OK: Rootless mode: false
+Sep 21 09:56:22 fedora owadm[106987]: Database: Database configuration
+Sep 21 09:56:22 fedora owadm[106987]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:56:22 fedora owadm[106987]:   OK: SSL mode: require
+Sep 21 09:56:22 fedora owadm[106987]: Web: Web interface
+Sep 21 09:56:22 fedora owadm[106987]:   OK: Port: 3001
+Sep 21 09:56:22 fedora owadm[106987]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:56:22 fedora owadm[106987]: Scanning: Scanning configuration
+Sep 21 09:56:22 fedora owadm[106987]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:22 fedora owadm[106987]:   OK: Concurrent scans: 5
+Sep 21 09:56:22 fedora owadm[106987]: Security: Security settings
+Sep 21 09:56:22 fedora owadm[106987]:   INFO: FIPS mode: disabled
+Sep 21 09:56:22 fedora owadm[106987]: Secrets: Secrets configuration
+Sep 21 09:56:22 fedora owadm[106987]:   OK: Secrets file found with correct permissions
+Sep 21 09:56:22 fedora owadm[106987]: ────────────────────────────────────────────────────────────
+Sep 21 09:56:22 fedora owadm[106987]: OK: Configuration validation PASSED
+Sep 21 09:56:22 fedora owadm[106987]: Warnings:
+Sep 21 09:56:22 fedora owadm[106987]:   - SSL is disabled - not recommended for production
+Sep 21 09:56:22 fedora owadm[106987]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:22 fedora owadm[106993]: Starting OpenWatch
+Sep 21 09:56:22 fedora owadm[106993]: ===================
+Sep 21 09:56:22 fedora owadm[106993]: [INFO] Checking prerequisites...
+Sep 21 09:56:22 fedora owadm[106993]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:56:22 fedora owadm[106993]: [SUCCESS] Prerequisites check passed
+Sep 21 09:56:22 fedora owadm[106993]: [INFO] Auto-detecting container runtime...
+Sep 21 09:56:22 fedora owadm[106993]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:56:22 fedora owadm[106993]: [INFO] Environment:
+Sep 21 09:56:22 fedora owadm[106993]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:56:22 fedora owadm[106993]: [SUCCESS] Created default .env file
+Sep 21 09:56:22 fedora owadm[106993]: [INFO] Creating required directories...
+Sep 21 09:56:22 fedora owadm[106993]: [SUCCESS] Security keys are ready
+Sep 21 09:56:22 fedora owadm[106993]: [INFO] Starting containers with Podman...
+Sep 21 09:56:22 fedora owadm[107033]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:22 fedora owadm[107035]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:22 fedora owadm[107033]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:22 fedora owadm[107036]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:56:22 fedora owadm[107036]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:56:22 fedora owadm[107035]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:23 fedora owadm[107036]: Getting image source signatures
+Sep 21 09:56:23 fedora owadm[107035]: Getting image source signatures
+Sep 21 09:56:23 fedora owadm[107036]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:56:23 fedora owadm[107036]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:56:23 fedora owadm[107036]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:56:23 fedora owadm[107036]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:56:23 fedora owadm[107033]: Getting image source signatures
+Sep 21 09:56:23 fedora owadm[107035]: Checking if image destination supports signatures
+Sep 21 09:56:23 fedora owadm[107035]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:23 fedora owadm[107033]: Checking if image destination supports signatures
+Sep 21 09:56:23 fedora owadm[107033]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:31 fedora podman[107036]: 2025-09-21 09:56:31.437099022 -0400 EDT m=+8.559728243 image build  
+Sep 21 09:56:31 fedora owadm[107036]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:32 fedora podman[107035]: 2025-09-21 09:56:32.670075545 -0400 EDT m=+9.795109144 image build  
+Sep 21 09:56:32 fedora owadm[107035]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:36 fedora podman[107033]: 2025-09-21 09:56:36.209048623 -0400 EDT m=+13.339086393 image build  
+Sep 21 09:56:36 fedora owadm[107033]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:36 fedora owadm[106998]: ERROR:podman_compose:Build command failed
+Sep 21 09:56:36 fedora owadm[106993]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:56:36 fedora owadm[106993]: Error: exit status 1
+Sep 21 09:56:36 fedora owadm[106993]: Usage:
+Sep 21 09:56:36 fedora owadm[106993]:   owadm start [flags]
+Sep 21 09:56:36 fedora owadm[106993]: Flags:
+Sep 21 09:56:36 fedora owadm[106993]:       --build            Build images before starting
+Sep 21 09:56:36 fedora owadm[106993]:       --daemon           Run in daemon mode
+Sep 21 09:56:36 fedora owadm[106993]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:56:36 fedora owadm[106993]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:56:36 fedora owadm[106993]:   -h, --help             help for start
+Sep 21 09:56:36 fedora owadm[106993]:       --notify           Send systemd notifications
+Sep 21 09:56:36 fedora owadm[106993]:       --service string   Specific service to manage (default "all")
+Sep 21 09:56:36 fedora owadm[106993]: Global Flags:
+Sep 21 09:56:36 fedora owadm[106993]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:56:36 fedora owadm[106993]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:56:36 fedora owadm[106993]:       --no-color         Disable colored output
+Sep 21 09:56:36 fedora owadm[106993]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:56:36 fedora owadm[106993]:   -v, --verbose          Enable verbose output
+Sep 21 09:56:36 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:56:36 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:56:36 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393157 and the job result is failed.
+Sep 21 09:56:36 fedora systemd[1]: openwatch-db.service: Consumed 23.004s CPU time, 210.2M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:56:41 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 28.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:56:41 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393314.
+Sep 21 09:56:41 fedora owadm[107131]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:56:41 fedora owadm[107131]: Runtime: Runtime configuration
+Sep 21 09:56:41 fedora owadm[107131]:   OK: Container runtime: podman
+Sep 21 09:56:41 fedora owadm[107131]:   OK: Rootless mode: false
+Sep 21 09:56:41 fedora owadm[107131]: Database: Database configuration
+Sep 21 09:56:41 fedora owadm[107131]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:56:41 fedora owadm[107131]:   OK: SSL mode: require
+Sep 21 09:56:41 fedora owadm[107131]: Web: Web interface
+Sep 21 09:56:41 fedora owadm[107131]:   OK: Port: 3001
+Sep 21 09:56:41 fedora owadm[107131]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:56:41 fedora owadm[107131]: Scanning: Scanning configuration
+Sep 21 09:56:41 fedora owadm[107131]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:41 fedora owadm[107131]:   OK: Concurrent scans: 5
+Sep 21 09:56:41 fedora owadm[107131]: Security: Security settings
+Sep 21 09:56:41 fedora owadm[107131]:   INFO: FIPS mode: disabled
+Sep 21 09:56:41 fedora owadm[107131]: Secrets: Secrets configuration
+Sep 21 09:56:41 fedora owadm[107131]:   OK: Secrets file found with correct permissions
+Sep 21 09:56:41 fedora owadm[107131]: ────────────────────────────────────────────────────────────
+Sep 21 09:56:41 fedora owadm[107131]: OK: Configuration validation PASSED
+Sep 21 09:56:41 fedora owadm[107131]: Warnings:
+Sep 21 09:56:41 fedora owadm[107131]:   - SSL is disabled - not recommended for production
+Sep 21 09:56:41 fedora owadm[107131]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:56:41 fedora owadm[107137]: Starting OpenWatch
+Sep 21 09:56:41 fedora owadm[107137]: ===================
+Sep 21 09:56:41 fedora owadm[107137]: [INFO] Checking prerequisites...
+Sep 21 09:56:41 fedora owadm[107137]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:56:41 fedora owadm[107137]: [SUCCESS] Prerequisites check passed
+Sep 21 09:56:41 fedora owadm[107137]: [INFO] Auto-detecting container runtime...
+Sep 21 09:56:41 fedora owadm[107137]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:56:41 fedora owadm[107137]: [INFO] Environment:
+Sep 21 09:56:41 fedora owadm[107137]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:56:41 fedora owadm[107137]: [SUCCESS] Created default .env file
+Sep 21 09:56:41 fedora owadm[107137]: [INFO] Creating required directories...
+Sep 21 09:56:41 fedora owadm[107137]: [SUCCESS] Security keys are ready
+Sep 21 09:56:41 fedora owadm[107137]: [INFO] Starting containers with Podman...
+Sep 21 09:56:41 fedora owadm[107174]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:56:41 fedora owadm[107174]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:56:41 fedora owadm[107184]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:41 fedora owadm[107185]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:56:41 fedora owadm[107184]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:41 fedora owadm[107185]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:56:42 fedora owadm[107185]: Getting image source signatures
+Sep 21 09:56:42 fedora owadm[107184]: Getting image source signatures
+Sep 21 09:56:42 fedora owadm[107184]: Checking if image destination supports signatures
+Sep 21 09:56:42 fedora owadm[107184]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:42 fedora owadm[107185]: Checking if image destination supports signatures
+Sep 21 09:56:42 fedora owadm[107185]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:56:42 fedora owadm[107174]: Getting image source signatures
+Sep 21 09:56:42 fedora owadm[107174]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:56:42 fedora owadm[107174]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:56:42 fedora owadm[107174]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:56:42 fedora owadm[107174]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:56:52 fedora podman[107174]: 2025-09-21 09:56:52.182642226 -0400 EDT m=+10.302800198 image build  
+Sep 21 09:56:52 fedora owadm[107174]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:54 fedora podman[107185]: 2025-09-21 09:56:54.159465675 -0400 EDT m=+12.254366937 image build  
+Sep 21 09:56:54 fedora owadm[107185]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:55 fedora podman[107184]: 2025-09-21 09:56:55.804019159 -0400 EDT m=+13.899676179 image build  
+Sep 21 09:56:55 fedora owadm[107184]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:56:55 fedora owadm[107142]: ERROR:podman_compose:Build command failed
+Sep 21 09:56:55 fedora owadm[107137]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:56:55 fedora owadm[107137]: Error: exit status 1
+Sep 21 09:56:55 fedora owadm[107137]: Usage:
+Sep 21 09:56:55 fedora owadm[107137]:   owadm start [flags]
+Sep 21 09:56:55 fedora owadm[107137]: Flags:
+Sep 21 09:56:55 fedora owadm[107137]:       --build            Build images before starting
+Sep 21 09:56:55 fedora owadm[107137]:       --daemon           Run in daemon mode
+Sep 21 09:56:55 fedora owadm[107137]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:56:55 fedora owadm[107137]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:56:55 fedora owadm[107137]:   -h, --help             help for start
+Sep 21 09:56:55 fedora owadm[107137]:       --notify           Send systemd notifications
+Sep 21 09:56:55 fedora owadm[107137]:       --service string   Specific service to manage (default "all")
+Sep 21 09:56:55 fedora owadm[107137]: Global Flags:
+Sep 21 09:56:55 fedora owadm[107137]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:56:55 fedora owadm[107137]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:56:55 fedora owadm[107137]:       --no-color         Disable colored output
+Sep 21 09:56:55 fedora owadm[107137]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:56:55 fedora owadm[107137]:   -v, --verbose          Enable verbose output
+Sep 21 09:56:55 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:56:55 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:56:55 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393314 and the job result is failed.
+Sep 21 09:56:55 fedora systemd[1]: openwatch-db.service: Consumed 24.979s CPU time, 247.5M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:57:01 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 29.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:57:01 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393471.
+Sep 21 09:57:01 fedora owadm[107280]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:57:01 fedora owadm[107280]: Runtime: Runtime configuration
+Sep 21 09:57:01 fedora owadm[107280]:   OK: Container runtime: podman
+Sep 21 09:57:01 fedora owadm[107280]:   OK: Rootless mode: false
+Sep 21 09:57:01 fedora owadm[107280]: Database: Database configuration
+Sep 21 09:57:01 fedora owadm[107280]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:57:01 fedora owadm[107280]:   OK: SSL mode: require
+Sep 21 09:57:01 fedora owadm[107280]: Web: Web interface
+Sep 21 09:57:01 fedora owadm[107280]:   OK: Port: 3001
+Sep 21 09:57:01 fedora owadm[107280]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:57:01 fedora owadm[107280]: Scanning: Scanning configuration
+Sep 21 09:57:01 fedora owadm[107280]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:01 fedora owadm[107280]:   OK: Concurrent scans: 5
+Sep 21 09:57:01 fedora owadm[107280]: Security: Security settings
+Sep 21 09:57:01 fedora owadm[107280]:   INFO: FIPS mode: disabled
+Sep 21 09:57:01 fedora owadm[107280]: Secrets: Secrets configuration
+Sep 21 09:57:01 fedora owadm[107280]:   OK: Secrets file found with correct permissions
+Sep 21 09:57:01 fedora owadm[107280]: ────────────────────────────────────────────────────────────
+Sep 21 09:57:01 fedora owadm[107280]: OK: Configuration validation PASSED
+Sep 21 09:57:01 fedora owadm[107280]: Warnings:
+Sep 21 09:57:01 fedora owadm[107280]:   - SSL is disabled - not recommended for production
+Sep 21 09:57:01 fedora owadm[107280]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:01 fedora owadm[107286]: Starting OpenWatch
+Sep 21 09:57:01 fedora owadm[107286]: ===================
+Sep 21 09:57:01 fedora owadm[107286]: [INFO] Checking prerequisites...
+Sep 21 09:57:01 fedora owadm[107286]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:57:01 fedora owadm[107286]: [SUCCESS] Prerequisites check passed
+Sep 21 09:57:01 fedora owadm[107286]: [INFO] Auto-detecting container runtime...
+Sep 21 09:57:01 fedora owadm[107286]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:57:01 fedora owadm[107286]: [INFO] Environment:
+Sep 21 09:57:01 fedora owadm[107286]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:57:01 fedora owadm[107286]: [SUCCESS] Created default .env file
+Sep 21 09:57:01 fedora owadm[107286]: [INFO] Creating required directories...
+Sep 21 09:57:01 fedora owadm[107286]: [SUCCESS] Security keys are ready
+Sep 21 09:57:01 fedora owadm[107286]: [INFO] Starting containers with Podman...
+Sep 21 09:57:01 fedora owadm[107327]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:01 fedora owadm[107326]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:57:01 fedora owadm[107327]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:01 fedora owadm[107326]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:57:01 fedora owadm[107328]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:01 fedora owadm[107328]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:02 fedora owadm[107326]: Getting image source signatures
+Sep 21 09:57:02 fedora owadm[107326]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:57:02 fedora owadm[107326]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:57:02 fedora owadm[107326]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:57:02 fedora owadm[107326]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:57:02 fedora owadm[107328]: Getting image source signatures
+Sep 21 09:57:02 fedora owadm[107327]: Getting image source signatures
+Sep 21 09:57:02 fedora owadm[107328]: Checking if image destination supports signatures
+Sep 21 09:57:02 fedora owadm[107328]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:02 fedora owadm[107327]: Checking if image destination supports signatures
+Sep 21 09:57:02 fedora owadm[107327]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:09 fedora podman[107326]: 2025-09-21 09:57:09.24909871 -0400 EDT m=+7.622336399 image build  
+Sep 21 09:57:09 fedora owadm[107326]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:10 fedora podman[107328]: 2025-09-21 09:57:10.37225809 -0400 EDT m=+8.734301383 image build  
+Sep 21 09:57:10 fedora owadm[107328]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:13 fedora podman[107327]: 2025-09-21 09:57:13.366412099 -0400 EDT m=+11.741307764 image build  
+Sep 21 09:57:13 fedora owadm[107327]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:13 fedora owadm[107291]: ERROR:podman_compose:Build command failed
+Sep 21 09:57:13 fedora owadm[107286]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:57:13 fedora owadm[107286]: Error: exit status 1
+Sep 21 09:57:13 fedora owadm[107286]: Usage:
+Sep 21 09:57:13 fedora owadm[107286]:   owadm start [flags]
+Sep 21 09:57:13 fedora owadm[107286]: Flags:
+Sep 21 09:57:13 fedora owadm[107286]:       --build            Build images before starting
+Sep 21 09:57:13 fedora owadm[107286]:       --daemon           Run in daemon mode
+Sep 21 09:57:13 fedora owadm[107286]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:57:13 fedora owadm[107286]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:57:13 fedora owadm[107286]:   -h, --help             help for start
+Sep 21 09:57:13 fedora owadm[107286]:       --notify           Send systemd notifications
+Sep 21 09:57:13 fedora owadm[107286]:       --service string   Specific service to manage (default "all")
+Sep 21 09:57:13 fedora owadm[107286]: Global Flags:
+Sep 21 09:57:13 fedora owadm[107286]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:57:13 fedora owadm[107286]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:57:13 fedora owadm[107286]:       --no-color         Disable colored output
+Sep 21 09:57:13 fedora owadm[107286]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:57:13 fedora owadm[107286]:   -v, --verbose          Enable verbose output
+Sep 21 09:57:13 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:57:13 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:57:13 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393471 and the job result is failed.
+Sep 21 09:57:13 fedora systemd[1]: openwatch-db.service: Consumed 23.733s CPU time, 219.6M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:57:18 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 30.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:57:18 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393628.
+Sep 21 09:57:18 fedora owadm[107426]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:57:18 fedora owadm[107426]: Runtime: Runtime configuration
+Sep 21 09:57:18 fedora owadm[107426]:   OK: Container runtime: podman
+Sep 21 09:57:18 fedora owadm[107426]:   OK: Rootless mode: false
+Sep 21 09:57:18 fedora owadm[107426]: Database: Database configuration
+Sep 21 09:57:18 fedora owadm[107426]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:57:18 fedora owadm[107426]:   OK: SSL mode: require
+Sep 21 09:57:18 fedora owadm[107426]: Web: Web interface
+Sep 21 09:57:18 fedora owadm[107426]:   OK: Port: 3001
+Sep 21 09:57:18 fedora owadm[107426]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:57:18 fedora owadm[107426]: Scanning: Scanning configuration
+Sep 21 09:57:18 fedora owadm[107426]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:18 fedora owadm[107426]:   OK: Concurrent scans: 5
+Sep 21 09:57:18 fedora owadm[107426]: Security: Security settings
+Sep 21 09:57:18 fedora owadm[107426]:   INFO: FIPS mode: disabled
+Sep 21 09:57:18 fedora owadm[107426]: Secrets: Secrets configuration
+Sep 21 09:57:18 fedora owadm[107426]:   OK: Secrets file found with correct permissions
+Sep 21 09:57:18 fedora owadm[107426]: ────────────────────────────────────────────────────────────
+Sep 21 09:57:18 fedora owadm[107426]: OK: Configuration validation PASSED
+Sep 21 09:57:18 fedora owadm[107426]: Warnings:
+Sep 21 09:57:18 fedora owadm[107426]:   - SSL is disabled - not recommended for production
+Sep 21 09:57:18 fedora owadm[107426]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:18 fedora owadm[107431]: Starting OpenWatch
+Sep 21 09:57:18 fedora owadm[107431]: ===================
+Sep 21 09:57:18 fedora owadm[107431]: [INFO] Checking prerequisites...
+Sep 21 09:57:18 fedora owadm[107431]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:57:18 fedora owadm[107431]: [SUCCESS] Prerequisites check passed
+Sep 21 09:57:18 fedora owadm[107431]: [INFO] Auto-detecting container runtime...
+Sep 21 09:57:18 fedora owadm[107431]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:57:18 fedora owadm[107431]: [INFO] Environment:
+Sep 21 09:57:18 fedora owadm[107431]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:57:18 fedora owadm[107431]: [SUCCESS] Created default .env file
+Sep 21 09:57:18 fedora owadm[107431]: [INFO] Creating required directories...
+Sep 21 09:57:18 fedora owadm[107431]: [SUCCESS] Security keys are ready
+Sep 21 09:57:18 fedora owadm[107431]: [INFO] Starting containers with Podman...
+Sep 21 09:57:19 fedora owadm[107474]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:19 fedora owadm[107476]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:19 fedora owadm[107475]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:57:19 fedora owadm[107474]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:19 fedora owadm[107476]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:19 fedora owadm[107475]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:57:19 fedora owadm[107475]: Getting image source signatures
+Sep 21 09:57:19 fedora owadm[107475]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:57:19 fedora owadm[107475]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:57:19 fedora owadm[107475]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:57:19 fedora owadm[107475]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:57:19 fedora owadm[107476]: Getting image source signatures
+Sep 21 09:57:19 fedora owadm[107474]: Getting image source signatures
+Sep 21 09:57:19 fedora owadm[107474]: Checking if image destination supports signatures
+Sep 21 09:57:19 fedora owadm[107474]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:19 fedora owadm[107476]: Checking if image destination supports signatures
+Sep 21 09:57:19 fedora owadm[107476]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:28 fedora podman[107475]: 2025-09-21 09:57:28.056930372 -0400 EDT m=+8.914145302 image build  
+Sep 21 09:57:28 fedora owadm[107475]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:29 fedora podman[107476]: 2025-09-21 09:57:29.449809041 -0400 EDT m=+10.304909996 image build  
+Sep 21 09:57:29 fedora owadm[107476]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:31 fedora podman[107474]: 2025-09-21 09:57:31.38777162 -0400 EDT m=+12.248062595 image build  
+Sep 21 09:57:31 fedora owadm[107474]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:31 fedora owadm[107437]: ERROR:podman_compose:Build command failed
+Sep 21 09:57:31 fedora owadm[107431]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:57:31 fedora owadm[107431]: Error: exit status 1
+Sep 21 09:57:31 fedora owadm[107431]: Usage:
+Sep 21 09:57:31 fedora owadm[107431]:   owadm start [flags]
+Sep 21 09:57:31 fedora owadm[107431]: Flags:
+Sep 21 09:57:31 fedora owadm[107431]:       --build            Build images before starting
+Sep 21 09:57:31 fedora owadm[107431]:       --daemon           Run in daemon mode
+Sep 21 09:57:31 fedora owadm[107431]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:57:31 fedora owadm[107431]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:57:31 fedora owadm[107431]:   -h, --help             help for start
+Sep 21 09:57:31 fedora owadm[107431]:       --notify           Send systemd notifications
+Sep 21 09:57:31 fedora owadm[107431]:       --service string   Specific service to manage (default "all")
+Sep 21 09:57:31 fedora owadm[107431]: Global Flags:
+Sep 21 09:57:31 fedora owadm[107431]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:57:31 fedora owadm[107431]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:57:31 fedora owadm[107431]:       --no-color         Disable colored output
+Sep 21 09:57:31 fedora owadm[107431]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:57:31 fedora owadm[107431]:   -v, --verbose          Enable verbose output
+Sep 21 09:57:31 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:57:31 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:57:31 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393628 and the job result is failed.
+Sep 21 09:57:31 fedora systemd[1]: openwatch-db.service: Consumed 23.565s CPU time, 233.5M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:57:36 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 31.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:57:36 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393785.
+Sep 21 09:57:36 fedora owadm[107582]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:57:36 fedora owadm[107582]: Runtime: Runtime configuration
+Sep 21 09:57:36 fedora owadm[107582]:   OK: Container runtime: podman
+Sep 21 09:57:36 fedora owadm[107582]:   OK: Rootless mode: false
+Sep 21 09:57:36 fedora owadm[107582]: Database: Database configuration
+Sep 21 09:57:36 fedora owadm[107582]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:57:36 fedora owadm[107582]:   OK: SSL mode: require
+Sep 21 09:57:36 fedora owadm[107582]: Web: Web interface
+Sep 21 09:57:36 fedora owadm[107582]:   OK: Port: 3001
+Sep 21 09:57:36 fedora owadm[107582]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:57:36 fedora owadm[107582]: Scanning: Scanning configuration
+Sep 21 09:57:36 fedora owadm[107582]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:36 fedora owadm[107582]:   OK: Concurrent scans: 5
+Sep 21 09:57:36 fedora owadm[107582]: Security: Security settings
+Sep 21 09:57:36 fedora owadm[107582]:   INFO: FIPS mode: disabled
+Sep 21 09:57:36 fedora owadm[107582]: Secrets: Secrets configuration
+Sep 21 09:57:36 fedora owadm[107582]:   OK: Secrets file found with correct permissions
+Sep 21 09:57:36 fedora owadm[107582]: ────────────────────────────────────────────────────────────
+Sep 21 09:57:36 fedora owadm[107582]: OK: Configuration validation PASSED
+Sep 21 09:57:36 fedora owadm[107582]: Warnings:
+Sep 21 09:57:36 fedora owadm[107582]:   - SSL is disabled - not recommended for production
+Sep 21 09:57:36 fedora owadm[107582]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:36 fedora owadm[107588]: Starting OpenWatch
+Sep 21 09:57:36 fedora owadm[107588]: ===================
+Sep 21 09:57:36 fedora owadm[107588]: [INFO] Checking prerequisites...
+Sep 21 09:57:36 fedora owadm[107588]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:57:36 fedora owadm[107588]: [SUCCESS] Prerequisites check passed
+Sep 21 09:57:36 fedora owadm[107588]: [INFO] Auto-detecting container runtime...
+Sep 21 09:57:36 fedora owadm[107588]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:57:36 fedora owadm[107588]: [INFO] Environment:
+Sep 21 09:57:36 fedora owadm[107588]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:57:36 fedora owadm[107588]: [SUCCESS] Created default .env file
+Sep 21 09:57:36 fedora owadm[107588]: [INFO] Creating required directories...
+Sep 21 09:57:36 fedora owadm[107588]: [SUCCESS] Security keys are ready
+Sep 21 09:57:36 fedora owadm[107588]: [INFO] Starting containers with Podman...
+Sep 21 09:57:37 fedora owadm[107631]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:37 fedora owadm[107632]: STEP 1/16: FROM registry.access.redhat.com/ubi9/ubi:latest
+Sep 21 09:57:37 fedora owadm[107631]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:37 fedora owadm[107630]: [1/2] STEP 1/9: FROM docker.io/library/node:18-alpine AS builder
+Sep 21 09:57:37 fedora owadm[107632]: Trying to pull registry.access.redhat.com/ubi9/ubi:latest...
+Sep 21 09:57:37 fedora owadm[107630]: Trying to pull docker.io/library/node:18-alpine...
+Sep 21 09:57:37 fedora owadm[107631]: Getting image source signatures
+Sep 21 09:57:37 fedora owadm[107632]: Getting image source signatures
+Sep 21 09:57:37 fedora owadm[107630]: Getting image source signatures
+Sep 21 09:57:37 fedora owadm[107630]: Copying blob sha256:25ff2da83641908f65c3a74d80409d6b1b62ccfaab220b9ea70b80df5a2e0549
+Sep 21 09:57:37 fedora owadm[107630]: Copying blob sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870
+Sep 21 09:57:37 fedora owadm[107630]: Copying blob sha256:dd71dde834b5c203d162902e6b8994cb2309ae049a0eabc4efea161b2b5a3d0e
+Sep 21 09:57:37 fedora owadm[107630]: Copying blob sha256:1e5a4c89cee5c0826c540ab06d4b6b491c96eda01837f430bd47f0d26702d6e3
+Sep 21 09:57:37 fedora owadm[107632]: Checking if image destination supports signatures
+Sep 21 09:57:37 fedora owadm[107632]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:37 fedora owadm[107631]: Checking if image destination supports signatures
+Sep 21 09:57:37 fedora owadm[107631]: Copying blob sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159
+Sep 21 09:57:41 fedora podman[107630]: 2025-09-21 09:57:41.385000821 -0400 EDT m=+4.268223914 image build  
+Sep 21 09:57:41 fedora owadm[107630]: Error: creating build container: unable to copy from source docker://node:18-alpine: copying system image from manifest list: writing blob: adding layer with blob "sha256:f18232174bc91741fdf3da96d85011092101a032a93a388b79e99e69c2d5c870"/""/"sha256:08000c18d16dadf9553d747a58cf44023423a9ab010aab96cf263d2216b8b350": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:47 fedora podman[107632]: 2025-09-21 09:57:47.339397961 -0400 EDT m=+10.214632192 image build  
+Sep 21 09:57:47 fedora owadm[107632]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:49 fedora podman[107631]: 2025-09-21 09:57:49.068655377 -0400 EDT m=+11.949043309 image build  
+Sep 21 09:57:49 fedora owadm[107631]: Error: creating build container: unable to copy from source docker://registry.access.redhat.com/ubi9/ubi:latest: copying system image from manifest list: writing blob: adding layer with blob "sha256:74956640af323393be3edafd6bbf4d02e5336ac16c17bd052e9127b7a9f77159"/""/"sha256:70bccdb16279fab744edcf78bf4ef42ca06cddc350ad437cfd1d0a0f1702d3b8": unpacking failed (error: exit status 1; output: after fallback to chroot: operation not permitted)
+Sep 21 09:57:49 fedora owadm[107593]: ERROR:podman_compose:Build command failed
+Sep 21 09:57:49 fedora owadm[107588]: [ERROR] Failed to start containers: exit status 1
+Sep 21 09:57:49 fedora owadm[107588]: Error: exit status 1
+Sep 21 09:57:49 fedora owadm[107588]: Usage:
+Sep 21 09:57:49 fedora owadm[107588]:   owadm start [flags]
+Sep 21 09:57:49 fedora owadm[107588]: Flags:
+Sep 21 09:57:49 fedora owadm[107588]:       --build            Build images before starting
+Sep 21 09:57:49 fedora owadm[107588]:       --daemon           Run in daemon mode
+Sep 21 09:57:49 fedora owadm[107588]:   -d, --detach           Run containers in background (default true)
+Sep 21 09:57:49 fedora owadm[107588]:       --force-recreate   Recreate containers even if config hasn't changed
+Sep 21 09:57:49 fedora owadm[107588]:   -h, --help             help for start
+Sep 21 09:57:49 fedora owadm[107588]:       --notify           Send systemd notifications
+Sep 21 09:57:49 fedora owadm[107588]:       --service string   Specific service to manage (default "all")
+Sep 21 09:57:49 fedora owadm[107588]: Global Flags:
+Sep 21 09:57:49 fedora owadm[107588]:       --config string    Config file (default: .owadm.yaml)
+Sep 21 09:57:49 fedora owadm[107588]:   -e, --env string       Environment: dev or prod (default "prod")
+Sep 21 09:57:49 fedora owadm[107588]:       --no-color         Disable colored output
+Sep 21 09:57:49 fedora owadm[107588]:   -r, --runtime string   Container runtime: docker or podman (auto-detected if not specified)
+Sep 21 09:57:49 fedora owadm[107588]:   -v, --verbose          Enable verbose output
+Sep 21 09:57:49 fedora systemd[1]: openwatch-db.service: Control process exited, code=exited, status=1/FAILURE
+░░ Subject: Unit process exited
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ An ExecStart= process belonging to unit openwatch-db.service has exited.
+░░ 
+░░ The process' exit code is 'exited' and its exit status is 1.
+Sep 21 09:57:49 fedora systemd[1]: openwatch-db.service: Failed with result 'exit-code'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service has entered the 'failed' state with result 'exit-code'.
+Sep 21 09:57:49 fedora systemd[1]: Failed to start openwatch-db.service - OpenWatch Database Container.
+░░ Subject: A start job for unit openwatch-db.service has failed
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has finished with a failure.
+░░ 
+░░ The job identifier is 393785 and the job result is failed.
+Sep 21 09:57:49 fedora systemd[1]: openwatch-db.service: Consumed 22.670s CPU time, 220M memory peak.
+░░ Subject: Resources consumed by unit runtime
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ The unit openwatch-db.service completed and consumed the indicated resources.
+Sep 21 09:57:54 fedora systemd[1]: openwatch-db.service: Scheduled restart job, restart counter is at 32.
+░░ Subject: Automatic restarting of a unit has been scheduled
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ Automatic restarting of the unit openwatch-db.service has been scheduled, as the result for
+░░ the configured Restart= setting for the unit.
+Sep 21 09:57:54 fedora systemd[1]: Starting openwatch-db.service - OpenWatch Database Container...
+░░ Subject: A start job for unit openwatch-db.service has begun execution
+░░ Defined-By: systemd
+░░ Support: https://lists.freedesktop.org/mailman/listinfo/systemd-devel
+░░ 
+░░ A start job for unit openwatch-db.service has begun execution.
+░░ 
+░░ The job identifier is 393942.
+Sep 21 09:57:54 fedora owadm[107735]: [INFO] Configuration validation for: /etc/openwatch/ow.yml
+Sep 21 09:57:54 fedora owadm[107735]: Runtime: Runtime configuration
+Sep 21 09:57:54 fedora owadm[107735]:   OK: Container runtime: podman
+Sep 21 09:57:54 fedora owadm[107735]:   OK: Rootless mode: false
+Sep 21 09:57:54 fedora owadm[107735]: Database: Database configuration
+Sep 21 09:57:54 fedora owadm[107735]:   OK: PostgreSQL: localhost:5432
+Sep 21 09:57:54 fedora owadm[107735]:   OK: SSL mode: require
+Sep 21 09:57:54 fedora owadm[107735]: Web: Web interface
+Sep 21 09:57:54 fedora owadm[107735]:   OK: Port: 3001
+Sep 21 09:57:54 fedora owadm[107735]:   WARNING: SSL disabled (not recommended for production)
+Sep 21 09:57:54 fedora owadm[107735]: Scanning: Scanning configuration
+Sep 21 09:57:54 fedora owadm[107735]:   WARNING: SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:54 fedora owadm[107735]:   OK: Concurrent scans: 5
+Sep 21 09:57:54 fedora owadm[107735]: Security: Security settings
+Sep 21 09:57:54 fedora owadm[107735]:   INFO: FIPS mode: disabled
+Sep 21 09:57:54 fedora owadm[107735]: Secrets: Secrets configuration
+Sep 21 09:57:54 fedora owadm[107735]:   OK: Secrets file found with correct permissions
+Sep 21 09:57:54 fedora owadm[107735]: ────────────────────────────────────────────────────────────
+Sep 21 09:57:54 fedora owadm[107735]: OK: Configuration validation PASSED
+Sep 21 09:57:54 fedora owadm[107735]: Warnings:
+Sep 21 09:57:54 fedora owadm[107735]:   - SSL is disabled - not recommended for production
+Sep 21 09:57:54 fedora owadm[107735]:   - SSH key not found: /etc/openwatch/ssh/openwatch_rsa
+Sep 21 09:57:54 fedora owadm[107740]: Starting OpenWatch
+Sep 21 09:57:54 fedora owadm[107740]: ===================
+Sep 21 09:57:54 fedora owadm[107740]: [INFO] Checking prerequisites...
+Sep 21 09:57:54 fedora owadm[107740]: WARNING: Running as root user. Consider using rootless containers for better security.
+Sep 21 09:57:54 fedora owadm[107740]: [SUCCESS] Prerequisites check passed
+Sep 21 09:57:54 fedora owadm[107740]: [INFO] Auto-detecting container runtime...
+Sep 21 09:57:54 fedora owadm[107740]: [SUCCESS] Detected runtime: Podman
+Sep 21 09:57:54 fedora owadm[107740]: [INFO] Environment:
+Sep 21 09:57:54 fedora owadm[107740]: [WARNING] Environment check: incomplete OpenWatch directory (missing backend/app/main.py)
+Sep 21 09:57:54 fedora owadm[107740]: [SUCCESS] Created default .env file
+Sep 21 09:57:54 fedora owadm[107740]: [INFO] Creating required directories...
+Sep 21 09:57:54 fedora owadm[107740]: [SUCCESS] Security keys are ready
+Sep 21 09:57:54 fedora owadm[107740]: [INFO] Starting containers with Podman...
