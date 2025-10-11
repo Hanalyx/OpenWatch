@@ -1,7 +1,7 @@
 """
 Compliance Rules Upload Service
 Main orchestrator for uploading compliance rule archives with BSON support,
-smart deduplication, and dependency-aware updates
+smart deduplication, dependency-aware updates, and immutable versioning
 """
 import uuid
 from pathlib import Path
@@ -20,6 +20,7 @@ from .compliance_rules_dependency_service import (
     RuleDependencyGraph,
     InheritanceResolver
 )
+from .compliance_rules_versioning_service import RuleVersioningService
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class ComplianceRulesUploadService:
         self.deduplication_service = SmartDeduplicationService()
         self.dependency_graph = RuleDependencyGraph()
         self.inheritance_resolver = None  # Initialized after graph is built
+        self.versioning_service = RuleVersioningService()  # Immutable versioning
 
         self.upload_id = None
         self.current_phase = "initializing"
@@ -327,10 +329,11 @@ class ComplianceRulesUploadService:
                 rule_data['source_file'] = source_file
                 rule_data['source_hash'] = source_hash
 
-                # Check if rule exists
+                # Check if latest version of rule exists (immutable versioning)
                 rule_id = rule_data.get('rule_id')
                 existing_rule = await ComplianceRule.find_one(
-                    ComplianceRule.rule_id == rule_id
+                    ComplianceRule.rule_id == rule_id,
+                    ComplianceRule.is_latest == True
                 )
 
                 # Process with smart deduplication
@@ -340,19 +343,25 @@ class ComplianceRulesUploadService:
                 )
 
                 if action == 'imported':
-                    # Create new rule
-                    await self._create_new_rule(rule_data)
+                    # Create new rule (version 1)
+                    await self._create_new_rule(
+                        rule_data,
+                        source_file,
+                        source_hash
+                    )
 
                 elif action == 'updated':
-                    # Update existing rule
-                    await self._update_existing_rule(
+                    # Create new version (immutable - never update existing)
+                    await self._create_new_version(
                         existing_rule,
                         rule_data,
-                        details.get('changes', {})
+                        details.get('changes', {}),
+                        source_file,
+                        source_hash
                     )
 
                 elif action == 'skipped':
-                    # No action needed
+                    # No action needed - rule unchanged
                     pass
 
                 results.append(details)
@@ -367,51 +376,110 @@ class ComplianceRulesUploadService:
 
         return results
 
-    async def _create_new_rule(self, rule_data: Dict[str, Any]):
+    async def _create_new_rule(
+        self,
+        rule_data: Dict[str, Any],
+        source_file: str,
+        source_hash: str
+    ):
         """
-        Create a new compliance rule in MongoDB
+        Create a new compliance rule in MongoDB (version 1)
 
         Args:
             rule_data: Rule dictionary
+            source_file: Source bundle filename
+            source_hash: SHA-512 hash of source bundle
         """
-        # Set import timestamp
-        rule_data['imported_at'] = datetime.utcnow()
-        rule_data['updated_at'] = datetime.utcnow()
+        # Remove _id field if present - MongoDB will auto-generate ObjectId
+        if '_id' in rule_data:
+            del rule_data['_id']
+
+        # Prepare version 1 with immutable versioning fields
+        versioned_rule = self.versioning_service.prepare_new_version(
+            rule_data=rule_data,
+            previous_version=None,  # Version 1
+            source_bundle=source_file,
+            source_bundle_hash=source_hash,
+            import_id=self.upload_id,
+            created_by="bundle_import"
+        )
 
         # Create ComplianceRule document
-        rule = ComplianceRule(**rule_data)
+        rule = ComplianceRule(**versioned_rule)
         await rule.insert()
 
-        logger.debug(f"Created new rule: {rule.rule_id}")
+        logger.info(
+            f"Created new rule: {rule.rule_id} v{rule.version} "
+            f"(hash: {rule.version_hash[:16]}...)"
+        )
 
         # Create basic rule intelligence (optional)
         await self._create_rule_intelligence(rule)
 
-    async def _update_existing_rule(
+    async def _create_new_version(
         self,
         existing_rule: ComplianceRule,
         new_data: Dict[str, Any],
-        changes: Dict[str, Any]
+        changes: Dict[str, Any],
+        source_file: str,
+        source_hash: str
     ):
         """
-        Update existing compliance rule
+        Create new immutable version of existing rule (NEVER updates existing document)
 
         Args:
-            existing_rule: Existing ComplianceRule document
+            existing_rule: Latest version of existing rule
             new_data: New rule data
             changes: Detected changes
+            source_file: Source bundle filename
+            source_hash: SHA-512 hash of source bundle
         """
-        # Use deduplication service to apply updates
-        updated_rule = await self.deduplication_service.update_rule_with_changes(
-            existing_rule,
-            new_data,
-            changes
+        now = datetime.utcnow()
+
+        # Step 1: Mark existing version as superseded (update is_latest flag only)
+        await ComplianceRule.find_one(
+            ComplianceRule._id == existing_rule.id
+        ).update({
+            "$set": {
+                "is_latest": False,
+                "effective_until": now,
+                "superseded_by": existing_rule.version + 1
+            }
+        })
+
+        logger.debug(
+            f"Marked rule {existing_rule.rule_id} v{existing_rule.version} "
+            f"as superseded"
         )
 
-        # Save to database
-        await updated_rule.save()
+        # Step 2: Prepare new version data
+        # Remove _id to let MongoDB generate new one
+        if '_id' in new_data:
+            del new_data['_id']
 
-        logger.debug(f"Updated rule: {existing_rule.rule_id} ({len(changes)} changes)")
+        # Convert existing_rule to dict for versioning service
+        previous_version_dict = existing_rule.dict(by_alias=True)
+
+        # Prepare new version
+        versioned_rule = self.versioning_service.prepare_new_version(
+            rule_data=new_data,
+            previous_version=previous_version_dict,
+            source_bundle=source_file,
+            source_bundle_hash=source_hash,
+            import_id=self.upload_id,
+            created_by="bundle_import"
+        )
+
+        # Step 3: Insert new version (append-only)
+        new_rule = ComplianceRule(**versioned_rule)
+        await new_rule.insert()
+
+        logger.info(
+            f"Created new version: {new_rule.rule_id} v{new_rule.version} "
+            f"(hash: {new_rule.version_hash[:16]}..., "
+            f"changes: {versioned_rule['change_summary']['change_count']}, "
+            f"breaking: {versioned_rule['change_summary']['breaking_changes']})"
+        )
 
     async def _create_rule_intelligence(self, rule: ComplianceRule):
         """

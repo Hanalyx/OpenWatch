@@ -299,7 +299,20 @@ class ComplianceRulesSecurityService:
         name_lower = filename.lower()
         base_name = Path(filename).name.lower()
 
-        # Check forbidden filenames
+        # Allow BSON and JSON compliance rule files
+        # These are expected to have rule-related names (e.g., ow-accounts_password_*.bson)
+        if base_name.endswith(('.bson', '.json')):
+            # Only block exact matches of sensitive files, not substrings
+            # E.g., block "passwd" but allow "ow-accounts_password_pam_minlen.bson"
+            if base_name in ['passwd', 'shadow', 'sudoers', 'id_rsa', 'id_dsa',
+                           'id_ecdsa', 'id_ed25519', 'credentials', 'secrets']:
+                return True
+            # Block files that look like SSH keys or env files
+            if base_name.startswith('.env') or base_name.startswith('id_'):
+                return True
+            return False
+
+        # For non-rule files, check forbidden filenames (exact or substring match)
         if any(forbidden in base_name for forbidden in self.FORBIDDEN_FILENAMES):
             return True
 

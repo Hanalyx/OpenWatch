@@ -2,7 +2,7 @@
 Dependency Management Service for Compliance Rules
 Handles rule dependencies, inheritance, and impact analysis
 """
-from typing import Dict, List, Set, Any, Optional, Tuple
+from typing import Dict, List, Set, Any, Optional, Tuple, Union
 from collections import defaultdict, deque
 from datetime import datetime
 import logging

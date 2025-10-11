@@ -327,17 +327,81 @@ class ComplianceRule(Document):
         default="unknown",
         description="Hash of the source content for change detection"
     )
-    version: str = Field(
-        default="1.0.0",
-        description="Rule version"
+
+    # Immutable Versioning (FISMA/FedRAMP/HIPAA Compliance)
+    version: int = Field(
+        default=1,
+        description="Monotonically increasing version number (immutable versioning)"
+    )
+    version_hash: Optional[str] = Field(
+        default=None,
+        description="SHA-256 hash of rule content for integrity verification"
+    )
+    is_latest: bool = Field(
+        default=True,
+        description="Denormalized flag for query performance - true if this is the current version"
+    )
+    supersedes_version: Optional[int] = Field(
+        default=None,
+        description="Previous version number that this version replaces (null for v1)"
+    )
+    superseded_by: Optional[int] = Field(
+        default=None,
+        description="Next version number that replaces this version (null if is_latest)"
+    )
+
+    # Temporal Tracking (Audit Trail)
+    effective_from: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="When this version became the active version"
+    )
+    effective_until: Optional[datetime] = Field(
+        default=None,
+        description="When this version was superseded (null if still active)"
     )
     imported_at: datetime = Field(
         default_factory=datetime.utcnow,
-        description="When the rule was imported"
+        description="When the rule was imported into the system"
     )
     updated_at: datetime = Field(
         default_factory=datetime.utcnow,
-        description="Last update timestamp"
+        description="Last update timestamp (for this specific version document)"
+    )
+    created_by: Optional[str] = Field(
+        default=None,
+        description="User or system that created this version"
+    )
+
+    # Source Bundle Tracking
+    source_bundle: Optional[str] = Field(
+        default=None,
+        description="Bundle filename this version was imported from"
+    )
+    source_bundle_hash: Optional[str] = Field(
+        default=None,
+        description="SHA-512 hash of source bundle for traceability"
+    )
+    import_id: Optional[str] = Field(
+        default=None,
+        description="UUID of the import operation that created this version"
+    )
+
+    # Change Metadata (Audit Information)
+    change_summary: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Summary of what changed from previous version"
+    )
+    deprecated: bool = Field(
+        default=False,
+        description="True if this rule has been deprecated (for audit trail)"
+    )
+    deprecation_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for deprecation if deprecated=True"
+    )
+    replacement_rule_id: Optional[str] = Field(
+        default=None,
+        description="Rule ID that replaces this deprecated rule"
     )
     
     @validator('rule_id')
@@ -357,28 +421,45 @@ class ComplianceRule(Document):
     class Settings:
         name = "compliance_rules"
         indexes = [
-            # Unique constraint on rule_id
-            "rule_id",
-            
-            # Multi-platform queries
-            [("platform_implementations.rhel.versions", 1), ("severity", -1)],
-            [("platform_implementations.ubuntu.versions", 1), ("severity", -1)],
-            [("platform_implementations.windows.versions", 1), ("severity", -1)],
-            
-            # Framework version queries
-            "frameworks.nist",
-            "frameworks.cis", 
-            "frameworks.stig",
-            
+            # Immutable versioning - composite index for uniqueness
+            [("rule_id", 1), ("version", -1)],  # Replaced simple rule_id index
+
+            # Fast "latest version" queries (most common pattern)
+            [("rule_id", 1), ("is_latest", 1)],
+            [("is_latest", 1), ("severity", -1)],
+            [("is_latest", 1), ("category", 1)],
+
+            # Temporal queries (audit/compliance)
+            [("rule_id", 1), ("effective_from", 1)],
+            [("effective_from", 1), ("effective_until", 1)],
+
+            # Content integrity and source tracking
+            "version_hash",  # For integrity verification
+            "source_bundle",  # Track rules by bundle
+            [("source_bundle", 1), ("is_latest", 1)],
+
+            # Multi-platform queries (updated to include is_latest filter)
+            [("is_latest", 1), ("platform_implementations.rhel.versions", 1), ("severity", -1)],
+            [("is_latest", 1), ("platform_implementations.ubuntu.versions", 1), ("severity", -1)],
+            [("is_latest", 1), ("platform_implementations.windows.versions", 1), ("severity", -1)],
+
+            # Framework version queries (updated to include is_latest filter)
+            [("is_latest", 1), ("frameworks.nist", 1)],
+            [("is_latest", 1), ("frameworks.cis", 1)],
+            [("is_latest", 1), ("frameworks.stig", 1)],
+
             # Inheritance and capability queries
             "inherits_from",
             [("abstract", 1), ("category", 1)],
-            
-            # Standard queries
+
+            # Standard queries (kept for backwards compatibility)
             [("category", 1), ("severity", -1)],
             "tags",
             "security_function",
-            [("updated_at", -1)]
+            [("updated_at", -1)],
+
+            # Deprecation tracking
+            [("deprecated", 1), ("is_latest", 1)]
         ]
 
 

@@ -523,7 +523,7 @@ app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
 app.include_router(integration_metrics.router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
+app.include_router(compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"])
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
 app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
