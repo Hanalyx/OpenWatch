@@ -33,7 +33,7 @@ qrcode==7.4.2
 cryptography==44.0.1
 
 # SSH / Remote execution
-paramiko==3.5.0
+paramiko==4.0.0
 
 # HTTP Client
 requests==2.32.5
