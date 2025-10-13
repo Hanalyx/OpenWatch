@@ -78,4 +78,4 @@ xmltodict==0.13.0
 # Utilities
 python-dateutil==2.9.0.post0
 pytz==2025.2
-chardet==4.0.0
+chardet==5.2.0
