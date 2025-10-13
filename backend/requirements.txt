@@ -14,7 +14,7 @@ asyncpg==0.30.0
 # MongoDB / Beanie ODM
 motor==3.6.0
 pymongo==4.9.2
-beanie==1.26.0
+beanie==2.0.0
 
 # Redis & Celery
 redis==5.2.1
