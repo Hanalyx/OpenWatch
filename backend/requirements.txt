@@ -73,7 +73,7 @@ APScheduler==3.10.4
 schedule==1.2.0
 
 # XML processing
-xmltodict==0.13.0
+xmltodict==1.0.2
 
 # Utilities
 python-dateutil==2.9.0.post0
