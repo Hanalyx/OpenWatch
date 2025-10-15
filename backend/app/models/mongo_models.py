@@ -171,6 +171,102 @@ class FixContent(BaseModel):
     )
 
 
+class XCCDFVariable(BaseModel):
+    """
+    XCCDF variable definition for scan-time customization
+
+    XCCDF variables allow users to customize compliance checks at scan time.
+    Examples: session timeout values, login banner text, password policies.
+
+    Supports Solution A (XCCDF Variables) for hybrid scanning architecture.
+    See: /docs/REMEDIATION_WITH_XCCDF_VARIABLES.md
+    """
+
+    model_config = {
+        "exclude_none": True,
+        "exclude_unset": True
+    }
+
+    id: str = Field(
+        description="Variable identifier (e.g., 'var_accounts_tmout', 'login_banner_text')"
+    )
+    title: str = Field(
+        description="Human-readable variable title"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Detailed description of what this variable controls"
+    )
+    type: str = Field(
+        pattern="^(string|number|boolean)$",
+        description="Variable data type: string, number, or boolean"
+    )
+    default_value: str = Field(
+        description="Default value if user doesn't provide custom value"
+    )
+    interactive: bool = Field(
+        default=True,
+        description="Whether this variable can be customized via UI/API (set to False for system variables)"
+    )
+    sensitive: bool = Field(
+        default=False,
+        description="Whether this variable contains sensitive data (passwords, keys, etc.). Encrypted in storage, masked in UI."
+    )
+    constraints: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="""
+        Validation constraints for variable values:
+        - min_value/max_value: For numeric types
+        - min_length/max_length: For string types
+        - choices: List of allowed values (enum-like)
+        - pattern: Regex pattern for validation (string types)
+
+        Examples:
+        - {"min_value": 60, "max_value": 3600} # Session timeout 1-60 mins
+        - {"choices": ["300", "600", "900"]} # Predefined timeout options
+        - {"pattern": "^grub\\.pbkdf2\\.sha512\\."} # GRUB password hash format
+        """
+    )
+
+    @validator('type')
+    def validate_type(cls, v):
+        """Ensure type is one of the supported XCCDF types"""
+        valid_types = ['string', 'number', 'boolean']
+        if v not in valid_types:
+            raise ValueError(f"Invalid type '{v}'. Must be one of: {', '.join(valid_types)}")
+        return v
+
+    @validator('constraints')
+    def validate_constraints(cls, v, values):
+        """Validate constraints match the variable type"""
+        if not v:
+            return v
+
+        var_type = values.get('type')
+
+        if var_type == 'number':
+            # Validate numeric constraints
+            if 'min_value' in v and 'max_value' in v:
+                if v['min_value'] > v['max_value']:
+                    raise ValueError("min_value cannot be greater than max_value")
+
+        elif var_type == 'string':
+            # Validate string constraints
+            if 'min_length' in v and 'max_length' in v:
+                if v['min_length'] > v['max_length']:
+                    raise ValueError("min_length cannot be greater than max_length")
+
+            # Validate pattern if provided
+            if 'pattern' in v:
+                import re
+                try:
+                    re.compile(v['pattern'])
+                except re.error as e:
+                    raise ValueError(f"Invalid regex pattern: {e}")
+
+        return v
+
+
 class ComplianceRule(Document):
     """Enhanced MongoDB model for compliance rules with inheritance and multi-platform support"""
 
@@ -178,6 +274,14 @@ class ComplianceRule(Document):
         name = "compliance_rules"
         use_state_management = True
         validate_on_save = True
+        indexes = [
+            "rule_id",  # Primary lookup
+            "scanner_type",  # Phase 1: Route rules to appropriate scanner
+            "version",  # Version queries
+            "is_latest",  # Current version queries
+            [("rule_id", 1), ("version", -1)],  # Compound: rule + version
+            [("scanner_type", 1), ("is_latest", 1)],  # Phase 1: Latest rules by scanner type
+        ]
 
     # Core Identifiers
     rule_id: str = Field(
@@ -414,7 +518,107 @@ class ComplianceRule(Document):
         default=None,
         description="Rule ID that replaces this deprecated rule"
     )
-    
+
+    # ============================================================================
+    # Phase 1: Hybrid Scanning Architecture (XCCDF Variables + Native Scanners)
+    # ============================================================================
+
+    # XCCDF Variables for Scan-Time Customization (Solution A)
+    xccdf_variables: Optional[Dict[str, XCCDFVariable]] = Field(
+        default=None,
+        description="""
+        XCCDF variables that can be customized at scan time.
+
+        Enables user customization of compliance checks without modifying rules:
+        - Session timeouts (var_accounts_tmout)
+        - Login banners (login_banner_text)
+        - Password policies (var_password_pam_minlen)
+        - GRUB credentials (grub2_bootloader_password)
+        - etc.
+
+        Maps variable IDs to XCCDFVariable definitions.
+
+        Example:
+        {
+            "var_accounts_tmout": XCCDFVariable(
+                id="var_accounts_tmout",
+                title="Account Inactivity Timeout",
+                type="number",
+                default_value="600",
+                constraints={"min_value": 60, "max_value": 3600}
+            )
+        }
+
+        See: /docs/REMEDIATION_WITH_XCCDF_VARIABLES.md
+        """
+    )
+
+    # Scanner Type Routing (Polyglot Scanner Architecture)
+    scanner_type: str = Field(
+        default="oscap",
+        pattern="^(oscap|inspec|python|bash|aws_api|azure_api|gcp_api|kubernetes|docker|sql|mongodb|elasticsearch|opa_rego|custom)$",
+        description="""
+        Scanner engine to use for this rule.
+
+        OpenWatch Native Scanning Engine uses domain-specific scanners:
+        - oscap: Traditional OSCAP/OVAL checks (Linux/Unix)
+        - inspec: Chef Inspec DSL checks
+        - python: Custom Python scripts (sandboxed)
+        - bash: Simple shell checks
+        - aws_api: AWS cloud resources (S3, IAM, VPC, etc.)
+        - azure_api: Azure cloud resources
+        - gcp_api: GCP cloud resources
+        - kubernetes: K8s resource compliance (kube-bench, OPA)
+        - docker: Container image scanning (Trivy, Falco)
+        - sql: Database configuration (PostgreSQL, MySQL, etc.)
+        - mongodb: MongoDB configuration checks
+        - elasticsearch: Elasticsearch settings
+        - opa_rego: Open Policy Agent / Rego policies
+        - custom: Organization-specific custom scanner
+
+        See: /docs/ADVANCED_SCANNING_ARCHITECTURE.md
+        """
+    )
+
+    # Remediation Content for ORSA (Open Remediation Standard Adapter)
+    remediation: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="""
+        Remediation content for ORSA (Open Remediation Standard Adapter) plugins.
+
+        Supports multiple remediation formats extracted from XCCDF or custom-defined:
+        - ansible: Ansible tasks with variable bindings
+        - bash: Bash scripts with variable substitution
+        - puppet: Puppet manifests
+        - chef: Chef recipes
+        - powershell: PowerShell scripts (Windows)
+        - terraform: Terraform configuration changes (cloud)
+        - kubectl: Kubernetes manifest updates
+
+        Example:
+        {
+            "ansible": {
+                "tasks": "- name: Set timeout\\n  lineinfile:\\n    path: /etc/profile\\n    line: 'TMOUT={{ var_accounts_tmout }}'",
+                "variables": ["var_accounts_tmout"],
+                "complexity": "low",
+                "disruption": "low"
+            },
+            "bash": {
+                "script": "echo 'TMOUT=$XCCDF_VALUE_VAR_ACCOUNTS_TMOUT' >> /etc/profile",
+                "variables": ["var_accounts_tmout"]
+            }
+        }
+
+        ORSA plugins extract remediation from this field and execute via appropriate tool.
+
+        See: /docs/PLUGIN_ARCHITECTURE.md (ORSA section)
+        """
+    )
+
+    # ============================================================================
+    # End Phase 1 Fields
+    # ============================================================================
+
     @validator('rule_id')
     def validate_rule_id(cls, v):
         if not v or len(v) < 3:
