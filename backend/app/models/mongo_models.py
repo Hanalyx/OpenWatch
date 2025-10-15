@@ -24,30 +24,28 @@ import hashlib
 
 class FrameworkVersions(BaseModel):
     """Versioned framework mappings supporting multiple compliance standards"""
-    nist: Optional[Dict[str, List[str]]] = Field(
-        default_factory=dict,
-        description="NIST 800-53 mappings by version (e.g., {'800-53r4': ['AC-2'], '800-53r5': ['AC-2']})"
-    )
-    cis: Optional[Dict[str, List[str]]] = Field(
-        default_factory=dict,
-        description="CIS Controls mappings by version (e.g., {'rhel8_v2.0.0': ['5.1.1']})"
-    )
-    stig: Optional[Dict[str, Union[str, List[str]]]] = Field(
-        default_factory=dict,
-        description="DISA STIG mappings by version (e.g., {'rhel8_v1r11': 'RHEL-08-020070'} or {'current': ['SRG-APP-000516']})"
-    )
-    pci_dss: Optional[Dict[str, List[str]]] = Field(
-        default_factory=dict,
-        description="PCI DSS requirements by version"
-    )
-    iso27001: Optional[Dict[str, List[str]]] = Field(
-        default_factory=dict,
-        description="ISO 27001 controls by version"
-    )
-    hipaa: Optional[Dict[str, List[str]]] = Field(
-        default_factory=dict,
-        description="HIPAA safeguards by regulation section"
-    )
+
+    model_config = {
+        # Exclude None values when serializing - critical for idempotency
+        "exclude_none": True,
+        # Exclude unset fields - only serialize fields that were explicitly set
+        "exclude_unset": True,
+        # CRITICAL: Also exclude None when converting to dict for MongoDB
+        "use_enum_values": True
+    }
+
+    nist: Optional[Dict[str, List[str]]] = None
+    cis: Optional[Dict[str, List[str]]] = None
+    stig: Optional[Dict[str, Union[str, List[str]]]] = None
+    pci_dss: Optional[Dict[str, List[str]]] = None
+    iso27001: Optional[Dict[str, List[str]]] = None
+    hipaa: Optional[Dict[str, List[str]]] = None
+
+    def model_dump(self, **kwargs):
+        """Override to ensure None values are excluded for MongoDB storage"""
+        # Force exclude_none=True for all dumps
+        kwargs['exclude_none'] = True
+        return super().model_dump(**kwargs)
 
 
 class PlatformImplementation(BaseModel):
@@ -175,7 +173,12 @@ class FixContent(BaseModel):
 
 class ComplianceRule(Document):
     """Enhanced MongoDB model for compliance rules with inheritance and multi-platform support"""
-    
+
+    class Settings:
+        name = "compliance_rules"
+        use_state_management = True
+        validate_on_save = True
+
     # Core Identifiers
     rule_id: str = Field(
         description="Unique OpenWatch rule identifier"
@@ -225,11 +228,19 @@ class ComplianceRule(Document):
         default_factory=list,
         description="Searchable tags for categorization"
     )
-    
+
+    # Cross-Reference Identifiers (CCE, CVE, OVAL, etc.)
+    identifiers: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="External identifiers for cross-referencing (cce, cve, oval_id, etc.)"
+    )
+
     # Multi-Version Framework Support
-    frameworks: FrameworkVersions = Field(
-        default_factory=FrameworkVersions,
-        description="Compliance framework mappings with version support"
+    # CRITICAL: Use Dict instead of FrameworkVersions to prevent Pydantic from
+    # auto-initializing None values for unset framework fields (breaks idempotency)
+    frameworks: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Compliance framework mappings with version support (nist, cis, stig, pci_dss, iso27001, hipaa)"
     )
     
     # Platform Abstraction

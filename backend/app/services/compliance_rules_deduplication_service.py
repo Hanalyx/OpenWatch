@@ -24,13 +24,33 @@ class SmartDeduplicationService:
     - Whether to skip or update
     """
 
-    # Fields excluded from hash calculation (metadata that always changes)
+    # Fields excluded from hash calculation (metadata + versioning fields)
+    # Must match RuleVersioningService.HASH_EXCLUDE_FIELDS for consistency
     EXCLUDED_FROM_HASH = {
+        # Metadata that changes on every import
         'imported_at',
         'updated_at',
         'source_file',
         'source_hash',
-        '_id'  # MongoDB internal ID
+        '_id',
+        'id',  # Beanie auto-generated alias for _id
+        'revision_id',  # Beanie document revision tracking
+        # Immutable versioning fields (added in Phase 5)
+        'version',
+        'version_hash',
+        'is_latest',
+        'supersedes_version',
+        'superseded_by',
+        'effective_from',
+        'effective_until',
+        'source_bundle',
+        'source_bundle_hash',
+        'import_id',
+        'change_summary',
+        'created_by',
+        # Computed fields (OpenWatch-managed, not from bundle)
+        'derived_rules',  # Auto-populated from other rules' inherits_from
+        'parent_rule_id',  # Computed relationship field
     }
 
     # Fields tracked for statistics (categorized)
@@ -88,9 +108,15 @@ class SmartDeduplicationService:
             existing_hash = self.calculate_content_hash(existing_rule)
             new_hash = self.calculate_content_hash(rule_data)
 
+            logger.debug(
+                f"Hash comparison for {rule_id}: "
+                f"existing={existing_hash[:16]}..., new={new_hash[:16]}..."
+            )
+
             if existing_hash == new_hash:
                 # No changes - skip
                 self.statistics['skipped'] += 1
+                logger.info(f"Skipping unchanged rule: {rule_id}")
                 return 'skipped', {
                     'rule_id': rule_id,
                     'action': 'skipped',
@@ -100,6 +126,22 @@ class SmartDeduplicationService:
 
             # Detect specific changes
             changes = self.detect_field_changes(existing_rule, rule_data)
+
+            # Debug: Log first change details
+            if changes:
+                first_field = list(changes.keys())[0]
+                first_change = changes[first_field]
+                logger.error(
+                    f"Rule {rule_id} HASH MISMATCH - {len(changes)} fields changed. "
+                    f"Example: {first_field} -> "
+                    f"OLD type={type(first_change.get('old')).__name__} value={str(first_change.get('old'))[:50]}, "
+                    f"NEW type={type(first_change.get('new')).__name__} value={str(first_change.get('new'))[:50]}"
+                )
+
+            logger.warning(
+                f"Rule {rule_id} marked as updated - {len(changes)} fields changed: "
+                f"{list(changes.keys())[:5]}"
+            )
 
             # Update field statistics
             for category in self.categorize_changes(changes):
@@ -127,11 +169,44 @@ class SmartDeduplicationService:
                 'reason': f'Processing error: {str(e)}'
             }
 
+    def _apply_pydantic_defaults(self, rule_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply Pydantic model default values to a raw dict
+
+        CRITICAL: This ensures that bundle data (raw dicts with missing fields)
+        hashes identically to MongoDB data (Pydantic models with defaults populated).
+
+        The bundle may have missing fields, but Pydantic will add defaults when
+        creating ComplianceRule instances. We need to apply those same defaults
+        to the bundle data BEFORE hashing.
+
+        Args:
+            rule_dict: Raw rule dict from bundle
+
+        Returns:
+            Dict with Pydantic defaults applied
+        """
+        result = dict(rule_dict)
+
+        # Apply defaults that match ComplianceRule model
+        # Only add if field is completely missing (not if it's None or empty)
+        if 'conditions' not in result:
+            result['conditions'] = []
+
+        if 'parameter_resolution' not in result:
+            result['parameter_resolution'] = "most_restrictive"
+
+        if 'deprecated' not in result:
+            result['deprecated'] = False
+
+        return result
+
     def calculate_content_hash(self, rule: Union[ComplianceRule, Dict[str, Any]]) -> str:
         """
         Calculate SHA-256 hash of rule content
 
-        Excludes timestamp and provenance fields that change on every import.
+        Excludes timestamp, provenance, and computed fields that change on every import.
+        Uses exclude_none=True to ensure None vs {} differences don't break idempotency.
 
         Args:
             rule: ComplianceRule model or dict
@@ -142,17 +217,33 @@ class SmartDeduplicationService:
         try:
             # Convert to dict if Pydantic model
             if hasattr(rule, 'dict'):
-                rule_dict = rule.dict()
+                # CRITICAL: Use exclude_none=True to remove None values
+                # This ensures None and {} hash identically after normalization
+                rule_dict = rule.dict(exclude_none=True)
             elif isinstance(rule, dict):
-                rule_dict = dict(rule)
+                # CRITICAL: Apply Pydantic defaults to raw dict
+                # This ensures bundle data hashes same as MongoDB data
+                rule_dict = self._apply_pydantic_defaults(dict(rule))
             else:
                 raise ValueError(f"Cannot hash type: {type(rule)}")
 
-            # Remove excluded fields
+            # Remove excluded fields (metadata, versioning, computed)
             normalized = {
                 k: v for k, v in sorted(rule_dict.items())
                 if k not in self.EXCLUDED_FROM_HASH
             }
+
+            # Normalize empty nested structures (critical for idempotency)
+            normalized = self._normalize_empty_values(normalized)
+
+            # Debug: Log fields included in hash
+            rule_id = rule_dict.get('rule_id', 'unknown')
+            included_fields = sorted(normalized.keys())
+            logger.debug(
+                f"Hash calculation for {rule_id}: "
+                f"including {len(included_fields)} fields, "
+                f"excluding {len(self.EXCLUDED_FROM_HASH)} fields"
+            )
 
             # Serialize to JSON with sorted keys for consistency
             content_json = json.dumps(normalized, sort_keys=True, default=str)
@@ -173,6 +264,8 @@ class SmartDeduplicationService:
         """
         Detect which specific fields changed between existing and new rule
 
+        CRITICAL: Use exclude_none=True to ensure None vs {} comparisons work correctly.
+
         Returns:
             {
                 'field_name': {
@@ -185,10 +278,14 @@ class SmartDeduplicationService:
         changes = {}
 
         try:
-            existing_dict = existing_rule.dict()
+            # CRITICAL: Use exclude_none=True to normalize None fields
+            existing_dict = existing_rule.dict(exclude_none=True)
+
+            # Normalize new_data to remove None values for consistent comparison
+            new_data_normalized = {k: v for k, v in new_data.items() if v is not None}
 
             # Check for modified/added fields in new data
-            for field, new_value in new_data.items():
+            for field, new_value in new_data_normalized.items():
                 # Skip excluded fields
                 if field in self.EXCLUDED_FROM_HASH:
                     continue
@@ -202,6 +299,13 @@ class SmartDeduplicationService:
                     else:
                         change_type = 'modified'
 
+                    # DEBUG: Log comparison details for troubleshooting
+                    logger.debug(
+                        f"Field {field} mismatch: "
+                        f"old={type(old_value).__name__}:{old_value!r}, "
+                        f"new={type(new_value).__name__}:{new_value!r}"
+                    )
+
                     changes[field] = {
                         'old': self._truncate_value(old_value),
                         'new': self._truncate_value(new_value),
@@ -214,7 +318,7 @@ class SmartDeduplicationService:
                 if field in self.EXCLUDED_FROM_HASH:
                     continue
 
-                if field not in new_data and old_value is not None:
+                if field not in new_data_normalized and old_value is not None:
                     changes[field] = {
                         'old': self._truncate_value(old_value),
                         'new': None,
@@ -226,16 +330,70 @@ class SmartDeduplicationService:
 
         return changes
 
+    def _normalize_empty_values(self, data: Any) -> Any:
+        """
+        Recursively normalize empty nested structures for consistent hashing
+
+        CRITICAL FOR IDEMPOTENCY:
+        - Converts None → {} for optional dict fields (identifiers, etc.)
+        - Converts None → [] for optional list fields (derived_rules, etc.)
+        - Removes empty nested structures from dicts
+
+        This ensures that:
+        - Bundle with `identifiers: None` hashes same as MongoDB `identifiers: {}`
+        - Bundle with missing `derived_rules` hashes same as MongoDB `derived_rules: []`
+
+        Args:
+            data: Data structure to normalize
+
+        Returns:
+            Normalized data structure
+        """
+        if isinstance(data, dict):
+            # Recursively normalize nested dicts
+            normalized = {}
+            for k, v in data.items():
+                if v is None:
+                    # Skip None values - they'll be normalized by Pydantic defaults
+                    continue
+
+                normalized_v = self._normalize_empty_values(v)
+
+                # Skip empty nested structures
+                if normalized_v == {} or normalized_v == []:
+                    continue
+
+                normalized[k] = normalized_v
+
+            return normalized
+
+        elif isinstance(data, list):
+            # Recursively normalize list items
+            normalized = [self._normalize_empty_values(item) for item in data]
+            # Filter out None and empty items
+            return [item for item in normalized if item not in (None, {}, [])]
+
+        else:
+            # Primitives pass through unchanged
+            return data
+
     def _values_equal(self, val1: Any, val2: Any) -> bool:
         """
         Compare two values for equality
 
-        Handles nested dicts, lists, and type conversions
+        CRITICAL: Treat None, {}, and [] as equivalent for idempotency.
+        MongoDB may store fields as missing, None, or empty - all should hash identically.
         """
-        # Handle None cases
-        if val1 is None and val2 is None:
+        # Normalize empty values: None, {}, [] are all treated as "empty"
+        def is_empty(val):
+            return val is None or val == {} or val == []
+
+        # If both are empty (None/{}/[]), they're equal
+        if is_empty(val1) and is_empty(val2):
             return True
-        if val1 is None or val2 is None:
+
+        # If only one is empty, they're not equal
+        if is_empty(val1) or is_empty(val2):
             return False
 
         # Convert both to comparable types

@@ -145,13 +145,13 @@ async def get_compliance_rules(
         # Handle framework statistics request
         if view_mode == "framework_statistics":
             try:
-                # Try MongoDB first (would need to be implemented in mongo service)
-                # For now, use file-based analysis
-                result = await get_framework_statistics_from_files()
+                # Use MongoDB service for framework statistics
+                mongo_service = await get_mongo_service()
+                result = await mongo_service.get_framework_statistics()
                 return ComplianceRulesListResponse(
                     success=True,
                     data=result,
-                    message=f"Retrieved statistics for {result.get('total_frameworks', 0)} frameworks (from converted files)"
+                    message=f"Retrieved statistics for {result.get('total_frameworks', 0)} frameworks"
                 )
             except Exception as e:
                 logger.error(f"Framework statistics failed: {e}")
@@ -678,19 +678,18 @@ async def get_platform_statistics(
         )
 
 async def get_platform_statistics_from_files() -> Dict[str, Any]:
-    """Generate platform statistics from converted OpenWatch rules files"""
-    
-    # Path to converted rules
-    rules_path = Path("/home/rracine/hanalyx/openwatch/data/compliance_rules_converted")
-    
-    if not rules_path.exists():
-        logger.warning(f"Converted rules directory not found: {rules_path}")
-        return {
-            "platforms": [],
-            "total_platforms": 0,
-            "total_rules_analyzed": 0,
-            "source": "file_analysis_failed"
-        }
+    """
+    DEPRECATED: Return empty platform statistics when MongoDB is empty.
+    This function previously analyzed file-based rules but now only serves
+    as a fallback to return empty data.
+    """
+    logger.info("MongoDB has no rules - returning empty platform statistics")
+    return {
+        "platforms": [],
+        "total_platforms": 0,
+        "total_rules_analyzed": 0,
+        "source": "mongodb_empty"
+    }
     
     # Load and analyze all rules
     platform_data = defaultdict(lambda: {
@@ -797,19 +796,18 @@ async def get_platform_statistics_from_files() -> Dict[str, Any]:
     return result
 
 async def get_framework_statistics_from_files() -> Dict[str, Any]:
-    """Generate framework statistics from converted OpenWatch rules files"""
-    
-    # Path to converted rules
-    rules_path = Path("/home/rracine/hanalyx/openwatch/data/compliance_rules_converted")
-    
-    if not rules_path.exists():
-        logger.warning(f"Converted rules directory not found: {rules_path}")
-        return {
-            "frameworks": [],
-            "total_frameworks": 0,
-            "total_rules_analyzed": 0,
-            "source": "file_analysis_failed"
-        }
+    """
+    DEPRECATED: Return empty framework statistics when MongoDB is empty.
+    This function previously analyzed file-based rules but now only serves
+    as a fallback to return empty data.
+    """
+    logger.info("MongoDB has no rules - returning empty framework statistics")
+    return {
+        "frameworks": [],
+        "total_frameworks": 0,
+        "total_rules_analyzed": 0,
+        "source": "mongodb_empty"
+    }
     
     # Load and analyze all rules
     framework_data = defaultdict(lambda: {

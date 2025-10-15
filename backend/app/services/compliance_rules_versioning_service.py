@@ -23,7 +23,8 @@ class RuleVersioningService:
 
     # Fields to exclude from content hash (metadata fields)
     HASH_EXCLUDE_FIELDS = {
-        '_id', 'version', 'version_hash', 'is_latest', 'supersedes_version',
+        '_id', 'id', 'revision_id',  # MongoDB/Beanie internal IDs
+        'version', 'version_hash', 'is_latest', 'supersedes_version',
         'superseded_by', 'effective_from', 'effective_until', 'imported_at',
         'updated_at', 'created_by', 'source_bundle', 'source_bundle_hash',
         'import_id', 'change_summary'

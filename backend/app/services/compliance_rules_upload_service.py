@@ -263,6 +263,10 @@ class ComplianceRulesUploadService:
                         f"inheritance updates"
                     )
 
+            # Populate derived_rules (reverse index for inheritance)
+            # This is a computed field that tracks which rules inherit from each parent
+            await self._populate_derived_rules()
+
             # Success
             result['success'] = True
             result['phase'] = 'completed'
@@ -295,6 +299,56 @@ class ComplianceRulesUploadService:
             # Cleanup extracted files
             if extracted_path:
                 self.security_service.cleanup_extracted_files(extracted_path)
+
+    async def _populate_derived_rules(self) -> None:
+        """
+        Populate derived_rules field (reverse index for inheritance).
+
+        This is a computed field that tracks which rules inherit from each parent rule.
+        The bundle provides inherits_from (child→parent), OpenWatch computes derived_rules (parent→children).
+
+        CRITICAL: derived_rules is excluded from content hash since it's computed, not source content.
+        """
+        from collections import defaultdict
+
+        try:
+            # Find all rules with inherits_from (child rules)
+            child_rules = await ComplianceRule.find(
+                {"inherits_from": {"$ne": None}, "is_latest": True}
+            ).to_list()
+
+            if not child_rules:
+                logger.debug(f"[{self.upload_id}] No child rules found, skipping derived_rules population")
+                return
+
+            # Build reverse index: parent_id → [child_id1, child_id2, ...]
+            inheritance_map = defaultdict(list)
+            for child in child_rules:
+                parent_id = child.inherits_from
+                inheritance_map[parent_id].append(child.rule_id)
+
+            # Update parent rules with derived_rules list
+            update_count = 0
+            for parent_id, child_ids in inheritance_map.items():
+                result = await ComplianceRule.find_one(
+                    {"rule_id": parent_id, "is_latest": True}
+                ).update(
+                    {"$set": {"derived_rules": sorted(child_ids)}}
+                )
+                if result:
+                    update_count += 1
+
+            logger.info(
+                f"[{self.upload_id}] Populated derived_rules for {update_count} parent rules "
+                f"({len(child_rules)} child rules processed)"
+            )
+
+        except Exception as e:
+            # Non-fatal error - log and continue
+            logger.warning(
+                f"[{self.upload_id}] Failed to populate derived_rules: {e}. "
+                f"This is a computed field and can be rebuilt later."
+            )
 
     async def _import_rules_batch(
         self,
@@ -376,6 +430,31 @@ class ComplianceRulesUploadService:
 
         return results
 
+    def _clean_empty_framework_fields(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Remove None/empty framework fields to prevent Pydantic from initializing them.
+        CRITICAL for idempotency - prevents {'nist': None} vs {} hash mismatches.
+
+        Args:
+            rule_data: Rule dictionary
+
+        Returns:
+            Cleaned rule data with only populated framework fields
+        """
+        if 'frameworks' in rule_data and isinstance(rule_data['frameworks'], dict):
+            # Remove None and empty dict values from frameworks
+            cleaned_frameworks = {
+                k: v for k, v in rule_data['frameworks'].items()
+                if v is not None and v != {} and v != []
+            }
+            # Set to empty dict (not None) to match API schema expectations
+            rule_data['frameworks'] = cleaned_frameworks if cleaned_frameworks else {}
+        elif 'frameworks' not in rule_data:
+            # Ensure frameworks field exists (API expects it)
+            rule_data['frameworks'] = {}
+
+        return rule_data
+
     async def _create_new_rule(
         self,
         rule_data: Dict[str, Any],
@@ -393,6 +472,9 @@ class ComplianceRulesUploadService:
         # Remove _id field if present - MongoDB will auto-generate ObjectId
         if '_id' in rule_data:
             del rule_data['_id']
+
+        # CRITICAL: Clean empty framework fields BEFORE Pydantic processing
+        rule_data = self._clean_empty_framework_fields(rule_data)
 
         # Prepare version 1 with immutable versioning fields
         versioned_rule = self.versioning_service.prepare_new_version(
@@ -456,6 +538,9 @@ class ComplianceRulesUploadService:
         # Remove _id to let MongoDB generate new one
         if '_id' in new_data:
             del new_data['_id']
+
+        # CRITICAL: Clean empty framework fields BEFORE Pydantic processing
+        new_data = self._clean_empty_framework_fields(new_data)
 
         # Convert existing_rule to dict for versioning service
         previous_version_dict = existing_rule.dict(by_alias=True)
