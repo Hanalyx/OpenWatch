@@ -72,13 +72,27 @@ from .scap_to_openwatch_converter import (
     TemplateProcessor
 )
 
+# Import SCAP YAML parser for variable/remediation extraction
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from services.scap_yaml_parser_service import extract_scap_metadata
+
 class EnhancedSCAPConverter:
     """Enhanced converter with BSON and dry-run support"""
 
-    def __init__(self, scap_content_path: str, output_path: str, dry_run: bool = False):
+    def __init__(
+        self,
+        scap_content_path: str,
+        output_path: str,
+        dry_run: bool = False,
+        extract_variables: bool = False,
+        extract_remediation: bool = False
+    ):
         self.scap_content_path = Path(scap_content_path)
         self.output_path = Path(output_path)
         self.dry_run = dry_run
+        self.extract_variables = extract_variables
+        self.extract_remediation = extract_remediation
         self.framework_mapper = FrameworkMapper()
         self.template_processor = TemplateProcessor()
         self.stats = ConversionStats()
@@ -171,7 +185,8 @@ class EnhancedSCAPConverter:
 
     def _build_openwatch_rule(self, rule_data: Dict[str, Any], rule_file: Path, rule_id: str) -> Dict[str, Any]:
         """Build OpenWatch rule structure (from original converter)"""
-        return {
+        # Base rule structure
+        rule = {
             "_id": f"ow-{rule_id}",
             "rule_id": f"ow-{rule_id}",
             "scap_rule_id": f"xccdf_org.ssgproject.content_rule_{rule_id}",
@@ -211,6 +226,33 @@ class EnhancedSCAPConverter:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "identifiers": self._extract_identifiers(rule_data)
         }
+
+        # Extract Phase 1 metadata (variables, remediation, scanner type)
+        if self.extract_variables or self.extract_remediation:
+            try:
+                extracted_metadata = extract_scap_metadata(rule_data, rule_file)
+
+                # Add XCCDF variables
+                if self.extract_variables and extracted_metadata.get('xccdf_variables'):
+                    rule['xccdf_variables'] = extracted_metadata['xccdf_variables']
+
+                # Add remediation content
+                if self.extract_remediation and extracted_metadata.get('remediation'):
+                    rule['remediation'] = extracted_metadata['remediation']
+
+                # Always add scanner type (defaults to 'oscap' if not detected)
+                rule['scanner_type'] = extracted_metadata.get('scanner_type', 'oscap')
+
+            except Exception as e:
+                logger.warning(f"Failed to extract metadata for {rule_id}: {e}")
+                # Set defaults on error
+                rule['scanner_type'] = 'oscap'
+
+        else:
+            # If not extracting, set default scanner type
+            rule['scanner_type'] = 'oscap'
+
+        return rule
 
     def _write_json_rule(self, rule: Dict[str, Any], rule_id: str) -> None:
         """Write rule as JSON file"""
@@ -493,6 +535,8 @@ def main():
     convert_parser.add_argument('--output-path', default='/home/rracine/hanalyx/openwatch/data/compliance_rules_converted')
     convert_parser.add_argument('--format', choices=['json', 'bson'], default='json')
     convert_parser.add_argument('--dry-run', action='store_true', help='Show what would be converted')
+    convert_parser.add_argument('--extract-variables', action='store_true', help='Extract XCCDF variables (Phase 1)')
+    convert_parser.add_argument('--extract-remediation', action='store_true', help='Extract remediation content (Phase 1)')
     convert_parser.add_argument('--create-bundle', action='store_true', help='Create tar.gz bundle after conversion')
     convert_parser.add_argument('--bundle-version', default='0.0.1', help='Bundle version')
 
@@ -511,7 +555,13 @@ def main():
     args = parser.parse_args()
 
     if args.command == 'convert':
-        converter = EnhancedSCAPConverter(args.scap_path, args.output_path, args.dry_run)
+        converter = EnhancedSCAPConverter(
+            args.scap_path,
+            args.output_path,
+            args.dry_run,
+            args.extract_variables,
+            args.extract_remediation
+        )
         stats = converter.convert_all_rules(args.format)
 
         # Create bundle if requested
