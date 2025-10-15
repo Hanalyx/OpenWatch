@@ -17,6 +17,10 @@ from ...api.v1.endpoints import scap_import
 from ...api.v1.endpoints import rule_management
 from ...api.v1.endpoints import compliance_rules_api
 from ...api.v1.endpoints import mongodb_scan_api
+from ...api.v1.endpoints import xccdf_api
+from ...api.v1.endpoints import scans_api
+from ...api.v1.endpoints import remediation_api
+from ...api.v1.endpoints import scan_config_api
 
 from ...api.v1.endpoints import health_monitoring
 
@@ -38,6 +42,12 @@ router.include_router(scap_import.router, tags=["SCAP Import"])
 router.include_router(rule_management.router, tags=["Enhanced Rule Management"])
 router.include_router(compliance_rules_api.router, tags=["MongoDB Compliance Rules"])
 router.include_router(mongodb_scan_api.router, tags=["MongoDB Scanning"])
+
+# Phase 1: XCCDF Variables + Hybrid Scanning Architecture
+router.include_router(xccdf_api.router, prefix="/xccdf", tags=["XCCDF Generator"])
+router.include_router(scans_api.router, prefix="/scan-execution", tags=["Scan Execution"])
+router.include_router(remediation_api.router, prefix="/remediation-engine", tags=["ORSA Remediation"])
+router.include_router(scan_config_api.router, prefix="/scan-config", tags=["Scan Configuration"])
 
 router.include_router(health_monitoring.router, prefix="/health-monitoring", tags=["Health Monitoring"])
 
@@ -63,14 +73,18 @@ async def get_api_info():
         },
         "endpoints": {
             "capabilities": "/api/v1/capabilities",
-            "features": "/api/v1/features", 
+            "features": "/api/v1/features",
             "hosts": "/api/v1/hosts",
             "scans": "/api/v1/scans",
             "remediation": "/api/v1/remediation",
             "integrations": "/api/v1/health/integrations",
             "mongodb_test": "/api/v1/mongodb",
             "scap_import": "/api/v1/scap-import",
-            "rule_management": "/api/v1/rules"
+            "rule_management": "/api/v1/rules",
+            "xccdf_generator": "/api/v1/xccdf",
+            "scan_execution": "/api/v1/scan-execution",
+            "remediation_engine": "/api/v1/remediation-engine",
+            "scan_configuration": "/api/v1/scan-config"
         },
         "rate_limits": {
             "default": "1000 requests per minute",
