@@ -13,7 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from backend.app.models.remediation_models import (
+from ....models.remediation_models import (
     RemediationRequest,
     BulkRemediationRequest,
     RemediationResult,
@@ -21,40 +21,24 @@ from backend.app.models.remediation_models import (
     BulkRemediationJob,
     RemediationSummary
 )
-from backend.app.services.remediation_orchestrator_service import RemediationOrchestrator
-from backend.app.services.remediators import RemediationExecutorFactory
-from backend.app.services.remediators.base_executor import (
+from ....services.remediation_orchestrator_service import RemediationOrchestrator
+from ....services.remediators import RemediationExecutorFactory
+from ....services.remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
     ExecutorExecutionError
 )
-# TODO: Import actual auth dependencies when available
-# from backend.app.core.auth import get_current_user
-# from backend.app.db.mongodb import get_database
+from ....services.mongo_integration_service import get_mongo_service
+from ....auth import get_current_user
 
 
 router = APIRouter()
 
 
-# Placeholder dependency functions (replace with actual implementations)
-async def get_database():
-    """Get MongoDB database instance."""
-    # TODO: Implement actual database dependency
-    from motor.motor_asyncio import AsyncIOMotorClient
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
-    return client.openwatch_db
-
-
-async def get_current_user():
-    """Get current authenticated user."""
-    # TODO: Implement actual auth
-    return {"username": "admin", "role": "admin"}
-
-
 @router.post("/execute", response_model=RemediationResult)
 async def execute_remediation(
     request: RemediationRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -93,6 +77,8 @@ async def execute_remediation(
     ```
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = RemediationOrchestrator(db)
 
         result = await orchestrator.execute_remediation(
@@ -121,7 +107,7 @@ async def execute_remediation(
 @router.post("/execute-bulk", response_model=BulkRemediationJob)
 async def execute_bulk_remediation(
     request: BulkRemediationRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -171,6 +157,8 @@ async def execute_bulk_remediation(
     ```
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = RemediationOrchestrator(db)
 
         job = await orchestrator.execute_bulk_remediation(
@@ -194,7 +182,7 @@ async def execute_bulk_remediation(
 @router.get("/{remediation_id}", response_model=RemediationResult)
 async def get_remediation(
     remediation_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -209,6 +197,8 @@ async def get_remediation(
     **Returns:**
     - RemediationResult document
     """
+    db = mongo_service.mongo_manager.database
+
     orchestrator = RemediationOrchestrator(db)
     result = await orchestrator.get_remediation_result(remediation_id)
 
@@ -229,7 +219,7 @@ async def list_remediations(
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     status: Optional[RemediationStatus] = Query(None, description="Filter by status"),
     scan_id: Optional[str] = Query(None, description="Filter by scan ID"),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -249,6 +239,8 @@ async def list_remediations(
     GET /api/v1/remediation/?status=completed&limit=10
     ```
     """
+    db = mongo_service.mongo_manager.database
+
     orchestrator = RemediationOrchestrator(db)
 
     # Non-admin users can only see their own remediations
@@ -270,7 +262,7 @@ async def list_remediations(
 @router.post("/{remediation_id}/rollback", response_model=RemediationResult)
 async def rollback_remediation(
     remediation_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -291,6 +283,8 @@ async def rollback_remediation(
     - 500: Rollback execution failed
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = RemediationOrchestrator(db)
 
         # Get original remediation for authorization check
@@ -322,7 +316,7 @@ async def rollback_remediation(
 @router.delete("/{remediation_id}")
 async def delete_remediation(
     remediation_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -341,6 +335,8 @@ async def delete_remediation(
     - Admins can delete any remediation
     - Users can only delete their own remediations
     """
+    db = mongo_service.mongo_manager.database
+
     orchestrator = RemediationOrchestrator(db)
 
     # Get remediation for authorization check
@@ -362,7 +358,7 @@ async def delete_remediation(
 @router.get("/statistics/summary", response_model=RemediationSummary)
 async def get_remediation_statistics(
     days: int = Query(30, ge=1, le=365, description="Days to include"),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -398,6 +394,8 @@ async def get_remediation_statistics(
     }
     ```
     """
+    db = mongo_service.mongo_manager.database
+
     orchestrator = RemediationOrchestrator(db)
 
     # Non-admin users see only their own stats
@@ -457,7 +455,7 @@ async def list_available_executors(
 @router.get("/jobs/{job_id}", response_model=BulkRemediationJob)
 async def get_bulk_job(
     job_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """

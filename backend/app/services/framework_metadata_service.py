@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 
-from backend.app.models.scan_config_models import (
+from ..models.scan_config_models import (
     FrameworkMetadata,
     FrameworkVersion,
     VariableDefinition,
@@ -54,44 +54,50 @@ class FrameworkMetadataService:
         """
         logger.info("Listing available frameworks")
 
-        # Aggregation pipeline to group by framework
-        pipeline = [
-            # Group by framework
-            {
-                "$group": {
-                    "_id": "$framework",
-                    "versions": {"$addToSet": "$framework_version"},
-                    "rule_count": {"$sum": 1},
-                    "display_name": {"$first": "$framework"},  # Placeholder
-                    "description": {"$first": "$framework"},  # Placeholder
-                }
-            },
-            # Sort by framework name
-            {"$sort": {"_id": 1}}
-        ]
+        # Get all rules with frameworks field
+        all_rules = await self.collection.find(
+            {"frameworks": {"$exists": True, "$ne": {}}},
+            {"frameworks": 1}
+        ).to_list(length=None)
 
-        results = await self.collection.aggregate(pipeline).to_list(length=None)
+        # Parse nested frameworks structure
+        framework_data = {}
+        for rule in all_rules:
+            frameworks_obj = rule.get("frameworks", {})
 
+            for fw_name, fw_versions in frameworks_obj.items():
+                if not isinstance(fw_versions, dict):
+                    continue
+
+                if fw_name not in framework_data:
+                    framework_data[fw_name] = {
+                        "versions": set(),
+                        "rule_count": 0
+                    }
+
+                # Add versions from this framework
+                framework_data[fw_name]["versions"].update(fw_versions.keys())
+                framework_data[fw_name]["rule_count"] += 1
+
+        # Build framework metadata list
         frameworks = []
-        for result in results:
-            framework_id = result["_id"]
-
-            # Get variable count
-            var_count = await self._count_variables(framework_id)
+        for fw_name, fw_info in sorted(framework_data.items()):
+            # Get variable count (placeholder for now)
+            var_count = 0  # TODO: Extract from XCCDF variables when available
 
             # Create metadata
             metadata = FrameworkMetadata(
-                framework=framework_id,
-                display_name=self._get_display_name(framework_id),
-                versions=sorted(result["versions"]),
-                description=self._get_description(framework_id),
-                rule_count=result["rule_count"],
+                framework=fw_name,
+                display_name=self._get_display_name(fw_name),
+                versions=sorted(fw_info["versions"]),
+                description=self._get_description(fw_name),
+                rule_count=fw_info["rule_count"],
                 variable_count=var_count
             )
 
             frameworks.append(metadata)
 
-        logger.info(f"Found {len(frameworks)} frameworks")
+        logger.info(f"Found {len(frameworks)} frameworks from nested structure")
         return frameworks
 
     async def get_framework_details(
@@ -275,24 +281,28 @@ class FrameworkMetadataService:
         """Get human-readable framework name."""
         display_names = {
             "nist": "NIST 800-53",
-            "cis": "CIS Benchmarks",
-            "pci-dss": "PCI-DSS",
-            "hipaa": "HIPAA",
+            "cis": "CIS Controls",
             "iso27001": "ISO 27001",
+            "pci": "PCI-DSS",
+            "pci-dss": "PCI-DSS",
+            "stig": "STIG",
+            "hipaa": "HIPAA",
             "soc2": "SOC 2",
             "gdpr": "GDPR",
             "fedramp": "FedRAMP",
         }
-        return display_names.get(framework, framework.upper())
+        return display_names.get(framework, framework.upper() if framework else "Unknown")
 
     def _get_description(self, framework: str) -> str:
         """Get framework description."""
         descriptions = {
             "nist": "NIST Special Publication 800-53 - Security and Privacy Controls",
-            "cis": "CIS Benchmarks - Industry consensus security configuration baselines",
-            "pci-dss": "Payment Card Industry Data Security Standard",
-            "hipaa": "Health Insurance Portability and Accountability Act",
+            "cis": "CIS Controls - Industry consensus security configuration baselines",
             "iso27001": "ISO/IEC 27001 Information Security Management",
+            "pci": "Payment Card Industry Data Security Standard",
+            "pci-dss": "Payment Card Industry Data Security Standard",
+            "stig": "Security Technical Implementation Guides - DoD security hardening",
+            "hipaa": "Health Insurance Portability and Accountability Act",
             "soc2": "SOC 2 Trust Services Criteria",
             "gdpr": "General Data Protection Regulation",
             "fedramp": "Federal Risk and Authorization Management Program",

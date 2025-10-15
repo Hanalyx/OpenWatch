@@ -13,14 +13,14 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 
-from app.models.scan_models import (
+from ..models.scan_models import (
     ScanConfiguration,
     ScanResult,
     ScanStatus,
     RuleResult,
     ScanResultSummary
 )
-from app.services.scanners import ScannerFactory
+from .scanners import ScannerFactory
 
 logger = logging.getLogger(__name__)
 

@@ -21,6 +21,21 @@ from datetime import datetime
 from enum import Enum
 import hashlib
 
+# Import Phase 1 Beanie document models for registration
+try:
+    from .scan_config_models import ScanTemplate
+    from .scan_models import ScanResult, ScanSchedule
+    from .remediation_models import RemediationResult, BulkRemediationJob
+    PHASE1_MODELS_AVAILABLE = True
+except ImportError:
+    # Fallback if Phase 1 models not available
+    ScanTemplate = None
+    ScanResult = None
+    ScanSchedule = None
+    RemediationResult = None
+    BulkRemediationJob = None
+    PHASE1_MODELS_AVAILABLE = False
+
 
 class FrameworkVersions(BaseModel):
     """Versioned framework mappings supporting multiple compliance standards"""
@@ -869,17 +884,37 @@ class MongoManager:
         import logging
         logger = logging.getLogger(__name__)
         logger.info("About to initialize Beanie ODM...")
+
+        # Build document models list
+        document_models = [
+            ComplianceRule,
+            RuleIntelligence,
+            RemediationScript,
+            ServiceHealthDocument,
+            ContentHealthDocument,
+            HealthSummaryDocument
+        ]
+
+        # Add Phase 1 models if available
+        if PHASE1_MODELS_AVAILABLE:
+            if ScanTemplate:
+                document_models.append(ScanTemplate)
+            if ScanResult:
+                document_models.append(ScanResult)
+            if ScanSchedule:
+                document_models.append(ScanSchedule)
+            if RemediationResult:
+                document_models.append(RemediationResult)
+            if BulkRemediationJob:
+                document_models.append(BulkRemediationJob)
+            logger.info(f"Registered {len(document_models)} Beanie document models (including Phase 1)")
+        else:
+            logger.info(f"Registered {len(document_models)} Beanie document models (Phase 1 models not available)")
+
         try:
             await init_beanie(
                 database=self.database,
-                document_models=[
-                    ComplianceRule, 
-                    RuleIntelligence, 
-                    RemediationScript,
-                    ServiceHealthDocument,
-                    ContentHealthDocument,
-                    HealthSummaryDocument
-                ]
+                document_models=document_models
             )
             logger.info("Beanie ODM initialized successfully")
         except Exception as beanie_error:

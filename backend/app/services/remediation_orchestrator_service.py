@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 
-from backend.app.models.remediation_models import (
+from ..models.remediation_models import (
     RemediationResult,
     RemediationStatus,
     RemediationTarget,
@@ -20,8 +20,8 @@ from backend.app.models.remediation_models import (
     BulkRemediationJob,
     RemediationSummary
 )
-from backend.app.services.remediators import RemediationExecutorFactory
-from backend.app.services.remediators.base_executor import (
+from .remediators import RemediationExecutorFactory
+from .remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
     ExecutorExecutionError,
@@ -470,7 +470,7 @@ class RemediationOrchestrator:
         """
         if scan_id:
             # Get failed rules from scan
-            from backend.app.models.scan_models import ScanResult
+            from ..models.scan_models import ScanResult
             scan = await ScanResult.find_one(ScanResult.scan_id == scan_id)
             if not scan:
                 raise ValueError(f"Scan {scan_id} not found")

@@ -7,13 +7,13 @@ available executor capabilities.
 
 from typing import Dict, Type, List
 
-from backend.app.services.remediators.base_executor import (
+from .base_executor import (
     BaseRemediationExecutor,
     ExecutorMetadata,
     ExecutorNotAvailableError
 )
-from backend.app.services.remediators.ansible_executor import AnsibleExecutor
-from backend.app.services.remediators.bash_executor import BashExecutor
+from .ansible_executor import AnsibleExecutor
+from .bash_executor import BashExecutor
 
 
 class RemediationExecutorFactory:

@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 import logging
 
 from .base_scanner import BaseScanner, ScannerNotAvailableError, ScannerExecutionError, UnsupportedTargetError
-from app.models.scan_models import RuleResult, ScanTarget, ScanTargetType, ScanResultSummary, RuleResultStatus
+from ...models.scan_models import RuleResult, ScanTarget, ScanTargetType, ScanResultSummary, RuleResultStatus
 
 logger = logging.getLogger(__name__)
 

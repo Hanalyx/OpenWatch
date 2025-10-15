@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 
-from backend.app.models.scan_config_models import (
+from ..models.scan_config_models import (
     ScanTemplate,
     ScanTargetType,
     TemplateStatistics

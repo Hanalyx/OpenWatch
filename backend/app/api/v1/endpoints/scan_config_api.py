@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from backend.app.models.scan_config_models import (
+from ....models.scan_config_models import (
     FrameworkMetadata,
     FrameworkVersion,
     VariableDefinition,
@@ -21,35 +21,20 @@ from backend.app.models.scan_config_models import (
     ApplyTemplateRequest,
     TemplateStatistics
 )
-from backend.app.services.framework_metadata_service import FrameworkMetadataService
-from backend.app.services.scan_template_service import ScanTemplateService
-
-# TODO: Import actual dependencies when available
-# from backend.app.core.auth import get_current_user
-# from backend.app.db.mongodb import get_database
+from ....services.framework_metadata_service import FrameworkMetadataService
+from ....services.scan_template_service import ScanTemplateService
+from ....services.mongo_integration_service import get_mongo_service
+from ....auth import get_current_user
 
 
 router = APIRouter()
-
-
-# Placeholder dependency functions
-async def get_database():
-    """Get MongoDB database instance."""
-    from motor.motor_asyncio import AsyncIOMotorClient
-    client = AsyncIOMotorClient("mongodb://localhost:27017")
-    return client.openwatch_db
-
-
-async def get_current_user():
-    """Get current authenticated user."""
-    return {"username": "admin", "role": "admin"}
 
 
 # Framework Discovery Endpoints
 
 @router.get("/frameworks", response_model=List[FrameworkMetadata])
 async def list_frameworks(
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -82,6 +67,8 @@ async def list_frameworks(
     ]
     ```
     """
+    db = mongo_service.mongo_manager.database
+
     service = FrameworkMetadataService(db)
     frameworks = await service.list_frameworks()
     return frameworks
@@ -94,7 +81,7 @@ async def list_frameworks(
 async def get_framework_details(
     framework: str,
     version: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -114,6 +101,8 @@ async def get_framework_details(
     - 404: Framework/version not found
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         service = FrameworkMetadataService(db)
         details = await service.get_framework_details(framework, version)
         return details
@@ -129,7 +118,7 @@ async def get_framework_variables(
     framework: str,
     version: str,
     category: Optional[str] = Query(None, description="Filter by category"),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -177,6 +166,8 @@ async def get_framework_variables(
     ]
     ```
     """
+    db = mongo_service.mongo_manager.database
+
     service = FrameworkMetadataService(db)
     variables = await service.get_variables(framework, version)
 
@@ -195,7 +186,7 @@ async def validate_variables(
     framework: str,
     version: str,
     request: ValidateVariablesRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -242,6 +233,8 @@ async def validate_variables(
     }
     ```
     """
+    db = mongo_service.mongo_manager.database
+
     service = FrameworkMetadataService(db)
 
     valid, errors = await service.validate_variables(
@@ -261,7 +254,7 @@ async def validate_variables(
 @router.post("/templates", response_model=ScanTemplate)
 async def create_template(
     request: CreateTemplateRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -293,6 +286,8 @@ async def create_template(
     **Returns:**
     - Created ScanTemplate
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     template = await service.create_template(
@@ -318,7 +313,7 @@ async def list_templates(
     is_public: Optional[bool] = Query(None, description="Filter by visibility"),
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -336,6 +331,8 @@ async def list_templates(
     **Returns:**
     - List of ScanTemplate objects
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Parse tags
@@ -363,7 +360,7 @@ async def list_templates(
 @router.get("/templates/{template_id}", response_model=ScanTemplate)
 async def get_template(
     template_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -379,6 +376,8 @@ async def get_template(
     - 404: Template not found
     - 403: Access denied
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
     template = await service.get_template(template_id)
 
@@ -399,7 +398,7 @@ async def get_template(
 async def update_template(
     template_id: str,
     request: UpdateTemplateRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -426,6 +425,8 @@ async def update_template(
     - 404: Template not found
     - 403: Access denied (not owner)
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Get template for authorization
@@ -455,7 +456,7 @@ async def update_template(
 @router.delete("/templates/{template_id}")
 async def delete_template(
     template_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -475,6 +476,8 @@ async def delete_template(
     - Owner can delete their templates
     - Admins can delete any template
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Get template for authorization
@@ -497,7 +500,7 @@ async def delete_template(
 async def apply_template(
     template_id: str,
     request: ApplyTemplateRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -534,6 +537,8 @@ async def apply_template(
     - 404: Template not found
     - 403: Access denied
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Get template with authorization check
@@ -562,7 +567,7 @@ async def apply_template(
 async def clone_template(
     template_id: str,
     new_name: str = Query(..., description="New template name"),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -580,6 +585,8 @@ async def clone_template(
     **Errors:**
     - 404: Template not found
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     try:
@@ -596,7 +603,7 @@ async def clone_template(
 @router.post("/templates/{template_id}/set-default", response_model=ScanTemplate)
 async def set_default_template(
     template_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -615,6 +622,8 @@ async def set_default_template(
     - 404: Template not found
     - 403: Access denied (not owner)
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Get template for authorization
@@ -637,7 +646,7 @@ async def set_default_template(
 
 @router.get("/statistics", response_model=TemplateStatistics)
 async def get_template_statistics(
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -671,6 +680,8 @@ async def get_template_statistics(
     - Users see their own statistics
     - Admins see global statistics
     """
+    db = mongo_service.mongo_manager.database
+
     service = ScanTemplateService(db)
 
     # Non-admin users see only their own stats

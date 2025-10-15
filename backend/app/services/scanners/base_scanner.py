@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 import logging
 
-from app.models.scan_models import RuleResult, ScanTarget, ScanResultSummary
+from ...models.scan_models import RuleResult, ScanTarget, ScanResultSummary
 
 logger = logging.getLogger(__name__)
 

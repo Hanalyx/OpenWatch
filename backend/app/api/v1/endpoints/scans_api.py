@@ -6,19 +6,19 @@ Provides REST API for executing and managing compliance scans.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClient
 from typing import List, Optional
 import logging
 
-from app.db.mongodb import get_database
-from app.models.scan_models import (
+from ....models.scan_models import (
     ScanConfiguration,
     ScanResult,
     ScanStatus,
     ScanTargetType
 )
-from app.services.scan_orchestrator_service import ScanOrchestrator
-from app.routes.auth import get_current_user
+from ....services.scan_orchestrator_service import ScanOrchestrator
+from ....services.mongo_integration_service import get_mongo_service
+from ....auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def execute_scan(
     config: ScanConfiguration,
     scan_name: Optional[str] = None,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -61,11 +61,13 @@ async def execute_scan(
     ```
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         logger.info(
             f"User {current_user.get('username')} initiating scan: "
             f"framework={config.framework}, target={config.target.identifier}"
         )
-        
+
         # Create orchestrator
         orchestrator = ScanOrchestrator(db)
         
@@ -86,7 +88,7 @@ async def execute_scan(
 @router.get("/{scan_id}", response_model=ScanResult)
 async def get_scan(
     scan_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -96,6 +98,8 @@ async def get_scan(
     summary statistics, and scanner metadata.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = ScanOrchestrator(db)
         result = await orchestrator.get_scan_result(scan_id)
         
@@ -116,7 +120,7 @@ async def list_scans(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[ScanStatus] = None,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -126,8 +130,10 @@ async def list_scans(
     Supports filtering by status and pagination.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = ScanOrchestrator(db)
-        
+
         # Regular users can only see their own scans
         # Admins can see all scans
         started_by = None if current_user.get('role') == 'admin' else current_user.get('username')
@@ -149,7 +155,7 @@ async def list_scans(
 @router.delete("/{scan_id}")
 async def delete_scan(
     scan_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -158,6 +164,8 @@ async def delete_scan(
     Only the user who initiated the scan or admins can delete it.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         orchestrator = ScanOrchestrator(db)
         scan = await orchestrator.get_scan_result(scan_id)
         
@@ -184,7 +192,7 @@ async def get_scan_statistics(
     framework: Optional[str] = None,
     target_type: Optional[ScanTargetType] = None,
     days: int = Query(30, ge=1, le=365),
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -194,8 +202,10 @@ async def get_scan_statistics(
     Supports filtering by framework and target type.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         from datetime import datetime, timedelta, timezone
-        
+
         # Build aggregation pipeline
         match_stage = {
             "started_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=days)}

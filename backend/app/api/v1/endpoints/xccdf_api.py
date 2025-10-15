@@ -7,20 +7,20 @@ from MongoDB compliance rules.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClient
 from datetime import datetime, timezone
 from typing import Dict
 import logging
 
-from app.db.mongodb import get_database
-from app.schemas.xccdf_schemas import (
+from ....schemas.xccdf_schemas import (
     XCCDFBenchmarkRequest,
     XCCDFBenchmarkResponse,
     XCCDFTailoringRequest,
     XCCDFTailoringResponse
 )
-from app.services.xccdf_generator_service import XCCDFGeneratorService
-from app.routes.auth import get_current_user
+from ....services.xccdf_generator_service import XCCDFGeneratorService
+from ....services.mongo_integration_service import get_mongo_service
+from ....auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 @router.post("/generate-benchmark", response_model=XCCDFBenchmarkResponse)
 async def generate_benchmark(
     request: XCCDFBenchmarkRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: Dict = Depends(get_current_user)
 ):
     """
@@ -44,10 +44,12 @@ async def generate_benchmark(
     The generated benchmark can be used with oscap for scanning.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         logger.info(
             f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}"
         )
-        
+
         # Create generator service
         generator = XCCDFGeneratorService(db)
         
@@ -105,7 +107,7 @@ async def generate_benchmark(
 @router.post("/generate-tailoring", response_model=XCCDFTailoringResponse)
 async def generate_tailoring(
     request: XCCDFTailoringRequest,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: Dict = Depends(get_current_user)
 ):
     """
@@ -120,10 +122,12 @@ async def generate_tailoring(
     The tailoring file is passed to oscap with --tailoring-file flag.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         logger.info(
             f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}"
         )
-        
+
         # Create generator service
         generator = XCCDFGeneratorService(db)
         
@@ -151,7 +155,7 @@ async def generate_tailoring(
 
 @router.get("/frameworks")
 async def list_frameworks(
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: Dict = Depends(get_current_user)
 ):
     """
@@ -161,6 +165,8 @@ async def list_frameworks(
     useful for populating UI dropdowns when generating benchmarks.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         # Aggregate frameworks from all latest rules
         pipeline = [
             {"$match": {"is_latest": True}},
@@ -195,7 +201,7 @@ async def list_frameworks(
 async def list_variables(
     framework: str = None,
     framework_version: str = None,
-    db: AsyncIOMotorDatabase = Depends(get_database),
+    mongo_service = Depends(get_mongo_service),
     current_user: Dict = Depends(get_current_user)
 ):
     """
@@ -205,6 +211,8 @@ async def list_variables(
     relevant to a specific benchmark.
     """
     try:
+        db = mongo_service.mongo_manager.database
+
         # Build query
         query = {"is_latest": True, "xccdf_variables": {"$exists": True, "$ne": None}}
         
