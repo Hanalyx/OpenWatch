@@ -46,6 +46,8 @@ import {
   Download,
   ContentCopy,
   BookmarkAdd,
+  AccountTree,
+  Bookmark,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
@@ -73,17 +75,29 @@ const menuItems = [
     path: '/host-groups', 
     roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'] 
   },
-  { 
-    text: 'Content', 
-    icon: <FolderOpen />, 
-    path: '/content', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest'] 
+  {
+    text: 'Content',
+    icon: <FolderOpen />,
+    path: '/content',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest']
   },
-  { 
-    text: 'Scans', 
-    icon: <Scanner />, 
-    path: '/scans', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'] 
+  {
+    text: 'Frameworks',
+    icon: <AccountTree />,
+    path: '/content/frameworks',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest']
+  },
+  {
+    text: 'Templates',
+    icon: <Bookmark />,
+    path: '/content/templates',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor']
+  },
+  {
+    text: 'Scans',
+    icon: <Scanner />,
+    path: '/scans',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor']
   },
   { 
     text: 'Users', 

@@ -17,6 +17,10 @@ import HostDetail from './pages/hosts/HostDetail';
 import AddHost from './pages/hosts/AddHost';
 import ComplianceGroups from './pages/host-groups/ComplianceGroups';
 import Content from './pages/content/Content';
+import { FrameworksPage } from './pages/Content/FrameworksPage';
+import { FrameworkDetailPage } from './pages/Content/FrameworkDetailPage';
+import { TemplatesPage } from './pages/Content/TemplatesPage';
+import { TemplateEditorPage } from './pages/Content/TemplateEditorPage';
 import Scans from './pages/scans/Scans';
 import ComplianceScans from './pages/scans/ComplianceScans';
 import ScanDetail from './pages/scans/ScanDetail';
@@ -72,6 +76,11 @@ function App() {
                 <Route path="/hosts/:id" element={<HostDetail />} />
                 <Route path="/host-groups" element={<ComplianceGroups />} />
                 <Route path="/content" element={<Content />} />
+                <Route path="/content/frameworks" element={<FrameworksPage />} />
+                <Route path="/content/frameworks/:framework/:version" element={<FrameworkDetailPage />} />
+                <Route path="/content/templates" element={<TemplatesPage />} />
+                <Route path="/content/templates/new" element={<TemplateEditorPage />} />
+                <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
                 <Route path="/scans" element={<Scans />} />
                 <Route path="/scans/compliance" element={<ComplianceScans />} />
                 <Route path="/scans/new" element={<NewScan />} />
