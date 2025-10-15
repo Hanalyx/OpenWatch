@@ -1,9 +1,21 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppSelector, useAppDispatch } from './hooks/redux';
 import { checkSessionExpiry } from './store/slices/authSlice';
 import CustomThemeProvider from './contexts/ThemeContext';
 import { tokenService } from './services/tokenService';
+
+// Create React Query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 import SessionManager from './components/auth/SessionManager';
 import PrivateRoute from './components/common/PrivateRoute';
 import PublicRoute from './components/common/PublicRoute';
@@ -52,14 +64,15 @@ function App() {
   }, [dispatch, isAuthenticated]);
 
   return (
-    <CustomThemeProvider>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true
-        }}
-      >
-        <Routes>
+    <QueryClientProvider client={queryClient}>
+      <CustomThemeProvider>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
+          <Routes>
             {/* Public routes */}
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<Login />} />
@@ -101,10 +114,11 @@ function App() {
                   <Navigate to="/login" replace />
               } 
             />
-        </Routes>
-        <SessionManager />
-      </Router>
-    </CustomThemeProvider>
+          </Routes>
+          <SessionManager />
+        </Router>
+      </CustomThemeProvider>
+    </QueryClientProvider>
   );
 }
 
