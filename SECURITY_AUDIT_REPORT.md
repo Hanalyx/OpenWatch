@@ -123,20 +123,13 @@ ENCRYPTION_KEY = os.getenv("OPENWATCH_ENCRYPTION_KEY", "dev-key-change-in-produc
 
 **Recommended Configuration:**
 ```python
-# credentials.py
-aegis_secret = settings.aegis_integration_secret
-if not aegis_secret:
-    raise ValueError("AEGIS_INTEGRATION_SECRET environment variable must be set")
-
-# remediation_callback.py
-webhook_secret = settings.aegis_webhook_secret
-if not webhook_secret:
-    raise ValueError("AEGIS_WEBHOOK_SECRET environment variable must be set")
-
 # crypto.py
 ENCRYPTION_KEY = os.getenv("OPENWATCH_ENCRYPTION_KEY")
 if not ENCRYPTION_KEY or ENCRYPTION_KEY == "dev-key-change-in-production":
     raise ValueError("OPENWATCH_ENCRYPTION_KEY must be set to a secure value")
+
+# Note: AEGIS integration secrets removed - not currently implemented
+# AEGIS integration is optional and only active when AEGIS_URL is configured
 ```
 
 ---
@@ -542,16 +535,14 @@ git commit -m "Security: Fix cryptographic vulnerabilities and hardcoded secrets
 ### 4. Environment Configuration (Week 1)
 ```bash
 # Update .env with strong secrets
-AEGIS_INTEGRATION_SECRET=$(openssl rand -hex 32)
-AEGIS_WEBHOOK_SECRET=$(openssl rand -hex 32)
 OPENWATCH_ENCRYPTION_KEY=$(openssl rand -hex 32)
 OPENWATCH_SECRET_KEY=$(openssl rand -hex 32)
 JWT_SECRET_KEY=$(openssl rand -hex 32)
 
 # Add to .env file (never commit)
-echo "AEGIS_INTEGRATION_SECRET=$AEGIS_INTEGRATION_SECRET" >> .env
-echo "AEGIS_WEBHOOK_SECRET=$AEGIS_WEBHOOK_SECRET" >> .env
-# ... etc
+echo "OPENWATCH_ENCRYPTION_KEY=$OPENWATCH_ENCRYPTION_KEY" >> .env
+echo "OPENWATCH_SECRET_KEY=$OPENWATCH_SECRET_KEY" >> .env
+echo "JWT_SECRET_KEY=$JWT_SECRET_KEY" >> .env
 ```
 
 ---

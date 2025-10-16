@@ -250,14 +250,10 @@ pip install --upgrade \
     Jinja2==3.1.6
 
 # 3. Generate secure secrets
-AEGIS_INTEGRATION_SECRET=$(openssl rand -hex 32)
-AEGIS_WEBHOOK_SECRET=$(openssl rand -hex 32)
 OPENWATCH_ENCRYPTION_KEY=$(openssl rand -hex 32)
 OPENWATCH_SECRET_KEY=$(openssl rand -hex 32)
 
 # Add to .env file (never commit!)
-echo "AEGIS_INTEGRATION_SECRET=$AEGIS_INTEGRATION_SECRET" >> .env
-echo "AEGIS_WEBHOOK_SECRET=$AEGIS_WEBHOOK_SECRET" >> .env
 echo "OPENWATCH_ENCRYPTION_KEY=$OPENWATCH_ENCRYPTION_KEY" >> .env
 echo "OPENWATCH_SECRET_KEY=$OPENWATCH_SECRET_KEY" >> .env
 
@@ -301,11 +297,8 @@ python -m pytest tests/security/ -v
 aegis_secret = "aegis-integration-secret-key"  # TODO: Move to config
 
 # AFTER
-from ..config import get_settings
-settings = get_settings()
-aegis_secret = settings.aegis_integration_secret
-if not aegis_secret:
-    raise ValueError("AEGIS_INTEGRATION_SECRET environment variable required")
+# REMOVED: AEGIS integration secrets not currently implemented
+# AEGIS integration is optional and only active when AEGIS_URL is configured
 ```
 
 **File:** `backend/app/routes/remediation_callback.py`
@@ -314,9 +307,8 @@ if not aegis_secret:
 webhook_secret = settings.aegis_webhook_secret or "shared_webhook_secret"
 
 # AFTER
-webhook_secret = settings.aegis_webhook_secret
-if not webhook_secret:
-    raise ValueError("AEGIS_WEBHOOK_SECRET environment variable required")
+# REMOVED: AEGIS webhook secrets not currently implemented
+# Webhook security will be implemented when AEGIS integration is activated
 ```
 
 **File:** `backend/app/services/crypto.py`

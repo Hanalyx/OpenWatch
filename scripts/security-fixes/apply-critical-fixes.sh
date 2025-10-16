@@ -44,13 +44,11 @@ fi
 # Phase 2: Generate secrets
 log "Phase 2: Generating secure secrets..."
 if [ "$DRY_RUN" = false ]; then
-    echo "AEGIS_INTEGRATION_SECRET=$(openssl rand -hex 32)"
-    echo "AEGIS_WEBHOOK_SECRET=$(openssl rand -hex 32)"
     echo "OPENWATCH_ENCRYPTION_KEY=$(openssl rand -hex 32)"
     echo "OPENWATCH_SECRET_KEY=$(openssl rand -hex 32)"
     success "Generated secure secrets (add to .env file)"
 else
-    log "DRY-RUN: Would generate 4 secure secrets"
+    log "DRY-RUN: Would generate 2 secure secrets"
 fi
 
 success "Script completed"
