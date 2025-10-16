@@ -30,6 +30,24 @@ security/certs/dhparam.pem
 **/*.p12
 **/*.pfx
 
+# MongoDB certificates directory (CRITICAL - was exposed!)
+security/certs/mongodb/*.pem
+security/certs/mongodb/*.key
+security/certs/mongodb/*.crt
+security/certs/mongodb/ca.*
+security/certs/mongodb/server.*
+security/certs/mongodb/client.*
+
+# PostgreSQL certificates
+security/certs/postgres/*.pem
+security/certs/postgres/*.key
+security/certs/postgres/*.crt
+
+# Redis certificates
+security/certs/redis/*.pem
+security/certs/redis/*.key
+security/certs/redis/*.crt
+
 # ======================================
 # ENVIRONMENT AND CONFIG FILES
 # ======================================
