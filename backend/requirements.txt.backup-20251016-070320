@@ -23,20 +23,20 @@ kombu==5.5.4
 amqp==5.3.1
 
 # Authentication & Security
-PyJWT==2.10.1  # Security: CVE-2024-33663 fixed
+PyJWT==2.8.0
 passlib==1.7.4
 bcrypt==5.0.0
 argon2-cffi==23.1.0
 python-multipart==0.0.18
 pyotp==2.9.0
 qrcode==7.4.2
-cryptography==44.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed
+cryptography==44.0.1
 
 # SSH / Remote execution
 paramiko==3.5.0
 
 # HTTP Client
-requests==2.32.5  # Security: CVE-2024-35195 fixed
+requests==2.32.5
 httpx==0.28.1
 aiohttp==3.12.14
 
@@ -47,8 +47,8 @@ email-validator==2.3.0
 
 # Configuration
 python-dotenv==1.1.1
-PyYAML==6.0.3  # Security: CVE-2024-11167 fixed
-Jinja2==3.1.6  # Security: CVE-2024-34064 (XSS) fixed
+PyYAML==6.0.3
+Jinja2==3.1.6  # Security: Sandbox escape fix
 
 # Observability & Monitoring
 opentelemetry-api==1.21.0
@@ -62,7 +62,7 @@ prometheus-client==0.19.0
 # File handling
 aiofiles==24.1.0
 python-magic==0.4.27
-Pillow==11.3.0  # Security: CVE-2024-28219 (buffer overflow) fixed
+pillow==11.3.0
 lxml==5.3.0
 
 # Email

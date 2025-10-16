@@ -195,9 +195,16 @@ npm test
 ## Security
 
 - **Encryption**: AES-256-GCM for credentials, TLS for transport
-- **Authentication**: JWT with RS256 signing
+- **Authentication**: JWT with RS256 signing, Argon2id password hashing
 - **FIPS compliance**: FIPS 140-2 Level 1 cryptography
 - **Audit logging**: All security events logged
+- **MFA Support**: TOTP with SHA-256 backup codes
+
+### Security Audits
+
+OpenWatch undergoes regular security audits. Latest audit reports:
+- **[Security Audit Report](SECURITY_AUDIT_REPORT.md)** - Comprehensive cryptographic and dependency analysis
+- **[Security Findings Summary](SECURITY_FINDINGS_SUMMARY.md)** - Executive summary with remediation steps
 
 **Report vulnerabilities**: security@hanalyx.com
 

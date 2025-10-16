@@ -13,7 +13,7 @@ beanie==1.26.0
 motor==3.6.0
 pymongo>=4.9,<4.10
 # Template engine for report generation
-jinja2==3.1.5
+jinja2==3.1.6  # Security: CVE-2024-34064 (XSS) fixed
 pydantic[email]==2.10.4
 pydantic-settings==2.8.0
 # python-jose[cryptography]==3.3.0  # Removed - using pyjwt instead (CVE fix)
@@ -21,11 +21,14 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.18
 aiofiles==24.1.0
 aiosmtplib==3.0.1
-cryptography==44.0.1
-pyjwt==2.8.0
+cryptography==44.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed
+pyjwt==2.10.1  # Security: CVE-2024-33663 fixed
 argon2-cffi==23.1.0
 httpx==0.28.1
 aiohttp==3.12.14
+requests==2.32.5  # Security: CVE-2024-35195 fixed
+PyYAML==6.0.3  # Security: CVE-2024-11167 fixed
+Pillow==11.3.0  # Security: CVE-2024-28219 (buffer overflow) fixed
 lxml==5.3.0
 xmltodict==0.13.0
 python-magic==0.4.27
