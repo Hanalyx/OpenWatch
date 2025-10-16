@@ -315,6 +315,27 @@ async def audit_middleware(request: Request, call_next):
 
 
 @app.middleware("http")
+async def request_size_limit_middleware(request: Request, call_next):
+    """Enforce request size limits to prevent DoS attacks"""
+    max_size = settings.max_upload_size  # 100MB default
+
+    # Check Content-Length header if present
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_size:
+        logger.warning(
+            f"Request too large: {content_length} bytes from {request.client.host if request.client else 'unknown'}"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            content={
+                "detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"
+            }
+        )
+
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def https_redirect_middleware(request: Request, call_next):
     """Enforce HTTPS in production"""
     if settings.require_https and not settings.debug:
@@ -324,7 +345,7 @@ async def https_redirect_middleware(request: Request, call_next):
                 status_code=status.HTTP_301_MOVED_PERMANENTLY,
                 headers={"Location": str(https_url)}
             )
-    
+
     return await call_next(request)
 
 

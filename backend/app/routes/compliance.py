@@ -16,6 +16,7 @@ from ..services.semantic_scap_engine import get_semantic_scap_engine
 from ..services.compliance_rules_upload_service import ComplianceRulesUploadService
 from ..services.compliance_rules_deduplication_service import DeduplicationStrategy
 from ..auth import get_current_user
+from ..utils.file_security import sanitize_filename, validate_file_extension
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["compliance"])
@@ -482,8 +483,11 @@ async def upload_compliance_rules(
         Upload result with statistics and impact analysis
     """
     try:
+        # Sanitize filename to prevent path traversal
+        safe_filename = sanitize_filename(file.filename)
+
         # Validate file type
-        if not file.filename.endswith('.tar.gz'):
+        if not validate_file_extension(safe_filename, ['.tar.gz', '.tgz']):
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Only .tar.gz archives are allowed."
@@ -500,7 +504,7 @@ async def upload_compliance_rules(
 
         logger.info(
             f"Upload initiated by {current_user.get('username', 'unknown')}: "
-            f"{file.filename} ({len(file_content):,} bytes)"
+            f"{safe_filename} ({len(file_content):,} bytes)"
         )
 
         # Validate deduplication strategy
@@ -513,10 +517,10 @@ async def upload_compliance_rules(
         # Initialize upload service
         upload_service = ComplianceRulesUploadService()
 
-        # Process upload
+        # Process upload with sanitized filename
         result = await upload_service.upload_rules_archive(
             archive_data=file_content,
-            archive_filename=file.filename,
+            archive_filename=safe_filename,
             deduplication_strategy=deduplication_strategy,
             user_id=current_user.get('user_id')
         )

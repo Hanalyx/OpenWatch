@@ -22,6 +22,7 @@ from ..services.scap_repository import scap_repository_manager
 from ..services.scap_datastream_processor import SCAPDataStreamProcessor, DataStreamError
 from ..services.compliance_framework_mapper import ComplianceFrameworkMapper
 from ..auth import get_current_user
+from ..utils.file_security import sanitize_filename, validate_file_extension, validate_storage_path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -140,14 +141,18 @@ async def upload_scap_content(
 ):
     """Upload and validate SCAP content file"""
     try:
+        # Sanitize filename to prevent path traversal
+        safe_filename = sanitize_filename(file.filename)
+
         # Validate file type
         allowed_extensions = ['.xml', '.zip']
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in allowed_extensions:
+        if not validate_file_extension(safe_filename, allowed_extensions):
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
             )
+
+        file_ext = Path(safe_filename).suffix.lower()
         
         # Read file content
         content = await file.read()
@@ -180,29 +185,35 @@ async def upload_scap_content(
             # Extract content components for framework mapping
             content_components = datastream_processor.extract_content_components(temp_path)
             
-            # Create permanent storage location
+            # Create permanent storage location with secure path
             content_id = str(uuid.uuid4())
-            storage_dir = Path("/app/data/scap") / content_id
+            base_storage_dir = Path("/app/data/scap")
+            storage_dir = base_storage_dir / content_id
             storage_dir.mkdir(parents=True, exist_ok=True)
-            
-            permanent_path = storage_dir / file.filename
+
+            # Use sanitized filename for storage
+            permanent_path = storage_dir / safe_filename
+
+            # Validate path is within allowed directory
+            validate_storage_path(base_storage_dir, permanent_path, allow_create=False)
+
             with open(permanent_path, 'wb') as f:
                 f.write(content)
-            
+
             # Extract OS and framework information
-            _, _ = _extract_os_info(file.filename, validation_result)
+            _, _ = _extract_os_info(safe_filename, validation_result)
             
             # Save to database with complete metadata
             import json
             db.execute(text("""
-                INSERT INTO scap_content 
-                (name, filename, file_path, content_type, profiles, description, 
+                INSERT INTO scap_content
+                (name, filename, file_path, content_type, profiles, description,
                  version, uploaded_by, file_hash, uploaded_at)
-                VALUES (:name, :filename, :file_path, :content_type, :profiles, 
+                VALUES (:name, :filename, :file_path, :content_type, :profiles,
                         :description, :version, :uploaded_by, :file_hash, NOW())
             """), {
                 "name": name,
-                "filename": file.filename,
+                "filename": safe_filename,  # Use sanitized filename
                 "file_path": str(permanent_path),
                 "content_type": validation_result.get("content_type", validation_result.get("document_type", "unknown")),
                 "profiles": json.dumps(profiles),
@@ -218,7 +229,7 @@ async def upload_scap_content(
                 SELECT id FROM scap_content WHERE file_hash = :hash
             """), {"hash": file_hash}).fetchone()
             
-            logger.info(f"SCAP content uploaded: {name} ({file.filename})")
+            logger.info(f"SCAP content uploaded: {name} ({safe_filename})")
             
             return {
                 "id": result.id,

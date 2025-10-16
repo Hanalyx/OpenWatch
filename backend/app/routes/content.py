@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 import logging
 
+from ..utils.file_security import sanitize_filename, validate_file_extension
+
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
@@ -67,23 +69,28 @@ async def upload_content(
     token: str = Depends(security)
 ):
     """Upload new SCAP content file"""
-    if not file.filename.endswith(('.xml', '.zip', '.bz2')):
+    # Sanitize filename to prevent path traversal
+    safe_filename = sanitize_filename(file.filename)
+
+    # Validate file extension
+    allowed_extensions = ['.xml', '.zip', '.bz2']
+    if not validate_file_extension(safe_filename, allowed_extensions):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid file type. Only XML, ZIP, and BZ2 files are allowed."
         )
-    
+
     # Mock upload processing
     content_info = {
         "id": "3",
-        "filename": file.filename,
+        "filename": safe_filename,
         "size": file.size,
         "content_type": file.content_type,
         "status": "uploaded",
         "message": "File uploaded successfully. Processing will begin shortly."
     }
-    
-    logger.info(f"SCAP content uploaded: {file.filename}")
+
+    logger.info(f"SCAP content uploaded: {safe_filename}")
     return content_info
 
 
