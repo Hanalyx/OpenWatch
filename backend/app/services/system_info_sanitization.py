@@ -561,7 +561,7 @@ class SystemInfoSanitizationService:
         """Audit system information access for security monitoring"""
         
         audit_event = SystemInfoAuditEvent(
-            event_id=hashlib.md5(f"{context.user_id}{datetime.utcnow()}".encode()).hexdigest(),
+            event_id=hashlib.sha256(f"{context.user_id}{datetime.utcnow()}".encode()).hexdigest(),
             user_id=context.user_id,
             source_ip=context.source_ip,
             requested_level=context.access_level,

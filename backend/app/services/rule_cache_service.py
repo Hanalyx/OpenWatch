@@ -408,8 +408,8 @@ class RuleCacheService:
         sorted_params = sorted(params.items())
         params_str = json.dumps(sorted_params, sort_keys=True)
         
-        # Create hash for long parameter strings
-        params_hash = hashlib.md5(params_str.encode()).hexdigest()[:8]
+        # Create hash for long parameter strings (using SHA-256 for security)
+        params_hash = hashlib.sha256(params_str.encode()).hexdigest()[:16]
         
         return f"{query_type}:{params_hash}"
     

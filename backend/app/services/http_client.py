@@ -135,10 +135,10 @@ class HttpClient:
             self.retry_policy.max_delay
         )
         
-        # Add jitter to prevent thundering herd
+        # Add jitter to prevent thundering herd (using secrets for cryptographic randomness)
         if self.retry_policy.jitter:
-            import random
-            delay *= (0.5 + random.random() * 0.5)
+            import secrets
+            delay *= (0.5 + secrets.SystemRandom().random() * 0.5)
         
         return delay
     

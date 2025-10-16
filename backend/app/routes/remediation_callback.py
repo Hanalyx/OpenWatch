@@ -62,8 +62,18 @@ async def handle_remediation_callback(
             detail="Missing webhook signature"
         )
     
-    # Get webhook secret
-    webhook_secret = settings.aegis_webhook_secret or "shared_webhook_secret"
+    # Get webhook secret from environment (AEGIS integration not currently implemented)
+    # When AEGIS integration is activated, webhook_secret should be configured in settings
+    webhook_secret = getattr(settings, 'aegis_webhook_secret', None)
+
+    if not webhook_secret:
+        # AEGIS webhooks not configured - this endpoint should not be accessible
+        # In production, configure AEGIS_WEBHOOK_SECRET environment variable
+        logger.warning("AEGIS webhook callback received but webhook secret not configured")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="AEGIS webhook integration not configured"
+        )
     
     # Get raw body for signature verification
     body = await request.body()

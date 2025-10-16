@@ -13,8 +13,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Get encryption key from environment (should be set in production)
-ENCRYPTION_KEY = os.getenv("OPENWATCH_ENCRYPTION_KEY", "dev-key-change-in-production")
+# Get encryption key from environment (required for production)
+# Fail-safe: Refuse to start if encryption key is not set or is the default value
+ENCRYPTION_KEY = os.getenv("OPENWATCH_ENCRYPTION_KEY")
+
+if not ENCRYPTION_KEY:
+    raise ValueError(
+        "OPENWATCH_ENCRYPTION_KEY environment variable must be set. "
+        "Generate a secure key with: openssl rand -hex 32"
+    )
+
+if ENCRYPTION_KEY == "dev-key-change-in-production":
+    raise ValueError(
+        "Default encryption key detected - this is insecure! "
+        "Generate a secure key with: openssl rand -hex 32"
+    )
 
 
 def _derive_key(password: str, salt: bytes):

@@ -85,8 +85,9 @@ services:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       OPENWATCH_MONGODB_URL: mongodb://openwatch:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017/openwatch_rules?authSource=admin
-      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_SECRET_KEY: ${OPENWATCH_SECRET_KEY}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
@@ -129,8 +130,9 @@ services:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       OPENWATCH_MONGODB_URL: mongodb://openwatch:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017/openwatch_rules?authSource=admin
-      OPENWATCH_SECRET_KEY: ${SECRET_KEY}
+      OPENWATCH_SECRET_KEY: ${OPENWATCH_SECRET_KEY}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
       OPENWATCH_FIPS_MODE: "false"
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"

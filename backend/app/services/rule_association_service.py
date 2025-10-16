@@ -582,8 +582,8 @@ class RuleAssociationService:
     
     def _extract_keywords(self, text: str) -> Set[str]:
         """Extract keywords from text for matching"""
-        # Use cached keywords if available
-        text_hash = hashlib.md5(text.encode()).hexdigest()
+        # Use cached keywords if available (using SHA-256 for security)
+        text_hash = hashlib.sha256(text.encode()).hexdigest()
         if text_hash in self._keyword_cache:
             return self._keyword_cache[text_hash]
         
