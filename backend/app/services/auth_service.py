@@ -22,6 +22,11 @@ from .credential_validation import validate_credential_with_strict_policy, Secur
 logger = logging.getLogger(__name__)
 
 
+class AuthMethodMismatchError(Exception):
+    """Raised when credential auth method doesn't match requirement"""
+    pass
+
+
 class CredentialScope(str, Enum):
     """Credential scope types"""
     SYSTEM = "system"
@@ -238,34 +243,156 @@ class CentralizedAuthService:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    def resolve_credential(self, target_id: str = None, use_default: bool = False) -> Optional[CredentialData]:
+    def _get_host_credential(self, target_id: str) -> Optional[CredentialData]:
         """
-        Resolve effective credentials using inheritance logic.
-        
-        Resolution order:
-        1. If use_default=True -> system default credential
-        2. If target_id provided -> target-specific credential (not implemented yet)
-        3. If target has no credential -> fallback to system default
-        
+        Get host-specific credential from unified_credentials table.
+
         Args:
-            target_id: Target ID (host_id, group_id) to resolve credentials for
-            use_default: Force use of system default credentials
-            
+            target_id: Host UUID
+
         Returns:
-            CredentialData: Resolved credential, or None if none available
+            CredentialData for the host, or None if not found
         """
         try:
-            # Use unified credentials system (migration is now complete)
-            
+            result = self.db.execute(text("""
+                SELECT id FROM unified_credentials
+                WHERE scope = 'host'
+                  AND target_id = :target_id
+                  AND is_active = true
+                ORDER BY created_at DESC
+                LIMIT 1
+            """), {"target_id": target_id})
+
+            row = result.fetchone()
+            if row:
+                credential = self.get_credential(row.id)
+                if credential:
+                    credential.source = f"host:{target_id}"
+                    return credential
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get host credential for {target_id}: {e}")
+            return None
+
+    def _auth_method_compatible(self, available: str, required: str) -> bool:
+        """
+        Check if available auth method satisfies required auth method.
+
+        Compatibility matrix:
+        - 'both' satisfies: 'password', 'ssh_key', 'both'
+        - 'password' satisfies: 'password' only
+        - 'ssh_key' satisfies: 'ssh_key' only
+
+        Args:
+            available: Auth method available in credential
+            required: Auth method required by host
+
+        Returns:
+            True if compatible, False otherwise
+        """
+        # Exact match is always compatible
+        if available == required:
+            return True
+
+        # 'both' can satisfy any password or ssh_key requirement
+        if available == 'both':
+            return required in ['password', 'ssh_key', 'both']
+
+        return False
+
+    def resolve_credential(self, target_id: str = None, required_auth_method: str = None,
+                          use_default: bool = False) -> Optional[CredentialData]:
+        """
+        Resolve effective credentials using inheritance logic with user intent enforcement.
+
+        Resolution order:
+        1. If use_default=True -> system default only
+        2. If target_id provided -> try host-specific, fallback to system default
+        3. Validate auth_method matches requirement if specified
+
+        Args:
+            target_id: Target ID (host_id, group_id) to resolve credentials for
+            required_auth_method: Required authentication method ('password', 'ssh_key', 'both', 'system_default', None)
+            use_default: Force use of system default credentials (ignores target_id)
+
+        Returns:
+            CredentialData: Resolved credential, or None if none available
+
+        Raises:
+            AuthMethodMismatchError: If available credential doesn't match required method
+        """
+        try:
+            credential = None
+
+            # BACKWARDS COMPATIBILITY: If use_default=True or no target_id, use system default
+            # This ensures existing code continues to work without changes
             if use_default or not target_id:
-                logger.info(f"Using unified_credentials table for credential resolution")
-                return self._get_system_default()
-            
-            # For now, host-specific credentials are not supported via unified system
-            # Fall back to system default
-            logger.info(f"No host-specific unified credentials supported yet, using system default")
-            return self._get_system_default()
-            
+                logger.info("Using unified_credentials table for credential resolution (system default)")
+                credential = self._get_system_default()
+
+                if credential and required_auth_method and required_auth_method != 'system_default':
+                    # NEW: Validate auth method if required
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
+                        logger.error(
+                            f"System default auth_method '{credential.auth_method.value}' "
+                            f"does not match required '{required_auth_method}'"
+                        )
+                        raise AuthMethodMismatchError(
+                            f"Host requires {required_auth_method} authentication but "
+                            f"system default uses {credential.auth_method.value}"
+                        )
+
+                return credential
+
+            # NEW FEATURE: Try host-specific credential first
+            logger.info(f"Attempting to resolve host-specific credential for target: {target_id}")
+            credential = self._get_host_credential(target_id)
+
+            if credential:
+                logger.info(f"✅ Found host-specific credential (auth_method: {credential.auth_method})")
+
+                # Validate auth method if required
+                if required_auth_method and required_auth_method != 'system_default':
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
+                        logger.error(
+                            f"Host-specific credential auth_method '{credential.auth_method.value}' "
+                            f"does not match required '{required_auth_method}'"
+                        )
+                        raise AuthMethodMismatchError(
+                            f"Host requires {required_auth_method} authentication but "
+                            f"host-specific credential uses {credential.auth_method.value}"
+                        )
+
+                return credential
+
+            # BACKWARDS COMPATIBILITY: Fall back to system default if no host-specific found
+            logger.info(f"No host-specific credential found for {target_id}, falling back to system default")
+            credential = self._get_system_default()
+
+            if credential:
+                logger.info(f"✅ Found system default credential (auth_method: {credential.auth_method})")
+
+                # Validate auth method if required
+                if required_auth_method and required_auth_method != 'system_default':
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
+                        logger.warning(
+                            f"System default auth_method '{credential.auth_method.value}' "
+                            f"does not match required '{required_auth_method}'. "
+                            f"Consider creating a host-specific credential or updating system default."
+                        )
+                        # For backwards compatibility, we log a warning but don't raise error on fallback
+                        # This allows existing hosts to continue working
+
+                return credential
+
+            logger.error("No credentials available (neither host-specific nor system default)")
+            return None
+
+        except AuthMethodMismatchError:
+            # Re-raise auth method mismatch errors
+            raise
         except Exception as e:
             logger.error(f"Failed to resolve credential: {e}")
             return None

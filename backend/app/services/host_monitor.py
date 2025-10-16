@@ -102,21 +102,23 @@ class HostMonitor:
             logger.debug(f"Port check failed: {type(e).__name__}")
             return False
     
-    async def check_ssh_connectivity(self, ip_address: str, port: int = 22, 
-                                   username: Optional[str] = None, 
+    async def check_ssh_connectivity(self, ip_address: str, port: int = 22,
+                                   username: Optional[str] = None,
                                    key_path: Optional[str] = None,
                                    private_key_content: Optional[str] = None,
                                    password: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         Test SSH connectivity to determine if host is accessible for scanning
         Returns (is_connected, error_message)
-        
+
         Uses unified SSH service for consistent security policies and audit logging.
+        Supports "both" authentication method (SSH key with password fallback).
         """
         # Determine authentication method and credential
         auth_method = None
         credential = None
-        
+        password_param = None
+
         if key_path:
             # Read SSH key from file
             try:
@@ -126,6 +128,12 @@ class HostMonitor:
             except Exception as e:
                 logger.error(f"Failed to read SSH key file {key_path}: {e}")
                 return False, f"Failed to read SSH key file: {str(e)}"
+        elif private_key_content and password:
+            # NEW: "both" authentication - SSH key with password fallback (Phase 3)
+            credential = private_key_content
+            password_param = password
+            auth_method = "both"
+            logger.info(f"Using 'both' authentication method (SSH key + password fallback) for {ip_address}")
         elif private_key_content:
             credential = private_key_content
             auth_method = "ssh-key"
@@ -134,10 +142,10 @@ class HostMonitor:
             auth_method = "password"
         else:
             return False, "No authentication credentials provided"
-        
+
         if not username:
             return False, "Username is required for SSH connectivity check"
-        
+
         # Use unified SSH service to establish connection
         connection_result = self.unified_ssh.connect_with_credentials(
             hostname=ip_address,
@@ -146,7 +154,8 @@ class HostMonitor:
             auth_method=auth_method,
             credential=credential,
             service_name="Host_Monitor_Connectivity_Check",
-            timeout=self.ssh_timeout
+            timeout=self.ssh_timeout,
+            password=password_param  # NEW: Pass password for "both" authentication (Phase 3)
         )
         
         if not connection_result.success:
@@ -261,8 +270,12 @@ class HostMonitor:
                         logger.error(f"Failed to decrypt host credentials: {type(e).__name__}")
             
             # Try centralized auth service (for system defaults or if host decryption failed)
+            # Pass the host's auth_method to enforce user intent
+            required_auth_method = host_auth_method if host_auth_method not in ['default', 'system_default'] else None
+
             credential_data = auth_service.resolve_credential(
                 target_id=target_id,
+                required_auth_method=required_auth_method,
                 use_default=use_default
             )
             

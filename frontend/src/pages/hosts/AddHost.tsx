@@ -229,8 +229,8 @@ const AddHost: React.FC = () => {
         port: parseInt(formData.port) || 22,
         username: formData.username,
         auth_method: formData.authMethod,
-        password: formData.authMethod === 'password' ? formData.password : undefined,
-        ssh_key: formData.authMethod === 'ssh_key' ? formData.sshKey : undefined,
+        password: (formData.authMethod === 'password' || formData.authMethod === 'both') ? formData.password : undefined,
+        ssh_key: (formData.authMethod === 'ssh_key' || formData.authMethod === 'both') ? formData.sshKey : undefined,
         timeout: 30
       };
 
@@ -284,6 +284,8 @@ const AddHost: React.FC = () => {
         port: formData.port,
         username: formData.username,
         auth_method: formData.authMethod,
+        password: (formData.authMethod === 'password' || formData.authMethod === 'both') ? formData.password : undefined,
+        ssh_key: (formData.authMethod === 'ssh_key' || formData.authMethod === 'both') ? formData.sshKey : undefined,
         environment: formData.environment,
         tags: formData.tags,
         owner: formData.owner
@@ -519,20 +521,25 @@ const AddHost: React.FC = () => {
                 row
                 disabled={authMethodLocked && !editingAuth}
               >
-                <FormControlLabel 
-                  value="system_default" 
-                  control={<Radio />} 
-                  label="System Default" 
+                <FormControlLabel
+                  value="system_default"
+                  control={<Radio />}
+                  label="System Default"
                 />
-                <FormControlLabel 
-                  value="ssh_key" 
-                  control={<Radio />} 
-                  label="SSH Key" 
+                <FormControlLabel
+                  value="ssh_key"
+                  control={<Radio />}
+                  label="SSH Key"
                 />
-                <FormControlLabel 
-                  value="password" 
-                  control={<Radio />} 
-                  label="Password" 
+                <FormControlLabel
+                  value="password"
+                  control={<Radio />}
+                  label="Password"
+                />
+                <FormControlLabel
+                  value="both"
+                  control={<Radio />}
+                  label="SSH Key + Password (Fallback)"
                 />
               </RadioGroup>
             </Box>
@@ -731,6 +738,85 @@ const AddHost: React.FC = () => {
               </Box>
             )}
           </Grid>
+        )}
+
+        {formData.authMethod === 'both' && (
+          <>
+            <Grid item xs={12}>
+              <Alert severity="info" icon={<Security />}>
+                <AlertTitle>SSH Key + Password Fallback</AlertTitle>
+                The system will attempt SSH key authentication first (more secure).
+                If SSH key fails, it will automatically fallback to password authentication.
+              </Alert>
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="SSH Private Key (Primary)"
+                value={formData.sshKey}
+                onChange={(e) => {
+                  handleInputChange('sshKey', e.target.value);
+                  validateSshKey(e.target.value);
+                }}
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----"
+                multiline
+                rows={4}
+                error={sshKeyValidation.status === 'invalid'}
+                helperText={sshKeyValidation.message || "SSH key will be tried first for authentication"}
+                disabled={sshKeyValidation.status === 'validating'}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Key color="primary" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              {sshKeyValidation.status === 'valid' && (
+                <Alert severity="success" sx={{ mt: 1 }}>
+                  SSH key validated successfully!
+                  {sshKeyValidation.keyType && ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
+                </Alert>
+              )}
+              {sshKeyValidation.status === 'invalid' && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  {sshKeyValidation.message}
+                </Alert>
+              )}
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                type={showPassword ? 'text' : 'password'}
+                label="Password (Fallback)"
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                placeholder="Enter fallback password"
+                helperText="Password will be used if SSH key authentication fails"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Password color="warning" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+          </>
         )}
 
         <Grid item xs={12}>

@@ -293,46 +293,54 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
         # Use display_name if provided, otherwise use hostname
         display_name = host.display_name or host.hostname
         
-        # Handle credential encryption if provided
-        encrypted_creds = None
-        if host.auth_method == "password" and host.password:
-            from ..services.crypto import encrypt_credentials
-            cred_data = {
-                "username": host.username,
-                "password": host.password,
-                "auth_method": "password"
-            }
-            encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-            logger.info(f"Encrypting password credentials for new host {host.hostname}")
-        elif host.auth_method == "ssh_key" and host.ssh_key:
-            # Validate SSH key before storing
-            logger.info(f"Validating SSH key for host '{host.hostname}'")
-            validation_result = validate_ssh_key(host.ssh_key)
-
-            if not validation_result.is_valid:
-                logger.error(f"SSH key validation failed for host '{host.hostname}': {validation_result.error_message}")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid SSH key: {validation_result.error_message}"
+        # NEW: Handle credentials using unified_credentials system (Phase 5)
+        encrypted_creds = None  # Keep NULL for unified system
+        if host.auth_method and host.auth_method != "system_default":
+            if host.password or host.ssh_key:
+                from ..services.auth_service import (
+                    get_auth_service,
+                    CredentialData,
+                    CredentialMetadata,
+                    CredentialScope,
+                    AuthMethod
                 )
 
-            # Log warnings if any (non-blocking)
-            if validation_result.warnings:
-                logger.warning(f"SSH key warnings for host '{host.hostname}': {'; '.join(validation_result.warnings)}")
+                # Validate SSH key if provided
+                if host.ssh_key:
+                    logger.info(f"Validating SSH key for host '{host.hostname}'")
+                    validation_result = validate_ssh_key(host.ssh_key)
 
-            # Log recommendations
-            if validation_result.recommendations:
-                logger.info(f"SSH key recommendations for host '{host.hostname}': {'; '.join(validation_result.recommendations)}")
+                    if not validation_result.is_valid:
+                        logger.error(f"SSH key validation failed for host '{host.hostname}': {validation_result.error_message}")
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid SSH key: {validation_result.error_message}"
+                        )
 
-            # Validation passed - encrypt and store
-            from ..services.crypto import encrypt_credentials
-            cred_data = {
-                "username": host.username,
-                "ssh_key": host.ssh_key,
-                "auth_method": "ssh_key"
-            }
-            encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-            logger.info(f"Encrypting validated SSH key credentials for new host {host.hostname}")
+                    if validation_result.warnings:
+                        logger.warning(f"SSH key warnings for host '{host.hostname}': {'; '.join(validation_result.warnings)}")
+
+                # Create credential data for unified system
+                credential_data = CredentialData(
+                    username=host.username,
+                    auth_method=AuthMethod(host.auth_method),
+                    password=host.password if host.auth_method in ['password', 'both'] else None,
+                    private_key=host.ssh_key if host.auth_method in ['ssh_key', 'both'] else None,
+                    private_key_passphrase=None
+                )
+
+                # Create metadata
+                metadata = CredentialMetadata(
+                    name=f"{host.hostname} credential",
+                    description=f"Host-specific credential for {host.hostname}",
+                    scope=CredentialScope.HOST,
+                    target_id=host_id,  # Link to host we're creating
+                    is_default=False
+                )
+
+                # Store in unified_credentials after host is created
+                # (will be done after the INSERT below)
+                logger.info(f"Preparing host-specific credential for {host.hostname} in unified_credentials")
         
         db.execute(text("""
             INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, 
@@ -356,7 +364,31 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
         })
         
         db.commit()
-        
+
+        # NEW: Store host-specific credential in unified_credentials if provided (Phase 5)
+        if host.auth_method and host.auth_method != "system_default":
+            if host.password or host.ssh_key:
+                try:
+                    auth_service = get_auth_service(db)
+
+                    # Get user UUID for created_by field
+                    user_id_result = db.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": current_user.get('id')})
+                    user_row = user_id_result.fetchone()
+                    user_uuid = str(user_row[0]) if user_row else None
+
+                    # Store credential in unified_credentials
+                    cred_id = auth_service.store_credential(
+                        credential_data=credential_data,
+                        metadata=metadata,
+                        created_by=user_uuid
+                    )
+                    logger.info(f"Stored host-specific credential for {host.hostname} in unified_credentials (id: {cred_id})")
+
+                except Exception as e:
+                    logger.error(f"Failed to store host-specific credential for {host.hostname}: {e}")
+                    # Don't fail the host creation, just log the error
+                    # Host will fall back to system default
+
         new_host = Host(
             id=host_id,
             hostname=host.hostname,
@@ -367,7 +399,7 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
             created_at=current_time.isoformat(),
             updated_at=current_time.isoformat()
         )
-        
+
         logger.info(f"Created new host in database: {host.hostname}")
         return new_host
         
@@ -490,48 +522,95 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
         new_display_name = (host_update.display_name if host_update.display_name is not None 
                           else current_host.display_name or new_hostname)
         
-        # Handle credential updates if provided
-        encrypted_creds = None
+        # NEW: Handle credential updates using unified_credentials system (Phase 5)
+        encrypted_creds = None  # Always NULL for unified system
         if host_update.auth_method:
-            if host_update.auth_method == "password" and host_update.password:
-                # Encrypt password credentials
-                from ..services.crypto import encrypt_credentials
-                cred_data = {
-                    "username": host_update.username or current_host.username,
-                    "password": host_update.password,
-                    "auth_method": "password"
-                }
-                encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-                logger.info(f"Encrypting password credentials for host {host_id}")
-            elif host_update.auth_method == "ssh_key" and host_update.ssh_key:
-                # Validate SSH key before updating
-                logger.info(f"Validating SSH key for host update '{host_id}'")
-                validation_result = validate_ssh_key(host_update.ssh_key)
+            from ..services.auth_service import (
+                get_auth_service,
+                CredentialData,
+                CredentialMetadata,
+                CredentialScope,
+                AuthMethod
+            )
 
-                if not validation_result.is_valid:
-                    logger.error(f"SSH key validation failed for host update '{host_id}': {validation_result.error_message}")
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid SSH key: {validation_result.error_message}"
+            auth_service = get_auth_service(db)
+
+            if host_update.auth_method == "system_default":
+                # Delete host-specific credentials when switching to system default
+                try:
+                    existing_creds = auth_service.list_credentials(
+                        scope=CredentialScope.HOST,
+                        target_id=str(host_uuid)
+                    )
+                    for cred in existing_creds:
+                        auth_service.delete_credential(cred['id'])
+                    logger.info(f"Deleted host-specific credentials for system default on host {host_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete host-specific credentials: {e}")
+
+            elif host_update.password or host_update.ssh_key:
+                # Validate SSH key if provided
+                if host_update.ssh_key:
+                    logger.info(f"Validating SSH key for host update '{host_id}'")
+                    validation_result = validate_ssh_key(host_update.ssh_key)
+
+                    if not validation_result.is_valid:
+                        logger.error(f"SSH key validation failed for host update '{host_id}': {validation_result.error_message}")
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid SSH key: {validation_result.error_message}"
+                        )
+
+                    if validation_result.warnings:
+                        logger.warning(f"SSH key warnings for host update '{host_id}': {'; '.join(validation_result.warnings)}")
+
+                # Create credential data
+                credential_data = CredentialData(
+                    username=host_update.username or current_host.username,
+                    auth_method=AuthMethod(host_update.auth_method),
+                    password=host_update.password if host_update.auth_method in ['password', 'both'] else None,
+                    private_key=host_update.ssh_key if host_update.auth_method in ['ssh_key', 'both'] else None,
+                    private_key_passphrase=None
+                )
+
+                # Create metadata
+                metadata = CredentialMetadata(
+                    name=f"{current_host.hostname} credential",
+                    description=f"Host-specific credential for {current_host.hostname}",
+                    scope=CredentialScope.HOST,
+                    target_id=str(host_uuid),
+                    is_default=False
+                )
+
+                # Check if host-specific credential already exists
+                try:
+                    existing_creds = auth_service.list_credentials(
+                        scope=CredentialScope.HOST,
+                        target_id=str(host_uuid)
                     )
 
-                # Log warnings if any (non-blocking)
-                if validation_result.warnings:
-                    logger.warning(f"SSH key warnings for host update '{host_id}': {'; '.join(validation_result.warnings)}")
+                    # Get user UUID for created_by field
+                    user_id_result = db.execute(text("SELECT id FROM users WHERE id = :user_id"), {"user_id": current_user.get('id')})
+                    user_row = user_id_result.fetchone()
+                    user_uuid = str(user_row[0]) if user_row else None
 
-                # Validation passed - encrypt SSH key credentials
-                from ..services.crypto import encrypt_credentials
-                cred_data = {
-                    "username": host_update.username or current_host.username,
-                    "ssh_key": host_update.ssh_key,
-                    "auth_method": "ssh_key"
-                }
-                encrypted_creds = encrypt_credentials(json.dumps(cred_data))
-                logger.info(f"Encrypting validated SSH key credentials for host {host_id}")
-            elif host_update.auth_method == "system_default":
-                # Clear host-specific credentials when using system default
-                encrypted_creds = None
-                logger.info(f"Clearing host credentials for system default auth on host {host_id}")
+                    if existing_creds:
+                        # Delete old credential and create new one (simpler than update)
+                        for cred in existing_creds:
+                            auth_service.delete_credential(cred['id'])
+                        logger.info(f"Deleted old host-specific credential for {current_host.hostname}")
+
+                    # Store new credential
+                    cred_id = auth_service.store_credential(
+                        credential_data=credential_data,
+                        metadata=metadata,
+                        created_by=user_uuid
+                    )
+                    logger.info(f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})")
+
+                except Exception as e:
+                    logger.error(f"Failed to update host-specific credential: {e}")
+                    # Continue with host update even if credential storage fails
         
         # Update all fields including encrypted credentials
         update_params = {

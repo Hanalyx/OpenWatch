@@ -1,0 +1,208 @@
+name: System Credentials Deprecation Monitor
+
+on:
+  schedule:
+    # Run every Monday at 9 AM EST (during 3-week deprecation period)
+    - cron: '0 14 * * 1'  # 14:00 UTC = 9:00 AM EST
+  workflow_dispatch:  # Allow manual trigger
+  pull_request:
+    paths:
+      - 'backend/app/routes/credentials.py'
+      - 'backend/app/routes/system_settings.py'
+      - 'backend/app/models/system_credentials.py'
+
+jobs:
+  check-deprecation-status:
+    runs-on: ubuntu-latest
+    name: Check system_credentials Usage
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for trend analysis
+
+      - name: Scan for system_credentials usage
+        id: scan
+        run: |
+          echo "## 🔍 Deprecation Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count references to system_credentials
+          TOTAL_REFS=$(grep -r "system_credentials" backend/ --include="*.py" | wc -l)
+          FILES_WITH_REFS=$(grep -r "system_credentials" backend/ --include="*.py" -l | wc -l)
+
+          # Count references in specific files
+          CREDENTIALS_PY=$(grep "system_credentials" backend/app/routes/credentials.py 2>/dev/null | wc -l || echo "0")
+          SYSTEM_SETTINGS_PY=$(grep "system_credentials" backend/app/routes/system_settings.py 2>/dev/null | wc -l || echo "0")
+
+          echo "total_refs=$TOTAL_REFS" >> $GITHUB_OUTPUT
+          echo "files_with_refs=$FILES_WITH_REFS" >> $GITHUB_OUTPUT
+          echo "credentials_py=$CREDENTIALS_PY" >> $GITHUB_OUTPUT
+          echo "system_settings_py=$SYSTEM_SETTINGS_PY" >> $GITHUB_OUTPUT
+
+          # Add to summary
+          echo "### Current Usage" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total References:** $TOTAL_REFS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Files Affected:** $FILES_WITH_REFS" >> $GITHUB_STEP_SUMMARY
+          echo "- **credentials.py:** $CREDENTIALS_PY references" >> $GITHUB_STEP_SUMMARY
+          echo "- **system_settings.py:** $SYSTEM_SETTINGS_PY references" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check milestone progress
+        id: milestone
+        run: |
+          # Get milestone info using GitHub CLI
+          MILESTONE_DATA=$(gh api repos/${{ github.repository }}/milestones/1)
+          OPEN_ISSUES=$(echo "$MILESTONE_DATA" | jq '.open_issues')
+          CLOSED_ISSUES=$(echo "$MILESTONE_DATA" | jq '.closed_issues')
+          DUE_DATE=$(echo "$MILESTONE_DATA" | jq -r '.due_on')
+
+          TOTAL_ISSUES=$((OPEN_ISSUES + CLOSED_ISSUES))
+          if [ "$TOTAL_ISSUES" -gt 0 ]; then
+            PROGRESS=$((CLOSED_ISSUES * 100 / TOTAL_ISSUES))
+          else
+            PROGRESS=0
+          fi
+
+          echo "progress=$PROGRESS" >> $GITHUB_OUTPUT
+          echo "open_issues=$OPEN_ISSUES" >> $GITHUB_OUTPUT
+          echo "closed_issues=$CLOSED_ISSUES" >> $GITHUB_OUTPUT
+
+          echo "### Milestone Progress" >> $GITHUB_STEP_SUMMARY
+          echo "- **Completed:** $CLOSED_ISSUES / $TOTAL_ISSUES issues ($PROGRESS%)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Remaining:** $OPEN_ISSUES issues" >> $GITHUB_STEP_SUMMARY
+          echo "- **Due Date:** $DUE_DATE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine current week
+        id: week
+        run: |
+          # Calculate which week we're in (relative to Oct 16, 2025)
+          START_DATE="2025-10-16"
+          CURRENT_DATE=$(date +%Y-%m-%d)
+
+          START_EPOCH=$(date -d "$START_DATE" +%s)
+          CURRENT_EPOCH=$(date -d "$CURRENT_DATE" +%s)
+          DAYS_ELAPSED=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
+          WEEK=$(( DAYS_ELAPSED / 7 + 1 ))
+
+          if [ "$WEEK" -gt 3 ]; then
+            WEEK="OVERDUE"
+          fi
+
+          echo "week=$WEEK" >> $GITHUB_OUTPUT
+          echo "### Timeline Status" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current Week:** Week $WEEK of 3" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for regression (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get baseline from main branch
+          git checkout main
+          BASELINE_REFS=$(grep -r "system_credentials" backend/ --include="*.py" | wc -l)
+
+          git checkout ${{ github.head_ref }}
+          CURRENT_REFS=$(grep -r "system_credentials" backend/ --include="*.py" | wc -l)
+
+          echo "### PR Impact Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- **Before:** $BASELINE_REFS references" >> $GITHUB_STEP_SUMMARY
+          echo "- **After:** $CURRENT_REFS references" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$CURRENT_REFS" -gt "$BASELINE_REFS" ]; then
+            echo "❌ **REGRESSION DETECTED:** This PR increases system_credentials usage!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**⚠️ Policy Violation:** No PRs should increase deprecated table usage during deprecation period." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [ "$CURRENT_REFS" -lt "$BASELINE_REFS" ]; then
+            REDUCTION=$((BASELINE_REFS - CURRENT_REFS))
+            echo "✅ **IMPROVEMENT:** This PR reduces usage by $REDUCTION references" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **NO CHANGE:** Usage remains the same" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post Slack notification (weekly)
+        if: github.event_name == 'schedule'
+        run: |
+          # Post to #ow-deprecation Slack channel
+          SLACK_WEBHOOK="${{ secrets.SLACK_DEPRECATION_WEBHOOK }}"
+
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -X POST "$SLACK_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "📊 *Weekly Deprecation Status Report*",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "🗑️ system_credentials Deprecation - Week ${{ steps.week.outputs.week }}"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Code References:*\n${{ steps.scan.outputs.total_refs }} remaining"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Milestone Progress:*\n${{ steps.milestone.outputs.progress }}% complete"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Open Issues:*\n${{ steps.milestone.outputs.open_issues }} remaining"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Files Affected:*\n${{ steps.scan.outputs.files_with_refs }} files"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "📈 *Detailed Breakdown*\n• credentials.py: ${{ steps.scan.outputs.credentials_py }} refs\n• system_settings.py: ${{ steps.scan.outputs.system_settings_py }} refs"
+                    }
+                  },
+                  {
+                    "type": "actions",
+                    "elements": [
+                      {
+                        "type": "button",
+                        "text": {
+                          "type": "plain_text",
+                          "text": "View Milestone"
+                        },
+                        "url": "https://github.com/${{ github.repository }}/milestone/1"
+                      },
+                      {
+                        "type": "button",
+                        "text": {
+                          "type": "plain_text",
+                          "text": "View Parent Issue"
+                        },
+                        "url": "https://github.com/${{ github.repository }}/issues/108"
+                      }
+                    ]
+                  }
+                ]
+              }'
+          else
+            echo "⚠️ SLACK_DEPRECATION_WEBHOOK not configured - skipping notification"
+          fi
+
+      - name: Fail if usage increased (PR only)
+        if: github.event_name == 'pull_request' && steps.scan.outputs.total_refs > 12
+        run: |
+          echo "❌ POLICY VIOLATION: system_credentials usage increased in this PR"
+          echo "Baseline: 12 references"
+          echo "Current: ${{ steps.scan.outputs.total_refs }} references"
+          exit 1

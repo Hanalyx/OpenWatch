@@ -1186,38 +1186,116 @@ class UnifiedSSHService:
     
     def connect_with_credentials(self, hostname: str, port: int, username: str,
                                auth_method: str, credential: str, service_name: str,
-                               timeout: Optional[int] = None) -> SSHConnectionResult:
+                               timeout: Optional[int] = None,
+                               password: Optional[str] = None) -> SSHConnectionResult:
         """
         Advanced SSH connection with various authentication methods.
-        
+
         Args:
             hostname: Target hostname or IP
             port: SSH port
             username: Username for authentication
-            auth_method: Authentication method (password, key, agent)
-            credential: Password or private key content
+            auth_method: Authentication method (password, key, ssh_key, ssh-key, agent, both)
+            credential: Password or private key content (used for single auth methods)
             service_name: Service name for logging
             timeout: Connection timeout
-            
+            password: Password for "both" authentication method (optional)
+
         Returns:
             SSHConnectionResult with detailed connection information
+
+        Note:
+            When auth_method='both', credential should contain private key and password param contains password.
+            The method will try SSH key first, then fallback to password if key authentication fails.
         """
         start_time = datetime.utcnow()
         client = None
-        
+
         try:
             client = SSHClient()
             self.configure_ssh_client(client, hostname)
-            
+
             # Set timeouts
             connect_timeout = timeout or 30
-            
+
             if self._debug_mode:
                 logger.info(f"[DEBUG] SSH connection attempt to {hostname}:{port} as {username}")
                 logger.info(f"[DEBUG] Auth method: {auth_method}, Timeout: {connect_timeout}s")
                 logger.info(f"[DEBUG] Service: {service_name}")
-            
-            if auth_method == "password":
+
+            # NEW: Handle "both" authentication with fallback (Phase 3)
+            if auth_method == "both":
+                logger.info(f"Credential has 'both' auth method, attempting SSH key first for {username}@{hostname}")
+
+                # Try SSH key first (faster, more secure)
+                if credential:  # credential contains private key for "both"
+                    try:
+                        pkey = parse_ssh_key(credential)
+                        logger.debug(f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}")
+
+                        try:
+                            client.connect(
+                                hostname=hostname,
+                                port=port,
+                                username=username,
+                                pkey=pkey,
+                                timeout=connect_timeout,
+                                allow_agent=False,
+                                look_for_keys=False
+                            )
+                            auth_method_used = "private_key"
+                            logger.info(f"✅ SSH key authentication successful for {username}@{hostname} (both method)")
+                        except paramiko.AuthenticationException as e:
+                            logger.warning(f"SSH key authentication failed for {username}@{hostname}: {str(e)}")
+                            # Close failed connection before retry
+                            if client:
+                                client.close()
+                                client = None
+                            # Will try password below
+                    except SSHKeyError as e:
+                        logger.warning(f"SSH key parsing failed for {username}@{hostname}: {str(e)}")
+                        # Will try password below
+
+                # Fallback to password if SSH key didn't succeed
+                if not client or not client.get_transport() or not client.get_transport().is_active():
+                    if password:
+                        logger.info(f"Falling back to password authentication for {username}@{hostname}")
+                        if not client:
+                            client = SSHClient()
+                            self.configure_ssh_client(client, hostname)
+
+                        try:
+                            client.connect(
+                                hostname=hostname,
+                                port=port,
+                                username=username,
+                                password=password,
+                                timeout=connect_timeout,
+                                allow_agent=False,
+                                look_for_keys=False
+                            )
+                            auth_method_used = "password"
+                            logger.info(f"✅ Password authentication successful for {username}@{hostname} (both method fallback)")
+                        except paramiko.AuthenticationException as e:
+                            if client:
+                                client.close()
+                            logger.error(f"Both SSH key and password authentication failed for {username}@{hostname}")
+                            return SSHConnectionResult(
+                                success=False,
+                                error_message=f"Both SSH key and password authentication failed for {username}@{hostname}",
+                                error_type="auth_failed"
+                            )
+                    else:
+                        if client:
+                            client.close()
+                        logger.error(f"SSH key authentication failed and no password provided for fallback (both method)")
+                        return SSHConnectionResult(
+                            success=False,
+                            error_message="SSH key authentication failed and no password provided for fallback",
+                            error_type="auth_failed"
+                        )
+
+            elif auth_method == "password":
                 client.connect(
                     hostname=hostname,
                     port=port,
@@ -1268,7 +1346,7 @@ class UnifiedSSHService:
             else:
                 return SSHConnectionResult(
                     success=False,
-                    error_message=f"Unsupported authentication method: {auth_method}. Supported methods: password, key, ssh_key, ssh-key, agent",
+                    error_message=f"Unsupported authentication method: {auth_method}. Supported methods: password, key, ssh_key, ssh-key, agent, both",
                     error_type="auth_error"
                 )
             
