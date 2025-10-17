@@ -159,11 +159,8 @@ const HostMonitoringTab: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Header with refresh button */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" component="h2" fontWeight="bold">
-          Host Infrastructure Monitoring
-        </Typography>
+      {/* Refresh button */}
+      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
         <Tooltip title="Refresh monitoring data">
           <IconButton onClick={handleRefresh} disabled={refreshing} color="primary">
             <Refresh />
