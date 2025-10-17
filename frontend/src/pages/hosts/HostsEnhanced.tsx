@@ -488,6 +488,50 @@ const HostsEnhanced: React.FC = () => {
     setTimeout(() => fetchHosts(true), 1000);
   };
 
+  // WEEK 2 PHASE 1: Pre-scan JIT validation (silent, compliance-focused)
+  const handleQuickScanWithValidation = async (host: Host) => {
+    try {
+      // Silent JIT connectivity check (no UI blocking)
+      console.log(`Pre-scan validation for ${host.hostname}...`);
+
+      const jitCheck = await api.post(`/api/monitoring/hosts/${host.id}/check-connectivity`);
+
+      // Wait 3 seconds for check to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Get updated state
+      const stateResponse = await api.get(`/api/monitoring/hosts/${host.id}/state`);
+      const state = stateResponse.data || stateResponse;
+
+      // ONLY block scan if host is DOWN (completely unreachable)
+      // Compliance priority: allow scans unless host is definitively down
+      if (state.current_state === 'DOWN') {
+        alert(
+          `Cannot start scan: Host ${host.hostname} is unreachable.\n\n` +
+          `Last error: ${state.recent_history?.[0]?.error_message || 'Connection failed'}\n\n` +
+          `Please check network connectivity and SSH credentials.`
+        );
+        setQuickScanDialog({open: false, host: null});
+        return;
+      }
+
+      // For DEGRADED/CRITICAL: Log warning but proceed silently (don't confuse user)
+      if (state.current_state === 'DEGRADED' || state.current_state === 'CRITICAL') {
+        console.warn(`Host ${host.hostname} has connectivity issues (${state.current_state}), proceeding with scan anyway`);
+      }
+
+      // Proceed with scan - navigate to scan creation page
+      setQuickScanDialog({open: false, host: null});
+      navigate('/scans/new-scap', { state: { preselectedHostId: host.id } });
+
+    } catch (error) {
+      console.error('Pre-scan JIT check failed:', error);
+      // Fallback: if JIT check fails, proceed anyway (don't block compliance workflow)
+      setQuickScanDialog({open: false, host: null});
+      navigate('/scans/new-scap', { state: { preselectedHostId: host.id } });
+    }
+  };
+
   const handleEditHost = (host: Host) => {
     const initialFormData = {
       hostname: host.hostname,
@@ -605,56 +649,52 @@ const HostsEnhanced: React.FC = () => {
 
   const checkHostStatus = async (hostId: string) => {
     try {
-      const result = await api.post('/api/monitoring/hosts/check', { host_id: hostId });
-      
-      // Update host status in local state
-      setHosts(prev => prev.map(h => 
-        h.id === hostId 
-          ? { ...h, status: result.status as any }
-          : h
-      ));
-      
-      // Show detailed user-friendly notification
+      // WEEK 2 PHASE 1: Use new JIT connectivity check endpoint
+      const result = await api.post(`/api/monitoring/hosts/${hostId}/check-connectivity`);
+
+      // Queue immediate check and wait for results
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for check to complete
+
+      // Get host details
       const host = hosts.find(h => h.id === hostId);
+
+      // Compliance-focused status messages (NOT monitoring states)
       const statusMessages = {
         'online': '✅ Host is online and ready for scans',
         'reachable': '🟡 Host is reachable but SSH authentication failed',
         'ping_only': '🟡 Host responds to ping but SSH port is closed',
         'offline': '🔴 Host is completely unreachable',
-        'error': '❌ Error occurred while checking host status'
+        'error': '❌ Error occurred while checking host status',
+        'maintenance': '🔧 Host is in maintenance mode'
       };
-      
-      const baseMessage = statusMessages[result.status as keyof typeof statusMessages] || 'Status check completed';
-      
-      // Build detailed status message
+
+      const baseMessage = statusMessages[result.current_status as keyof typeof statusMessages] || 'Status check completed';
+
+      // Build compliance-focused status message (NO monitoring state terminology)
       let detailedMessage = `${host?.hostname || 'Host'}: ${baseMessage}\n\n`;
-      
-      // Add connectivity details
+
       detailedMessage += `📊 Connectivity Details:\n`;
-      detailedMessage += `• Ping: ${result.ping_success ? '✅ Success' : '❌ Failed'}\n`;
-      detailedMessage += `• SSH Port (${host?.port || 22}): ${result.port_open ? '✅ Open' : '❌ Closed'}\n`;
-      detailedMessage += `• Response Time: ${result.response_time_ms}ms\n\n`;
-      
-      // Add SSH credential testing details
-      if (result.credential_details) {
-        detailedMessage += `🔐 SSH Authentication Test:\n`;
-        detailedMessage += `${result.credential_details}\n\n`;
-      }
-      
+      detailedMessage += `• Status: ${result.current_status}\n`;
+      detailedMessage += `• Response Time: ${result.response_time_ms || 'N/A'}ms\n`;
+      detailedMessage += `• Last Check: ${result.last_check ? new Date(result.last_check).toLocaleString() : 'Never'}\n\n`;
+
       // Add scan readiness
-      if (result.ready_for_scans) {
-        detailedMessage += `🚀 Status: Host is ready for security scans!`;
-      } else if (result.ssh_credentials_used) {
-        detailedMessage += `⚠️ Status: Host is not ready for scans due to SSH authentication issues.`;
+      const isReady = result.current_status === 'online';
+      if (isReady) {
+        detailedMessage += `🚀 Status: Host is ready for compliance scans!`;
       } else {
-        detailedMessage += `⚠️ Status: Host is not ready for scans. No SSH credentials configured.`;
+        detailedMessage += `⚠️ Status: Host is not ready for scans.\n`;
+        detailedMessage += `Please check network connectivity and SSH credentials.`;
       }
-      
+
       console.log(`Host status check for ${host?.hostname}:`, result);
-      
+
       // Show detailed popup
       alert(detailedMessage);
-      
+
+      // Refresh hosts list to show updated status
+      setTimeout(() => fetchHosts(true), 1000);
+
     } catch (error) {
       console.error('Error checking host status:', error);
       alert('Failed to check host status. Please try again.');
@@ -676,9 +716,10 @@ const HostsEnhanced: React.FC = () => {
 
   const fetchSystemCredentialsForEdit = async () => {
     try {
-      const response = await api.get('/api/system/credentials');
+      // WEEK 2 MIGRATION: Use v2 API with scope filter (trailing slash required)
+      const response = await api.get('/api/v2/credentials/?scope=system');
       const defaultCredential = response.find((cred: any) => cred.is_default);
-      
+
       if (defaultCredential) {
         setSystemCredentialInfo({
           name: defaultCredential.name,
@@ -1249,15 +1290,16 @@ const HostsEnhanced: React.FC = () => {
           }}
         >
           <Tooltip title={host.scanStatus === 'running' ? "View Running Scan" : "Start New Scan"}>
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               color="primary"
               onClick={(e) => {
                 e.stopPropagation();
                 if (host.latestScanId && host.scanStatus === 'running') {
                   navigate(`/scans/${host.latestScanId}`);
                 } else {
-                  navigate('/scans/new-scap', { state: { preselectedHostId: host.id } });
+                  // WEEK 2 PHASE 1: Use pre-scan JIT validation
+                  handleQuickScanWithValidation(host);
                 }
               }}
             >
@@ -1794,7 +1836,10 @@ const HostsEnhanced: React.FC = () => {
           <Button onClick={() => setQuickScanDialog({open: false, host: null})}>
             Cancel
           </Button>
-          <Button variant="contained">
+          <Button
+            variant="contained"
+            onClick={() => quickScanDialog.host && handleQuickScanWithValidation(quickScanDialog.host)}
+          >
             Start Scan
           </Button>
         </DialogActions>
