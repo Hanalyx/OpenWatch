@@ -20,6 +20,7 @@ from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug
 from .routes.system_settings_unified import router as system_settings_router
 from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
+from .routes.v2 import credentials as v2_credentials  # WEEK 2: v2 credentials API
 from .routes import host_discovery, host_security_discovery, plugin_management, bulk_remediation_routes
 # Import security routes only if available
 try:
@@ -539,6 +540,7 @@ app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
 app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
 app.include_router(credentials.router, tags=["Credential Sharing"])
+app.include_router(v2_credentials.router, prefix="/api", tags=["Credentials v2"])  # WEEK 2: v2 credentials API (adds /api prefix to router's /v2/credentials)
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
 app.include_router(integration_metrics.router, prefix="/api/integration/metrics", tags=["Integration Metrics"])

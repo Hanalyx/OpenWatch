@@ -596,54 +596,60 @@ class CentralizedAuthService:
         except Exception as e:
             logger.error(f"Failed to unset default credentials: {e}")
     
-    def list_credentials(self, scope: CredentialScope = None, target_id: str = None, 
-                        user_id: str = None) -> List[Dict]:
+    def list_credentials(self, scope: CredentialScope = None, target_id: str = None,
+                        user_id: str = None, include_inactive: bool = False) -> List[Dict]:
         """
         List credentials with filtering options.
-        
+
         Args:
             scope: Filter by credential scope
             target_id: Filter by target ID
             user_id: Filter by user (for access control)
-            
+            include_inactive: Include inactive credentials (for compliance/audit)
+
         Returns:
             List[Dict]: List of credential metadata (no sensitive data)
         """
         try:
             # Build query with parameterized conditions to prevent SQL injection
+            # WEEK 2 FIX: Include is_active in SELECT for compliance visibility
             base_query = """
                 SELECT id, name, description, scope, target_id, username, auth_method,
                        ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment,
-                       is_default, created_at, updated_at
-                FROM unified_credentials 
-                WHERE is_active = true
+                       is_default, is_active, created_at, updated_at
+                FROM unified_credentials
+                WHERE 1=1
             """
             params = {}
-            
+
+            # WEEK 2 FIX: Only filter by is_active if not including inactive
+            if not include_inactive:
+                base_query += " AND is_active = true"
+
             if scope:
                 base_query += " AND scope = :scope"
                 params["scope"] = scope.value
-                
+
             if target_id:
                 base_query += " AND target_id = :target_id"
                 params["target_id"] = target_id
-                
+
             if user_id:
                 base_query += " AND created_by = :user_id"
                 params["user_id"] = user_id
-            
-            base_query += " ORDER BY scope, is_default DESC, name"
-            
+
+            base_query += " ORDER BY is_active DESC, scope, is_default DESC, name"
+
             result = self.db.execute(text(base_query), params)
-            
+
             credentials = []
             for row in result:
                 credentials.append({
-                    "id": row.id,
+                    "id": str(row.id),  # Convert UUID to string for Pydantic validation
                     "name": row.name,
                     "description": row.description,
                     "scope": row.scope,
-                    "target_id": row.target_id,
+                    "target_id": str(row.target_id) if row.target_id else None,  # Convert UUID to string
                     "username": row.username,
                     "auth_method": row.auth_method,
                     "ssh_key_fingerprint": row.ssh_key_fingerprint,
@@ -651,6 +657,7 @@ class CentralizedAuthService:
                     "ssh_key_bits": row.ssh_key_bits,
                     "ssh_key_comment": row.ssh_key_comment,
                     "is_default": row.is_default,
+                    "is_active": row.is_active,  # WEEK 2 FIX: Include is_active for compliance
                     "created_at": row.created_at.isoformat(),
                     "updated_at": row.updated_at.isoformat()
                 })
@@ -664,32 +671,66 @@ class CentralizedAuthService:
     def delete_credential(self, credential_id: str) -> bool:
         """
         Soft delete a credential by marking it inactive.
-        
+        Inactive credentials are retained for 90 days for compliance/audit, then auto-purged.
+
         Args:
             credential_id: The credential ID to delete
-            
+
         Returns:
             bool: True if successful, False otherwise
         """
         try:
             result = self.db.execute(text("""
-                UPDATE unified_credentials 
+                UPDATE unified_credentials
                 SET is_active = false, updated_at = :updated_at
                 WHERE id = :id
             """), {"id": credential_id, "updated_at": datetime.utcnow()})
-            
+
             if result.rowcount > 0:
                 self.db.commit()
-                logger.info(f"Deleted credential {credential_id}")
+                logger.info(f"Soft deleted credential {credential_id} (90-day retention)")
                 return True
             else:
                 logger.warning(f"Credential {credential_id} not found for deletion")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Failed to delete credential {credential_id}: {e}")
             self.db.rollback()
             return False
+
+    def purge_old_inactive_credentials(self, retention_days: int = 90) -> int:
+        """
+        Hard delete inactive credentials older than retention period.
+        This is for compliance - maintains audit trail while preventing unbounded growth.
+
+        Args:
+            retention_days: Number of days to retain inactive credentials (default 90)
+
+        Returns:
+            int: Number of credentials purged
+        """
+        try:
+            from datetime import timedelta
+            cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+
+            result = self.db.execute(text("""
+                DELETE FROM unified_credentials
+                WHERE is_active = false
+                  AND updated_at < :cutoff_date
+            """), {"cutoff_date": cutoff_date})
+
+            purged_count = result.rowcount
+            if purged_count > 0:
+                self.db.commit()
+                logger.info(f"Purged {purged_count} inactive credentials older than {retention_days} days")
+
+            return purged_count
+
+        except Exception as e:
+            logger.error(f"Failed to purge old inactive credentials: {e}")
+            self.db.rollback()
+            return 0
 
 
 # Factory function for service creation

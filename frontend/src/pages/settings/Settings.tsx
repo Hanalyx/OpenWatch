@@ -49,13 +49,15 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 
 interface SystemCredentials {
-  id: number;
+  id: string;  // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
   name: string;
   description?: string;
+  scope?: string;  // WEEK 2 MIGRATION: Added for v2 API (always "system")
+  target_id?: string | null;  // WEEK 2 MIGRATION: Added for v2 API (always null for system)
   username: string;
   auth_method: string;
   is_default: boolean;
-  is_active: boolean;
+  is_active: boolean;  // WEEK 2 FIX: Include is_active for compliance visibility
   created_at: string;
   updated_at: string;
   ssh_key_fingerprint?: string | null;
@@ -119,6 +121,7 @@ function TabPanel(props: TabPanelProps) {
 const Settings: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [credentials, setCredentials] = useState<SystemCredentials[]>([]);
+  const [showInactive, setShowInactive] = useState(false);  // WEEK 2: Toggle for inactive credentials
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -182,7 +185,12 @@ const Settings: React.FC = () => {
     
     try {
       setLoading(true);
-      const response = await api.get('/api/system/credentials');
+      // WEEK 2 MIGRATION: Use v2 API with scope filter and inactive toggle
+      const params = new URLSearchParams({
+        scope: 'system',
+        include_inactive: showInactive.toString()
+      });
+      const response = await api.get(`/api/v2/credentials/?${params}`);
       setCredentials(response); // API directly returns array
     } catch (err: any) {
       setError('Failed to load system credentials');
@@ -358,7 +366,7 @@ const Settings: React.FC = () => {
     } else if (tabValue === 3) { // Security tab
       loadLoggingPolicies();
     }
-  }, [tabValue, isSuperAdmin]);
+  }, [tabValue, isSuperAdmin, showInactive]);  // WEEK 2: Reload when showInactive changes
 
   const handleAddCredential = () => {
     setEditingCredential(null);
@@ -394,13 +402,14 @@ const Settings: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleDeleteCredential = async (id: number) => {
+  const handleDeleteCredential = async (id: string) => {
     if (!confirm('Are you sure you want to delete this credential set?')) {
       return;
     }
 
     try {
-      await api.delete(`/api/system/credentials/${id}`);
+      // WEEK 2 MIGRATION: Use v2 DELETE endpoint (trailing slash required)
+      await api.delete(`/api/v2/credentials/${id}/`);
       setSuccess('Credential set deleted successfully');
       loadCredentials();
     } catch (err: any) {
@@ -413,17 +422,22 @@ const Settings: React.FC = () => {
   const handleSaveCredential = async () => {
     try {
       setLoading(true);
-      
+
       if (editingCredential) {
-        // Update existing credential
+        // Update existing credential (keep using v1 PUT - already on unified_credentials)
         await api.put(`/api/system/credentials/${editingCredential.id}`, formData);
         setSuccess('Credential set updated successfully');
       } else {
-        // Create new credential
-        await api.post('/api/system/credentials', formData);
+        // WEEK 2 MIGRATION: Create new credential using v2 API (trailing slash required)
+        const v2FormData = {
+          ...formData,
+          scope: 'system',
+          target_id: null
+        };
+        await api.post('/api/v2/credentials/', v2FormData);
         setSuccess('Credential set created successfully');
       }
-      
+
       setDialogOpen(false);
       loadCredentials();
     } catch (err: any) {
@@ -498,7 +512,7 @@ const Settings: React.FC = () => {
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab label="System Settings" />
             <Tab label="SSH Configuration" />
-            <Tab label="User Preferences" disabled />
+            <Tab label="User Preferences" />
             <Tab label="Security" />
           </Tabs>
         </Box>
@@ -870,8 +884,30 @@ const Settings: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <Typography variant="h6">User Preferences</Typography>
-          <Typography color="text.secondary">Coming soon...</Typography>
+          <Card sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Display Preferences
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Configure how credentials and other data are displayed in the interface.
+            </Typography>
+
+            <Box sx={{ mt: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showInactive}
+                    onChange={(e) => setShowInactive(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label="Show Inactive Credentials"
+              />
+              <Typography variant="caption" display="block" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+                Display deleted/inactive credentials for compliance audit (90-day retention)
+              </Typography>
+            </Box>
+          </Card>
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>

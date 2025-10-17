@@ -1624,6 +1624,143 @@ class UnifiedSSHService:
         
         return results
 
+    def get_known_hosts(self, hostname: Optional[str] = None) -> List[Dict]:
+        """
+        Get SSH known hosts from database.
+
+        Args:
+            hostname: Optional filter by hostname
+
+        Returns:
+            List[Dict]: List of known host entries
+        """
+        try:
+            if not self.db:
+                logger.warning("No database session available for SSH known hosts")
+                return []
+
+            query = """
+                SELECT id, hostname, ip_address, key_type, fingerprint,
+                       first_seen, last_verified, is_trusted, notes
+                FROM ssh_known_hosts
+                WHERE 1=1
+            """
+            params = {}
+
+            if hostname:
+                query += " AND hostname = :hostname"
+                params["hostname"] = hostname
+
+            query += " ORDER BY first_seen DESC"
+
+            result = self.db.execute(text(query), params)
+
+            hosts = []
+            for row in result:
+                hosts.append({
+                    "id": row.id,
+                    "hostname": row.hostname,
+                    "ip_address": row.ip_address,
+                    "key_type": row.key_type,
+                    "fingerprint": row.fingerprint,
+                    "first_seen": row.first_seen.isoformat() if row.first_seen else None,
+                    "last_verified": row.last_verified.isoformat() if row.last_verified else None,
+                    "is_trusted": row.is_trusted,
+                    "notes": row.notes
+                })
+
+            return hosts
+
+        except Exception as e:
+            logger.error(f"Failed to get known hosts: {e}")
+            return []
+
+    def add_known_host(self, hostname: str, ip_address: Optional[str],
+                      key_type: str, public_key: str, notes: Optional[str] = None) -> bool:
+        """
+        Add a known host to the database.
+
+        Args:
+            hostname: Hostname or IP
+            ip_address: IP address (optional)
+            key_type: SSH key type (rsa, ecdsa, ed25519, dsa)
+            public_key: Public key content
+            notes: Optional notes
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            if not self.db:
+                logger.warning("No database session available for adding known host")
+                return False
+
+            # Generate fingerprint from public key
+            import base64
+            import hashlib
+            key_data = base64.b64decode(public_key.split()[1])
+            fingerprint = hashlib.sha256(key_data).hexdigest()
+            fingerprint = f"SHA256:{base64.b64encode(hashlib.sha256(key_data).digest()).decode().rstrip('=')}"
+
+            self.db.execute(text("""
+                INSERT INTO ssh_known_hosts
+                (hostname, ip_address, key_type, public_key, fingerprint, first_seen, is_trusted, notes)
+                VALUES (:hostname, :ip_address, :key_type, :public_key, :fingerprint, :first_seen, :is_trusted, :notes)
+            """), {
+                "hostname": hostname,
+                "ip_address": ip_address,
+                "key_type": key_type,
+                "public_key": public_key,
+                "fingerprint": fingerprint,
+                "first_seen": datetime.utcnow(),
+                "is_trusted": True,
+                "notes": notes
+            })
+
+            self.db.commit()
+            logger.info(f"Added known host: {hostname} ({key_type})")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to add known host {hostname}: {e}")
+            self.db.rollback()
+            return False
+
+    def remove_known_host(self, hostname: str, key_type: str) -> bool:
+        """
+        Remove a known host from the database.
+
+        Args:
+            hostname: Hostname to remove
+            key_type: Key type to remove
+
+        Returns:
+            bool: True if successful
+        """
+        try:
+            if not self.db:
+                logger.warning("No database session available for removing known host")
+                return False
+
+            result = self.db.execute(text("""
+                DELETE FROM ssh_known_hosts
+                WHERE hostname = :hostname AND key_type = :key_type
+            """), {"hostname": hostname, "key_type": key_type})
+
+            self.db.commit()
+
+            if result.rowcount > 0:
+                logger.info(f"Removed known host: {hostname} ({key_type})")
+                return True
+            else:
+                logger.warning(f"Known host not found: {hostname} ({key_type})")
+                return False
+
+        except Exception as e:
+            logger.error(f"Failed to remove known host {hostname}: {e}")
+            self.db.rollback()
+            return False
+
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS FOR BACKWARD COMPATIBILITY

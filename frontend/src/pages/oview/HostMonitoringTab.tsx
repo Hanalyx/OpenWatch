@@ -201,10 +201,21 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     }
   }, []);
 
+  // Keep ref to latest fetchMonitoringData for useImperativeHandle
+  const fetchMonitoringDataRef = useRef(fetchMonitoringData);
+  useEffect(() => {
+    fetchMonitoringDataRef.current = fetchMonitoringData;
+  }, [fetchMonitoringData]);
+
   // Expose refresh function to parent component
-  useImperativeHandle(ref, () => ({
-    refresh: fetchMonitoringData
-  }));
+  // CRITICAL: Empty deps array prevents recreation on every render
+  // Use ref to always call latest fetchMonitoringData
+  useImperativeHandle(ref, () => {
+    console.log('[HostMonitoringTab] useImperativeHandle creating ref object');
+    return {
+      refresh: () => fetchMonitoringDataRef.current()
+    };
+  }, []); // Empty deps - only create once
 
   // Load data ONCE on mount only - do NOT depend on fetchMonitoringData!
   // The function reference is stable due to useCallback, but even if it changes,
