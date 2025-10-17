@@ -483,4 +483,5 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
 HostMonitoringTab.displayName = 'HostMonitoringTab';
 
-export default HostMonitoringTab;
+// Wrap in React.memo to prevent unnecessary re-renders from parent
+export default React.memo(HostMonitoringTab);

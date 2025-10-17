@@ -230,6 +230,11 @@ const OView: React.FC = () => {
     setAutoRefreshEnabled(!autoRefreshEnabled);
   };
 
+  // Memoized callback to prevent infinite re-render loop
+  const handleLastUpdated = useCallback((date: Date) => {
+    setLastUpdated(date);
+  }, []);
+
   // State to force re-render for "Updated Xs ago" display
   const [, setTick] = useState(0);
 
@@ -625,7 +630,7 @@ const OView: React.FC = () => {
         <TabPanel value={activeTab} index={1}>
           <HostMonitoringTab
             ref={hostMonitoringRef}
-            onLastUpdated={(date) => setLastUpdated(date)}
+            onLastUpdated={handleLastUpdated}
           />
         </TabPanel>
       </Box>
