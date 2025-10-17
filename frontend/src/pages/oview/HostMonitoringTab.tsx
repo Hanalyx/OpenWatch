@@ -84,6 +84,12 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   const [stateDistribution, setStateDistribution] = useState<MonitoringState | null>(null);
   const [allHosts, setAllHosts] = useState<HostStateDetail[]>([]);
 
+  // Use ref to always access latest onLastUpdated without causing re-renders
+  const onLastUpdatedRef = useRef(onLastUpdated);
+  useEffect(() => {
+    onLastUpdatedRef.current = onLastUpdated;
+  }, [onLastUpdated]);
+
   // Pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
@@ -117,7 +123,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     MAINTENANCE: 'Scheduled maintenance - monitoring paused'
   };
 
-  const fetchMonitoringData = async () => {
+  const fetchMonitoringData = useCallback(async () => {
     console.log('[HostMonitoringTab] fetchMonitoringData called');
     try {
       setLoading(true);
@@ -164,20 +170,20 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       console.log('[HostMonitoringTab] Setting hosts:', { count: validHosts.length });
       setAllHosts(validHosts);
 
-      // Notify parent of update
-      if (onLastUpdated) {
-        console.log('[HostMonitoringTab] Notifying parent of update');
-        onLastUpdated(new Date());
-      }
-
       console.log('[HostMonitoringTab] fetchMonitoringData completed successfully');
       setLoading(false);
+
+      // Notify parent of update AFTER setting loading to false
+      if (onLastUpdatedRef.current) {
+        console.log('[HostMonitoringTab] Notifying parent of update');
+        onLastUpdatedRef.current(new Date());
+      }
     } catch (err: any) {
       console.error('[HostMonitoringTab] Error fetching monitoring data:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to load monitoring data');
       setLoading(false);
     }
-  };
+  }, []);
 
   // Expose refresh function to parent component
   useImperativeHandle(ref, () => ({
@@ -188,7 +194,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   useEffect(() => {
     console.log('[HostMonitoringTab] Component mounted, calling fetchMonitoringData');
     fetchMonitoringData();
-  }, []);
+  }, [fetchMonitoringData]);
 
   // Memoized filtered hosts to prevent unnecessary recalculations
   const filteredHosts = useMemo(() => {
