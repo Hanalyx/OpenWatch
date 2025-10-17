@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   Box,
   Card,
@@ -15,11 +15,9 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  IconButton,
-  Tooltip,
   useTheme
 } from '@mui/material';
-import { Refresh, Computer, TrendingUp, Warning, CheckCircle } from '@mui/icons-material';
+import { Computer, Warning, CheckCircle } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { api } from '../../services/api';
 
@@ -51,13 +49,16 @@ interface StateTransition {
   error_message?: string;
 }
 
-const HostMonitoringTab: React.FC = () => {
+export interface HostMonitoringTabRef {
+  refresh: () => Promise<void>;
+}
+
+const HostMonitoringTab = forwardRef<HostMonitoringTabRef>((props, ref) => {
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stateDistribution, setStateDistribution] = useState<MonitoringState | null>(null);
   const [criticalHosts, setCriticalHosts] = useState<HostStateDetail[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   // Color mapping for monitoring states (uses theme colors, works in dark mode)
   const stateColors = {
@@ -83,10 +84,6 @@ const HostMonitoringTab: React.FC = () => {
     DOWN: 'Host unreachable - checked every 30 minutes',
     MAINTENANCE: 'Scheduled maintenance - monitoring paused'
   };
-
-  useEffect(() => {
-    fetchMonitoringData();
-  }, []);
 
   const fetchMonitoringData = async () => {
     try {
@@ -126,11 +123,15 @@ const HostMonitoringTab: React.FC = () => {
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchMonitoringData();
-    setRefreshing(false);
-  };
+  // Expose refresh function to parent component
+  useImperativeHandle(ref, () => ({
+    refresh: fetchMonitoringData
+  }));
+
+  // Load data on mount
+  useEffect(() => {
+    fetchMonitoringData();
+  }, []);
 
   // Prepare pie chart data
   const pieData = stateDistribution?.status_breakdown
@@ -159,15 +160,6 @@ const HostMonitoringTab: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Refresh button */}
-      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
-        <Tooltip title="Refresh monitoring data">
-          <IconButton onClick={handleRefresh} disabled={refreshing} color="primary">
-            <Refresh />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
       {/* Statistics Cards */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={3}>
@@ -413,6 +405,8 @@ const HostMonitoringTab: React.FC = () => {
       </Grid>
     </Box>
   );
-};
+});
+
+HostMonitoringTab.displayName = 'HostMonitoringTab';
 
 export default HostMonitoringTab;

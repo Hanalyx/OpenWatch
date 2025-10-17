@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -51,7 +51,7 @@ import {
   MonitorHeart,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import HostMonitoringTab from './HostMonitoringTab';
+import HostMonitoringTab, { HostMonitoringTabRef } from './HostMonitoringTab';
 
 interface AuditEvent {
   id: number;
@@ -87,6 +87,9 @@ const OView: React.FC = () => {
 
   // WEEK 2 PHASE 2: Tab state for multi-view dashboard
   const [activeTab, setActiveTab] = useState(0);
+
+  // Ref for Host Monitoring tab to call refresh
+  const hostMonitoringRef = useRef<HostMonitoringTabRef>(null);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -148,9 +151,16 @@ const OView: React.FC = () => {
     loadAuditStats();
   }, []);
 
-  const handleRefresh = () => {
-    loadAuditEvents();
-    loadAuditStats();
+  const handleRefresh = async () => {
+    // Context-aware refresh based on active tab
+    if (activeTab === 0) {
+      // Security Audit tab
+      loadAuditEvents();
+      loadAuditStats();
+    } else if (activeTab === 1) {
+      // Host Monitoring tab
+      await hostMonitoringRef.current?.refresh();
+    }
   };
 
   const getSeverityIcon = (severity: string) => {
@@ -510,9 +520,9 @@ const OView: React.FC = () => {
         </Paper>
         </TabPanel>
 
-        {/* WEEK 2 PHASE 2: Tab Panel 1 - Host Infrastructure Monitoring (NEW) */}
+        {/* WEEK 2 PHASE 2: Tab Panel 1 - Host Monitoring (NEW) */}
         <TabPanel value={activeTab} index={1}>
-          <HostMonitoringTab />
+          <HostMonitoringTab ref={hostMonitoringRef} />
         </TabPanel>
       </Box>
     </Container>
