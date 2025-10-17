@@ -206,11 +206,14 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     refresh: fetchMonitoringData
   }));
 
-  // Load data on mount
+  // Load data ONCE on mount only - do NOT depend on fetchMonitoringData!
+  // The function reference is stable due to useCallback, but even if it changes,
+  // we don't want to re-fetch data on every change.
   useEffect(() => {
     console.log('[HostMonitoringTab] Component mounted, calling fetchMonitoringData');
     fetchMonitoringData();
-  }, [fetchMonitoringData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps = run once on mount
 
   // Memoized filtered hosts to prevent unnecessary recalculations
   const filteredHosts = useMemo(() => {
