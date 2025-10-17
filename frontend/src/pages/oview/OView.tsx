@@ -266,13 +266,13 @@ const OView: React.FC = () => {
             variant="fullWidth"
           >
             <Tab
-              label="Security Audit Dashboard"
+              label="Security Audit"
               icon={<Assessment />}
               iconPosition="start"
               sx={{ textTransform: 'none', fontWeight: 600 }}
             />
             <Tab
-              label="Host Infrastructure Monitoring"
+              label="Host Monitoring"
               icon={<MonitorHeart />}
               iconPosition="start"
               sx={{ textTransform: 'none', fontWeight: 600 }}

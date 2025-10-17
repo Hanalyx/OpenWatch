@@ -77,11 +77,11 @@ const HostMonitoringTab: React.FC = () => {
   };
 
   const stateDescriptions = {
-    HEALTHY: 'Stable - 30 min checks',
-    DEGRADED: 'Showing issues - 5 min checks',
-    CRITICAL: 'Repeated failures - 2 min checks',
-    DOWN: 'Confirmed down - 30 min checks',
-    MAINTENANCE: 'No checks during maintenance'
+    HEALTHY: 'No connection issues - checked every 30 minutes',
+    DEGRADED: '1 recent failure - checked every 5 minutes',
+    CRITICAL: '2+ failures - checked every 2 minutes',
+    DOWN: 'Host unreachable - checked every 30 minutes',
+    MAINTENANCE: 'Scheduled maintenance - monitoring paused'
   };
 
   useEffect(() => {
@@ -366,58 +366,43 @@ const HostMonitoringTab: React.FC = () => {
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" component="h3" gutterBottom fontWeight="bold">
-                Infrastructure Health Overview
+                How It Works
               </Typography>
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  <strong>Hybrid Monitoring System:</strong> This dashboard shows infrastructure monitoring states for SRE/DevOps teams.
-                  Hosts are automatically checked at adaptive intervals (30/5/2 minutes) based on their health state.
-                  The monitoring system uses a state machine to detect and respond to connectivity issues.
+                  <strong>Automated Monitoring:</strong> OpenWatch continuously checks host connectivity to help you identify issues before they impact compliance scans.
+                  Hosts showing problems are checked more frequently, while healthy hosts are checked less often to optimize system resources.
                 </Typography>
               </Alert>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
-                    <Typography variant="caption" color="textSecondary">Check Intervals</Typography>
+                    <Typography variant="caption" color="textSecondary">Monitoring Frequency</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      • HEALTHY: 30 minutes<br/>
-                      • DEGRADED: 5 minutes<br/>
-                      • CRITICAL: 2 minutes<br/>
-                      • DOWN: 30 minutes
+                      • Healthy: Every 30 minutes<br/>
+                      • Showing Issues: Every 5 minutes<br/>
+                      • Multiple Failures: Every 2 minutes<br/>
+                      • Down: Every 30 minutes
                     </Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
-                    <Typography variant="caption" color="textSecondary">State Transitions</Typography>
+                    <Typography variant="caption" color="textSecondary">Host States</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      • 1 failure → DEGRADED<br/>
-                      • 2 failures → CRITICAL<br/>
-                      • 3 failures → DOWN<br/>
-                      • 3 successes → HEALTHY
+                      • Healthy: No connection issues<br/>
+                      • Showing Issues: 1 recent failure<br/>
+                      • Multiple Failures: 2+ failures<br/>
+                      • Down: 3+ consecutive failures
                     </Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={6} md={4}>
                   <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
-                    <Typography variant="caption" color="textSecondary">Priority Levels</Typography>
+                    <Typography variant="caption" color="textSecondary">Recovery</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      • CRITICAL: Priority 9<br/>
-                      • DEGRADED: Priority 6<br/>
-                      • HEALTHY: Priority 3<br/>
-                      • DOWN: Priority 3
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
-                    <Typography variant="caption" color="textSecondary">System Capacity</Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      • Checks: 2000/min<br/>
-                      • Current Load: 4%<br/>
-                      • Max Hosts: 5000+<br/>
-                      • Workers: Distributed
+                      • Hosts automatically return to Healthy status after 3 successful connectivity checks in a row
                     </Typography>
                   </Box>
                 </Grid>
