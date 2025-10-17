@@ -11,7 +11,7 @@ def sanitize_for_log(value: any) -> str:
 System Settings API Routes
 Handles system-wide configuration including SSH credentials
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -30,6 +30,22 @@ from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["System Settings"])
+
+
+# Deprecation helper function
+def add_deprecation_headers(response: Response, endpoint: str, username: str):
+    """Add deprecation warning headers and logging for legacy credential endpoints"""
+    response.headers["X-Deprecation-Warning"] = (
+        "This endpoint is deprecated. Use /api/v2/credentials instead. "
+        "Removal scheduled: November 20, 2025"
+    )
+    response.headers["X-Deprecation-Sunset"] = "2025-11-20T23:59:59Z"
+
+    logger.warning(
+        f"DEPRECATED API CALL: {endpoint} called by user {username}. "
+        f"This endpoint uses legacy system_credentials table. "
+        f"Migrate to /api/v2/credentials. Removal: Nov 20, 2025"
+    )
 
 
 # Pydantic models
@@ -73,10 +89,20 @@ class SystemCredentialsResponse(SystemCredentialsBase):
 @router.get("/credentials", response_model=List[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def list_system_credentials(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """List all system credentials (admin only)"""
+    """
+    List all system credentials (admin only)
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to GET /api/v2/credentials?scope=system for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, "/api/v1/system/credentials", current_user.get('username', 'unknown'))
+
     try:
         
         result = db.execute(text("""
@@ -117,10 +143,19 @@ async def list_system_credentials(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def create_system_credentials(
     credentials: SystemCredentialsCreate,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create new system credentials (admin only)"""
+    """
+    Create new system credentials (admin only)
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to POST /api/v2/credentials for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, "/api/v1/system/credentials", current_user.get('username', 'unknown'))
     try:
         
         # If setting as default, unset other defaults
@@ -241,10 +276,20 @@ async def create_system_credentials(
 
 @router.get("/credentials/default")
 async def get_default_credentials(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get default system credentials for internal use"""
+    """
+    Get default system credentials for internal use
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to GET /api/v2/credentials?scope=system&is_default=true for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, "/api/v1/system/credentials/default", current_user.get('username', 'unknown'))
+
     try:
         result = db.execute(text("""
             SELECT id, name, username, auth_method, encrypted_password, 
@@ -299,10 +344,19 @@ async def get_default_credentials(
 async def update_system_credentials(
     credential_id: int,
     credentials: SystemCredentialsUpdate,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Update system credentials (admin only)"""
+    """
+    Update system credentials (admin only)
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to PUT /api/v2/credentials/{id} for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, f"/api/v1/system/credentials/{credential_id}", current_user.get('username', 'unknown'))
     try:
         
         # Check if credentials exist
@@ -442,10 +496,20 @@ async def update_system_credentials(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credentials(
     credential_id: int,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete system credentials (admin only)"""
+    """
+    Delete system credentials (admin only)
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to DELETE /api/v2/credentials/{id} for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, f"/api/v1/system/credentials/{credential_id}", current_user.get('username', 'unknown'))
+
     try:
         
         # Check if credentials exist
@@ -488,10 +552,20 @@ async def delete_system_credentials(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_ssh_key_from_credentials(
     credential_id: int,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete SSH key from system credentials (admin only)"""
+    """
+    Delete SSH key from system credentials (admin only)
+
+    ⚠️ DEPRECATED: This endpoint uses the legacy system_credentials table.
+    Migrate to PUT /api/v2/credentials/{id} (update to remove SSH key) for unified credential management.
+    Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
+    """
+    # Add deprecation warnings
+    add_deprecation_headers(response, f"/api/v1/system/credentials/{credential_id}/ssh-key", current_user.get('username', 'unknown'))
+
     try:
         
         # Check if credentials exist and have SSH key

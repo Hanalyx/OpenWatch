@@ -50,7 +50,10 @@ celery_app = Celery(
     "openwatch",
     broker=broker_url,
     backend=broker_url,
-    include=[]  # No tasks module for now
+    include=[
+        'backend.app.tasks.monitoring_tasks',
+        'backend.app.tasks.compliance_tasks'
+    ]
 )
 
 # FIPS-compliant Celery configuration
@@ -86,16 +89,19 @@ celery_app.conf.update(
     task_routes={
         "backend.app.tasks.scan_host": {"queue": "scans"},
         "backend.app.tasks.process_scan_result": {"queue": "results"},
-        "backend.app.tasks.cleanup_old_files": {"queue": "maintenance"}
+        "backend.app.tasks.cleanup_old_files": {"queue": "maintenance"},
+        "backend.app.tasks.check_host_connectivity": {"queue": "monitoring"},
+        "backend.app.tasks.queue_host_checks": {"queue": "monitoring"}
     },
-    
+
     # Queue configuration
     task_default_queue="default",
     task_queues=[
         Queue("default", routing_key="default"),
         Queue("scans", routing_key="scans"),
         Queue("results", routing_key="results"),
-        Queue("maintenance", routing_key="maintenance")
+        Queue("maintenance", routing_key="maintenance"),
+        Queue("monitoring", routing_key="monitoring")
     ],
     
     # Result backend settings

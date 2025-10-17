@@ -249,19 +249,14 @@ async def create_system_credential(
 @router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_system_credential(
-    credential_id: int,
+    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Get specific system credential by ID"""
     try:
-        # Find UUID from integer ID
-        uuid_id = find_uuid_by_int(db, credential_id)
-        if not uuid_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Credential not found"
-            )
+        # WEEK 2 MIGRATION: credential_id is now UUID string
+        uuid_id = credential_id
         
         # Get credential using unified service
         auth_service = get_auth_service(db)
@@ -345,20 +340,15 @@ async def get_default_system_credential(
 @router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def update_system_credential(
-    credential_id: int,
+    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     credential_update: SystemCredentialsUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Update system credential (Note: Currently creates new due to unified credentials architecture)"""
     try:
-        # Find UUID from integer ID
-        uuid_id = find_uuid_by_int(db, credential_id)
-        if not uuid_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Credential not found"
-            )
+        # WEEK 2 MIGRATION: credential_id is now UUID string from v2 API
+        uuid_id = credential_id
         
         auth_service = get_auth_service(db)
         credentials_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
@@ -492,19 +482,14 @@ async def update_system_credential(
 @router.delete("/credentials/{credential_id}")
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credential(
-    credential_id: int,
+    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete system credential"""
     try:
-        # Find UUID from integer ID
-        uuid_id = find_uuid_by_int(db, credential_id)
-        if not uuid_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Credential not found"
-            )
+        # WEEK 2 MIGRATION: credential_id is now UUID string from v2 API
+        uuid_id = credential_id
         
         # Delete using unified service
         auth_service = get_auth_service(db)
@@ -643,22 +628,24 @@ async def start_scheduler(
         
         if not scheduler.running:
             scheduler.start()
-            
+
             # Configure the monitoring job with the requested interval
-            from ..tasks.monitoring_tasks import periodic_host_monitoring
-            
+            # WEEK 2 MIGRATION: Use Celery queue-based approach for scalability
+            from ..tasks.monitoring_tasks import queue_host_checks
+
             # Remove any existing job first
             for job in scheduler.get_jobs():
                 if job.id == "host_monitoring":
                     scheduler.remove_job(job.id)
-            
+
             # Add the job with the specified interval
+            # This queues hosts for checking rather than checking them all synchronously
             scheduler.add_job(
-                periodic_host_monitoring,
+                queue_host_checks.delay,  # Use Celery task instead of direct function
                 'interval',
                 minutes=_scheduler_interval,
                 id='host_monitoring',
-                name='Host Monitoring Task',
+                name='Host Monitoring Queue Producer',
                 replace_existing=True
             )
             
@@ -669,6 +656,7 @@ async def start_scheduler(
                 db.execute(text("""
                     UPDATE scheduler_config
                     SET enabled = TRUE,
+                        auto_start = TRUE,
                         last_run = CURRENT_TIMESTAMP,
                         interval_minutes = :interval,
                         updated_at = CURRENT_TIMESTAMP
@@ -723,8 +711,9 @@ async def stop_scheduler(
                 from ..database import get_db
                 db = next(get_db())
                 db.execute(text("""
-                    UPDATE scheduler_config 
+                    UPDATE scheduler_config
                     SET enabled = FALSE,
+                        auto_start = FALSE,
                         last_stopped = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE service_name = 'host_monitoring'
@@ -850,25 +839,40 @@ def restore_scheduler_state():
                         logger.info("Scheduler started successfully")
                         
                         # Configure the monitoring job with saved interval
-                        from ..tasks.monitoring_tasks import periodic_host_monitoring
-                        
+                        # WEEK 2 MIGRATION: Use Celery queue-based approach for scalability
+                        from ..tasks.monitoring_tasks import queue_host_checks
+
                         # Remove any existing job first (including the hardcoded one from setup)
                         existing_jobs = scheduler.get_jobs()
                         logger.info(f"Found {len(existing_jobs)} existing jobs to remove")
                         for job in existing_jobs:
                             logger.info(f"Removing existing job: {job.id} - {job.name}")
                             scheduler.remove_job(job.id)
-                        
+
                         # Add the job with the correct interval from database
+                        # This queues hosts for checking rather than checking them all synchronously
                         scheduler.add_job(
-                            periodic_host_monitoring,
+                            queue_host_checks.delay,  # Use Celery task instead of direct function
                             'interval',
                             minutes=_scheduler_interval,
                             id='host_monitoring',
-                            name='Host Monitoring Task',
+                            name='Host Monitoring Queue Producer',
                             replace_existing=True
                         )
-                        logger.info(f"Added new monitoring job with {_scheduler_interval} minute interval")
+                        logger.info(f"Added new monitoring queue producer with {_scheduler_interval} minute interval")
+
+                        # Add daily credential purge job (90-day retention policy)
+                        from ..tasks.monitoring_tasks import periodic_credential_purge
+                        scheduler.add_job(
+                            periodic_credential_purge,
+                            'cron',
+                            hour=2,  # Run at 2 AM daily
+                            minute=0,
+                            id='credential_purge',
+                            name='Credential Purge Task (90-day retention)',
+                            replace_existing=True
+                        )
+                        logger.info("Added daily credential purge job (runs at 2 AM)")
                         
                         # Update database with start time
                         db.execute(text("""

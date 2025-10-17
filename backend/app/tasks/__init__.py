@@ -1,4 +1,5 @@
 # OpenWatch Celery Tasks Module
 
-# Import compliance tasks to register them with Celery
+# Import tasks to register them with Celery
 from . import compliance_tasks
+from . import monitoring_tasks
