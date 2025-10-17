@@ -96,7 +96,7 @@ const HostMonitoringTab: React.FC = () => {
       setStateDistribution(stateResponse.data || stateResponse);
 
       // Fetch critical/degraded hosts (DEGRADED, CRITICAL, DOWN states)
-      const hostsResponse = await api.get('/api/hosts');
+      const hostsResponse = await api.get('/api/hosts/');
       const allHosts = hostsResponse.data?.hosts || hostsResponse.hosts || hostsResponse.data || hostsResponse;
 
       // Get detailed state for critical hosts
