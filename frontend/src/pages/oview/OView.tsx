@@ -235,7 +235,7 @@ const OView: React.FC = () => {
         {/* WEEK 2 PHASE 2: Updated header with tabbed navigation */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box>
-            <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: 'primary.main' }}>
+            <Typography variant="h4" component="h1" gutterBottom>
               System Overview
             </Typography>
             <Typography variant="body1" color="text.secondary">

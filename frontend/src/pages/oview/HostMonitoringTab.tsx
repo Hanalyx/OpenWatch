@@ -161,7 +161,7 @@ const HostMonitoringTab: React.FC = () => {
     <Box sx={{ p: 3 }}>
       {/* Header with refresh button */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main' }}>
+        <Typography variant="h5" component="h2" fontWeight="bold">
           Host Infrastructure Monitoring
         </Typography>
         <Tooltip title="Refresh monitoring data">
@@ -229,7 +229,7 @@ const HostMonitoringTab: React.FC = () => {
         <Grid item xs={12} md={5}>
           <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" component="h3" gutterBottom fontWeight="bold">
                 Monitoring State Distribution
               </Typography>
               {pieData.length > 0 ? (
@@ -278,7 +278,7 @@ const HostMonitoringTab: React.FC = () => {
         <Grid item xs={12} md={7}>
           <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" component="h3" gutterBottom fontWeight="bold">
                 Hosts Requiring Attention
               </Typography>
               <TableContainer component={Paper} sx={{ maxHeight: 500 }}>
@@ -368,7 +368,7 @@ const HostMonitoringTab: React.FC = () => {
         <Grid item xs={12}>
           <Card elevation={2}>
             <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography variant="h6" component="h3" gutterBottom fontWeight="bold">
                 Infrastructure Health Overview
               </Typography>
               <Alert severity="info" sx={{ mb: 2 }}>
