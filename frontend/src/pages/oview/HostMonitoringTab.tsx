@@ -16,7 +16,8 @@ import {
   CircularProgress,
   Alert,
   IconButton,
-  Tooltip
+  Tooltip,
+  useTheme
 } from '@mui/material';
 import { Refresh, Computer, TrendingUp, Warning, CheckCircle } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -51,19 +52,20 @@ interface StateTransition {
 }
 
 const HostMonitoringTab: React.FC = () => {
+  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stateDistribution, setStateDistribution] = useState<MonitoringState | null>(null);
   const [criticalHosts, setCriticalHosts] = useState<HostStateDetail[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Color mapping for monitoring states (infrastructure-focused)
+  // Color mapping for monitoring states (uses theme colors, works in dark mode)
   const stateColors = {
-    HEALTHY: '#1c820f', // Green - stable
-    DEGRADED: '#ffdc00', // Yellow - showing issues
+    HEALTHY: theme.palette.success.main, // Green - stable
+    DEGRADED: theme.palette.warning.main, // Yellow - showing issues
     CRITICAL: '#ff9800', // Orange - repeated failures
-    DOWN: '#d32f2f', // Red - confirmed down
-    MAINTENANCE: '#757575' // Gray - manual maintenance
+    DOWN: theme.palette.error.main, // Red - confirmed down
+    MAINTENANCE: theme.palette.mode === 'light' ? '#757575' : '#9e9e9e' // Gray - manual maintenance
   };
 
   const stateIcons = {
@@ -159,7 +161,7 @@ const HostMonitoringTab: React.FC = () => {
     <Box sx={{ p: 3 }}>
       {/* Header with refresh button */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: '#004aad' }}>
+        <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main' }}>
           Host Infrastructure Monitoring
         </Typography>
         <Tooltip title="Refresh monitoring data">
@@ -177,43 +179,43 @@ const HostMonitoringTab: React.FC = () => {
               <Typography color="textSecondary" gutterBottom variant="body2">
                 Total Monitored Hosts
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: '#004aad' }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
                 {stateDistribution?.total_hosts || 0}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2} sx={{ bgcolor: '#e8f5e9' }}>
+          <Card elevation={2} sx={{ bgcolor: theme.palette.mode === 'light' ? '#e8f5e9' : 'rgba(28, 130, 15, 0.15)' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom variant="body2">
                 Healthy Hosts
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: '#1c820f' }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: 'success.main' }}>
                 {stateDistribution?.status_breakdown?.HEALTHY || 0}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2} sx={{ bgcolor: '#fff8e1' }}>
+          <Card elevation={2} sx={{ bgcolor: theme.palette.mode === 'light' ? '#fff8e1' : 'rgba(255, 220, 0, 0.15)' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom variant="body2">
                 Degraded Hosts
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: '#f9a825' }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: 'warning.main' }}>
                 {stateDistribution?.status_breakdown?.DEGRADED || 0}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <Card elevation={2} sx={{ bgcolor: '#ffebee' }}>
+          <Card elevation={2} sx={{ bgcolor: theme.palette.mode === 'light' ? '#ffebee' : 'rgba(211, 47, 47, 0.15)' }}>
             <CardContent>
               <Typography color="textSecondary" gutterBottom variant="body2">
                 Critical/Down Hosts
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: '#d32f2f' }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: 'error.main' }}>
                 {(stateDistribution?.status_breakdown?.CRITICAL || 0) +
                  (stateDistribution?.status_breakdown?.DOWN || 0)}
               </Typography>
@@ -296,7 +298,7 @@ const HostMonitoringTab: React.FC = () => {
                       <TableRow>
                         <TableCell colSpan={6} align="center">
                           <Box py={3}>
-                            <CheckCircle sx={{ fontSize: 48, color: '#1c820f', mb: 1 }} />
+                            <CheckCircle sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
                             <Typography color="textSecondary">
                               No hosts requiring attention - all systems operational
                             </Typography>
@@ -320,7 +322,7 @@ const HostMonitoringTab: React.FC = () => {
                               label={host.current_state}
                               sx={{
                                 bgcolor: stateColors[host.current_state as keyof typeof stateColors],
-                                color: '#fff',
+                                color: host.current_state === 'DEGRADED' && theme.palette.mode === 'light' ? 'rgba(0, 0, 0, 0.87)' : '#fff',
                                 fontWeight: 600
                               }}
                             />
@@ -379,7 +381,7 @@ const HostMonitoringTab: React.FC = () => {
 
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Box p={2} bgcolor="#f5f5f5" borderRadius={1}>
+                  <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
                     <Typography variant="caption" color="textSecondary">Check Intervals</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
                       • HEALTHY: 30 minutes<br/>
@@ -390,7 +392,7 @@ const HostMonitoringTab: React.FC = () => {
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Box p={2} bgcolor="#f5f5f5" borderRadius={1}>
+                  <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
                     <Typography variant="caption" color="textSecondary">State Transitions</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
                       • 1 failure → DEGRADED<br/>
@@ -401,7 +403,7 @@ const HostMonitoringTab: React.FC = () => {
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Box p={2} bgcolor="#f5f5f5" borderRadius={1}>
+                  <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
                     <Typography variant="caption" color="textSecondary">Priority Levels</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
                       • CRITICAL: Priority 9<br/>
@@ -412,7 +414,7 @@ const HostMonitoringTab: React.FC = () => {
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Box p={2} bgcolor="#f5f5f5" borderRadius={1}>
+                  <Box p={2} bgcolor={theme.palette.mode === 'light' ? '#f5f5f5' : 'rgba(255, 255, 255, 0.05)'} borderRadius={1}>
                     <Typography variant="caption" color="textSecondary">System Capacity</Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
                       • Checks: 2000/min<br/>

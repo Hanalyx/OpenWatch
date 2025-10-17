@@ -58,16 +58,41 @@ export const CustomThemeProvider: React.FC<ThemeProviderProps> = ({ children }) 
       createTheme({
         palette: {
           mode,
+          // Hanalyx Brand Colors
           primary: {
-            main: mode === 'light' ? '#1976d2' : '#90caf9',
-            light: mode === 'light' ? '#42a5f5' : '#bbdefb',
-            dark: mode === 'light' ? '#1565c0' : '#64b5f6',
+            main: '#004aad', // Hanalyx Blue
+            light: '#1565c0',
+            dark: '#003d91',
             contrastText: '#ffffff',
           },
           secondary: {
-            main: mode === 'light' ? '#dc004e' : '#f48fb1',
-            light: mode === 'light' ? '#ff5983' : '#f8bbd9',
-            dark: mode === 'light' ? '#9a0036' : '#c2185b',
+            main: '#1c820f', // Hanalyx Green
+            light: '#239313',
+            dark: '#15660b',
+            contrastText: '#ffffff',
+          },
+          warning: {
+            main: '#ffdc00', // Hanalyx Yellow
+            light: '#ffe533',
+            dark: '#e6c600',
+            contrastText: mode === 'light' ? '#004aad' : 'rgba(0, 0, 0, 0.87)',
+          },
+          error: {
+            main: '#d32f2f',
+            light: '#ef5350',
+            dark: '#c62828',
+            contrastText: '#ffffff',
+          },
+          success: {
+            main: '#1c820f', // Hanalyx Green
+            light: '#239313',
+            dark: '#15660b',
+            contrastText: '#ffffff',
+          },
+          info: {
+            main: '#004aad', // Hanalyx Blue
+            light: '#1565c0',
+            dark: '#003d91',
             contrastText: '#ffffff',
           },
           background: {
