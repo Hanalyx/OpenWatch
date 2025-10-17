@@ -135,7 +135,17 @@ const OView: React.FC = () => {
       });
 
       const response = await api.get(`/api/audit/events?${params}`);
-      setEvents(response.events || []);
+      const newEvents = response.events || [];
+      console.log('[OView] loadAuditEvents response:', {
+        eventsCount: newEvents.length,
+        total: response.total,
+        firstEvent: newEvents[0],
+        timestamp: new Date().toISOString(),
+        currentEventsCount: events.length,
+        eventsChanged: JSON.stringify(events[0]) !== JSON.stringify(newEvents[0])
+      });
+      // Force new array reference to trigger React re-render
+      setEvents([...newEvents]);
       setTotalEvents(response.total || 0);
       setLastUpdated(new Date());
 
@@ -184,9 +194,13 @@ const OView: React.FC = () => {
   useEffect(() => {
     if (!autoRefreshEnabled) return;
 
+    console.log('[OView] Setting up polling interval, activeTab:', activeTab, 'autoRefreshEnabled:', autoRefreshEnabled);
+
     const interval = setInterval(() => {
+      console.log('[OView] Polling interval fired, activeTab:', activeTab);
       if (activeTab === 0) {
         // Security Audit tab - refresh events and stats
+        console.log('[OView] Calling loadAuditEventsRef.current()');
         loadAuditEventsRef.current();
         loadAuditStatsRef.current();
       } else if (activeTab === 1) {
@@ -195,7 +209,10 @@ const OView: React.FC = () => {
       }
     }, 30000); // 30 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      console.log('[OView] Cleaning up polling interval');
+      clearInterval(interval);
+    };
   }, [activeTab, autoRefreshEnabled]);
 
   const handleRefresh = async () => {
@@ -212,6 +229,17 @@ const OView: React.FC = () => {
   const toggleAutoRefresh = () => {
     setAutoRefreshEnabled(!autoRefreshEnabled);
   };
+
+  // State to force re-render for "Updated Xs ago" display
+  const [, setTick] = useState(0);
+
+  // Update the "Updated Xs ago" display every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Format last updated time
   const formatLastUpdated = () => {
