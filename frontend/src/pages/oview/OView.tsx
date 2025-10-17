@@ -28,6 +28,8 @@ import {
   Avatar,
   useTheme,
   alpha,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Search,
@@ -45,8 +47,11 @@ import {
   Refresh,
   Download,
   Visibility,
+  Assessment,
+  MonitorHeart,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
+import HostMonitoringTab from './HostMonitoringTab';
 
 interface AuditEvent {
   id: number;
@@ -79,12 +84,15 @@ const OView: React.FC = () => {
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // WEEK 2 PHASE 2: Tab state for multi-view dashboard
+  const [activeTab, setActiveTab] = useState(0);
+
   // Pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalEvents, setTotalEvents] = useState(0);
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('');
@@ -206,31 +214,75 @@ const OView: React.FC = () => {
     </Card>
   );
 
+  // WEEK 2 PHASE 2: TabPanel component for tab content
+  interface TabPanelProps {
+    children?: React.ReactNode;
+    index: number;
+    value: number;
+  }
+
+  const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
+    return (
+      <div role="tabpanel" hidden={value !== index}>
+        {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      </div>
+    );
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
       <Box sx={{ mb: 3 }}>
+        {/* WEEK 2 PHASE 2: Updated header with tabbed navigation */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Box>
-            <Typography variant="h4" gutterBottom>
-              OView - Security Audit Dashboard
+            <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, color: '#004aad' }}>
+              System Overview
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Monitor and analyze security events, user activities, and system operations
+              Security audit, compliance monitoring, and infrastructure visibility
             </Typography>
           </Box>
           <Box>
             <Tooltip title="Refresh Data">
-              <IconButton onClick={handleRefresh} disabled={loading}>
+              <IconButton onClick={handleRefresh} disabled={loading} color="primary">
                 <Refresh />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export Report">
-              <IconButton>
+              <IconButton color="primary">
                 <Download />
               </IconButton>
             </Tooltip>
           </Box>
         </Box>
+
+        {/* WEEK 2 PHASE 2: Tab navigation */}
+        <Paper sx={{ mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, newValue) => setActiveTab(newValue)}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="fullWidth"
+          >
+            <Tab
+              label="Security Audit Dashboard"
+              icon={<Assessment />}
+              iconPosition="start"
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            />
+            <Tab
+              label="Host Infrastructure Monitoring"
+              icon={<MonitorHeart />}
+              iconPosition="start"
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            />
+          </Tabs>
+        </Paper>
+
+        {/* WEEK 2 PHASE 2: Tab Panel 0 - Security Audit Dashboard (existing content) */}
+        <TabPanel value={activeTab} index={0}>
+          {/* Original audit dashboard content */}
 
         {/* Statistics Cards */}
         {stats && (
@@ -456,6 +508,12 @@ const OView: React.FC = () => {
             }}
           />
         </Paper>
+        </TabPanel>
+
+        {/* WEEK 2 PHASE 2: Tab Panel 1 - Host Infrastructure Monitoring (NEW) */}
+        <TabPanel value={activeTab} index={1}>
+          <HostMonitoringTab />
+        </TabPanel>
       </Box>
     </Container>
   );
