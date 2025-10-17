@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -72,7 +72,11 @@ export interface HostMonitoringTabRef {
   refresh: () => Promise<void>;
 }
 
-const HostMonitoringTab = forwardRef<HostMonitoringTabRef>((props, ref) => {
+interface HostMonitoringTabProps {
+  onLastUpdated?: (date: Date) => void;
+}
+
+const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProps>(({ onLastUpdated }, ref) => {
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +155,12 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef>((props, ref) => {
       );
 
       setAllHosts(hostDetails.filter((h: HostStateDetail | null): h is HostStateDetail => h !== null));
+
+      // Notify parent of update
+      if (onLastUpdated) {
+        onLastUpdated(new Date());
+      }
+
       setLoading(false);
     } catch (err: any) {
       console.error('Error fetching monitoring data:', err);
@@ -169,23 +179,27 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef>((props, ref) => {
     fetchMonitoringData();
   }, []);
 
-  // Filter hosts based on search and state filter
-  const filteredHosts = allHosts.filter(host => {
-    const matchesSearch =
-      !searchQuery ||
-      host.hostname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      host.ip_address.toLowerCase().includes(searchQuery.toLowerCase());
+  // Memoized filtered hosts to prevent unnecessary recalculations
+  const filteredHosts = useMemo(() => {
+    return allHosts.filter(host => {
+      const matchesSearch =
+        !searchQuery ||
+        host.hostname.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        host.ip_address.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesState = !stateFilter || host.current_state === stateFilter;
+      const matchesState = !stateFilter || host.current_state === stateFilter;
 
-    return matchesSearch && matchesState;
-  });
+      return matchesSearch && matchesState;
+    });
+  }, [allHosts, searchQuery, stateFilter]);
 
-  // Paginated hosts
-  const paginatedHosts = filteredHosts.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  // Memoized paginated hosts
+  const paginatedHosts = useMemo(() => {
+    return filteredHosts.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredHosts, page, rowsPerPage]);
 
   // StatCard component (matching Security Audit design)
   const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color?: string }> = ({

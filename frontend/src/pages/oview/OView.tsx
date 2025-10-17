@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Container,
   Typography,
@@ -49,8 +49,11 @@ import {
   Visibility,
   Assessment,
   MonitorHeart,
+  Pause,
+  PlayArrow,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
+import { useDebounce } from '../../hooks/useDebounce';
 import HostMonitoringTab, { HostMonitoringTabRef } from './HostMonitoringTab';
 
 interface AuditEvent {
@@ -83,6 +86,7 @@ const OView: React.FC = () => {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // WEEK 2 PHASE 2: Tab state for multi-view dashboard
@@ -90,6 +94,10 @@ const OView: React.FC = () => {
 
   // Ref for Host Monitoring tab to call refresh
   const hostMonitoringRef = useRef<HostMonitoringTabRef>(null);
+
+  // Auto-refresh state
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -105,15 +113,18 @@ const OView: React.FC = () => {
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [userFilter, setUserFilter] = useState('');
 
+  // Debounced search query to avoid API calls on every keystroke
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
   const loadAuditEvents = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams({
         page: (page + 1).toString(),
         limit: rowsPerPage.toString(),
-        ...(searchQuery && { search: searchQuery }),
+        ...(debouncedSearchQuery && { search: debouncedSearchQuery }),
         ...(actionFilter && { action: actionFilter }),
         ...(resourceFilter && { resource_type: resourceFilter }),
         ...(severityFilter && { severity: severityFilter }),
@@ -121,11 +132,12 @@ const OView: React.FC = () => {
         ...(dateFrom && { date_from: dateFrom.toISOString() }),
         ...(dateTo && { date_to: dateTo.toISOString() }),
       });
-      
+
       const response = await api.get(`/api/audit/events?${params}`);
       setEvents(response.events || []);
       setTotalEvents(response.total || 0);
-      
+      setLastUpdated(new Date());
+
     } catch (err: any) {
       setError('Failed to load audit events');
       console.error('Error loading audit events:', err);
@@ -136,31 +148,66 @@ const OView: React.FC = () => {
 
   const loadAuditStats = async () => {
     try {
+      setStatsLoading(true);
       const response = await api.get('/api/audit/stats');
       setStats(response);
     } catch (err: any) {
       console.error('Error loading audit stats:', err);
+    } finally {
+      setStatsLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadAuditEvents();
-  }, [page, rowsPerPage, searchQuery, actionFilter, resourceFilter, severityFilter, userFilter, dateFrom, dateTo]);
-
+  // Load stats once on mount (they don't change with filters)
   useEffect(() => {
     loadAuditStats();
   }, []);
 
+  // Load events when filters change (using debounced search)
+  useEffect(() => {
+    loadAuditEvents();
+  }, [page, rowsPerPage, debouncedSearchQuery, actionFilter, resourceFilter, severityFilter, userFilter, dateFrom, dateTo]);
+
+  // Automatic polling every 30 seconds (only for active tab)
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+
+    const interval = setInterval(() => {
+      if (activeTab === 0) {
+        // Security Audit tab - refresh events and stats
+        loadAuditEvents();
+        loadAuditStats();
+      } else if (activeTab === 1) {
+        // Host Monitoring tab - refresh via ref
+        hostMonitoringRef.current?.refresh();
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [activeTab, autoRefreshEnabled]);
+
   const handleRefresh = async () => {
     // Context-aware refresh based on active tab
     if (activeTab === 0) {
-      // Security Audit tab
+      // Security Audit tab - only refresh events (stats don't change often)
       loadAuditEvents();
-      loadAuditStats();
     } else if (activeTab === 1) {
       // Host Monitoring tab
       await hostMonitoringRef.current?.refresh();
     }
+  };
+
+  const toggleAutoRefresh = () => {
+    setAutoRefreshEnabled(!autoRefreshEnabled);
+  };
+
+  // Format last updated time
+  const formatLastUpdated = () => {
+    if (!lastUpdated) return '';
+    const secondsAgo = Math.floor((new Date().getTime() - lastUpdated.getTime()) / 1000);
+    if (secondsAgo < 60) return `Updated ${secondsAgo}s ago`;
+    const minutesAgo = Math.floor(secondsAgo / 60);
+    return `Updated ${minutesAgo}m ago`;
   };
 
   const getSeverityIcon = (severity: string) => {
@@ -204,25 +251,29 @@ const OView: React.FC = () => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color?: string }> = ({ title, value, icon, color = 'primary' }) => (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: `${color}.main` }}>
-              {value.toLocaleString()}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {title}
-            </Typography>
+  // Memoized StatCard to prevent unnecessary re-renders
+  const StatCard = React.memo<{ title: string; value: number; icon: React.ReactNode; color?: string }>(
+    ({ title, value, icon, color = 'primary' }) => (
+      <Card sx={{ height: '100%' }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: `${color}.main` }}>
+                {value.toLocaleString()}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {title}
+              </Typography>
+            </Box>
+            <Avatar sx={{ bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1), color: `${color}.main` }}>
+              {icon}
+            </Avatar>
           </Box>
-          <Avatar sx={{ bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1), color: `${color}.main` }}>
-            {icon}
-          </Avatar>
-        </Box>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    )
   );
+  StatCard.displayName = 'StatCard';
 
   // WEEK 2 PHASE 2: TabPanel component for tab content
   interface TabPanelProps {
@@ -252,8 +303,18 @@ const OView: React.FC = () => {
               Security audit, compliance monitoring, and infrastructure visibility
             </Typography>
           </Box>
-          <Box>
-            <Tooltip title="Refresh Data">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {lastUpdated && (
+              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                {formatLastUpdated()}
+              </Typography>
+            )}
+            <Tooltip title={autoRefreshEnabled ? "Pause auto-refresh" : "Resume auto-refresh"}>
+              <IconButton onClick={toggleAutoRefresh} color="primary" size="small">
+                {autoRefreshEnabled ? <Pause /> : <PlayArrow />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Refresh Now">
               <IconButton onClick={handleRefresh} disabled={loading} color="primary">
                 <Refresh />
               </IconButton>
@@ -522,7 +583,10 @@ const OView: React.FC = () => {
 
         {/* WEEK 2 PHASE 2: Tab Panel 1 - Host Monitoring (NEW) */}
         <TabPanel value={activeTab} index={1}>
-          <HostMonitoringTab ref={hostMonitoringRef} />
+          <HostMonitoringTab
+            ref={hostMonitoringRef}
+            onLastUpdated={(date) => setLastUpdated(date)}
+          />
         </TabPanel>
       </Box>
     </Container>
