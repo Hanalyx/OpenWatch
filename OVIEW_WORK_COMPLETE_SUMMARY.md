@@ -42,12 +42,20 @@ All work on the `/OView` dashboard (Security Audit and Host Monitoring tabs) has
 - **Fix**: Added missing imports: `useRef, useCallback`
 - **Commit**: `fa60de8`
 
-#### Bug #4: Infinite Rendering Loop (CRITICAL) 🔴
+#### Bug #4: Infinite Rendering Loop #1 (CRITICAL) 🔴
 - **Issue**: Host Monitoring tab rendered infinitely, 90%+ CPU, page unusable
 - **Cause**: `useEffect(() => { fetchMonitoringData() }, [fetchMonitoringData])`
 - **Root**: Function dependency caused effect to re-run on every function recreation
 - **Fix**: Changed to `}, [])` for run-once behavior
 - **Commits**: `8f3026e`, `7ffb7e7`, `fa60de8`, `5f02768`, `c6468cb` (iterative fix)
+
+#### Bug #5: Infinite Loop #2 - useImperativeHandle (CRITICAL) 🔴
+- **Issue**: After fixing Bug #4, infinite loop returned with different pattern
+- **Cause**: `useImperativeHandle(ref, () => {})` missing dependency array
+- **Root**: Ref object recreated on every render, triggering repeated fetches
+- **Fix**: Added empty `[]` deps + ref pattern for latest function access
+- **Commit**: `8de039b`
+- **Documentation**: `USEIMPERATIVEHANDLE_INFINITE_LOOP_FIX.md`
 
 ---
 
@@ -56,6 +64,7 @@ All work on the `/OView` dashboard (Security Audit and Host Monitoring tabs) has
 All changes committed to current branch:
 
 ```
+8de039b ✅ Fix useImperativeHandle missing dependency array (second infinite loop)
 c6468cb ✅ Fix infinite loop: useEffect should not depend on fetchMonitoringData
 5f02768    Add comprehensive diagnostic logging for infinite render investigation
 fa60de8    Add missing useRef and useCallback imports to HostMonitoringTab
@@ -81,11 +90,12 @@ b614aef    Redesign Host Monitoring dashboard to match Security Audit layout
    - 1-second timer for timestamp updates
 
 2. **`frontend/src/pages/oview/HostMonitoringTab.tsx`**
-   - Fixed infinite loop (useEffect deps)
+   - Fixed infinite loop #1 (useEffect deps)
+   - Fixed infinite loop #2 (useImperativeHandle deps)
    - Added React performance optimizations
-   - Implemented ref pattern for callbacks
+   - Implemented ref pattern for callbacks and imperative handle
    - Wrapped in React.memo
-   - Added forwardRef + useImperativeHandle
+   - Added forwardRef + useImperativeHandle with proper deps
 
 3. **`frontend/src/hooks/useDebounce.ts`**
    - (Already existed, verified implementation)

@@ -46,10 +46,10 @@ This index provides quick navigation to all documentation related to the `/OView
 
 ## 🐛 Bug Fixes & Troubleshooting
 
-### Critical: Infinite Rendering Loop
+### Critical: Infinite Rendering Loops (2 separate bugs!)
 
 #### 5. [HOST_MONITORING_INFINITE_LOOP_SOLUTION.md](HOST_MONITORING_INFINITE_LOOP_SOLUTION.md) ⭐
-**THE definitive solution document**
+**THE definitive solution document for Bug #1: useEffect dependency**
 - Root cause explanation
 - Loop mechanism diagram
 - Evidence from console logs
@@ -58,7 +58,17 @@ This index provides quick navigation to all documentation related to the `/OView
 - Lessons learned
 - Testing verification
 
-**Read this if you need to understand the infinite loop fix!**
+**Read this if you need to understand the first infinite loop fix!**
+
+#### 5b. [USEIMPERATIVEHANDLE_INFINITE_LOOP_FIX.md](USEIMPERATIVEHANDLE_INFINITE_LOOP_FIX.md) ⭐
+**Bug #2: useImperativeHandle missing dependency array**
+- Second infinite loop discovered after fixing first
+- Missing dependency array on useImperativeHandle
+- Ref pattern solution
+- Complete fix with code examples
+- Why all React hooks need dependency arrays
+
+**Read this if you need to understand the second infinite loop fix!**
 
 #### 6. [OVIEW_INFINITE_LOOP_FIX.md](OVIEW_INFINITE_LOOP_FIX.md)
 **First fix attempt documentation**
