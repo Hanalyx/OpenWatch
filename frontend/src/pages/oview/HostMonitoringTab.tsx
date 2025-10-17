@@ -77,6 +77,7 @@ interface HostMonitoringTabProps {
 }
 
 const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProps>(({ onLastUpdated }, ref) => {
+  console.log('[HostMonitoringTab] Component rendering');
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,17 +118,22 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   };
 
   const fetchMonitoringData = async () => {
+    console.log('[HostMonitoringTab] fetchMonitoringData called');
     try {
       setLoading(true);
       setError(null);
 
       // Fetch state distribution from monitoring API
+      console.log('[HostMonitoringTab] Fetching status...');
       const stateResponse = await api.get('/api/monitoring/hosts/status');
+      console.log('[HostMonitoringTab] Status response:', stateResponse);
       setStateDistribution(stateResponse.data || stateResponse);
 
       // Fetch ALL hosts with monitoring state
+      console.log('[HostMonitoringTab] Fetching hosts...');
       const hostsResponse = await api.get('/api/hosts/');
       const hostsData = hostsResponse.data?.hosts || hostsResponse.hosts || hostsResponse.data || hostsResponse;
+      console.log('[HostMonitoringTab] Hosts response:', { count: hostsData?.length });
 
       // Get detailed state for ALL hosts (not just critical)
       const hostDetails = await Promise.all(
@@ -154,16 +160,20 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         })
       );
 
-      setAllHosts(hostDetails.filter((h: HostStateDetail | null): h is HostStateDetail => h !== null));
+      const validHosts = hostDetails.filter((h: HostStateDetail | null): h is HostStateDetail => h !== null);
+      console.log('[HostMonitoringTab] Setting hosts:', { count: validHosts.length });
+      setAllHosts(validHosts);
 
       // Notify parent of update
       if (onLastUpdated) {
+        console.log('[HostMonitoringTab] Notifying parent of update');
         onLastUpdated(new Date());
       }
 
+      console.log('[HostMonitoringTab] fetchMonitoringData completed successfully');
       setLoading(false);
     } catch (err: any) {
-      console.error('Error fetching monitoring data:', err);
+      console.error('[HostMonitoringTab] Error fetching monitoring data:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to load monitoring data');
       setLoading(false);
     }
@@ -176,6 +186,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
   // Load data on mount
   useEffect(() => {
+    console.log('[HostMonitoringTab] Component mounted, calling fetchMonitoringData');
     fetchMonitoringData();
   }, []);
 
