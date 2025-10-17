@@ -77,7 +77,10 @@ interface HostMonitoringTabProps {
 }
 
 const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProps>(({ onLastUpdated }, ref) => {
-  console.log('[HostMonitoringTab] Component rendering');
+  const renderCount = useRef(0);
+  renderCount.current++;
+  console.log('[HostMonitoringTab] ===== RENDER #' + renderCount.current + ' =====');
+
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +89,20 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
   // Use ref to always access latest onLastUpdated without causing re-renders
   const onLastUpdatedRef = useRef(onLastUpdated);
+
+  // DIAGNOSTIC: Check if onLastUpdated prop is changing
+  const prevOnLastUpdatedRef = useRef(onLastUpdated);
   useEffect(() => {
+    if (prevOnLastUpdatedRef.current !== onLastUpdated) {
+      console.error('[HostMonitoringTab] ⚠️ onLastUpdated prop CHANGED!', {
+        previous: prevOnLastUpdatedRef.current,
+        current: onLastUpdated,
+        areEqual: prevOnLastUpdatedRef.current === onLastUpdated
+      });
+    } else {
+      console.log('[HostMonitoringTab] ✓ onLastUpdated prop STABLE');
+    }
+    prevOnLastUpdatedRef.current = onLastUpdated;
     onLastUpdatedRef.current = onLastUpdated;
   }, [onLastUpdated]);
 
@@ -489,5 +505,16 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
 HostMonitoringTab.displayName = 'HostMonitoringTab';
 
-// Wrap in React.memo to prevent unnecessary re-renders from parent
-export default React.memo(HostMonitoringTab);
+// DIAGNOSTIC: Custom comparison function to see if React.memo is working
+const arePropsEqual = (prevProps: HostMonitoringTabProps, nextProps: HostMonitoringTabProps) => {
+  const equal = prevProps.onLastUpdated === nextProps.onLastUpdated;
+  console.log('[HostMonitoringTab] React.memo comparison:', {
+    equal,
+    prevCallback: prevProps.onLastUpdated,
+    nextCallback: nextProps.onLastUpdated
+  });
+  return equal;
+};
+
+// Wrap in React.memo with custom comparison to prevent unnecessary re-renders from parent
+export default React.memo(HostMonitoringTab, arePropsEqual);

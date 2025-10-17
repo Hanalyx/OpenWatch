@@ -232,8 +232,20 @@ const OView: React.FC = () => {
 
   // Memoized callback to prevent infinite re-render loop
   const handleLastUpdated = useCallback((date: Date) => {
+    console.log('[OView] handleLastUpdated called', date);
     setLastUpdated(date);
   }, []);
+
+  // DIAGNOSTIC: Check if handleLastUpdated reference is stable
+  const prevHandleLastUpdatedRef = useRef(handleLastUpdated);
+  useEffect(() => {
+    if (prevHandleLastUpdatedRef.current !== handleLastUpdated) {
+      console.error('[OView] ⚠️ handleLastUpdated reference CHANGED!');
+    } else {
+      console.log('[OView] ✓ handleLastUpdated reference STABLE');
+    }
+    prevHandleLastUpdatedRef.current = handleLastUpdated;
+  });
 
   // State to force re-render for "Updated Xs ago" display
   const [, setTick] = useState(0);
