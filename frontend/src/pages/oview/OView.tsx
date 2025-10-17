@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -116,7 +116,8 @@ const OView: React.FC = () => {
   // Debounced search query to avoid API calls on every keystroke
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  const loadAuditEvents = async () => {
+  // Memoized loadAuditEvents to prevent unnecessary re-creations
+  const loadAuditEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -144,9 +145,10 @@ const OView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, rowsPerPage, debouncedSearchQuery, actionFilter, resourceFilter, severityFilter, userFilter, dateFrom, dateTo]);
 
-  const loadAuditStats = async () => {
+  // Memoized loadAuditStats to prevent unnecessary re-creations
+  const loadAuditStats = useCallback(async () => {
     try {
       setStatsLoading(true);
       const response = await api.get('/api/audit/stats');
@@ -156,17 +158,27 @@ const OView: React.FC = () => {
     } finally {
       setStatsLoading(false);
     }
-  };
+  }, []);
 
   // Load stats once on mount (they don't change with filters)
   useEffect(() => {
     loadAuditStats();
-  }, []);
+  }, [loadAuditStats]);
 
   // Load events when filters change (using debounced search)
   useEffect(() => {
     loadAuditEvents();
-  }, [page, rowsPerPage, debouncedSearchQuery, actionFilter, resourceFilter, severityFilter, userFilter, dateFrom, dateTo]);
+  }, [loadAuditEvents]);
+
+  // Ref to always access latest loadAuditEvents function
+  const loadAuditEventsRef = useRef(loadAuditEvents);
+  const loadAuditStatsRef = useRef(loadAuditStats);
+
+  // Keep refs up to date
+  useEffect(() => {
+    loadAuditEventsRef.current = loadAuditEvents;
+    loadAuditStatsRef.current = loadAuditStats;
+  }, [loadAuditEvents, loadAuditStats]);
 
   // Automatic polling every 30 seconds (only for active tab)
   useEffect(() => {
@@ -175,8 +187,8 @@ const OView: React.FC = () => {
     const interval = setInterval(() => {
       if (activeTab === 0) {
         // Security Audit tab - refresh events and stats
-        loadAuditEvents();
-        loadAuditStats();
+        loadAuditEventsRef.current();
+        loadAuditStatsRef.current();
       } else if (activeTab === 1) {
         // Host Monitoring tab - refresh via ref
         hostMonitoringRef.current?.refresh();
