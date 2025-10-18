@@ -90,6 +90,9 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   // In-flight request guard to prevent overlapping API calls
   const fetchingRef = useRef(false);
 
+  // Mount guard to prevent double-fetch in React StrictMode
+  const hasFetchedRef = useRef(false);
+
   // Use ref to always access latest onLastUpdated without causing re-renders
   const onLastUpdatedRef = useRef(onLastUpdated);
 
@@ -226,7 +229,14 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   // Load data ONCE on mount only - do NOT depend on fetchMonitoringData!
   // The function reference is stable due to useCallback, but even if it changes,
   // we don't want to re-fetch data on every change.
+  // CRITICAL: Guard against React StrictMode double-mounting
   useEffect(() => {
+    if (hasFetchedRef.current) {
+      console.log('[HostMonitoringTab] Already fetched, skipping mount fetch (StrictMode protection)');
+      return;
+    }
+
+    hasFetchedRef.current = true;
     console.log('[HostMonitoringTab] Component mounted, calling fetchMonitoringData');
     fetchMonitoringData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
