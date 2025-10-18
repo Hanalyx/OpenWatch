@@ -245,7 +245,7 @@ const OView: React.FC = () => {
       console.log('[OView] ✓ handleLastUpdated reference STABLE');
     }
     prevHandleLastUpdatedRef.current = handleLastUpdated;
-  });
+  }, [handleLastUpdated]); // CRITICAL FIX: Only run when handleLastUpdated changes, not on every render!
 
   // State to force re-render for "Updated Xs ago" display
   const [, setTick] = useState(0);
