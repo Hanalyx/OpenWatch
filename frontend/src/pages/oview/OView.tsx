@@ -346,10 +346,16 @@ const OView: React.FC = () => {
     value: number;
   }
 
+  // CRITICAL FIX: Keep children mounted but hide with CSS to prevent unmount/remount loops
+  // Using conditional rendering {value === index && children} causes children to unmount
+  // when parent re-renders, triggering infinite mount/fetch cycles
   const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
     return (
-      <div role="tabpanel" hidden={value !== index}>
-        {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      <div
+        role="tabpanel"
+        style={{ display: value === index ? 'block' : 'none' }}
+      >
+        <Box sx={{ py: 3 }}>{children}</Box>
       </div>
     );
   };
