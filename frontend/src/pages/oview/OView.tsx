@@ -81,6 +81,32 @@ interface AuditStats {
   unique_ips: number;
 }
 
+// WEEK 2 PHASE 2: TabPanel component for tab content
+// CRITICAL: Define OUTSIDE OView to prevent recreation on every render
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+// CRITICAL FIX: Keep children mounted but hide with CSS to prevent unmount/remount loops
+// Using conditional rendering {value === index && children} causes children to unmount
+// when parent re-renders, triggering infinite mount/fetch cycles
+// Use React.memo to prevent re-rendering when props haven't changed
+const TabPanel = React.memo<TabPanelProps>(({ children, value, index }) => {
+  const isVisible = value === index;
+  return (
+    <div
+      role="tabpanel"
+      aria-hidden={!isVisible}
+      style={{ display: isVisible ? 'block' : 'none' }}
+    >
+      <Box sx={{ py: 3 }}>{children}</Box>
+    </div>
+  );
+});
+TabPanel.displayName = 'TabPanel';
+
 const OView: React.FC = () => {
   const theme = useTheme();
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -136,16 +162,7 @@ const OView: React.FC = () => {
 
       const response = await api.get(`/api/audit/events?${params}`);
       const newEvents = response.events || [];
-      console.log('[OView] loadAuditEvents response:', {
-        eventsCount: newEvents.length,
-        total: response.total,
-        firstEvent: newEvents[0],
-        timestamp: new Date().toISOString(),
-        currentEventsCount: events.length,
-        eventsChanged: JSON.stringify(events[0]) !== JSON.stringify(newEvents[0])
-      });
-      // Force new array reference to trigger React re-render
-      setEvents([...newEvents]);
+      setEvents(newEvents);
       setTotalEvents(response.total || 0);
       setLastUpdated(new Date());
 
@@ -201,14 +218,10 @@ const OView: React.FC = () => {
   useEffect(() => {
     if (!autoRefreshEnabled) return;
 
-    console.log('[OView] Setting up polling interval for Security Audit only, activeTab:', activeTab, 'autoRefreshEnabled:', autoRefreshEnabled);
-
     const interval = setInterval(() => {
       const currentTab = activeTabRef.current;  // Use ref to get CURRENT tab value
-      console.log('[OView] Polling interval fired, currentTab:', currentTab);
       if (currentTab === 0) {
         // Security Audit tab - refresh events and stats
-        console.log('[OView] Calling loadAuditEventsRef.current()');
         loadAuditEventsRef.current();
         loadAuditStatsRef.current();
       }
@@ -216,10 +229,7 @@ const OView: React.FC = () => {
       // Users must manually click refresh button for Host Monitoring
     }, 30000); // 30 seconds
 
-    return () => {
-      console.log('[OView] Cleaning up polling interval');
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [autoRefreshEnabled]);  // Remove activeTab from deps - we use ref instead
 
   const handleRefresh = async () => {
@@ -239,20 +249,8 @@ const OView: React.FC = () => {
 
   // Memoized callback to prevent infinite re-render loop
   const handleLastUpdated = useCallback((date: Date) => {
-    console.log('[OView] handleLastUpdated called', date);
     setLastUpdated(date);
   }, []);
-
-  // DIAGNOSTIC: Check if handleLastUpdated reference is stable
-  const prevHandleLastUpdatedRef = useRef(handleLastUpdated);
-  useEffect(() => {
-    if (prevHandleLastUpdatedRef.current !== handleLastUpdated) {
-      console.error('[OView] ⚠️ handleLastUpdated reference CHANGED!');
-    } else {
-      console.log('[OView] ✓ handleLastUpdated reference STABLE');
-    }
-    prevHandleLastUpdatedRef.current = handleLastUpdated;
-  }, [handleLastUpdated]); // CRITICAL FIX: Only run when handleLastUpdated changes, not on every render!
 
   // State to force re-render for "Updated Xs ago" display
   const [, setTick] = useState(0);
@@ -338,27 +336,6 @@ const OView: React.FC = () => {
     )
   );
   StatCard.displayName = 'StatCard';
-
-  // WEEK 2 PHASE 2: TabPanel component for tab content
-  interface TabPanelProps {
-    children?: React.ReactNode;
-    index: number;
-    value: number;
-  }
-
-  // CRITICAL FIX: Keep children mounted but hide with CSS to prevent unmount/remount loops
-  // Using conditional rendering {value === index && children} causes children to unmount
-  // when parent re-renders, triggering infinite mount/fetch cycles
-  const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-    return (
-      <div
-        role="tabpanel"
-        style={{ display: value === index ? 'block' : 'none' }}
-      >
-        <Box sx={{ py: 3 }}>{children}</Box>
-      </div>
-    );
-  };
 
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
