@@ -55,9 +55,9 @@ interface HostStateDetail {
   consecutive_failures: number;
   consecutive_successes: number;
   check_priority: number;
-  response_time_ms: number;
+  response_time_ms: number | null;
   last_check: string;
-  next_check_time: string;
+  next_check_time: string | null;
 }
 
 interface StateTransition {
@@ -86,6 +86,9 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   const [error, setError] = useState<string | null>(null);
   const [stateDistribution, setStateDistribution] = useState<MonitoringState | null>(null);
   const [allHosts, setAllHosts] = useState<HostStateDetail[]>([]);
+
+  // In-flight request guard to prevent overlapping API calls
+  const fetchingRef = useRef(false);
 
   // Use ref to always access latest onLastUpdated without causing re-renders
   const onLastUpdatedRef = useRef(onLastUpdated);
@@ -120,7 +123,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     DEGRADED: theme.palette.warning.main, // Yellow - showing issues
     CRITICAL: '#ff9800', // Orange - repeated failures
     DOWN: theme.palette.error.main, // Red - confirmed down
-    MAINTENANCE: theme.palette.mode === 'light' ? '#757575' : '#9e9e9e' // Gray - manual maintenance
+    MAINTENANCE: theme.palette.mode === 'light' ? '#757575' : '#9e9e9e', // Gray - manual maintenance
+    UNKNOWN: theme.palette.grey[500] // Gray - unknown/uninitialized state
   };
 
   const stateIcons = {
@@ -128,7 +132,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     DEGRADED: <Warning sx={{ color: stateColors.DEGRADED }} />,
     CRITICAL: <Warning sx={{ color: stateColors.CRITICAL }} />,
     DOWN: <Warning sx={{ color: stateColors.DOWN }} />,
-    MAINTENANCE: <Computer sx={{ color: stateColors.MAINTENANCE }} />
+    MAINTENANCE: <Computer sx={{ color: stateColors.MAINTENANCE }} />,
+    UNKNOWN: <ErrorOutline sx={{ color: stateColors.UNKNOWN }} />
   };
 
   const stateDescriptions = {
@@ -136,11 +141,20 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     DEGRADED: '1 recent failure - checked every 5 minutes',
     CRITICAL: '2+ failures - checked every 2 minutes',
     DOWN: 'Host unreachable - checked every 30 minutes',
-    MAINTENANCE: 'Scheduled maintenance - monitoring paused'
+    MAINTENANCE: 'Scheduled maintenance - monitoring paused',
+    UNKNOWN: 'Status not yet determined - waiting for first check'
   };
 
   const fetchMonitoringData = useCallback(async () => {
+    // CRITICAL: Prevent overlapping API calls
+    if (fetchingRef.current) {
+      console.log('[HostMonitoringTab] Fetch already in progress, skipping...');
+      return;
+    }
+
+    fetchingRef.current = true;
     console.log('[HostMonitoringTab] fetchMonitoringData called');
+
     try {
       setLoading(true);
       setError(null);
@@ -168,18 +182,17 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         consecutive_failures: host.consecutive_failures || 0,
         consecutive_successes: host.consecutive_successes || 0,
         check_priority: host.check_priority || 3,
-        response_time_ms: host.response_time_ms || null,
+        response_time_ms: host.response_time_ms ?? null,
         last_check: host.last_check || host.updated_at,
-        next_check_time: host.next_check_time || null
+        next_check_time: host.next_check_time ?? null
       }));
 
       console.log('[HostMonitoringTab] Mapped host details (no N+1 queries):', { count: hostDetails.length, sample: hostDetails[0] });
       setAllHosts(hostDetails);
 
       console.log('[HostMonitoringTab] fetchMonitoringData completed successfully');
-      setLoading(false);
 
-      // Notify parent of update AFTER setting loading to false
+      // Notify parent of update AFTER data is set
       if (onLastUpdatedRef.current) {
         console.log('[HostMonitoringTab] Notifying parent of update');
         onLastUpdatedRef.current(new Date());
@@ -187,7 +200,10 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     } catch (err: any) {
       console.error('[HostMonitoringTab] Error fetching monitoring data:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to load monitoring data');
+    } finally {
+      // Always clear the in-flight flag and loading state
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, []);
 
