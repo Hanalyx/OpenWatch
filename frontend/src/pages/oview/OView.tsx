@@ -196,11 +196,12 @@ const OView: React.FC = () => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
 
-  // Automatic polling every 30 seconds (only for active tab)
+  // Automatic polling every 30 seconds (ONLY for Security Audit tab)
+  // Host Monitoring is manual-refresh only for stability
   useEffect(() => {
     if (!autoRefreshEnabled) return;
 
-    console.log('[OView] Setting up polling interval, activeTab:', activeTab, 'autoRefreshEnabled:', autoRefreshEnabled);
+    console.log('[OView] Setting up polling interval for Security Audit only, activeTab:', activeTab, 'autoRefreshEnabled:', autoRefreshEnabled);
 
     const interval = setInterval(() => {
       const currentTab = activeTabRef.current;  // Use ref to get CURRENT tab value
@@ -210,11 +211,9 @@ const OView: React.FC = () => {
         console.log('[OView] Calling loadAuditEventsRef.current()');
         loadAuditEventsRef.current();
         loadAuditStatsRef.current();
-      } else if (currentTab === 1) {
-        // Host Monitoring tab - refresh via ref
-        console.log('[OView] Calling hostMonitoringRef.current.refresh()');
-        hostMonitoringRef.current?.refresh();
       }
+      // Note: Host Monitoring (tab 1) is excluded from auto-refresh
+      // Users must manually click refresh button for Host Monitoring
     }, 30000); // 30 seconds
 
     return () => {
@@ -374,11 +373,18 @@ const OView: React.FC = () => {
                 {formatLastUpdated()}
               </Typography>
             )}
-            <Tooltip title={autoRefreshEnabled ? "Pause auto-refresh" : "Resume auto-refresh"}>
-              <IconButton onClick={toggleAutoRefresh} color="primary" size="small">
-                {autoRefreshEnabled ? <Pause /> : <PlayArrow />}
-              </IconButton>
-            </Tooltip>
+            {activeTab === 1 && (
+              <Typography variant="caption" color="warning.main" sx={{ mr: 1, fontStyle: 'italic' }}>
+                Manual refresh only
+              </Typography>
+            )}
+            {activeTab === 0 && (
+              <Tooltip title={autoRefreshEnabled ? "Pause auto-refresh (Security Audit only)" : "Resume auto-refresh (Security Audit only)"}>
+                <IconButton onClick={toggleAutoRefresh} color="primary" size="small">
+                  {autoRefreshEnabled ? <Pause /> : <PlayArrow />}
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="Refresh Now">
               <IconButton onClick={handleRefresh} disabled={loading} color="primary">
                 <Refresh />
