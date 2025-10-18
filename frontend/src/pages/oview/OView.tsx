@@ -190,6 +190,12 @@ const OView: React.FC = () => {
     loadAuditStatsRef.current = loadAuditStats;
   }, [loadAuditEvents, loadAuditStats]);
 
+  // Keep ref to latest activeTab to avoid stale closure in polling interval
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
   // Automatic polling every 30 seconds (only for active tab)
   useEffect(() => {
     if (!autoRefreshEnabled) return;
@@ -197,14 +203,16 @@ const OView: React.FC = () => {
     console.log('[OView] Setting up polling interval, activeTab:', activeTab, 'autoRefreshEnabled:', autoRefreshEnabled);
 
     const interval = setInterval(() => {
-      console.log('[OView] Polling interval fired, activeTab:', activeTab);
-      if (activeTab === 0) {
+      const currentTab = activeTabRef.current;  // Use ref to get CURRENT tab value
+      console.log('[OView] Polling interval fired, currentTab:', currentTab);
+      if (currentTab === 0) {
         // Security Audit tab - refresh events and stats
         console.log('[OView] Calling loadAuditEventsRef.current()');
         loadAuditEventsRef.current();
         loadAuditStatsRef.current();
-      } else if (activeTab === 1) {
+      } else if (currentTab === 1) {
         // Host Monitoring tab - refresh via ref
+        console.log('[OView] Calling hostMonitoringRef.current.refresh()');
         hostMonitoringRef.current?.refresh();
       }
     }, 30000); // 30 seconds
@@ -213,7 +221,7 @@ const OView: React.FC = () => {
       console.log('[OView] Cleaning up polling interval');
       clearInterval(interval);
     };
-  }, [activeTab, autoRefreshEnabled]);
+  }, [autoRefreshEnabled]);  // Remove activeTab from deps - we use ref instead
 
   const handleRefresh = async () => {
     // Context-aware refresh based on active tab
