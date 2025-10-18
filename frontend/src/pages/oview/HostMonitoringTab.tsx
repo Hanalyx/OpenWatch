@@ -157,34 +157,24 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       const hostsData = hostsResponse.data?.hosts || hostsResponse.hosts || hostsResponse.data || hostsResponse;
       console.log('[HostMonitoringTab] Hosts response:', { count: hostsData?.length });
 
-      // Get detailed state for ALL hosts (not just critical)
-      const hostDetails = await Promise.all(
-        hostsData.map(async (host: any) => {
-          try {
-            const stateDetail = await api.get(`/api/monitoring/hosts/${host.id}/state`);
-            return stateDetail.data || stateDetail;
-          } catch (err) {
-            console.error(`Failed to get state for ${host.hostname}:`, err);
-            // Return basic info if detailed state fails
-            return {
-              host_id: host.id,
-              hostname: host.hostname,
-              ip_address: host.ip_address,
-              current_state: host.monitoring_state || 'UNKNOWN',
-              consecutive_failures: 0,
-              consecutive_successes: 0,
-              check_priority: 3,
-              response_time_ms: null,
-              last_check: host.updated_at,
-              next_check_time: null
-            };
-          }
-        })
-      );
+      // CRITICAL FIX: Use data from /api/hosts/ directly instead of N+1 queries
+      // This eliminates 7 additional API calls per refresh!
+      // Map host data without additional API calls
+      const hostDetails = hostsData.map((host: any) => ({
+        host_id: host.id,
+        hostname: host.hostname,
+        ip_address: host.ip_address,
+        current_state: host.monitoring_state || host.status || 'UNKNOWN',
+        consecutive_failures: host.consecutive_failures || 0,
+        consecutive_successes: host.consecutive_successes || 0,
+        check_priority: host.check_priority || 3,
+        response_time_ms: host.response_time_ms || null,
+        last_check: host.last_check || host.updated_at,
+        next_check_time: host.next_check_time || null
+      }));
 
-      const validHosts = hostDetails.filter((h: HostStateDetail | null): h is HostStateDetail => h !== null);
-      console.log('[HostMonitoringTab] Setting hosts:', { count: validHosts.length });
-      setAllHosts(validHosts);
+      console.log('[HostMonitoringTab] Mapped host details (no N+1 queries):', { count: hostDetails.length, sample: hostDetails[0] });
+      setAllHosts(hostDetails);
 
       console.log('[HostMonitoringTab] fetchMonitoringData completed successfully');
       setLoading(false);
