@@ -30,7 +30,7 @@ argon2-cffi==23.1.0
 python-multipart==0.0.18
 pyotp==2.9.0
 qrcode==7.4.2
-cryptography==44.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed
+cryptography==46.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
 
 # SSH / Remote execution
 paramiko==3.5.0
