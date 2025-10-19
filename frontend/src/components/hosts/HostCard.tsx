@@ -42,7 +42,7 @@ interface Host {
   displayName: string;
   ipAddress: string;
   operatingSystem: string;
-  status: 'online' | 'offline' | 'scanning' | 'error';
+  status: 'online' | 'degraded' | 'critical' | 'down' | 'offline' | 'maintenance' | 'scanning' | 'reachable' | 'ping_only' | 'error' | 'unknown';
   complianceScore?: number;
   complianceTrend?: 'up' | 'down' | 'stable';
   lastScan?: string;
@@ -117,8 +117,13 @@ const HostCard: React.FC<HostCardProps> = ({
   const getStatusColor = () => {
     switch (host.status) {
       case 'online': return 'success';
+      case 'degraded': return 'warning';
+      case 'critical': return 'error';
+      case 'down': return 'error';
       case 'scanning': return 'primary';
+      case 'maintenance': return 'info';
       case 'error': return 'error';
+      case 'offline': return 'default';
       default: return 'default';
     }
   };
@@ -126,6 +131,9 @@ const HostCard: React.FC<HostCardProps> = ({
   const getStatusIcon = () => {
     switch (host.status) {
       case 'online': return <Wifi color="success" />;
+      case 'degraded': return <Wifi color="warning" />;
+      case 'critical': return <ErrorIcon color="error" />;
+      case 'down': return <ErrorIcon color="error" />;
       case 'scanning': return <PlayArrow color="primary" />;
       case 'error': return <ErrorIcon color="error" />;
       default: return <WifiOff color="disabled" />;

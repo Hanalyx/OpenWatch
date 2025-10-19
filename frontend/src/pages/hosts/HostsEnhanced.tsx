@@ -131,7 +131,7 @@ interface Host {
   displayName: string;
   ipAddress: string;
   operatingSystem: string;
-  status: 'online' | 'offline' | 'maintenance' | 'scanning' | 'reachable' | 'ping_only' | 'error';
+  status: 'online' | 'degraded' | 'critical' | 'down' | 'offline' | 'maintenance' | 'scanning' | 'reachable' | 'ping_only' | 'error' | 'unknown';
   complianceScore: number | null;
   complianceTrend: 'up' | 'down' | 'stable';
   lastScan: string | null;
@@ -247,7 +247,7 @@ const HostsEnhanced: React.FC = () => {
       const apiHosts = await api.get('/api/hosts/');
         
         // Auto-refresh completed successfully
-        
+
         // Transform API response to match our Host interface
         const transformedHosts = apiHosts.map((host: any) => ({
           id: host.id,
@@ -297,7 +297,7 @@ const HostsEnhanced: React.FC = () => {
           passedRules: host.passed_rules || 0,
           totalRules: host.total_rules || 0,
         }));
-        
+
         // Use only API hosts (no mock data)
         setHosts(transformedHosts);
         setLastRefresh(new Date());
@@ -649,16 +649,13 @@ const HostsEnhanced: React.FC = () => {
 
   const checkHostStatus = async (hostId: string) => {
     try {
-      // WEEK 2 PHASE 1: Use new JIT connectivity check endpoint
+      // Perform IMMEDIATE comprehensive connectivity check (ping → port → SSH)
       const result = await api.post(`/api/monitoring/hosts/${hostId}/check-connectivity`);
-
-      // Queue immediate check and wait for results
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for check to complete
 
       // Get host details
       const host = hosts.find(h => h.id === hostId);
 
-      // Compliance-focused status messages (NOT monitoring states)
+      // Compliance-focused status messages with accurate diagnostics
       const statusMessages = {
         'online': '✅ Host is online and ready for scans',
         'reachable': '🟡 Host is reachable but SSH authentication failed',
@@ -670,24 +667,53 @@ const HostsEnhanced: React.FC = () => {
 
       const baseMessage = statusMessages[result.current_status as keyof typeof statusMessages] || 'Status check completed';
 
-      // Build compliance-focused status message (NO monitoring state terminology)
+      // Build detailed diagnostic message
       let detailedMessage = `${host?.hostname || 'Host'}: ${baseMessage}\n\n`;
+
+      // Show granular diagnostics
+      if (result.diagnostics) {
+        detailedMessage += `🔍 Diagnostic Results:\n`;
+        detailedMessage += `• Ping: ${result.diagnostics.ping_success ? '✅ Success' : '❌ Failed'}\n`;
+        detailedMessage += `• Port 22: ${result.diagnostics.port_open ? '✅ Open' : '❌ Closed'}\n`;
+        detailedMessage += `• SSH Auth: ${result.diagnostics.ssh_accessible ? '✅ Success' : '❌ Failed'}\n`;
+        if (result.diagnostics.ssh_credentials_source) {
+          detailedMessage += `• Credentials: ${result.diagnostics.ssh_credentials_source}\n`;
+        }
+        detailedMessage += `\n`;
+      }
 
       detailedMessage += `📊 Connectivity Details:\n`;
       detailedMessage += `• Status: ${result.current_status}\n`;
       detailedMessage += `• Response Time: ${result.response_time_ms || 'N/A'}ms\n`;
-      detailedMessage += `• Last Check: ${result.last_check ? new Date(result.last_check).toLocaleString() : 'Never'}\n\n`;
+      detailedMessage += `• Last Check: ${result.last_check ? new Date(result.last_check).toLocaleString() : 'Just now'}\n\n`;
 
-      // Add scan readiness
+      // Add specific troubleshooting guidance based on diagnostic results
       const isReady = result.current_status === 'online';
       if (isReady) {
         detailedMessage += `🚀 Status: Host is ready for compliance scans!`;
+      } else if (result.current_status === 'ping_only') {
+        detailedMessage += `⚠️ Troubleshooting: Host responds to ping but SSH port 22 is closed.\n`;
+        detailedMessage += `• Check if SSH service is running\n`;
+        detailedMessage += `• Verify firewall rules allow port 22\n`;
+        detailedMessage += `• Confirm SSH is listening on port 22`;
+      } else if (result.current_status === 'reachable') {
+        detailedMessage += `⚠️ Troubleshooting: SSH port is open but authentication failed.\n`;
+        detailedMessage += `• Verify SSH credentials are correct\n`;
+        detailedMessage += `• Check SSH key permissions and format\n`;
+        detailedMessage += `• Review host's /var/log/auth.log for details`;
+      } else if (result.current_status === 'offline') {
+        detailedMessage += `⚠️ Troubleshooting: Host is completely unreachable.\n`;
+        detailedMessage += `• Verify host is powered on\n`;
+        detailedMessage += `• Check network connectivity\n`;
+        detailedMessage += `• Confirm IP address is correct`;
       } else {
-        detailedMessage += `⚠️ Status: Host is not ready for scans.\n`;
-        detailedMessage += `Please check network connectivity and SSH credentials.`;
+        detailedMessage += `⚠️ Host is not ready for scans.\n`;
+        if (result.error_message) {
+          detailedMessage += `Error: ${result.error_message}`;
+        }
       }
 
-      console.log(`Host status check for ${host?.hostname}:`, result);
+      console.log(`Host comprehensive status check for ${host?.hostname}:`, result);
 
       // Show detailed popup
       alert(detailedMessage);

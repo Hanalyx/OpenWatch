@@ -45,6 +45,9 @@ interface MonitoringState {
   status_breakdown: {
     [key: string]: number;
   };
+  avg_response_time_ms?: number;
+  checks_today?: number;
+  online_percentage?: number;
 }
 
 interface HostStateDetail {
@@ -77,10 +80,6 @@ interface HostMonitoringTabProps {
 }
 
 const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProps>(({ onLastUpdated }, ref) => {
-  const renderCount = useRef(0);
-  renderCount.current++;
-  console.log('[HostMonitoringTab] ===== RENDER #' + renderCount.current + ' =====');
-
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,20 +94,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
   // Use ref to always access latest onLastUpdated without causing re-renders
   const onLastUpdatedRef = useRef(onLastUpdated);
-
-  // DIAGNOSTIC: Check if onLastUpdated prop is changing
-  const prevOnLastUpdatedRef = useRef(onLastUpdated);
   useEffect(() => {
-    if (prevOnLastUpdatedRef.current !== onLastUpdated) {
-      console.error('[HostMonitoringTab] ⚠️ onLastUpdated prop CHANGED!', {
-        previous: prevOnLastUpdatedRef.current,
-        current: onLastUpdated,
-        areEqual: prevOnLastUpdatedRef.current === onLastUpdated
-      });
-    } else {
-      console.log('[HostMonitoringTab] ✓ onLastUpdated prop STABLE');
-    }
-    prevOnLastUpdatedRef.current = onLastUpdated;
     onLastUpdatedRef.current = onLastUpdated;
   }, [onLastUpdated]);
 
@@ -121,83 +107,73 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   const [stateFilter, setStateFilter] = useState('');
 
   // Color mapping for monitoring states (uses theme colors, works in dark mode)
+  // Status values aligned with backend: online, down, unknown, critical, maintenance, degraded
   const stateColors = {
-    HEALTHY: theme.palette.success.main, // Green - stable
-    DEGRADED: theme.palette.warning.main, // Yellow - showing issues
-    CRITICAL: '#ff9800', // Orange - repeated failures
-    DOWN: theme.palette.error.main, // Red - confirmed down
-    MAINTENANCE: theme.palette.mode === 'light' ? '#757575' : '#9e9e9e', // Gray - manual maintenance
-    UNKNOWN: theme.palette.grey[500] // Gray - unknown/uninitialized state
+    online: theme.palette.success.main, // Green - fully operational
+    degraded: theme.palette.warning.main, // Yellow - permission issues
+    critical: '#ff9800', // Orange - partial connectivity
+    down: theme.palette.error.main, // Red - completely unavailable
+    maintenance: theme.palette.mode === 'light' ? '#757575' : '#9e9e9e', // Gray - planned maintenance
+    unknown: theme.palette.grey[500] // Gray - not yet checked
   };
 
   const stateIcons = {
-    HEALTHY: <CheckCircle sx={{ color: stateColors.HEALTHY }} />,
-    DEGRADED: <Warning sx={{ color: stateColors.DEGRADED }} />,
-    CRITICAL: <Warning sx={{ color: stateColors.CRITICAL }} />,
-    DOWN: <Warning sx={{ color: stateColors.DOWN }} />,
-    MAINTENANCE: <Computer sx={{ color: stateColors.MAINTENANCE }} />,
-    UNKNOWN: <ErrorOutline sx={{ color: stateColors.UNKNOWN }} />
+    online: <CheckCircle sx={{ color: stateColors.online }} />,
+    degraded: <Warning sx={{ color: stateColors.degraded }} />,
+    critical: <Warning sx={{ color: stateColors.critical }} />,
+    down: <Warning sx={{ color: stateColors.down }} />,
+    maintenance: <Computer sx={{ color: stateColors.maintenance }} />,
+    unknown: <ErrorOutline sx={{ color: stateColors.unknown }} />
   };
 
   const stateDescriptions = {
-    HEALTHY: 'No connection issues - checked every 30 minutes',
-    DEGRADED: '1 recent failure - checked every 5 minutes',
-    CRITICAL: '2+ failures - checked every 2 minutes',
-    DOWN: 'Host unreachable - checked every 30 minutes',
-    MAINTENANCE: 'Scheduled maintenance - monitoring paused',
-    UNKNOWN: 'Status not yet determined - waiting for first check'
+    online: 'Can ping AND ssh - fully operational',
+    degraded: 'Can ping and ssh, but no elevated privilege',
+    critical: 'Can ping but cannot ssh - partial connectivity',
+    down: 'No ping, no ssh - completely unavailable',
+    maintenance: 'Planned/manual maintenance mode',
+    unknown: 'Host added but not yet checked'
   };
 
   const fetchMonitoringData = useCallback(async () => {
     // CRITICAL: Prevent overlapping API calls
     if (fetchingRef.current) {
-      console.log('[HostMonitoringTab] Fetch already in progress, skipping...');
       return;
     }
 
     fetchingRef.current = true;
-    console.log('[HostMonitoringTab] fetchMonitoringData called');
 
     try {
       setLoading(true);
       setError(null);
 
       // Fetch state distribution from monitoring API
-      console.log('[HostMonitoringTab] Fetching status...');
       const stateResponse = await api.get('/api/monitoring/hosts/status');
-      console.log('[HostMonitoringTab] Status response:', stateResponse);
       setStateDistribution(stateResponse.data || stateResponse);
 
       // Fetch ALL hosts with monitoring state
-      console.log('[HostMonitoringTab] Fetching hosts...');
       const hostsResponse = await api.get('/api/hosts/');
       const hostsData = hostsResponse.data?.hosts || hostsResponse.hosts || hostsResponse.data || hostsResponse;
-      console.log('[HostMonitoringTab] Hosts response:', { count: hostsData?.length });
 
       // CRITICAL FIX: Use data from /api/hosts/ directly instead of N+1 queries
       // This eliminates 7 additional API calls per refresh!
-      // Map host data without additional API calls
       const hostDetails = hostsData.map((host: any) => ({
         host_id: host.id,
         hostname: host.hostname,
         ip_address: host.ip_address,
-        current_state: host.monitoring_state || host.status || 'UNKNOWN',
-        consecutive_failures: host.consecutive_failures || 0,
-        consecutive_successes: host.consecutive_successes || 0,
-        check_priority: host.check_priority || 3,
+        current_state: host.status || 'unknown',
+        consecutive_failures: host.ping_consecutive_failures || host.ssh_consecutive_failures || host.privilege_consecutive_failures || 0,
+        consecutive_successes: host.ping_consecutive_successes || host.ssh_consecutive_successes || host.privilege_consecutive_successes || 0,
+        check_priority: host.check_priority || 5,
         response_time_ms: host.response_time_ms ?? null,
         last_check: host.last_check || host.updated_at,
         next_check_time: host.next_check_time ?? null
       }));
 
-      console.log('[HostMonitoringTab] Mapped host details (no N+1 queries):', { count: hostDetails.length, sample: hostDetails[0] });
       setAllHosts(hostDetails);
-
-      console.log('[HostMonitoringTab] fetchMonitoringData completed successfully');
 
       // Notify parent of update AFTER data is set
       if (onLastUpdatedRef.current) {
-        console.log('[HostMonitoringTab] Notifying parent of update');
         onLastUpdatedRef.current(new Date());
       }
     } catch (err: any) {
@@ -219,25 +195,18 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   // Expose refresh function to parent component
   // CRITICAL: Empty deps array prevents recreation on every render
   // Use ref to always call latest fetchMonitoringData
-  useImperativeHandle(ref, () => {
-    console.log('[HostMonitoringTab] useImperativeHandle creating ref object');
-    return {
-      refresh: () => fetchMonitoringDataRef.current()
-    };
-  }, []); // Empty deps - only create once
+  useImperativeHandle(ref, () => ({
+    refresh: () => fetchMonitoringDataRef.current()
+  }), []); // Empty deps - only create once
 
   // Load data ONCE on mount only - do NOT depend on fetchMonitoringData!
-  // The function reference is stable due to useCallback, but even if it changes,
-  // we don't want to re-fetch data on every change.
   // CRITICAL: Guard against React StrictMode double-mounting
   useEffect(() => {
     if (hasFetchedRef.current) {
-      console.log('[HostMonitoringTab] Already fetched, skipping mount fetch (StrictMode protection)');
       return;
     }
 
     hasFetchedRef.current = true;
-    console.log('[HostMonitoringTab] Component mounted, calling fetchMonitoringData');
     fetchMonitoringData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps = run once on mount
@@ -265,15 +234,15 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
   }, [filteredHosts, page, rowsPerPage]);
 
   // StatCard component (matching Security Audit design)
-  const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color?: string }> = ({
-    title, value, icon, color = 'primary'
+  const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color?: string; suffix?: string }> = ({
+    title, value, icon, color = 'primary', suffix = ''
   }) => (
     <Card sx={{ height: '100%' }}>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
             <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: `${color}.main` }}>
-              {value.toLocaleString()}
+              {value.toLocaleString()}{suffix && <Typography component="span" variant="h6" sx={{ ml: 0.5, color: 'text.secondary' }}>{suffix}</Typography>}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {title}
@@ -303,13 +272,9 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
     );
   }
 
-  // Calculate avg response time
-  const avgResponseTime = allHosts.length > 0
-    ? Math.round(allHosts.reduce((sum, h) => sum + (h.response_time_ms || 0), 0) / allHosts.length)
-    : 0;
-
-  // Calculate checks performed (estimate based on hosts and check intervals)
-  const checksToday = allHosts.length * 48; // Rough estimate: each host ~48 checks/day
+  // Get monitoring statistics from API response
+  const avgResponseTime = stateDistribution?.avg_response_time_ms ?? 0;
+  const checksToday = stateDistribution?.checks_today ?? 0;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -325,8 +290,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Healthy"
-            value={stateDistribution?.status_breakdown?.HEALTHY || 0}
+            title="Online"
+            value={stateDistribution?.status_breakdown?.online || 0}
             icon={<CheckCircle />}
             color="success"
           />
@@ -334,7 +299,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Degraded"
-            value={stateDistribution?.status_breakdown?.DEGRADED || 0}
+            value={stateDistribution?.status_breakdown?.degraded || 0}
             icon={<Warning />}
             color="warning"
           />
@@ -342,7 +307,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Critical"
-            value={stateDistribution?.status_breakdown?.CRITICAL || 0}
+            value={stateDistribution?.status_breakdown?.critical || 0}
             icon={<ErrorOutline />}
             color="error"
           />
@@ -350,7 +315,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Down"
-            value={stateDistribution?.status_breakdown?.DOWN || 0}
+            value={stateDistribution?.status_breakdown?.down || 0}
             icon={<ErrorOutline />}
             color="error"
           />
@@ -358,7 +323,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Maintenance"
-            value={stateDistribution?.status_breakdown?.MAINTENANCE || 0}
+            value={stateDistribution?.status_breakdown?.maintenance || 0}
             icon={<BuildCircle />}
             color="secondary"
           />
@@ -367,6 +332,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
           <StatCard
             title="Avg Response"
             value={avgResponseTime}
+            suffix="ms"
             icon={<Speed />}
             color="info"
           />
@@ -409,11 +375,12 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
                 label="State"
               >
                 <MenuItem value="">All States</MenuItem>
-                <MenuItem value="HEALTHY">Healthy</MenuItem>
-                <MenuItem value="DEGRADED">Degraded</MenuItem>
-                <MenuItem value="CRITICAL">Critical</MenuItem>
-                <MenuItem value="DOWN">Down</MenuItem>
-                <MenuItem value="MAINTENANCE">Maintenance</MenuItem>
+                <MenuItem value="online">Online</MenuItem>
+                <MenuItem value="degraded">Degraded</MenuItem>
+                <MenuItem value="critical">Critical</MenuItem>
+                <MenuItem value="down">Down</MenuItem>
+                <MenuItem value="maintenance">Maintenance</MenuItem>
+                <MenuItem value="unknown">Unknown</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -535,16 +502,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
 HostMonitoringTab.displayName = 'HostMonitoringTab';
 
-// DIAGNOSTIC: Custom comparison function to see if React.memo is working
-const arePropsEqual = (prevProps: HostMonitoringTabProps, nextProps: HostMonitoringTabProps) => {
-  const equal = prevProps.onLastUpdated === nextProps.onLastUpdated;
-  console.log('[HostMonitoringTab] React.memo comparison:', {
-    equal,
-    prevCallback: prevProps.onLastUpdated,
-    nextCallback: nextProps.onLastUpdated
-  });
-  return equal;
-};
-
 // Wrap in React.memo with custom comparison to prevent unnecessary re-renders from parent
-export default React.memo(HostMonitoringTab, arePropsEqual);
+export default React.memo(HostMonitoringTab, (prevProps, nextProps) => {
+  return prevProps.onLastUpdated === nextProps.onLastUpdated;
+});

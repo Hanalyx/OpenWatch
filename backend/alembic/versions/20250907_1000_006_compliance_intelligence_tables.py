@@ -1,7 +1,7 @@
 """Add compliance intelligence tables
 
-Revision ID: 006
-Revises: 005
+Revision ID: 010
+Revises: 007
 Create Date: 2025-09-07 10:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers
-revision = '006'
-down_revision = '005'
+revision = '010'
+down_revision = '007'
 branch_labels = None
 depends_on = None
 

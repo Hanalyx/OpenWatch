@@ -738,3 +738,31 @@ backend/app/cli/*_temp.py
 # Installation/migration outputs
 *-installation-output
 *-migration-output
+
+# Working Documents and Analysis Reports (DO NOT COMMIT)
+*_ASSESSMENT.md
+*_ANALYSIS.md
+*_COMPLETE.md
+*_FIX*.md
+*_IMPLEMENTATION*.md
+*_MIGRATION*.md
+*_PHASE*.md
+*_REPORT.md
+*_STATUS.md
+*_SUMMARY.md
+*_VERIFICATION*.md
+*_TRACKING*.md
+CHANGES_SUMMARY.md
+TABPANEL_*.md
+
+# Test artifacts and debug files
+test-*.js
+test-*.json
+test-screenshots/
+test-reports/
+test-results.json
+
+# Documentation that shouldn't be in git
+docs/ADAPTIVE_SCHEDULER*.md
+docs/COMPREHENSIVE_CHECK*.md
+docs/HOST_STATUS*.md

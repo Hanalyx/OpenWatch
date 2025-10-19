@@ -17,7 +17,7 @@ import uvicorn
 from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
-from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug
+from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug, adaptive_scheduler
 from .routes.system_settings_unified import router as system_settings_router
 from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
 from .routes.v2 import credentials as v2_credentials  # WEEK 2: v2 credentials API
@@ -101,14 +101,10 @@ async def lifespan(app: FastAPI):
                 if not settings.debug:
                     raise
             
-            # Initialize scheduler state from database
-            try:
-                from .routes.system_settings_unified import restore_scheduler_state
-                await restore_scheduler_state()
-                logger.info("Scheduler state restored from database")
-            except Exception as scheduler_error:
-                logger.warning(f"Scheduler restoration failed: {scheduler_error}")
-                # Don't raise - scheduler can be started manually from UI
+            # Legacy APScheduler disabled - using Celery Beat for adaptive monitoring
+            # The new adaptive scheduler runs via Celery Beat with state-based intervals
+            # See: backend/app/tasks/adaptive_monitoring_dispatcher.py
+            logger.info("Legacy APScheduler disabled - using Celery Beat adaptive monitoring")
             
             break
         except Exception as e:
@@ -533,6 +529,7 @@ app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 app.include_router(scap_content.router, prefix="/api", tags=["SCAP Content"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
+app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])

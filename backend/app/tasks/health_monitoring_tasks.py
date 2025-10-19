@@ -7,10 +7,12 @@ Scheduled tasks that periodically collect and store health metrics.
 from datetime import datetime, timedelta
 from celery import Celery
 from celery.schedules import crontab
+import logging
 
-from ..core.celery_app import celery_app
-from ..services.health_monitoring_service import get_health_monitoring_service
-from ..core.logging import logger
+from backend.app.celery_app import celery_app
+from backend.app.services.health_monitoring_service import get_health_monitoring_service
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="collect_service_health")

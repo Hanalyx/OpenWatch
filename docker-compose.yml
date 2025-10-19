@@ -125,7 +125,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     container_name: openwatch-worker
-    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info"]
+    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "worker", "--loglevel=info", "-Q", "default,scans,results,maintenance,monitoring,host_monitoring"]
     environment:
       OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -134,6 +134,7 @@ services:
       OPENWATCH_MASTER_KEY: ${MASTER_KEY}
       OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
       OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_DEBUG: "true"
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
@@ -156,6 +157,36 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: openwatch-celery-beat
+    command: ["python3", "-m", "celery", "-A", "backend.app.celery_app", "beat", "--loglevel=info"]
+    healthcheck:
+      disable: true
+    environment:
+      OPENWATCH_DATABASE_URL: postgresql://openwatch:${POSTGRES_PASSWORD}@database:5432/openwatch
+      OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      OPENWATCH_MONGODB_URL: mongodb://openwatch:${MONGO_ROOT_PASSWORD:-secure_mongo_password}@mongodb:27017/openwatch_rules?authSource=admin
+      OPENWATCH_SECRET_KEY: ${OPENWATCH_SECRET_KEY}
+      OPENWATCH_MASTER_KEY: ${MASTER_KEY}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY}
+      OPENWATCH_FIPS_MODE: "false"
+      OPENWATCH_DEBUG: "true"
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+      - ./security/certs:/app/security/certs:ro
+      - ./security/keys:/app/security/keys
+    depends_on:
+      - database
+      - redis
+    networks:
+      - openwatch-network
+    restart: unless-stopped
 
   # React Frontend (HTTPS only)
   frontend:

@@ -82,10 +82,10 @@ def periodic_credential_purge():
 @celery_app.task(bind=True, name='backend.app.tasks.check_host_connectivity')
 def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     """
-    Check SSH connectivity for a host and update monitoring state.
+    Perform comprehensive connectivity check for a host (ping → port → SSH).
 
-    This is the core Celery task for the Hybrid Monitoring approach.
-    It implements adaptive check intervals based on host health state.
+    This is the core Celery task for the Adaptive Host Monitoring approach.
+    It performs 3-step verification and implements adaptive check intervals.
 
     Args:
         host_id: UUID of the host to check
@@ -93,6 +93,11 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
 
     Returns:
         dict with check results including new state and next check interval
+
+    Check Steps:
+        1. Ping check (ICMP or socket fallback)
+        2. Port connectivity check (TCP port 22)
+        3. SSH authentication check (full credential validation)
 
     State Transitions:
         HEALTHY → (1 failure) → DEGRADED (5 min checks)
@@ -102,10 +107,10 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     """
     try:
         with get_db_session() as db:
-            # Get host details
+            # Get host details for comprehensive check
             host_result = db.execute(text("""
-                SELECT id, hostname, ip_address, monitoring_state, username, auth_method,
-                       encrypted_credentials
+                SELECT id, hostname, ip_address, port, username, auth_method,
+                       encrypted_credentials, status
                 FROM hosts
                 WHERE id = :host_id AND is_active = true
             """), {"host_id": host_id}).fetchone()
@@ -119,54 +124,68 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                     "new_state": "UNKNOWN"
                 }
 
-            # Check SSH connectivity
-            check_success = False
-            response_time_ms = None
-            error_message = None
-            error_type = None
+            # Import HostMonitor for comprehensive check
+            from backend.app.services.host_monitor import HostMonitor
 
+            # Prepare host data for comprehensive check
+            host_data = {
+                'id': str(host_result.id),
+                'hostname': host_result.hostname,
+                'ip_address': host_result.ip_address,
+                'port': host_result.port or 22,
+                'username': host_result.username,
+                'auth_method': host_result.auth_method,
+                'encrypted_credentials': host_result.encrypted_credentials
+            }
+
+            # Perform comprehensive check (ping → port → SSH)
+            monitor = HostMonitor(db)
+
+            # Run comprehensive check synchronously (we're already in async Celery task)
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                start_time = datetime.utcnow()
-
-                # Use UnifiedSSHService to check connectivity
-                ssh_service = UnifiedSSHService(db)
-
-                # Test SSH connection with simple command
-                ssh_result = ssh_service.execute_command(
-                    host_id=host_id,
-                    command="echo 'connectivity_check'",
-                    timeout=10
+                check_result = loop.run_until_complete(
+                    monitor.comprehensive_host_check(host_data, db)
                 )
+            finally:
+                loop.close()
 
-                # Calculate response time
-                response_time_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            # Extract check results
+            ping_success = check_result.get('ping_success', False)
+            port_open = check_result.get('port_open', False)
+            ssh_accessible = check_result.get('ssh_accessible', False)
+            response_time_ms = check_result.get('response_time_ms')
+            error_message = check_result.get('error_message')
+            status = check_result.get('status', 'offline')
 
-                if ssh_result.get('success'):
-                    check_success = True
-                    logger.debug(f"Host {host_result.hostname} connectivity check: SUCCESS ({response_time_ms}ms)")
-                else:
-                    error_message = ssh_result.get('error', 'SSH connection failed')
-                    error_type = ssh_result.get('error_type', 'CONNECTION_FAILED')
-                    logger.warning(f"Host {host_result.hostname} connectivity check: FAILED - {error_message}")
+            # Overall success if SSH is accessible
+            check_success = ssh_accessible
 
-            except TimeoutError:
-                error_message = "SSH connection timeout"
-                error_type = "TIMEOUT"
-                logger.warning(f"Host {host_result.hostname} connectivity check: TIMEOUT")
-            except ConnectionError as e:
-                error_message = f"SSH connection error: {str(e)}"
-                error_type = "CONNECTION_REFUSED"
-                logger.warning(f"Host {host_result.hostname} connectivity check: {error_message}")
-            except Exception as e:
-                error_message = f"SSH check failed: {str(e)}"
-                error_type = "UNKNOWN_ERROR"
-                logger.error(f"Host {host_result.hostname} connectivity check error: {e}")
+            # Map comprehensive check status to error type
+            if not ping_success:
+                error_type = "NETWORK_UNREACHABLE"
+            elif not port_open:
+                error_type = "PORT_CLOSED"
+            elif not ssh_accessible:
+                error_type = "SSH_AUTH_FAILED"
+            else:
+                error_type = None
+
+            logger.info(
+                f"Comprehensive check for {host_result.hostname}: "
+                f"ping={ping_success}, port={port_open}, ssh={ssh_accessible}, "
+                f"status={status}, response_time={response_time_ms}ms"
+            )
 
             # Update monitoring state using state machine
             state_machine = HostMonitoringStateMachine(db)
             new_state, check_interval = state_machine.transition_state(
                 host_id=host_id,
-                check_success=check_success,
+                ping_success=ping_success,
+                ssh_success=ssh_accessible,
+                privilege_success=ssh_accessible,  # If SSH works, we assume privilege works
                 response_time_ms=response_time_ms,
                 error_message=error_message,
                 error_type=error_type
@@ -178,10 +197,16 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 "hostname": host_result.hostname,
                 "ip_address": host_result.ip_address,
                 "success": check_success,
-                "previous_state": host_result.monitoring_state,
+                "previous_state": host_result.status,
                 "new_state": new_state.value,
                 "check_interval_minutes": check_interval,
                 "response_time_ms": response_time_ms,
+                "diagnostics": {
+                    "ping_success": ping_success,
+                    "port_open": port_open,
+                    "ssh_accessible": ssh_accessible,
+                    "status": status
+                },
                 "error_message": error_message,
                 "error_type": error_type,
                 "priority": priority,

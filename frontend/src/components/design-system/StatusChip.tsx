@@ -18,10 +18,10 @@ import {
   NetworkCheck,
 } from '@mui/icons-material';
 
-export type StatusType = 
-  | 'online' | 'offline' | 'maintenance' | 'scanning' | 'pending' | 'reachable' | 'ping_only'
+export type StatusType =
+  | 'online' | 'degraded' | 'critical' | 'down' | 'offline' | 'maintenance' | 'scanning' | 'pending' | 'reachable' | 'ping_only'
   | 'success' | 'error' | 'warning' | 'info'
-  | 'critical' | 'high' | 'medium' | 'low'
+  | 'high' | 'medium' | 'low'
   | 'compliant' | 'non-compliant' | 'unknown';
 
 interface StatusChipProps {
@@ -58,8 +58,26 @@ const StatusChip: React.FC<StatusChipProps> = ({
         icon: <CheckCircle />,
         defaultLabel: 'Online',
       },
+      degraded: {
+        color: theme.palette.warning.main, // Google Yellow - Degraded performance
+        backgroundColor: alpha(theme.palette.warning.main, 0.12),
+        icon: <Warning />,
+        defaultLabel: 'Degraded',
+      },
+      critical: {
+        color: theme.palette.error.main, // Google Red - Critical state
+        backgroundColor: alpha(theme.palette.error.main, 0.12),
+        icon: <Error />,
+        defaultLabel: 'Critical',
+      },
+      down: {
+        color: theme.palette.error.main, // Google Red - System down
+        backgroundColor: alpha(theme.palette.error.main, 0.12),
+        icon: <Error />,
+        defaultLabel: 'Down',
+      },
       offline: {
-        color: theme.palette.error.main, // Google Red - Critical alert
+        color: theme.palette.error.main, // Google Red - Offline
         backgroundColor: alpha(theme.palette.error.main, 0.12),
         icon: <Error />,
         defaultLabel: 'Offline',
@@ -122,12 +140,6 @@ const StatusChip: React.FC<StatusChipProps> = ({
       },
 
       // Severity Levels (compliance-focused colors)
-      critical: {
-        color: theme.palette.error.main, // Google Red - Critical alerts
-        backgroundColor: alpha(theme.palette.error.main, 0.12),
-        icon: <Error />,
-        defaultLabel: 'Critical',
-      },
       high: {
         color: theme.palette.error.light, // Light red for high severity
         backgroundColor: alpha(theme.palette.error.light, 0.12),

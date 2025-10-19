@@ -47,7 +47,17 @@ class Host(BaseModel):
     ssh_key_type: Optional[str] = None
     ssh_key_bits: Optional[int] = None
     ssh_key_comment: Optional[str] = None
-    
+
+    # Host monitoring fields
+    response_time_ms: Optional[int] = None
+    check_priority: Optional[int] = None
+    ping_consecutive_failures: Optional[int] = None
+    ssh_consecutive_failures: Optional[int] = None
+    privilege_consecutive_failures: Optional[int] = None
+    ping_consecutive_successes: Optional[int] = None
+    ssh_consecutive_successes: Optional[int] = None
+    privilege_consecutive_successes: Optional[int] = None
+
     # Latest scan information
     latest_scan_id: Optional[str] = None
     latest_scan_name: Optional[str] = None
@@ -192,12 +202,15 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
     try:
         # Try to get hosts from database with latest scan information and group details
         result = db.execute(text("""
-            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
+            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
+                   h.last_check, h.response_time_ms, h.check_priority,
+                   h.ping_consecutive_failures, h.ssh_consecutive_failures, h.privilege_consecutive_failures,
+                   h.ping_consecutive_successes, h.ssh_consecutive_successes, h.privilege_consecutive_successes,
                    s.id as latest_scan_id, s.name as latest_scan_name, s.status as scan_status,
                    s.progress as scan_progress, s.started_at as scan_started_at, s.completed_at as scan_completed_at,
                    sr.score as compliance_score, sr.failed_rules as failed_rules, sr.passed_rules as passed_rules,
-                   sr.severity_high as high_issues, sr.severity_medium as medium_issues, 
+                   sr.severity_high as high_issues, sr.severity_medium as medium_issues,
                    sr.severity_low as low_issues, sr.total_rules,
                    hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
             FROM hosts h
@@ -239,9 +252,17 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
                 port=row.port,
                 username=row.username,
                 auth_method=row.auth_method,
-                created_at=row.created_at.isoformat() if row.created_at else None,
-                updated_at=row.updated_at.isoformat() if row.updated_at else None,
-                last_check=None,  # Column doesn't exist in database
+                created_at=row.created_at.isoformat() + 'Z' if row.created_at else None,
+                updated_at=row.updated_at.isoformat() + 'Z' if row.updated_at else None,
+                last_check=row.last_check.isoformat() + 'Z' if row.last_check else None,
+                response_time_ms=row.response_time_ms,
+                check_priority=row.check_priority,
+                ping_consecutive_failures=row.ping_consecutive_failures,
+                ssh_consecutive_failures=row.ssh_consecutive_failures,
+                privilege_consecutive_failures=row.privilege_consecutive_failures,
+                ping_consecutive_successes=row.ping_consecutive_successes,
+                ssh_consecutive_successes=row.ssh_consecutive_successes,
+                privilege_consecutive_successes=row.privilege_consecutive_successes,
                 ssh_key_fingerprint=None,  # Not in database schema
                 ssh_key_type=None,         # Not in database schema
                 ssh_key_bits=None,         # Not in database schema
@@ -258,8 +279,8 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
                 host_data.latest_scan_name = row.latest_scan_name
                 host_data.scan_status = row.scan_status
                 host_data.scan_progress = row.scan_progress
-                host_data.last_scan = row.scan_completed_at.isoformat() if row.scan_completed_at else (
-                    row.scan_started_at.isoformat() if row.scan_started_at else None
+                host_data.last_scan = row.scan_completed_at.isoformat() + 'Z' if row.scan_completed_at else (
+                    row.scan_started_at.isoformat() + 'Z' if row.scan_started_at else None
                 )
                 host_data.compliance_score = compliance_score
                 host_data.failed_rules = row.failed_rules or 0
@@ -396,8 +417,8 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
             display_name=display_name,
             operating_system=host.operating_system,
             status="offline",
-            created_at=current_time.isoformat(),
-            updated_at=current_time.isoformat()
+            created_at=current_time.isoformat() + 'Z',
+            updated_at=current_time.isoformat() + 'Z'
         )
 
         logger.info(f"Created new host in database: {host.hostname}")
@@ -453,8 +474,8 @@ async def get_host(host_id: str, db: Session = Depends(get_db), current_user: di
             port=row.port,
             username=row.username,
             auth_method=row.auth_method,
-            created_at=row.created_at.isoformat() if row.created_at else None,
-            updated_at=row.updated_at.isoformat() if row.updated_at else None,
+            created_at=row.created_at.isoformat() + 'Z' if row.created_at else None,
+            updated_at=row.updated_at.isoformat() + 'Z' if row.updated_at else None,
             ssh_key_fingerprint=None,  # Not in database schema
             ssh_key_type=None,         # Not in database schema
             ssh_key_bits=None,         # Not in database schema 
@@ -684,8 +705,8 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
             port=row.port,
             username=row.username,
             auth_method=row.auth_method,
-            created_at=row.created_at.isoformat() if row.created_at else None,
-            updated_at=row.updated_at.isoformat() if row.updated_at else None,
+            created_at=row.created_at.isoformat() + 'Z' if row.created_at else None,
+            updated_at=row.updated_at.isoformat() + 'Z' if row.updated_at else None,
             ssh_key_fingerprint=None,  # Not in database schema
             ssh_key_type=None,         # Not in database schema
             ssh_key_bits=None,         # Not in database schema 

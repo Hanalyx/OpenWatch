@@ -107,19 +107,36 @@ class MFAUsedCodes(Base):
 
 
 class Host(Base):
-    """Host model with encrypted credential storage"""
+    """Host model with encrypted credential storage
+
+    Status values (aligned with frontend monitoring states):
+    - online: Can ping AND ssh to host (fully operational)
+    - down: No ping, no ssh (completely unavailable)
+    - unknown: Host added but not yet checked
+    - critical: Can ping but can't ssh (partial connectivity)
+    - maintenance: Planned/manual maintenance mode
+    - degraded: Can ping and ssh, but no elevated privilege (permission issues)
+
+    Monitoring fields track consecutive check results:
+    - ping_consecutive_failures: Failed ping attempts in a row
+    - ping_consecutive_successes: Successful ping attempts in a row
+    - ssh_consecutive_failures: Failed SSH attempts in a row (when ping succeeds)
+    - ssh_consecutive_successes: Successful SSH attempts in a row
+    - privilege_consecutive_failures: Failed privilege escalation attempts in a row (when SSH succeeds)
+    - privilege_consecutive_successes: Successful privilege checks in a row
+    """
     __tablename__ = "hosts"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     hostname = Column(String(255), nullable=False)
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
     display_name = Column(String(255), nullable=True)
     operating_system = Column(String(255), nullable=True)
     os_family = Column(String(50), nullable=True)  # Added for compatibility validation
-    os_version = Column(String(100), nullable=True)  # Added for compatibility validation  
+    os_version = Column(String(100), nullable=True)  # Added for compatibility validation
     architecture = Column(String(50), nullable=True)  # Added for compatibility validation
     last_os_detection = Column(DateTime, nullable=True)  # Added for OS detection tracking
-    status = Column(String(50), default="offline", nullable=False)
+    status = Column(String(50), default="unknown", nullable=False)  # Current status: online, down, unknown, critical, maintenance, degraded
     port = Column(Integer, default=22, nullable=False)
     username = Column(String(50), nullable=True)  # Made optional
     auth_method = Column(String(20), default="ssh_key", nullable=True)  # Made optional
@@ -132,7 +149,21 @@ class Host(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    last_check = Column(DateTime, nullable=True)  # Added for host monitoring tracking
+
+    # Host monitoring fields
+    last_check = Column(DateTime, nullable=True)  # Last monitoring check timestamp
+    next_check_time = Column(DateTime, nullable=True)  # When next check is scheduled
+    check_priority = Column(Integer, default=5, nullable=False)  # Priority 1-10 (higher = more urgent)
+    response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
+    last_state_change = Column(DateTime, nullable=True)  # When status last changed
+
+    # Consecutive check counters for multi-level monitoring (ping -> ssh -> privilege)
+    ping_consecutive_failures = Column(Integer, default=0, nullable=False)
+    ping_consecutive_successes = Column(Integer, default=0, nullable=False)
+    ssh_consecutive_failures = Column(Integer, default=0, nullable=False)
+    ssh_consecutive_successes = Column(Integer, default=0, nullable=False)
+    privilege_consecutive_failures = Column(Integer, default=0, nullable=False)
+    privilege_consecutive_successes = Column(Integer, default=0, nullable=False)
 
 
 class ScapContent(Base):

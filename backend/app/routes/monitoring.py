@@ -60,10 +60,13 @@ async def check_host_status(
         
         # Perform comprehensive check with DB connection for credential access
         check_result = await host_monitor.comprehensive_host_check(host_data, db)
-        
-        # Update database with new status
+
+        # Update database with new status and response time
         await host_monitor.update_host_status(
-            db, request.host_id, check_result['status']
+            db,
+            request.host_id,
+            check_result['status'],
+            response_time_ms=check_result.get('response_time_ms')
         )
         
         return {
@@ -123,32 +126,57 @@ async def get_hosts_status_summary(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get summary of all host statuses
+    Get summary of all host statuses with monitoring statistics
     """
     try:
         from sqlalchemy import text
-        
+        from datetime import datetime, timedelta
+
+        # Get status breakdown
         result = db.execute(text("""
-            SELECT 
+            SELECT
                 status,
                 COUNT(*) as count
-            FROM hosts 
+            FROM hosts
             WHERE is_active = true
             GROUP BY status
         """))
-        
+
         status_counts = {}
         total = 0
         for row in result:
             status_counts[row.status] = row.count
             total += row.count
-        
+
+        # Calculate average response time from active hosts
+        avg_response_result = db.execute(text("""
+            SELECT AVG(response_time_ms) as avg_response
+            FROM hosts
+            WHERE is_active = true
+              AND response_time_ms IS NOT NULL
+              AND status != 'down'
+        """))
+        avg_response_row = avg_response_result.fetchone()
+        avg_response_time = round(avg_response_row.avg_response) if avg_response_row and avg_response_row.avg_response else 0
+
+        # Count monitoring checks performed today
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        checks_today_result = db.execute(text("""
+            SELECT COUNT(*) as check_count
+            FROM host_monitoring_history
+            WHERE check_time >= :today_start
+        """), {"today_start": today_start})
+        checks_today_row = checks_today_result.fetchone()
+        checks_today = checks_today_row.check_count if checks_today_row else 0
+
         return {
             "total_hosts": total,
             "status_breakdown": status_counts,
-            "online_percentage": round((status_counts.get('online', 0) / total * 100) if total > 0 else 0, 1)
+            "online_percentage": round((status_counts.get('online', 0) / total * 100) if total > 0 else 0, 1),
+            "avg_response_time_ms": avg_response_time,
+            "checks_today": checks_today
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting host status summary: {e}")
         raise HTTPException(status_code=500, detail="Failed to get host status summary")
@@ -197,29 +225,33 @@ async def ping_host(
 @router.post("/hosts/{host_id}/check-connectivity")
 async def jit_connectivity_check(
     host_id: str,
-    priority: int = 9,  # JIT checks are high priority
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Just-In-Time (JIT) connectivity check for a specific host.
 
-    This endpoint triggers an immediate connectivity check using the Hybrid Monitoring approach.
+    This endpoint performs an IMMEDIATE comprehensive connectivity check for manual troubleshooting.
     It's called when:
-    - User navigates to host details page (fresh status)
+    - User clicks "Check Status" button (immediate diagnostics)
     - Before starting a compliance scan (ensure host is reachable)
     - Manual refresh from UI
 
-    The check runs asynchronously via Celery with high priority (9).
-    Returns the current state and queues a background check.
+    The check runs SYNCHRONOUSLY and provides detailed diagnostics:
+    1. Ping check (ICMP or socket fallback)
+    2. Port connectivity check (TCP port 22)
+    3. SSH authentication check (full credential validation)
+
+    Returns granular status: online, reachable, ping_only, offline, error
     """
     try:
         from sqlalchemy import text
+        from backend.app.services.host_monitor import HostMonitor
 
-        # Get current host state
+        # Get host details for comprehensive check
         result = db.execute(text("""
-            SELECT id, hostname, ip_address, monitoring_state, response_time_ms,
-                   last_check, status
+            SELECT id, hostname, ip_address, port, username, auth_method,
+                   encrypted_credentials, monitoring_state, status
             FROM hosts
             WHERE id = :host_id AND is_active = true
         """), {"host_id": host_id})
@@ -228,37 +260,55 @@ async def jit_connectivity_check(
         if not host:
             raise HTTPException(status_code=404, detail="Host not found or inactive")
 
-        # Queue immediate connectivity check with high priority
-        task = check_host_connectivity.apply_async(
-            args=[host_id, priority],
-            priority=priority,
-            queue='monitoring'
-        )
+        # Prepare host data for comprehensive check
+        host_data = {
+            'id': str(host.id),
+            'hostname': host.hostname,
+            'ip_address': host.ip_address,
+            'port': host.port or 22,
+            'username': host.username,
+            'auth_method': host.auth_method,
+            'encrypted_credentials': host.encrypted_credentials
+        }
+
+        # Perform comprehensive check (ping → port → SSH)
+        monitor = HostMonitor(db)
+        check_result = await monitor.comprehensive_host_check(host_data, db)
 
         logger.info(
-            f"JIT connectivity check queued for host {host.hostname} "
-            f"(task_id: {task.id}, priority: {priority})"
+            f"JIT comprehensive check for {host.hostname}: "
+            f"status={check_result['status']}, "
+            f"ping={check_result['ping_success']}, "
+            f"port={check_result['port_open']}, "
+            f"ssh={check_result['ssh_accessible']}, "
+            f"response_time={check_result['response_time_ms']}ms"
         )
 
         return {
             "host_id": host_id,
-            "hostname": host.hostname,
-            "ip_address": host.ip_address,
-            "current_state": host.monitoring_state,
-            "current_status": host.status,
-            "last_check": host.last_check.isoformat() if host.last_check else None,
-            "response_time_ms": host.response_time_ms,
-            "check_queued": True,
-            "task_id": task.id,
-            "priority": priority,
-            "message": "Fresh connectivity check queued with high priority"
+            "hostname": check_result['hostname'],
+            "ip_address": check_result['ip_address'],
+            "current_status": check_result['status'],
+            "previous_status": host.status,
+            "previous_state": host.monitoring_state,
+            "last_check": check_result['timestamp'],
+            "response_time_ms": check_result['response_time_ms'],
+            "diagnostics": {
+                "ping_success": check_result['ping_success'],
+                "port_open": check_result['port_open'],
+                "ssh_accessible": check_result['ssh_accessible'],
+                "ssh_credentials_source": check_result.get('ssh_credentials_source'),
+                "credential_details": check_result.get('credential_details')
+            },
+            "error_message": check_result.get('error_message'),
+            "message": "Comprehensive connectivity check completed"
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error queueing JIT connectivity check for {host_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to queue connectivity check")
+        logger.error(f"Error performing JIT connectivity check for {host_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to check connectivity: {str(e)}")
 
 
 @router.get("/hosts/{host_id}/state")

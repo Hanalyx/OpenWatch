@@ -13,7 +13,9 @@ import { CheckCircle, Error, Warning, Schedule } from '@mui/icons-material';
 
 interface FleetHealthData {
   online: number;
-  offline: number;
+  degraded: number;
+  critical: number;
+  down: number;
   scanning: number;
   maintenance: number;
 }
@@ -35,27 +37,33 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Ensure data integrity
+  // Ensure data integrity with all adaptive monitoring states
   const safeData = {
     online: Math.max(0, data?.online || 0),
-    offline: Math.max(0, data?.offline || 0),
+    degraded: Math.max(0, data?.degraded || 0),
+    critical: Math.max(0, data?.critical || 0),
+    down: Math.max(0, data?.down || 0),
     scanning: Math.max(0, data?.scanning || 0),
     maintenance: Math.max(0, data?.maintenance || 0)
   };
 
   const chartData = [
     { name: 'Online', value: safeData.online, color: theme.palette.mode === 'dark' ? '#4caf50' : theme.palette.success.main },
-    { name: 'Offline', value: safeData.offline, color: theme.palette.mode === 'dark' ? '#f44336' : theme.palette.error.main },
+    { name: 'Degraded', value: safeData.degraded, color: theme.palette.mode === 'dark' ? '#ff9800' : theme.palette.warning.main },
+    { name: 'Critical', value: safeData.critical, color: theme.palette.mode === 'dark' ? '#f44336' : theme.palette.error.main },
+    { name: 'Down', value: safeData.down, color: theme.palette.mode === 'dark' ? '#d32f2f' : theme.palette.error.dark },
     { name: 'Scanning', value: safeData.scanning, color: theme.palette.mode === 'dark' ? '#2196f3' : theme.palette.info.main },
-    { name: 'Maintenance', value: safeData.maintenance, color: theme.palette.mode === 'dark' ? '#ff9800' : theme.palette.warning.main }
+    { name: 'Maintenance', value: safeData.maintenance, color: theme.palette.mode === 'dark' ? '#9e9e9e' : theme.palette.action.disabled }
   ].filter(item => item.value > 0);
 
-  const totalHosts = safeData.online + safeData.offline + safeData.scanning + safeData.maintenance;
+  const totalHosts = safeData.online + safeData.degraded + safeData.critical + safeData.down + safeData.scanning + safeData.maintenance;
 
   const getIcon = (status: string) => {
     switch (status) {
       case 'Online': return <CheckCircle fontSize="small" />;
-      case 'Offline': return <Error fontSize="small" />;
+      case 'Degraded': return <Warning fontSize="small" />;
+      case 'Critical': return <Error fontSize="small" />;
+      case 'Down': return <Error fontSize="small" />;
       case 'Scanning': return <Schedule fontSize="small" />;
       case 'Maintenance': return <Warning fontSize="small" />;
       default: return null;

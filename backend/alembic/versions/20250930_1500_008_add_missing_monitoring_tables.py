@@ -1,7 +1,7 @@
 """Add missing monitoring tables and columns
 
 Revision ID: 008
-Revises: 006
+Revises: 010
 Create Date: 2025-09-30 15:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = '008'
-down_revision = '006'
+down_revision = '010'
 branch_labels = None
 depends_on = None
 

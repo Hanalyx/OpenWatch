@@ -38,10 +38,13 @@ const Dashboard: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [quickScanOpen, setQuickScanOpen] = useState(false);
 
-  // Dashboard data state
+  // Dashboard data state - adaptive monitoring states
   const [onlineHosts, setOnlineHosts] = useState(0);
-  const [offlineHosts, setOfflineHosts] = useState(0);
+  const [degradedHosts, setDegradedHosts] = useState(0);
+  const [criticalHosts, setCriticalHosts] = useState(0);
+  const [downHosts, setDownHosts] = useState(0);
   const [scanningHosts, setScanningHosts] = useState(0);
+  const [maintenanceHosts, setMaintenanceHosts] = useState(0);
   const [totalHosts, setTotalHosts] = useState(0);
   const [criticalIssues, setCriticalIssues] = useState(0);
   const [trendData, setTrendData] = useState<any[]>([]);
@@ -122,12 +125,15 @@ const Dashboard: React.FC = () => {
         status: host.status || 'offline'
       }));
 
-      // Process data for dashboard using normalized hosts
+      // Process data for dashboard using normalized hosts with adaptive monitoring states
       const onlineCount = normalizedHosts.filter((h: any) => h.status === 'online' || h.status === 'reachable').length;
-      const offlineCount = normalizedHosts.filter((h: any) => h.status === 'offline').length;
+      const degradedCount = normalizedHosts.filter((h: any) => h.status === 'degraded').length;
+      const criticalCount = normalizedHosts.filter((h: any) => h.status === 'critical').length;
+      const downCount = normalizedHosts.filter((h: any) => h.status === 'down' || h.status === 'offline').length;
       const scanningCount = normalizedHosts.filter((h: any) => h.status === 'scanning').length;
+      const maintenanceCount = normalizedHosts.filter((h: any) => h.status === 'maintenance').length;
       const totalCount = normalizedHosts.length;
-      
+
       // Calculate compliance stats
       let totalCritical = 0, totalHigh = 0, totalMedium = 0, totalLow = 0, totalPassed = 0;
       let totalCompliance = 0;
@@ -258,8 +264,11 @@ const Dashboard: React.FC = () => {
 
       // Update state with processed data
       setOnlineHosts(onlineCount);
-      setOfflineHosts(offlineCount);
+      setDegradedHosts(degradedCount);
+      setCriticalHosts(criticalCount);
+      setDownHosts(downCount);
       setScanningHosts(scanningCount);
+      setMaintenanceHosts(maintenanceCount);
       setTotalHosts(totalCount);
       setCriticalIssues(totalCritical);
       setTrendData(trendDataArray);
@@ -270,8 +279,11 @@ const Dashboard: React.FC = () => {
       setDashboardData({
         stats: {
           onlineHosts: onlineCount,
-          offlineHosts: offlineCount,
+          degradedHosts: degradedCount,
+          criticalHosts: criticalCount,
+          downHosts: downCount,
           scanningHosts: scanningCount,
+          maintenanceHosts: maintenanceCount,
           totalHosts: totalCount,
           critical: totalCritical,
           high: totalHigh,
@@ -443,9 +455,11 @@ const Dashboard: React.FC = () => {
                 <FleetHealthWidget
                   data={{
                     online: onlineHosts,
-                    offline: offlineHosts,
+                    degraded: degradedHosts,
+                    critical: criticalHosts,
+                    down: downHosts,
                     scanning: scanningHosts,
-                    maintenance: 0
+                    maintenance: maintenanceHosts
                   }}
                   onSegmentClick={handleFilterClick}
                 />

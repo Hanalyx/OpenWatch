@@ -52,7 +52,8 @@ celery_app = Celery(
     backend=broker_url,
     include=[
         'backend.app.tasks.monitoring_tasks',
-        'backend.app.tasks.compliance_tasks'
+        'backend.app.tasks.compliance_tasks',
+        'backend.app.tasks.adaptive_monitoring_dispatcher'
     ]
 )
 
@@ -90,7 +91,8 @@ celery_app.conf.update(
         "backend.app.tasks.scan_host": {"queue": "scans"},
         "backend.app.tasks.process_scan_result": {"queue": "results"},
         "backend.app.tasks.cleanup_old_files": {"queue": "maintenance"},
-        "backend.app.tasks.check_host_connectivity": {"queue": "monitoring"},
+        "backend.app.tasks.check_host_connectivity": {"queue": "host_monitoring"},
+        "backend.app.tasks.dispatch_host_checks": {"queue": "host_monitoring"},
         "backend.app.tasks.queue_host_checks": {"queue": "monitoring"}
     },
 
@@ -101,8 +103,21 @@ celery_app.conf.update(
         Queue("scans", routing_key="scans"),
         Queue("results", routing_key="results"),
         Queue("maintenance", routing_key="maintenance"),
-        Queue("monitoring", routing_key="monitoring")
+        Queue("monitoring", routing_key="monitoring"),
+        Queue("host_monitoring", routing_key="host_monitoring")  # Dedicated queue for adaptive monitoring
     ],
+
+    # Celery Beat schedule for adaptive monitoring dispatcher
+    beat_schedule={
+        'dispatch-host-checks-every-30-seconds': {
+            'task': 'backend.app.tasks.dispatch_host_checks',
+            'schedule': 30.0,  # Run every 30 seconds
+            'options': {
+                'queue': 'host_monitoring',
+                'priority': 10  # Highest priority for dispatcher
+            }
+        },
+    },
     
     # Result backend settings
     result_expires=3600,  # 1 hour
@@ -120,7 +135,15 @@ celery_app.conf.update(
     
     # Security: Disable pickle serialization
     task_always_eager=False,
-    task_eager_propagates=True if settings.debug else False
+    task_eager_propagates=True if settings.debug else False,
+
+    # Task autodiscovery - import all task modules
+    imports=[
+        'backend.app.tasks.monitoring_tasks',
+        'backend.app.tasks.adaptive_monitoring_dispatcher',
+        'backend.app.tasks.health_monitoring_tasks',
+        'backend.app.tasks.compliance_tasks',
+    ]
 )
 
 

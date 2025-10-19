@@ -116,7 +116,7 @@ const Login: React.FC = () => {
           </Box>
           
           <Typography component="h1" variant="h5" gutterBottom>
-            Hanalyx SecureOps
+            Hanalyx OpenWatch
           </Typography>
           
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>

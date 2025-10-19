@@ -444,32 +444,57 @@ class HostMonitor:
         
         return check_results
     
-    async def update_host_status(self, db: Session, host_id: str, status: str, 
+    async def update_host_status(self, db: Session, host_id: str, status: str,
                                last_seen: Optional[datetime] = None,
-                               error_message: Optional[str] = None) -> bool:
+                               error_message: Optional[str] = None,
+                               response_time_ms: Optional[int] = None) -> bool:
         """
-        Update host status in database with last check timestamp
+        Update host status in database with last check timestamp, response time, and next check time.
+        Uses adaptive scheduler to calculate next_check_time based on host state.
         """
         try:
+            # Import here to avoid circular dependency
+            from .adaptive_scheduler_service import adaptive_scheduler_service
+
             update_data = {
                 'id': host_id,
                 'status': status,
                 'updated_at': datetime.utcnow(),
                 'last_check': datetime.utcnow()
             }
-            
+
             query = """
-                UPDATE hosts 
-                SET status = :status, updated_at = :updated_at, last_check = :last_check
-                WHERE id = :id
+                UPDATE hosts
+                SET status = :status,
+                    updated_at = :updated_at,
+                    last_check = :last_check
             """
-            
+
+            # Add response_time_ms if provided
+            if response_time_ms is not None:
+                update_data['response_time_ms'] = response_time_ms
+                query += ", response_time_ms = :response_time_ms"
+
+            # Calculate and set next check time based on adaptive scheduler config
+            next_check_time = adaptive_scheduler_service.calculate_next_check_time(db, status)
+            update_data['next_check_time'] = next_check_time
+            query += ", next_check_time = :next_check_time"
+
+            # Update check priority based on state
+            check_priority = adaptive_scheduler_service.get_priority_for_state(db, status)
+            update_data['check_priority'] = check_priority
+            query += ", check_priority = :check_priority"
+
+            query += " WHERE id = :id"
+
             db.execute(text(query), update_data)
             db.commit()
-            
-            logger.info(f"Updated host {host_id} status to {status} with last_check timestamp")
+
+            logger.info(f"Updated host {host_id} status to {status} with last_check timestamp" +
+                       (f", response_time {response_time_ms}ms" if response_time_ms else "") +
+                       f", next_check_time {next_check_time.isoformat()}, priority {check_priority}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update host status: {type(e).__name__}")
             db.rollback()
@@ -506,16 +531,19 @@ class HostMonitor:
             for host in hosts:
                 result = await self.comprehensive_host_check(host, db)
                 check_results.append(result)
-                
-                # Update database if status changed
+
+                # Send alert if status changed
                 if result['status'] != host['current_status']:
-                    # Send alert before updating database
                     await self.send_status_change_alerts(db, host, host['current_status'], result['status'])
-                    
-                    await self.update_host_status(
-                        db, host['id'], result['status'],
-                        datetime.utcnow() if result['status'] == 'online' else None
-                    )
+
+                # Always update last_check and response_time_ms, even if status unchanged
+                await self.update_host_status(
+                    db,
+                    host['id'],
+                    result['status'],
+                    datetime.utcnow() if result['status'] == 'online' else None,
+                    response_time_ms=result.get('response_time_ms')
+                )
             
             return check_results
             

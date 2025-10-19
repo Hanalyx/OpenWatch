@@ -47,6 +47,7 @@ import { api } from '../../services/api';
 import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
+import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 
 interface SystemCredentials {
   id: string;  // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
@@ -140,14 +141,6 @@ const Settings: React.FC = () => {
   });
   const [keyActionLoading, setKeyActionLoading] = useState(false);
 
-  // Scheduler settings state
-  const [schedulerSettings, setSchedulerSettings] = useState({
-    enabled: false,
-    interval_minutes: 5,
-    status: 'stopped'
-  });
-  const [schedulerLoading, setSchedulerLoading] = useState(false);
-
   // SSH Configuration state
   const [sshPolicy, setSSHPolicy] = useState<SSHPolicy>({
     policy: 'auto_add',
@@ -197,63 +190,6 @@ const Settings: React.FC = () => {
       console.error('Error loading credentials:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadSchedulerSettings = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/api/system/scheduler');
-      setSchedulerSettings(response);
-    } catch (err: any) {
-      setError('Failed to load scheduler settings');
-      console.error('Error loading scheduler settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleScheduler = async () => {
-    try {
-      setSchedulerLoading(true);
-      const newEnabled = !schedulerSettings.enabled;
-      
-      if (newEnabled) {
-        await api.post('/api/system/scheduler/start', {
-          interval_minutes: schedulerSettings.interval_minutes
-        });
-        setSuccess('Host monitoring scheduler started');
-      } else {
-        await api.post('/api/system/scheduler/stop');
-        setSuccess('Host monitoring scheduler stopped');
-      }
-      
-      // Reload settings to get updated status
-      await loadSchedulerSettings();
-    } catch (err: any) {
-      setError('Failed to toggle scheduler');
-      console.error('Error toggling scheduler:', err);
-    } finally {
-      setSchedulerLoading(false);
-    }
-  };
-
-  const updateSchedulerInterval = async (newInterval: number) => {
-    try {
-      setSchedulerLoading(true);
-      await api.put('/api/system/scheduler', {
-        interval_minutes: newInterval
-      });
-      setSchedulerSettings(prev => ({
-        ...prev,
-        interval_minutes: newInterval
-      }));
-      setSuccess('Scheduler interval updated');
-    } catch (err: any) {
-      setError('Failed to update scheduler interval');
-      console.error('Error updating scheduler interval:', err);
-    } finally {
-      setSchedulerLoading(false);
     }
   };
 
@@ -359,7 +295,6 @@ const Settings: React.FC = () => {
   useEffect(() => {
     if (tabValue === 0) { // System Settings tab
       loadCredentials();
-      loadSchedulerSettings();
     } else if (tabValue === 1) { // SSH Configuration tab
       loadSSHPolicy();
       loadKnownHosts();
@@ -518,81 +453,11 @@ const Settings: React.FC = () => {
         </Box>
 
         <TabPanel value={tabValue} index={0}>
-          {/* Scheduler Configuration Section */}
-          <Card sx={{ mb: 4, p: 3 }}>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                <ScheduleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Host Monitoring Scheduler
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Configure automatic host monitoring to check connectivity and SSH access at regular intervals.
-              </Typography>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 3 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={schedulerSettings.enabled}
-                    onChange={toggleScheduler}
-                    disabled={schedulerLoading}
-                  />
-                }
-                label={schedulerSettings.enabled ? "Automatic monitoring enabled" : "Automatic monitoring disabled"}
-              />
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Status:
-                </Typography>
-                <Typography 
-                  variant="body2" 
-                  color={schedulerSettings.status === 'running' ? 'success.main' : 'text.secondary'}
-                  fontWeight="medium"
-                >
-                  {schedulerSettings.status?.toUpperCase() || 'UNKNOWN'}
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <TextField
-                label="Check Interval (minutes)"
-                type="number"
-                size="small"
-                value={schedulerSettings.interval_minutes}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (value >= 1 && value <= 1440) { // 1 minute to 24 hours
-                    setSchedulerSettings(prev => ({
-                      ...prev,
-                      interval_minutes: value
-                    }));
-                  }
-                }}
-                onBlur={() => updateSchedulerInterval(schedulerSettings.interval_minutes)}
-                inputProps={{ min: 1, max: 1440 }}
-                sx={{ width: 200 }}
-                helperText="1-1440 minutes"
-                disabled={schedulerLoading}
-              />
-              
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={schedulerSettings.enabled ? <StopIcon /> : <PlayIcon />}
-                onClick={toggleScheduler}
-                disabled={schedulerLoading}
-              >
-                {schedulerLoading ? 'Updating...' : schedulerSettings.enabled ? 'Stop Scheduler' : 'Start Scheduler'}
-              </Button>
-            </Box>
-
-            <Alert severity="info" sx={{ mt: 2 }}>
-              When enabled, the system will automatically check all hosts every {schedulerSettings.interval_minutes} minutes to update their connectivity status (ping, port accessibility, and SSH login capability).
-            </Alert>
-          </Card>
+          {/* Adaptive Scheduler Configuration Section */}
+          <AdaptiveSchedulerSettings
+            onSuccess={setSuccess}
+            onError={setError}
+          />
 
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
