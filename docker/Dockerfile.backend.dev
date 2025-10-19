@@ -1,5 +1,5 @@
 # OpenWatch Backend - Development Container
-FROM python:3.9.21-slim
+FROM python:3.14.0-slim
 
 # Install system dependencies including OpenSCAP and networking tools
 RUN apt-get update && \
