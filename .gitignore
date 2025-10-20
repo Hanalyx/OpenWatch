@@ -766,3 +766,11 @@ test-results.json
 docs/ADAPTIVE_SCHEDULER*.md
 docs/COMPREHENSIVE_CHECK*.md
 docs/HOST_STATUS*.md
+
+# ======================================
+# ROOT DOCS DIRECTORY - DO NOT COMMIT
+# ======================================
+
+# All documentation files in root docs/ directory
+/docs/*
+!/docs/.gitkeep
