@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: Optional[str] = None
     audit_log_file: str = "/app/logs/audit.log"
+
+    # Feature Flags (OW-REFACTOR-001B)
+    use_query_builder: bool = Field(
+        default=False,
+        description="Enable QueryBuilder for hosts.py endpoints (OW-REFACTOR-001B)"
+    )
     
     @validator("secret_key")
     def secret_key_must_be_strong(cls, v):

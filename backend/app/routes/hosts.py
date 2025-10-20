@@ -12,6 +12,8 @@ import json
 
 from ..database import get_db
 from ..utils.logging_security import sanitize_id_for_log
+from ..utils.query_builder import QueryBuilder
+from ..config import get_settings
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 # NOTE: json and base64 imports removed - using centralized auth service
@@ -201,6 +203,8 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
     """List all managed hosts"""
     try:
         # Try to get hosts from database with latest scan information and group details
+        # NOTE: This query uses LATERAL JOIN which is PostgreSQL-specific and complex
+        # OW-REFACTOR-001B: Keeping original SQL due to LATERAL JOIN complexity
         result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
@@ -216,9 +220,9 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
             FROM hosts h
             LEFT JOIN LATERAL (
                 SELECT s2.id, s2.name, s2.status, s2.progress, s2.started_at, s2.completed_at
-                FROM scans s2 
-                WHERE s2.host_id = h.id 
-                ORDER BY s2.started_at DESC 
+                FROM scans s2
+                WHERE s2.host_id = h.id
+                ORDER BY s2.started_at DESC
                 LIMIT 1
             ) s ON true
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
@@ -436,6 +440,8 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
 @router.get("/{host_id}", response_model=Host)
 async def get_host(host_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get host details by ID"""
+    settings = get_settings()
+
     try:
         # Validate and convert host_id to UUID
         try:
@@ -446,16 +452,35 @@ async def get_host(host_id: str, db: Session = Depends(get_db), current_user: di
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid host ID format"
             )
-        
-        result = db.execute(text("""
-            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
-                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
-                   hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
-            FROM hosts h
-            LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
-            LEFT JOIN host_groups hg ON hg.id = hgm.group_id
-            WHERE h.id = :id
-        """), {"id": host_uuid})
+
+        # OW-REFACTOR-001B: Feature flag for QueryBuilder
+        if settings.use_query_builder:
+            logger.info(f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Build query using QueryBuilder
+            builder = (QueryBuilder("hosts h")
+                .select(
+                    "h.id", "h.hostname", "h.ip_address", "h.display_name", "h.operating_system",
+                    "h.status", "h.port", "h.username", "h.auth_method", "h.created_at", "h.updated_at", "h.description",
+                    "hg.id as group_id", "hg.name as group_name", "hg.description as group_description", "hg.color as group_color"
+                )
+                .join("host_group_memberships hgm", "hgm.host_id = h.id", "LEFT")
+                .join("host_groups hg", "hg.id = hgm.group_id", "LEFT")
+                .where("h.id = :id", host_uuid, "id")
+            )
+            query, params = builder.build()
+            result = db.execute(text(query), params)
+        else:
+            # Original SQL implementation (default)
+            logger.info(f"Using original SQL for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            result = db.execute(text("""
+                SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
+                       h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
+                       hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
+                FROM hosts h
+                LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
+                LEFT JOIN host_groups hg ON hg.id = hgm.group_id
+                WHERE h.id = :id
+            """), {"id": host_uuid})
         
         row = result.fetchone()
         if not row:
