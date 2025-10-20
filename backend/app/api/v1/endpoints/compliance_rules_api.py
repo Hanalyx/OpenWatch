@@ -14,6 +14,8 @@ import json
 try:
     from ....services.mongo_integration_service import get_mongo_service, MongoIntegrationService
     from ....models.mongo_models import ComplianceRule
+    from ....repositories import ComplianceRuleRepository
+    from ....config import get_settings
     MONGO_AVAILABLE = True
 except ImportError:
     # Fallback when MongoDB dependencies are not available
@@ -187,11 +189,26 @@ async def get_compliance_rules(
         
         # Get total count and rules (fallback if MongoDB not available)
         if MONGO_AVAILABLE:
-            total_count = await ComplianceRule.find(query).count()
-            
-            # Get paginated results
-            rules_cursor = ComplianceRule.find(query).skip(offset).limit(limit)
-            rules = await rules_cursor.to_list()
+            settings = get_settings()
+
+            # OW-REFACTOR-002: Feature flag for Repository Pattern
+            if settings.use_repository_pattern:
+                logger.info(f"Using ComplianceRuleRepository for get_compliance_rules endpoint")
+                repo = ComplianceRuleRepository()
+
+                # Get total count using repository
+                total_count = await repo.count(query)
+
+                # Get paginated results using repository
+                rules = await repo.find_many(query, skip=offset, limit=limit)
+            else:
+                # Original MongoDB queries (default)
+                logger.info(f"Using original MongoDB queries for get_compliance_rules endpoint")
+                total_count = await ComplianceRule.find(query).count()
+
+                # Get paginated results
+                rules_cursor = ComplianceRule.find(query).skip(offset).limit(limit)
+                rules = await rules_cursor.to_list()
         else:
             # Return mock rules if MongoDB not available
             mock_rules = [

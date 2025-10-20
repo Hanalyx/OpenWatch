@@ -91,6 +91,9 @@ services:
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
+      # Feature Flags - OW-REFACTOR
+      OPENWATCH_USE_QUERY_BUILDER: "${OPENWATCH_USE_QUERY_BUILDER:-false}"
+      OPENWATCH_USE_REPOSITORY_PATTERN: "${OPENWATCH_USE_REPOSITORY_PATTERN:-false}"
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy

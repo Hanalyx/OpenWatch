@@ -1,6 +1,7 @@
 """
 MongoDB Integration Service for OpenWatch
 Handles MongoDB connections, data operations, and testing
+OW-REFACTOR-002: Migrating to Repository Pattern
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -14,15 +15,19 @@ except ImportError:
 
 try:
     from ..models.mongo_models import (
-        ComplianceRule, 
-        RuleIntelligence, 
+        ComplianceRule,
+        RuleIntelligence,
         RemediationScript,
         MongoManager,
         FrameworkVersions,
         PlatformImplementation,
         get_mongo_manager
     )
+    # OW-REFACTOR-002: Import Repository Pattern
+    from ..repositories import ComplianceRuleRepository
+    REPOSITORY_AVAILABLE = True
 except ImportError as e:
+    REPOSITORY_AVAILABLE = False
     # Fallback when mongo models are not available
     class MockComplianceRule:
         @classmethod
@@ -244,45 +249,83 @@ fi
         return script
 
     async def query_rules_by_platform(self, platform: str, version: str) -> List[ComplianceRule]:
-        """Query rules by platform and version"""
+        """Query rules by platform and version
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
         if not self.initialized:
             await self.initialize()
-        
+
+        settings = get_settings()
+
         # MongoDB query for platform-specific rules
         query_field = f"platform_implementations.{platform}.versions"
-        rules = await ComplianceRule.find({query_field: version}).to_list()
-        
+        query = {query_field: version}
+
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info(f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})")
+            repo = ComplianceRuleRepository()
+            rules = await repo.find_many(query)
+        else:
+            logger.debug(f"Using direct MongoDB find for query_rules_by_platform ({platform} {version})")
+            rules = await ComplianceRule.find(query).to_list()
+
         logger.info(f"Found {len(rules)} rules for {platform} {version}")
         return rules
 
     async def query_rules_by_framework(self, framework: str, version: str) -> List[ComplianceRule]:
-        """Query rules by compliance framework and version"""
+        """Query rules by compliance framework and version
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
         if not self.initialized:
             await self.initialize()
-        
+
+        settings = get_settings()
+
         # MongoDB query for framework-specific rules
         query_field = f"frameworks.{framework}.{version}"
-        rules = await ComplianceRule.find({query_field: {"$exists": True}}).to_list()
-        
+        query = {query_field: {"$exists": True}}
+
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info(f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})")
+            repo = ComplianceRuleRepository()
+            rules = await repo.find_many(query)
+        else:
+            logger.debug(f"Using direct MongoDB find for query_rules_by_framework ({framework} {version})")
+            rules = await ComplianceRule.find(query).to_list()
+
         logger.info(f"Found {len(rules)} rules for {framework} {version}")
         return rules
 
     async def get_rule_with_intelligence(self, rule_id: str) -> Dict[str, Any]:
-        """Get rule with associated intelligence and remediation data"""
+        """Get rule with associated intelligence and remediation data
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
         if not self.initialized:
             await self.initialize()
-        
+
+        settings = get_settings()
+
         # Get the rule
-        rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info(f"Using ComplianceRuleRepository for get_rule_with_intelligence ({rule_id})")
+            repo = ComplianceRuleRepository()
+            rule = await repo.find_one({"rule_id": rule_id})
+        else:
+            logger.debug(f"Using direct MongoDB find_one for get_rule_with_intelligence ({rule_id})")
+            rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+
         if not rule:
             return {"error": "Rule not found"}
-        
+
         # Get intelligence
         intelligence = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_id)
-        
+
         # Get remediation scripts
         scripts = await RemediationScript.find(RemediationScript.rule_id == rule_id).to_list()
-        
+
         return {
             "rule": rule.dict() if rule else None,
             "intelligence": intelligence.dict() if intelligence else None,
@@ -400,13 +443,16 @@ fi
         """
         Get platform statistics using MongoDB aggregation
         Returns statistical breakdown of rules by platform
+        OW-REFACTOR-002: Supports Repository Pattern
         """
+        settings = get_settings()
+
         try:
             # MongoDB aggregation pipeline for platform statistics
             pipeline = [
                 # Unwind platform implementations
                 {"$unwind": {"path": "$platform_implementations", "preserveNullAndEmptyArrays": False}},
-                
+
                 # Group by platform and version
                 {
                     "$group": {
@@ -420,7 +466,7 @@ fi
                         "frameworks": {"$push": {"$objectToArray": "$frameworks"}}
                     }
                 },
-                
+
                 # Transform and calculate statistics
                 {
                     "$project": {
@@ -432,15 +478,22 @@ fi
                         "frameworks": 1
                     }
                 },
-                
+
                 # Sort by rule count descending
                 {"$sort": {"ruleCount": -1}}
             ]
-            
+
             # Execute aggregation (fallback to manual processing if aggregation fails)
             try:
-                cursor = ComplianceRule.aggregate(pipeline)
-                aggregation_results = await cursor.to_list()
+                # OW-REFACTOR-002: Use Repository Pattern if enabled
+                if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+                    logger.info("Using ComplianceRuleRepository for get_platform_statistics aggregation")
+                    repo = ComplianceRuleRepository()
+                    aggregation_results = await repo.aggregate(pipeline)
+                else:
+                    logger.debug("Using direct MongoDB aggregation for get_platform_statistics")
+                    cursor = ComplianceRule.aggregate(pipeline)
+                    aggregation_results = await cursor.to_list()
                 
                 if aggregation_results:
                     # Process aggregation results
@@ -486,9 +539,17 @@ fi
                     
             except Exception as agg_error:
                 logger.warning(f"MongoDB aggregation failed, falling back to manual processing: {agg_error}")
-            
+
             # Fallback: Manual processing of all rules
-            all_rules = await ComplianceRule.find().to_list()
+            # OW-REFACTOR-002: Use Repository Pattern if enabled
+            if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+                logger.info("Using ComplianceRuleRepository for get_platform_statistics fallback")
+                repo = ComplianceRuleRepository()
+                all_rules = await repo.find_many({})
+            else:
+                logger.debug("Using direct MongoDB find for get_platform_statistics fallback")
+                all_rules = await ComplianceRule.find().to_list()
+
             platform_analysis = {}
             
             for rule in all_rules:
