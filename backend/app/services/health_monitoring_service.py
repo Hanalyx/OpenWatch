@@ -3,6 +3,7 @@ Health monitoring service for collecting and managing health metrics.
 
 This service handles both service health (operational) and content health
 (compliance effectiveness) data collection and storage.
+OW-REFACTOR-002: Migrating to Repository Pattern
 """
 
 import asyncio
@@ -34,6 +35,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 from ..config import get_settings
+
+# OW-REFACTOR-002: Import Repository Pattern
+try:
+    from ..repositories import ComplianceRuleRepository
+    REPOSITORY_AVAILABLE = True
+except ImportError:
+    REPOSITORY_AVAILABLE = False
 
 settings = get_settings()
 
@@ -369,11 +377,20 @@ class HealthMonitoringService:
             raise
     
     async def _collect_framework_health(self) -> Dict[str, FrameworkHealth]:
-        """Collect health metrics for compliance frameworks"""
+        """Collect health metrics for compliance frameworks
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
         frameworks = {}
-        
+
         # Get all rules
-        all_rules = await ComplianceRule.find_all().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info("Using ComplianceRuleRepository for _collect_framework_health")
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
+        else:
+            logger.debug("Using direct MongoDB find for _collect_framework_health")
+            all_rules = await ComplianceRule.find().to_list()
         
         # Analyze framework coverage
         framework_configs = {
@@ -413,11 +430,20 @@ class HealthMonitoringService:
         return frameworks
     
     async def _collect_benchmark_health(self) -> Dict[str, BenchmarkHealth]:
-        """Collect health metrics for benchmarks"""
+        """Collect health metrics for benchmarks
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
         benchmarks = {}
-        
+
         # Get all rules
-        all_rules = await ComplianceRule.find_all().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info("Using ComplianceRuleRepository for _collect_benchmark_health")
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
+        else:
+            logger.debug("Using direct MongoDB find for _collect_benchmark_health")
+            all_rules = await ComplianceRule.find().to_list()
         
         # Analyze benchmark coverage
         benchmark_configs = {
@@ -466,8 +492,18 @@ class HealthMonitoringService:
         return benchmarks
     
     async def _collect_rule_statistics(self) -> Dict[str, Any]:
-        """Collect rule distribution statistics"""
-        all_rules = await ComplianceRule.find_all().to_list()
+        """Collect rule distribution statistics
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info("Using ComplianceRuleRepository for _collect_rule_statistics")
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
+        else:
+            logger.debug("Using direct MongoDB find for _collect_rule_statistics")
+            all_rules = await ComplianceRule.find().to_list()
+
         remediation_scripts = await RemediationScript.count()
         
         # Count by severity
@@ -506,8 +542,17 @@ class HealthMonitoringService:
         }
     
     async def _check_content_integrity(self) -> Dict[str, Any]:
-        """Check content integrity and consistency"""
-        all_rules = await ComplianceRule.find_all().to_list()
+        """Check content integrity and consistency
+        OW-REFACTOR-002: Supports Repository Pattern
+        """
+        # OW-REFACTOR-002: Use Repository Pattern if enabled
+        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
+            logger.info("Using ComplianceRuleRepository for _check_content_integrity")
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
+        else:
+            logger.debug("Using direct MongoDB find for _check_content_integrity")
+            all_rules = await ComplianceRule.find().to_list()
         
         # Check for issues
         duplicate_ids = []
