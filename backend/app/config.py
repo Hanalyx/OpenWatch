@@ -92,10 +92,17 @@ class Settings(BaseSettings):
     log_file: Optional[str] = None
     audit_log_file: str = "/app/logs/audit.log"
 
-    # Feature Flags (OW-REFACTOR-001B)
+    # Feature Flags
+    # OW-REFACTOR-001B: QueryBuilder pattern for SQL operations
     use_query_builder: bool = Field(
         default=False,
         description="Enable QueryBuilder for hosts.py endpoints (OW-REFACTOR-001B)"
+    )
+
+    # OW-REFACTOR-002: MongoDB Repository pattern
+    use_repository_pattern: bool = Field(
+        default=False,
+        description="Enable Repository pattern for MongoDB operations (OW-REFACTOR-002)"
     )
     
     @validator("secret_key")
