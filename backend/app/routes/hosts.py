@@ -367,26 +367,52 @@ async def create_host(host: HostCreate, db: Session = Depends(get_db), current_u
                 # (will be done after the INSERT below)
                 logger.info(f"Preparing host-specific credential for {host.hostname} in unified_credentials")
         
-        db.execute(text("""
-            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, 
-                             username, auth_method, encrypted_credentials, is_active, created_at, updated_at)
-            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port, 
-                    :username, :auth_method, :encrypted_credentials, :is_active, :created_at, :updated_at)
-        """), {
-            "id": host_id,
-            "hostname": host.hostname,
-            "ip_address": host.ip_address,
-            "display_name": display_name,
-            "operating_system": host.operating_system,
-            "status": "offline",
-            "port": int(host.port) if host.port else 22,
-            "username": host.username,
-            "auth_method": host.auth_method or "ssh_key",
-            "encrypted_credentials": encrypted_creds,
-            "is_active": True,
-            "created_at": current_time,
-            "updated_at": current_time
-        })
+        # OW-REFACTOR-001B: Feature flag for QueryBuilder
+        settings = get_settings()
+        if settings.use_query_builder:
+            logger.info(f"Using QueryBuilder for create_host endpoint (hostname: {host.hostname})")
+            # Build INSERT query using QueryBuilder
+            builder = (QueryBuilder("hosts")
+                .insert({
+                    "id": host_id,
+                    "hostname": host.hostname,
+                    "ip_address": host.ip_address,
+                    "display_name": display_name,
+                    "operating_system": host.operating_system,
+                    "status": "offline",
+                    "port": int(host.port) if host.port else 22,
+                    "username": host.username,
+                    "auth_method": host.auth_method or "ssh_key",
+                    "encrypted_credentials": encrypted_creds,
+                    "is_active": True,
+                    "created_at": current_time,
+                    "updated_at": current_time
+                })
+            )
+            sql, params = builder.build()
+            db.execute(text(sql), params)
+        else:
+            logger.debug(f"Using direct SQL for create_host endpoint (hostname: {host.hostname})")
+            db.execute(text("""
+                INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port,
+                                 username, auth_method, encrypted_credentials, is_active, created_at, updated_at)
+                VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port,
+                        :username, :auth_method, :encrypted_credentials, :is_active, :created_at, :updated_at)
+            """), {
+                "id": host_id,
+                "hostname": host.hostname,
+                "ip_address": host.ip_address,
+                "display_name": display_name,
+                "operating_system": host.operating_system,
+                "status": "offline",
+                "port": int(host.port) if host.port else 22,
+                "username": host.username,
+                "auth_method": host.auth_method or "ssh_key",
+                "encrypted_credentials": encrypted_creds,
+                "is_active": True,
+                "created_at": current_time,
+                "updated_at": current_time
+            })
         
         db.commit()
 
@@ -672,39 +698,55 @@ async def update_host(host_id: str, host_update: HostUpdate, db: Session = Depen
             "updated_at": current_time
         }
         
-        # Build SQL query with optional encrypted_credentials
+        # Add encrypted_credentials if needed
         if encrypted_creds is not None or (host_update.auth_method == "system_default"):
-            update_query = """
-                UPDATE hosts 
-                SET hostname = :hostname,
-                    ip_address = :ip_address,
-                    display_name = :display_name,
-                    operating_system = :operating_system,
-                    port = :port,
-                    username = :username,
-                    auth_method = :auth_method,
-                    description = :description,
-                    encrypted_credentials = :encrypted_credentials,
-                    updated_at = :updated_at
-                WHERE id = :id
-            """
             update_params["encrypted_credentials"] = encrypted_creds
+
+        # OW-REFACTOR-001B: Feature flag for QueryBuilder
+        settings = get_settings()
+        if settings.use_query_builder:
+            logger.info(f"Using QueryBuilder for update_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Build UPDATE query using QueryBuilder
+            builder = (QueryBuilder("hosts")
+                .update(update_params)
+                .where("id", host_uuid)
+            )
+            sql, params = builder.build()
+            db.execute(text(sql), params)
         else:
-            update_query = """
-                UPDATE hosts 
-                SET hostname = :hostname,
-                    ip_address = :ip_address,
-                    display_name = :display_name,
-                    operating_system = :operating_system,
-                    port = :port,
-                    username = :username,
-                    auth_method = :auth_method,
-                    description = :description,
-                    updated_at = :updated_at
-                WHERE id = :id
-            """
-        
-        db.execute(text(update_query), update_params)
+            logger.debug(f"Using direct SQL for update_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Build SQL query with optional encrypted_credentials
+            if encrypted_creds is not None or (host_update.auth_method == "system_default"):
+                update_query = """
+                    UPDATE hosts
+                    SET hostname = :hostname,
+                        ip_address = :ip_address,
+                        display_name = :display_name,
+                        operating_system = :operating_system,
+                        port = :port,
+                        username = :username,
+                        auth_method = :auth_method,
+                        description = :description,
+                        encrypted_credentials = :encrypted_credentials,
+                        updated_at = :updated_at
+                    WHERE id = :id
+                """
+            else:
+                update_query = """
+                    UPDATE hosts
+                    SET hostname = :hostname,
+                        ip_address = :ip_address,
+                        display_name = :display_name,
+                        operating_system = :operating_system,
+                        port = :port,
+                        username = :username,
+                        auth_method = :auth_method,
+                        description = :description,
+                        updated_at = :updated_at
+                    WHERE id = :id
+                """
+
+            db.execute(text(update_query), update_params)
         
         db.commit()
         
@@ -781,31 +823,73 @@ async def delete_host(host_id: str, db: Session = Depends(get_db), current_user:
                 detail="Host not found"
             )
         
-        # Check if host has any scans (optional - you might want to prevent deletion)
-        scan_result = db.execute(text("""
-            SELECT COUNT(*) as count FROM scans WHERE host_id = :host_id
-        """), {"host_id": host_uuid})
-        
-        scan_count = scan_result.fetchone().count
-        if scan_count > 0:
-            # You can either delete the scans or prevent deletion
-            # For now, we'll delete the scans too
-            db.execute(text("""
-                DELETE FROM scan_results WHERE scan_id IN (
-                    SELECT id FROM scans WHERE host_id = :host_id
+        # OW-REFACTOR-001B: Feature flag for QueryBuilder
+        settings = get_settings()
+        if settings.use_query_builder:
+            logger.info(f"Using QueryBuilder for delete_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+
+            # Check if host has any scans
+            scan_count_builder = (QueryBuilder("scans")
+                .select("COUNT(*) as count")
+                .where("host_id", host_uuid)
+            )
+            sql, params = scan_count_builder.build()
+            scan_result = db.execute(text(sql), params)
+            scan_count = scan_result.fetchone().count
+
+            if scan_count > 0:
+                # Delete scan_results for this host's scans
+                delete_results_builder = (QueryBuilder("scan_results")
+                    .delete()
+                    .where_raw("scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)", {"host_id": host_uuid})
                 )
+                sql, params = delete_results_builder.build()
+                db.execute(text(sql), params)
+
+                # Delete scans for this host
+                delete_scans_builder = (QueryBuilder("scans")
+                    .delete()
+                    .where("host_id", host_uuid)
+                )
+                sql, params = delete_scans_builder.build()
+                db.execute(text(sql), params)
+
+                logger.info(f"Deleted {scan_count} scans for host {host_id}")
+
+            # Delete the host
+            delete_host_builder = (QueryBuilder("hosts")
+                .delete()
+                .where("id", host_uuid)
+            )
+            sql, params = delete_host_builder.build()
+            db.execute(text(sql), params)
+        else:
+            logger.debug(f"Using direct SQL for delete_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Check if host has any scans (optional - you might want to prevent deletion)
+            scan_result = db.execute(text("""
+                SELECT COUNT(*) as count FROM scans WHERE host_id = :host_id
             """), {"host_id": host_uuid})
-            
+
+            scan_count = scan_result.fetchone().count
+            if scan_count > 0:
+                # You can either delete the scans or prevent deletion
+                # For now, we'll delete the scans too
+                db.execute(text("""
+                    DELETE FROM scan_results WHERE scan_id IN (
+                        SELECT id FROM scans WHERE host_id = :host_id
+                    )
+                """), {"host_id": host_uuid})
+
+                db.execute(text("""
+                    DELETE FROM scans WHERE host_id = :host_id
+                """), {"host_id": host_uuid})
+
+                logger.info(f"Deleted {scan_count} scans for host {host_id}")
+
+            # Delete the host
             db.execute(text("""
-                DELETE FROM scans WHERE host_id = :host_id
-            """), {"host_id": host_uuid})
-            
-            logger.info(f"Deleted {scan_count} scans for host {host_id}")
-        
-        # Delete the host
-        db.execute(text("""
-            DELETE FROM hosts WHERE id = :id
-        """), {"id": host_uuid})
+                DELETE FROM hosts WHERE id = :id
+            """), {"id": host_uuid})
         
         db.commit()
         
@@ -856,19 +940,38 @@ async def delete_host_ssh_key(host_id: str, db: Session = Depends(get_db), curre
                 detail="No SSH key found to delete"
             )
         
-        # Update host to remove SSH key
-        db.execute(text("""
-            UPDATE hosts SET 
-                ssh_key_fingerprint = NULL,
-                ssh_key_type = NULL,
-                ssh_key_bits = NULL,
-                ssh_key_comment = NULL,
-                updated_at = :updated_at
-            WHERE id = :id
-        """), {
-            "id": host_uuid,
-            "updated_at": datetime.utcnow()
-        })
+        # OW-REFACTOR-001B: Feature flag for QueryBuilder
+        settings = get_settings()
+        if settings.use_query_builder:
+            logger.info(f"Using QueryBuilder for delete_host_ssh_key endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Build UPDATE query using QueryBuilder
+            builder = (QueryBuilder("hosts")
+                .update({
+                    "ssh_key_fingerprint": None,
+                    "ssh_key_type": None,
+                    "ssh_key_bits": None,
+                    "ssh_key_comment": None,
+                    "updated_at": datetime.utcnow()
+                })
+                .where("id", host_uuid)
+            )
+            sql, params = builder.build()
+            db.execute(text(sql), params)
+        else:
+            logger.debug(f"Using direct SQL for delete_host_ssh_key endpoint (host_id: {sanitize_id_for_log(host_id)})")
+            # Update host to remove SSH key
+            db.execute(text("""
+                UPDATE hosts SET
+                    ssh_key_fingerprint = NULL,
+                    ssh_key_type = NULL,
+                    ssh_key_bits = NULL,
+                    ssh_key_comment = NULL,
+                    updated_at = :updated_at
+                WHERE id = :id
+            """), {
+                "id": host_uuid,
+                "updated_at": datetime.utcnow()
+            })
         
         db.commit()
         
