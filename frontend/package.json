@@ -55,20 +55,20 @@
     "test:e2e:report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
-    "@storybook/react": "^9.1.3",
+    "@playwright/test": "^1.56.1",
+    "@storybook/react": "^9.1.13",
     "@testing-library/react": "^16.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
     "@typescript-eslint/parser": "^8.42.0",
     "@vitejs/plugin-react": "^5.0.2",
     "@vitest/ui": "^3.2.4",
-    "eslint": "^9.35.0",
+    "eslint": "^9.38.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-prettier": "^4.2.1",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "prettier": "^3.6.2",
-    "vite": "^7.1.5",
+    "vite": "^7.1.10",
     "vitest": "^3.2.4"
   }
 }
