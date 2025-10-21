@@ -1,0 +1,115 @@
+# Pre-commit hooks for OpenWatch
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file quality
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^frontend/|\.min\.(js|css)$
+      - id: end-of-file-fixer
+        exclude: ^frontend/|\.min\.(js|css)$
+      - id: check-yaml
+        args: ['--unsafe']  # Allow custom YAML tags in docker-compose
+      - id: check-json
+        exclude: ^frontend/package(-lock)?\.json$
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+        exclude: ^docs/|^scripts/test-data/
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Python backend quality
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3
+        files: ^backend/
+        args: ['--line-length=120']
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        files: ^backend/
+        args: ['--profile', 'black', '--line-length', '120']
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        files: ^backend/
+        args:
+          - '--max-line-length=120'
+          - '--extend-ignore=E203,W503,E501'
+          - '--exclude=__pycache__,*.pyc,.git,venv,env'
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        files: ^backend/
+        args: ['--ignore-missing-imports', '--no-strict-optional']
+        additional_dependencies:
+          - 'types-redis'
+          - 'types-requests'
+          - 'sqlalchemy[mypy]'
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        files: ^backend/
+        args: ['-c', 'backend/bandit.yaml', '-r', 'backend/']
+        exclude: ^backend/tests/
+
+  # Frontend quality (via local hooks since we need npm)
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: ESLint Frontend
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: frontend-typecheck
+        name: TypeScript Type Check
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      # Don't run tests in pre-commit (too slow)
+      # Tests run in CI instead
+
+  # Docker and Compose validation
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        args: ['--ignore', 'DL3008', '--ignore', 'DL3009']
+
+  # Secret scanning
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(package-lock\.json|.*\.lock)$
+
+# Configuration
+default_language_version:
+  python: python3.9
+  node: 18.x
+
+# Performance optimization
+default_stages: [commit]
+fail_fast: false  # Run all hooks even if one fails
