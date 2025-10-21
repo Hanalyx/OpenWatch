@@ -1,0 +1,232 @@
+name: Automated Security & Dependency Triage
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no actual changes)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  security-events: read
+
+jobs:
+  triage-dependabot:
+    name: Triage Dependabot Alerts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Fetch Dependabot Alerts
+        id: fetch-alerts
+        run: |
+          echo "Fetching Dependabot alerts..."
+          gh api /repos/${{ github.repository }}/dependabot/alerts \
+            --paginate \
+            --jq 'map(select(.state == "open"))' \
+            > dependabot_alerts.json
+
+          ALERT_COUNT=$(jq 'length' dependabot_alerts.json)
+          echo "Found $ALERT_COUNT open Dependabot alerts"
+          echo "alert_count=$ALERT_COUNT" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Risk Assessment
+        if: steps.fetch-alerts.outputs.alert_count > 0
+        id: risk
+        run: |
+          python scripts/risk_assessment.py \
+            --type=dependabot \
+            dependabot_alerts.json
+
+      - name: Display Risk Summary
+        if: steps.fetch-alerts.outputs.alert_count > 0
+        run: |
+          echo "📊 Risk Assessment Summary"
+          echo "=========================="
+          jq -r '.[] | "Alert #\(.number): \(.risk_assessment.level) risk"' low_risk_alerts.json medium_risk_alerts.json high_risk_alerts.json
+
+      - name: Auto-Approve Low Risk PRs
+        if: steps.risk.outputs.has_low_risk == 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          echo "🤖 Auto-approving low-risk Dependabot PRs..."
+
+          # Get PR numbers from low risk alerts
+          jq -r '.[] | .number' low_risk_alerts.json | while read alert_num; do
+            # Find associated PR
+            PR_NUM=$(gh pr list --search "Dependabot alert $alert_num" --json number --jq '.[0].number')
+
+            if [ -n "$PR_NUM" ]; then
+              echo "Approving PR #$PR_NUM (Alert #$alert_num)"
+              gh pr review $PR_NUM --approve --body "✅ Auto-approved: LOW risk update"
+              gh pr merge $PR_NUM --auto --squash || echo "Could not enable auto-merge for PR #$PR_NUM"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Request Review for Medium Risk
+        if: steps.risk.outputs.has_medium_risk == 'true'
+        run: |
+          echo "⚠️ Requesting review for medium-risk alerts..."
+
+          jq -r '.[] | .number' medium_risk_alerts.json | while read alert_num; do
+            # Find associated PR
+            PR_NUM=$(gh pr list --search "Dependabot alert $alert_num" --json number --jq '.[0].number')
+
+            if [ -n "$PR_NUM" ]; then
+              echo "Requesting review for PR #$PR_NUM (Alert #$alert_num)"
+              gh pr edit $PR_NUM \
+                --add-label "review-required" \
+                --add-label "medium-risk" \
+                --add-reviewer "${{ github.repository_owner }}"
+
+              gh pr comment $PR_NUM --body "⚠️ **Medium Risk Update**
+
+This dependency update has been classified as MEDIUM risk and requires human review.
+
+**Risk Assessment:**
+$(jq -r --arg num "$alert_num" '.[] | select(.number == ($num | tonumber)) | .risk_assessment | to_entries | map("\(.key): \(.value)") | join("\n")' medium_risk_alerts.json)
+
+Please review the changes carefully before merging."
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Issues for High Risk
+        if: steps.risk.outputs.has_high_risk == 'true'
+        run: |
+          echo "🚨 Creating issues for high-risk alerts..."
+
+          jq -r '.[] | @base64' high_risk_alerts.json | while read encoded_alert; do
+            ALERT=$(echo "$encoded_alert" | base64 --decode)
+            ALERT_NUM=$(echo "$ALERT" | jq -r '.number')
+            PACKAGE=$(echo "$ALERT" | jq -r '.dependency.package.name')
+            SEVERITY=$(echo "$ALERT" | jq -r '.security_vulnerability.severity')
+
+            gh issue create \
+              --title "🚨 High Risk Security Alert: $PACKAGE ($SEVERITY)" \
+              --label "security" \
+              --label "high-risk" \
+              --label "dependabot" \
+              --body "## High Risk Dependabot Alert #$ALERT_NUM
+
+**Package:** $PACKAGE
+**Severity:** $SEVERITY
+
+**Risk Assessment:**
+$(echo "$ALERT" | jq -r '.risk_assessment | to_entries | map("- **\(.key)**: \(.value)") | join("\n")')
+
+**Action Required:**
+This alert has been classified as HIGH risk and requires immediate attention and careful review before implementing any fixes.
+
+**Alert Details:**
+\`\`\`json
+$(echo "$ALERT" | jq '.')
+\`\`\`
+
+**Next Steps:**
+1. Review the vulnerability details
+2. Assess impact on production
+3. Plan remediation strategy
+4. Test thoroughly before deployment
+
+---
+*This issue was automatically created by the Automated Triage System*"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Assessment Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-assessment-results
+          path: |
+            low_risk_alerts.json
+            medium_risk_alerts.json
+            high_risk_alerts.json
+            dependabot_alerts.json
+          retention-days: 30
+
+  triage-code-scanning:
+    name: Triage Code Scanning Alerts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Fetch Code Scanning Alerts
+        id: fetch-alerts
+        run: |
+          echo "Fetching code scanning alerts..."
+          gh api /repos/${{ github.repository }}/code-scanning/alerts \
+            --paginate \
+            --jq 'map(select(.state == "open"))' \
+            > code_scanning_alerts.json
+
+          ALERT_COUNT=$(jq 'length' code_scanning_alerts.json)
+          echo "Found $ALERT_COUNT open code scanning alerts"
+          echo "alert_count=$ALERT_COUNT" >> $GITHUB_OUTPUT
+
+          # Limit to first 100 for processing (to avoid timeout)
+          jq '.[0:100]' code_scanning_alerts.json > code_scanning_sample.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Risk Assessment
+        if: steps.fetch-alerts.outputs.alert_count > 0
+        run: |
+          python scripts/risk_assessment.py \
+            --type=codeql \
+            code_scanning_sample.json
+
+      - name: Summary Report
+        if: steps.fetch-alerts.outputs.alert_count > 0
+        run: |
+          echo "# Code Scanning Triage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Alerts:** ${{ steps.fetch-alerts.outputs.alert_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          LOW_COUNT=$(jq 'length' low_risk_alerts.json)
+          MED_COUNT=$(jq 'length' medium_risk_alerts.json)
+          HIGH_COUNT=$(jq 'length' high_risk_alerts.json)
+
+          echo "| Risk Level | Count | Action |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟢 LOW | $LOW_COUNT | Auto-fix |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟡 MEDIUM | $MED_COUNT | Claude PR |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔴 HIGH | $HIGH_COUNT | Human review |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Code Scanning Assessment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-scanning-assessment
+          path: |
+            low_risk_alerts.json
+            medium_risk_alerts.json
+            high_risk_alerts.json
+            code_scanning_sample.json
+          retention-days: 30
