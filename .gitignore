@@ -2,6 +2,11 @@
 # Comprehensive gitignore for secure OpenWatch repository
 
 # ======================================
+# AI ASSISTANT CONFIGURATION
+# ======================================
+CLAUDE.md
+
+# ======================================
 # CRITICAL SECURITY FILES - NEVER COMMIT
 # ======================================
 
