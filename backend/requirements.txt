@@ -33,7 +33,7 @@ qrcode==7.4.2
 cryptography==46.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
 
 # SSH / Remote execution
-paramiko==3.5.0
+paramiko==4.0.0
 
 # HTTP Client
 requests==2.32.5  # Security: CVE-2024-35195 fixed
