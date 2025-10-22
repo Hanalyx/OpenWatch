@@ -1,6 +1,6 @@
 # OpenWatch Backend Dependencies
 # Core web framework
-fastapi==0.109.2
+fastapi==0.119.1  # Latest stable (Oct 2025), supports starlette>=0.40.0,<0.49.0
 uvicorn[standard]==0.32.1
 starlette==0.47.2  # Security: CVE-2025-59343, DoS via multipart forms
 python-multipart==0.0.18
