@@ -200,7 +200,8 @@ class ComplianceAsCodeJSONConverter:
         # Basic metadata
         ow_rule = {
             "rule_id": f"ow-{rule_id}",  # Add ow- prefix for MongoDB validation
-            "name": cac_rule.get("title", rule_id),
+            # NOTE: 'name' is intentionally stored ONLY in metadata.name (not top-level)
+            # This matches the ComplianceRule model design where rich metadata is nested
             "severity": self._map_severity(cac_rule.get("severity", "unknown")),
             "category": self._determine_category(rule_id, cac_rule),
             "tags": self._generate_tags(cac_rule),
@@ -221,7 +222,7 @@ class ComplianceAsCodeJSONConverter:
                 "ocil_clause": cac_rule.get("ocil_clause", "")
             },
             "metadata": {
-                "name": cac_rule.get("title", rule_id),  # Required by MongoDB validator
+                "name": cac_rule.get("title", rule_id),  # Rule name stored here (matches ComplianceRule model)
                 "description": self._clean_html_tags(cac_rule.get("description", "")),  # UI looks here
                 "rationale": self._clean_html_tags(cac_rule.get("rationale", "")),  # UI looks here
                 "components": cac_rule.get("components", []),
