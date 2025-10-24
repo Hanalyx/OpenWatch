@@ -3,6 +3,7 @@ Compliance Rules Upload Service
 Main orchestrator for uploading compliance rule archives with BSON support,
 smart deduplication, dependency-aware updates, and immutable versioning
 """
+import os
 import uuid
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -12,6 +13,7 @@ import logging
 from ..models.mongo_models import ComplianceRule, RuleIntelligence
 from .compliance_rules_bson_parser import BSONParserService
 from .compliance_rules_security_service import ComplianceRulesSecurityService
+from .compliance_rules_signature_service import ComplianceRulesSignatureService
 from .compliance_rules_deduplication_service import (
     SmartDeduplicationService,
     DeduplicationStrategy
@@ -40,11 +42,15 @@ class ComplianceRulesUploadService:
 
     def __init__(self):
         self.security_service = ComplianceRulesSecurityService()
+        self.signature_service = ComplianceRulesSignatureService()
         self.parser_service = BSONParserService()
         self.deduplication_service = SmartDeduplicationService()
         self.dependency_graph = RuleDependencyGraph()
         self.inheritance_resolver = None  # Initialized after graph is built
         self.versioning_service = RuleVersioningService()  # Immutable versioning
+
+        # Configuration: require bundle signatures (default: True in production, False in dev)
+        self.require_bundle_signature = os.getenv('REQUIRE_BUNDLE_SIGNATURE', 'true').lower() == 'true'
 
         self.upload_id = None
         self.current_phase = "initializing"
@@ -53,6 +59,15 @@ class ComplianceRulesUploadService:
             'processed_rules': 0,
             'total_rules': 0,
             'percent_complete': 0
+        }
+
+        # Phase progress weights (total = 100%)
+        self.phase_weights = {
+            'security_validation': {'start': 0, 'end': 10},
+            'parsing': {'start': 10, 'end': 20},
+            'dependency_validation': {'start': 20, 'end': 30},
+            'importing': {'start': 30, 'end': 90},
+            'inheritance_analysis': {'start': 90, 'end': 100}
         }
 
     async def upload_rules_archive(
@@ -98,9 +113,9 @@ class ComplianceRulesUploadService:
         extracted_path = None
 
         try:
-            # Phase 1: Security Validation
+            # Phase 1: Security Validation (0% → 10%)
             logger.info(f"[{self.upload_id}] Phase 1: Security validation")
-            self.current_phase = "security_validation"
+            self._update_phase_progress('security_validation', 0.0)
             result['phase'] = 'security_validation'
 
             is_valid, security_checks, extracted_path = await self.security_service.validate_archive(
@@ -119,14 +134,15 @@ class ComplianceRulesUploadService:
                 logger.error(f"[{self.upload_id}] Security validation failed")
                 return result
 
+            self._update_phase_progress('security_validation', 1.0)  # Complete: 10%
             logger.info(f"[{self.upload_id}] Security validation passed")
 
-            # Phase 2: Parse Archive
+            # Phase 2: Parse Archive (10% → 20%)
             logger.info(f"[{self.upload_id}] Phase 2: Parsing archive")
-            self.current_phase = "parsing"
+            self._update_phase_progress('parsing', 0.0)
             result['phase'] = 'parsing'
 
-            # Parse manifest
+            # Parse manifest (needed for signature verification)
             manifest_bson = extracted_path / "manifest.bson"
             manifest_json = extracted_path / "manifest.json"
 
@@ -136,6 +152,84 @@ class ComplianceRulesUploadService:
                 manifest = await self.parser_service.parse_manifest_json(manifest_json)
             else:
                 raise ValueError("No manifest file found")
+
+            # Signature Verification (after manifest parsing, before rule import)
+            signature_data = manifest.get('signature')
+
+            if self.require_bundle_signature:
+                logger.info(f"[{self.upload_id}] Verifying bundle signature (production mode)")
+                signature_check = await self.signature_service.verify_bundle_signature(
+                    bundle_data=archive_data,
+                    signature_data=signature_data,
+                    require_trusted_signature=True
+                )
+
+                result['security_validation']['signature'] = {
+                    'check_name': signature_check.check_name,
+                    'passed': signature_check.passed,
+                    'severity': signature_check.severity,
+                    'message': signature_check.message,
+                    'details': signature_check.details
+                }
+
+                if not signature_check.passed:
+                    result['errors'].append({
+                        'phase': 'signature_verification',
+                        'message': signature_check.message,
+                        'details': signature_check.details
+                    })
+                    logger.error(
+                        f"[{self.upload_id}] Bundle signature verification failed: "
+                        f"{signature_check.message}"
+                    )
+                    return result
+
+                logger.info(
+                    f"[{self.upload_id}] Bundle signature verified: "
+                    f"signer={signature_check.details.get('signer')}, "
+                    f"trusted={signature_check.details.get('trusted')}"
+                )
+            else:
+                logger.warning(
+                    f"[{self.upload_id}] Bundle signature verification DISABLED "
+                    "(development mode - set REQUIRE_BUNDLE_SIGNATURE=true for production)"
+                )
+
+                if signature_data:
+                    # Still verify signature if present, but don't reject if invalid
+                    signature_check = await self.signature_service.verify_bundle_signature(
+                        bundle_data=archive_data,
+                        signature_data=signature_data,
+                        require_trusted_signature=False
+                    )
+
+                    result['security_validation']['signature'] = {
+                        'check_name': signature_check.check_name,
+                        'passed': signature_check.passed,
+                        'severity': 'info',  # Downgrade to info in dev mode
+                        'message': signature_check.message,
+                        'details': signature_check.details
+                    }
+
+                    if signature_check.passed:
+                        logger.info(
+                            f"[{self.upload_id}] Bundle signature verified (development mode): "
+                            f"signer={signature_check.details.get('signer')}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[{self.upload_id}] Bundle signature verification failed "
+                            f"(allowed in development mode): {signature_check.message}"
+                        )
+                else:
+                    logger.warning(f"[{self.upload_id}] Bundle is unsigned (allowed in development mode)")
+                    result['security_validation']['signature'] = {
+                        'check_name': 'bundle_signature_verification',
+                        'passed': True,
+                        'severity': 'warning',
+                        'message': 'Bundle not signed (development mode)',
+                        'details': {'signed': False}
+                    }
 
             result['manifest'] = {
                 'name': manifest['name'],
@@ -160,10 +254,11 @@ class ComplianceRulesUploadService:
             )
 
             self.progress['total_rules'] = len(new_rules)
+            self._update_phase_progress('parsing', 1.0)  # Complete: 20%
 
-            # Phase 3: Dependency Validation
+            # Phase 3: Dependency Validation (20% → 30%)
             logger.info(f"[{self.upload_id}] Phase 3: Dependency validation")
-            self.current_phase = "dependency_validation"
+            self._update_phase_progress('dependency_validation', 0.0)
             result['phase'] = 'dependency_validation'
 
             # Build dependency graph from existing DB rules
@@ -189,17 +284,18 @@ class ComplianceRulesUploadService:
             if dependency_validation['warnings']:
                 result['warnings'].extend(dependency_validation['warnings'])
 
+            self._update_phase_progress('dependency_validation', 1.0)  # Complete: 30%
             logger.info(f"[{self.upload_id}] Dependency validation passed")
 
-            # Phase 4: Import Rules with Smart Deduplication
+            # Phase 4: Import Rules with Smart Deduplication (30% → 90%)
             logger.info(f"[{self.upload_id}] Phase 4: Importing rules")
-            self.current_phase = "importing"
+            self._update_phase_progress('importing', 0.0)
             result['phase'] = 'importing'
 
             # Reset deduplication statistics
             self.deduplication_service.reset_statistics()
 
-            # Import rules
+            # Import rules (progress updated inside _import_rules_batch)
             import_results = await self._import_rules_batch(
                 new_rules,
                 archive_filename,
@@ -209,6 +305,7 @@ class ComplianceRulesUploadService:
 
             result['statistics'] = self.deduplication_service.get_statistics()
 
+            self._update_phase_progress('importing', 1.0)  # Complete: 90%
             logger.info(
                 f"[{self.upload_id}] Import complete: "
                 f"{result['statistics']['imported']} imported, "
@@ -216,9 +313,9 @@ class ComplianceRulesUploadService:
                 f"{result['statistics']['skipped']} skipped"
             )
 
-            # Phase 5: Inheritance Impact Analysis
+            # Phase 5: Inheritance Impact Analysis (90% → 100%)
             logger.info(f"[{self.upload_id}] Phase 5: Inheritance impact analysis")
-            self.current_phase = "inheritance_analysis"
+            self._update_phase_progress('inheritance_analysis', 0.0)
             result['phase'] = 'inheritance_analysis'
 
             updated_rule_ids = [r['rule_id'] for r in import_results if r['action'] == 'updated']
@@ -266,6 +363,9 @@ class ComplianceRulesUploadService:
             # Populate derived_rules (reverse index for inheritance)
             # This is a computed field that tracks which rules inherit from each parent
             await self._populate_derived_rules()
+
+            # Phase 5 complete: 100%
+            self._update_phase_progress('inheritance_analysis', 1.0)
 
             # Success
             result['success'] = True
@@ -422,6 +522,20 @@ class ComplianceRulesUploadService:
 
             except Exception as e:
                 logger.error(f"Failed to import rule {rule_data.get('rule_id')}: {e}")
+
+                # CRITICAL FIX: Decrement counters and increment error counter
+                # The deduplication service counted this rule before MongoDB validation
+                # If validation fails, we need to correct the statistics
+                if action == 'imported':
+                    self.deduplication_service.statistics['imported'] -= 1
+                    logger.warning(f"Decremented imported count due to validation failure for {rule_data.get('rule_id')}")
+                elif action == 'updated':
+                    self.deduplication_service.statistics['updated'] -= 1
+                    logger.warning(f"Decremented updated count due to validation failure for {rule_data.get('rule_id')}")
+
+                # Increment error counter
+                self.deduplication_service.statistics['errors'] += 1
+
                 results.append({
                     'rule_id': rule_data.get('rule_id', 'unknown'),
                     'action': 'error',
@@ -604,6 +718,12 @@ class ComplianceRulesUploadService:
 
         Returns:
             Importance score 1-10
+
+        Algorithm:
+        - Base score from severity (critical=10, high=8, medium=5, low=3, info=1)
+        - Boost +1 if rule maps to 2+ compliance frameworks
+        - Boost +2 if rule maps to 3+ compliance frameworks
+        - Cap at 10
         """
         severity_scores = {
             'critical': 10,
@@ -616,22 +736,43 @@ class ComplianceRulesUploadService:
 
         score = severity_scores.get(rule.severity, 5)
 
-        # Boost score if rule maps to multiple frameworks
-        if rule.frameworks:
+        # Boost score if rule maps to multiple frameworks (framework-agnostic)
+        if rule.frameworks and isinstance(rule.frameworks, dict):
+            # Count how many frameworks have actual control mappings
             framework_count = sum(
-                1 for fw_dict in [
-                    rule.frameworks.nist,
-                    rule.frameworks.cis,
-                    rule.frameworks.stig
-                ] if fw_dict and len(fw_dict) > 0
+                1 for framework_name, framework_data in rule.frameworks.items()
+                if framework_data
+                and isinstance(framework_data, dict)
+                and framework_data.get('controls')
+                and len(framework_data.get('controls', [])) > 0
             )
 
+            # Apply score boost based on multi-framework coverage
             if framework_count >= 3:
-                score = min(10, score + 2)
+                score = min(10, score + 2)  # Very important: 3+ frameworks
             elif framework_count >= 2:
-                score = min(10, score + 1)
+                score = min(10, score + 1)  # Important: 2+ frameworks
 
         return score
+
+    def _update_phase_progress(self, phase: str, sub_progress: float = 0.0):
+        """
+        Update progress based on current phase and sub-progress within that phase
+
+        Args:
+            phase: Current phase name (must be in phase_weights)
+            sub_progress: Progress within current phase (0.0 to 1.0)
+        """
+        if phase not in self.phase_weights:
+            return
+
+        weights = self.phase_weights[phase]
+        phase_range = weights['end'] - weights['start']
+
+        # Calculate overall percentage: phase_start + (sub_progress * phase_range)
+        self.progress['percent_complete'] = weights['start'] + (sub_progress * phase_range)
+        self.progress['phase'] = phase
+        self.current_phase = phase
 
     def get_upload_progress(self) -> Dict[str, Any]:
         """

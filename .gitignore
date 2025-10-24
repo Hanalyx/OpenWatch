@@ -29,6 +29,9 @@ security/certs/dhparam.pem
 **/*-key.pem
 **/private_key.*
 
+# Compliance bundle signing keys (private keys only - public keys are committed)
+backend/security/signing_keys/
+
 # SSL/TLS Certificate files
 **/*.crt
 **/*.cert

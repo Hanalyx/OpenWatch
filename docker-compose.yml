@@ -94,6 +94,8 @@ services:
       # Feature Flags - OW-REFACTOR
       OPENWATCH_USE_QUERY_BUILDER: "${OPENWATCH_USE_QUERY_BUILDER:-false}"
       OPENWATCH_USE_REPOSITORY_PATTERN: "${OPENWATCH_USE_REPOSITORY_PATTERN:-false}"
+      # Compliance Bundle Signature Verification
+      REQUIRE_BUNDLE_SIGNATURE: "${REQUIRE_BUNDLE_SIGNATURE:-false}"  # Set to true in production
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
@@ -103,6 +105,7 @@ services:
       - app_logs:/app/logs
       - ./security/certs:/app/security/certs:ro
       - ./security/keys:/app/security/keys
+      - ./backend/security/compliance_bundle_keys:/app/security/compliance_bundle_keys:ro
       - ssh_known_hosts:/app/security/known_hosts
     ports:
       - "8000:8000"
