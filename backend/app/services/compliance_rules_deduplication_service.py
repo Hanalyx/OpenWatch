@@ -51,6 +51,8 @@ class SmartDeduplicationService:
         # Computed fields (OpenWatch-managed, not from bundle)
         'derived_rules',  # Auto-populated from other rules' inherits_from
         'parent_rule_id',  # Computed relationship field
+        # Invalid top-level fields (backward compatibility)
+        'name',  # Should only exist in metadata.name (not top-level). Excluded for backward compat with v1.0.3 and earlier bundles
     }
 
     # Fields tracked for statistics (categorized)

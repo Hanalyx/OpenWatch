@@ -2,6 +2,11 @@
 # Comprehensive gitignore for secure OpenWatch repository
 
 # ======================================
+# AI ASSISTANT CONFIGURATION
+# ======================================
+CLAUDE.md
+
+# ======================================
 # CRITICAL SECURITY FILES - NEVER COMMIT
 # ======================================
 
@@ -23,6 +28,9 @@ security/certs/dhparam.pem
 **/*_private.pem
 **/*-key.pem
 **/private_key.*
+
+# Compliance bundle signing keys (private keys only - public keys are committed)
+backend/security/signing_keys/
 
 # SSL/TLS Certificate files
 **/*.crt
