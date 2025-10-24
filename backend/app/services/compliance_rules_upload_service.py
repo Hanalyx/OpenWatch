@@ -600,6 +600,12 @@ class ComplianceRulesUploadService:
             created_by="bundle_import"
         )
 
+        # CRITICAL: Remove _id again if it snuck through (MongoDB will generate new one)
+        # The versioning service does **rule_data which might reintroduce _id
+        if '_id' in versioned_rule:
+            del versioned_rule['_id']
+            logger.debug(f"Removed _id from new rule {versioned_rule.get('rule_id')}")
+
         # Create ComplianceRule document
         rule = ComplianceRule(**versioned_rule)
         await rule.insert()
@@ -668,6 +674,12 @@ class ComplianceRulesUploadService:
             import_id=self.upload_id,
             created_by="bundle_import"
         )
+
+        # CRITICAL: Remove _id again if it snuck through (MongoDB will generate new one)
+        # The versioning service does **rule_data which might reintroduce _id
+        if '_id' in versioned_rule:
+            del versioned_rule['_id']
+            logger.debug(f"Removed _id from versioned rule {versioned_rule.get('rule_id')}")
 
         # Step 3: Insert new version (append-only)
         new_rule = ComplianceRule(**versioned_rule)
