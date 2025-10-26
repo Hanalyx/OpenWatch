@@ -22,11 +22,14 @@ try {
     });
     print('Created openwatch user successfully');
 } catch (error) {
-    if (error.code !== 11000) { // Ignore duplicate user error
-        print('Error creating user: ' + error.message);
-        throw error;
-    } else {
+    // Ignore if user already exists (check error message and string representation)
+    var errorStr = error.toString();
+    var errorMsg = error.message || '';
+    if (errorStr.indexOf('already exists') !== -1 || errorMsg.indexOf('already exists') !== -1) {
         print('User openwatch already exists, skipping creation');
+    } else {
+        print('Error creating user: ' + errorStr);
+        throw error;
     }
 }
 
@@ -140,159 +143,32 @@ try {
     print('Error creating remediation_scripts collection: ' + error.message);
 }
 
-// Create indexes for optimal performance
-print('Creating indexes for compliance_rules collection...');
+// ============================================================================
+// INDEX MANAGEMENT MIGRATED TO BEANIE ODM (2025-10-26)
+// ============================================================================
+// All MongoDB indexes are now managed by Beanie ODM in backend/app/models/mongo_models.py
+// This ensures:
+// - Single source of truth for index definitions
+// - Automatic index creation/updates on application startup
+// - No naming conflicts between init script and ODM
+// - Version control for index changes
+//
+// Collections with indexes managed by Beanie:
+// - compliance_rules (17 indexes including text search)
+// - rule_intelligence (6 indexes including unique rule_id)
+// - remediation_scripts (3 indexes)
+//
+// For index modifications, edit the Settings.indexes array in mongo_models.py
+// ============================================================================
+print('Indexes are managed by Beanie ODM - see backend/app/models/mongo_models.py');
 
-// Primary indexes
-try {
-    db.compliance_rules.createIndex({ 'rule_id': 1 }, { unique: true, name: 'idx_rule_id' });
-    db.compliance_rules.createIndex({ 'scap_rule_id': 1 }, { name: 'idx_scap_rule_id' });
-    
-    // Multi-platform queries
-    db.compliance_rules.createIndex(
-        { 'platform_implementations.rhel.versions': 1, 'severity': -1 },
-        { name: 'idx_rhel_versions_severity' }
-    );
-    db.compliance_rules.createIndex(
-        { 'platform_implementations.ubuntu.versions': 1, 'severity': -1 },
-        { name: 'idx_ubuntu_versions_severity' }
-    );
-    db.compliance_rules.createIndex(
-        { 'platform_implementations.windows.versions': 1, 'severity': -1 },
-        { name: 'idx_windows_versions_severity' }
-    );
-    
-    // Framework version queries
-    db.compliance_rules.createIndex({ 'frameworks.nist.800-53r4': 1 }, { name: 'idx_nist_r4' });
-    db.compliance_rules.createIndex({ 'frameworks.nist.800-53r5': 1 }, { name: 'idx_nist_r5' });
-    db.compliance_rules.createIndex({ 'frameworks.cis.rhel8_v2.0.0': 1 }, { name: 'idx_cis_rhel8' });
-    db.compliance_rules.createIndex({ 'frameworks.stig.rhel8_v1r11': 1 }, { name: 'idx_stig_rhel8' });
-    db.compliance_rules.createIndex({ 'frameworks.stig.rhel9_v1r1': 1 }, { name: 'idx_stig_rhel9' });
-    
-    // Inheritance and capability queries
-    db.compliance_rules.createIndex({ 'inherits_from': 1 }, { name: 'idx_inheritance' });
-    db.compliance_rules.createIndex(
-        { 'abstract': 1, 'category': 1 },
-        { name: 'idx_abstract_category' }
-    );
-    db.compliance_rules.createIndex(
-        { 'platform_requirements.required_capabilities': 1 },
-        { name: 'idx_capabilities' }
-    );
-    
-    // Standard queries
-    db.compliance_rules.createIndex(
-        { 'category': 1, 'severity': -1 },
-        { name: 'idx_category_severity' }
-    );
-    db.compliance_rules.createIndex({ 'tags': 1 }, { name: 'idx_tags' });
-    db.compliance_rules.createIndex({ 'security_function': 1 }, { name: 'idx_security_function' });
-    db.compliance_rules.createIndex({ 'updated_at': -1 }, { name: 'idx_updated_at' });
-    
-    print('Successfully created all compliance_rules indexes');
-} catch (error) {
-    print('Error creating compliance_rules indexes: ' + error.message);
-}
-
-// Create indexes for rule_intelligence
-print('Creating indexes for rule_intelligence collection...');
-try {
-    db.rule_intelligence.createIndex({ 'rule_id': 1 }, { unique: true, name: 'idx_ri_rule_id' });
-    db.rule_intelligence.createIndex({ 'business_impact': 1 }, { name: 'idx_ri_business_impact' });
-    db.rule_intelligence.createIndex({ 'false_positive_rate': 1 }, { name: 'idx_ri_false_positive' });
-    db.rule_intelligence.createIndex({ 'last_validation': -1 }, { name: 'idx_ri_last_validation' });
-    
-    print('Successfully created rule_intelligence indexes');
-} catch (error) {
-    print('Error creating rule_intelligence indexes: ' + error.message);
-}
-
-// Create indexes for remediation_scripts
-print('Creating indexes for remediation_scripts collection...');
-try {
-    db.remediation_scripts.createIndex(
-        { 'rule_id': 1, 'platform': 1 },
-        { name: 'idx_rs_rule_platform' }
-    );
-    db.remediation_scripts.createIndex({ 'script_type': 1 }, { name: 'idx_rs_script_type' });
-    db.remediation_scripts.createIndex({ 'approved': 1 }, { name: 'idx_rs_approved' });
-    
-    print('Successfully created remediation_scripts indexes');
-} catch (error) {
-    print('Error creating remediation_scripts indexes: ' + error.message);
-}
-
-// Create text indexes for full-text search
-print('Creating text indexes for search functionality...');
-try {
-    db.compliance_rules.createIndex(
-        {
-            'metadata.name': 'text',
-            'metadata.description': 'text',
-            'tags': 'text'
-        },
-        {
-            name: 'idx_text_search',
-            weights: {
-                'metadata.name': 10,
-                'metadata.description': 5,
-                'tags': 2
-            }
-        }
-    );
-    
-    print('Successfully created text search indexes');
-} catch (error) {
-    print('Error creating text search indexes: ' + error.message);
-}
-
-// Insert a test document to verify everything works
-try {
-    const testRule = {
-        rule_id: 'ow-test-connection',
-        scap_rule_id: 'test_connection_rule',
-        metadata: {
-            name: 'MongoDB Connection Test Rule',
-            description: 'Test rule to verify MongoDB connectivity and schema validation',
-            source: {
-                upstream_id: 'test_connection',
-                source_file: 'init_script',
-                imported_at: new Date().toISOString()
-            }
-        },
-        severity: 'info',
-        category: 'testing',
-        security_function: 'connection_test',
-        tags: ['test', 'mongodb', 'connection'],
-        frameworks: {
-            nist: {
-                '800-53r5': ['SI-11']
-            }
-        },
-        platform_implementations: {
-            rhel: {
-                versions: ['8.0', '8.1', '8.2'],
-                check_method: 'test'
-            }
-        },
-        check_type: 'test',
-        check_content: {
-            test_type: 'connection',
-            expected_result: 'success'
-        },
-        fix_available: false,
-        source_file: 'init_script.js',
-        source_hash: 'test_hash_' + Date.now(),
-        version: '1.0.0',
-        imported_at: new Date(),
-        updated_at: new Date()
-    };
-    
-    const result = db.compliance_rules.insertOne(testRule);
-    print('Successfully inserted test rule with ID: ' + result.insertedId);
-} catch (error) {
-    print('Error inserting test rule: ' + error.message);
-}
+// ============================================================================
+// TEST DATA REMOVED (2025-10-26)
+// ============================================================================
+// Previous versions of this script inserted a test rule to verify connectivity.
+// This has been removed to keep the database clean.
+// Real compliance rules are imported via the upload API or CLI converter.
+// ============================================================================
 
 print('MongoDB initialization completed successfully');
 print('Database: openwatch_rules');

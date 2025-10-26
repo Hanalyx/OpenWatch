@@ -6,6 +6,7 @@ Enhanced models with inheritance and multi-platform support
 try:
     from motor.motor_asyncio import AsyncIOMotorClient
     from beanie import Document, Indexed, init_beanie
+    from pymongo import IndexModel, TEXT
     MOTOR_AVAILABLE = True
 except ImportError:
     # Allow imports to work without motor/beanie for testing
@@ -14,6 +15,8 @@ except ImportError:
     Document = object
     Indexed = lambda *args, **kwargs: lambda x: x
     init_beanie = None
+    IndexModel = None
+    TEXT = None
 
 from pydantic import Field, BaseModel, validator
 from typing import List, Dict, Optional, Any, Union
@@ -689,7 +692,38 @@ class ComplianceRule(Document):
             [("updated_at", -1)],
 
             # Deprecation tracking
-            [("deprecated", 1), ("is_latest", 1)]
+            [("deprecated", 1), ("is_latest", 1)],
+
+            # ===================================================================
+            # ADDITIONAL INDEXES MIGRATED FROM MONGODB INIT SCRIPT (2025-10-26)
+            # Non-duplicate indexes from init script that complement versioning indexes above
+            # ===================================================================
+
+            # SCAP source tracking (unique to init script - KEPT)
+            IndexModel([("scap_rule_id", 1)], name="idx_scap_rule_id"),
+
+            # Specific framework version indexes (complement generic framework indexes above)
+            # Generic indexes (line 680-682) handle: is_latest + frameworks.nist (broad queries)
+            # These handle: frameworks.nist.800-53r4 (precise version queries)
+            IndexModel([("frameworks.nist.800-53r4", 1)], name="idx_nist_r4"),
+            IndexModel([("frameworks.nist.800-53r5", 1)], name="idx_nist_r5"),
+            IndexModel([("frameworks.cis.rhel8_v2.0.0", 1)], name="idx_cis_rhel8"),
+            IndexModel([("frameworks.stig.rhel8_v1r11", 1)], name="idx_stig_rhel8"),
+            IndexModel([("frameworks.stig.rhel9_v1r1", 1)], name="idx_stig_rhel9"),
+
+            # Platform capability requirements (unique to init script - KEPT)
+            IndexModel([("platform_requirements.required_capabilities", 1)], name="idx_capabilities"),
+
+            # Full-text search index (unique to init script - KEPT)
+            IndexModel([
+                ("metadata.name", TEXT),
+                ("metadata.description", TEXT),
+                ("tags", TEXT)
+            ], name="idx_text_search", weights={
+                "metadata.name": 10,
+                "metadata.description": 5,
+                "tags": 2
+            }),
         ]
 
 
@@ -759,10 +793,23 @@ class RuleIntelligence(Document):
     class Settings:
         name = "rule_intelligence"
         indexes = [
-            "rule_id",
+            # ===================================================================
+            # INDEXES MIGRATED FROM MONGODB INIT SCRIPT (2025-10-26)
+            # Previously created manually in backend/app/data/mongo/init/01-init-openwatch-user.js
+            # Now managed by Beanie ODM for consistency
+            # ===================================================================
+
+            # Primary index - make rule_id unique (migrated from init script)
+            IndexModel([("rule_id", 1)], unique=True, name="idx_ri_rule_id"),
+
+            # Query indexes (migrated from init script)
+            IndexModel([("business_impact", 1)], name="idx_ri_business_impact"),
+            IndexModel([("false_positive_rate", 1)], name="idx_ri_false_positive"),
+            IndexModel([("last_validation", -1)], name="idx_ri_last_validation"),
+
+            # Existing indexes (keep for compatibility)
             "compliance_importance",
             "success_rate",
-            "last_validation"
         ]
 
 
