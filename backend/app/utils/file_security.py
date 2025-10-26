@@ -87,16 +87,21 @@ def validate_file_extension(filename: str, allowed_extensions: list[str]) -> boo
     """
     Validate that filename has an allowed extension
 
+    Supports both simple extensions (.xml, .zip) and compound extensions (.tar.gz, .tar.bz2)
+
     Args:
         filename: Filename to validate
-        allowed_extensions: List of allowed extensions (e.g., ['.xml', '.zip'])
+        allowed_extensions: List of allowed extensions (e.g., ['.xml', '.zip', '.tar.gz'])
 
     Returns:
         True if extension is allowed, False otherwise
     """
-    ext = Path(filename).suffix.lower()
+    filename_lower = filename.lower()
     allowed_lower = [e.lower() for e in allowed_extensions]
-    return ext in allowed_lower
+
+    # Check if filename ends with any of the allowed extensions
+    # This handles both simple (.gz) and compound (.tar.gz) extensions
+    return any(filename_lower.endswith(ext) for ext in allowed_lower)
 
 
 def validate_storage_path(
