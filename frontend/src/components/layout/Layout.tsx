@@ -130,7 +130,7 @@ const Layout: React.FC = () => {
   const { mode: themeMode, toggleTheme } = useCustomTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true); // Desktop drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false); // Desktop drawer state - collapsed by default
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   
   // Context menu state
@@ -347,13 +347,18 @@ const Layout: React.FC = () => {
     <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
-          width: { 
-            sm: isMobile ? '100%' : `calc(100% - ${drawerOpen ? drawerWidth : collapsedDrawerWidth}px)` 
+          width: {
+            sm: isMobile ? '100%' : `calc(100% - ${drawerOpen ? drawerWidth : collapsedDrawerWidth}px)`
           },
-          ml: { 
-            sm: isMobile ? 0 : `${drawerOpen ? drawerWidth : collapsedDrawerWidth}px` 
+          ml: {
+            sm: isMobile ? 0 : `${drawerOpen ? drawerWidth : collapsedDrawerWidth}px`
           },
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          borderBottom: 1,
+          borderColor: 'divider',
           transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
@@ -362,32 +367,31 @@ const Layout: React.FC = () => {
       >
         <Toolbar>
           <IconButton
-            color="inherit"
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+            sx={{ mr: 2, display: { sm: 'none' }, color: 'text.primary' }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, color: 'text.primary' }}>
             {menuItems.find((item) => item.path === location.pathname)?.text || 'OpenWatch'}
           </Typography>
           
           <Tooltip title={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} mode`}>
-            <IconButton color="inherit" onClick={toggleTheme} sx={{ mr: 1 }}>
+            <IconButton onClick={toggleTheme} sx={{ mr: 1, color: 'text.primary' }}>
               {themeMode === 'light' ? <DarkMode /> : <LightMode />}
             </IconButton>
           </Tooltip>
-          
-          <IconButton color="inherit" sx={{ mr: 1 }}>
+
+          <IconButton sx={{ mr: 1, color: 'text.primary' }}>
             <Badge badgeContent={notifications.length} color="error">
               <Notifications />
             </Badge>
           </IconButton>
-          
-          <IconButton onClick={handleProfileMenuOpen} color="inherit">
-            <Avatar sx={{ width: 32, height: 32 }}>
+
+          <IconButton onClick={handleProfileMenuOpen} sx={{ color: 'text.primary' }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
               {user?.username.charAt(0).toUpperCase()}
             </Avatar>
           </IconButton>
@@ -478,6 +482,9 @@ const Layout: React.FC = () => {
                 duration: theme.transitions.duration.enteringScreen,
               }),
               overflowX: 'hidden',
+              bgcolor: 'background.paper',
+              borderRight: 1,
+              borderColor: 'divider',
             },
           }}
         >

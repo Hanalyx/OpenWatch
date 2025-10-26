@@ -397,9 +397,6 @@ const Dashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
-          Quick Actions
-        </Typography>
         <Grid container spacing={3}>
           <Grid item xs={12} sm={6} md={3}>
             <QuickActionCard
