@@ -618,12 +618,10 @@ class ComplianceRulesUploadService:
 
         # Boost score if rule maps to multiple frameworks
         if rule.frameworks:
+            # Count frameworks that have non-empty mappings (generic, supports all frameworks)
             framework_count = sum(
-                1 for fw_dict in [
-                    rule.frameworks.nist,
-                    rule.frameworks.cis,
-                    rule.frameworks.stig
-                ] if fw_dict and len(fw_dict) > 0
+                1 for fw_dict in rule.frameworks.values()
+                if fw_dict and len(fw_dict) > 0
             )
 
             if framework_count >= 3:

@@ -50,8 +50,8 @@ try {
                         description: 'Unique OpenWatch rule identifier'
                     },
                     scap_rule_id: {
-                        bsonType: 'string',
-                        description: 'Original SCAP rule identifier'
+                        bsonType: ['string', 'null'],
+                        description: 'Original SCAP rule identifier (optional, can be null for non-SCAP rules)'
                     },
                     metadata: {
                         bsonType: 'object',
