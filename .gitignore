@@ -774,3 +774,7 @@ docs/HOST_STATUS*.md
 # All documentation files in root docs/ directory
 /docs/*
 !/docs/.gitkeep
+
+# OpenWatch internal documentation (do not commit)
+CLAUDE.md
+MONGODB_INDEX_MIGRATION_PLAN.md
