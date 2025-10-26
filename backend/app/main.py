@@ -17,7 +17,7 @@ import uvicorn
 from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger
 from .database import engine, create_tables, get_db
-from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug, adaptive_scheduler, test_querybuilder
+from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug, adaptive_scheduler
 from .routes.system_settings_unified import router as system_settings_router
 from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
 from .routes.v2 import credentials as v2_credentials  # WEEK 2: v2 credentials API
@@ -90,6 +90,27 @@ async def lifespan(app: FastAPI):
                     raise Exception("Database schema initialization failed after all retries")
 
             logger.info("✅ Complete database schema initialized successfully")
+
+            # Run SQL migrations automatically
+            try:
+                from .services.migration_runner import run_startup_migrations
+                from .database import SessionLocal
+
+                db = SessionLocal()
+                try:
+                    migrations_success = run_startup_migrations(db)
+                    if migrations_success:
+                        logger.info("✅ Automatic migrations completed successfully")
+                    else:
+                        logger.error("❌ Some migrations failed - check logs for details")
+                        if not settings.debug:
+                            raise Exception("Critical migrations failed")
+                finally:
+                    db.close()
+            except Exception as migration_error:
+                logger.error(f"Migration runner error: {migration_error}")
+                if not settings.debug:
+                    raise
 
             # Initialize RBAC system
             try:
@@ -555,8 +576,8 @@ app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Se
 app.include_router(plugin_management.router, tags=["Plugin Management"])
 app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
 
-# QueryBuilder validation endpoints (temporary testing)
-app.include_router(test_querybuilder.router, prefix="/api", tags=["QueryBuilder Validation"])
+# QueryBuilder validation endpoints (temporary testing) - DISABLED: module not available
+# app.include_router(test_querybuilder.router, prefix="/api", tags=["QueryBuilder Validation"])
 
 # Register security routes if available
 if automated_fixes:
