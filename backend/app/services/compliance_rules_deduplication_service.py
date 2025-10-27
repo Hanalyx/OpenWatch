@@ -188,16 +188,40 @@ class SmartDeduplicationService:
         """
         result = dict(rule_dict)
 
-        # Apply defaults that match ComplianceRule model
+        # Apply ALL defaults that match ComplianceRule model
         # Only add if field is completely missing (not if it's None or empty)
+        if 'abstract' not in result:
+            result['abstract'] = False
+
         if 'conditions' not in result:
             result['conditions'] = []
 
         if 'parameter_resolution' not in result:
             result['parameter_resolution'] = "most_restrictive"
 
+        if 'dependencies' not in result:
+            result['dependencies'] = {'requires': [], 'conflicts': [], 'related': []}
+
+        if 'check_type' not in result:
+            result['check_type'] = 'custom'
+
+        if 'fix_available' not in result:
+            result['fix_available'] = False
+
+        if 'remediation_complexity' not in result:
+            result['remediation_complexity'] = 'medium'
+
+        if 'remediation_risk' not in result:
+            result['remediation_risk'] = 'low'
+
         if 'deprecated' not in result:
             result['deprecated'] = False
+
+        if 'scanner_type' not in result:
+            result['scanner_type'] = 'oscap'
+
+        if 'platform_implementations' not in result:
+            result['platform_implementations'] = {}
 
         return result
 

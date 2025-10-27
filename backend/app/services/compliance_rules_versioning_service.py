@@ -263,6 +263,15 @@ class RuleVersioningService:
         # Calculate content hash
         content_hash = RuleVersioningService.calculate_content_hash(rule_data)
 
+        # CRITICAL: Remove _id to prevent MongoDB duplicate key errors
+        # MongoDB will auto-generate ObjectId for new documents
+        if '_id' in rule_data:
+            logger.warning(
+                f"BUG: rule_data contains _id in prepare_new_version! "
+                f"rule_id={rule_data.get('rule_id')}, _id={rule_data['_id']}"
+            )
+            del rule_data['_id']
+
         # Prepare complete document
         versioned_rule = {
             **rule_data,

@@ -421,7 +421,12 @@ class ComplianceRulesUploadService:
                 results.append(details)
 
             except Exception as e:
-                logger.error(f"Failed to import rule {rule_data.get('rule_id')}: {e}")
+                import traceback
+                logger.error(
+                    f"Failed to import rule {rule_data.get('rule_id')}: {e}\n"
+                    f"Exception type: {type(e).__name__}\n"
+                    f"Traceback: {traceback.format_exc()}"
+                )
                 results.append({
                     'rule_id': rule_data.get('rule_id', 'unknown'),
                     'action': 'error',
@@ -520,7 +525,7 @@ class ComplianceRulesUploadService:
 
         # Step 1: Mark existing version as superseded (update is_latest flag only)
         await ComplianceRule.find_one(
-            ComplianceRule._id == existing_rule.id
+            ComplianceRule.id == existing_rule.id
         ).update({
             "$set": {
                 "is_latest": False,
@@ -556,6 +561,14 @@ class ComplianceRulesUploadService:
         )
 
         # Step 3: Insert new version (append-only)
+        # CRITICAL: Defensive _id removal - MongoDB will auto-generate
+        if '_id' in versioned_rule:
+            logger.warning(
+                f"BUG: versioned_rule contains _id field before insert! "
+                f"rule_id={versioned_rule.get('rule_id')}, _id={versioned_rule['_id']}"
+            )
+            del versioned_rule['_id']
+
         new_rule = ComplianceRule(**versioned_rule)
         await new_rule.insert()
 
