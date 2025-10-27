@@ -376,7 +376,12 @@ The following files are already configured for SonarCloud:
 
 ## 📄 License
 
-By contributing to OpenWatch, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
+By contributing to OpenWatch, you agree that your contributions will be licensed under the [OpenWatch Community License (AGPLv3 + Managed Service Exception)](LICENSE).
+
+Your contributions will be subject to the same AGPLv3 + MSE terms as the rest of the codebase, ensuring:
+- Your code remains open source
+- Modifications must be shared under the same terms
+- Commercial SaaS offerings require separate licensing from Hanalyx LLC
 
 ---
 

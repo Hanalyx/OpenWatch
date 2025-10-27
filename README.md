@@ -1,6 +1,6 @@
 # OpenWatch - Open Source SCAP Compliance Scanner
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: AGPLv3 + MSE](https://img.shields.io/badge/License-AGPLv3%20%2B%20MSE-blue.svg)](LICENSE)
 [![Container Support](https://img.shields.io/badge/Container-Docker%20%7C%20Podman-green)](https://podman.io/)
 
 OpenWatch is an open-source SCAP (Security Content Automation Protocol) compliance scanner for automated security assessments. Scan your infrastructure against STIG, CIS, and custom security profiles.
@@ -210,7 +210,18 @@ OpenWatch undergoes regular security audits. Latest audit reports:
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE)
+OpenWatch Community License (AGPLv3 + Managed Service Exception)
+
+OpenWatch is licensed under the GNU Affero General Public License v3.0 with a Managed Service Exception. This means:
+
+- ✅ **Free to use** for internal business purposes
+- ✅ **Free to modify** and distribute (with source code)
+- ✅ **Self-hosted deployment** permitted
+- ❌ **Cannot offer as SaaS** to third parties without commercial license
+
+**Commercial licensing** available for managed service providers and SaaS offerings.
+
+For details, see [LICENSE](LICENSE) or contact [legal@hanalyx.com](mailto:legal@hanalyx.com)
 
 ## Acknowledgments
 
