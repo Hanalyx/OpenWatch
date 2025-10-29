@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..database import get_db
@@ -17,6 +18,7 @@ from ..services.compliance_rules_upload_service import ComplianceRulesUploadServ
 from ..services.compliance_rules_deduplication_service import DeduplicationStrategy
 from ..auth import get_current_user
 from ..utils.file_security import sanitize_filename, validate_file_extension
+from ..models.mongo_models import UploadHistory
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["compliance"])
@@ -573,23 +575,153 @@ async def upload_compliance_rules(
 
 @router.get("/upload-history")
 async def get_upload_history(
-    limit: int = Query(50, ge=1, le=200, description="Maximum number of uploads to return"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum 100 records"),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get compliance rules upload history
+    Get compliance bundle upload history (last 100 uploads)
+
+    Returns audit trail of compliance rule bundle uploads with:
+    - Upload metadata (filename, date, user, success/failure)
+    - Import statistics (imported, updated, skipped, errors)
+    - Manifest information
+    - Processing details
+    - Errors and warnings
 
     Args:
-        limit: Maximum number of uploads to return
+        limit: Maximum number of uploads to return (max 100)
         current_user: Authenticated user
 
     Returns:
-        List of recent uploads with statistics
+        List of upload history records sorted by date descending
     """
-    # TODO: Implement upload history tracking in database
-    # For now, return placeholder
-    return {
-        "uploads": [],
-        "total_count": 0,
-        "message": "Upload history tracking not yet implemented"
-    }
+    try:
+        # Query MongoDB for upload history, sorted by most recent first
+        upload_records = await UploadHistory.find().sort("-uploaded_at").limit(limit).to_list()
+
+        # Convert Beanie documents to dictionaries
+        uploads = []
+        for record in upload_records:
+            upload_dict = {
+                "upload_id": record.upload_id,
+                "filename": record.filename,
+                "file_hash": record.file_hash,
+                "uploaded_at": record.uploaded_at.isoformat() + "Z",
+                "uploaded_by": record.uploaded_by,
+                "user_id": record.user_id,
+                "success": record.success,
+                "phase": record.phase,
+                "statistics": record.statistics,
+                "manifest": record.manifest,
+                "processing_time_seconds": record.processing_time_seconds,
+                "errors": record.errors,
+                "warnings": record.warnings,
+                "security_validation": record.security_validation,
+                "dependency_validation": record.dependency_validation,
+                "inheritance_impact": record.inheritance_impact
+            }
+            uploads.append(upload_dict)
+
+        logger.info(f"Retrieved {len(uploads)} upload history records")
+
+        return {
+            "uploads": uploads,
+            "total_count": len(uploads),
+            "limit": limit
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving upload history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve upload history: {str(e)}"
+        )
+
+
+@router.get("/upload-history/{upload_id}/export")
+async def export_upload_report(
+    upload_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Export upload report as JSON file
+
+    Downloads a complete upload report for a specific upload operation,
+    including all metadata, statistics, errors, warnings, and validation results.
+
+    Args:
+        upload_id: UUID of the upload operation
+        current_user: Authenticated user
+
+    Returns:
+        JSON file download with complete upload report
+    """
+    try:
+        # Find upload record by upload_id
+        upload_record = await UploadHistory.find_one(UploadHistory.upload_id == upload_id)
+
+        if not upload_record:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Upload history record not found for upload_id: {upload_id}"
+            )
+
+        # Build complete report
+        report = {
+            "upload_id": upload_record.upload_id,
+            "filename": upload_record.filename,
+            "file_hash": upload_record.file_hash,
+            "uploaded_at": upload_record.uploaded_at.isoformat() + "Z",
+            "uploaded_by": upload_record.uploaded_by,
+            "user_id": upload_record.user_id,
+            "success": upload_record.success,
+            "phase": upload_record.phase,
+            "processing_time_seconds": upload_record.processing_time_seconds,
+
+            # Statistics
+            "statistics": upload_record.statistics,
+
+            # Manifest
+            "manifest": upload_record.manifest,
+
+            # Validation results
+            "security_validation": upload_record.security_validation,
+            "dependency_validation": upload_record.dependency_validation,
+            "inheritance_impact": upload_record.inheritance_impact,
+
+            # Errors and warnings
+            "errors": upload_record.errors,
+            "warnings": upload_record.warnings,
+
+            # Export metadata
+            "export_metadata": {
+                "exported_at": datetime.utcnow().isoformat() + "Z",
+                "exported_by": current_user.get("username", "unknown"),
+                "report_version": "1.0"
+            }
+        }
+
+        # Generate filename
+        safe_filename = upload_record.filename.replace(".tar.gz", "").replace(".tgz", "")
+        export_filename = f"{safe_filename}_upload_report_{upload_id[:8]}.json"
+
+        logger.info(f"Exporting upload report for upload_id={upload_id}")
+
+        # Return as downloadable JSON file
+        return JSONResponse(
+            content=report,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="{export_filename}"'
+            }
+        )
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+
+    except Exception as e:
+        logger.error(f"Error exporting upload report: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export upload report: {str(e)}"
+        )

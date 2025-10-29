@@ -51,6 +51,8 @@ class SmartDeduplicationService:
         # Computed fields (OpenWatch-managed, not from bundle)
         'derived_rules',  # Auto-populated from other rules' inherits_from
         'parent_rule_id',  # Computed relationship field
+        # Multi-platform merge metadata (tracking only, not content)
+        'source_products',  # List of products that contributed to this merged rule
     }
 
     # Fields tracked for statistics (categorized)
@@ -256,6 +258,14 @@ class SmartDeduplicationService:
                 k: v for k, v in sorted(rule_dict.items())
                 if k not in self.EXCLUDED_FROM_HASH
             }
+
+            # Remove merge-specific metadata from source field
+            if 'source' in normalized and isinstance(normalized['source'], dict):
+                source_cleaned = dict(normalized['source'])
+                # These fields are added by multi-platform merging and shouldn't affect hash
+                source_cleaned.pop('merged_products', None)
+                source_cleaned.pop('build_type', None)
+                normalized['source'] = source_cleaned
 
             # Normalize empty nested structures (critical for idempotency)
             normalized = self._normalize_empty_values(normalized)

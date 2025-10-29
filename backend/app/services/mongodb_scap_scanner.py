@@ -60,16 +60,16 @@ class MongoDBSCAPScanner(SCAPScanner):
             logger.error(f"Failed to initialize MongoDB SCAP Scanner: {e}")
             raise SCAPContentError(f"MongoDB integration initialization failed: {str(e)}")
     
-    async def select_platform_rules(self, platform: str, platform_version: str, 
+    async def select_platform_rules(self, platform: str, platform_version: str,
                                   framework: Optional[str] = None,
                                   severity_filter: Optional[List[str]] = None) -> List[ComplianceRule]:
         """Select MongoDB rules applicable to a specific platform"""
         if not self._initialized:
             await self.initialize()
-            
+
         try:
             logger.info(f"Selecting rules for platform: {platform} {platform_version}")
-            
+
             # Use rule service to get platform-specific rules
             rules = await self.rule_service.get_rules_by_platform(
                 platform=platform,
@@ -77,7 +77,7 @@ class MongoDBSCAPScanner(SCAPScanner):
                 framework=framework,
                 severity_filter=severity_filter
             )
-            
+
             # Convert to ComplianceRule objects if needed
             mongodb_rules = []
             for rule_data in rules:
@@ -91,13 +91,46 @@ class MongoDBSCAPScanner(SCAPScanner):
                         continue
                 else:
                     mongodb_rules.append(rule_data)
-            
+
             logger.info(f"Selected {len(mongodb_rules)} rules for {platform} {platform_version}")
             return mongodb_rules
-            
+
         except Exception as e:
             logger.error(f"Failed to select platform rules: {e}")
             raise SCAPContentError(f"Platform rule selection failed: {str(e)}")
+
+    async def get_rules_by_ids(self, rule_ids: List[str]) -> List[ComplianceRule]:
+        """Get specific rules by their MongoDB ObjectIds"""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            from bson import ObjectId
+            from ..repositories import ComplianceRuleRepository
+
+            logger.info(f"Fetching {len(rule_ids)} specific rules from MongoDB")
+
+            repo = ComplianceRuleRepository()
+            rules = []
+
+            for rule_id in rule_ids:
+                try:
+                    # Query by MongoDB ObjectId using find_one
+                    rule = await repo.find_one({"_id": ObjectId(rule_id)})
+                    if rule:
+                        rules.append(rule)
+                    else:
+                        logger.warning(f"Rule not found: {rule_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch rule {rule_id}: {e}")
+                    continue
+
+            logger.info(f"Successfully fetched {len(rules)} rules by ID")
+            return rules
+
+        except Exception as e:
+            logger.error(f"Failed to get rules by IDs: {e}")
+            raise SCAPContentError(f"Rule retrieval failed: {str(e)}")
     
     async def resolve_rule_inheritance(self, rules: List[ComplianceRule], 
                                      platform: str) -> List[ComplianceRule]:
@@ -261,27 +294,33 @@ class MongoDBSCAPScanner(SCAPScanner):
         
         return '\n'.join(xml_lines)
     
-    async def scan_with_mongodb_rules(self, host_id: str, hostname: str, 
+    async def scan_with_mongodb_rules(self, host_id: str, hostname: str,
                                     platform: str, platform_version: str,
                                     framework: Optional[str] = None,
                                     connection_params: Optional[Dict] = None,
-                                    severity_filter: Optional[List[str]] = None) -> Dict:
+                                    severity_filter: Optional[List[str]] = None,
+                                    rule_ids: Optional[List[str]] = None) -> Dict:
         """Perform SCAP scan using MongoDB rules"""
         if not self._initialized:
             await self.initialize()
-        
+
         try:
             scan_id = f"mongodb_scan_{host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             logger.info(f"Starting MongoDB rule-based scan {scan_id} for {hostname}")
-            
-            # Step 1: Select platform-appropriate rules from MongoDB
-            rules = await self.select_platform_rules(
-                platform=platform,
-                platform_version=platform_version,
-                framework=framework,
-                severity_filter=severity_filter
-            )
-            
+
+            # Step 1: Select rules - either specific IDs or platform-appropriate rules
+            if rule_ids:
+                logger.info(f"Using {len(rule_ids)} user-selected rules")
+                rules = await self.get_rules_by_ids(rule_ids)
+            else:
+                logger.info(f"Auto-selecting rules for platform {platform} {platform_version}")
+                rules = await self.select_platform_rules(
+                    platform=platform,
+                    platform_version=platform_version,
+                    framework=framework,
+                    severity_filter=severity_filter
+                )
+
             if not rules:
                 return {
                     "success": False,
