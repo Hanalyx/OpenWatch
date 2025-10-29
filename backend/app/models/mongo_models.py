@@ -367,7 +367,11 @@ class ComplianceRule(Document):
         default_factory=dict,
         description="Platform-specific implementation details (key: 'rhel', 'ubuntu', 'windows')"
     )
-    
+    source_products: Optional[List[str]] = Field(
+        default=None,
+        description="List of source products that contributed to this merged rule (for multi-platform bundles)"
+    )
+
     # Platform Requirements (Capability-Based)
     platform_requirements: Optional[Dict[str, Any]] = Field(
         default=None,
@@ -456,6 +460,10 @@ class ComplianceRule(Document):
     source_hash: str = Field(
         default="unknown",
         description="Hash of the source content for change detection"
+    )
+    source: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Extended source provenance metadata (upstream_id, source_type, product, version, merge info)"
     )
 
     # Immutable Versioning (FISMA/FedRAMP/HIPAA Compliance)
