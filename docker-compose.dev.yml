@@ -43,6 +43,7 @@ services:
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
       OPENWATCH_SECRET_KEY: ${SECRET_KEY:-K7sfTDL2cr9S8rvn094TpHVekeDNB1BL}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY:-utvm1S8EbrNihMW0k1t9YNk3uWAEAKG2}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY:-dev_encryption_key_changeme_1234567890ab}
       OPENWATCH_FIPS_MODE: "false"  # Disabled for dev
       OPENWATCH_REQUIRE_HTTPS: "false"  # Disabled for dev
       OPENWATCH_DEBUG: "true"
@@ -69,6 +70,7 @@ services:
       OPENWATCH_REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
       OPENWATCH_SECRET_KEY: ${SECRET_KEY:-K7sfTDL2cr9S8rvn094TpHVekeDNB1BL}
       OPENWATCH_MASTER_KEY: ${MASTER_KEY:-utvm1S8EbrNihMW0k1t9YNk3uWAEAKG2}
+      OPENWATCH_ENCRYPTION_KEY: ${OPENWATCH_ENCRYPTION_KEY:-dev_encryption_key_changeme_1234567890ab}
       OPENWATCH_FIPS_MODE: "false"
     volumes:
       - ./backend:/app/backend:ro

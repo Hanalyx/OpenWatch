@@ -1,5 +1,6 @@
 # OpenWatch - Production Podman Compose (System Containers with Enhanced Security)
 version: '3.8'
+name: openwatch
 
 services:
   database:
@@ -121,9 +122,12 @@ services:
       - ./security/certs:/app/security/certs:ro,Z
       - ./security/keys:/app/security/keys:Z
     depends_on:
-      - database
-      - redis
-      - backend
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - openwatch-network
     restart: unless-stopped
@@ -166,8 +170,12 @@ services:
       - ./security/certs:/app/security/certs:ro,Z
       - ./security/keys:/app/security/keys:Z
     depends_on:
-      - database
-      - redis
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - openwatch-network
     restart: unless-stopped

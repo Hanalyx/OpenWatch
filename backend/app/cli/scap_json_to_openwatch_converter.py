@@ -1,31 +1,64 @@
 #!/usr/bin/env python3
 """
-ComplianceAsCode JSON to OpenWatch Converter
-Converts pre-rendered JSON rules from ComplianceAsCode build to OpenWatch format
+OpenWatch Compliance Rules Aggregator and Converter
+Downloads, builds, converts, and manages compliance rules from upstream sources
 
-This converter handles the output from ComplianceAsCode cmake builds:
-  Input:  /path/to/build/rhel8/rules/*.json (pre-rendered, Jinja2 already processed)
-  Output: OpenWatch-compatible BSON/JSON bundles
+This tool is OpenWatch's primary compliance rules aggregator that:
+  - Downloads/syncs upstream ComplianceAsCode repository
+  - Builds SCAP content for multiple platforms
+  - Converts pre-rendered JSON to OpenWatch format
+  - Creates signed BSON bundles for deployment
+  - Compares local rules with MongoDB for change detection
+
+Upstream Source: https://github.com/ComplianceAsCode/content
 
 Usage:
-    # Convert RHEL 8 built rules to OpenWatch format
+    # Download/update ComplianceAsCode content
+    python -m app.cli.scap_json_to_openwatch_converter sync \
+        --target-dir /home/rracine/hanalyx/scap_content/content \
+        --branch main \
+        --update
+
+    # Download specific version/tag
+    python -m app.cli.scap_json_to_openwatch_converter sync \
+        --target-dir /home/rracine/hanalyx/scap_content/content \
+        --tag v0.1.73
+
+    # Convert all major distros at once
     python -m app.cli.scap_json_to_openwatch_converter convert \
-        --build-path /home/rracine/hanalyx/scap_content/build/rhel8 \
-        --output-path /tmp/openwatch_rules_rhel8 \
+        --products all \
+        --output-path /tmp/openwatch_rules \
         --format bson \
         --create-bundle \
-        --bundle-version 1.0.0-rhel8
+        --bundle-version 1.0.5
 
-    # Dry-run to see what would be converted
+    # Convert specific products
+    python -m app.cli.scap_json_to_openwatch_converter convert \
+        --products rhel8 rhel9 ubuntu2204 \
+        --output-path /tmp/openwatch_rules \
+        --format bson \
+        --create-bundle \
+        --bundle-version 1.0.5
+
+    # Convert single product (legacy method)
     python -m app.cli.scap_json_to_openwatch_converter convert \
         --build-path /home/rracine/hanalyx/scap_content/build/rhel8 \
-        --dry-run
+        --product rhel8 \
+        --output-path /tmp/openwatch_rules_rhel8 \
+        --format bson
 
     # Create bundle from existing converted rules
     python -m app.cli.scap_json_to_openwatch_converter bundle \
         --source /tmp/openwatch_rules_rhel8 \
         --output /tmp/openwatch-rhel8-bundle.tar.gz \
         --version 1.0.0-rhel8
+
+    # Compare local rules with MongoDB
+    python -m app.cli.scap_json_to_openwatch_converter compare \
+        --local /tmp/openwatch_rules_rhel8 \
+        --mongodb-url mongodb://openwatch:secure_mongo_password@localhost:27017 \
+        --database openwatch_rules \
+        --output-format summary
 """
 
 import os
@@ -34,12 +67,23 @@ import bson
 import hashlib
 import tarfile
 import shutil
+import asyncio
+import subprocess
+import re
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import argparse
 import logging
+
+# Motor is only needed for compare command - make it optional
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    MOTOR_AVAILABLE = True
+except ImportError:
+    MOTOR_AVAILABLE = False
+    AsyncIOMotorClient = None  # type: ignore
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -57,6 +101,263 @@ class ConversionStats:
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
+
+
+@dataclass
+class ComparisonResult:
+    """Comparison result for a single rule"""
+    rule_id: str
+    status: str  # 'new', 'modified', 'unchanged'
+    changes: List[str] = field(default_factory=list)
+    old_hash: Optional[str] = None
+    new_hash: Optional[str] = None
+    old_version: Optional[int] = None
+    is_latest: Optional[bool] = None
+
+
+class UpstreamSyncManager:
+    """
+    Manages synchronization with upstream ComplianceAsCode repository
+    Handles git clone, pull, tag checkout, and version management
+    """
+
+    UPSTREAM_REPO = "https://github.com/ComplianceAsCode/content.git"
+    DEFAULT_BRANCH = "master"
+
+    def __init__(self, target_dir: str):
+        """
+        Initialize sync manager
+
+        Args:
+            target_dir: Target directory for ComplianceAsCode content
+        """
+        self.target_dir = Path(target_dir)
+        self.git_dir = self.target_dir / ".git"
+
+    def sync(
+        self,
+        branch: Optional[str] = None,
+        tag: Optional[str] = None,
+        update: bool = True,
+        force: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Sync with upstream ComplianceAsCode repository
+
+        Args:
+            branch: Git branch to checkout (default: main)
+            tag: Git tag to checkout (takes precedence over branch)
+            update: Whether to pull latest changes if repo exists
+            force: Force re-clone even if directory exists
+
+        Returns:
+            Dictionary with sync results
+        """
+        result = {
+            "success": False,
+            "action": None,
+            "version": None,
+            "commit": None,
+            "branch": None,
+            "tag": None,
+            "message": None
+        }
+
+        try:
+            # Check if directory exists and has .git
+            repo_exists = self.git_dir.exists()
+
+            if force and repo_exists:
+                logger.warning(f"Force flag set - removing existing repository at {self.target_dir}")
+                shutil.rmtree(self.target_dir)
+                repo_exists = False
+
+            if not repo_exists:
+                # Clone repository
+                logger.info(f"Cloning ComplianceAsCode repository to {self.target_dir}")
+                result["action"] = "clone"
+                self._git_clone()
+                logger.info("Repository cloned successfully")
+            else:
+                logger.info(f"Repository already exists at {self.target_dir}")
+                result["action"] = "update" if update else "skip"
+
+                if update:
+                    logger.info("Fetching latest changes from upstream...")
+                    self._git_fetch()
+
+            # Checkout specific tag or branch
+            if tag:
+                logger.info(f"Checking out tag: {tag}")
+                self._git_checkout(tag)
+                result["tag"] = tag
+                result["branch"] = None
+            elif branch:
+                logger.info(f"Checking out branch: {branch}")
+                self._git_checkout(branch)
+                if update and repo_exists:
+                    self._git_pull()
+                result["branch"] = branch
+                result["tag"] = None
+            else:
+                # Default to main branch
+                logger.info(f"Checking out default branch: {self.DEFAULT_BRANCH}")
+                self._git_checkout(self.DEFAULT_BRANCH)
+                if update and repo_exists:
+                    self._git_pull()
+                result["branch"] = self.DEFAULT_BRANCH
+                result["tag"] = None
+
+            # Get current commit and version info
+            result["commit"] = self._get_current_commit()
+            result["version"] = self._get_version_info()
+            result["success"] = True
+            result["message"] = f"Successfully synced to {result['commit'][:8]}"
+
+            # Print summary
+            self._print_sync_summary(result)
+
+            return result
+
+        except subprocess.CalledProcessError as e:
+            result["success"] = False
+            result["message"] = f"Git command failed: {e.stderr if e.stderr else str(e)}"
+            logger.error(result["message"])
+            return result
+        except Exception as e:
+            result["success"] = False
+            result["message"] = f"Sync failed: {str(e)}"
+            logger.error(result["message"])
+            return result
+
+    def _git_clone(self):
+        """Clone the upstream repository"""
+        self.target_dir.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "clone", self.UPSTREAM_REPO, str(self.target_dir)],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+    def _git_fetch(self):
+        """Fetch latest changes from remote"""
+        subprocess.run(
+            ["git", "fetch", "--all", "--tags"],
+            cwd=self.target_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+    def _git_checkout(self, ref: str):
+        """Checkout a specific branch or tag"""
+        subprocess.run(
+            ["git", "checkout", ref],
+            cwd=self.target_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+    def _git_pull(self):
+        """Pull latest changes for current branch"""
+        subprocess.run(
+            ["git", "pull"],
+            cwd=self.target_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+    def _get_current_commit(self) -> str:
+        """Get current Git commit hash"""
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.target_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        return result.stdout.strip()
+
+    def _get_version_info(self) -> Optional[str]:
+        """
+        Get version information from ComplianceAsCode
+        Checks for VERSION file or tries to extract from git describe
+        """
+        # Try VERSION file first
+        version_file = self.target_dir / "VERSION"
+        if version_file.exists():
+            return version_file.read_text().strip()
+
+        # Try git describe
+        try:
+            result = subprocess.run(
+                ["git", "describe", "--tags", "--always"],
+                cwd=self.target_dir,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return None
+
+    def list_available_tags(self, pattern: Optional[str] = None) -> List[str]:
+        """
+        List available tags from repository
+
+        Args:
+            pattern: Optional regex pattern to filter tags (e.g., "v0\\.1\\..*")
+
+        Returns:
+            List of tag names
+        """
+        if not self.git_dir.exists():
+            logger.error(f"Repository not found at {self.target_dir}")
+            return []
+
+        try:
+            result = subprocess.run(
+                ["git", "tag", "--list"],
+                cwd=self.target_dir,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            tags = result.stdout.strip().split('\n')
+            tags = [t.strip() for t in tags if t.strip()]
+
+            if pattern:
+                regex = re.compile(pattern)
+                tags = [t for t in tags if regex.match(t)]
+
+            return sorted(tags, reverse=True)  # Most recent first
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to list tags: {e}")
+            return []
+
+    def _print_sync_summary(self, result: Dict[str, Any]):
+        """Print synchronization summary"""
+        print("\n" + "="*70)
+        print("UPSTREAM SYNC SUMMARY")
+        print("="*70)
+        print(f"Repository:     {self.UPSTREAM_REPO}")
+        print(f"Target Dir:     {self.target_dir}")
+        print(f"Action:         {result['action']}")
+        if result['branch']:
+            print(f"Branch:         {result['branch']}")
+        if result['tag']:
+            print(f"Tag:            {result['tag']}")
+        if result['version']:
+            print(f"Version:        {result['version']}")
+        print(f"Commit:         {result['commit']}")
+        print(f"Status:         {'✅ SUCCESS' if result['success'] else '❌ FAILED'}")
+        if result['message']:
+            print(f"Message:        {result['message']}")
+        print("="*70 + "\n")
 
 
 class ComplianceAsCodeJSONConverter:
@@ -585,6 +886,247 @@ class ComplianceAsCodeJSONConverter:
             file_hash = hashlib.sha256(f.read()).hexdigest()
         return f"sha256:{file_hash[:16]}"
 
+    async def compare_with_mongodb(
+        self,
+        local_dir: Path,
+        mongodb_url: str,
+        db_name: str = "openwatch_rules",
+        output_format: str = "summary"
+    ) -> List[ComparisonResult]:
+        """
+        Compare local converted rules with MongoDB rules
+
+        Args:
+            local_dir: Directory containing local JSON/BSON rules
+            mongodb_url: MongoDB connection URL
+            db_name: Database name (default: openwatch_rules)
+            output_format: Output format ('summary', 'detailed', 'json')
+
+        Returns:
+            List of comparison results
+        """
+        logger.info(f"Comparing local rules in {local_dir} with MongoDB")
+
+        # Connect to MongoDB
+        client = AsyncIOMotorClient(mongodb_url)
+        db = client[db_name]
+        collection = db.compliance_rules
+
+        # Load local rules
+        local_rules = {}
+
+        # Try JSON first
+        json_files = list(local_dir.glob("ow-*.json"))
+        if json_files:
+            logger.info(f"Found {len(json_files)} local JSON files")
+            for json_file in json_files:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    rule = json.load(f)
+                    local_rules[rule['rule_id']] = rule
+        else:
+            # Try BSON
+            bson_files = list(local_dir.glob("ow-*.bson"))
+            if bson_files:
+                logger.info(f"Found {len(bson_files)} local BSON files")
+                for bson_file in bson_files:
+                    with open(bson_file, 'rb') as f:
+                        rule = bson.decode(f.read())
+                        local_rules[rule['rule_id']] = rule
+
+        if not local_rules:
+            logger.error(f"No rule files found in {local_dir}")
+            return []
+
+        logger.info(f"Loaded {len(local_rules)} local rules")
+
+        # Compare with MongoDB
+        results = []
+        for rule_id, local_rule in local_rules.items():
+            # Find in MongoDB (latest version only)
+            mongo_rule = await collection.find_one({"rule_id": rule_id, "is_latest": True})
+
+            if not mongo_rule:
+                # New rule
+                results.append(ComparisonResult(
+                    rule_id=rule_id,
+                    status='new',
+                    new_hash=self._calculate_rule_hash(local_rule)
+                ))
+            else:
+                # Compare content
+                local_hash = self._calculate_rule_hash(local_rule)
+                mongo_hash = mongo_rule.get('version_hash', '')
+
+                if local_hash != mongo_hash:
+                    # Modified rule
+                    changes = self._detect_changes(mongo_rule, local_rule)
+                    results.append(ComparisonResult(
+                        rule_id=rule_id,
+                        status='modified',
+                        changes=changes,
+                        old_hash=mongo_hash,
+                        new_hash=local_hash,
+                        old_version=mongo_rule.get('version', 1),
+                        is_latest=mongo_rule.get('is_latest', True)
+                    ))
+                else:
+                    # Unchanged rule
+                    results.append(ComparisonResult(
+                        rule_id=rule_id,
+                        status='unchanged',
+                        old_hash=mongo_hash,
+                        new_hash=local_hash,
+                        old_version=mongo_rule.get('version', 1),
+                        is_latest=mongo_rule.get('is_latest', True)
+                    ))
+
+        # Print summary
+        new_count = sum(1 for r in results if r.status == 'new')
+        modified_count = sum(1 for r in results if r.status == 'modified')
+        unchanged_count = sum(1 for r in results if r.status == 'unchanged')
+
+        logger.info(
+            f"Comparison complete: {new_count} new, {modified_count} modified, "
+            f"{unchanged_count} unchanged (total: {len(results)})"
+        )
+
+        # Output results
+        if output_format == 'summary':
+            self._print_comparison_summary(results, new_count, modified_count, unchanged_count)
+        elif output_format == 'detailed':
+            self._print_comparison_detailed(results)
+        elif output_format == 'json':
+            self._print_comparison_json(results)
+
+        # Close MongoDB connection
+        client.close()
+
+        return results
+
+    def _calculate_rule_hash(self, rule: Dict[str, Any]) -> str:
+        """Calculate content hash for rule (excluding version metadata)"""
+        # Exclude fields that change with versioning
+        excluded = {
+            '_id', 'imported_at', 'updated_at', 'version', 'version_hash',
+            'effective_from', 'effective_until', 'is_latest', 'created_at'
+        }
+        content = {k: v for k, v in rule.items() if k not in excluded}
+        content_json = json.dumps(content, sort_keys=True, default=str)
+        return hashlib.sha256(content_json.encode()).hexdigest()
+
+    def _detect_changes(self, old_rule: Dict, new_rule: Dict) -> List[str]:
+        """Detect which fields changed between rules"""
+        changes = []
+        excluded_fields = {
+            '_id', 'imported_at', 'updated_at', 'version', 'version_hash',
+            'effective_from', 'effective_until', 'is_latest', 'created_at'
+        }
+
+        # Check for changed fields
+        all_keys = set(old_rule.keys()) | set(new_rule.keys())
+        for key in all_keys:
+            if key in excluded_fields:
+                continue
+
+            old_val = old_rule.get(key)
+            new_val = new_rule.get(key)
+
+            if old_val != new_val:
+                changes.append(key)
+
+        return changes
+
+    def _print_comparison_summary(
+        self,
+        results: List[ComparisonResult],
+        new_count: int,
+        modified_count: int,
+        unchanged_count: int
+    ):
+        """Print comparison summary"""
+        print("\n" + "="*70)
+        print("MONGODB COMPARISON SUMMARY")
+        print("="*70)
+        print(f"Product:                  {self.product_name}")
+        print(f"Total rules compared:     {len(results)}")
+        print(f"New rules:                {new_count}")
+        print(f"Modified rules:           {modified_count}")
+        print(f"Unchanged rules:          {unchanged_count}")
+        print("="*70)
+
+        if new_count > 0:
+            print(f"\n📝 NEW RULES ({new_count}):")
+            for result in [r for r in results if r.status == 'new'][:10]:
+                print(f"  + {result.rule_id}")
+            if new_count > 10:
+                print(f"  ... and {new_count - 10} more")
+
+        if modified_count > 0:
+            print(f"\n🔄 MODIFIED RULES ({modified_count}):")
+            for result in [r for r in results if r.status == 'modified'][:10]:
+                print(f"  ~ {result.rule_id}")
+                if result.changes:
+                    print(f"    Changed fields: {', '.join(result.changes[:5])}")
+                    if len(result.changes) > 5:
+                        print(f"    ... and {len(result.changes) - 5} more fields")
+            if modified_count > 10:
+                print(f"  ... and {modified_count - 10} more")
+
+        print()
+
+    def _print_comparison_detailed(self, results: List[ComparisonResult]):
+        """Print detailed comparison results"""
+        print("\n" + "="*70)
+        print("DETAILED COMPARISON RESULTS")
+        print("="*70)
+
+        for result in results:
+            status_icon = {
+                'new': '📝 NEW',
+                'modified': '🔄 MODIFIED',
+                'unchanged': '✅ UNCHANGED'
+            }[result.status]
+
+            print(f"\n{status_icon}: {result.rule_id}")
+
+            if result.status == 'modified':
+                print(f"  Old version: {result.old_version}")
+                print(f"  Old hash:    {result.old_hash[:16]}...")
+                print(f"  New hash:    {result.new_hash[:16]}...")
+                if result.changes:
+                    print(f"  Changes:     {', '.join(result.changes)}")
+            elif result.status == 'new':
+                print(f"  New hash:    {result.new_hash[:16]}...")
+            elif result.status == 'unchanged':
+                print(f"  Version:     {result.old_version}")
+                print(f"  Hash:        {result.old_hash[:16]}...")
+                print(f"  Is Latest:   {result.is_latest}")
+
+        print("\n" + "="*70 + "\n")
+
+    def _print_comparison_json(self, results: List[ComparisonResult]):
+        """Print comparison results as JSON"""
+        output = {
+            "product": self.product_name,
+            "total_rules": len(results),
+            "new_count": sum(1 for r in results if r.status == 'new'),
+            "modified_count": sum(1 for r in results if r.status == 'modified'),
+            "unchanged_count": sum(1 for r in results if r.status == 'unchanged'),
+            "results": [
+                {
+                    "rule_id": r.rule_id,
+                    "status": r.status,
+                    "changes": r.changes,
+                    "old_hash": r.old_hash,
+                    "new_hash": r.new_hash,
+                    "old_version": r.old_version,
+                    "is_latest": r.is_latest
+                }
+                for r in results
+            ]
+        }
+        print(json.dumps(output, indent=2))
+
     def _print_summary(self):
         """Print conversion summary"""
         print("\n" + "="*70)
@@ -607,22 +1149,212 @@ class ComplianceAsCodeJSONConverter:
 
         print("="*70 + "\n")
 
+    @staticmethod
+    def merge_multi_platform_rules(
+        product_dirs: List[Path],
+        output_dir: Path,
+        output_format: str = 'bson'
+    ) -> Dict[str, Any]:
+        """
+        Merge rules from multiple product directories into unified rules with consolidated platform_implementations
+
+        Args:
+            product_dirs: List of paths to product-specific rule directories
+            output_dir: Path to output directory for merged rules
+            output_format: Output format ('bson' or 'json')
+
+        Returns:
+            Dictionary with merge statistics
+        """
+        logger.info(f"Merging rules from {len(product_dirs)} products...")
+
+        # Dictionary to hold merged rules by rule_id
+        merged_rules: Dict[str, Dict[str, Any]] = {}
+
+        # Track statistics
+        stats = {
+            'products_processed': 0,
+            'total_rules_read': 0,
+            'unique_rules': 0,
+            'platform_merges': 0,
+            'errors': []
+        }
+
+        # Process each product directory
+        for product_dir in product_dirs:
+            product_name = product_dir.name
+            logger.info(f"Processing {product_name}...")
+
+            # Find all rule files
+            if output_format == 'bson':
+                rule_files = list(product_dir.glob('*.bson'))
+            else:
+                rule_files = list(product_dir.glob('*.json'))
+
+            logger.info(f"  Found {len(rule_files)} rules in {product_name}")
+            stats['total_rules_read'] += len(rule_files)
+
+            # Load each rule
+            for rule_file in rule_files:
+                try:
+                    if output_format == 'bson':
+                        with open(rule_file, 'rb') as f:
+                            rule_data = bson.decode(f.read())
+                    else:
+                        with open(rule_file, 'r') as f:
+                            rule_data = json.load(f)
+
+                    rule_id = rule_data.get('rule_id')
+                    if not rule_id:
+                        logger.warning(f"  Skipping rule with no rule_id: {rule_file.name}")
+                        continue
+
+                    # Check if we've seen this rule before
+                    if rule_id in merged_rules:
+                        # Merge platform_implementations
+                        existing_rule = merged_rules[rule_id]
+                        new_platforms = rule_data.get('platform_implementations', {})
+
+                        if new_platforms:
+                            # Merge the platform implementations
+                            existing_platforms = existing_rule.get('platform_implementations', {})
+                            existing_platforms.update(new_platforms)
+                            existing_rule['platform_implementations'] = existing_platforms
+
+                            stats['platform_merges'] += 1
+                            logger.debug(f"  Merged platform for {rule_id}: added {list(new_platforms.keys())}")
+
+                        # Update tags to include new product
+                        existing_tags = set(existing_rule.get('tags', []))
+                        new_tags = set(rule_data.get('tags', []))
+                        merged_tags = list(existing_tags | new_tags)
+                        existing_rule['tags'] = merged_tags
+
+                        # Keep source information from multiple products
+                        if 'source' in rule_data:
+                            if 'source_products' not in existing_rule:
+                                existing_rule['source_products'] = []
+                            existing_rule['source_products'].append({
+                                'product': product_name,
+                                'source': rule_data['source']
+                            })
+
+                    else:
+                        # New rule - add it
+                        merged_rules[rule_id] = rule_data.copy()
+
+                        # Initialize source_products list
+                        if 'source' in rule_data:
+                            merged_rules[rule_id]['source_products'] = [{
+                                'product': product_name,
+                                'source': rule_data['source']
+                            }]
+
+                        stats['unique_rules'] += 1
+                        logger.debug(f"  New rule: {rule_id}")
+
+                except Exception as e:
+                    error_msg = f"Error processing {rule_file.name}: {str(e)}"
+                    logger.error(f"  {error_msg}")
+                    stats['errors'].append(error_msg)
+
+            stats['products_processed'] += 1
+
+        # Write merged rules to output directory
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"\nWriting {len(merged_rules)} merged rules to {output_dir}")
+
+        for rule_id, rule_data in merged_rules.items():
+            # Update source to indicate multi-platform merge
+            if 'source' in rule_data:
+                rule_data['source']['build_type'] = 'multi_platform_merged'
+                rule_data['source']['merged_products'] = [
+                    sp['product'] for sp in rule_data.get('source_products', [])
+                ]
+
+            # Write the merged rule
+            output_filename = f"{rule_id}.{output_format}"
+            output_path = output_dir / output_filename
+
+            if output_format == 'bson':
+                with open(output_path, 'wb') as f:
+                    f.write(bson.encode(rule_data))
+            else:
+                with open(output_path, 'w') as f:
+                    json.dump(rule_data, f, indent=2, default=str)
+
+        logger.info(f"\n✅ Platform merging complete!")
+        logger.info(f"  Products processed: {stats['products_processed']}")
+        logger.info(f"  Total rules read: {stats['total_rules_read']}")
+        logger.info(f"  Unique rules created: {stats['unique_rules']}")
+        logger.info(f"  Platform merges: {stats['platform_merges']}")
+
+        if stats['errors']:
+            logger.warning(f"  Errors: {len(stats['errors'])}")
+
+        return stats
+
 
 def main():
     """CLI interface"""
     parser = argparse.ArgumentParser(
-        description='ComplianceAsCode JSON to OpenWatch Converter',
+        description='OpenWatch Compliance Rules Aggregator and Converter',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__
     )
     subparsers = parser.add_subparsers(dest='command', required=True)
 
+    # Sync command
+    sync_parser = subparsers.add_parser('sync', help='Download/update ComplianceAsCode repository')
+    sync_parser.add_argument(
+        '--target-dir',
+        default='/home/rracine/hanalyx/scap_content/content',
+        help='Target directory for ComplianceAsCode content'
+    )
+    sync_parser.add_argument(
+        '--branch',
+        help='Git branch to checkout (default: main)'
+    )
+    sync_parser.add_argument(
+        '--tag',
+        help='Git tag to checkout (takes precedence over branch)'
+    )
+    sync_parser.add_argument(
+        '--update',
+        action='store_true',
+        default=True,
+        help='Pull latest changes if repository exists (default: True)'
+    )
+    sync_parser.add_argument(
+        '--no-update',
+        action='store_true',
+        help='Skip pulling latest changes'
+    )
+    sync_parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Force re-clone even if directory exists'
+    )
+    sync_parser.add_argument(
+        '--list-tags',
+        action='store_true',
+        help='List available tags and exit'
+    )
+    sync_parser.add_argument(
+        '--tag-filter',
+        help='Filter tags by regex pattern (used with --list-tags)'
+    )
+
     # Convert command
     convert_parser = subparsers.add_parser('convert', help='Convert ComplianceAsCode JSON rules')
     convert_parser.add_argument(
         '--build-path',
-        required=True,
-        help='Path to ComplianceAsCode build directory (e.g., /path/to/build/rhel8)'
+        help='Path to ComplianceAsCode build directory (e.g., /path/to/build/rhel8). Not needed if --products is used.'
+    )
+    convert_parser.add_argument(
+        '--build-base-path',
+        default='/home/rracine/hanalyx/scap_content/build',
+        help='Base path for builds when using --products (default: /home/rracine/hanalyx/scap_content/build)'
     )
     convert_parser.add_argument(
         '--output-path',
@@ -631,8 +1363,13 @@ def main():
     )
     convert_parser.add_argument(
         '--product',
-        default='rhel8',
-        help='Product name (rhel8, rhel9, ubuntu2204, etc.)'
+        help='Single product name (rhel8, rhel9, ubuntu2204, etc.)'
+    )
+    convert_parser.add_argument(
+        '--products',
+        nargs='+',
+        choices=['all', 'rhel8', 'rhel9', 'rhel10', 'ubuntu2204', 'ubuntu2404', 'ol8', 'ol9'],
+        help='Multiple products to convert. Use "all" for all major distros: rhel8, rhel9, rhel10, ubuntu2204, ubuntu2404, ol8, ol9'
     )
     convert_parser.add_argument(
         '--format',
@@ -669,6 +1406,11 @@ def main():
         default='ComplianceAsCode Project',
         help='Signer name for signature metadata'
     )
+    convert_parser.add_argument(
+        '--merge-platforms',
+        action='store_true',
+        help='Merge rules from multiple products into single unified bundle with consolidated platform_implementations'
+    )
 
     # Bundle command
     bundle_parser = subparsers.add_parser('bundle', help='Create bundle from existing rules')
@@ -693,29 +1435,227 @@ def main():
         help='Bundle version'
     )
 
+    # Compare command
+    compare_parser = subparsers.add_parser('compare', help='Compare local rules with MongoDB')
+    compare_parser.add_argument(
+        '--local',
+        required=True,
+        help='Local rules directory (JSON or BSON files)'
+    )
+    compare_parser.add_argument(
+        '--mongodb-url',
+        default='mongodb://openwatch:secure_mongo_password@localhost:27017',
+        help='MongoDB connection URL'
+    )
+    compare_parser.add_argument(
+        '--database',
+        default='openwatch_rules',
+        help='Database name (default: openwatch_rules)'
+    )
+    compare_parser.add_argument(
+        '--product',
+        default='rhel8',
+        help='Product name'
+    )
+    compare_parser.add_argument(
+        '--output-format',
+        choices=['summary', 'detailed', 'json'],
+        default='summary',
+        help='Output format (default: summary)'
+    )
+
     args = parser.parse_args()
 
-    if args.command == 'convert':
-        converter = ComplianceAsCodeJSONConverter(
-            build_path=args.build_path,
-            output_path=args.output_path,
-            dry_run=args.dry_run,
-            product_name=args.product
+    if args.command == 'sync':
+        sync_manager = UpstreamSyncManager(args.target_dir)
+
+        # List tags mode
+        if args.list_tags:
+            logger.info("Listing available tags...")
+            tags = sync_manager.list_available_tags(args.tag_filter)
+            if tags:
+                print("\n" + "="*70)
+                print("AVAILABLE TAGS")
+                print("="*70)
+                for tag in tags[:20]:  # Show first 20
+                    print(f"  {tag}")
+                if len(tags) > 20:
+                    print(f"  ... and {len(tags) - 20} more tags")
+                print("="*70 + "\n")
+            else:
+                logger.warning("No tags found")
+            return
+
+        # Sync mode
+        update = not args.no_update
+        result = sync_manager.sync(
+            branch=args.branch,
+            tag=args.tag,
+            update=update,
+            force=args.force
         )
 
-        stats = converter.convert_all_rules(output_format=args.format)
+        if not result['success']:
+            exit(1)
 
-        # Create bundle if requested
-        if args.create_bundle and not args.dry_run and stats.successfully_converted > 0:
-            bundle_path = Path(args.output_path).parent / f"openwatch-{args.product}-bundle_v{args.bundle_version}.tar.gz"
-            converter.create_bundle(
-                Path(args.output_path),
-                bundle_path,
-                args.bundle_version,
-                sign_bundle=args.sign_bundle,
-                private_key_path=Path(args.private_key_path) if args.private_key_path else None,
-                signer_name=args.signer
+    elif args.command == 'convert':
+        # Determine which products to convert
+        products_to_convert = []
+
+        if args.products:
+            # Multiple products mode
+            if 'all' in args.products:
+                products_to_convert = ['rhel8', 'rhel9', 'rhel10', 'ubuntu2204', 'ubuntu2404', 'ol8', 'ol9']
+            else:
+                products_to_convert = args.products
+        elif args.product:
+            # Single product mode (legacy)
+            products_to_convert = [args.product]
+        elif args.build_path:
+            # Infer product from build path if possible
+            build_path_name = Path(args.build_path).name
+            products_to_convert = [build_path_name]
+        else:
+            logger.error("Must specify either --product, --products, or --build-path")
+            exit(1)
+
+        logger.info(f"Converting {len(products_to_convert)} product(s): {', '.join(products_to_convert)}")
+
+        # Convert each product
+        all_stats = []
+        for product in products_to_convert:
+            logger.info(f"\n{'='*70}")
+            logger.info(f"Processing product: {product}")
+            logger.info(f"{'='*70}\n")
+
+            # Determine build path
+            if args.build_path:
+                build_path = args.build_path
+            else:
+                build_path = str(Path(args.build_base_path) / product)
+
+            # Determine output path
+            if len(products_to_convert) > 1:
+                # Multiple products: create subdirectories
+                output_path = str(Path(args.output_path) / product)
+            else:
+                # Single product: use output path directly
+                output_path = args.output_path
+
+            # Check if build path exists
+            if not Path(build_path).exists():
+                logger.error(f"Build path not found: {build_path}")
+                logger.error(f"Make sure you've built {product} with ComplianceAsCode first:")
+                logger.error(f"  cd /scap_content/content && ./build_product {product}")
+                continue
+
+            # Convert product
+            converter = ComplianceAsCodeJSONConverter(
+                build_path=build_path,
+                output_path=output_path,
+                dry_run=args.dry_run,
+                product_name=product
             )
+
+            stats = converter.convert_all_rules(output_format=args.format)
+            all_stats.append({
+                'product': product,
+                'stats': stats
+            })
+
+        # Merge platforms if requested
+        if args.merge_platforms and len(products_to_convert) > 1 and not args.dry_run:
+            logger.info(f"\n{'='*70}")
+            logger.info("MERGING PLATFORMS")
+            logger.info(f"{'='*70}\n")
+
+            # Collect product directories
+            product_dirs = []
+            for product in products_to_convert:
+                if len(products_to_convert) > 1:
+                    product_dir = Path(args.output_path) / product
+                else:
+                    product_dir = Path(args.output_path)
+
+                if product_dir.exists():
+                    product_dirs.append(product_dir)
+
+            # Create merged output directory
+            merged_output_dir = Path(args.output_path) / "merged"
+
+            # Perform the merge
+            merge_stats = ComplianceAsCodeJSONConverter.merge_multi_platform_rules(
+                product_dirs,
+                merged_output_dir,
+                args.format
+            )
+
+            # Create merged bundle if requested
+            if args.create_bundle and merge_stats['unique_rules'] > 0:
+                logger.info(f"\n{'='*70}")
+                logger.info("CREATING MERGED BUNDLE")
+                logger.info(f"{'='*70}\n")
+
+                bundle_path = Path(args.output_path) / f"openwatch-multiplatform-bundle_v{args.bundle_version}.tar.gz"
+
+                # Use a temporary converter instance just for bundle creation
+                temp_converter = ComplianceAsCodeJSONConverter(
+                    build_path='',
+                    output_path=str(merged_output_dir),
+                    product_name='multiplatform'
+                )
+
+                temp_converter.create_bundle(
+                    merged_output_dir,
+                    bundle_path,
+                    args.bundle_version,
+                    sign_bundle=args.sign_bundle,
+                    private_key_path=Path(args.private_key_path) if args.private_key_path else None,
+                    signer_name=args.signer
+                )
+
+        # Create individual product bundles if requested (and not merging)
+        if args.create_bundle and not args.dry_run and not args.merge_platforms:
+            for item in all_stats:
+                product = item['product']
+                stats = item['stats']
+
+                if stats.successfully_converted > 0:
+                    if len(products_to_convert) > 1:
+                        # Multiple products: bundles in output_path parent
+                        bundle_path = Path(args.output_path) / f"openwatch-{product}-bundle_v{args.bundle_version}.tar.gz"
+                        output_path_for_bundle = str(Path(args.output_path) / product)
+                    else:
+                        # Single product: bundle in output path parent
+                        bundle_path = Path(args.output_path).parent / f"openwatch-{product}-bundle_v{args.bundle_version}.tar.gz"
+                        output_path_for_bundle = args.output_path
+
+                    temp_converter = ComplianceAsCodeJSONConverter(
+                        build_path='',
+                        output_path=output_path_for_bundle,
+                        product_name=product
+                    )
+
+                    temp_converter.create_bundle(
+                        Path(output_path_for_bundle),
+                        bundle_path,
+                        args.bundle_version,
+                        sign_bundle=args.sign_bundle,
+                        private_key_path=Path(args.private_key_path) if args.private_key_path else None,
+                        signer_name=args.signer
+                    )
+
+        # Print summary for all products
+        if len(products_to_convert) > 1:
+            print("\n" + "="*70)
+            print("MULTI-PRODUCT CONVERSION SUMMARY")
+            print("="*70)
+            for item in all_stats:
+                product = item['product']
+                stats = item['stats']
+                status = "✅" if stats.successfully_converted > 0 else "❌"
+                print(f"{status} {product:15} - {stats.successfully_converted:4d} rules converted, {stats.conversion_errors:2d} errors")
+            print("="*70 + "\n")
 
     elif args.command == 'bundle':
         converter = ComplianceAsCodeJSONConverter(
@@ -728,6 +1668,35 @@ def main():
             Path(args.output),
             args.version
         )
+
+    elif args.command == 'compare':
+        if not MOTOR_AVAILABLE:
+            logger.error("Motor package not available. Install with: pip install motor")
+            logger.error("Compare command requires motor for MongoDB async operations")
+            exit(1)
+
+        converter = ComplianceAsCodeJSONConverter(
+            build_path='',
+            output_path='',
+            product_name=args.product
+        )
+        results = asyncio.run(converter.compare_with_mongodb(
+            Path(args.local),
+            args.mongodb_url,
+            args.database,
+            args.output_format
+        ))
+
+        # Exit with appropriate code
+        new_count = sum(1 for r in results if r.status == 'new')
+        modified_count = sum(1 for r in results if r.status == 'modified')
+
+        if new_count > 0 or modified_count > 0:
+            logger.info(f"Changes detected: {new_count} new, {modified_count} modified")
+            exit(1)  # Exit code 1 indicates changes found
+        else:
+            logger.info("No changes detected")
+            exit(0)  # Exit code 0 indicates no changes
 
 
 if __name__ == '__main__':

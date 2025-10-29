@@ -89,14 +89,20 @@ def validate_file_extension(filename: str, allowed_extensions: list[str]) -> boo
 
     Args:
         filename: Filename to validate
-        allowed_extensions: List of allowed extensions (e.g., ['.xml', '.zip'])
+        allowed_extensions: List of allowed extensions (e.g., ['.xml', '.zip', '.tar.gz'])
 
     Returns:
         True if extension is allowed, False otherwise
     """
-    ext = Path(filename).suffix.lower()
+    filename_lower = filename.lower()
     allowed_lower = [e.lower() for e in allowed_extensions]
-    return ext in allowed_lower
+
+    # Check for multi-part extensions like .tar.gz first (longer matches first)
+    for ext in sorted(allowed_lower, key=len, reverse=True):
+        if filename_lower.endswith(ext):
+            return True
+
+    return False
 
 
 def validate_storage_path(

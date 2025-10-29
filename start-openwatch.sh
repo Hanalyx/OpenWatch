@@ -347,6 +347,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --build|-b)
             BUILD_IMAGES=true
+            FORCE_BUILD=true  # Always use --no-cache with --build for fresh builds
             shift
             ;;
         --force-build)
@@ -369,8 +370,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --dev, -d              Run in development mode"
-            echo "  --build, -b            Build container images before starting"
-            echo "  --force-build          Force rebuild images (no cache)"
+            echo "  --build, -b            Build container images before starting (no cache)"
+            echo "  --force-build          Alias for --build (maintained for compatibility)"
             echo "  --runtime, -r RUNTIME  Force container runtime (docker|podman)"
             echo "  --help, -h             Show this help message"
             echo "  --no-health-check      Skip health check after startup"

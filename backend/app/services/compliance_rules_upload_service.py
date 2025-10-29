@@ -49,8 +49,8 @@ class ComplianceRulesUploadService:
         self.inheritance_resolver = None  # Initialized after graph is built
         self.versioning_service = RuleVersioningService()  # Immutable versioning
 
-        # Configuration: require bundle signatures (default: True in production, False in dev)
-        self.require_bundle_signature = os.getenv('REQUIRE_BUNDLE_SIGNATURE', 'true').lower() == 'true'
+        # Configuration: require bundle signatures (default: False in dev, True in production)
+        self.require_bundle_signature = os.getenv('REQUIRE_BUNDLE_SIGNATURE', 'false').lower() == 'true'
 
         self.upload_id = None
         self.current_phase = "initializing"
@@ -678,12 +678,25 @@ class ComplianceRulesUploadService:
         # CRITICAL: Remove _id again if it snuck through (MongoDB will generate new one)
         # The versioning service does **rule_data which might reintroduce _id
         if '_id' in versioned_rule:
+            logger.warning(f"[BUG #3] Removing _id from versioned_rule for {versioned_rule.get('rule_id')}")
             del versioned_rule['_id']
-            logger.debug(f"Removed _id from versioned rule {versioned_rule.get('rule_id')}")
+
+        # Double-check _id is not in the dict before Pydantic
+        if '_id' in versioned_rule:
+            logger.error(f"[BUG #3] CRITICAL: _id STILL in versioned_rule after removal!")
+        else:
+            logger.debug(f"[BUG #3] Confirmed: _id successfully removed from {versioned_rule.get('rule_id')}")
 
         # Step 3: Insert new version (append-only)
-        new_rule = ComplianceRule(**versioned_rule)
-        await new_rule.insert()
+        try:
+            new_rule = ComplianceRule(**versioned_rule)
+            await new_rule.insert()
+        except Exception as e:
+            logger.error(f"[BUG #3] MongoDB insertion failed for {versioned_rule.get('rule_id')}: {e}")
+            logger.error(f"[BUG #3] versioned_rule keys: {list(versioned_rule.keys())}")
+            if hasattr(new_rule, '_id'):
+                logger.error(f"[BUG #3] Pydantic model has _id: {new_rule._id}")
+            raise
 
         logger.info(
             f"Created new version: {new_rule.rule_id} v{new_rule.version} "

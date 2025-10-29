@@ -202,50 +202,59 @@ stop_services() {
 # Development cleanup: Remove everything for clean state
 development_cleanup() {
     log_info "Performing development cleanup..."
-    log_warning "This will remove ALL OpenWatch containers, volumes, and networks!"
-    
+    log_warning "This will remove ALL OpenWatch containers, volumes, networks, and images!"
+
     # Stop and remove all containers first
     stop_services
-    
+
     # Additional cleanup for development - check both docker and podman
     log_info "Cleaning up any remaining OpenWatch resources..."
-    
+
     # Clean up Docker resources
     if command -v docker &> /dev/null; then
         # Remove any remaining containers with openwatch in the name
         docker ps -a --format "{{.Names}}" 2>/dev/null | grep openwatch | xargs -r docker rm -f 2>/dev/null || true
-        
+
         # Remove volumes (including dev volumes)
         docker volume ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r docker volume rm -f 2>/dev/null || true
-        
+
         # Remove networks
         docker network ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r docker network rm 2>/dev/null || true
-        
+
+        # Remove images (openwatch and hanalyx prefixes)
+        log_info "Removing OpenWatch Docker images..."
+        docker images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}" 2>/dev/null | \
+            grep -E "openwatch|hanalyx" | \
+            awk '{print $2}' | \
+            xargs -r docker rmi -f 2>/dev/null || true
+
         log_info "Docker cleanup completed"
     fi
-    
+
     # Clean up Podman resources
     if command -v podman &> /dev/null; then
         # Remove any remaining containers with openwatch in the name
         podman ps -a --format "{{.Names}}" 2>/dev/null | grep openwatch | xargs -r podman rm -f 2>/dev/null || true
-        
+
         # Remove volumes
         podman volume ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman volume rm -f 2>/dev/null || true
-        
+
         # Remove networks
         podman network ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman network rm 2>/dev/null || true
-        
+
         # Clean up pods if any
         podman pod ls --format "{{.Name}}" 2>/dev/null | grep openwatch | xargs -r podman pod rm -f 2>/dev/null || true
-        
+
+        # Remove images (openwatch and hanalyx prefixes)
+        log_info "Removing OpenWatch Podman images..."
+        podman images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}" 2>/dev/null | \
+            grep -E "openwatch|hanalyx" | \
+            awk '{print $2}' | \
+            xargs -r podman rmi -f 2>/dev/null || true
+
         log_info "Podman cleanup completed"
     fi
-    
-    # Optional: Remove dangling images (commented out to preserve build cache)
-    # log_info "Removing dangling images..."
-    # docker image prune -f 2>/dev/null || true
-    # podman image prune -f 2>/dev/null || true
-    
+
     log_success "Development cleanup complete"
     log_info "Next startup will be completely fresh - perfect for testing changes!"
 }
@@ -303,7 +312,7 @@ case "$1" in
         echo "Options:"
         echo "  --help, -h        Show this help message"
         echo "  --simple          Simple stop without removing volumes (faster)"
-        echo "  --deep-clean      Complete cleanup: containers + volumes + networks + orphans"
+        echo "  --deep-clean      Complete cleanup: containers + volumes + networks + images"
         echo "  --dev-clean       Alias for --deep-clean"
         echo ""
         echo "Default Behavior (no options):"

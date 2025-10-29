@@ -1,210 +1,54 @@
 # OpenWatch Scripts
 
-Utility scripts for OpenWatch setup, deployment, and maintenance.
+Automation scripts for OpenWatch development and operations.
 
-## Directory Structure
+## Compliance Rules Management
 
-```
-scripts/
-├── setup.sh                            # Initial setup script
-├── setup-dev.sh                        # Development environment setup  
-├── setup-local-db.sh                   # Local database initialization
-├── generate-certs.sh                   # SSL certificate generation
-├── create-admin.sh                     # Create admin user
-├── check-environment.sh                # Verify environment setup
-├── run-local.sh                        # Run services locally
-├── verify-setup.sh                     # Validate installation
-├── utilities/
-│   ├── clear_rate_limits.py           # Clear rate limit blocks
-│   └── rate_limit_monitor.py           # Monitor rate limiting
-└── examples/
-    └── group_scan_api_usage.py         # Group Scan API example
-```
+### `build_compliance_rules.sh`
 
-## Script Descriptions
+Automates building SCAP content from ComplianceAsCode and converting to OpenWatch format.
 
-### setup.sh
-Main setup script that:
-- Checks system requirements
-- Installs dependencies
-- Initializes database
-- Generates certificates
-- Creates initial admin user
+**Purpose:** Implements Solution 1 from [JINJA2_RULES_HANDLING_STRATEGY.md](../docs/JINJA2_RULES_HANDLING_STRATEGY.md)
 
-Usage:
+**Quick Start:**
 ```bash
-./setup.sh
+# Build and convert RHEL 8 rules
+./build_compliance_rules.sh rhel8
+
+# Build multiple products
+./build_compliance_rules.sh rhel8 rhel9 ubuntu2204
+
+# Build all supported products
+./build_compliance_rules.sh all
+
+# Show help
+./build_compliance_rules.sh --help
 ```
 
-### setup-dev.sh
-Development environment setup:
-- Installs development dependencies
-- Configures local environment variables
-- Sets up pre-commit hooks
-- Initializes test database
+**Requirements:**
+- CMake, make, python3-jinja2, python3-yaml
+- ComplianceAsCode cloned at `/home/rracine/hanalyx/scap_content/content`
+- Docker containers running (`docker-compose up -d`)
 
-Usage:
-```bash
-./setup-dev.sh
-```
+**Output:**
+- SCAP data streams: `../scap_content/build/ssg-<product>-ds.xml`
+- Rendered rules: `../scap_content/build/<product>/rules/*.json`
+- OpenWatch bundles: `../scap_content/build/openwatch_bundles/*.tar.gz`
 
-### setup-local-db.sh
-Database initialization for local development:
-- Creates PostgreSQL database
-- Runs initial migrations
-- Sets up test data (optional)
-- Configures database permissions
+**Documentation:**
+- [Complete Guide](../docs/guides/BUILD_AND_BUNDLE_COMPLIANCE_RULES.md)
+- [Quick Reference](../docs/guides/COMPLIANCE_RULES_QUICK_REFERENCE.md)
+- [Implementation Status](../docs/JINJA2_SOLUTION_IMPLEMENTATION_STATUS.md)
 
-Usage:
-```bash
-./setup-local-db.sh [--with-test-data]
-```
+**Performance:**
+- First build: ~5-10 minutes
+- Incremental build: ~1-2 minutes  
+- Conversion: ~1-2 seconds per product
+- Bundle size: ~1-2 MB compressed per product
 
-### generate-certs.sh
-SSL certificate generation:
-- Creates self-signed certificates for development
-- Generates CA, server, and client certificates
-- Creates Diffie-Hellman parameters
-- Sets appropriate file permissions
-
-Usage:
-```bash
-./generate-certs.sh [--production]
-```
-
-### create-admin.sh
-Creates administrative user:
-- Prompts for username and password
-- Assigns super_admin role
-- Configures MFA (optional)
-- Adds to audit log
-
-Usage:
-```bash
-./create-admin.sh
-```
-
-### check-environment.sh
-Environment validation:
-- Verifies required environment variables
-- Checks service connectivity
-- Validates certificate configuration
-- Tests database access
-
-Usage:
-```bash
-./check-environment.sh
-```
-
-### run-local.sh
-Local service launcher:
-- Starts backend services
-- Launches frontend development server
-- Configures logging
-- Sets up debugging if requested
-
-Usage:
-```bash
-./run-local.sh [--debug] [--services backend,frontend,worker]
-```
-
-### verify-setup.sh
-Installation verification:
-- Tests all service endpoints
-- Validates authentication flow
-- Checks scan functionality
-- Verifies integrations
-
-Usage:
-```bash
-./verify-setup.sh [--comprehensive]
-```
-
-### utilities/clear_rate_limits.py
-Rate limiting management:
-- Clears all IP blocks from rate limiter
-- Resets request histories and error counts
-- Can be run from container or locally
-
-Usage:
-```bash
-docker-compose exec backend python3 /app/scripts/utilities/clear_rate_limits.py
-# OR restart backend: docker-compose restart backend
-```
-
-### utilities/rate_limit_monitor.py
-Rate limiting monitoring:
-- Monitors rate limiting status and metrics
-- Tracks blocked IPs and request patterns
-- Provides real-time monitoring data
-
-Usage:
-```bash
-python3 scripts/utilities/rate_limit_monitor.py
-```
-
-### examples/group_scan_api_usage.py
-API usage demonstration:
-- Shows how to use Group Scan Progress API
-- Demonstrates endpoint integration
-- Provides client implementation example
-
-Usage:
-```bash
-python3 scripts/examples/group_scan_api_usage.py
-```
-
-## Common Tasks
-
-### First Time Setup
-```bash
-./setup.sh
-./generate-certs.sh
-./create-admin.sh
-```
-
-### Development Setup
-```bash
-./setup-dev.sh
-./setup-local-db.sh --with-test-data
-./run-local.sh --debug
-```
-
-### Production Deployment
-```bash
-./check-environment.sh
-./generate-certs.sh --production
-./verify-setup.sh --comprehensive
-```
-
-## Environment Variables
-
-Scripts expect these variables:
-- `OPENWATCH_DATABASE_URL`: PostgreSQL connection
-- `OPENWATCH_REDIS_URL`: Redis connection
-- `OPENWATCH_SECRET_KEY`: Application secret
-- `OPENWATCH_ADMIN_EMAIL`: Initial admin email
-
-## Best Practices
-
-1. Always run `check-environment.sh` before deployment
-2. Use `--production` flag for production certificates
-3. Store script logs for troubleshooting
-4. Run scripts from the OpenWatch root directory
-5. Review script output for warnings/errors
-
-## Troubleshooting
-
-### Permission Issues
-```bash
-chmod +x scripts/*.sh
-```
-
-### Database Connection
-Check PostgreSQL service and credentials in environment
-
-### Certificate Errors
-Regenerate certificates and restart services
-
----
-*Last updated: 2025-09-04*
+**Supported Products:**
+- RHEL 8, 9, 10
+- Ubuntu 20.04, 22.04
+- Oracle Linux 8, 9
+- Debian 11, 12
+- Fedora
