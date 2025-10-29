@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -24,6 +24,14 @@ import {
   Tooltip,
   useTheme,
   alpha,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Collapse,
+  CircularProgress,
 } from '@mui/material';
 import {
   CloudSync as SyncIcon,
@@ -36,6 +44,10 @@ import {
   Close as CloseIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon,
+  Download as DownloadIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 
 interface UploadSyncRulesProps {}
@@ -57,6 +69,11 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
   const [validationResults, setValidationResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Upload history state
+  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Handle sync toggle
   const handleSyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,6 +200,9 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
           `${result.statistics?.updated || 0} updated, ` +
           `${result.statistics?.skipped || 0} skipped`
         );
+
+        // Reload upload history to show the new upload
+        loadUploadHistory();
       } else {
         // Upload failed
         setValidationResults({
@@ -213,6 +233,98 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
       handleUpload();
     }
   };
+
+  // Load upload history
+  const loadUploadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.warn('No auth token found');
+        return;
+      }
+
+      const response = await fetch('/api/v1/compliance/upload-history?limit=100', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch upload history');
+      }
+
+      const data = await response.json();
+      setUploadHistory(data.uploads || []);
+    } catch (err: any) {
+      console.error('Error loading upload history:', err);
+      setError(`Failed to load upload history: ${err.message}`);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Toggle row expansion
+  const toggleRowExpansion = (uploadId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(uploadId)) {
+      newExpanded.delete(uploadId);
+    } else {
+      newExpanded.add(uploadId);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  // Export upload report as JSON
+  const handleExportReport = async (uploadId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        return;
+      }
+
+      const response = await fetch(`/api/v1/compliance/upload-history/${uploadId}/export`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export report');
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `upload_report_${uploadId}.json`;
+      if (contentDisposition) {
+        const matches = /filename="([^"]+)"/.exec(contentDisposition);
+        if (matches && matches[1]) {
+          filename = matches[1];
+        }
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccess(`Report exported: ${filename}`);
+    } catch (err: any) {
+      setError(`Failed to export report: ${err.message}`);
+    }
+  };
+
+  // Load upload history on component mount
+  useEffect(() => {
+    loadUploadHistory();
+  }, []);
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -517,6 +629,269 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                   </Box>
                 </Grid>
               </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Upload History */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Box display="flex" alignItems="center" gap={2}>
+                  <HistoryIcon color="primary" />
+                  <Typography variant="h6">
+                    Upload History
+                  </Typography>
+                </Box>
+                <Button
+                  startIcon={<SyncIcon />}
+                  onClick={loadUploadHistory}
+                  disabled={loadingHistory}
+                  size="small"
+                >
+                  Refresh
+                </Button>
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+
+              {loadingHistory ? (
+                <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+                  <CircularProgress />
+                </Box>
+              ) : uploadHistory.length === 0 ? (
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    No upload history found. Upload a compliance bundle to see history records.
+                  </Typography>
+                </Alert>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell />
+                        <TableCell>Filename</TableCell>
+                        <TableCell>Uploaded At</TableCell>
+                        <TableCell>Uploaded By</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Statistics</TableCell>
+                        <TableCell align="center">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {uploadHistory.map((upload) => (
+                        <React.Fragment key={upload.upload_id}>
+                          {/* Main Row */}
+                          <TableRow hover>
+                            <TableCell>
+                              <IconButton
+                                size="small"
+                                onClick={() => toggleRowExpansion(upload.upload_id)}
+                              >
+                                {expandedRows.has(upload.upload_id) ? (
+                                  <KeyboardArrowUpIcon />
+                                ) : (
+                                  <KeyboardArrowDownIcon />
+                                )}
+                              </IconButton>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="medium">
+                                {upload.filename}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {upload.file_hash?.substring(0, 16)}...
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {new Date(upload.uploaded_at).toLocaleString()}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {upload.uploaded_by}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={upload.success ? 'Success' : 'Failed'}
+                                color={upload.success ? 'success' : 'error'}
+                                size="small"
+                                icon={upload.success ? <CheckCircleIcon /> : <ErrorIcon />}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                <Chip
+                                  label={`Imported: ${upload.statistics?.imported || 0}`}
+                                  size="small"
+                                  variant="outlined"
+                                  color="success"
+                                />
+                                <Chip
+                                  label={`Updated: ${upload.statistics?.updated || 0}`}
+                                  size="small"
+                                  variant="outlined"
+                                  color="primary"
+                                />
+                                <Chip
+                                  label={`Skipped: ${upload.statistics?.skipped || 0}`}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </Stack>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="Export JSON Report">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleExportReport(upload.upload_id)}
+                                  color="primary"
+                                >
+                                  <DownloadIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Expanded Detail Row */}
+                          <TableRow>
+                            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={7}>
+                              <Collapse
+                                in={expandedRows.has(upload.upload_id)}
+                                timeout="auto"
+                                unmountOnExit
+                              >
+                                <Box sx={{ py: 3, px: 2 }}>
+                                  <Grid container spacing={3}>
+                                    {/* Manifest Info */}
+                                    <Grid item xs={12} md={6}>
+                                      <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05) }}>
+                                        <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                                          Manifest Information
+                                        </Typography>
+                                        <Divider sx={{ mb: 2 }} />
+                                        {upload.manifest ? (
+                                          <Stack spacing={1}>
+                                            <Typography variant="body2">
+                                              <strong>Name:</strong> {upload.manifest.name}
+                                            </Typography>
+                                            <Typography variant="body2">
+                                              <strong>Version:</strong> {upload.manifest.version}
+                                            </Typography>
+                                            <Typography variant="body2">
+                                              <strong>Rules Count:</strong> {upload.manifest.rules_count}
+                                            </Typography>
+                                            <Typography variant="body2">
+                                              <strong>Processing Time:</strong>{' '}
+                                              {upload.processing_time_seconds?.toFixed(2)}s
+                                            </Typography>
+                                          </Stack>
+                                        ) : (
+                                          <Typography variant="body2" color="text.secondary">
+                                            No manifest data available
+                                          </Typography>
+                                        )}
+                                      </Paper>
+                                    </Grid>
+
+                                    {/* Processing Details */}
+                                    <Grid item xs={12} md={6}>
+                                      <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.success.main, 0.05) }}>
+                                        <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                                          Processing Details
+                                        </Typography>
+                                        <Divider sx={{ mb: 2 }} />
+                                        <Stack spacing={1}>
+                                          <Typography variant="body2">
+                                            <strong>Phase:</strong> {upload.phase}
+                                          </Typography>
+                                          <Typography variant="body2">
+                                            <strong>Upload ID:</strong>{' '}
+                                            <Typography
+                                              component="span"
+                                              variant="caption"
+                                              sx={{ fontFamily: 'monospace' }}
+                                            >
+                                              {upload.upload_id}
+                                            </Typography>
+                                          </Typography>
+                                          {upload.statistics?.errors > 0 && (
+                                            <Chip
+                                              label={`${upload.statistics.errors} Errors`}
+                                              size="small"
+                                              color="error"
+                                              variant="outlined"
+                                            />
+                                          )}
+                                        </Stack>
+                                      </Paper>
+                                    </Grid>
+
+                                    {/* Errors */}
+                                    {upload.errors && upload.errors.length > 0 && (
+                                      <Grid item xs={12}>
+                                        <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
+                                          <Typography variant="subtitle2" fontWeight="bold" gutterBottom color="error">
+                                            Errors
+                                          </Typography>
+                                          <Divider sx={{ mb: 2 }} />
+                                          <Stack spacing={1}>
+                                            {upload.errors.slice(0, 5).map((error: any, idx: number) => (
+                                              <Alert key={idx} severity="error" sx={{ py: 0 }}>
+                                                <Typography variant="body2">
+                                                  {error.message || error}
+                                                </Typography>
+                                              </Alert>
+                                            ))}
+                                            {upload.errors.length > 5 && (
+                                              <Typography variant="caption" color="text.secondary">
+                                                ... and {upload.errors.length - 5} more errors
+                                              </Typography>
+                                            )}
+                                          </Stack>
+                                        </Paper>
+                                      </Grid>
+                                    )}
+
+                                    {/* Warnings */}
+                                    {upload.warnings && upload.warnings.length > 0 && (
+                                      <Grid item xs={12}>
+                                        <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.warning.main, 0.05) }}>
+                                          <Typography variant="subtitle2" fontWeight="bold" gutterBottom color="warning.main">
+                                            Warnings
+                                          </Typography>
+                                          <Divider sx={{ mb: 2 }} />
+                                          <Stack spacing={1}>
+                                            {upload.warnings.slice(0, 3).map((warning: any, idx: number) => (
+                                              <Alert key={idx} severity="warning" sx={{ py: 0 }}>
+                                                <Typography variant="body2">
+                                                  {warning.message || warning}
+                                                </Typography>
+                                              </Alert>
+                                            ))}
+                                            {upload.warnings.length > 3 && (
+                                              <Typography variant="caption" color="text.secondary">
+                                                ... and {upload.warnings.length - 3} more warnings
+                                              </Typography>
+                                            )}
+                                          </Stack>
+                                        </Paper>
+                                      </Grid>
+                                    )}
+                                  </Grid>
+                                </Box>
+                              </Collapse>
+                            </TableCell>
+                          </TableRow>
+                        </React.Fragment>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </CardContent>
           </Card>
         </Grid>

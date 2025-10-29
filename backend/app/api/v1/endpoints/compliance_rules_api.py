@@ -577,6 +577,83 @@ async def get_compliance_rules(
             message=f"Retrieved {len(mock_rules[:limit])} rules from MongoDB (fallback data due to connection error)"
         )
 
+@router.get("/semantic-rules")
+async def get_semantic_rules_for_scan(
+    framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
+    business_impact: Optional[str] = Query(None, description="Filter by business impact/severity"),
+    platform: Optional[str] = Query(None, description="Filter by platform"),
+    limit: int = Query(1000, ge=1, le=5000, description="Maximum number of rules to return")
+):
+    """
+    Get compliance rules for scan creation wizard (ComplianceScans.tsx)
+    Returns rules in format expected by frontend with semantic intelligence
+    """
+    try:
+        if not MONGO_AVAILABLE:
+            logger.warning("MongoDB not available, returning empty rules list")
+            return {"rules": [], "total": 0}
+
+        from ....repositories import ComplianceRuleRepository
+
+        repo = ComplianceRuleRepository()
+
+        # Build MongoDB query
+        query = {"is_latest": True}
+
+        # Apply framework filter
+        if framework:
+            query[f"frameworks.{framework}"] = {"$exists": True}
+
+        # Apply platform filter
+        if platform:
+            query[f"platform_implementations.{platform}"] = {"$exists": True}
+
+        # Map business_impact to severity if provided
+        if business_impact:
+            # Map business impact terms to severity levels
+            severity_map = {
+                "critical": "critical",
+                "high": "high",
+                "medium": "medium",
+                "low": "low"
+            }
+            mapped_severity = severity_map.get(business_impact.lower(), business_impact.lower())
+            query["severity"] = mapped_severity
+
+        # Fetch rules from MongoDB
+        rules = await repo.find_many(query, limit=limit)
+
+        # Transform to frontend-expected format
+        # Frontend expects: {rules: [{id, scap_rule_id, title, compliance_intent, risk_level, frameworks}]}
+        transformed_rules = []
+        for rule in rules:
+            # Get the first framework for display
+            first_framework = list(rule.frameworks.keys())[0] if rule.frameworks else "unknown"
+
+            transformed_rule = {
+                "id": str(rule.id),
+                "scap_rule_id": rule.rule_id,  # OpenWatch rule ID used as SCAP rule ID
+                "title": rule.metadata.get("name", rule.rule_id),
+                "compliance_intent": rule.metadata.get("description", ""),
+                "risk_level": rule.severity.upper(),  # Frontend expects uppercase
+                "frameworks": list(rule.frameworks.keys()) if rule.frameworks else []
+            }
+            transformed_rules.append(transformed_rule)
+
+        logger.info(f"Retrieved {len(transformed_rules)} semantic rules for scan wizard (framework={framework}, platform={platform}, business_impact={business_impact})")
+
+        return {
+            "rules": transformed_rules,
+            "total": len(transformed_rules)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get semantic rules for scan: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve semantic rules: {str(e)}"
+        )
+
 @router.get("/{rule_id}", response_model=ComplianceRulesListResponse)
 async def get_compliance_rule_detail(
     rule_id: str,
@@ -588,19 +665,19 @@ async def get_compliance_rule_detail(
     try:
         # Get rule with full details from MongoDB
         result = await mongo_service.get_rule_with_intelligence(rule_id)
-        
+
         if "error" in result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Rule {rule_id} not found in MongoDB"
             )
-        
+
         return ComplianceRulesListResponse(
             success=True,
             data=result,
             message=f"Retrieved detailed information for rule {rule_id}"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -608,6 +685,80 @@ async def get_compliance_rule_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve rule {rule_id} from MongoDB: {str(e)}"
+        )
+
+@router.get("/frameworks/available")
+async def get_available_frameworks():
+    """
+    Get list of available frameworks from MongoDB compliance rules
+    Returns the top frameworks found in the database for scan wizard filtering
+    """
+    try:
+        if not MONGO_AVAILABLE:
+            logger.warning("MongoDB not available, returning empty frameworks list")
+            return {"frameworks": []}
+
+        from ....repositories import ComplianceRuleRepository
+
+        repo = ComplianceRuleRepository()
+
+        # Get all latest rules to extract frameworks
+        rules = await repo.find_many({"is_latest": True}, limit=2000)
+
+        # Extract unique frameworks
+        frameworks_set = set()
+        for rule in rules:
+            if rule.frameworks:
+                frameworks_set.update(rule.frameworks.keys())
+
+        # Convert to list and sort
+        frameworks_list = sorted(list(frameworks_set))
+
+        # Create display-friendly framework list with proper names
+        framework_display_map = {
+            "nist_800_53": "NIST 800-53",
+            "nist-csf": "NIST CSF",
+            "cis": "CIS",
+            "cis-csc": "CIS CSC",
+            "stig": "STIG",
+            "disa_stig": "DISA STIG",
+            "pci_dss": "PCI-DSS",
+            "pci_dss_v4": "PCI-DSS v4",
+            "hipaa": "HIPAA",
+            "iso_27001": "ISO 27001",
+            "anssi": "ANSSI",
+            "bsi": "BSI",
+            "cobit5": "COBIT 5",
+            "cui": "CUI",
+            "ism": "ISM",
+            "ospp": "OSPP",
+            "srg": "SRG",
+            "cjis": "CJIS",
+            "isa-62443-2009": "ISA-62443-2009",
+            "isa-62443-2013": "ISA-62443-2013",
+            "nerc-cip": "NERC-CIP"
+        }
+
+        frameworks_with_display = [
+            {
+                "value": fw,
+                "label": framework_display_map.get(fw, fw.upper())
+            }
+            for fw in frameworks_list
+        ]
+
+        logger.info(f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB")
+
+        return {
+            "frameworks": frameworks_with_display,
+            "total": len(frameworks_with_display)
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get available frameworks: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve available frameworks: {str(e)}"
         )
 
 @router.get("/filters/options", response_model=ComplianceRulesListResponse)
@@ -621,25 +772,25 @@ async def get_filter_options(
         # Get all unique values for filter options
         # This would typically be done with MongoDB aggregation
         # For now, return static options based on common values
-        
+
         filter_options = {
             "frameworks": ["nist", "cis", "stig", "pci", "hipaa"],
             "severities": ["high", "medium", "low", "info"],
             "categories": [
-                "authentication", "network_security", "system_hardening", 
-                "access_control", "audit_logging", "encryption", 
+                "authentication", "network_security", "system_hardening",
+                "access_control", "audit_logging", "encryption",
                 "vulnerability_management", "configuration_management"
             ],
             "platforms": ["rhel", "ubuntu", "centos", "debian", "windows"],
             "compliance_statuses": ["compliant", "non_compliant", "not_applicable", "unknown"]
         }
-        
+
         return ComplianceRulesListResponse(
             success=True,
             data=filter_options,
             message="Retrieved filter options for compliance rules"
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get filter options: {e}")
         raise HTTPException(

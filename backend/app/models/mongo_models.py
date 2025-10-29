@@ -877,6 +877,88 @@ class RemediationScript(Document):
         ]
 
 
+class UploadHistory(Document):
+    """Track compliance bundle upload history for audit trail and troubleshooting"""
+
+    class Settings:
+        name = "upload_history"
+        indexes = [
+            "upload_id",
+            [("uploaded_at", -1)],  # Sort by date descending for recent uploads
+        ]
+
+    # Upload identification
+    upload_id: str = Field(
+        description="UUID of upload operation from ComplianceRulesUploadService"
+    )
+    filename: str = Field(
+        description="Original bundle filename (e.g., openwatch-rhel8-bundle_v1.0.4.tar.gz)"
+    )
+    file_hash: str = Field(
+        description="SHA-512 hash of uploaded file for integrity verification"
+    )
+
+    # Upload metadata
+    uploaded_at: datetime = Field(
+        description="Upload timestamp (UTC)"
+    )
+    uploaded_by: str = Field(
+        description="Username of user who uploaded the bundle"
+    )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User ID from authentication system"
+    )
+
+    # Processing results
+    success: bool = Field(
+        description="Whether upload completed successfully"
+    )
+    phase: str = Field(
+        description="Last completed processing phase (parsing, validation, importing, etc.)"
+    )
+
+    # Statistics
+    statistics: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Import statistics: imported, updated, skipped, errors counts, field_changes breakdown"
+    )
+
+    # Manifest information
+    manifest: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Bundle manifest metadata (name, version, rules_count, format)"
+    )
+
+    # Detailed processing results
+    processing_time_seconds: Optional[float] = Field(
+        default=None,
+        description="Total processing time in seconds"
+    )
+    errors: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="List of errors encountered during upload"
+    )
+    warnings: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="List of warnings generated during upload"
+    )
+
+    # Validation results
+    security_validation: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Security validation results (signature verification, hash checks)"
+    )
+    dependency_validation: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Dependency validation results"
+    )
+    inheritance_impact: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Inheritance impact analysis results"
+    )
+
+
 # Database connection management
 class MongoManager:
     """MongoDB connection and database management"""
@@ -939,7 +1021,8 @@ class MongoManager:
             RemediationScript,
             ServiceHealthDocument,
             ContentHealthDocument,
-            HealthSummaryDocument
+            HealthSummaryDocument,
+            UploadHistory
         ]
 
         # Add Phase 1 models if available

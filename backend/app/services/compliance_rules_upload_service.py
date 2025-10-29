@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
 
-from ..models.mongo_models import ComplianceRule, RuleIntelligence
+from ..models.mongo_models import ComplianceRule, RuleIntelligence, UploadHistory
 from .compliance_rules_bson_parser import BSONParserService
 from .compliance_rules_security_service import ComplianceRulesSecurityService
 from .compliance_rules_deduplication_service import (
@@ -296,6 +296,14 @@ class ComplianceRulesUploadService:
             return result
 
         finally:
+            # Save upload history for audit trail
+            await self._save_upload_history(
+                result=result,
+                start_time=start_time,
+                archive_filename=archive_filename,
+                user_id=user_id
+            )
+
             # Cleanup extracted files
             if extracted_path:
                 self.security_service.cleanup_extracted_files(extracted_path)
@@ -643,6 +651,88 @@ class ComplianceRulesUploadService:
                 score = min(10, score + 1)
 
         return score
+
+    async def _save_upload_history(
+        self,
+        result: Dict[str, Any],
+        start_time: datetime,
+        archive_filename: str,
+        user_id: Optional[str]
+    ) -> None:
+        """
+        Save upload history record to MongoDB for audit trail
+
+        Args:
+            result: Upload result dictionary
+            start_time: Upload start timestamp
+            archive_filename: Original bundle filename
+            user_id: User ID who performed upload
+        """
+        try:
+            # Extract username from various possible sources
+            username = "unknown"
+            if user_id:
+                # In a real app, you'd look up username from user_id
+                # For now, we'll use a placeholder
+                username = f"user_{user_id}"
+
+            history_record = UploadHistory(
+                upload_id=self.upload_id,
+                filename=archive_filename,
+                file_hash=result.get('file_hash', ''),
+                uploaded_at=start_time,
+                uploaded_by=username,
+                user_id=user_id,
+                success=result.get('success', False),
+                phase=result.get('phase', 'unknown'),
+                statistics=result.get('statistics', {}),
+                manifest=result.get('manifest'),
+                processing_time_seconds=result.get('processing_time_seconds'),
+                errors=result.get('errors', []),
+                warnings=result.get('warnings', []),
+                security_validation=result.get('security_validation'),
+                dependency_validation=result.get('dependency_validation'),
+                inheritance_impact=result.get('inheritance_impact')
+            )
+
+            await history_record.insert()
+            logger.info(f"[{self.upload_id}] Upload history saved successfully")
+
+            # Cleanup old history records (keep last 100)
+            await self._cleanup_old_history()
+
+        except Exception as e:
+            # Don't fail the upload if history save fails - just log it
+            logger.warning(f"[{self.upload_id}] Failed to save upload history: {e}")
+
+    async def _cleanup_old_history(self) -> None:
+        """
+        Keep only the last 100 upload history records
+        Automatically deletes older records to prevent unlimited growth
+        """
+        try:
+            total_count = await UploadHistory.count()
+
+            if total_count > 100:
+                # Find records to delete (oldest ones beyond the 100 most recent)
+                records_to_delete = total_count - 100
+
+                # Get the 100th most recent record's timestamp
+                records = await UploadHistory.find().sort("-uploaded_at").skip(99).limit(1).to_list()
+
+                if records:
+                    cutoff_date = records[0].uploaded_at
+
+                    # Delete all records older than the cutoff
+                    result = await UploadHistory.find(
+                        UploadHistory.uploaded_at < cutoff_date
+                    ).delete()
+
+                    if result:
+                        logger.info(f"Cleaned up {result.deleted_count} old upload history records")
+
+        except Exception as e:
+            logger.warning(f"Failed to cleanup old upload history: {e}")
 
     def get_upload_progress(self) -> Dict[str, Any]:
         """

@@ -62,6 +62,7 @@ interface ComplianceRule {
   description: string;
   severity: 'high' | 'medium' | 'low';
   framework: string;
+  frameworks?: string[]; // All frameworks this rule belongs to
 }
 
 const ComplianceScans: React.FC = () => {
@@ -80,8 +81,14 @@ const ComplianceScans: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [rulesError, setRulesError] = useState(false);
+  const [availableFrameworks, setAvailableFrameworks] = useState<Array<{value: string, label: string}>>([]);
 
   const steps = ['Select Target', 'Choose Rules', 'Review & Start'];
+
+  // Load available frameworks on component mount
+  useEffect(() => {
+    loadAvailableFrameworks();
+  }, []);
 
   useEffect(() => {
     if (targetType === 'hosts') {
@@ -96,6 +103,17 @@ const ComplianceScans: React.FC = () => {
       loadRules();
     }
   }, [activeStep, frameworkFilter, severityFilter]);
+
+  const loadAvailableFrameworks = async () => {
+    try {
+      const response = await api.get('/api/v1/compliance-rules/frameworks/available');
+      setAvailableFrameworks(response.frameworks || []);
+    } catch (error) {
+      console.error('Failed to load available frameworks:', error);
+      // Fallback to empty list if API fails
+      setAvailableFrameworks([]);
+    }
+  };
 
   const loadHosts = async () => {
     try {
@@ -131,7 +149,7 @@ const ComplianceScans: React.FC = () => {
       if (frameworkFilter) params.framework = frameworkFilter;
       if (severityFilter) params.business_impact = severityFilter;
       
-      const response = await api.get('/api/compliance/semantic-rules', { params });
+      const response = await api.get('/api/v1/compliance-rules/semantic-rules', { params });
       
       // Transform the response to match our interface
       const transformedRules = (response.rules || []).map((rule: any) => ({
@@ -140,7 +158,8 @@ const ComplianceScans: React.FC = () => {
         title: rule.title,
         description: rule.compliance_intent,
         severity: rule.risk_level?.toLowerCase() || 'medium',
-        framework: rule.frameworks?.[0] || 'unknown'
+        framework: rule.frameworks?.[0] || 'unknown',
+        frameworks: rule.frameworks || [] // Store all frameworks for filtering
       }));
       
       setRules(transformedRules);
@@ -206,10 +225,56 @@ const ComplianceScans: React.FC = () => {
         // Navigate to scans list to see all started scans
         navigate('/scans');
       } else {
-        // For individual hosts, we need to create individual scans
-        // This would require the regular scan endpoint with compliance profile
-        setError('Individual host scanning not yet implemented. Please use host groups for now.');
-        return;
+        // For individual hosts, use MongoDB scan endpoint
+        console.log(`Starting individual host scans for ${selectedHosts.length} hosts`);
+
+        for (const hostId of selectedHosts) {
+          const host = hosts.find(h => h.id === hostId);
+          if (!host) {
+            console.error(`Host ${hostId} not found`);
+            continue;
+          }
+
+          // Parse platform and version from OS string (e.g., "Red Hat Enterprise Linux 8.5" -> platform: "rhel", version: "8")
+          let platform = 'rhel'; // Default
+          let platformVersion = '8'; // Default
+
+          if (host.os) {
+            const osLower = host.os.toLowerCase();
+            if (osLower.includes('rhel') || osLower.includes('red hat')) {
+              platform = 'rhel';
+              const versionMatch = host.os.match(/(\d+)/);
+              if (versionMatch) platformVersion = versionMatch[1];
+            } else if (osLower.includes('ubuntu')) {
+              platform = 'ubuntu';
+              const versionMatch = host.os.match(/(\d+\.\d+)/);
+              if (versionMatch) platformVersion = versionMatch[1];
+            } else if (osLower.includes('centos')) {
+              platform = 'centos';
+              const versionMatch = host.os.match(/(\d+)/);
+              if (versionMatch) platformVersion = versionMatch[1];
+            }
+          }
+
+          try {
+            const response = await api.post('/api/v1/mongodb-scans/start', {
+              host_id: hostId,
+              hostname: host.hostname || host.ip_address,
+              platform: platform,
+              platform_version: platformVersion,
+              framework: frameworkFilter || undefined,
+              rule_ids: selectedRules,
+              include_enrichment: true,
+              generate_report: true
+            });
+            console.log(`Started MongoDB scan for host ${hostId}:`, response);
+          } catch (error) {
+            console.error(`Failed to start scan for host ${hostId}:`, error);
+          }
+        }
+
+        // Navigate to scans list to see all started scans
+        navigate('/scans');
       }
     } catch (error) {
       console.error('Failed to start scan:', error);
@@ -401,9 +466,11 @@ const ComplianceScans: React.FC = () => {
                 label="Framework"
               >
                 <MenuItem value="">All</MenuItem>
-                <MenuItem value="nist">NIST</MenuItem>
-                <MenuItem value="cis">CIS</MenuItem>
-                <MenuItem value="stig">DISA STIG</MenuItem>
+                {availableFrameworks.map((framework) => (
+                  <MenuItem key={framework.value} value={framework.value}>
+                    {framework.label}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
@@ -500,7 +567,7 @@ const ComplianceScans: React.FC = () => {
                       !rule.rule_id.toLowerCase().includes(searchQuery.toLowerCase())) {
                     return false;
                   }
-                  if (frameworkFilter && rule.framework !== frameworkFilter) {
+                  if (frameworkFilter && !rule.frameworks?.includes(frameworkFilter)) {
                     return false;
                   }
                   if (severityFilter && rule.severity !== severityFilter) {

@@ -28,6 +28,7 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
     connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
@@ -69,10 +70,19 @@ compliance_reporter = None
 async def get_mongodb_scanner() -> MongoDBSCAPScanner:
     """Get or initialize MongoDB scanner"""
     global mongodb_scanner
-    if not mongodb_scanner:
-        mongodb_scanner = MongoDBSCAPScanner()
-        await mongodb_scanner.initialize()
-    return mongodb_scanner
+    try:
+        if not mongodb_scanner:
+            logger.info("Initializing MongoDB scanner for the first time")
+            mongodb_scanner = MongoDBSCAPScanner()
+            await mongodb_scanner.initialize()
+            logger.info("MongoDB scanner initialized successfully")
+        return mongodb_scanner
+    except Exception as e:
+        logger.error(f"Failed to initialize MongoDB scanner: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scanner initialization failed: {str(e)}"
+        )
 
 
 async def get_enrichment_service() -> ResultEnrichmentService:
@@ -102,35 +112,53 @@ async def start_mongodb_scan(
 ):
     """
     Start a MongoDB rule-based SCAP scan
-    
+
     This endpoint initiates a scan using rules selected from MongoDB based on
     the target platform and compliance framework requirements.
     """
+    logger.info(f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ===")
     try:
         scan_id = f"mongodb_scan_{uuid.uuid4().hex[:8]}"
         logger.info(f"Starting MongoDB scan {scan_id} for host {scan_request.hostname}")
-        
+
+        # Log request details safely
+        try:
+            rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0
+            logger.info(f"Request: platform={scan_request.platform}, version={scan_request.platform_version}, framework={scan_request.framework}, rules={rule_count}")
+        except Exception as log_err:
+            logger.warning(f"Could not log request details: {log_err}")
+
         # Validate platform and framework
-        if scan_request.framework and scan_request.framework not in ['nist', 'cis', 'stig', 'pci']:
+        if scan_request.framework and scan_request.framework not in ['nist', 'cis', 'stig', 'pci', 'disa_stig', 'nist_800_53', 'pci_dss', 'cis-csc']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported framework: {scan_request.framework}"
             )
         
         # Start the scan process
-        scan_result = await scanner.scan_with_mongodb_rules(
-            host_id=scan_request.host_id,
-            hostname=scan_request.hostname,
-            platform=scan_request.platform,
-            platform_version=scan_request.platform_version,
-            framework=scan_request.framework,
-            connection_params=scan_request.connection_params,
-            severity_filter=scan_request.severity_filter
-        )
-        
-        if not scan_result.get("success"):
+        logger.info(f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}")
+        try:
+            scan_result = await scanner.scan_with_mongodb_rules(
+                host_id=scan_request.host_id,
+                hostname=scan_request.hostname,
+                platform=scan_request.platform,
+                platform_version=scan_request.platform_version,
+                framework=scan_request.framework,
+                connection_params=scan_request.connection_params,
+                severity_filter=scan_request.severity_filter,
+                rule_ids=scan_request.rule_ids
+            )
+        except Exception as scan_error:
+            logger.error(f"Scanner failed: {scan_error}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Scanner error: {str(scan_error)}"
+            )
+
+        if not scan_result.get("success"):
+            logger.error(f"Scan failed with result: {scan_result}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scan execution failed: {scan_result.get('error', 'Unknown error')}"
             )
         
@@ -170,7 +198,7 @@ async def start_mongodb_scan(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to start MongoDB scan: {e}")
+        logger.error(f"Failed to start MongoDB scan: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Scan initialization failed: {str(e)}"
