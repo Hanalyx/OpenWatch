@@ -35,16 +35,23 @@ This log tracks all certificate generation and rotation events for OpenWatch sec
 - [x] Created certificate generation script for future rotations
 
 **Next Actions:**
-- [ ] Update MongoDB container configuration (docker-compose.yml)
-- [ ] Restart MongoDB services/containers
-- [ ] Test MongoDB connectivity with new certificates
-- [ ] Update application connection strings if needed
-- [ ] Verify MongoDB health check passes
+- [x] Update MongoDB container configuration (docker-compose.yml)
+- [x] Restart MongoDB services/containers
+- [x] Test MongoDB connectivity with new certificates
+- [x] Update application connection strings if needed
+- [x] Verify MongoDB health check passes
 
 **Security Notes:**
 - Old mongodb.pem remains in git history (16 commits)
 - New certificate is gitignored and will not be committed
 - Pre-commit hooks should be installed to prevent future incidents
 - See: PREVENT_SECRETS_IN_GIT.md for protection strategy
+
+**2025-10-29 Update:**
+- mongodb.pem was missing (gitignored file, not tracked)
+- Recreated from mongodb.key + mongodb.crt
+- Permissions set to 644 (readable by MongoDB container)
+- MongoDB service now healthy and operational
+- All OpenWatch services verified running
 
 ---
