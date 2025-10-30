@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres:15.10-alpine
+    image: postgres:15.14-alpine
     container_name: openwatch-db
     environment:
       POSTGRES_DB: openwatch
@@ -22,7 +22,7 @@ services:
 
   # Redis with TLS for Celery
   redis:
-    image: redis:7.4.1-alpine
+    image: redis:7.4.6-alpine
     container_name: openwatch-redis
     command: >
       redis-server
@@ -41,7 +41,7 @@ services:
 
   # MongoDB for Compliance Rules
   mongodb:
-    image: mongo:7.0.15-jammy
+    image: mongo:7.0.25-jammy
     container_name: openwatch-mongodb
     restart: unless-stopped
     environment:
