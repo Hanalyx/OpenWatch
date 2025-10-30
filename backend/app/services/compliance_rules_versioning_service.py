@@ -83,13 +83,18 @@ class RuleVersioningService:
         """
         changes = {}
 
+        # CRITICAL: Normalize both sides by removing None values
+        # This ensures None fields don't trigger false change detection
+        old_rule_normalized = {k: v for k, v in old_rule.items() if v is not None}
+        new_rule_normalized = {k: v for k, v in new_rule.items() if v is not None}
+
         # Compare top-level fields
-        for field in new_rule.keys():
+        for field in new_rule_normalized.keys():
             if field in RuleVersioningService.HASH_EXCLUDE_FIELDS:
                 continue
 
-            old_value = old_rule.get(field)
-            new_value = new_rule.get(field)
+            old_value = old_rule_normalized.get(field)
+            new_value = new_rule_normalized.get(field)
 
             # Deep comparison
             if not RuleVersioningService._values_equal(old_value, new_value):
@@ -98,13 +103,14 @@ class RuleVersioningService:
                     'new': new_value
                 }
 
-        # Check for removed fields
-        for field in old_rule.keys():
+        # Check for removed fields (fields that exist in old but not in new)
+        # Only count as removed if they had non-None values
+        for field in old_rule_normalized.keys():
             if field in RuleVersioningService.HASH_EXCLUDE_FIELDS:
                 continue
-            if field not in new_rule:
+            if field not in new_rule_normalized:
                 changes[field] = {
-                    'old': old_rule[field],
+                    'old': old_rule_normalized[field],
                     'new': None
                 }
 
