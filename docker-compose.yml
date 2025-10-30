@@ -1,8 +1,6 @@
-name: openwatch
-
 services:
   database:
-    image: postgres:15.10-alpine
+    image: postgres:15.14-alpine
     container_name: openwatch-db
     environment:
       POSTGRES_DB: openwatch
@@ -24,7 +22,7 @@ services:
 
   # Redis with TLS for Celery
   redis:
-    image: redis:7.4.1-alpine
+    image: redis:7.4.6-alpine
     container_name: openwatch-redis
     command: >
       redis-server
@@ -43,7 +41,7 @@ services:
 
   # MongoDB for Compliance Rules
   mongodb:
-    image: mongo:7.0.15-jammy
+    image: mongo:7.0.25-jammy
     container_name: openwatch-mongodb
     restart: unless-stopped
     environment:
@@ -96,8 +94,6 @@ services:
       # Feature Flags - OW-REFACTOR
       OPENWATCH_USE_QUERY_BUILDER: "${OPENWATCH_USE_QUERY_BUILDER:-false}"
       OPENWATCH_USE_REPOSITORY_PATTERN: "${OPENWATCH_USE_REPOSITORY_PATTERN:-false}"
-      # Compliance Bundle Signature Verification
-      REQUIRE_BUNDLE_SIGNATURE: "false"  # Set to "true" in production
       # SSH Configuration - Unified SSH Service
       OPENWATCH_SSH_STRICT_MODE: "false"
       # OPENWATCH_STRICT_SSH: "false"        # Uncomment to force RejectPolicy
@@ -107,7 +103,6 @@ services:
       - app_logs:/app/logs
       - ./security/certs:/app/security/certs:ro
       - ./security/keys:/app/security/keys
-      - ./backend/security/compliance_bundle_keys:/app/security/compliance_bundle_keys:ro
       - ssh_known_hosts:/app/security/known_hosts
     ports:
       - "8000:8000"
@@ -154,12 +149,8 @@ services:
       - ./security/keys:/app/security/keys
       - ssh_known_hosts:/app/security/known_hosts
     depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
+      - database
+      - redis
     networks:
       - openwatch-network
     restart: unless-stopped
@@ -194,12 +185,8 @@ services:
       - ./security/certs:/app/security/certs:ro
       - ./security/keys:/app/security/keys
     depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
+      - database
+      - redis
     networks:
       - openwatch-network
     restart: unless-stopped
