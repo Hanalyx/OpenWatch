@@ -32,6 +32,7 @@ class SmartDeduplicationService:
         'updated_at',
         'source_file',
         'source_hash',
+        'source',  # Provenance metadata (upstream_id, source_type) - not compliance content
         '_id',
         'id',  # Beanie auto-generated alias for _id
         'revision_id',  # Beanie document revision tracking
@@ -53,6 +54,9 @@ class SmartDeduplicationService:
         'parent_rule_id',  # Computed relationship field
         # Multi-platform merge metadata (tracking only, not content)
         'source_products',  # List of products that contributed to this merged rule
+        'platform_implementations',  # Platform-specific implementation details - metadata, not core compliance logic
+        'frameworks',  # Compliance framework mappings (NIST, CIS, STIG, etc.) - metadata about standards, not rule logic
+        'stig',  # STIG-specific metadata (srg_requirement, vuldiscussion, checktext, fixtext) - documentation, not rule logic
     }
 
     # Fields tracked for statistics (categorized)
@@ -191,38 +195,39 @@ class SmartDeduplicationService:
         result = dict(rule_dict)
 
         # Apply ALL defaults that match ComplianceRule model
-        # Only add if field is completely missing (not if it's None or empty)
-        if 'abstract' not in result:
+        # CRITICAL: Apply defaults for both missing fields AND None values
+        # This ensures bundle data with None values hashes identically to MongoDB data with defaults
+        if result.get('abstract') is None:
             result['abstract'] = False
 
-        if 'conditions' not in result:
+        if result.get('conditions') is None:
             result['conditions'] = []
 
-        if 'parameter_resolution' not in result:
+        if result.get('parameter_resolution') is None:
             result['parameter_resolution'] = "most_restrictive"
 
-        if 'dependencies' not in result:
+        if result.get('dependencies') is None:
             result['dependencies'] = {'requires': [], 'conflicts': [], 'related': []}
 
-        if 'check_type' not in result:
+        if result.get('check_type') is None:
             result['check_type'] = 'custom'
 
-        if 'fix_available' not in result:
+        if result.get('fix_available') is None:
             result['fix_available'] = False
 
-        if 'remediation_complexity' not in result:
+        if result.get('remediation_complexity') is None:
             result['remediation_complexity'] = 'medium'
 
-        if 'remediation_risk' not in result:
+        if result.get('remediation_risk') is None:
             result['remediation_risk'] = 'low'
 
-        if 'deprecated' not in result:
+        if result.get('deprecated') is None:
             result['deprecated'] = False
 
-        if 'scanner_type' not in result:
+        if result.get('scanner_type') is None:
             result['scanner_type'] = 'oscap'
 
-        if 'platform_implementations' not in result:
+        if result.get('platform_implementations') is None:
             result['platform_implementations'] = {}
 
         return result
@@ -246,6 +251,9 @@ class SmartDeduplicationService:
                 # CRITICAL: Use exclude_none=True to remove None values
                 # This ensures None and {} hash identically after normalization
                 rule_dict = rule.dict(exclude_none=True)
+                # CRITICAL: Also apply defaults to MongoDB data to fill in missing keys
+                # This ensures both MongoDB and bundle data have the same keys with defaults
+                rule_dict = self._apply_pydantic_defaults(rule_dict)
             elif isinstance(rule, dict):
                 # CRITICAL: Apply Pydantic defaults to raw dict
                 # This ensures bundle data hashes same as MongoDB data

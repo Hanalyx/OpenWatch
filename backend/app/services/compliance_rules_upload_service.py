@@ -391,6 +391,11 @@ class ComplianceRulesUploadService:
                 rule_data['source_file'] = source_file
                 rule_data['source_hash'] = source_hash
 
+                # CRITICAL: Clean empty framework fields BEFORE deduplication comparison
+                # This ensures bundle data hashes identically to MongoDB data
+                # Bug fix: OW-BUG-001 - Deduplication failing due to empty field differences
+                rule_data = self._clean_empty_framework_fields(rule_data)
+
                 # Check if latest version of rule exists (immutable versioning)
                 rule_id = rule_data.get('rule_id')
                 existing_rule = await ComplianceRule.find_one(
