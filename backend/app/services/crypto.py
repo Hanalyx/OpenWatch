@@ -80,7 +80,9 @@ def decrypt_credentials(encrypted_data):
     Returns decrypted data as string
     """
     try:
+        logger.info(f"decrypt_credentials called - type: {type(encrypted_data)}, length: {len(encrypted_data) if encrypted_data else 0}")
         if len(encrypted_data) < 44:  # 16 (salt) + 12 (nonce) + 16 (tag) minimum
+            logger.error(f"Invalid encrypted data length: {len(encrypted_data)} < 44")
             raise ValueError("Invalid encrypted data length")
         
         # Extract components

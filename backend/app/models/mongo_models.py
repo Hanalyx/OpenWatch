@@ -420,7 +420,13 @@ class ComplianceRule(Document):
         default_factory=dict,
         description="Detailed check configuration"
     )
-    
+
+    # OVAL Definition Support (Phase 2: File-Based OVAL Storage)
+    oval_filename: Optional[str] = Field(
+        default=None,
+        description="OVAL XML definition filename (stored in /app/data/oval_definitions/{platform}/). Example: 'account_disable_post_pw_expiration.xml'"
+    )
+
     # Advanced Dependencies
     dependencies: Dict[str, List[str]] = Field(
         default_factory=lambda: {"requires": [], "conflicts": [], "related": []},

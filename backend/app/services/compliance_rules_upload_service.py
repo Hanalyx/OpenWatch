@@ -4,6 +4,7 @@ Main orchestrator for uploading compliance rule archives with BSON support,
 smart deduplication, dependency-aware updates, and immutable versioning
 """
 import uuid
+import shutil
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -160,6 +161,25 @@ class ComplianceRulesUploadService:
             )
 
             self.progress['total_rules'] = len(new_rules)
+
+            # Phase 2.5: Extract OVAL Definitions (if present)
+            logger.info(f"[{self.upload_id}] Phase 2.5: Extracting OVAL definitions")
+            oval_extraction = await self._extract_oval_definitions(
+                extracted_path,
+                manifest,
+                new_rules  # Modified in-place to add oval_filename
+            )
+
+            result['oval_extraction'] = oval_extraction
+            if oval_extraction['errors']:
+                result['warnings'].extend(oval_extraction['errors'])
+
+            if oval_extraction['oval_available']:
+                logger.info(
+                    f"[{self.upload_id}] OVAL extraction: "
+                    f"{oval_extraction['oval_files_copied']} files copied, "
+                    f"{oval_extraction['rules_with_oval']} rules linked"
+                )
 
             # Phase 3: Dependency Validation
             logger.info(f"[{self.upload_id}] Phase 3: Dependency validation")
@@ -357,6 +377,154 @@ class ComplianceRulesUploadService:
                 f"[{self.upload_id}] Failed to populate derived_rules: {e}. "
                 f"This is a computed field and can be rebuilt later."
             )
+
+    async def _extract_oval_definitions(
+        self,
+        extracted_path: Path,
+        manifest: Dict[str, Any],
+        new_rules: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Extract OVAL definition files from bundle and copy to persistent storage.
+        Also populates oval_filename field in rules that have corresponding OVAL files.
+
+        Args:
+            extracted_path: Path to extracted bundle directory
+            manifest: Bundle manifest (may contain OVAL metadata)
+            new_rules: List of parsed rules (modified in-place to add oval_filename)
+
+        Returns:
+            Dict with extraction statistics
+        """
+        result = {
+            'oval_available': False,
+            'oval_files_found': 0,
+            'oval_files_copied': 0,
+            'rules_with_oval': 0,
+            'errors': []
+        }
+
+        try:
+            # Check if bundle has OVAL directory
+            oval_dir = extracted_path / "oval"
+            if not oval_dir.exists() or not oval_dir.is_dir():
+                logger.info(f"[{self.upload_id}] No OVAL directory in bundle (v0.0.1 format)")
+                return result
+
+            result['oval_available'] = True
+
+            # Check if this is a multiplatform bundle (has platform subdirectories)
+            platform_subdirs = [d for d in oval_dir.iterdir() if d.is_dir()]
+            is_multiplatform = len(platform_subdirs) > 0
+
+            oval_storage_base = Path("/app/data/oval_definitions")
+
+            if is_multiplatform:
+                # Multiplatform bundle: oval/{platform}/*.xml structure
+                logger.info(f"[{self.upload_id}] Detected multiplatform OVAL bundle with {len(platform_subdirs)} platforms")
+
+                # Process each platform subdirectory
+                for platform_dir in platform_subdirs:
+                    platform = platform_dir.name
+                    platform_oval_files = list(platform_dir.glob("*.xml"))
+
+                    if not platform_oval_files:
+                        continue
+
+                    # Create storage directory for this platform
+                    platform_storage = oval_storage_base / platform
+                    platform_storage.mkdir(parents=True, exist_ok=True)
+
+                    # Copy OVAL files
+                    for oval_file in platform_oval_files:
+                        try:
+                            dest_file = platform_storage / oval_file.name
+                            shutil.copy2(oval_file, dest_file)
+                            result['oval_files_copied'] += 1
+                        except Exception as e:
+                            result['errors'].append(f"Failed to copy {platform}/{oval_file.name}: {str(e)}")
+
+                    result['oval_files_found'] += len(platform_oval_files)
+                    logger.info(f"[{self.upload_id}] Copied {len(platform_oval_files)} OVAL files for {platform}")
+
+                # Populate oval_filename field - rules will match against their platform tags
+                for rule in new_rules:
+                    rule_id = rule.get('rule_id', '')
+                    if not rule_id.startswith('ow-'):
+                        continue
+
+                    oval_id = rule_id[3:]  # Remove 'ow-' prefix
+                    oval_filename = f"{oval_id}.xml"
+
+                    # Check which platforms this rule supports via tags
+                    rule_tags = rule.get('tags', [])
+                    platforms = [tag for tag in rule_tags if tag in ['rhel8', 'rhel9', 'rhel10', 'ol8', 'ol9', 'ubuntu2204', 'ubuntu2404']]
+
+                    # Find first platform that has this OVAL file
+                    for platform in platforms:
+                        oval_path = oval_storage_base / platform / oval_filename
+                        if oval_path.exists():
+                            rule['oval_filename'] = f"{platform}/{oval_filename}"
+                            result['rules_with_oval'] += 1
+                            break
+            else:
+                # Single-platform bundle: oval/*.xml structure
+                platform = manifest.get('platform', 'unknown')
+                if platform == 'unknown':
+                    logger.warning(f"[{self.upload_id}] No platform specified in manifest, cannot organize OVAL files")
+                    return result
+
+                logger.info(f"[{self.upload_id}] Detected single-platform OVAL bundle for {platform}")
+
+                # Create storage directory
+                platform_storage = oval_storage_base / platform
+                platform_storage.mkdir(parents=True, exist_ok=True)
+
+                # Count OVAL files
+                oval_files = list(oval_dir.glob("*.xml"))
+                result['oval_files_found'] = len(oval_files)
+
+                if not oval_files:
+                    logger.info(f"[{self.upload_id}] OVAL directory exists but no .xml files found")
+                    return result
+
+                logger.info(f"[{self.upload_id}] Found {len(oval_files)} OVAL definition files")
+
+                # Create mapping of OVAL filenames for quick lookup
+                oval_filenames = {f.name for f in oval_files}
+
+                # Copy OVAL files to persistent storage
+                for oval_file in oval_files:
+                    try:
+                        dest_file = platform_storage / oval_file.name
+                        shutil.copy2(oval_file, dest_file)
+                        result['oval_files_copied'] += 1
+                    except Exception as e:
+                        result['errors'].append(f"Failed to copy {oval_file.name}: {str(e)}")
+                        logger.error(f"[{self.upload_id}] Failed to copy OVAL file {oval_file.name}: {e}")
+
+                # Populate oval_filename field in rules
+                for rule in new_rules:
+                    rule_id = rule.get('rule_id', '')
+                    if rule_id.startswith('ow-'):
+                        oval_id = rule_id[3:]  # Remove 'ow-' prefix
+                        oval_filename = f"{oval_id}.xml"
+
+                        if oval_filename in oval_filenames:
+                            rule['oval_filename'] = f"{platform}/{oval_filename}"
+                            result['rules_with_oval'] += 1
+
+            logger.info(
+                f"[{self.upload_id}] OVAL extraction complete: "
+                f"{result['oval_files_copied']}/{result['oval_files_found']} files copied, "
+                f"{result['rules_with_oval']} rules linked to OVAL definitions"
+            )
+
+        except Exception as e:
+            result['errors'].append(f"OVAL extraction failed: {str(e)}")
+            logger.error(f"[{self.upload_id}] OVAL extraction failed: {e}", exc_info=True)
+
+        return result
 
     async def _import_rules_batch(
         self,

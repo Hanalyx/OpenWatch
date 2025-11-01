@@ -312,6 +312,15 @@ class ComplianceRulesSecurityService:
                 return True
             return False
 
+        # Allow OVAL XML files in oval/ directory
+        # These contain compliance check definitions (e.g., audit_rules_sudoers.xml)
+        if base_name.endswith('.xml') and '/oval/' in filename.lower():
+            # Only block exact matches of sensitive files, not substrings
+            if base_name in ['passwd', 'shadow', 'sudoers', 'id_rsa', 'id_dsa',
+                           'id_ecdsa', 'id_ed25519', 'credentials', 'secrets']:
+                return True
+            return False
+
         # For non-rule files, check forbidden filenames (exact or substring match)
         if any(forbidden in base_name for forbidden in self.FORBIDDEN_FILENAMES):
             return True
@@ -412,8 +421,12 @@ class ComplianceRulesSecurityService:
 
         # Validate each file
         for file_path in all_files:
+            # Allow XML files in oval/ directory (OVAL definitions for compliance checks)
+            relative_path = str(file_path.relative_to(extracted_path))
+            is_oval_file = relative_path.startswith('oval/') and file_path.suffix == '.xml'
+
             # Check extension is allowed
-            if file_path.suffix not in self.ALLOWED_EXTENSIONS:
+            if not is_oval_file and file_path.suffix not in self.ALLOWED_EXTENSIONS:
                 checks.append(SecurityCheckResult(
                     check_name="file_extension",
                     passed=False,

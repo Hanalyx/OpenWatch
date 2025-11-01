@@ -36,6 +36,10 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 COPY backend/ ./backend/
 COPY security/ ./security/
 
+# Copy oscap-ssh wrapper script
+COPY backend/scripts/oscap-ssh /usr/local/bin/oscap-ssh
+RUN chmod +x /usr/local/bin/oscap-ssh
+
 # Set proper permissions
 RUN chown -R openwatch:openwatch /app && \
     chmod -R 755 /app && \
