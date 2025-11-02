@@ -713,12 +713,15 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
             ]
             
             for j in justifications:
+                # Escape double quotes in CSV fields
+                summary_escaped = j.summary.replace('"', '""')
+                risk_escaped = j.risk_assessment.replace('"', '""')
+                justification_escaped = j.business_justification.replace('"', '""')
+
                 lines.append(
-                    (
-                        f'"{j.control_id}","{j.host_id}","{j.compliance_status.value}",'
-                        f'"{j.summary.replace('"', '""')}","{j.risk_assessment.replace('"', '""')}",'
-                        f'"{j.business_justification.replace('"', '""')}",{len(j.evidence)},{j.created_at.isoformat()}'
-                    )
+                    f'"{j.control_id}","{j.host_id}","{j.compliance_status.value}",'
+                    f'"{summary_escaped}","{risk_escaped}",'
+                    f'"{justification_escaped}",{len(j.evidence)},{j.created_at.isoformat()}'
                 )
             
             return '\n'.join(lines)
