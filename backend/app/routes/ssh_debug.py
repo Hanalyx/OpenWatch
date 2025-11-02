@@ -7,14 +7,16 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import logging
 import json
+import base64
 from typing import Optional, Dict, Any, List
 
+from fastapi import Request
 from ..database import get_db, Host
 from ..auth import get_current_user
 from ..rbac import require_permission, Permission
 from ..services.unified_ssh_service import UnifiedSSHService
 from ..services.auth_service import get_auth_service
-from ..services.crypto import decrypt_credentials
+from ..encryption import EncryptionService
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,8 @@ class SSHDebugResponse(BaseModel):
 @router.post("/test-authentication", response_model=SSHDebugResponse)
 @require_permission(Permission.SYSTEM_CONFIG)
 async def debug_ssh_authentication(
-    request: SSHDebugRequest,
+    ssh_request: SSHDebugRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -47,21 +50,24 @@ async def debug_ssh_authentication(
     Debug SSH authentication issues with detailed diagnostics
     """
     try:
+        # Get encryption service from app state
+        encryption_service: EncryptionService = request.app.state.encryption_service
+
         # Get host details
-        host = db.query(Host).filter(Host.id == request.host_id).first()
+        host = db.query(Host).filter(Host.id == ssh_request.host_id).first()
         if not host:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Host not found"
             )
-        
+
         ssh_service = UnifiedSSHService(db)
-        auth_service = get_auth_service(db)
+        auth_service = get_auth_service(db, encryption_service)
         
         # Enable debug mode if requested
-        if request.enable_paramiko_debug:
+        if ssh_request.enable_paramiko_debug:
             ssh_service.enable_debug_mode()
-        
+
         response = SSHDebugResponse(
             host_info={
                 "id": str(host.id),
@@ -82,17 +88,20 @@ async def debug_ssh_authentication(
             },
             recommendations=[]
         )
-        
+
         # Test host-specific credentials
-        if request.test_host_credentials and host.encrypted_credentials:
+        if ssh_request.test_host_credentials and host.encrypted_credentials:
             logger.info(f"Testing host-specific credentials for {host.hostname}")
             try:
-                # Decrypt host credentials
+                # Decrypt host credentials using encryption service
                 encrypted_data = host.encrypted_credentials
                 if isinstance(encrypted_data, memoryview):
                     encrypted_data = bytes(encrypted_data)
-                
-                decrypted_data = decrypt_credentials(encrypted_data)
+
+                # Decrypt using encryption service
+                decoded_bytes = base64.b64decode(encrypted_data)
+                decrypted_bytes = encryption_service.decrypt(decoded_bytes)
+                decrypted_data = decrypted_bytes.decode('utf-8')
                 cred_data = json.loads(decrypted_data)
                 
                 # Validate key if present
@@ -142,7 +151,7 @@ async def debug_ssh_authentication(
                 }
         
         # Test global/system credentials
-        if request.test_global_credentials:
+        if ssh_request.test_global_credentials:
             logger.info(f"Testing global credentials for {host.hostname}")
             try:
                 # Get global credentials
@@ -247,12 +256,12 @@ async def debug_ssh_authentication(
                 recommendations.extend(key_info["recommendations"])
         
         response.recommendations = recommendations
-        
+
         # Disable debug mode
-        if request.enable_paramiko_debug:
+        if ssh_request.enable_paramiko_debug:
             ssh_service.disable_debug_mode()
             recommendations.append("Check /tmp/paramiko_debug.log for detailed SSH protocol debugging")
-        
+
         return response
         
     except HTTPException:

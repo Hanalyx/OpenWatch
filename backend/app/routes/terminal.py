@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from ..database import get_db
 from ..services.terminal_service import terminal_service
+from ..encryption import EncryptionService
 # from ..auth import get_current_user  # Optional for future authentication
 
 logger = logging.getLogger(__name__)
@@ -46,12 +47,15 @@ async def host_terminal_websocket(
 ):
     """
     WebSocket endpoint for SSH terminal access to a specific host
-    
+
     Args:
         websocket: WebSocket connection
         host_id: UUID of the host to connect to
         db: Database session
     """
+    # Get encryption service from app state
+    encryption_service: EncryptionService = websocket.app.state.encryption_service
+
     # Get client IP for audit logging
     client_ip = "unknown"
     try:
@@ -63,19 +67,20 @@ async def host_terminal_websocket(
             client_ip = websocket.client.host
     except Exception:
         pass
-    
+
     logger.info(f"Terminal WebSocket connection requested for host {host_id} from {client_ip}")
-    
+
     # Note: WebSocket connections don't easily support standard HTTP auth middleware
     # For now, we'll accept connections and rely on network-level security
     # In production, consider implementing WebSocket-specific auth
-    
+
     try:
         await terminal_service.handle_websocket_connection(
             websocket=websocket,
             host_id=host_id,
             db=db,
-            client_ip=client_ip
+            client_ip=client_ip,
+            encryption_service=encryption_service
         )
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for host {host_id}")

@@ -2,7 +2,8 @@
 Encryption service for sensitive data using AES-256-GCM.
 
 Provides FIPS 140-2 compliant encryption with configurable parameters
-and dependency injection support.
+and proper dependency injection (no global state).
+
 """
 import os
 import logging
