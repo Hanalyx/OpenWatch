@@ -53,7 +53,9 @@ import uuid
 
 username = os.environ.get('ADMIN_USERNAME')
 email = os.environ.get('ADMIN_EMAIL')
-password = os.environ.get('ADMIN_PASSWORD')
+# SECURITY: Read password from stdin instead of environment variable
+# to avoid exposure in ps aux, /proc/*/environ, and Docker logs
+password = sys.stdin.readline().strip()
 
 db = SessionLocal()
 
@@ -90,7 +92,9 @@ finally:
 EOF
 
 # Run the script in the backend container
-docker exec -e ADMIN_USERNAME="$USERNAME" -e ADMIN_EMAIL="$EMAIL" -e ADMIN_PASSWORD="$PASSWORD" \
+# SECURITY: Pass password via stdin pipe instead of environment variable
+# This prevents password exposure in ps aux, /proc/*/environ, and Docker logs
+echo "$PASSWORD" | docker exec -i -e ADMIN_USERNAME="$USERNAME" -e ADMIN_EMAIL="$EMAIL" \
     openwatch-backend python3 /tmp/create_admin.py
 
 # Clean up

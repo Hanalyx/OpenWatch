@@ -1,0 +1,102 @@
+#!/bin/bash
+#
+# oscap-ssh wrapper - Execute oscap commands on remote hosts via SSH
+# Usage: oscap-ssh user@host port xccdf eval [OPTIONS] CONTENT
+#
+
+set -e
+
+# Parse arguments
+if [ $# -lt 4 ]; then
+    echo "Usage: oscap-ssh user@host port xccdf eval [OPTIONS] CONTENT" >&2
+    exit 1
+fi
+
+USER_HOST="$1"
+PORT="$2"
+shift 2
+
+# Build oscap command
+OSCAP_CMD="oscap $@"
+
+# Extract username and hostname
+USERNAME="${USER_HOST%@*}"
+HOSTNAME="${USER_HOST#*@}"
+
+# SSH options for non-interactive execution
+# SECURITY: Proper host key verification enabled (uses ~/.ssh/known_hosts)
+# Remove -o StrictHostKeyChecking=no and -o UserKnownHostsFile=/dev/null to prevent MITM attacks
+SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=10"
+
+# Check if we need to copy XCCDF and OVAL files to remote host
+XCCDF_FILE=""
+OVAL_FILE=""
+TEMP_DIR=""
+
+# Parse arguments to find XCCDF and OVAL files
+for arg in "$@"; do
+    if [[ "$arg" =~ \.xml$ ]] && [ -f "$arg" ]; then
+        if [[ "$arg" =~ xccdf ]]; then
+            XCCDF_FILE="$arg"
+        elif [[ "$arg" =~ oval ]]; then
+            OVAL_FILE="$arg"
+        fi
+    fi
+done
+
+# Create temporary directory on remote host
+TEMP_DIR=$(ssh $SSH_OPTS -p "$PORT" "$USERNAME@$HOSTNAME" "mktemp -d" 2>&1)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create temporary directory on remote host: $TEMP_DIR" >&2
+    exit 1
+fi
+
+# Copy XCCDF file to remote host
+if [ -n "$XCCDF_FILE" ]; then
+    REMOTE_XCCDF="$TEMP_DIR/$(basename "$XCCDF_FILE")"
+    scp $SSH_OPTS -P "$PORT" "$XCCDF_FILE" "$USERNAME@$HOSTNAME:$REMOTE_XCCDF" >&2
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to copy XCCDF file to remote host" >&2
+        ssh $SSH_OPTS -p "$PORT" "$USERNAME@$HOSTNAME" "rm -rf '$TEMP_DIR'" 2>/dev/null || true
+        exit 1
+    fi
+
+    # Copy OVAL definitions if it exists in the same directory
+    OVAL_DIR="$(dirname "$XCCDF_FILE")"
+    OVAL_DEFS="$OVAL_DIR/oval-definitions.xml"
+    if [ -f "$OVAL_DEFS" ]; then
+        REMOTE_OVAL="$TEMP_DIR/oval-definitions.xml"
+        scp $SSH_OPTS -P "$PORT" "$OVAL_DEFS" "$USERNAME@$HOSTNAME:$REMOTE_OVAL" >&2
+        if [ $? -ne 0 ]; then
+            echo "Warning: Failed to copy OVAL definitions file to remote host" >&2
+        fi
+    fi
+
+    # Replace local path with remote path in command
+    OSCAP_CMD="${OSCAP_CMD/$XCCDF_FILE/$REMOTE_XCCDF}"
+fi
+
+# Execute oscap on remote host
+ssh $SSH_OPTS -p "$PORT" "$USERNAME@$HOSTNAME" "cd '$TEMP_DIR' && $OSCAP_CMD"
+OSCAP_EXIT=$?
+
+# Copy result files back if they were created
+for arg in "$@"; do
+    if [[ "$arg" =~ ^--results|^--report ]]; then
+        # Next argument is the file path
+        continue
+    fi
+    if [[ "$arg" =~ \.xml$|\.html$ ]] && [[ "$arg" =~ ^/ ]]; then
+        # This is a result file path (absolute path)
+        RESULT_FILE="$arg"
+        RESULT_BASENAME="$(basename "$RESULT_FILE")"
+
+        # Try to copy the file back
+        scp $SSH_OPTS -P "$PORT" "$USERNAME@$HOSTNAME:$TEMP_DIR/$RESULT_BASENAME" "$RESULT_FILE" 2>/dev/null || true
+    fi
+done
+
+# Cleanup temporary directory on remote host
+ssh $SSH_OPTS -p "$PORT" "$USERNAME@$HOSTNAME" "rm -rf '$TEMP_DIR'" 2>/dev/null || true
+
+exit $OSCAP_EXIT
