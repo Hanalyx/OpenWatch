@@ -2,6 +2,7 @@
 MongoDB-Integrated Scanning API Endpoints
 Provides endpoints for scanning using MongoDB compliance rules
 """
+
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
 from pydantic import BaseModel, Field
@@ -22,14 +23,19 @@ router = APIRouter(prefix="/mongodb-scans", tags=["MongoDB Scanning"])
 
 class MongoDBScanRequest(BaseModel):
     """Request model for MongoDB-based scanning"""
+
     host_id: str = Field(..., description="Target host ID")
     hostname: str = Field(..., description="Target hostname or IP address")
     platform: str = Field(..., description="Target platform (rhel, ubuntu, etc.)")
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
-    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
+    rule_ids: Optional[List[str]] = Field(
+        None, description="Specific rule IDs to scan (from wizard selection)"
+    )
+    connection_params: Optional[Dict[str, Any]] = Field(
+        None, description="SSH connection parameters"
+    )
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
