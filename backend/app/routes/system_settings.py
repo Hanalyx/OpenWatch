@@ -22,7 +22,8 @@ from datetime import datetime
 from ..database import get_db
 from ..auth import get_current_user
 from ..rbac import require_permission, Permission
-from ..services.encryption import encrypt_data, decrypt_data
+from ..encryption import EncryptionService, create_encryption_service
+from ..config import get_settings
 from ..services.unified_ssh_service import validate_ssh_key, format_validation_message
 from ..services.unified_ssh_service import extract_ssh_key_metadata
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
@@ -30,6 +31,27 @@ from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["System Settings"])
+
+
+# Helper functions for encryption using new modular encryption service
+def _get_encryption_service() -> EncryptionService:
+    """Get encryption service instance"""
+    settings = get_settings()
+    return create_encryption_service(master_key=settings.master_key)
+
+
+def encrypt_data(data: bytes) -> str:
+    """Encrypt data and return base64 string (compatibility wrapper)"""
+    import base64
+    encrypted_bytes = _get_encryption_service().encrypt(data)
+    return base64.b64encode(encrypted_bytes).decode('ascii')
+
+
+def decrypt_data(encrypted_data: str) -> bytes:
+    """Decrypt base64-encoded data (compatibility wrapper)"""
+    import base64
+    encrypted_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+    return _get_encryption_service().decrypt(encrypted_bytes)
 
 
 # Deprecation helper function
