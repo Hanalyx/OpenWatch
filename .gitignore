@@ -614,6 +614,13 @@ test_frontend_e2e.py
 test_complete_e2e.py
 test_comprehensive*.py
 
+# One-time debug, test, and migration scripts (backend root)
+backend/debug_*.py
+backend/test_*.py
+backend/verify_*.py
+backend/migrate_*.py
+backend/run_migration*.py
+
 # Test report and summary files
 *_TEST_REPORT.md
 *_TEST_SUMMARY.md
