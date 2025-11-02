@@ -25,7 +25,6 @@ from sqlalchemy import text
 from backend.app.celery_app import celery_app
 from backend.app.database import get_db
 from backend.app.services.adaptive_scheduler_service import adaptive_scheduler_service
-from backend.app.services.host_monitor import host_monitor
 
 logger = logging.getLogger(__name__)
 

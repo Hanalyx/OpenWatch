@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..services.scap_scanner import SCAPScanner, ScanExecutionError
 from ..services.semantic_scap_engine import get_semantic_scap_engine
-from ..services.crypto import decrypt_credentials
 from ..services.error_classification import ErrorClassificationService
 from .webhook_tasks import send_scan_completed_webhook, send_scan_failed_webhook
 
@@ -70,7 +69,18 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
             # Use centralized authentication service for all credential resolution
             try:
                 from ..services.auth_service import get_auth_service
-                auth_service = get_auth_service(db)
+                from ..encryption import create_encryption_service, EncryptionConfig
+                from ..config import get_settings
+
+                # Create encryption service for credential decryption
+                settings = get_settings()
+                encryption_config = EncryptionConfig()
+                encryption_service = create_encryption_service(
+                    master_key=settings.master_key,
+                    config=encryption_config
+                )
+
+                auth_service = get_auth_service(db, encryption_service)
                 
                 # Determine if we should use default credentials or host-specific
                 use_default = host_data.get("auth_method") in ["default", "system_default"]
@@ -94,7 +104,7 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
                     "username": credential_data.username,
                     "auth_method": credential_data.auth_method.value,
                     "password": credential_data.password,
-                    "private_key": credential_data.private_key,  # ✅ Consistent field naming
+                    "private_key": credential_data.private_key,  # Consistent field naming
                     "private_key_passphrase": credential_data.private_key_passphrase
                 }
                 
@@ -102,7 +112,7 @@ def execute_scan_task(scan_id: str, host_data: Dict, content_path: str,
                 host_data["username"] = credential_data.username
                 host_data["auth_method"] = credential_data.auth_method.value
                 
-                logger.info(f"✅ Resolved {credential_data.source} credentials for scan {scan_id}")
+                logger.info(f"Resolved {credential_data.source} credentials for scan {scan_id}")
                 
             except Exception as e:
                 logger.error(f"Failed to resolve credentials for scan {scan_id}: {e}")

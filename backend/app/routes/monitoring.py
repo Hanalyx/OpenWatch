@@ -9,9 +9,11 @@ from datetime import datetime
 
 from ..database import get_db
 from ..auth import get_current_user
-from ..services.host_monitor import host_monitor
+from ..services.host_monitor import get_host_monitor
 from ..services.host_monitoring_state import HostMonitoringStateMachine
 from ..tasks.monitoring_tasks import check_host_connectivity
+from ..encryption import create_encryption_service, EncryptionConfig
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -54,15 +56,22 @@ async def check_host_status(
             'auth_method': host_row.auth_method,
             # NOTE: encrypted_credentials removed - using centralized auth service
         }
-        
-        # Set database session for SSH service configuration access
-        host_monitor.set_database_session(db)
-        
+
+        # Create encryption service
+        settings = get_settings()
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key,
+            config=EncryptionConfig()
+        )
+
+        # Create host monitor with dependencies
+        monitor = get_host_monitor(db, encryption_service)
+
         # Perform comprehensive check with DB connection for credential access
-        check_result = await host_monitor.comprehensive_host_check(host_data, db)
+        check_result = await monitor.comprehensive_host_check(host_data, db)
 
         # Update database with new status and response time
-        await host_monitor.update_host_status(
+        await monitor.update_host_status(
             db,
             request.host_id,
             check_result['status'],
@@ -102,13 +111,20 @@ async def check_all_hosts_status(
     Check status of all hosts (runs in background)
     """
     try:
-        # Create wrapper function to set database session before monitoring
-        async def monitor_with_session():
-            host_monitor.set_database_session(db)
-            await host_monitor.monitor_all_hosts(db)
-        
+        # Create wrapper function for background monitoring
+        async def monitor_with_encryption():
+            # Create encryption service
+            settings = get_settings()
+            encryption_service = create_encryption_service(
+                master_key=settings.master_key,
+                config=EncryptionConfig()
+            )
+            # Create host monitor with dependencies
+            monitor = get_host_monitor(db, encryption_service)
+            await monitor.monitor_all_hosts(db)
+
         # Run monitoring in background
-        background_tasks.add_task(monitor_with_session)
+        background_tasks.add_task(monitor_with_encryption)
         
         return {
             "message": "Host monitoring started in background",
@@ -204,9 +220,12 @@ async def ping_host(
             raise HTTPException(status_code=404, detail="Host not found")
         
         ip_address = str(host_row.ip_address)
-        
+
+        # Create host monitor (ping doesn't need encryption service)
+        monitor = get_host_monitor()
+
         # Perform ping
-        ping_success = await host_monitor.ping_host(ip_address)
+        ping_success = await monitor.ping_host(ip_address)
         
         return {
             "host_id": host_id,
@@ -251,7 +270,7 @@ async def jit_connectivity_check(
         # Get host details for comprehensive check
         result = db.execute(text("""
             SELECT id, hostname, ip_address, port, username, auth_method,
-                   encrypted_credentials, monitoring_state, status
+                   encrypted_credentials, status
             FROM hosts
             WHERE id = :host_id AND is_active = true
         """), {"host_id": host_id})
@@ -271,8 +290,15 @@ async def jit_connectivity_check(
             'encrypted_credentials': host.encrypted_credentials
         }
 
+        # Create encryption service
+        settings = get_settings()
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key,
+            config=EncryptionConfig()
+        )
+
         # Perform comprehensive check (ping → port → SSH)
-        monitor = HostMonitor(db)
+        monitor = get_host_monitor(db, encryption_service)
         check_result = await monitor.comprehensive_host_check(host_data, db)
 
         logger.info(
@@ -290,7 +316,6 @@ async def jit_connectivity_check(
             "ip_address": check_result['ip_address'],
             "current_status": check_result['status'],
             "previous_status": host.status,
-            "previous_state": host.monitoring_state,
             "last_check": check_result['timestamp'],
             "response_time_ms": check_result['response_time_ms'],
             "diagnostics": {
@@ -332,8 +357,9 @@ async def get_host_monitoring_state(
 
         # Get host monitoring state
         result = db.execute(text("""
-            SELECT h.id, h.hostname, h.ip_address, h.monitoring_state,
-                   h.consecutive_failures, h.consecutive_successes,
+            SELECT h.id, h.hostname, h.ip_address,
+                   h.ping_consecutive_failures, h.ping_consecutive_successes,
+                   h.ssh_consecutive_failures, h.ssh_consecutive_successes,
                    h.next_check_time, h.last_state_change, h.check_priority,
                    h.response_time_ms, h.last_check, h.status
             FROM hosts h
@@ -366,20 +392,35 @@ async def get_host_monitoring_state(
                 "error_type": row.error_type
             })
 
+        # Derive monitoring state from status and failure counters
+        # This provides backward compatibility with the monitoring state machine
+        if host.status == "online":
+            derived_state = "HEALTHY"
+        elif host.ssh_consecutive_failures >= 3:
+            derived_state = "CRITICAL"
+        elif host.ssh_consecutive_failures >= 1 or host.ping_consecutive_failures >= 2:
+            derived_state = "DEGRADED"
+        elif host.status == "offline":
+            derived_state = "DOWN"
+        else:
+            derived_state = "UNKNOWN"
+
         return {
             "host_id": str(host.id),
             "hostname": host.hostname,
             "ip_address": host.ip_address,
-            "current_state": host.monitoring_state,
+            "current_state": derived_state,
             "current_status": host.status,
-            "consecutive_failures": host.consecutive_failures,
-            "consecutive_successes": host.consecutive_successes,
+            "ping_consecutive_failures": host.ping_consecutive_failures,
+            "ping_consecutive_successes": host.ping_consecutive_successes,
+            "ssh_consecutive_failures": host.ssh_consecutive_failures,
+            "ssh_consecutive_successes": host.ssh_consecutive_successes,
             "next_check_time": host.next_check_time.isoformat() if host.next_check_time else None,
             "last_state_change": host.last_state_change.isoformat() if host.last_state_change else None,
             "check_priority": host.check_priority,
             "response_time_ms": host.response_time_ms,
             "last_check": host.last_check.isoformat() if host.last_check else None,
-            "check_interval_info": _get_interval_info(host.monitoring_state),
+            "check_interval_info": _get_interval_info(derived_state),
             "recent_history": history
         }
 

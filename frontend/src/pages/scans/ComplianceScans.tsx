@@ -46,6 +46,9 @@ interface Host {
   ip_address: string;
   status: 'online' | 'offline';
   os?: string;
+  port?: number;
+  username?: string;
+  auth_method?: string;
 }
 
 interface HostGroup {
@@ -257,13 +260,25 @@ const ComplianceScans: React.FC = () => {
           }
 
           try {
+            // Build connection_params if host has SSH credentials
+            let connectionParams = undefined;
+            if (host.username && host.port) {
+              connectionParams = {
+                host_id: hostId,  // Include host_id for credential fetching
+                username: host.username,
+                port: host.port,
+                auth_method: host.auth_method || 'ssh_key'
+              };
+            }
+
             const response = await api.post('/api/v1/mongodb-scans/start', {
               host_id: hostId,
-              hostname: host.hostname || host.ip_address,
+              hostname: host.ip_address || host.hostname,  // Prefer IP for DNS resolution
               platform: platform,
               platform_version: platformVersion,
               framework: frameworkFilter || undefined,
               rule_ids: selectedRules,
+              connection_params: connectionParams,
               include_enrichment: true,
               generate_report: true
             });

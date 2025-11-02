@@ -17,8 +17,8 @@ from sqlalchemy import text
 
 from ..database import get_db, Host
 from ..services.unified_ssh_service import validate_ssh_key, SSHKeyValidationResult
-from ..services.crypto import decrypt_credentials
 from ..audit_db import log_security_event
+from ..encryption import EncryptionService
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,12 @@ class SSHTerminalSession:
     """
     Manages an SSH terminal session with WebSocket communication
     """
-    
-    def __init__(self, websocket: WebSocket, host: Host, db: Session):
+
+    def __init__(self, websocket: WebSocket, host: Host, db: Session, encryption_service: EncryptionService):
         self.websocket = websocket
         self.host = host
         self.db = db  # Database session for centralized auth service
+        self.encryption_service = encryption_service  # Encryption service for credential decryption
         self.ssh_client: Optional[paramiko.SSHClient] = None
         self.ssh_channel: Optional[paramiko.Channel] = None
         self.is_connected = False
@@ -167,7 +168,7 @@ class SSHTerminalSession:
             # Use centralized authentication service instead of old dual system
             try:
                 from ..services.auth_service import get_auth_service
-                auth_service = get_auth_service(self.db)
+                auth_service = get_auth_service(self.db, self.encryption_service)
                 
                 # Determine if we should use default credentials or host-specific
                 use_default = auth_method in ['default', 'system_default']
@@ -343,20 +344,22 @@ class TerminalService:
         self.active_sessions: Dict[str, SSHTerminalSession] = {}
     
     async def handle_websocket_connection(
-        self, 
-        websocket: WebSocket, 
+        self,
+        websocket: WebSocket,
         host_id: str,
         db: Session,
-        client_ip: str
+        client_ip: str,
+        encryption_service: EncryptionService
     ):
         """
         Handle new WebSocket terminal connection
-        
+
         Args:
             websocket: WebSocket connection
             host_id: Host ID for terminal session
             db: Database session
             client_ip: Client IP address for audit logging
+            encryption_service: Encryption service for credential decryption
         """
         session_key = f"{host_id}_{id(websocket)}"
         
@@ -395,7 +398,7 @@ class TerminalService:
             )
             
             # Create terminal session
-            session = SSHTerminalSession(websocket, host, db)
+            session = SSHTerminalSession(websocket, host, db, encryption_service)
             self.active_sessions[session_key] = session
             
             # Attempt SSH connection

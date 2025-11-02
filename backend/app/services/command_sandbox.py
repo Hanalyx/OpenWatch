@@ -51,7 +51,6 @@ from pydantic import BaseModel, Field
 
 from ..config import get_settings
 from ..database import get_db
-from .crypto import encrypt_credentials, decrypt_credentials
 import os
 
 

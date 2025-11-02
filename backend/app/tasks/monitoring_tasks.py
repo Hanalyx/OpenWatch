@@ -9,10 +9,12 @@ from sqlalchemy import text
 
 from backend.app.celery_app import celery_app
 from backend.app.database import get_db, get_db_session
-from backend.app.services.host_monitor import host_monitor
+from backend.app.services.host_monitor import get_host_monitor
 from backend.app.services.auth_service import get_auth_service
 from backend.app.services.host_monitoring_state import HostMonitoringStateMachine, MonitoringState
 from backend.app.services.unified_ssh_service import UnifiedSSHService
+from backend.app.encryption import create_encryption_service, EncryptionConfig
+from backend.app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +25,23 @@ def periodic_host_monitoring():
     """
     try:
         logger.info("Starting periodic host monitoring...")
-        
+
         # Get database session
         db = next(get_db())
-        
+
+        # Create encryption service
+        settings = get_settings()
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key,
+            config=EncryptionConfig()
+        )
+
+        # Create host monitor with dependencies
+        monitor = get_host_monitor(db, encryption_service)
+
         # Monitor all hosts
         import asyncio
-        results = asyncio.run(host_monitor.monitor_all_hosts(db))
+        results = asyncio.run(monitor.monitor_all_hosts(db))
         
         # Log results
         online_count = sum(1 for r in results if r['status'] == 'online')
@@ -61,8 +73,15 @@ def periodic_credential_purge():
         db = next(get_db())
 
         try:
+            # Create encryption service
+            settings = get_settings()
+            encryption_service = create_encryption_service(
+                master_key=settings.master_key,
+                config=EncryptionConfig()
+            )
+
             # Purge old inactive credentials
-            auth_service = get_auth_service(db)
+            auth_service = get_auth_service(db, encryption_service)
             purged_count = auth_service.purge_old_inactive_credentials(retention_days=90)
 
             if purged_count > 0:
@@ -138,8 +157,15 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 'encrypted_credentials': host_result.encrypted_credentials
             }
 
+            # Create encryption service
+            settings = get_settings()
+            encryption_service = create_encryption_service(
+                master_key=settings.master_key,
+                config=EncryptionConfig()
+            )
+
             # Perform comprehensive check (ping → port → SSH)
-            monitor = HostMonitor(db)
+            monitor = get_host_monitor(db, encryption_service)
 
             # Run comprehensive check synchronously (we're already in async Celery task)
             import asyncio

@@ -6,16 +6,15 @@ import logging
 import os
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.security import HTTPBearer
 from fastapi.responses import JSONResponse
 import time
 import uvicorn
 
 from .config import get_settings, SECURITY_HEADERS
-from .auth import jwt_manager, audit_logger
+from .auth import jwt_manager, audit_logger, require_admin
 from .database import engine, create_tables, get_db
 from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug, adaptive_scheduler
 from .routes.system_settings_unified import router as system_settings_router
@@ -40,7 +39,6 @@ from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 from .services.prometheus_metrics import get_metrics_instance
-# from .services.tracing import initialize_tracing, instrument_fastapi_app, instrument_database_engine  # Disabled for now
 
 # Configure logging
 logging.basicConfig(
@@ -57,7 +55,25 @@ async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
     logger.info("Starting OpenWatch application...")
-    
+
+    # Initialize encryption service with dependency injection (NEW)
+    logger.info("Initializing encryption service...")
+    from .encryption import create_encryption_service, EncryptionConfig
+
+    # Create encryption service with production config
+    encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
+    encryption_service = create_encryption_service(
+        master_key=settings.master_key,
+        config=encryption_config
+    )
+
+    # Store in app state for dependency injection
+    app.state.encryption_service = encryption_service
+    logger.info(
+        f"Encryption service initialized "
+        f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
+    )
+
     # Verify FIPS mode if required
     if settings.fips_mode:
         try:
@@ -89,7 +105,7 @@ async def lifespan(app: FastAPI):
                 else:
                     raise Exception("Database schema initialization failed after all retries")
 
-            logger.info("✅ Complete database schema initialized successfully")
+            logger.info("Complete database schema initialized successfully")
 
             # Run SQL migrations automatically
             try:
@@ -100,9 +116,9 @@ async def lifespan(app: FastAPI):
                 try:
                     migrations_success = run_startup_migrations(db)
                     if migrations_success:
-                        logger.info("✅ Automatic migrations completed successfully")
+                        logger.info("Automatic migrations completed successfully")
                     else:
-                        logger.error("❌ Some migrations failed - check logs for details")
+                        logger.error("Some migrations failed - check logs for details")
                         if not settings.debug:
                             raise Exception("Critical migrations failed")
                 finally:
@@ -157,29 +173,11 @@ async def lifespan(app: FastAPI):
         if not settings.debug:
             raise
     
-    # Initialize distributed tracing (disabled for now)
-    # try:
-    #     tracing_success = initialize_tracing(
-    #         service_name="openwatch",
-    #         service_version="1.0.0",
-    #         environment=settings.environment if hasattr(settings, 'environment') else "production"
-    #     )
-    #     if tracing_success:
-    #         instrument_database_engine(engine)
-    #         logger.info("Distributed tracing initialized successfully")
-    #     else:
-    #         logger.warning("Distributed tracing initialization failed")
-    # except Exception as e:
-    #     logger.warning(f"Failed to initialize distributed tracing: {e}")
+    # Distributed tracing disabled for initial deployment
     logger.info("Distributed tracing disabled for initial deployment")
-    
-    # Start background metrics collection (temporarily disabled for debugging)
-    try:
-        # import asyncio
-        # asyncio.create_task(background_updater.start_background_updates())
-        logger.info("Background metrics collection disabled for debugging")
-    except Exception as e:
-        logger.warning(f"Failed to start background metrics collection: {e}")
+
+    # Background metrics collection disabled for debugging
+    logger.info("Background metrics collection disabled for debugging")
     
     logger.info("OpenWatch application started successfully")
     
@@ -235,100 +233,60 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+def _log_audit_event(db, event_type: str, request: Request, response, client_ip: str):
+    """Helper function to log audit events to both file and database"""
+    details = f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
+
+    # Log to file
+    audit_logger.log_security_event(event_type, details, client_ip)
+
+    # Log to database
+    log_security_event(
+        db=db,
+        event_type=event_type,
+        ip_address=client_ip,
+        details=details
+    )
+
+
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
     """Log security-relevant requests for audit purposes"""
-    start_time = time.time()
-    
     # Get client IP
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
         client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
-    
+
     # Process request
     response = await call_next(request)
-    
-    # Log security events (only for non-auth endpoints to avoid double logging)
-    
+
     # Get database session for audit logging
     db = next(get_db())
-    
+
     try:
-        # Log scan operations
-        if request.url.path.startswith("/api/scans"):
-            audit_logger.log_security_event(
-                "SCAN_OPERATION",
-                f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
-            )
-            log_security_event(
-                db=db,
-                event_type="SCAN_OPERATION",
-                ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
-            )
-        
-        # Log host operations
-        elif request.url.path.startswith("/api/hosts"):
-            audit_logger.log_security_event(
-                "HOST_OPERATION",
-                f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
-            )
-            log_security_event(
-                db=db,
-                event_type="HOST_OPERATION",
-                ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
-            )
-        
-        # Log user management operations
-        elif request.url.path.startswith("/api/users"):
-            audit_logger.log_security_event(
-                "USER_OPERATION",
-                f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
-            )
-            log_security_event(
-                db=db,
-                event_type="USER_OPERATION",
-                ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
-            )
-        
-        # Log webhook operations
-        elif request.url.path.startswith("/api/v1/webhooks"):
-            audit_logger.log_security_event(
-                "WEBHOOK_OPERATION",
-                f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
-            )
-            log_security_event(
-                db=db,
-                event_type="WEBHOOK_OPERATION",
-                ip_address=client_ip,
-                details=f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
-            )
-        
-        # Log unusual status codes (HTTP errors)
+        # Map URL path prefixes to event types
+        path_event_map = {
+            "/api/scans": "SCAN_OPERATION",
+            "/api/hosts": "HOST_OPERATION",
+            "/api/users": "USER_OPERATION",
+            "/api/v1/webhooks": "WEBHOOK_OPERATION"
+        }
+
+        # Log based on path prefix
+        for path_prefix, event_type in path_event_map.items():
+            if request.url.path.startswith(path_prefix):
+                _log_audit_event(db, event_type, request, response, client_ip)
+                break
+
+        # Log HTTP errors (independently of path-based logging)
         if response.status_code >= 400:
-            audit_logger.log_security_event(
-                "HTTP_ERROR",
-                f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}",
-                client_ip
-            )
-            log_security_event(
-                db=db,
-                event_type="HTTP_ERROR",
-                ip_address=client_ip,
-                details=f"HTTP {response.status_code} error on {request.url.path}"
-            )
-    
+            _log_audit_event(db, "HTTP_ERROR", request, response, client_ip)
+
     except Exception as e:
         logger.error(f"Error in audit middleware: {e}")
     finally:
         db.close()
-    
+
     return response
 
 
@@ -399,14 +357,6 @@ app.add_middleware(
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware, service_name="openwatch")
 
-# Instrument FastAPI with tracing (do this after app creation)
-# Instrument FastAPI with tracing (disabled for now)
-# try:
-#     instrument_fastapi_app(app)
-#     logger.info("FastAPI tracing instrumentation completed")
-# except Exception as e:
-#     logger.warning(f"FastAPI tracing instrumentation failed: {e}")
-
 
 # Health Check Endpoint
 @app.get("/health")
@@ -423,22 +373,26 @@ async def health_check():
         
         # Check database connectivity - simplified approach
         db_healthy = True
+        db = None
         try:
             # Simple inline database check
             from sqlalchemy import text
             from .database import SessionLocal
             db = SessionLocal()
             db.execute(text("SELECT 1"))
-            db.close()
             health_status["database"] = "healthy"
-            logger.info("✅ Database health check successful - inline version")
+            logger.info("Database health check successful - inline version")
         except Exception as e:
-            logger.error(f"❌ Database health check failed - inline version: {e}")
+            logger.error(f"Database health check failed - inline version: {e}")
             health_status["database"] = "unhealthy"
             db_healthy = False
+        finally:
+            if db:
+                db.close()
         
         # Check Redis connectivity - simplified approach
         redis_healthy = True
+        redis_client = None
         try:
             # Simple inline Redis check
             import redis
@@ -452,13 +406,15 @@ async def health_check():
                 socket_connect_timeout=5
             )
             redis_client.ping()
-            redis_client.close()
             health_status["redis"] = "healthy"
-            logger.info("✅ Redis health check successful - inline version")
+            logger.info("Redis health check successful - inline version")
         except Exception as e:
-            logger.error(f"❌ Redis health check failed - inline version: {e}")
+            logger.error(f"Redis health check failed - inline version: {e}")
             health_status["redis"] = "unhealthy"
             redis_healthy = False
+        finally:
+            if redis_client:
+                redis_client.close()
         
         # Check MongoDB connectivity
         mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
@@ -472,19 +428,19 @@ async def health_check():
                 health_status["mongodb"] = mongo_health.get("status", "unknown")
                 mongodb_healthy = mongo_health.get("status") == "healthy"
                 if mongodb_healthy:
-                    logger.info("✅ MongoDB health check successful")
+                    logger.info("MongoDB health check successful")
                 else:
-                    logger.warning(f"⚠️ MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
+                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
             except Exception as e:
                 # Return actual error status
                 health_status["mongodb"] = "unhealthy"
                 health_status["mongodb_error"] = str(e)
-                logger.error(f"❌ MongoDB health check failed: {e}")
+                logger.error(f"MongoDB health check failed: {e}")
                 mongodb_healthy = False
         else:
             # MongoDB not configured - this is acceptable
             health_status["mongodb"] = "not_configured"
-            logger.info("ℹ️ MongoDB not configured - skipping health check")
+            logger.info("MongoDB not configured - skipping health check")
             mongodb_healthy = True  # Don't fail overall health for unconfigured service
         
         # Overall status
@@ -511,7 +467,7 @@ async def health_check():
 
 # Security Info Endpoint
 @app.get("/security-info")
-async def security_info():
+async def security_info(current_user: dict = Depends(require_admin)):
     """Provide security configuration information (admin only)"""
     return {
         "fips_mode": settings.fips_mode,

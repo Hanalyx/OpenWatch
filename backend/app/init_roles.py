@@ -2,11 +2,13 @@
 Initialize roles and permissions in the database
 """
 import asyncio
+import base64
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .database import SessionLocal, create_tables
 from .rbac import UserRole, ROLE_PERMISSIONS
-from .services.encryption import encrypt_data
+from .encryption import create_encryption_service
+from .config import get_settings
 import logging
 import json
 from datetime import datetime
@@ -148,12 +150,18 @@ def init_default_system_credentials(db: Session):
         )
         
         current_time = datetime.utcnow()
-        
+
+        # Encrypt placeholder password using new encryption service
+        settings = get_settings()
+        encryption_service = create_encryption_service(master_key=settings.master_key)
+        encrypted_bytes = encryption_service.encrypt(b"CHANGE_ME_PLEASE")
+        encrypted_password = base64.b64encode(encrypted_bytes).decode('ascii')
+
         # Insert placeholder credentials (no actual sensitive data)
         db.execute(text("""
-            INSERT INTO system_credentials 
-            (name, description, username, auth_method, encrypted_password, 
-             encrypted_private_key, private_key_passphrase, is_default, is_active, 
+            INSERT INTO system_credentials
+            (name, description, username, auth_method, encrypted_password,
+             encrypted_private_key, private_key_passphrase, is_default, is_active,
              created_by, created_at, updated_at)
             VALUES (:name, :description, :username, :auth_method, :encrypted_password,
                     :encrypted_private_key, :private_key_passphrase, :is_default, :is_active,
@@ -163,7 +171,7 @@ def init_default_system_credentials(db: Session):
             "description": placeholder_description,
             "username": "root",
             "auth_method": "password",
-            "encrypted_password": encrypt_data(b"CHANGE_ME_PLEASE"),  # Obvious placeholder
+            "encrypted_password": encrypted_password,  # Obvious placeholder
             "encrypted_private_key": None,
             "private_key_passphrase": None,
             "is_default": True,

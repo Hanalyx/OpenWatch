@@ -2,6 +2,9 @@
 Centralized Authentication Service
 Provides unified credential storage, encryption, and validation for OpenWatch.
 Replaces the dual-system approach with a single, consistent authentication layer.
+
+MIGRATION NOTE: This service now uses dependency injection for encryption.
+The encryption service is passed in the constructor instead of using global singleton.
 """
 import uuid
 import json
@@ -14,7 +17,7 @@ from sqlalchemy import text
 from pydantic import BaseModel, Field
 from enum import Enum
 
-from .encryption import encrypt_data, decrypt_data
+from ..encryption import EncryptionService  # NEW: Modular encryption service
 from .unified_ssh_service import validate_ssh_key, parse_ssh_key
 from .unified_ssh_service import extract_ssh_key_metadata
 from .credential_validation import validate_credential_with_strict_policy, SecurityPolicyLevel
@@ -66,10 +69,17 @@ class CentralizedAuthService:
     """
     Centralized authentication service that provides unified credential management.
     Solves the issue where system credentials use AES encryption but host credentials only use base64.
+
+    MIGRATION NOTE: Now uses dependency injection for encryption service.
+
+    Args:
+        db: Database session
+        encryption_service: Encryption service instance (injected, not global)
     """
-    
-    def __init__(self, db: Session):
+
+    def __init__(self, db: Session, encryption_service: EncryptionService):
         self.db = db
+        self.encryption_service = encryption_service
         
     def store_credential(self, credential_data: CredentialData, metadata: CredentialMetadata, 
                         created_by: str) -> str:
@@ -105,17 +115,25 @@ class CentralizedAuthService:
             if metadata.is_default:
                 self._unset_default_credentials(metadata.scope, metadata.target_id)
             
-            # Encrypt sensitive data using unified AES-256-GCM
+            # Encrypt sensitive data using unified AES-256-GCM (NEW: uses injected service)
             encrypted_password = None
             encrypted_private_key = None
             encrypted_passphrase = None
-            
+
             if credential_data.password:
-                encrypted_password = encrypt_data(credential_data.password.encode())
+                plaintext_bytes = credential_data.password.encode('utf-8')
+                encrypted_bytes = self.encryption_service.encrypt(plaintext_bytes)
+                encrypted_password = base64.b64encode(encrypted_bytes).decode('ascii')
+
             if credential_data.private_key:
-                encrypted_private_key = encrypt_data(credential_data.private_key.encode())
+                plaintext_bytes = credential_data.private_key.encode('utf-8')
+                encrypted_bytes = self.encryption_service.encrypt(plaintext_bytes)
+                encrypted_private_key = base64.b64encode(encrypted_bytes).decode('ascii')
+
             if credential_data.private_key_passphrase:
-                encrypted_passphrase = encrypt_data(credential_data.private_key_passphrase.encode())
+                plaintext_bytes = credential_data.private_key_passphrase.encode('utf-8')
+                encrypted_bytes = self.encryption_service.encrypt(plaintext_bytes)
+                encrypted_passphrase = base64.b64encode(encrypted_bytes).decode('ascii')
             
             # Store in unified credentials table
             current_time = datetime.utcnow()
@@ -184,49 +202,49 @@ class CentralizedAuthService:
             if not row:
                 return None
             
-            # Decrypt credential data
+            # Decrypt credential data (NEW: uses injected encryption service)
+            # Handle both string and memoryview from database
             password = None
             private_key = None
             passphrase = None
-            
+
             if row.encrypted_password:
-                # Handle both string and memoryview from database
                 encrypted_data = row.encrypted_password
                 if isinstance(encrypted_data, memoryview):
-                    # memoryview contains base64-encoded bytes - decode then decrypt
-                    import base64
-                    from .encryption import get_encryption_service
-                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                    password = get_encryption_service().decrypt(decoded_bytes).decode()
+                    # memoryview - convert to bytes
+                    encrypted_data = bytes(encrypted_data)
+                # encrypted_data is now either bytes or string (base64)
+                # Decrypt using injected service
+                if isinstance(encrypted_data, bytes):
+                    # bytes - decode base64 then decrypt
+                    decoded_bytes = base64.b64decode(encrypted_data)
+                    password = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                 else:
-                    # String data is base64 encoded - use decrypt_data
-                    password = decrypt_data(encrypted_data).decode()
-                
+                    # string - decode base64 then decrypt
+                    decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                    password = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
+
             if row.encrypted_private_key:
-                # Handle both string and memoryview from database
                 encrypted_data = row.encrypted_private_key
                 if isinstance(encrypted_data, memoryview):
-                    # memoryview contains base64-encoded bytes - decode then decrypt
-                    import base64
-                    from .encryption import get_encryption_service
-                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                    private_key = get_encryption_service().decrypt(decoded_bytes).decode()
+                    encrypted_data = bytes(encrypted_data)
+                if isinstance(encrypted_data, bytes):
+                    decoded_bytes = base64.b64decode(encrypted_data)
+                    private_key = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                 else:
-                    # String data is base64 encoded - use decrypt_data
-                    private_key = decrypt_data(encrypted_data).decode()
-                
+                    decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                    private_key = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
+
             if row.encrypted_passphrase:
-                # Handle both string and memoryview from database
                 encrypted_data = row.encrypted_passphrase
                 if isinstance(encrypted_data, memoryview):
-                    # memoryview contains base64-encoded bytes - decode then decrypt
-                    import base64
-                    from .encryption import get_encryption_service
-                    decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                    passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
+                    encrypted_data = bytes(encrypted_data)
+                if isinstance(encrypted_data, bytes):
+                    decoded_bytes = base64.b64decode(encrypted_data)
+                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                 else:
-                    # String data is base64 encoded - use decrypt_data
-                    passphrase = decrypt_data(encrypted_data).decode()
+                    decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
             
             return CredentialData(
                 username=row.username,
@@ -412,59 +430,53 @@ class CentralizedAuthService:
             row = result.fetchone()
             if row:
                 logger.info("Found legacy system default credential, decrypting...")
-                # Import decryption function for legacy credentials
-                from .encryption import decrypt_data
-                import base64
-                
-                # Decrypt legacy credential data
+
+                # Decrypt legacy credential data (NEW: uses injected service)
                 password = None
                 private_key = None
                 passphrase = None
-                
+
                 if row.encrypted_password:
                     try:
                         encrypted_data = row.encrypted_password
                         if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            password = get_encryption_service().decrypt(decoded_bytes).decode()
+                            encrypted_data = bytes(encrypted_data)
+                        if isinstance(encrypted_data, bytes):
+                            decoded_bytes = base64.b64decode(encrypted_data)
+                            password = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         else:
-                            # String data is base64 encoded - use decrypt_data
-                            password = decrypt_data(encrypted_data).decode()
+                            decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                            password = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         logger.info("Successfully decrypted legacy password")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy password: {e}")
-                
+
                 if row.encrypted_private_key:
                     try:
                         encrypted_data = row.encrypted_private_key
                         if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            private_key = get_encryption_service().decrypt(decoded_bytes).decode()
+                            encrypted_data = bytes(encrypted_data)
+                        if isinstance(encrypted_data, bytes):
+                            decoded_bytes = base64.b64decode(encrypted_data)
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         else:
-                            # String data is base64 encoded - use decrypt_data
-                            private_key = decrypt_data(encrypted_data).decode()
+                            decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         logger.info("Successfully decrypted legacy private key")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy private key: {e}")
-                
+
                 if row.private_key_passphrase:
                     try:
                         encrypted_data = row.private_key_passphrase
                         if isinstance(encrypted_data, memoryview):
-                            # memoryview contains base64-encoded bytes - decode then decrypt
-                            import base64
-                            from .encryption import get_encryption_service
-                            decoded_bytes = base64.b64decode(bytes(encrypted_data))
-                            passphrase = get_encryption_service().decrypt(decoded_bytes).decode()
+                            encrypted_data = bytes(encrypted_data)
+                        if isinstance(encrypted_data, bytes):
+                            decoded_bytes = base64.b64decode(encrypted_data)
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         else:
-                            # String data is base64 encoded - use decrypt_data
-                            passphrase = decrypt_data(encrypted_data).decode()
+                            decoded_bytes = base64.b64decode(encrypted_data.encode('ascii'))
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode('utf-8')
                         logger.info("Successfully decrypted legacy passphrase")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy passphrase: {e}")
@@ -734,6 +746,30 @@ class CentralizedAuthService:
 
 
 # Factory function for service creation
-def get_auth_service(db: Session) -> CentralizedAuthService:
-    """Factory function to create CentralizedAuthService instance"""
-    return CentralizedAuthService(db)
+def get_auth_service(db: Session, encryption_service: EncryptionService) -> CentralizedAuthService:
+    """
+    Factory function to create CentralizedAuthService instance.
+
+    MIGRATION NOTE: Now requires encryption_service parameter (dependency injection).
+
+    Args:
+        db: Database session
+        encryption_service: Encryption service instance (from app.state or Depends())
+
+    Returns:
+        CentralizedAuthService instance
+
+    Example:
+        # In FastAPI route
+        from fastapi import Depends
+        from backend.app.database import get_db, get_encryption_service
+
+        @router.post("/credentials")
+        async def create_credential(
+            db: Session = Depends(get_db),
+            encryption_service = Depends(get_encryption_service)
+        ):
+            auth_service = get_auth_service(db, encryption_service)
+            # Use auth_service...
+    """
+    return CentralizedAuthService(db, encryption_service)

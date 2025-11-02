@@ -4,6 +4,7 @@ Provides various methods to check host availability and status
 """
 import asyncio
 import base64
+import json
 import logging
 import socket
 import subprocess
@@ -16,21 +17,24 @@ from sqlalchemy import text
 from .email_service import email_service
 from .unified_ssh_service import parse_ssh_key, validate_ssh_key, SSHKeyError, format_validation_message
 from .unified_ssh_service import UnifiedSSHService
+from ..encryption import EncryptionService
 
 logger = logging.getLogger(__name__)
 
 class HostMonitor:
-    def __init__(self, db_session: Session = None):
+    def __init__(self, db_session: Session = None, encryption_service: EncryptionService = None):
         """
-        Initialize HostMonitor with optional database session
-        
+        Initialize HostMonitor with optional database session and encryption service
+
         Args:
             db_session: SQLAlchemy database session for SSH service configuration
+            encryption_service: Encryption service for credential decryption
         """
         self.ssh_timeout = 10  # seconds
         self.ping_timeout = 5   # seconds
         self.unified_ssh = UnifiedSSHService(db=db_session)
         self.db_session = db_session
+        self.encryption_service = encryption_service
     
     def set_database_session(self, db_session: Session):
         """
@@ -222,38 +226,44 @@ class HostMonitor:
         try:
             # Use centralized authentication service for all credential resolution
             from ..services.auth_service import get_auth_service
-            auth_service = get_auth_service(db)
-            
+
+            # Get encryption service - use instance variable or raise error
+            if not self.encryption_service:
+                raise ValueError("HostMonitor requires encryption_service to be set")
+
+            auth_service = get_auth_service(db, self.encryption_service)
+
             # Determine if we should use default credentials or host-specific
             host_auth_method = host_data.get('auth_method')
             use_default = host_auth_method in ['default', 'system_default']
             target_id = None if use_default else host_data.get('id')
-            
+
             logger.info(f"Resolving credentials for host monitoring {host_data.get('hostname')}: use_default={use_default}, target_id={target_id}")
-            
+
             # First, try to get host-specific credentials from the hosts table
             if not use_default and target_id:
                 from sqlalchemy import text
                 result = db.execute(text("""
-                    SELECT encrypted_credentials, username, auth_method 
-                    FROM hosts 
+                    SELECT encrypted_credentials, username, auth_method
+                    FROM hosts
                     WHERE id = :id AND encrypted_credentials IS NOT NULL
                 """), {"id": target_id})
-                
+
                 row = result.fetchone()
                 if row and row.encrypted_credentials:
                     logger.info(f"Found host-specific credentials in hosts table for {host_data.get('hostname')}")
-                    # Decrypt the credentials
-                    from ..services.crypto import decrypt_credentials
-                    import json
+                    # Decrypt the credentials using encryption service
                     try:
                         # Handle memoryview objects from database
                         encrypted_data = row.encrypted_credentials
                         # Handle memoryview objects from database securely
                         if isinstance(encrypted_data, memoryview):
                             encrypted_data = bytes(encrypted_data)
-                        
-                        decrypted_data = decrypt_credentials(encrypted_data)
+
+                        # Decrypt using encryption service
+                        decoded_bytes = base64.b64decode(encrypted_data)
+                        decrypted_bytes = self.encryption_service.decrypt(decoded_bytes)
+                        decrypted_data = decrypted_bytes.decode('utf-8')
                         cred_data = json.loads(decrypted_data)
                         
                         credentials = {
@@ -264,7 +274,7 @@ class HostMonitor:
                             'private_key_passphrase': None,
                             'source': 'host_encrypted_credentials'
                         }
-                        logger.info(f"✅ Decrypted host credentials for {host_data.get('hostname')}")
+                        logger.info(f"Decrypted host credentials for {host_data.get('hostname')}")
                         return credentials
                     except Exception as e:
                         logger.error(f"Failed to decrypt host credentials: {type(e).__name__}")
@@ -289,12 +299,12 @@ class HostMonitor:
                 'username': credential_data.username,
                 'auth_method': credential_data.auth_method.value,
                 'password': credential_data.password,
-                'private_key': credential_data.private_key,  # ✅ Consistent field naming
+                'private_key': credential_data.private_key,  # Consistent field naming
                 'private_key_passphrase': credential_data.private_key_passphrase,
                 'source': credential_data.source
             }
             
-            logger.info(f"✅ Resolved {credential_data.source} credentials for host monitoring {host_data.get('hostname')}")
+            logger.info(f"Resolved {credential_data.source} credentials for host monitoring {host_data.get('hostname')}")
             return credentials
             
         except Exception as e:
@@ -390,7 +400,7 @@ class HostMonitor:
                 
                 if not is_valid:
                     check_results['ssh_accessible'] = False
-                    check_results['credential_details'] = f"❌ {validation_error}"
+                    check_results['credential_details'] = f"FAILED: {validation_error}"
                     check_results['error_message'] = validation_error
                     logger.warning(f"SSH credentials validation failed for {hostname}: {validation_error}")
                 else:
@@ -405,15 +415,15 @@ class HostMonitor:
                     check_results['ssh_accessible'] = ssh_success
                     
                     if ssh_success:
-                        check_results['credential_details'] += " - ✅ SSH authentication successful"
+                        check_results['credential_details'] += " - SSH authentication successful"
                         logger.info(f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)")
                     else:
-                        check_results['credential_details'] += f" - ❌ SSH authentication failed: {ssh_error}"
+                        check_results['credential_details'] += f" - SSH authentication failed: {ssh_error}"
                         check_results['error_message'] = f"SSH authentication failed with {source} credentials: {ssh_error}"
                         logger.warning(f"SSH authentication failed for {hostname} using {source} credentials (user: ***REDACTED***): {ssh_error}")
                     
             else:
-                check_results['credential_details'] = "❌ No SSH credentials available (neither host-specific nor system default)"
+                check_results['credential_details'] = "No SSH credentials available (neither host-specific nor system default)"
                 check_results['error_message'] = "No SSH credentials configured. Please configure system credentials in Settings to enable SSH operations."
                 logger.warning(f"No SSH credentials available for {hostname} - configure in Settings")
                 logger.info(f"No SSH credentials available for {hostname} (neither host-specific nor system default)")
@@ -602,5 +612,30 @@ class HostMonitor:
         except Exception as e:
             logger.error(f"Error sending status change alerts: {type(e).__name__}")
 
-# Global monitor instance - database session will be provided per-operation
-host_monitor = HostMonitor()
+# Factory function to create properly configured HostMonitor instances
+def get_host_monitor(db_session: Session = None, encryption_service: EncryptionService = None) -> HostMonitor:
+    """
+    Factory function to create HostMonitor instance with proper dependencies.
+
+    Args:
+        db_session: SQLAlchemy database session for SSH service configuration
+        encryption_service: Encryption service for credential decryption
+
+    Returns:
+        HostMonitor instance with injected dependencies
+
+    Example:
+        from backend.app.services.host_monitor import get_host_monitor
+        from backend.app.encryption import create_encryption_service, EncryptionConfig
+        from backend.app.config import get_settings
+
+        settings = get_settings()
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key,
+            config=EncryptionConfig()
+        )
+
+        monitor = get_host_monitor(db_session, encryption_service)
+        results = await monitor.comprehensive_host_check(host_data, db_session)
+    """
+    return HostMonitor(db_session, encryption_service)
