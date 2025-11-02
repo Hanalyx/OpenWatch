@@ -5,6 +5,7 @@ OW-REFACTOR-002: MongoDB Repository Pattern
 Provides framework-specific query methods for Framework collection.
 Centralizes all framework query logic in one place.
 """
+
 from typing import List, Dict, Any, Optional
 from .base_repository import BaseRepository
 from ..models.mongo_models import Framework
@@ -79,9 +80,7 @@ class FrameworkRepository(BaseRepository[Framework]):
         return await self.find_one(query)
 
     async def search_by_name(
-        self,
-        search_term: str,
-        case_sensitive: bool = False
+        self, search_term: str, case_sensitive: bool = False
     ) -> List[Framework]:
         """
         Search frameworks by name (supports regex).
@@ -105,9 +104,7 @@ class FrameworkRepository(BaseRepository[Framework]):
         return await self.find_many(query, sort=[("name", 1)])
 
     async def search_by_description(
-        self,
-        search_term: str,
-        case_sensitive: bool = False
+        self, search_term: str, case_sensitive: bool = False
     ) -> List[Framework]:
         """
         Search frameworks by description (supports regex).
@@ -127,8 +124,7 @@ class FrameworkRepository(BaseRepository[Framework]):
         return await self.find_many(query, sort=[("name", 1)])
 
     async def get_framework_with_rules_count(
-        self,
-        framework_id: str
+        self, framework_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Get framework details with count of associated rules.
@@ -159,7 +155,7 @@ class FrameworkRepository(BaseRepository[Framework]):
 
             pipeline = [
                 {"$match": {f"frameworks.{framework_id}": {"$exists": True}}},
-                {"$count": "total"}
+                {"$count": "total"},
             ]
 
             result = await ComplianceRule.aggregate(pipeline).to_list()
@@ -172,7 +168,9 @@ class FrameworkRepository(BaseRepository[Framework]):
             return framework_dict
 
         except Exception as e:
-            logger.error(f"Error getting framework with rule count for {framework_id}: {e}")
+            logger.error(
+                f"Error getting framework with rule count for {framework_id}: {e}"
+            )
             raise
 
     async def get_frameworks_with_rules_counts(self) -> List[Dict[str, Any]]:
@@ -201,13 +199,20 @@ class FrameworkRepository(BaseRepository[Framework]):
 
                 # Count rules for this framework
                 from ..models.mongo_models import ComplianceRule
+
                 pipeline = [
-                    {"$match": {f"frameworks.{framework.framework_id}": {"$exists": True}}},
-                    {"$count": "total"}
+                    {
+                        "$match": {
+                            f"frameworks.{framework.framework_id}": {"$exists": True}
+                        }
+                    },
+                    {"$count": "total"},
                 ]
 
                 count_result = await ComplianceRule.aggregate(pipeline).to_list()
-                framework_dict["rule_count"] = count_result[0]["total"] if count_result else 0
+                framework_dict["rule_count"] = (
+                    count_result[0]["total"] if count_result else 0
+                )
 
                 results.append(framework_dict)
 
@@ -240,7 +245,7 @@ class FrameworkRepository(BaseRepository[Framework]):
             # Count by category using aggregation
             category_pipeline = [
                 {"$group": {"_id": "$category", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}}
+                {"$sort": {"count": -1}},
             ]
             category_results = await self.aggregate(category_pipeline)
             category_counts = {item["_id"]: item["count"] for item in category_results}
@@ -253,7 +258,7 @@ class FrameworkRepository(BaseRepository[Framework]):
                 "total_frameworks": total,
                 "by_category": category_counts,
                 "active_count": active_count,
-                "inactive_count": inactive_count
+                "inactive_count": inactive_count,
             }
 
         except Exception as e:
@@ -279,14 +284,16 @@ class FrameworkRepository(BaseRepository[Framework]):
 
             pipeline = [
                 {"$match": {f"frameworks.{framework_id}": {"$exists": True}}},
-                {"$project": {
-                    "versions": {
-                        "$objectToArray": f"$frameworks.{framework_id}.versions"
+                {
+                    "$project": {
+                        "versions": {
+                            "$objectToArray": f"$frameworks.{framework_id}.versions"
+                        }
                     }
-                }},
+                },
                 {"$unwind": "$versions"},
                 {"$group": {"_id": "$versions.k"}},
-                {"$sort": {"_id": 1}}
+                {"$sort": {"_id": 1}},
             ]
 
             results = await ComplianceRule.aggregate(pipeline).to_list()
@@ -297,8 +304,7 @@ class FrameworkRepository(BaseRepository[Framework]):
             raise
 
     async def find_by_multiple_categories(
-        self,
-        categories: List[str]
+        self, categories: List[str]
     ) -> List[Framework]:
         """
         Find frameworks in any of the specified categories.
@@ -322,7 +328,7 @@ class FrameworkRepository(BaseRepository[Framework]):
         description: str,
         category: str,
         version: Optional[str] = None,
-        is_active: bool = True
+        is_active: bool = True,
     ) -> Framework:
         """
         Create a new framework.
@@ -359,7 +365,7 @@ class FrameworkRepository(BaseRepository[Framework]):
                 description=description,
                 category=category,
                 version=version,
-                is_active=is_active
+                is_active=is_active,
             )
 
             # Save to database
@@ -373,9 +379,7 @@ class FrameworkRepository(BaseRepository[Framework]):
             raise
 
     async def update_framework_status(
-        self,
-        framework_id: str,
-        is_active: bool
+        self, framework_id: str, is_active: bool
     ) -> Optional[Framework]:
         """
         Update framework active status.

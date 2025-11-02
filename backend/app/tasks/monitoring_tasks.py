@@ -1,6 +1,7 @@
 """
 Background tasks for host monitoring and credential maintenance
 """
+
 import logging
 from typing import Optional, Tuple
 from datetime import datetime
@@ -11,12 +12,16 @@ from backend.app.celery_app import celery_app
 from backend.app.database import get_db, get_db_session
 from backend.app.services.host_monitor import get_host_monitor
 from backend.app.services.auth_service import get_auth_service
-from backend.app.services.host_monitoring_state import HostMonitoringStateMachine, MonitoringState
+from backend.app.services.host_monitoring_state import (
+    HostMonitoringStateMachine,
+    MonitoringState,
+)
 from backend.app.services.unified_ssh_service import UnifiedSSHService
 from backend.app.encryption import create_encryption_service, EncryptionConfig
 from backend.app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
 
 def periodic_host_monitoring():
     """
@@ -32,8 +37,7 @@ def periodic_host_monitoring():
         # Create encryption service
         settings = get_settings()
         encryption_service = create_encryption_service(
-            master_key=settings.master_key,
-            config=EncryptionConfig()
+            master_key=settings.master_key, config=EncryptionConfig()
         )
 
         # Create host monitor with dependencies
@@ -41,25 +45,31 @@ def periodic_host_monitoring():
 
         # Monitor all hosts
         import asyncio
+
         results = asyncio.run(monitor.monitor_all_hosts(db))
-        
+
         # Log results
-        online_count = sum(1 for r in results if r['status'] == 'online')
+        online_count = sum(1 for r in results if r["status"] == "online")
         total_count = len(results)
-        
-        logger.info(f"Host monitoring completed: {online_count}/{total_count} hosts online")
-        
+
+        logger.info(
+            f"Host monitoring completed: {online_count}/{total_count} hosts online"
+        )
+
         # Log any status changes
         for result in results:
-            if result.get('error_message'):
-                logger.warning(f"Host {result['hostname']} ({result['ip_address']}): {result['error_message']}")
-        
+            if result.get("error_message"):
+                logger.warning(
+                    f"Host {result['hostname']} ({result['ip_address']}): {result['error_message']}"
+                )
+
         db.close()
         return f"Monitored {total_count} hosts, {online_count} online"
-        
+
     except Exception as e:
         logger.error(f"Error in periodic host monitoring: {e}")
         return f"Error: {str(e)}"
+
 
 def periodic_credential_purge():
     """
@@ -76,16 +86,19 @@ def periodic_credential_purge():
             # Create encryption service
             settings = get_settings()
             encryption_service = create_encryption_service(
-                master_key=settings.master_key,
-                config=EncryptionConfig()
+                master_key=settings.master_key, config=EncryptionConfig()
             )
 
             # Purge old inactive credentials
             auth_service = get_auth_service(db, encryption_service)
-            purged_count = auth_service.purge_old_inactive_credentials(retention_days=90)
+            purged_count = auth_service.purge_old_inactive_credentials(
+                retention_days=90
+            )
 
             if purged_count > 0:
-                logger.info(f"Credential purge completed: {purged_count} inactive credentials removed")
+                logger.info(
+                    f"Credential purge completed: {purged_count} inactive credentials removed"
+                )
             else:
                 logger.debug("Credential purge completed: No credentials to purge")
 
@@ -98,7 +111,8 @@ def periodic_credential_purge():
         logger.error(f"Error in periodic credential purge: {e}")
         return f"Error: {str(e)}"
 
-@celery_app.task(bind=True, name='backend.app.tasks.check_host_connectivity')
+
+@celery_app.task(bind=True, name="backend.app.tasks.check_host_connectivity")
 def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     """
     Perform comprehensive connectivity check for a host (ping → port → SSH).
@@ -127,20 +141,27 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     try:
         with get_db_session() as db:
             # Get host details for comprehensive check
-            host_result = db.execute(text("""
+            host_result = db.execute(
+                text(
+                    """
                 SELECT id, hostname, ip_address, port, username, auth_method,
                        encrypted_credentials, status
                 FROM hosts
                 WHERE id = :host_id AND is_active = true
-            """), {"host_id": host_id}).fetchone()
+            """
+                ),
+                {"host_id": host_id},
+            ).fetchone()
 
             if not host_result:
-                logger.warning(f"Host {host_id} not found or inactive for connectivity check")
+                logger.warning(
+                    f"Host {host_id} not found or inactive for connectivity check"
+                )
                 return {
                     "host_id": host_id,
                     "success": False,
                     "error": "Host not found or inactive",
-                    "new_state": "UNKNOWN"
+                    "new_state": "UNKNOWN",
                 }
 
             # Import HostMonitor for comprehensive check
@@ -148,20 +169,19 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
 
             # Prepare host data for comprehensive check
             host_data = {
-                'id': str(host_result.id),
-                'hostname': host_result.hostname,
-                'ip_address': host_result.ip_address,
-                'port': host_result.port or 22,
-                'username': host_result.username,
-                'auth_method': host_result.auth_method,
-                'encrypted_credentials': host_result.encrypted_credentials
+                "id": str(host_result.id),
+                "hostname": host_result.hostname,
+                "ip_address": host_result.ip_address,
+                "port": host_result.port or 22,
+                "username": host_result.username,
+                "auth_method": host_result.auth_method,
+                "encrypted_credentials": host_result.encrypted_credentials,
             }
 
             # Create encryption service
             settings = get_settings()
             encryption_service = create_encryption_service(
-                master_key=settings.master_key,
-                config=EncryptionConfig()
+                master_key=settings.master_key, config=EncryptionConfig()
             )
 
             # Perform comprehensive check (ping → port → SSH)
@@ -169,6 +189,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
 
             # Run comprehensive check synchronously (we're already in async Celery task)
             import asyncio
+
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -179,12 +200,12 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 loop.close()
 
             # Extract check results
-            ping_success = check_result.get('ping_success', False)
-            port_open = check_result.get('port_open', False)
-            ssh_accessible = check_result.get('ssh_accessible', False)
-            response_time_ms = check_result.get('response_time_ms')
-            error_message = check_result.get('error_message')
-            status = check_result.get('status', 'offline')
+            ping_success = check_result.get("ping_success", False)
+            port_open = check_result.get("port_open", False)
+            ssh_accessible = check_result.get("ssh_accessible", False)
+            response_time_ms = check_result.get("response_time_ms")
+            error_message = check_result.get("error_message")
+            status = check_result.get("status", "offline")
 
             # Overall success if SSH is accessible
             check_success = ssh_accessible
@@ -214,7 +235,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 privilege_success=ssh_accessible,  # If SSH works, we assume privilege works
                 response_time_ms=response_time_ms,
                 error_message=error_message,
-                error_type=error_type
+                error_type=error_type,
             )
 
             # Return results
@@ -231,21 +252,23 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                     "ping_success": ping_success,
                     "port_open": port_open,
                     "ssh_accessible": ssh_accessible,
-                    "status": status
+                    "status": status,
                 },
                 "error_message": error_message,
                 "error_type": error_type,
                 "priority": priority,
-                "checked_at": datetime.utcnow().isoformat()
+                "checked_at": datetime.utcnow().isoformat(),
             }
 
     except Exception as exc:
         logger.error(f"Critical error in check_host_connectivity for {host_id}: {exc}")
         # Retry with exponential backoff (max 3 retries)
-        raise self.retry(exc=exc, countdown=min(2 ** self.request.retries * 60, 300), max_retries=3)
+        raise self.retry(
+            exc=exc, countdown=min(2**self.request.retries * 60, 300), max_retries=3
+        )
 
 
-@celery_app.task(bind=True, name='backend.app.tasks.queue_host_checks')
+@celery_app.task(bind=True, name="backend.app.tasks.queue_host_checks")
 def queue_host_checks(self, limit: int = 100) -> dict:
     """
     Queue connectivity checks for hosts that are due for monitoring.
@@ -267,10 +290,7 @@ def queue_host_checks(self, limit: int = 100) -> dict:
 
             if not hosts_to_check:
                 logger.debug("No hosts due for monitoring checks")
-                return {
-                    "queued_count": 0,
-                    "message": "No hosts due for monitoring"
-                }
+                return {"queued_count": 0, "message": "No hosts due for monitoring"}
 
             # Dispatch individual check tasks with priority-based queueing
             queued_count = 0
@@ -279,20 +299,22 @@ def queue_host_checks(self, limit: int = 100) -> dict:
             for host in hosts_to_check:
                 try:
                     # Track state distribution for monitoring
-                    state = host.get('state', 'UNKNOWN')
+                    state = host.get("state", "UNKNOWN")
                     state_distribution[state] = state_distribution.get(state, 0) + 1
 
                     # Dispatch task with priority (Celery priority: 0-9, higher = more urgent)
                     check_host_connectivity.apply_async(
-                        args=[host['id'], host['priority']],
-                        priority=host['priority'],
-                        queue='monitoring'
+                        args=[host["id"], host["priority"]],
+                        priority=host["priority"],
+                        queue="monitoring",
                     )
 
                     queued_count += 1
 
                 except Exception as e:
-                    logger.error(f"Failed to queue check for host {host.get('hostname', host['id'])}: {e}")
+                    logger.error(
+                        f"Failed to queue check for host {host.get('hostname', host['id'])}: {e}"
+                    )
                     continue
 
             logger.info(
@@ -304,7 +326,7 @@ def queue_host_checks(self, limit: int = 100) -> dict:
                 "queued_count": queued_count,
                 "total_due": len(hosts_to_check),
                 "state_distribution": state_distribution,
-                "queued_at": datetime.utcnow().isoformat()
+                "queued_at": datetime.utcnow().isoformat(),
             }
 
     except Exception as exc:

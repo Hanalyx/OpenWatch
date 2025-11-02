@@ -40,17 +40,19 @@ logger = logging.getLogger(__name__)
 
 class ScanType(Enum):
     """Supported SCAP scan types"""
-    XCCDF_PROFILE = "xccdf_profile"      # Standard XCCDF profile scan
-    XCCDF_RULE = "xccdf_rule"            # Single rule scan
-    OVAL_DEFINITIONS = "oval_definitions" # OVAL-only scan
-    DATASTREAM = "datastream"             # SCAP 1.3 datastream
+
+    XCCDF_PROFILE = "xccdf_profile"  # Standard XCCDF profile scan
+    XCCDF_RULE = "xccdf_rule"  # Single rule scan
+    OVAL_DEFINITIONS = "oval_definitions"  # OVAL-only scan
+    DATASTREAM = "datastream"  # SCAP 1.3 datastream
     MONGODB_GENERATED = "mongodb_generated"  # MongoDB-generated content
-    OWSCAN_CUSTOM = "owscan_custom"       # Future OWScan custom scans
+    OWSCAN_CUSTOM = "owscan_custom"  # Future OWScan custom scans
 
 
 @dataclass
 class RemoteScanResult:
     """Result from remote SCAP scan execution"""
+
     success: bool
     scan_id: str
     hostname: str
@@ -65,6 +67,7 @@ class RemoteScanResult:
 
 class RemoteSCAPExecutionError(Exception):
     """Raised when remote SCAP execution fails"""
+
     pass
 
 
@@ -107,7 +110,7 @@ class RemoteSCAPExecutor:
         scan_id: Optional[str] = None,
         results_dir: Optional[Path] = None,
         scan_type: ScanType = ScanType.MONGODB_GENERATED,
-        timeout: int = 1800
+        timeout: int = 1800,
     ) -> RemoteScanResult:
         """
         Execute SCAP scan on remote host.
@@ -141,24 +144,32 @@ class RemoteSCAPExecutor:
             logger.info(f"Resolved {len(dependencies)} SCAP dependencies for transfer")
 
             # Step 2: Establish SSH connection using UnifiedSSHService
-            port = connection_params.get('port', 22)
+            port = connection_params.get("port", 22)
             username = credential_data.username
             auth_method = credential_data.auth_method.value
 
             # Get decrypted credential value
-            if auth_method in ['ssh_key', 'ssh-key', 'key']:
+            if auth_method in ["ssh_key", "ssh-key", "key"]:
                 credential_value = credential_data.private_key
-            elif auth_method == 'password':
+            elif auth_method == "password":
                 credential_value = credential_data.password
-            elif auth_method == 'both':
-                credential_value = credential_data.private_key or credential_data.password
+            elif auth_method == "both":
+                credential_value = (
+                    credential_data.private_key or credential_data.password
+                )
             else:
-                raise RemoteSCAPExecutionError(f"Unsupported auth method: {auth_method}")
+                raise RemoteSCAPExecutionError(
+                    f"Unsupported auth method: {auth_method}"
+                )
 
             if not credential_value:
-                raise RemoteSCAPExecutionError(f"No credential available for auth method: {auth_method}")
+                raise RemoteSCAPExecutionError(
+                    f"No credential available for auth method: {auth_method}"
+                )
 
-            logger.info(f"Connecting to {hostname}:{port} as {username} via {auth_method}")
+            logger.info(
+                f"Connecting to {hostname}:{port} as {username} via {auth_method}"
+            )
 
             connection_result = self.ssh_service.connect_with_credentials(
                 hostname=hostname,
@@ -167,7 +178,7 @@ class RemoteSCAPExecutor:
                 auth_method=auth_method,
                 credential=credential_value,
                 service_name="Remote_SCAP_Scan",
-                timeout=30
+                timeout=30,
             )
 
             if not connection_result.success:
@@ -184,9 +195,7 @@ class RemoteSCAPExecutor:
                 self._create_remote_directory(ssh, remote_dir)
 
                 # Step 4: Transfer all SCAP files
-                file_mapping = self._transfer_scap_bundle(
-                    ssh, dependencies, remote_dir
-                )
+                file_mapping = self._transfer_scap_bundle(ssh, dependencies, remote_dir)
 
                 # Step 5: Execute oscap on remote host
                 remote_xccdf = file_mapping[xccdf_file.name]
@@ -197,7 +206,7 @@ class RemoteSCAPExecutor:
                     remote_xccdf=remote_xccdf,
                     profile_id=profile_id,
                     result_files=result_files_remote,
-                    timeout=timeout
+                    timeout=timeout,
                 )
 
                 # Step 6: Download result files
@@ -205,13 +214,15 @@ class RemoteSCAPExecutor:
                     ssh,
                     remote_results=result_files_remote,
                     local_dir=results_dir,
-                    scan_id=scan_id
+                    scan_id=scan_id,
                 )
 
                 # Step 7: Cleanup remote files
                 # TODO: Temporarily disabled for debugging - re-enable after XCCDF fix
                 # self._cleanup_remote_directory(ssh, remote_dir)
-                logger.info(f"DEBUG: Preserved remote directory for inspection: {remote_dir}")
+                logger.info(
+                    f"DEBUG: Preserved remote directory for inspection: {remote_dir}"
+                )
 
                 # Calculate execution time
                 execution_time = (datetime.utcnow() - start_time).total_seconds()
@@ -226,7 +237,7 @@ class RemoteSCAPExecutor:
                     stderr=stderr,
                     result_files=result_files_local,
                     execution_time_seconds=execution_time,
-                    files_transferred=len(dependencies)
+                    files_transferred=len(dependencies),
                 )
 
                 logger.info(
@@ -259,7 +270,7 @@ class RemoteSCAPExecutor:
                 result_files={},
                 execution_time_seconds=execution_time,
                 files_transferred=0,
-                error_message=str(e)
+                error_message=str(e),
             )
 
     def _resolve_dependencies(self, xccdf_file: Path) -> List[SCAPDependency]:
@@ -277,7 +288,6 @@ class RemoteSCAPExecutor:
 
         except Exception as e:
             raise RemoteSCAPExecutionError(f"Dependency resolution failed: {e}")
-
 
     def _create_remote_directory(self, ssh: paramiko.SSHClient, remote_dir: str):
         """Create remote working directory"""
@@ -300,7 +310,7 @@ class RemoteSCAPExecutor:
         self,
         ssh: paramiko.SSHClient,
         dependencies: List[SCAPDependency],
-        remote_dir: str
+        remote_dir: str,
     ) -> Dict[str, str]:
         """
         Transfer all SCAP files to remote host.
@@ -318,7 +328,9 @@ class RemoteSCAPExecutor:
                 remote_path = f"{remote_dir}/{local_path.name}"
 
                 # Transfer file
-                logger.debug(f"Transferring {local_path.name} ({local_path.stat().st_size} bytes)")
+                logger.debug(
+                    f"Transferring {local_path.name} ({local_path.stat().st_size} bytes)"
+                )
                 sftp.put(str(local_path), remote_path)
 
                 # Verify transfer with file size check
@@ -344,10 +356,7 @@ class RemoteSCAPExecutor:
 
     def _build_result_paths(self, remote_dir: str) -> Dict[str, str]:
         """Build remote result file paths"""
-        return {
-            'xml': f"{remote_dir}/results.xml",
-            'html': f"{remote_dir}/report.html"
-        }
+        return {"xml": f"{remote_dir}/results.xml", "html": f"{remote_dir}/report.html"}
 
     def _execute_remote_oscap(
         self,
@@ -355,7 +364,7 @@ class RemoteSCAPExecutor:
         remote_xccdf: str,
         profile_id: str,
         result_files: Dict[str, str],
-        timeout: int
+        timeout: int,
     ) -> Tuple[int, str, str]:
         """
         Execute oscap command on remote host.
@@ -380,8 +389,8 @@ class RemoteSCAPExecutor:
 
             # Wait for completion and get exit code
             exit_code = stdout.channel.recv_exit_status()
-            stdout_data = stdout.read().decode('utf-8', errors='replace')
-            stderr_data = stderr.read().decode('utf-8', errors='replace')
+            stdout_data = stdout.read().decode("utf-8", errors="replace")
+            stderr_data = stderr.read().decode("utf-8", errors="replace")
 
             logger.info(f"oscap completed with exit code: {exit_code}")
 
@@ -398,7 +407,7 @@ class RemoteSCAPExecutor:
         ssh: paramiko.SSHClient,
         remote_results: Dict[str, str],
         local_dir: Path,
-        scan_id: str
+        scan_id: str,
     ) -> Dict[str, Path]:
         """
         Download result files from remote host.
@@ -413,7 +422,7 @@ class RemoteSCAPExecutor:
 
             for result_type, remote_path in remote_results.items():
                 # Build local path
-                extension = 'xml' if result_type == 'xml' else 'html'
+                extension = "xml" if result_type == "xml" else "html"
                 local_path = local_dir / f"{scan_id}_results.{extension}"
 
                 # Download file
@@ -442,7 +451,9 @@ class RemoteSCAPExecutor:
             if exit_code == 0:
                 logger.debug(f"Cleaned up remote directory: {remote_dir}")
             else:
-                logger.warning(f"Failed to cleanup remote directory: {stderr.read().decode()}")
+                logger.warning(
+                    f"Failed to cleanup remote directory: {stderr.read().decode()}"
+                )
 
         except Exception as e:
             logger.warning(f"Remote cleanup failed: {e}")

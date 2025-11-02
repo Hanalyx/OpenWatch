@@ -19,6 +19,7 @@ State Transitions & Intervals:
 - down (3+ failures): 30 min checks (priority 2)
 - maintenance: 60 min checks or skip (priority 1)
 """
+
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Tuple
@@ -50,7 +51,9 @@ class AdaptiveSchedulerService:
                 return self._config_cache
 
         try:
-            result = db.execute(text("""
+            result = db.execute(
+                text(
+                    """
                 SELECT
                     enabled,
                     interval_unknown,
@@ -71,7 +74,9 @@ class AdaptiveSchedulerService:
                     priority_maintenance
                 FROM host_monitoring_config
                 WHERE id = 1
-            """))
+            """
+                )
+            )
 
             row = result.fetchone()
             if not row:
@@ -79,27 +84,27 @@ class AdaptiveSchedulerService:
                 return self._get_default_config()
 
             config = {
-                'enabled': row.enabled,
-                'intervals': {
-                    'unknown': row.interval_unknown,
-                    'online': row.interval_online,
-                    'degraded': row.interval_degraded,
-                    'critical': row.interval_critical,
-                    'down': row.interval_down,
-                    'maintenance': row.interval_maintenance,
+                "enabled": row.enabled,
+                "intervals": {
+                    "unknown": row.interval_unknown,
+                    "online": row.interval_online,
+                    "degraded": row.interval_degraded,
+                    "critical": row.interval_critical,
+                    "down": row.interval_down,
+                    "maintenance": row.interval_maintenance,
                 },
-                'maintenance_mode': row.maintenance_mode,
-                'max_concurrent_checks': row.max_concurrent_checks,
-                'check_timeout_seconds': row.check_timeout_seconds,
-                'retry_on_failure': row.retry_on_failure,
-                'priorities': {
-                    'unknown': row.priority_unknown,
-                    'critical': row.priority_critical,
-                    'degraded': row.priority_degraded,
-                    'online': row.priority_online,
-                    'down': row.priority_down,
-                    'maintenance': row.priority_maintenance,
-                }
+                "maintenance_mode": row.maintenance_mode,
+                "max_concurrent_checks": row.max_concurrent_checks,
+                "check_timeout_seconds": row.check_timeout_seconds,
+                "retry_on_failure": row.retry_on_failure,
+                "priorities": {
+                    "unknown": row.priority_unknown,
+                    "critical": row.priority_critical,
+                    "degraded": row.priority_degraded,
+                    "online": row.priority_online,
+                    "down": row.priority_down,
+                    "maintenance": row.priority_maintenance,
+                },
             }
 
             # Update cache
@@ -121,7 +126,7 @@ class AdaptiveSchedulerService:
         max_concurrent_checks: Optional[int] = None,
         check_timeout_seconds: Optional[int] = None,
         retry_on_failure: Optional[bool] = None,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
     ) -> Dict:
         """
         Update scheduler configuration.
@@ -141,53 +146,53 @@ class AdaptiveSchedulerService:
         """
         try:
             updates = []
-            params = {'updated_at': datetime.utcnow()}
+            params = {"updated_at": datetime.utcnow()}
 
             if enabled is not None:
                 updates.append("enabled = :enabled")
-                params['enabled'] = enabled
+                params["enabled"] = enabled
 
             if intervals:
-                if 'unknown' in intervals:
+                if "unknown" in intervals:
                     updates.append("interval_unknown = :interval_unknown")
-                    params['interval_unknown'] = intervals['unknown']
-                if 'online' in intervals:
+                    params["interval_unknown"] = intervals["unknown"]
+                if "online" in intervals:
                     updates.append("interval_online = :interval_online")
-                    params['interval_online'] = intervals['online']
-                if 'degraded' in intervals:
+                    params["interval_online"] = intervals["online"]
+                if "degraded" in intervals:
                     updates.append("interval_degraded = :interval_degraded")
-                    params['interval_degraded'] = intervals['degraded']
-                if 'critical' in intervals:
+                    params["interval_degraded"] = intervals["degraded"]
+                if "critical" in intervals:
                     updates.append("interval_critical = :interval_critical")
-                    params['interval_critical'] = intervals['critical']
-                if 'down' in intervals:
+                    params["interval_critical"] = intervals["critical"]
+                if "down" in intervals:
                     updates.append("interval_down = :interval_down")
-                    params['interval_down'] = intervals['down']
-                if 'maintenance' in intervals:
+                    params["interval_down"] = intervals["down"]
+                if "maintenance" in intervals:
                     updates.append("interval_maintenance = :interval_maintenance")
-                    params['interval_maintenance'] = intervals['maintenance']
+                    params["interval_maintenance"] = intervals["maintenance"]
 
             if maintenance_mode is not None:
-                if maintenance_mode not in ['skip', 'passive', 'reduced']:
+                if maintenance_mode not in ["skip", "passive", "reduced"]:
                     raise ValueError(f"Invalid maintenance_mode: {maintenance_mode}")
                 updates.append("maintenance_mode = :maintenance_mode")
-                params['maintenance_mode'] = maintenance_mode
+                params["maintenance_mode"] = maintenance_mode
 
             if max_concurrent_checks is not None:
                 updates.append("max_concurrent_checks = :max_concurrent_checks")
-                params['max_concurrent_checks'] = max_concurrent_checks
+                params["max_concurrent_checks"] = max_concurrent_checks
 
             if check_timeout_seconds is not None:
                 updates.append("check_timeout_seconds = :check_timeout_seconds")
-                params['check_timeout_seconds'] = check_timeout_seconds
+                params["check_timeout_seconds"] = check_timeout_seconds
 
             if retry_on_failure is not None:
                 updates.append("retry_on_failure = :retry_on_failure")
-                params['retry_on_failure'] = retry_on_failure
+                params["retry_on_failure"] = retry_on_failure
 
             if user_id is not None:
                 updates.append("updated_by = :updated_by")
-                params['updated_by'] = user_id
+                params["updated_by"] = user_id
 
             if updates:
                 updates.append("updated_at = :updated_at")
@@ -199,7 +204,9 @@ class AdaptiveSchedulerService:
                 self._config_cache = None
                 self._cache_timestamp = None
 
-                logger.info(f"Scheduler configuration updated by user {user_id}: {params}")
+                logger.info(
+                    f"Scheduler configuration updated by user {user_id}: {params}"
+                )
 
             return self.get_config(db)
 
@@ -223,16 +230,16 @@ class AdaptiveSchedulerService:
 
         # Map status to interval key
         state_map = {
-            'online': 'online',
-            'degraded': 'degraded',
-            'critical': 'critical',
-            'down': 'down',
-            'maintenance': 'maintenance',
-            'unknown': 'unknown'
+            "online": "online",
+            "degraded": "degraded",
+            "critical": "critical",
+            "down": "down",
+            "maintenance": "maintenance",
+            "unknown": "unknown",
         }
 
-        interval_key = state_map.get(state.lower(), 'online')
-        return config['intervals'].get(interval_key, 15)
+        interval_key = state_map.get(state.lower(), "online")
+        return config["intervals"].get(interval_key, 15)
 
     def get_priority_for_state(self, db: Session, state: str) -> int:
         """
@@ -248,16 +255,16 @@ class AdaptiveSchedulerService:
         config = self.get_config(db)
 
         state_map = {
-            'online': 'online',
-            'degraded': 'degraded',
-            'critical': 'critical',
-            'down': 'down',
-            'maintenance': 'maintenance',
-            'unknown': 'unknown'
+            "online": "online",
+            "degraded": "degraded",
+            "critical": "critical",
+            "down": "down",
+            "maintenance": "maintenance",
+            "unknown": "unknown",
         }
 
-        priority_key = state_map.get(state.lower(), 'online')
-        return config['priorities'].get(priority_key, 4)
+        priority_key = state_map.get(state.lower(), "online")
+        return config["priorities"].get(priority_key, 4)
 
     def calculate_next_check_time(self, db: Session, state: str) -> datetime:
         """
@@ -273,7 +280,7 @@ class AdaptiveSchedulerService:
         interval_minutes = self.get_interval_for_state(db, state)
 
         # Special handling for 'unknown' state - check immediately
-        if state.lower() == 'unknown' or interval_minutes == 0:
+        if state.lower() == "unknown" or interval_minutes == 0:
             return datetime.utcnow()
 
         return datetime.utcnow() + timedelta(minutes=interval_minutes)
@@ -286,12 +293,10 @@ class AdaptiveSchedulerService:
             bool: True if maintenance checks should be skipped
         """
         config = self.get_config(db)
-        return config['maintenance_mode'] == 'skip'
+        return config["maintenance_mode"] == "skip"
 
     def get_hosts_due_for_check(
-        self,
-        db: Session,
-        limit: Optional[int] = None
+        self, db: Session, limit: Optional[int] = None
     ) -> List[Dict]:
         """
         Get hosts that are due for monitoring checks.
@@ -305,16 +310,16 @@ class AdaptiveSchedulerService:
         """
         config = self.get_config(db)
 
-        if not config['enabled']:
+        if not config["enabled"]:
             return []
 
         if limit is None:
-            limit = config['max_concurrent_checks']
+            limit = config["max_concurrent_checks"]
 
         try:
             # Build query based on maintenance mode
             maintenance_filter = ""
-            if config['maintenance_mode'] == 'skip':
+            if config["maintenance_mode"] == "skip":
                 maintenance_filter = "AND h.status != 'maintenance'"
 
             query = f"""
@@ -338,27 +343,23 @@ class AdaptiveSchedulerService:
                 LIMIT :limit
             """
 
-            result = db.execute(
-                text(query),
-                {
-                    'now': datetime.utcnow(),
-                    'limit': limit
-                }
-            )
+            result = db.execute(text(query), {"now": datetime.utcnow(), "limit": limit})
 
             hosts = []
             for row in result:
-                hosts.append({
-                    'id': str(row.id),
-                    'hostname': row.hostname,
-                    'ip_address': row.ip_address,
-                    'status': row.status,
-                    'next_check_time': row.next_check_time,
-                    'check_priority': row.check_priority,
-                    'port': row.port,
-                    'username': row.username,
-                    'auth_method': row.auth_method
-                })
+                hosts.append(
+                    {
+                        "id": str(row.id),
+                        "hostname": row.hostname,
+                        "ip_address": row.ip_address,
+                        "status": row.status,
+                        "next_check_time": row.next_check_time,
+                        "check_priority": row.check_priority,
+                        "port": row.port,
+                        "username": row.username,
+                        "auth_method": row.auth_method,
+                    }
+                )
 
             return hosts
 
@@ -375,33 +376,46 @@ class AdaptiveSchedulerService:
         """
         try:
             # Get hosts by state
-            state_result = db.execute(text("""
+            state_result = db.execute(
+                text(
+                    """
                 SELECT status, COUNT(*) as count
                 FROM hosts
                 WHERE is_active = true
                 GROUP BY status
-            """))
+            """
+                )
+            )
 
             hosts_by_state = {row.status: row.count for row in state_result}
 
             # Get overdue hosts
-            overdue_result = db.execute(text("""
+            overdue_result = db.execute(
+                text(
+                    """
                 SELECT COUNT(*) as count
                 FROM hosts
                 WHERE is_active = true
                   AND next_check_time IS NOT NULL
                   AND next_check_time < :now
-            """), {'now': datetime.utcnow()})
+            """
+                ),
+                {"now": datetime.utcnow()},
+            )
 
             overdue_count = overdue_result.fetchone().count
 
             # Get next check time
-            next_check_result = db.execute(text("""
+            next_check_result = db.execute(
+                text(
+                    """
                 SELECT MIN(next_check_time) as next_check
                 FROM hosts
                 WHERE is_active = true
                   AND next_check_time IS NOT NULL
-            """))
+            """
+                )
+            )
 
             next_check_row = next_check_result.fetchone()
             next_check = next_check_row.next_check if next_check_row else None
@@ -409,49 +423,49 @@ class AdaptiveSchedulerService:
             config = self.get_config(db)
 
             return {
-                'enabled': config['enabled'],
-                'hosts_by_state': hosts_by_state,
-                'total_hosts': sum(hosts_by_state.values()),
-                'overdue_checks': overdue_count,
-                'next_check_time': next_check.isoformat() if next_check else None,
-                'max_concurrent_checks': config['max_concurrent_checks'],
-                'maintenance_mode': config['maintenance_mode']
+                "enabled": config["enabled"],
+                "hosts_by_state": hosts_by_state,
+                "total_hosts": sum(hosts_by_state.values()),
+                "overdue_checks": overdue_count,
+                "next_check_time": next_check.isoformat() if next_check else None,
+                "max_concurrent_checks": config["max_concurrent_checks"],
+                "maintenance_mode": config["maintenance_mode"],
             }
 
         except Exception as e:
             logger.error(f"Error getting scheduler stats: {e}")
             return {
-                'enabled': False,
-                'hosts_by_state': {},
-                'total_hosts': 0,
-                'overdue_checks': 0,
-                'next_check_time': None
+                "enabled": False,
+                "hosts_by_state": {},
+                "total_hosts": 0,
+                "overdue_checks": 0,
+                "next_check_time": None,
             }
 
     def _get_default_config(self) -> Dict:
         """Get default configuration when database config is unavailable"""
         return {
-            'enabled': True,
-            'intervals': {
-                'unknown': 0,
-                'online': 15,
-                'degraded': 5,
-                'critical': 2,
-                'down': 30,
-                'maintenance': 60,
+            "enabled": True,
+            "intervals": {
+                "unknown": 0,
+                "online": 15,
+                "degraded": 5,
+                "critical": 2,
+                "down": 30,
+                "maintenance": 60,
             },
-            'maintenance_mode': 'reduced',
-            'max_concurrent_checks': 10,
-            'check_timeout_seconds': 30,
-            'retry_on_failure': True,
-            'priorities': {
-                'unknown': 10,
-                'critical': 8,
-                'degraded': 6,
-                'online': 4,
-                'down': 2,
-                'maintenance': 1,
-            }
+            "maintenance_mode": "reduced",
+            "max_concurrent_checks": 10,
+            "check_timeout_seconds": 30,
+            "retry_on_failure": True,
+            "priorities": {
+                "unknown": 10,
+                "critical": 8,
+                "degraded": 6,
+                "online": 4,
+                "down": 2,
+                "maintenance": 1,
+            },
         }
 
 

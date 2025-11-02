@@ -18,12 +18,12 @@ from backend.app.services.remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
     ExecutorExecutionError,
-    UnsupportedTargetError
+    UnsupportedTargetError,
 )
 from backend.app.models.remediation_models import (
     RemediationTarget,
     RemediationExecutionResult,
-    ScanTargetType
+    ScanTargetType,
 )
 
 
@@ -49,10 +49,10 @@ class BashExecutor(BaseRemediationExecutor):
         try:
             result = asyncio.run(self._run_command(["bash", "--version"]))
             # Parse version from output (first line: "GNU bash, version 5.1.16(1)-release")
-            first_line = result['stdout'].split('\n')[0]
-            if 'version' in first_line:
+            first_line = result["stdout"].split("\n")[0]
+            if "version" in first_line:
                 # Extract version number
-                match = re.search(r'version\s+(\d+\.\d+\.\d+)', first_line)
+                match = re.search(r"version\s+(\d+\.\d+\.\d+)", first_line)
                 if match:
                     return match.group(1)
             return "unknown"
@@ -70,10 +70,7 @@ class BashExecutor(BaseRemediationExecutor):
 
     def supports_target(self, target_type: str) -> bool:
         """Check if target type supported."""
-        supported = {
-            ScanTargetType.SSH_HOST,
-            ScanTargetType.LOCAL
-        }
+        supported = {ScanTargetType.SSH_HOST, ScanTargetType.LOCAL}
         return target_type in [t.value for t in supported]
 
     def validate_content(self, content: str) -> bool:
@@ -93,18 +90,17 @@ class BashExecutor(BaseRemediationExecutor):
         """
         try:
             # Write script to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
                 f.write(content)
                 script_file = f.name
 
             try:
                 # Run bash -n (syntax check)
-                result = asyncio.run(self._run_command(
-                    ["bash", "-n", script_file],
-                    timeout_seconds=10
-                ))
+                result = asyncio.run(
+                    self._run_command(["bash", "-n", script_file], timeout_seconds=10)
+                )
 
-                if result['exit_code'] != 0:
+                if result["exit_code"] != 0:
                     raise ExecutorValidationError(
                         f"Script syntax error: {result['stderr']}"
                     )
@@ -126,7 +122,7 @@ class BashExecutor(BaseRemediationExecutor):
         target: RemediationTarget,
         variables: Dict[str, str],
         dry_run: bool = False,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute bash script.
@@ -167,7 +163,7 @@ class BashExecutor(BaseRemediationExecutor):
                 exit_code=0,
                 duration_seconds=duration,
                 changes_made=["Dry-run: No changes made"],
-                error_message=None
+                error_message=None,
             )
 
         # Prepare script with variable exports
@@ -177,7 +173,9 @@ class BashExecutor(BaseRemediationExecutor):
         if target.type == ScanTargetType.LOCAL:
             result = await self._execute_local(script_with_vars, timeout_seconds)
         else:  # SSH_HOST
-            result = await self._execute_remote(target, script_with_vars, timeout_seconds)
+            result = await self._execute_remote(
+                target, script_with_vars, timeout_seconds
+            )
 
         return result
 
@@ -186,7 +184,7 @@ class BashExecutor(BaseRemediationExecutor):
         remediation_id: str,
         rollback_content: str,
         target: RemediationTarget,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute rollback script.
@@ -208,7 +206,7 @@ class BashExecutor(BaseRemediationExecutor):
             target=target,
             variables={},
             dry_run=False,
-            timeout_seconds=timeout_seconds
+            timeout_seconds=timeout_seconds,
         )
 
     def _prepare_script(self, content: str, variables: Dict[str, str]) -> str:
@@ -241,9 +239,7 @@ class BashExecutor(BaseRemediationExecutor):
         return "\n".join(script_lines)
 
     async def _execute_local(
-        self,
-        script: str,
-        timeout_seconds: int
+        self, script: str, timeout_seconds: int
     ) -> RemediationExecutionResult:
         """
         Execute script locally.
@@ -259,7 +255,7 @@ class BashExecutor(BaseRemediationExecutor):
 
         try:
             # Write script to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
                 f.write(script)
                 script_file = f.name
 
@@ -269,20 +265,23 @@ class BashExecutor(BaseRemediationExecutor):
             try:
                 # Execute
                 result = await self._run_command(
-                    ["bash", script_file],
-                    timeout_seconds=timeout_seconds
+                    ["bash", script_file], timeout_seconds=timeout_seconds
                 )
 
                 duration = (datetime.utcnow() - start_time).total_seconds()
 
                 return RemediationExecutionResult(
-                    success=result['exit_code'] == 0,
-                    stdout=result['stdout'],
-                    stderr=result['stderr'],
-                    exit_code=result['exit_code'],
+                    success=result["exit_code"] == 0,
+                    stdout=result["stdout"],
+                    stderr=result["stderr"],
+                    exit_code=result["exit_code"],
                     duration_seconds=duration,
-                    changes_made=self._extract_changes(result['stdout']),
-                    error_message=None if result['exit_code'] == 0 else f"Script failed with exit code {result['exit_code']}"
+                    changes_made=self._extract_changes(result["stdout"]),
+                    error_message=(
+                        None
+                        if result["exit_code"] == 0
+                        else f"Script failed with exit code {result['exit_code']}"
+                    ),
                 )
 
             finally:
@@ -298,10 +297,7 @@ class BashExecutor(BaseRemediationExecutor):
             raise ExecutorExecutionError(f"Local execution failed: {e}")
 
     async def _execute_remote(
-        self,
-        target: RemediationTarget,
-        script: str,
-        timeout_seconds: int
+        self, target: RemediationTarget, script: str, timeout_seconds: int
     ) -> RemediationExecutionResult:
         """
         Execute script on remote host via SSH.
@@ -318,23 +314,27 @@ class BashExecutor(BaseRemediationExecutor):
 
         # Get SSH credentials
         if not target.credentials:
-            raise ExecutorExecutionError("SSH credentials required for remote execution")
+            raise ExecutorExecutionError(
+                "SSH credentials required for remote execution"
+            )
 
-        username = target.credentials.get('username', 'root')
-        ssh_key = target.credentials.get('ssh_key')
-        password = target.credentials.get('password')
+        username = target.credentials.get("username", "root")
+        ssh_key = target.credentials.get("ssh_key")
+        password = target.credentials.get("password")
 
         try:
             # Write SSH key to temp file if provided
             ssh_key_file = None
             if ssh_key:
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.pem', delete=False) as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".pem", delete=False
+                ) as f:
                     f.write(ssh_key)
                     ssh_key_file = f.name
                 Path(ssh_key_file).chmod(0o600)
 
             # Write script to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
                 f.write(script)
                 script_file = f.name
 
@@ -343,11 +343,16 @@ class BashExecutor(BaseRemediationExecutor):
                 ssh_cmd = ["ssh"]
 
                 # SSH options
-                ssh_cmd.extend([
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "LogLevel=ERROR"
-                ])
+                ssh_cmd.extend(
+                    [
+                        "-o",
+                        "StrictHostKeyChecking=no",
+                        "-o",
+                        "UserKnownHostsFile=/dev/null",
+                        "-o",
+                        "LogLevel=ERROR",
+                    ]
+                )
 
                 # SSH key auth
                 if ssh_key_file:
@@ -361,21 +366,23 @@ class BashExecutor(BaseRemediationExecutor):
 
                 # Execute with script as stdin
                 result = await self._run_command_with_stdin(
-                    ssh_cmd,
-                    stdin=script,
-                    timeout_seconds=timeout_seconds
+                    ssh_cmd, stdin=script, timeout_seconds=timeout_seconds
                 )
 
                 duration = (datetime.utcnow() - start_time).total_seconds()
 
                 return RemediationExecutionResult(
-                    success=result['exit_code'] == 0,
-                    stdout=result['stdout'],
-                    stderr=result['stderr'],
-                    exit_code=result['exit_code'],
+                    success=result["exit_code"] == 0,
+                    stdout=result["stdout"],
+                    stderr=result["stderr"],
+                    exit_code=result["exit_code"],
                     duration_seconds=duration,
-                    changes_made=self._extract_changes(result['stdout']),
-                    error_message=None if result['exit_code'] == 0 else f"Remote script failed with exit code {result['exit_code']}"
+                    changes_made=self._extract_changes(result["stdout"]),
+                    error_message=(
+                        None
+                        if result["exit_code"] == 0
+                        else f"Remote script failed with exit code {result['exit_code']}"
+                    ),
                 )
 
             finally:
@@ -410,14 +417,14 @@ class BashExecutor(BaseRemediationExecutor):
         """
         changes = []
         change_patterns = [
-            r'^Changed:\s*(.+)$',
-            r'^Modified:\s*(.+)$',
-            r'^Created:\s*(.+)$',
-            r'^Updated:\s*(.+)$',
-            r'^Configured:\s*(.+)$'
+            r"^Changed:\s*(.+)$",
+            r"^Modified:\s*(.+)$",
+            r"^Created:\s*(.+)$",
+            r"^Updated:\s*(.+)$",
+            r"^Configured:\s*(.+)$",
         ]
 
-        for line in stdout.split('\n'):
+        for line in stdout.split("\n"):
             for pattern in change_patterns:
                 match = re.match(pattern, line.strip(), re.IGNORECASE)
                 if match:
@@ -427,9 +434,7 @@ class BashExecutor(BaseRemediationExecutor):
         return changes
 
     async def _run_command(
-        self,
-        cmd: List[str],
-        timeout_seconds: int = 300
+        self, cmd: List[str], timeout_seconds: int = 300
     ) -> Dict[str, any]:
         """
         Run command asynchronously.
@@ -445,21 +450,18 @@ class BashExecutor(BaseRemediationExecutor):
             asyncio.TimeoutError: Command exceeded timeout
         """
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout_seconds
+                process.communicate(), timeout=timeout_seconds
             )
 
             return {
-                'stdout': stdout.decode('utf-8', errors='replace'),
-                'stderr': stderr.decode('utf-8', errors='replace'),
-                'exit_code': process.returncode
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
+                "exit_code": process.returncode,
             }
 
         except asyncio.TimeoutError:
@@ -469,10 +471,7 @@ class BashExecutor(BaseRemediationExecutor):
             raise
 
     async def _run_command_with_stdin(
-        self,
-        cmd: List[str],
-        stdin: str,
-        timeout_seconds: int = 300
+        self, cmd: List[str], stdin: str, timeout_seconds: int = 300
     ) -> Dict[str, any]:
         """
         Run command with stdin input.
@@ -489,19 +488,19 @@ class BashExecutor(BaseRemediationExecutor):
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
 
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(input=stdin.encode('utf-8')),
-                timeout=timeout_seconds
+                process.communicate(input=stdin.encode("utf-8")),
+                timeout=timeout_seconds,
             )
 
             return {
-                'stdout': stdout.decode('utf-8', errors='replace'),
-                'stderr': stderr.decode('utf-8', errors='replace'),
-                'exit_code': process.returncode
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
+                "exit_code": process.returncode,
             }
 
         except asyncio.TimeoutError:

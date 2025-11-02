@@ -11,11 +11,7 @@ from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
 
-from ..models.scan_config_models import (
-    ScanTemplate,
-    ScanTargetType,
-    TemplateStatistics
-)
+from ..models.scan_config_models import ScanTemplate, ScanTargetType, TemplateStatistics
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +50,7 @@ class ScanTemplateService:
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
         created_by: str = None,
-        is_public: bool = False
+        is_public: bool = False,
     ) -> ScanTemplate:
         """
         Create and save a scan template.
@@ -94,7 +90,7 @@ class ScanTemplateService:
             rule_filter=rule_filter,
             created_by=created_by or "unknown",
             tags=tags or [],
-            is_public=is_public
+            is_public=is_public,
         )
 
         # Save to MongoDB
@@ -122,7 +118,7 @@ class ScanTemplateService:
         tags: Optional[List[str]] = None,
         is_public: Optional[bool] = None,
         skip: int = 0,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[ScanTemplate]:
         """
         List templates with filters.
@@ -142,10 +138,7 @@ class ScanTemplateService:
 
         if created_by:
             # Show user's own templates OR public templates
-            query["$or"] = [
-                {"created_by": created_by},
-                {"is_public": True}
-            ]
+            query["$or"] = [{"created_by": created_by}, {"is_public": True}]
 
         if framework:
             query["framework"] = framework
@@ -156,11 +149,13 @@ class ScanTemplateService:
         if is_public is not None:
             query["is_public"] = is_public
 
-        templates = await ScanTemplate.find(query) \
-            .sort("-created_at") \
-            .skip(skip) \
-            .limit(limit) \
+        templates = (
+            await ScanTemplate.find(query)
+            .sort("-created_at")
+            .skip(skip)
+            .limit(limit)
             .to_list()
+        )
 
         return templates
 
@@ -172,7 +167,7 @@ class ScanTemplateService:
         variable_overrides: Optional[Dict[str, str]] = None,
         rule_filter: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
-        is_public: Optional[bool] = None
+        is_public: Optional[bool] = None,
     ) -> ScanTemplate:
         """
         Update template fields.
@@ -250,7 +245,7 @@ class ScanTemplateService:
         self,
         template_id: str,
         target: Dict[str, Any],
-        additional_overrides: Optional[Dict[str, str]] = None
+        additional_overrides: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Apply template to create scan configuration.
@@ -283,17 +278,13 @@ class ScanTemplateService:
             "framework": template.framework,
             "framework_version": template.framework_version,
             "variable_overrides": variable_overrides,
-            "rule_filter": template.rule_filter
+            "rule_filter": template.rule_filter,
         }
 
         logger.info(f"Applied template {template_id}")
         return scan_config
 
-    async def set_as_default(
-        self,
-        template_id: str,
-        created_by: str
-    ) -> ScanTemplate:
+    async def set_as_default(self, template_id: str, created_by: str) -> ScanTemplate:
         """
         Set template as default for user/framework.
 
@@ -319,7 +310,7 @@ class ScanTemplateService:
         await ScanTemplate.find(
             ScanTemplate.created_by == created_by,
             ScanTemplate.framework == template.framework,
-            ScanTemplate.is_default == True
+            ScanTemplate.is_default == True,
         ).update({"$set": {"is_default": False}})
 
         # Set this template as default
@@ -330,9 +321,7 @@ class ScanTemplateService:
         return template
 
     async def get_default_template(
-        self,
-        framework: str,
-        created_by: str
+        self, framework: str, created_by: str
     ) -> Optional[ScanTemplate]:
         """
         Get default template for user/framework.
@@ -347,14 +336,11 @@ class ScanTemplateService:
         return await ScanTemplate.find_one(
             ScanTemplate.created_by == created_by,
             ScanTemplate.framework == framework,
-            ScanTemplate.is_default == True
+            ScanTemplate.is_default == True,
         )
 
     async def clone_template(
-        self,
-        template_id: str,
-        new_name: str,
-        created_by: str
+        self, template_id: str, new_name: str, created_by: str
     ) -> ScanTemplate:
         """
         Clone existing template with new name.
@@ -387,15 +373,14 @@ class ScanTemplateService:
             description=f"Cloned from: {source.name}",
             tags=list(source.tags),
             created_by=created_by,
-            is_public=False
+            is_public=False,
         )
 
         logger.info(f"Cloned template {template_id} to {clone.template_id}")
         return clone
 
     async def get_statistics(
-        self,
-        created_by: Optional[str] = None
+        self, created_by: Optional[str] = None
     ) -> TemplateStatistics:
         """
         Get template usage statistics.
@@ -421,12 +406,14 @@ class ScanTemplateService:
 
         for template in templates:
             # By framework
-            framework_counts[template.framework] = \
+            framework_counts[template.framework] = (
                 framework_counts.get(template.framework, 0) + 1
+            )
 
             # By user
-            user_counts[template.created_by] = \
+            user_counts[template.created_by] = (
                 user_counts.get(template.created_by, 0) + 1
+            )
 
             # Public count
             if template.is_public:
@@ -437,11 +424,7 @@ class ScanTemplateService:
 
         return stats
 
-    async def share_template(
-        self,
-        template_id: str,
-        username: str
-    ) -> ScanTemplate:
+    async def share_template(self, template_id: str, username: str) -> ScanTemplate:
         """
         Share template with a user.
 
@@ -468,11 +451,7 @@ class ScanTemplateService:
         logger.info(f"Shared template {template_id} with {username}")
         return template
 
-    async def unshare_template(
-        self,
-        template_id: str,
-        username: str
-    ) -> ScanTemplate:
+    async def unshare_template(self, template_id: str, username: str) -> ScanTemplate:
         """
         Revoke template sharing.
 

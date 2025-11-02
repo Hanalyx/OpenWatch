@@ -4,6 +4,7 @@ Encryption configuration for OpenWatch.
 Provides configurable parameters for encryption operations, allowing
 for flexibility in security requirements and testing scenarios.
 """
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -11,6 +12,7 @@ from typing import Optional
 
 class KDFAlgorithm(Enum):
     """Supported Key Derivation Function algorithms"""
+
     SHA256 = "SHA256"
     SHA512 = "SHA512"
 
@@ -120,7 +122,6 @@ FAST_TEST_CONFIG = EncryptionConfig(kdf_iterations=10000)
 """Fast configuration for unit tests (10000 iterations minimum)"""
 
 HIGH_SECURITY_CONFIG = EncryptionConfig(
-    kdf_iterations=200000,
-    kdf_algorithm=KDFAlgorithm.SHA512
+    kdf_iterations=200000, kdf_algorithm=KDFAlgorithm.SHA512
 )
 """High-security configuration (200000 iterations, SHA512)"""

@@ -1,6 +1,7 @@
 """
 Email Service for sending notifications
 """
+
 import aiosmtplib
 import logging
 from email.mime.text import MIMEText
@@ -14,28 +15,24 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
-        self.smtp_host = os.getenv('SMTP_HOST', 'localhost')
-        self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        self.smtp_username = os.getenv('SMTP_USERNAME', '')
-        self.smtp_password = os.getenv('SMTP_PASSWORD', '')
-        self.smtp_use_tls = os.getenv('SMTP_USE_TLS', 'true').lower() == 'true'
-        self.from_email = os.getenv('FROM_EMAIL', 'openwatch@example.com')
-        self.from_name = os.getenv('FROM_NAME', 'OpenWatch Security Scanner')
-        
+        self.smtp_host = os.getenv("SMTP_HOST", "localhost")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_username = os.getenv("SMTP_USERNAME", "")
+        self.smtp_password = os.getenv("SMTP_PASSWORD", "")
+        self.smtp_use_tls = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+        self.from_email = os.getenv("FROM_EMAIL", "openwatch@example.com")
+        self.from_name = os.getenv("FROM_NAME", "OpenWatch Security Scanner")
+
     async def send_host_offline_alert(
-        self, 
-        host_name: str, 
-        host_ip: str, 
-        last_check: datetime,
-        recipients: List[str]
+        self, host_name: str, host_ip: str, last_check: datetime, recipients: List[str]
     ) -> bool:
         """Send host offline alert email"""
         if not recipients:
             logger.warning("No recipients provided for host offline alert")
             return False
-            
+
         subject = f"🚨 Host Offline Alert: {host_name}"
-        
+
         # Create HTML body
         html_body = f"""
         <html>
@@ -86,7 +83,7 @@ class EmailService:
             </body>
         </html>
         """
-        
+
         # Create plain text body as fallback
         plain_body = f"""
 HOST OFFLINE ALERT
@@ -108,23 +105,19 @@ Recommended Actions:
 ---
 This is an automated message from OpenWatch Security Scanner.
         """
-        
+
         return await self._send_email(recipients, subject, plain_body, html_body)
-    
+
     async def send_host_online_alert(
-        self, 
-        host_name: str, 
-        host_ip: str, 
-        check_time: datetime,
-        recipients: List[str]
+        self, host_name: str, host_ip: str, check_time: datetime, recipients: List[str]
     ) -> bool:
         """Send host back online alert email"""
         if not recipients:
             logger.warning("No recipients provided for host online alert")
             return False
-            
+
         subject = f"✅ Host Online: {host_name}"
-        
+
         # Create HTML body
         html_body = f"""
         <html>
@@ -167,7 +160,7 @@ This is an automated message from OpenWatch Security Scanner.
             </body>
         </html>
         """
-        
+
         # Create plain text body as fallback
         plain_body = f"""
 HOST BACK ONLINE
@@ -184,15 +177,15 @@ The host is now responding to connectivity checks and SSH authentication is work
 ---
 This is an automated message from OpenWatch Security Scanner.
         """
-        
+
         return await self._send_email(recipients, subject, plain_body, html_body)
-    
+
     async def _send_email(
-        self, 
-        recipients: List[str], 
-        subject: str, 
-        plain_body: str, 
-        html_body: Optional[str] = None
+        self,
+        recipients: List[str],
+        subject: str,
+        plain_body: str,
+        html_body: Optional[str] = None,
     ) -> bool:
         """Send email using SMTP"""
         try:
@@ -200,20 +193,20 @@ This is an automated message from OpenWatch Security Scanner.
             if not self.smtp_host or not self.from_email:
                 logger.warning("Email not configured (missing SMTP_HOST or FROM_EMAIL)")
                 return False
-            
+
             # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = f"{self.from_name} <{self.from_email}>"
-            msg['To'] = ', '.join(recipients)
-            
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"{self.from_name} <{self.from_email}>"
+            msg["To"] = ", ".join(recipients)
+
             # Add plain text part
-            msg.attach(MIMEText(plain_body, 'plain'))
-            
+            msg.attach(MIMEText(plain_body, "plain"))
+
             # Add HTML part if provided
             if html_body:
-                msg.attach(MIMEText(html_body, 'html'))
-            
+                msg.attach(MIMEText(html_body, "html"))
+
             # Connect and send
             if self.smtp_use_tls:
                 await aiosmtplib.send(
@@ -222,7 +215,7 @@ This is an automated message from OpenWatch Security Scanner.
                     port=self.smtp_port,
                     username=self.smtp_username if self.smtp_username else None,
                     password=self.smtp_password if self.smtp_password else None,
-                    use_tls=True
+                    use_tls=True,
                 )
             else:
                 await aiosmtplib.send(
@@ -230,12 +223,14 @@ This is an automated message from OpenWatch Security Scanner.
                     hostname=self.smtp_host,
                     port=self.smtp_port,
                     username=self.smtp_username if self.smtp_username else None,
-                    password=self.smtp_password if self.smtp_password else None
+                    password=self.smtp_password if self.smtp_password else None,
                 )
-            
-            logger.info(f"Email sent successfully to {len(recipients)} recipients: {subject}")
+
+            logger.info(
+                f"Email sent successfully to {len(recipients)} recipients: {subject}"
+            )
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             return False

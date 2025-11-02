@@ -5,12 +5,14 @@ OW-REFACTOR-002: MongoDB Repository Pattern
 Provides common CRUD operations and query patterns for all MongoDB collections.
 Implements consistent error handling, logging, and performance monitoring.
 """
+
 from typing import TypeVar, Generic, List, Dict, Any, Optional, Tuple
 from beanie import Document
 import logging
 import time
 
-T = TypeVar('T', bound=Document)
+T = TypeVar("T", bound=Document)
+
 
 class BaseRepository(Generic[T]):
     """
@@ -61,9 +63,7 @@ class BaseRepository(Generic[T]):
             result = await self.model.find_one(query)
 
             self._log_query_performance(
-                operation="find_one",
-                query=query,
-                duration=time.time() - start_time
+                operation="find_one", query=query, duration=time.time() - start_time
             )
 
             return result
@@ -76,7 +76,7 @@ class BaseRepository(Generic[T]):
         query: Dict[str, Any] = None,
         skip: int = 0,
         limit: int = 100,
-        sort: Optional[List[Tuple[str, int]]] = None
+        sort: Optional[List[Tuple[str, int]]] = None,
     ) -> List[T]:
         """
         Find multiple documents with pagination and sorting.
@@ -119,7 +119,7 @@ class BaseRepository(Generic[T]):
                 operation="find_many",
                 query=query,
                 duration=time.time() - start_time,
-                result_count=len(result)
+                result_count=len(result),
             )
 
             return result
@@ -154,7 +154,7 @@ class BaseRepository(Generic[T]):
                 operation="count",
                 query=query,
                 duration=time.time() - start_time,
-                result_count=result
+                result_count=result,
             )
 
             return result
@@ -186,7 +186,7 @@ class BaseRepository(Generic[T]):
             self._log_query_performance(
                 operation="create",
                 query={"model": self.model.__name__},
-                duration=time.time() - start_time
+                duration=time.time() - start_time,
             )
 
             return document
@@ -195,9 +195,7 @@ class BaseRepository(Generic[T]):
             raise
 
     async def update_one(
-        self,
-        query: Dict[str, Any],
-        update: Dict[str, Any]
+        self, query: Dict[str, Any], update: Dict[str, Any]
     ) -> Optional[T]:
         """
         Update single document and return updated version.
@@ -227,9 +225,7 @@ class BaseRepository(Generic[T]):
             await doc.update(update)
 
             self._log_query_performance(
-                operation="update_one",
-                query=query,
-                duration=time.time() - start_time
+                operation="update_one", query=query, duration=time.time() - start_time
             )
 
             return doc
@@ -237,11 +233,7 @@ class BaseRepository(Generic[T]):
             self.logger.error(f"Error in update_one with query {query}: {e}")
             raise
 
-    async def update_many(
-        self,
-        query: Dict[str, Any],
-        update: Dict[str, Any]
-    ) -> int:
+    async def update_many(self, query: Dict[str, Any], update: Dict[str, Any]) -> int:
         """
         Update multiple documents matching query.
 
@@ -270,7 +262,7 @@ class BaseRepository(Generic[T]):
                 operation="update_many",
                 query=query,
                 duration=time.time() - start_time,
-                result_count=modified_count
+                result_count=modified_count,
             )
 
             return modified_count
@@ -303,9 +295,7 @@ class BaseRepository(Generic[T]):
             await doc.delete()
 
             self._log_query_performance(
-                operation="delete_one",
-                query=query,
-                duration=time.time() - start_time
+                operation="delete_one", query=query, duration=time.time() - start_time
             )
 
             return True
@@ -338,7 +328,7 @@ class BaseRepository(Generic[T]):
                 operation="delete_many",
                 query=query,
                 duration=time.time() - start_time,
-                result_count=deleted_count
+                result_count=deleted_count,
             )
 
             return deleted_count
@@ -373,7 +363,7 @@ class BaseRepository(Generic[T]):
                 operation="aggregate",
                 query={"pipeline_stages": len(pipeline)},
                 duration=time.time() - start_time,
-                result_count=len(result)
+                result_count=len(result),
             )
 
             return result
@@ -386,7 +376,7 @@ class BaseRepository(Generic[T]):
         query: Dict[str, Any] = None,
         page: int = 1,
         per_page: int = 20,
-        sort: Optional[List[Tuple[str, int]]] = None
+        sort: Optional[List[Tuple[str, int]]] = None,
     ) -> Tuple[List[T], int, int]:
         """
         Find documents with pagination metadata.
@@ -415,6 +405,7 @@ class BaseRepository(Generic[T]):
 
         # Execute queries in parallel
         import asyncio
+
         docs_task = self.find_many(query=query, skip=skip, limit=per_page, sort=sort)
         count_task = self.count(query=query)
 
@@ -430,7 +421,7 @@ class BaseRepository(Generic[T]):
         operation: str,
         query: Dict[str, Any],
         duration: float,
-        result_count: Optional[int] = None
+        result_count: Optional[int] = None,
     ):
         """
         Log query performance and warn about slow queries.

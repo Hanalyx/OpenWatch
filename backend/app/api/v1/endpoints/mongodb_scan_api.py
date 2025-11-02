@@ -29,7 +29,9 @@ class MongoDBScanRequest(BaseModel):
     platform: str = Field(..., description="Target platform (rhel, ubuntu, etc.)")
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
-    severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
+    severity_filter: Optional[List[str]] = Field(
+        None, description="Filter by severity levels"
+    )
     rule_ids: Optional[List[str]] = Field(
         None, description="Specific rule IDs to scan (from wizard selection)"
     )
@@ -42,6 +44,7 @@ class MongoDBScanRequest(BaseModel):
 
 class ScanStatusResponse(BaseModel):
     """Response model for scan status"""
+
     scan_id: str
     status: str
     progress: Optional[int] = None
@@ -52,6 +55,7 @@ class ScanStatusResponse(BaseModel):
 
 class MongoDBScanResponse(BaseModel):
     """Response model for MongoDB scan results"""
+
     success: bool
     scan_id: str
     host_id: str
@@ -87,7 +91,7 @@ async def get_mongodb_scanner() -> MongoDBSCAPScanner:
         logger.error(f"Failed to initialize MongoDB scanner: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Scanner initialization failed: {str(e)}"
+            detail=f"Scanner initialization failed: {str(e)}",
         )
 
 
@@ -114,7 +118,7 @@ async def start_mongodb_scan(
     scan_request: MongoDBScanRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner)
+    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
 ):
     """
     Start a MongoDB rule-based SCAP scan
@@ -122,7 +126,9 @@ async def start_mongodb_scan(
     This endpoint initiates a scan using rules selected from MongoDB based on
     the target platform and compliance framework requirements.
     """
-    logger.info(f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ===")
+    logger.info(
+        f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ==="
+    )
     try:
         scan_id = f"mongodb_scan_{uuid.uuid4().hex[:8]}"
         logger.info(f"Starting MongoDB scan {scan_id} for host {scan_request.hostname}")
@@ -130,19 +136,32 @@ async def start_mongodb_scan(
         # Log request details safely
         try:
             rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0
-            logger.info(f"Request: platform={scan_request.platform}, version={scan_request.platform_version}, framework={scan_request.framework}, rules={rule_count}")
+            logger.info(
+                f"Request: platform={scan_request.platform}, version={scan_request.platform_version}, framework={scan_request.framework}, rules={rule_count}"
+            )
         except Exception as log_err:
             logger.warning(f"Could not log request details: {log_err}")
 
         # Validate platform and framework
-        if scan_request.framework and scan_request.framework not in ['nist', 'cis', 'stig', 'pci', 'disa_stig', 'nist_800_53', 'pci_dss', 'cis-csc']:
+        if scan_request.framework and scan_request.framework not in [
+            "nist",
+            "cis",
+            "stig",
+            "pci",
+            "disa_stig",
+            "nist_800_53",
+            "pci_dss",
+            "cis-csc",
+        ]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported framework: {scan_request.framework}"
+                detail=f"Unsupported framework: {scan_request.framework}",
             )
-        
+
         # Start the scan process
-        logger.info(f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}")
+        logger.info(
+            f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}"
+        )
         try:
             scan_result = await scanner.scan_with_mongodb_rules(
                 host_id=scan_request.host_id,
@@ -152,22 +171,22 @@ async def start_mongodb_scan(
                 framework=scan_request.framework,
                 connection_params=scan_request.connection_params,
                 severity_filter=scan_request.severity_filter,
-                rule_ids=scan_request.rule_ids
+                rule_ids=scan_request.rule_ids,
             )
         except Exception as scan_error:
             logger.error(f"Scanner failed: {scan_error}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Scanner error: {str(scan_error)}"
+                detail=f"Scanner error: {str(scan_error)}",
             )
 
         if not scan_result.get("success"):
             logger.error(f"Scan failed with result: {scan_result}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Scan execution failed: {scan_result.get('error', 'Unknown error')}"
+                detail=f"Scan execution failed: {scan_result.get('error', 'Unknown error')}",
             )
-        
+
         # Prepare response data
         response_data = MongoDBScanResponse(
             success=True,
@@ -180,14 +199,14 @@ async def start_mongodb_scan(
             framework=scan_request.framework,
             results_summary={
                 "return_code": scan_result.get("return_code", -1),
-                "scan_completed": scan_result.get("success", False)
+                "scan_completed": scan_result.get("success", False),
             },
             result_files={
                 "xml_results": scan_result.get("result_file", ""),
-                "html_report": scan_result.get("report_file", "")
-            }
+                "html_report": scan_result.get("report_file", ""),
+            },
         )
-        
+
         # Add background tasks for enrichment and reporting
         if scan_request.include_enrichment:
             background_tasks.add_task(
@@ -195,63 +214,63 @@ async def start_mongodb_scan(
                 scan_id,
                 scan_result.get("result_file"),
                 scan_request.dict(),
-                scan_request.generate_report
+                scan_request.generate_report,
             )
-        
+
         logger.info(f"MongoDB scan {scan_id} completed successfully")
         return response_data
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to start MongoDB scan: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Scan initialization failed: {str(e)}"
+            detail=f"Scan initialization failed: {str(e)}",
         )
 
 
-async def enrich_scan_results_task(scan_id: str, result_file: str, 
-                                 scan_metadata: Dict[str, Any], 
-                                 generate_report: bool):
+async def enrich_scan_results_task(
+    scan_id: str, result_file: str, scan_metadata: Dict[str, Any], generate_report: bool
+):
     """Background task to enrich scan results and generate reports"""
     try:
         logger.info(f"Starting background enrichment for scan {scan_id}")
-        
+
         # Get services
         enrichment_svc = await get_enrichment_service()
-        
+
         # Enrich results
         enriched_results = await enrichment_svc.enrich_scan_results(
-            result_file_path=result_file,
-            scan_metadata=scan_metadata
+            result_file_path=result_file, scan_metadata=scan_metadata
         )
-        
+
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = [scan_metadata.get('framework')] if scan_metadata.get('framework') else None
-            
+            target_frameworks = (
+                [scan_metadata.get("framework")]
+                if scan_metadata.get("framework")
+                else None
+            )
+
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
                 target_frameworks=target_frameworks,
-                report_format='json'
+                report_format="json",
             )
-            
+
             # Store report (in a real implementation, this would save to database)
             logger.info(f"Generated compliance report for scan {scan_id}")
-        
+
         logger.info(f"Background enrichment completed for scan {scan_id}")
-        
+
     except Exception as e:
         logger.error(f"Background enrichment failed for scan {scan_id}: {e}")
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(
-    scan_id: str,
-    current_user: User = Depends(get_current_user)
-):
+async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)):
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -261,14 +280,14 @@ async def get_scan_status(
             status="completed",  # Mock status
             progress=100,
             message="Scan completed successfully",
-            started_at=datetime.utcnow().isoformat()
+            started_at=datetime.utcnow().isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get scan status for {scan_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get scan status: {str(e)}"
+            detail=f"Failed to get scan status: {str(e)}",
         )
 
 
@@ -277,7 +296,7 @@ async def get_scan_results(
     scan_id: str,
     include_enrichment: bool = True,
     include_report: bool = True,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get detailed results from a MongoDB scan"""
     try:
@@ -290,31 +309,31 @@ async def get_scan_results(
                 "rules_tested": 25,
                 "rules_passed": 18,
                 "rules_failed": 7,
-                "overall_score": 72.0
-            }
+                "overall_score": 72.0,
+            },
         }
-        
+
         if include_enrichment:
             results["enrichment"] = {
                 "intelligence_data_available": True,
                 "remediation_guidance_generated": True,
-                "framework_mapping_completed": True
+                "framework_mapping_completed": True,
             }
-        
+
         if include_report:
             results["compliance_report"] = {
                 "report_generated": True,
                 "frameworks_analyzed": ["nist"],
-                "executive_summary_available": True
+                "executive_summary_available": True,
             }
-        
+
         return results
-        
+
     except Exception as e:
         logger.error(f"Failed to get scan results for {scan_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve scan results: {str(e)}"
+            detail=f"Failed to retrieve scan results: {str(e)}",
         )
 
 
@@ -323,16 +342,16 @@ async def get_compliance_report(
     scan_id: str,
     format: str = "json",
     framework: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get compliance report for a scan"""
     try:
         if format not in ["json", "html", "pdf"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Format must be json, html, or pdf"
+                detail="Format must be json, html, or pdf",
             )
-        
+
         # In a real implementation, this would retrieve the stored report
         # For now, return mock report data
         mock_report = {
@@ -340,33 +359,33 @@ async def get_compliance_report(
                 "scan_id": scan_id,
                 "report_generated": datetime.utcnow().isoformat(),
                 "format": format,
-                "framework": framework
+                "framework": framework,
             },
             "executive_summary": {
                 "overall_compliance_score": 72.0,
                 "grade": "C",
                 "critical_issues": 3,
-                "recommendation": "Focus on high severity failures first"
+                "recommendation": "Focus on high severity failures first",
             },
             "framework_analysis": {
                 "nist": {
                     "compliance_rate": 72.0,
                     "grade": "C",
                     "critical_failures": 3,
-                    "status": "needs_improvement"
+                    "status": "needs_improvement",
                 }
-            }
+            },
         }
-        
+
         return mock_report
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to get compliance report for {scan_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve compliance report: {str(e)}"
+            detail=f"Failed to retrieve compliance report: {str(e)}",
         )
 
 
@@ -376,7 +395,7 @@ async def get_available_rules(
     framework: Optional[str] = None,
     severity: Optional[str] = None,
     current_user: User = Depends(get_current_user),
-    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner)
+    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
 ):
     """Get available MongoDB rules for scanning"""
     try:
@@ -385,22 +404,30 @@ async def get_available_rules(
             platform=platform or "rhel",
             platform_version="8",  # Default version
             framework=framework,
-            severity_filter=[severity] if severity else None
+            severity_filter=[severity] if severity else None,
         )
-        
+
         # Format rules for API response
         rule_summaries = []
         for rule in rules[:10]:  # Limit to first 10 for demo
-            rule_summaries.append({
-                "rule_id": rule.rule_id,
-                "name": rule.metadata.get("name", "Unknown"),
-                "description": rule.metadata.get("description", "No description"),
-                "severity": rule.severity,
-                "category": rule.category,
-                "frameworks": list(rule.frameworks.keys()) if rule.frameworks else [],
-                "platforms": list(rule.platform_implementations.keys()) if rule.platform_implementations else []
-            })
-        
+            rule_summaries.append(
+                {
+                    "rule_id": rule.rule_id,
+                    "name": rule.metadata.get("name", "Unknown"),
+                    "description": rule.metadata.get("description", "No description"),
+                    "severity": rule.severity,
+                    "category": rule.category,
+                    "frameworks": (
+                        list(rule.frameworks.keys()) if rule.frameworks else []
+                    ),
+                    "platforms": (
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
+                }
+            )
+
         return {
             "success": True,
             "total_rules_available": len(rules),
@@ -408,33 +435,32 @@ async def get_available_rules(
             "filters_applied": {
                 "platform": platform,
                 "framework": framework,
-                "severity": severity
-            }
+                "severity": severity,
+            },
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get available rules: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve available rules: {str(e)}"
+            detail=f"Failed to retrieve available rules: {str(e)}",
         )
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(
-    current_user: User = Depends(get_current_user)
-):
+async def get_scanner_health(current_user: User = Depends(get_current_user)):
     """Get MongoDB scanner service health"""
     try:
         scanner = await get_mongodb_scanner()
         enrichment = await get_enrichment_service()
         reporter = await get_compliance_reporter()
-        
+
         # Check actual MongoDB connection
         mongo_status = "unknown"
         mongo_details = {}
         try:
             from ....services.mongo_integration_service import get_mongo_service
+
             mongo_service = await get_mongo_service()
             mongo_health = await mongo_service.health_check()
             mongo_status = mongo_health.get("status", "unknown")
@@ -442,30 +468,36 @@ async def get_scanner_health(
                 mongo_details = {
                     "database": mongo_health.get("database"),
                     "collections": mongo_health.get("collections", []),
-                    "document_count": mongo_health.get("document_count", {})
+                    "document_count": mongo_health.get("document_count", {}),
                 }
             else:
                 mongo_details = {"error": mongo_health.get("message", "Unknown error")}
         except Exception as e:
             mongo_status = "error"
             mongo_details = {"error": str(e)}
-        
+
         return {
             "status": "healthy" if mongo_status == "healthy" else "degraded",
             "components": {
                 "mongodb_scanner": {
-                    "status": "initialized" if scanner._initialized else "not_initialized",
+                    "status": (
+                        "initialized" if scanner._initialized else "not_initialized"
+                    ),
                     "mongodb_connection": mongo_status,
-                    "mongodb_details": mongo_details
+                    "mongodb_details": mongo_details,
                 },
                 "enrichment_service": {
-                    "status": "initialized" if enrichment._initialized else "not_initialized",
-                    "stats": await enrichment.get_enrichment_statistics()
+                    "status": (
+                        "initialized" if enrichment._initialized else "not_initialized"
+                    ),
+                    "stats": await enrichment.get_enrichment_statistics(),
                 },
                 "compliance_reporter": {
-                    "status": "initialized" if reporter._initialized else "not_initialized",
-                    "supported_frameworks": list(reporter.frameworks.keys())
-                }
+                    "status": (
+                        "initialized" if reporter._initialized else "not_initialized"
+                    ),
+                    "supported_frameworks": list(reporter.frameworks.keys()),
+                },
             },
             "capabilities": {
                 "platform_aware_scanning": True,
@@ -473,13 +505,13 @@ async def get_scanner_health(
                 "result_enrichment": True,
                 "compliance_reporting": True,
                 "supported_platforms": ["rhel", "ubuntu", "centos"],
-                "supported_frameworks": ["nist", "cis", "stig", "pci"]
-            }
+                "supported_frameworks": ["nist", "cis", "stig", "pci"],
+            },
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get scanner health: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Health check failed: {str(e)}"
+            detail=f"Health check failed: {str(e)}",
         )

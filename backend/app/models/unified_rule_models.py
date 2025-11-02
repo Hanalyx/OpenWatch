@@ -2,6 +2,7 @@
 Unified Rule Models for OpenWatch Phase 2
 Defines data models for unified compliance rules, executions, and related structures
 """
+
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from enum import Enum
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 
 class ComplianceStatus(str, Enum):
     """Compliance status for rule executions"""
+
     COMPLIANT = "compliant"
     NON_COMPLIANT = "non_compliant"
     PARTIAL = "partial"
@@ -20,6 +22,7 @@ class ComplianceStatus(str, Enum):
 
 class Platform(str, Enum):
     """Supported platforms"""
+
     RHEL_7 = "rhel_7"
     RHEL_8 = "rhel_8"
     RHEL_9 = "rhel_9"
@@ -38,6 +41,7 @@ class Platform(str, Enum):
 @dataclass
 class RuleExecution:
     """Represents a single rule execution result"""
+
     execution_id: str
     rule_id: str
     execution_success: bool
@@ -51,6 +55,7 @@ class RuleExecution:
 @dataclass
 class FrameworkMapping:
     """Framework-specific mapping for a rule"""
+
     framework_id: str
     control_ids: List[str]
     implementation_status: str
@@ -61,6 +66,7 @@ class FrameworkMapping:
 @dataclass
 class PlatformImplementation:
     """Platform-specific implementation details"""
+
     platform: Platform
     implementation_type: str
     commands: List[str] = field(default_factory=list)
@@ -72,6 +78,7 @@ class PlatformImplementation:
 @dataclass
 class UnifiedComplianceRule:
     """Unified compliance rule definition"""
+
     rule_id: str
     title: str
     description: str

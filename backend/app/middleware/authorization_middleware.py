@@ -154,10 +154,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             
             # Log successful authorization
             processing_time = int((time.time() - start_time) * 1000)
-            logger.info(
-                f"Authorization successful for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))} "
-                f"({len(authorization_result.allowed_resources)} resources, {processing_time}ms)"
-            )
+            logger.info(f"Authorization successful for user {sanitize_id_for_log(current_user['id'])} on {request.method} {sanitize_for_log(str(request.url.path))} ")
+                       f"({len(authorization_result.allowed_resources)} resources, {processing_time}ms)")
             
             return response
             

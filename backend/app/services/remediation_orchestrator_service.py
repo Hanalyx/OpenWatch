@@ -18,14 +18,14 @@ from ..models.remediation_models import (
     RemediationTarget,
     RemediationExecutionResult,
     BulkRemediationJob,
-    RemediationSummary
+    RemediationSummary,
 )
 from .remediators import RemediationExecutorFactory
 from .remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
     ExecutorExecutionError,
-    UnsupportedTargetError
+    UnsupportedTargetError,
 )
 
 
@@ -62,7 +62,7 @@ class RemediationOrchestrator:
         variable_overrides: Optional[Dict[str, str]] = None,
         dry_run: bool = False,
         executed_by: str = None,
-        scan_id: Optional[str] = None
+        scan_id: Optional[str] = None,
     ) -> RemediationResult:
         """
         Execute remediation for a single rule.
@@ -95,12 +95,12 @@ class RemediationOrchestrator:
         rule = await self._get_rule(rule_id)
 
         # Extract remediation content
-        remediation_data = rule.get('remediation')
+        remediation_data = rule.get("remediation")
         if not remediation_data:
             raise ValueError(f"Rule {rule_id} has no remediation content")
 
-        executor_type = remediation_data.get('type', 'bash')
-        content = remediation_data.get('content', '')
+        executor_type = remediation_data.get("type", "bash")
+        content = remediation_data.get("content", "")
 
         if not content:
             raise ValueError(f"Rule {rule_id} has empty remediation content")
@@ -112,7 +112,7 @@ class RemediationOrchestrator:
         remediation_result = RemediationResult(
             remediation_id=remediation_id,
             rule_id=rule_id,
-            rule_title=rule.get('title', 'Unknown'),
+            rule_title=rule.get("title", "Unknown"),
             executor_type=executor_type,
             target=target,
             status=RemediationStatus.PENDING,
@@ -120,7 +120,7 @@ class RemediationOrchestrator:
             content_executed=content,
             variables_applied=variables,
             executed_by=executed_by or "unknown",
-            scan_id=scan_id
+            scan_id=scan_id,
         )
 
         # Save initial state
@@ -139,22 +139,24 @@ class RemediationOrchestrator:
 
             # Execute remediation
             execution_result = await executor.execute(
-                content=content,
-                target=target,
-                variables=variables,
-                dry_run=dry_run
+                content=content, target=target, variables=variables, dry_run=dry_run
             )
 
             # Update result
             remediation_result.execution_result = execution_result
             remediation_result.status = (
-                RemediationStatus.COMPLETED if execution_result.success
+                RemediationStatus.COMPLETED
+                if execution_result.success
                 else RemediationStatus.FAILED
             )
             remediation_result.completed_at = datetime.utcnow()
 
             # Generate rollback content if changes were made
-            if execution_result.success and execution_result.changes_made and not dry_run:
+            if (
+                execution_result.success
+                and execution_result.changes_made
+                and not dry_run
+            ):
                 rollback_content = self._generate_rollback_content(
                     rule, execution_result
                 )
@@ -167,8 +169,8 @@ class RemediationOrchestrator:
                 "Completed" if execution_result.success else "Failed",
                 {
                     "exit_code": execution_result.exit_code,
-                    "duration": execution_result.duration_seconds
-                }
+                    "duration": execution_result.duration_seconds,
+                },
             )
 
             logger.info(
@@ -183,8 +185,7 @@ class RemediationOrchestrator:
             remediation_result.status = RemediationStatus.FAILED
             remediation_result.completed_at = datetime.utcnow()
             remediation_result.execution_result = RemediationExecutionResult(
-                success=False,
-                error_message=str(e)
+                success=False, error_message=str(e)
             )
             await remediation_result.save()
             remediation_result.add_audit_entry("Failed", {"error": str(e)})
@@ -200,7 +201,7 @@ class RemediationOrchestrator:
         rule_filter: Optional[Dict[str, Any]] = None,
         variable_overrides: Optional[Dict[str, str]] = None,
         dry_run: bool = False,
-        executed_by: str = None
+        executed_by: str = None,
     ) -> BulkRemediationJob:
         """
         Execute remediation for multiple rules.
@@ -229,9 +230,7 @@ class RemediationOrchestrator:
 
         # Get rules to remediate
         rules = await self._get_rules_for_bulk_remediation(
-            scan_id=scan_id,
-            rule_ids=rule_ids,
-            rule_filter=rule_filter
+            scan_id=scan_id, rule_ids=rule_ids, rule_filter=rule_filter
         )
 
         if not rules:
@@ -247,7 +246,7 @@ class RemediationOrchestrator:
             status=RemediationStatus.RUNNING,
             started_at=datetime.utcnow(),
             total_remediations=len(rules),
-            executed_by=executed_by or "unknown"
+            executed_by=executed_by or "unknown",
         )
         await job.insert()
 
@@ -255,12 +254,12 @@ class RemediationOrchestrator:
         for rule in rules:
             try:
                 result = await self.execute_remediation(
-                    rule_id=rule['rule_id'],
+                    rule_id=rule["rule_id"],
                     target=target,
                     variable_overrides=variable_overrides,
                     dry_run=dry_run,
                     executed_by=executed_by,
-                    scan_id=scan_id
+                    scan_id=scan_id,
                 )
 
                 job.remediation_ids.append(result.remediation_id)
@@ -290,9 +289,7 @@ class RemediationOrchestrator:
         return job
 
     async def rollback_remediation(
-        self,
-        remediation_id: str,
-        executed_by: str = None
+        self, remediation_id: str, executed_by: str = None
     ) -> RemediationResult:
         """
         Rollback a remediation.
@@ -319,14 +316,10 @@ class RemediationOrchestrator:
             raise ValueError(f"Remediation {remediation_id} not found")
 
         if not original.rollback_available:
-            raise ValueError(
-                f"Remediation {remediation_id} does not support rollback"
-            )
+            raise ValueError(f"Remediation {remediation_id} does not support rollback")
 
         if original.rollback_executed:
-            raise ValueError(
-                f"Remediation {remediation_id} already rolled back"
-            )
+            raise ValueError(f"Remediation {remediation_id} already rolled back")
 
         # Get executor
         executor = RemediationExecutorFactory.get_executor(original.executor_type)
@@ -335,7 +328,7 @@ class RemediationOrchestrator:
         rollback_result = await executor.rollback(
             remediation_id=remediation_id,
             rollback_content=original.rollback_content,
-            target=original.target
+            target=original.target,
         )
 
         # Update original remediation
@@ -345,10 +338,7 @@ class RemediationOrchestrator:
         await original.save()
         original.add_audit_entry(
             "Rolled back",
-            {
-                "executed_by": executed_by,
-                "success": rollback_result.success
-            }
+            {"executed_by": executed_by, "success": rollback_result.success},
         )
 
         logger.info(
@@ -358,7 +348,9 @@ class RemediationOrchestrator:
 
         return original
 
-    async def get_remediation_result(self, remediation_id: str) -> Optional[RemediationResult]:
+    async def get_remediation_result(
+        self, remediation_id: str
+    ) -> Optional[RemediationResult]:
         """Get remediation result by ID."""
         return await RemediationResult.find_one(
             RemediationResult.remediation_id == remediation_id
@@ -370,7 +362,7 @@ class RemediationOrchestrator:
         limit: int = 50,
         status: Optional[RemediationStatus] = None,
         executed_by: Optional[str] = None,
-        scan_id: Optional[str] = None
+        scan_id: Optional[str] = None,
     ) -> List[RemediationResult]:
         """
         List remediations with filters.
@@ -387,19 +379,17 @@ class RemediationOrchestrator:
         """
         query = {}
         if status:
-            query['status'] = status.value
+            query["status"] = status.value
         if executed_by:
-            query['executed_by'] = executed_by
+            query["executed_by"] = executed_by
         if scan_id:
-            query['scan_id'] = scan_id
+            query["scan_id"] = scan_id
 
         results = await RemediationResult.find(query).skip(skip).limit(limit).to_list()
         return results
 
     async def get_remediation_statistics(
-        self,
-        days: int = 30,
-        executed_by: Optional[str] = None
+        self, days: int = 30, executed_by: Optional[str] = None
     ) -> RemediationSummary:
         """
         Get remediation statistics.
@@ -414,7 +404,7 @@ class RemediationOrchestrator:
         # Build aggregation pipeline
         match_stage = {}
         if executed_by:
-            match_stage['executed_by'] = executed_by
+            match_stage["executed_by"] = executed_by
 
         # Query remediations
         results = await RemediationResult.find(match_stage).to_list()
@@ -458,7 +448,7 @@ class RemediationOrchestrator:
         self,
         scan_id: Optional[str] = None,
         rule_ids: Optional[List[str]] = None,
-        rule_filter: Optional[Dict[str, Any]] = None
+        rule_filter: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get rules for bulk remediation.
@@ -471,13 +461,13 @@ class RemediationOrchestrator:
         if scan_id:
             # Get failed rules from scan
             from ..models.scan_models import ScanResult
+
             scan = await ScanResult.find_one(ScanResult.scan_id == scan_id)
             if not scan:
                 raise ValueError(f"Scan {scan_id} not found")
 
             failed_rule_ids = [
-                r.rule_id for r in scan.results_by_rule
-                if r.status == "fail"
+                r.rule_id for r in scan.results_by_rule if r.status == "fail"
             ]
 
             if not failed_rule_ids:
@@ -489,9 +479,9 @@ class RemediationOrchestrator:
 
         elif rule_ids:
             # Get specific rules
-            return await self.collection.find(
-                {"rule_id": {"$in": rule_ids}}
-            ).to_list(length=None)
+            return await self.collection.find({"rule_id": {"$in": rule_ids}}).to_list(
+                length=None
+            )
 
         elif rule_filter:
             # Query with filter
@@ -500,9 +490,7 @@ class RemediationOrchestrator:
         return []
 
     def _prepare_variables(
-        self,
-        rule: Dict[str, Any],
-        overrides: Optional[Dict[str, str]] = None
+        self, rule: Dict[str, Any], overrides: Optional[Dict[str, str]] = None
     ) -> Dict[str, str]:
         """
         Prepare variables for remediation execution.
@@ -519,9 +507,9 @@ class RemediationOrchestrator:
         variables = {}
 
         # Start with rule defaults
-        if 'xccdf_variables' in rule:
-            for var_id, var_def in rule['xccdf_variables'].items():
-                default_value = var_def.get('default')
+        if "xccdf_variables" in rule:
+            for var_id, var_def in rule["xccdf_variables"].items():
+                default_value = var_def.get("default")
                 if default_value is not None:
                     variables[var_id] = str(default_value)
 
@@ -532,9 +520,7 @@ class RemediationOrchestrator:
         return variables
 
     def _generate_rollback_content(
-        self,
-        rule: Dict[str, Any],
-        execution_result: RemediationExecutionResult
+        self, rule: Dict[str, Any], execution_result: RemediationExecutionResult
     ) -> Optional[str]:
         """
         Generate rollback content.

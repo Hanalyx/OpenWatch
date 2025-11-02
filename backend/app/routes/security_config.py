@@ -16,14 +16,14 @@ from ..database import get_db
 from ..auth import get_current_user
 from ..rbac import require_permission, Permission
 from ..services.security_config import (
-    SecurityConfigManager, 
-    ConfigScope, 
-    get_security_config_manager
+    SecurityConfigManager,
+    ConfigScope,
+    get_security_config_manager,
 )
 from ..services.credential_validation import (
-    SecurityPolicyLevel, 
-    SecurityPolicyConfig, 
-    get_credential_validator
+    SecurityPolicyLevel,
+    SecurityPolicyConfig,
+    get_credential_validator,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,17 +34,23 @@ router = APIRouter(prefix="/api/v1/security/config", tags=["Security Configurati
 # Pydantic models
 class SecurityPolicyRequest(BaseModel):
     """Request model for security policy configuration"""
-    policy_level: SecurityPolicyLevel = Field(..., description="Security policy enforcement level")
+
+    policy_level: SecurityPolicyLevel = Field(
+        ..., description="Security policy enforcement level"
+    )
     enforce_fips: bool = Field(True, description="Enforce FIPS 140-2 compliance")
     minimum_rsa_bits: int = Field(3072, description="Minimum RSA key size in bits")
     minimum_ecdsa_bits: int = Field(256, description="Minimum ECDSA key size in bits")
     allow_dsa_keys: bool = Field(False, description="Allow DSA keys (not recommended)")
     minimum_password_length: int = Field(12, description="Minimum password length")
-    require_complex_passwords: bool = Field(True, description="Require complex passwords")
+    require_complex_passwords: bool = Field(
+        True, description="Require complex passwords"
+    )
 
 
 class SecurityConfigResponse(BaseModel):
     """Response model for security configuration"""
+
     scope: str
     target_id: Optional[str]
     effective_config: Dict[str, Any]
@@ -55,6 +61,7 @@ class SecurityConfigResponse(BaseModel):
 
 class TemplateResponse(BaseModel):
     """Response model for security templates"""
+
     name: str
     description: str
     policy_level: str
@@ -64,6 +71,7 @@ class TemplateResponse(BaseModel):
 
 class ValidationResponse(BaseModel):
     """Response model for SSH key validation"""
+
     is_valid: bool
     is_secure: bool
     is_fips_compliant: bool
@@ -82,7 +90,7 @@ async def get_security_config(
     target_id: Optional[str] = None,
     target_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get effective security configuration for a target.
@@ -91,22 +99,24 @@ async def get_security_config(
     try:
         config_manager = get_security_config_manager(db)
         summary = config_manager.get_config_summary(target_id, target_type)
-        
+
         if "error" in summary:
             raise HTTPException(status_code=500, detail=summary["error"])
-        
+
         return SecurityConfigResponse(
             scope=target_type or "system",
             target_id=target_id,
             effective_config=summary["effective_config"],
             inheritance_chain=summary["inheritance_chain"],
             compliance_level=summary["compliance_level"],
-            last_updated=datetime.utcnow().isoformat()
+            last_updated=datetime.utcnow().isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get security config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve security configuration")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve security configuration"
+        )
 
 
 @router.put("/")
@@ -116,14 +126,14 @@ async def update_security_config(
     scope: ConfigScope,
     target_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update security configuration for a specific scope.
     """
     try:
         config_manager = get_security_config_manager(db)
-        
+
         # Convert request to SecurityPolicyConfig
         config = SecurityPolicyConfig(
             policy_level=policy.policy_level,
@@ -132,36 +142,42 @@ async def update_security_config(
             minimum_ecdsa_bits=policy.minimum_ecdsa_bits,
             allow_dsa_keys=policy.allow_dsa_keys,
             minimum_password_length=policy.minimum_password_length,
-            require_complex_passwords=policy.require_complex_passwords
+            require_complex_passwords=policy.require_complex_passwords,
         )
-        
+
         # Validate configuration
         is_valid, validation_messages = config_manager.validate_config(config)
         if not is_valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid configuration: {'; '.join(validation_messages)}"
+                detail=f"Invalid configuration: {'; '.join(validation_messages)}",
             )
-        
+
         # Update configuration
         success = config_manager.set_config(
             scope=scope,
             config=config,
             target_id=target_id,
-            created_by=current_user.get('id', 'unknown')
+            created_by=current_user.get("id", "unknown"),
         )
-        
+
         if success:
-            logger.info(f"Security config updated by {current_user.get('username')} for {scope.value}:{target_id}")
+            logger.info(
+                f"Security config updated by {current_user.get('username')} for {scope.value}:{target_id}"
+            )
             return {"message": "Security configuration updated successfully"}
         else:
-            raise HTTPException(status_code=500, detail="Failed to update security configuration")
-        
+            raise HTTPException(
+                status_code=500, detail="Failed to update security configuration"
+            )
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to update security config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update security configuration")
+        raise HTTPException(
+            status_code=500, detail="Failed to update security configuration"
+        )
 
 
 @router.post("/template/{template_name}")
@@ -171,27 +187,31 @@ async def apply_security_template(
     scope: ConfigScope,
     target_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Apply a predefined security configuration template.
     """
     try:
         config_manager = get_security_config_manager(db)
-        
+
         success = config_manager.apply_template(
             template_name=template_name,
             scope=scope,
             target_id=target_id,
-            created_by=current_user.get('id', 'unknown')
+            created_by=current_user.get("id", "unknown"),
         )
-        
+
         if success:
-            logger.info(f"Applied template '{template_name}' by {current_user.get('username')} to {scope.value}:{target_id}")
+            logger.info(
+                f"Applied template '{template_name}' by {current_user.get('username')} to {scope.value}:{target_id}"
+            )
             return {"message": f"Template '{template_name}' applied successfully"}
         else:
-            raise HTTPException(status_code=400, detail=f"Failed to apply template '{template_name}'")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Failed to apply template '{template_name}'"
+            )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -201,8 +221,7 @@ async def apply_security_template(
 
 @router.get("/templates", response_model=List[TemplateResponse])
 async def list_security_templates(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """
     List all available security configuration templates.
@@ -210,9 +229,9 @@ async def list_security_templates(
     try:
         config_manager = get_security_config_manager(db)
         templates = config_manager.list_templates()
-        
+
         return [TemplateResponse(**template) for template in templates]
-        
+
     except Exception as e:
         logger.error(f"Failed to list security templates: {e}")
         raise HTTPException(status_code=500, detail="Failed to list security templates")
@@ -221,7 +240,9 @@ async def list_security_templates(
 class SSHKeyValidationRequest(BaseModel):
     key_content: str = Field(..., description="SSH private key content")
     passphrase: Optional[str] = Field(None, description="SSH key passphrase")
-    target_id: Optional[str] = Field(None, description="Target ID for policy resolution")
+    target_id: Optional[str] = Field(
+        None, description="Target ID for policy resolution"
+    )
     target_type: Optional[str] = Field(None, description="Target type (host, group)")
 
 
@@ -229,7 +250,7 @@ class SSHKeyValidationRequest(BaseModel):
 async def validate_ssh_key(
     request: SSHKeyValidationRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Validate SSH key against current security policies.
@@ -238,17 +259,21 @@ async def validate_ssh_key(
     try:
         # Get effective configuration for the target
         config_manager = get_security_config_manager(db)
-        effective_config = config_manager.get_effective_config(request.target_id, request.target_type)
-        
+        effective_config = config_manager.get_effective_config(
+            request.target_id, request.target_type
+        )
+
         # Create validator with effective configuration
         validator = get_credential_validator(
             policy_level=effective_config.policy_level,
-            enforce_fips=effective_config.enforce_fips
+            enforce_fips=effective_config.enforce_fips,
         )
-        
+
         # Perform strict validation
-        assessment = validator.validate_ssh_key_strict(request.key_content, request.passphrase)
-        
+        assessment = validator.validate_ssh_key_strict(
+            request.key_content, request.passphrase
+        )
+
         return ValidationResponse(
             is_valid=assessment.is_valid,
             is_secure=assessment.is_secure,
@@ -259,9 +284,9 @@ async def validate_ssh_key(
             error_message=assessment.error_message,
             warnings=assessment.warnings,
             recommendations=assessment.recommendations,
-            compliance_notes=assessment.compliance_notes
+            compliance_notes=assessment.compliance_notes,
         )
-        
+
     except Exception as e:
         logger.error(f"SSH key validation error: {e}")
         raise HTTPException(status_code=500, detail="SSH key validation failed")
@@ -277,7 +302,7 @@ async def audit_credential(
     target_id: Optional[str] = None,
     target_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Perform comprehensive security audit of credentials.
@@ -286,26 +311,28 @@ async def audit_credential(
         # Get effective configuration
         config_manager = get_security_config_manager(db)
         effective_config = config_manager.get_effective_config(target_id, target_type)
-        
+
         # Create validator with effective configuration
         validator = get_credential_validator(
             policy_level=effective_config.policy_level,
-            enforce_fips=effective_config.enforce_fips
+            enforce_fips=effective_config.enforce_fips,
         )
-        
+
         # Perform audit
         audit_result = validator.audit_credential_security(
             username=username,
             auth_method=auth_method,
             private_key=private_key,
-            password=password
+            password=password,
         )
-        
+
         # Log audit activity
-        logger.info(f"Credential audit performed by {current_user.get('username')} for {username}")
-        
+        logger.info(
+            f"Credential audit performed by {current_user.get('username')} for {username}"
+        )
+
         return audit_result
-        
+
     except Exception as e:
         logger.error(f"Credential audit error: {e}")
         raise HTTPException(status_code=500, detail="Credential audit failed")
@@ -314,28 +341,29 @@ async def audit_credential(
 @router.get("/compliance/summary")
 @require_permission(Permission.AUDIT_READ)
 async def get_compliance_summary(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
 ):
     """
     Get system-wide compliance summary.
     """
     try:
         config_manager = get_security_config_manager(db)
-        
+
         # Get system configuration
         system_summary = config_manager.get_config_summary()
-        
+
         # TODO: Add credential compliance statistics
         # This would scan all stored credentials for compliance
-        
+
         return {
             "system_config": system_summary,
             "compliance_level": system_summary.get("compliance_level", "unknown"),
             "last_updated": datetime.utcnow().isoformat(),
-            "assessed_by": current_user.get('username')
+            "assessed_by": current_user.get("username"),
         }
-        
+
     except Exception as e:
         logger.error(f"Compliance summary error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate compliance summary")
+        raise HTTPException(
+            status_code=500, detail="Failed to generate compliance summary"
+        )

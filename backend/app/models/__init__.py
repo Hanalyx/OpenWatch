@@ -4,12 +4,12 @@ Enhanced MongoDB models for unified compliance architecture
 """
 
 from .mongo_models import (
-    ComplianceRule, 
-    RuleIntelligence, 
+    ComplianceRule,
+    RuleIntelligence,
     RemediationScript,
     MongoManager,
     mongo_manager,
-    get_mongo_manager
+    get_mongo_manager,
 )
 
 from .enhanced_mongo_models import (
@@ -20,13 +20,13 @@ from .enhanced_mongo_models import (
     RuleIntelligence as EnhancedRuleIntelligence,
     FrameworkControlDefinition,
     CheckContent,
-    FixContent
+    FixContent,
 )
 
 from .health_models import (
     ServiceHealthDocument,
     ContentHealthDocument,
-    HealthSummaryDocument
+    HealthSummaryDocument,
 )
 
 from .authorization_models import *
@@ -36,25 +36,23 @@ from .plugin_models import *
 
 __all__ = [
     # Original models
-    'ComplianceRule',
-    'RuleIntelligence',
-    'RemediationScript',
-    'MongoManager',
-    'mongo_manager',
-    'get_mongo_manager',
-    
+    "ComplianceRule",
+    "RuleIntelligence",
+    "RemediationScript",
+    "MongoManager",
+    "mongo_manager",
+    "get_mongo_manager",
     # Enhanced unified models
-    'UnifiedComplianceRule',
-    'FrameworkMapping',
-    'FrameworkVersions',
-    'PlatformImplementation',
-    'EnhancedRuleIntelligence',
-    'FrameworkControlDefinition',
-    'CheckContent',
-    'FixContent',
-    
+    "UnifiedComplianceRule",
+    "FrameworkMapping",
+    "FrameworkVersions",
+    "PlatformImplementation",
+    "EnhancedRuleIntelligence",
+    "FrameworkControlDefinition",
+    "CheckContent",
+    "FixContent",
     # Health models
-    'ServiceHealthDocument',
-    'ContentHealthDocument',
-    'HealthSummaryDocument'
+    "ServiceHealthDocument",
+    "ContentHealthDocument",
+    "HealthSummaryDocument",
 ]

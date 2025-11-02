@@ -20,12 +20,12 @@ from backend.app.services.remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
     ExecutorExecutionError,
-    UnsupportedTargetError
+    UnsupportedTargetError,
 )
 from backend.app.models.remediation_models import (
     RemediationTarget,
     RemediationExecutionResult,
-    ScanTargetType
+    ScanTargetType,
 )
 
 
@@ -52,9 +52,9 @@ class AnsibleExecutor(BaseRemediationExecutor):
         try:
             result = asyncio.run(self._run_command(["ansible-playbook", "--version"]))
             # Parse version from output (first line: "ansible-playbook [core 2.14.3]")
-            first_line = result['stdout'].split('\n')[0]
-            if '[core' in first_line:
-                version = first_line.split('[core')[1].split(']')[0].strip()
+            first_line = result["stdout"].split("\n")[0]
+            if "[core" in first_line:
+                version = first_line.split("[core")[1].split("]")[0].strip()
                 return version
             return "unknown"
         except Exception as e:
@@ -69,15 +69,12 @@ class AnsibleExecutor(BaseRemediationExecutor):
             ExecutorCapability.ROLLBACK,
             ExecutorCapability.IDEMPOTENT,
             ExecutorCapability.VARIABLE_SUBSTITUTION,
-            ExecutorCapability.REMOTE_EXECUTION
+            ExecutorCapability.REMOTE_EXECUTION,
         }
 
     def supports_target(self, target_type: str) -> bool:
         """Check if target type supported."""
-        supported = {
-            ScanTargetType.SSH_HOST,
-            ScanTargetType.LOCAL
-        }
+        supported = {ScanTargetType.SSH_HOST, ScanTargetType.LOCAL}
         return target_type in [t.value for t in supported]
 
     def validate_content(self, content: str) -> bool:
@@ -109,7 +106,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
             if not isinstance(first_play, dict):
                 raise ExecutorValidationError("Play must be a dictionary")
 
-            if 'tasks' not in first_play and 'roles' not in first_play:
+            if "tasks" not in first_play and "roles" not in first_play:
                 raise ExecutorValidationError("Play must have 'tasks' or 'roles'")
 
             return True
@@ -123,7 +120,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
         target: RemediationTarget,
         variables: Dict[str, str],
         dry_run: bool = False,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute Ansible playbook.
@@ -169,9 +166,9 @@ class AnsibleExecutor(BaseRemediationExecutor):
 
                 # Write SSH key if provided
                 ssh_key_file = None
-                if target.credentials and 'ssh_key' in target.credentials:
+                if target.credentials and "ssh_key" in target.credentials:
                     ssh_key_file = temp_path / "ssh_key"
-                    ssh_key_file.write_text(target.credentials['ssh_key'])
+                    ssh_key_file.write_text(target.credentials["ssh_key"])
                     ssh_key_file.chmod(0o600)
 
                 # Build ansible-playbook command
@@ -180,7 +177,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
                     inventory_file=inventory_file,
                     variables=variables,
                     dry_run=dry_run,
-                    ssh_key_file=ssh_key_file
+                    ssh_key_file=ssh_key_file,
                 )
 
                 # Execute
@@ -188,10 +185,10 @@ class AnsibleExecutor(BaseRemediationExecutor):
 
                 # Parse results
                 execution_result = self._parse_ansible_output(
-                    stdout=result['stdout'],
-                    stderr=result['stderr'],
-                    exit_code=result['exit_code'],
-                    start_time=start_time
+                    stdout=result["stdout"],
+                    stderr=result["stderr"],
+                    exit_code=result["exit_code"],
+                    start_time=start_time,
                 )
 
                 return execution_result
@@ -209,7 +206,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
         remediation_id: str,
         rollback_content: str,
         target: RemediationTarget,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute rollback playbook.
@@ -231,7 +228,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
             target=target,
             variables={},
             dry_run=False,
-            timeout_seconds=timeout_seconds
+            timeout_seconds=timeout_seconds,
         )
 
     def _generate_inventory(self, target: RemediationTarget, inventory_file: Path):
@@ -247,8 +244,14 @@ class AnsibleExecutor(BaseRemediationExecutor):
             inventory_content = "[local]\nlocalhost ansible_connection=local\n"
         else:
             # SSH remote execution
-            username = target.credentials.get('username', 'root') if target.credentials else 'root'
-            inventory_content = f"[targets]\n{target.identifier} ansible_user={username}\n"
+            username = (
+                target.credentials.get("username", "root")
+                if target.credentials
+                else "root"
+            )
+            inventory_content = (
+                f"[targets]\n{target.identifier} ansible_user={username}\n"
+            )
 
         inventory_file.write_text(inventory_content)
 
@@ -258,7 +261,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
         inventory_file: Path,
         variables: Dict[str, str],
         dry_run: bool,
-        ssh_key_file: Optional[Path] = None
+        ssh_key_file: Optional[Path] = None,
     ) -> List[str]:
         """
         Build ansible-playbook command.
@@ -276,8 +279,9 @@ class AnsibleExecutor(BaseRemediationExecutor):
         cmd = [
             "ansible-playbook",
             str(playbook_file),
-            "-i", str(inventory_file),
-            "-v"  # Verbose output
+            "-i",
+            str(inventory_file),
+            "-v",  # Verbose output
         ]
 
         # Add extra vars
@@ -293,19 +297,19 @@ class AnsibleExecutor(BaseRemediationExecutor):
             cmd.extend(["--private-key", str(ssh_key_file)])
 
         # Disable host key checking (security consideration: should be configurable)
-        cmd.extend([
-            "-e", "ansible_host_key_checking=False",
-            "-e", "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
-        ])
+        cmd.extend(
+            [
+                "-e",
+                "ansible_host_key_checking=False",
+                "-e",
+                "ansible_ssh_common_args='-o StrictHostKeyChecking=no'",
+            ]
+        )
 
         return cmd
 
     def _parse_ansible_output(
-        self,
-        stdout: str,
-        stderr: str,
-        exit_code: int,
-        start_time: datetime
+        self, stdout: str, stderr: str, exit_code: int, start_time: datetime
     ) -> RemediationExecutionResult:
         """
         Parse Ansible execution output.
@@ -344,7 +348,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
             exit_code=exit_code,
             duration_seconds=duration,
             changes_made=changes,
-            error_message=error_message
+            error_message=error_message,
         )
 
     def _extract_changes(self, stdout: str) -> List[str]:
@@ -362,34 +366,36 @@ class AnsibleExecutor(BaseRemediationExecutor):
         changes = []
 
         # Look for "changed:" lines in output
-        for line in stdout.split('\n'):
-            if 'changed:' in line.lower():
+        for line in stdout.split("\n"):
+            if "changed:" in line.lower():
                 # Extract task name if available
-                if 'TASK' in line:
-                    task_name = line.split('[')[1].split(']')[0] if '[' in line else 'unknown'
+                if "TASK" in line:
+                    task_name = (
+                        line.split("[")[1].split("]")[0] if "[" in line else "unknown"
+                    )
                     changes.append(f"Changed: {task_name}")
                 else:
                     changes.append(line.strip())
 
         # Alternative: parse PLAY RECAP for change counts
-        if 'PLAY RECAP' in stdout:
-            recap_section = stdout.split('PLAY RECAP')[1]
-            for line in recap_section.split('\n'):
-                if 'changed=' in line:
+        if "PLAY RECAP" in stdout:
+            recap_section = stdout.split("PLAY RECAP")[1]
+            for line in recap_section.split("\n"):
+                if "changed=" in line:
                     # Extract host and change count
                     parts = line.split()
                     if parts:
                         host = parts[0]
-                        changed_count = next((p.split('=')[1] for p in parts if 'changed=' in p), '0')
+                        changed_count = next(
+                            (p.split("=")[1] for p in parts if "changed=" in p), "0"
+                        )
                         if int(changed_count) > 0:
                             changes.append(f"{host}: {changed_count} changes")
 
         return changes
 
     async def _run_command(
-        self,
-        cmd: List[str],
-        timeout_seconds: int = 300
+        self, cmd: List[str], timeout_seconds: int = 300
     ) -> Dict[str, any]:
         """
         Run command asynchronously.
@@ -405,21 +411,18 @@ class AnsibleExecutor(BaseRemediationExecutor):
             asyncio.TimeoutError: Command exceeded timeout
         """
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout_seconds
+                process.communicate(), timeout=timeout_seconds
             )
 
             return {
-                'stdout': stdout.decode('utf-8', errors='replace'),
-                'stderr': stderr.decode('utf-8', errors='replace'),
-                'exit_code': process.returncode
+                "stdout": stdout.decode("utf-8", errors="replace"),
+                "stderr": stderr.decode("utf-8", errors="replace"),
+                "exit_code": process.returncode,
             }
 
         except asyncio.TimeoutError:

@@ -51,7 +51,7 @@ class QueryBuilder:
     _offset: Optional[int] = None
     _params: Dict[str, Any] = field(default_factory=dict)
 
-    def select(self, *columns: str) -> 'QueryBuilder':
+    def select(self, *columns: str) -> "QueryBuilder":
         """
         Specify columns to select
 
@@ -67,12 +67,7 @@ class QueryBuilder:
         self._select = list(columns) if columns else ["*"]
         return self
 
-    def join(
-        self,
-        table: str,
-        on: str,
-        join_type: str = "LEFT"
-    ) -> 'QueryBuilder':
+    def join(self, table: str, on: str, join_type: str = "LEFT") -> "QueryBuilder":
         """
         Add JOIN clause
 
@@ -95,11 +90,8 @@ class QueryBuilder:
         return self
 
     def where(
-        self,
-        condition: str,
-        value: Any = None,
-        param_name: Optional[str] = None
-    ) -> 'QueryBuilder':
+        self, condition: str, value: Any = None, param_name: Optional[str] = None
+    ) -> "QueryBuilder":
         """
         Add WHERE condition with parameterization
 
@@ -128,11 +120,7 @@ class QueryBuilder:
 
         return self
 
-    def search(
-        self,
-        column: str,
-        search_term: Optional[str]
-    ) -> 'QueryBuilder':
+    def search(self, column: str, search_term: Optional[str]) -> "QueryBuilder":
         """
         Add case-insensitive search condition (PostgreSQL ILIKE)
 
@@ -155,7 +143,7 @@ class QueryBuilder:
 
         return self
 
-    def order_by(self, column: str, direction: str = "ASC") -> 'QueryBuilder':
+    def order_by(self, column: str, direction: str = "ASC") -> "QueryBuilder":
         """
         Add ORDER BY clause
 
@@ -179,7 +167,7 @@ class QueryBuilder:
         self._order_by = f"{column} {direction}"
         return self
 
-    def paginate(self, page: int, per_page: int = 50) -> 'QueryBuilder':
+    def paginate(self, page: int, per_page: int = 50) -> "QueryBuilder":
         """
         Add pagination (LIMIT/OFFSET)
 
@@ -277,7 +265,7 @@ def build_paginated_query(
     search_column: str = "name",
     filters: Optional[Dict[str, Any]] = None,
     order_by: str = "created_at",
-    order_direction: str = "DESC"
+    order_direction: str = "DESC",
 ) -> Tuple[str, str, Dict[str, Any]]:
     """
     Convenience function for common paginated query pattern

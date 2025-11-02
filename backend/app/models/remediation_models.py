@@ -15,6 +15,7 @@ from beanie import Document
 
 class RemediationStatus(str, Enum):
     """Status of remediation execution."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -24,6 +25,7 @@ class RemediationStatus(str, Enum):
 
 class ScanTargetType(str, Enum):
     """Type of scan/remediation target."""
+
     SSH_HOST = "ssh_host"
     LOCAL = "local"
     KUBERNETES = "kubernetes"
@@ -34,28 +36,29 @@ class ScanTargetType(str, Enum):
 
 class RemediationTarget(BaseModel):
     """Target system for remediation execution."""
+
     type: ScanTargetType
-    identifier: str = Field(..., description="Host address, cluster name, account ID, etc.")
+    identifier: str = Field(
+        ..., description="Host address, cluster name, account ID, etc."
+    )
     credentials: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Encrypted credentials (SSH keys, API tokens, etc.)"
+        default=None, description="Encrypted credentials (SSH keys, API tokens, etc.)"
     )
     metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional target-specific metadata"
+        default=None, description="Additional target-specific metadata"
     )
 
 
 class RemediationExecutionResult(BaseModel):
     """Result of a single remediation execution attempt."""
+
     success: bool
     stdout: Optional[str] = None
     stderr: Optional[str] = None
     exit_code: Optional[int] = None
     duration_seconds: Optional[float] = None
     changes_made: Optional[List[str]] = Field(
-        default=None,
-        description="List of changes applied (for rollback tracking)"
+        default=None, description="List of changes applied (for rollback tracking)"
     )
     error_message: Optional[str] = None
 
@@ -74,7 +77,9 @@ class RemediationResult(Document):
     rule_title: str = Field(..., description="Human-readable rule title")
 
     # Execution details
-    executor_type: str = Field(..., description="Executor used (ansible, bash, terraform, etc.)")
+    executor_type: str = Field(
+        ..., description="Executor used (ansible, bash, terraform, etc.)"
+    )
     target: RemediationTarget = Field(..., description="Target system")
     status: RemediationStatus = Field(default=RemediationStatus.PENDING)
 
@@ -85,10 +90,11 @@ class RemediationResult(Document):
 
     # Configuration
     dry_run: bool = Field(default=False, description="Preview mode (no actual changes)")
-    content_executed: str = Field(..., description="Remediation content (playbook, script, etc.)")
+    content_executed: str = Field(
+        ..., description="Remediation content (playbook, script, etc.)"
+    )
     variables_applied: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Variable values applied during execution"
+        default_factory=dict, description="Variable values applied during execution"
     )
 
     # Results
@@ -98,22 +104,21 @@ class RemediationResult(Document):
     executed_by: str = Field(..., description="Username who triggered remediation")
     scan_id: Optional[str] = Field(
         default=None,
-        description="Related scan ID if remediation triggered from scan results"
+        description="Related scan ID if remediation triggered from scan results",
     )
 
     # Rollback support
     rollback_available: bool = Field(default=False)
     rollback_content: Optional[str] = Field(
         default=None,
-        description="Rollback remediation content (Ansible playbook, script, etc.)"
+        description="Rollback remediation content (Ansible playbook, script, etc.)",
     )
     rollback_executed: bool = Field(default=False)
     rollback_result: Optional[RemediationExecutionResult] = None
 
     # Audit
     audit_log: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="Audit trail of status changes and actions"
+        default_factory=list, description="Audit trail of status changes and actions"
     )
 
     class Settings:
@@ -133,7 +138,7 @@ class RemediationResult(Document):
         entry = {
             "timestamp": datetime.utcnow(),
             "action": action,
-            "details": details or {}
+            "details": details or {},
         }
         self.audit_log.append(entry)
 
@@ -158,8 +163,7 @@ class BulkRemediationJob(Document):
 
     # Configuration
     rule_filter: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Filter criteria for rules to remediate"
+        default=None, description="Filter criteria for rules to remediate"
     )
     target: RemediationTarget
     dry_run: bool = Field(default=False)
@@ -175,8 +179,7 @@ class BulkRemediationJob(Document):
     completed_remediations: int = Field(default=0)
     failed_remediations: int = Field(default=0)
     remediation_ids: List[str] = Field(
-        default_factory=list,
-        description="Individual remediation IDs in this job"
+        default_factory=list, description="Individual remediation IDs in this job"
     )
 
     # User tracking
@@ -184,13 +187,7 @@ class BulkRemediationJob(Document):
 
     class Settings:
         name = "bulk_remediation_jobs"
-        indexes = [
-            "job_id",
-            "scan_id",
-            "status",
-            "executed_by",
-            "created_at"
-        ]
+        indexes = ["job_id", "scan_id", "status", "executed_by", "created_at"]
 
     def calculate_success_rate(self) -> float:
         """Calculate percentage of successful remediations."""
@@ -201,8 +198,10 @@ class BulkRemediationJob(Document):
 
 # Pydantic schemas for API requests/responses
 
+
 class RemediationRequest(BaseModel):
     """API request schema for executing a single remediation."""
+
     rule_id: str
     target: RemediationTarget
     variable_overrides: Optional[Dict[str, str]] = None
@@ -212,14 +211,15 @@ class RemediationRequest(BaseModel):
 
 class BulkRemediationRequest(BaseModel):
     """API request schema for bulk remediation."""
+
     scan_id: Optional[str] = None
     rule_ids: Optional[List[str]] = Field(
         default=None,
-        description="Specific rule IDs to remediate (if not using scan_id)"
+        description="Specific rule IDs to remediate (if not using scan_id)",
     )
     rule_filter: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Filter for rules (e.g., {'status': 'fail', 'severity': ['high']})"
+        description="Filter for rules (e.g., {'status': 'fail', 'severity': ['high']})",
     )
     target: RemediationTarget
     variable_overrides: Optional[Dict[str, str]] = None
@@ -228,6 +228,7 @@ class BulkRemediationRequest(BaseModel):
 
 class RemediationSummary(BaseModel):
     """Summary statistics for remediation operations."""
+
     total: int = 0
     pending: int = 0
     running: int = 0

@@ -19,6 +19,7 @@ class EncryptionError(Exception):
         ... except EncryptionError as e:
         ...     logger.error(f"Encryption failed: {e}")
     """
+
     pass
 
 
@@ -39,6 +40,7 @@ class DecryptionError(EncryptionError):
         ...     logger.error(f"Decryption failed: {e}")
         ...     # Could be wrong key or corrupted data
     """
+
     pass
 
 
@@ -61,6 +63,7 @@ class InvalidDataError(EncryptionError):
         ...     logger.error(f"Invalid data format: {e}")
         ...     # Data is structurally invalid
     """
+
     pass
 
 
@@ -79,4 +82,5 @@ class ConfigurationError(EncryptionError):
         ... except ConfigurationError as e:
         ...     logger.error(f"Invalid configuration: {e}")
     """
+
     pass

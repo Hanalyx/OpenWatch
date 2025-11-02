@@ -15,7 +15,7 @@ from ..models.scan_config_models import (
     FrameworkVersion,
     VariableDefinition,
     VariableConstraint,
-    ScanTargetType
+    ScanTargetType,
 )
 
 
@@ -56,8 +56,7 @@ class FrameworkMetadataService:
 
         # Get all rules with frameworks field
         all_rules = await self.collection.find(
-            {"frameworks": {"$exists": True, "$ne": {}}},
-            {"frameworks": 1}
+            {"frameworks": {"$exists": True, "$ne": {}}}, {"frameworks": 1}
         ).to_list(length=None)
 
         # Parse nested frameworks structure
@@ -70,10 +69,7 @@ class FrameworkMetadataService:
                     continue
 
                 if fw_name not in framework_data:
-                    framework_data[fw_name] = {
-                        "versions": set(),
-                        "rule_count": 0
-                    }
+                    framework_data[fw_name] = {"versions": set(), "rule_count": 0}
 
                 # Add versions from this framework
                 framework_data[fw_name]["versions"].update(fw_versions.keys())
@@ -92,7 +88,7 @@ class FrameworkMetadataService:
                 versions=sorted(fw_info["versions"]),
                 description=self._get_description(fw_name),
                 rule_count=fw_info["rule_count"],
-                variable_count=var_count
+                variable_count=var_count,
             )
 
             frameworks.append(metadata)
@@ -101,9 +97,7 @@ class FrameworkMetadataService:
         return frameworks
 
     async def get_framework_details(
-        self,
-        framework: str,
-        version: str
+        self, framework: str, version: str
     ) -> FrameworkVersion:
         """
         Get detailed information about a specific framework version.
@@ -121,10 +115,9 @@ class FrameworkMetadataService:
         logger.info(f"Getting details for {framework}/{version}")
 
         # Count rules
-        rule_count = await self.collection.count_documents({
-            "framework": framework,
-            "framework_version": version
-        })
+        rule_count = await self.collection.count_documents(
+            {"framework": framework, "framework_version": version}
+        )
 
         if rule_count == 0:
             raise ValueError(f"Framework {framework}/{version} not found")
@@ -147,15 +140,13 @@ class FrameworkMetadataService:
             variable_count=len(variables),
             variables=variables,
             categories=categories,
-            target_types=target_types
+            target_types=target_types,
         )
 
         return framework_version
 
     async def get_variables(
-        self,
-        framework: str,
-        version: str
+        self, framework: str, version: str
     ) -> List[VariableDefinition]:
         """
         Get all variable definitions for a framework/version.
@@ -176,7 +167,7 @@ class FrameworkMetadataService:
         query = {
             "framework": framework,
             "framework_version": version,
-            "xccdf_variables": {"$exists": True, "$ne": {}}
+            "xccdf_variables": {"$exists": True, "$ne": {}},
         }
 
         rules = await self.collection.find(query).to_list(length=None)
@@ -195,17 +186,14 @@ class FrameworkMetadataService:
 
         # Convert to sorted list
         variables = sorted(
-            variables_dict.values(),
-            key=lambda v: (v.category or "", v.title)
+            variables_dict.values(), key=lambda v: (v.category or "", v.title)
         )
 
         logger.info(f"Found {len(variables)} variables for {framework}/{version}")
         return variables
 
     async def validate_variable_value(
-        self,
-        variable_def: VariableDefinition,
-        value: Any
+        self, variable_def: VariableDefinition, value: Any
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate a variable value against its definition and constraints.
@@ -225,9 +213,7 @@ class FrameworkMetadataService:
         # Constraint validation
         if variable_def.constraints:
             valid, error = self._validate_constraints(
-                variable_def.constraints,
-                value,
-                variable_def.type
+                variable_def.constraints, value, variable_def.type
             )
             if not valid:
                 return False, error
@@ -235,10 +221,7 @@ class FrameworkMetadataService:
         return True, None
 
     async def validate_variables(
-        self,
-        framework: str,
-        version: str,
-        variables: Dict[str, Any]
+        self, framework: str, version: str, variables: Dict[str, Any]
     ) -> Tuple[bool, Dict[str, str]]:
         """
         Validate multiple variable values.
@@ -291,7 +274,9 @@ class FrameworkMetadataService:
             "gdpr": "GDPR",
             "fedramp": "FedRAMP",
         }
-        return display_names.get(framework, framework.upper() if framework else "Unknown")
+        return display_names.get(
+            framework, framework.upper() if framework else "Unknown"
+        )
 
     def _get_description(self, framework: str) -> str:
         """Get framework description."""
@@ -316,7 +301,7 @@ class FrameworkMetadataService:
             {"$project": {"vars": {"$objectToArray": "$xccdf_variables"}}},
             {"$unwind": "$vars"},
             {"$group": {"_id": "$vars.k"}},
-            {"$count": "total"}
+            {"$count": "total"},
         ]
 
         result = await self.collection.aggregate(pipeline).to_list(length=1)
@@ -325,21 +310,17 @@ class FrameworkMetadataService:
     async def _get_categories(self, framework: str, version: str) -> List[str]:
         """Get distinct rule categories."""
         categories = await self.collection.distinct(
-            "category",
-            {"framework": framework, "framework_version": version}
+            "category", {"framework": framework, "framework_version": version}
         )
         return sorted([c for c in categories if c])
 
     async def _get_target_types(
-        self,
-        framework: str,
-        version: str
+        self, framework: str, version: str
     ) -> List[ScanTargetType]:
         """Get supported target types for framework."""
         # Query scanner_type field
         scanner_types = await self.collection.distinct(
-            "scanner_type",
-            {"framework": framework, "framework_version": version}
+            "scanner_type", {"framework": framework, "framework_version": version}
         )
 
         # Map scanner types to target types
@@ -361,9 +342,7 @@ class FrameworkMetadataService:
         return sorted(list(target_types), key=lambda t: t.value)
 
     def _parse_variable_definition(
-        self,
-        var_id: str,
-        var_def: Dict[str, Any]
+        self, var_id: str, var_def: Dict[str, Any]
     ) -> VariableDefinition:
         """
         Parse variable definition from MongoDB document.
@@ -384,12 +363,14 @@ class FrameworkMetadataService:
 
         # Extract constraints
         constraints = None
-        if any(k in var_def for k in ["lower_bound", "upper_bound", "choices", "match"]):
+        if any(
+            k in var_def for k in ["lower_bound", "upper_bound", "choices", "match"]
+        ):
             constraints = VariableConstraint(
                 lower_bound=var_def.get("lower_bound"),
                 upper_bound=var_def.get("upper_bound"),
                 choices=var_def.get("choices"),
-                match=var_def.get("match")
+                match=var_def.get("match"),
             )
 
         # Infer category from variable ID
@@ -403,7 +384,7 @@ class FrameworkMetadataService:
             default=default,
             constraints=constraints,
             interactive=interactive,
-            category=category
+            category=category,
         )
 
     def _infer_category(self, var_id: str) -> Optional[str]:
@@ -449,10 +430,7 @@ class FrameworkMetadataService:
         return True, None
 
     def _validate_constraints(
-        self,
-        constraints: VariableConstraint,
-        value: Any,
-        var_type: str
+        self, constraints: VariableConstraint, value: Any, var_type: str
     ) -> Tuple[bool, Optional[str]]:
         """Validate value against constraints."""
 
@@ -462,23 +440,35 @@ class FrameworkMetadataService:
 
             if constraints.lower_bound is not None:
                 if num_value < constraints.lower_bound:
-                    return False, f"Value {num_value} is below lower bound {constraints.lower_bound}"
+                    return (
+                        False,
+                        f"Value {num_value} is below lower bound {constraints.lower_bound}",
+                    )
 
             if constraints.upper_bound is not None:
                 if num_value > constraints.upper_bound:
-                    return False, f"Value {num_value} exceeds upper bound {constraints.upper_bound}"
+                    return (
+                        False,
+                        f"Value {num_value} exceeds upper bound {constraints.upper_bound}",
+                    )
 
         # Choice constraints
         if constraints.choices is not None:
             if str(value) not in constraints.choices:
-                return False, f"Value '{value}' not in allowed choices: {', '.join(constraints.choices)}"
+                return (
+                    False,
+                    f"Value '{value}' not in allowed choices: {', '.join(constraints.choices)}",
+                )
 
         # Pattern constraint (regex)
         if constraints.match is not None:
             try:
                 pattern = re.compile(constraints.match)
                 if not pattern.match(str(value)):
-                    return False, f"Value '{value}' does not match required pattern: {constraints.match}"
+                    return (
+                        False,
+                        f"Value '{value}' does not match required pattern: {constraints.match}",
+                    )
             except re.error as e:
                 logger.error(f"Invalid regex pattern {constraints.match}: {e}")
                 return False, f"Invalid constraint pattern"

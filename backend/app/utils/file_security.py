@@ -2,6 +2,7 @@
 File Security Utilities
 Provides secure filename sanitization and path validation to prevent path traversal attacks
 """
+
 import os
 import re
 from pathlib import Path
@@ -36,49 +37,68 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
         raise ValueError("Filename cannot be empty")
 
     # Normalize unicode characters (NFKD normalization)
-    filename = unicodedata.normalize('NFKD', filename)
+    filename = unicodedata.normalize("NFKD", filename)
 
     # Remove any path components (handle both Unix and Windows paths)
     filename = os.path.basename(filename)
-    filename = filename.replace('\\', '').replace('/', '')
+    filename = filename.replace("\\", "").replace("/", "")
 
     # Remove null bytes and control characters
-    filename = ''.join(char for char in filename if ord(char) >= 32)
+    filename = "".join(char for char in filename if ord(char) >= 32)
 
     # Remove directory traversal patterns
-    filename = filename.replace('..', '')
+    filename = filename.replace("..", "")
 
     # Remove leading/trailing dots and spaces
-    filename = filename.strip('. ')
+    filename = filename.strip(". ")
 
     # Replace problematic characters with underscores
     # Keep: alphanumeric, dash, underscore, period
-    filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+    filename = re.sub(r"[^a-zA-Z0-9._-]", "_", filename)
 
     # Ensure at least one character before extension
-    if filename.startswith('.'):
-        filename = 'file' + filename
+    if filename.startswith("."):
+        filename = "file" + filename
 
     # Limit length while preserving extension
     if len(filename) > max_length:
         name, ext = os.path.splitext(filename)
-        name = name[:max_length - len(ext) - 1]
+        name = name[: max_length - len(ext) - 1]
         filename = name + ext
 
     # Final validation
-    if not filename or filename in ('', '.', '..'):
+    if not filename or filename in ("", ".", ".."):
         raise ValueError("Invalid filename after sanitization")
 
     # Prevent reserved names on Windows
     reserved_names = {
-        'CON', 'PRN', 'AUX', 'NUL',
-        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
-        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
     }
 
     name_without_ext = os.path.splitext(filename)[0].upper()
     if name_without_ext in reserved_names:
-        filename = '_' + filename
+        filename = "_" + filename
 
     return filename
 
@@ -105,9 +125,7 @@ def validate_file_extension(filename: str, allowed_extensions: list[str]) -> boo
 
 
 def validate_storage_path(
-    base_path: Union[str, Path],
-    file_path: Union[str, Path],
-    allow_create: bool = False
+    base_path: Union[str, Path], file_path: Union[str, Path], allow_create: bool = False
 ) -> Path:
     """
     Validate that file_path is within base_path (prevent path traversal)
@@ -144,9 +162,7 @@ def validate_storage_path(
 
 
 def generate_secure_filepath(
-    base_dir: Union[str, Path],
-    filename: str,
-    subdirectory: Optional[str] = None
+    base_dir: Union[str, Path], filename: str, subdirectory: Optional[str] = None
 ) -> Path:
     """
     Generate a secure file path for storage

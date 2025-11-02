@@ -10,7 +10,7 @@ from typing import Dict, Type, List
 from .base_executor import (
     BaseRemediationExecutor,
     ExecutorMetadata,
-    ExecutorNotAvailableError
+    ExecutorNotAvailableError,
 )
 from .ansible_executor import AnsibleExecutor
 from .bash_executor import BashExecutor
@@ -28,8 +28,8 @@ class RemediationExecutorFactory:
 
     # Registry of executor types
     _executors: Dict[str, Type[BaseRemediationExecutor]] = {
-        'ansible': AnsibleExecutor,
-        'bash': BashExecutor,
+        "ansible": AnsibleExecutor,
+        "bash": BashExecutor,
         # Future executors:
         # 'terraform': TerraformExecutor,
         # 'kubernetes': KubernetesExecutor,
@@ -64,9 +64,7 @@ class RemediationExecutorFactory:
 
     @classmethod
     def register_executor(
-        cls,
-        executor_type: str,
-        executor_class: Type[BaseRemediationExecutor]
+        cls, executor_type: str, executor_class: Type[BaseRemediationExecutor]
     ):
         """
         Register a custom executor type.
@@ -81,9 +79,7 @@ class RemediationExecutorFactory:
             TypeError: executor_class not a BaseRemediationExecutor subclass
         """
         if not issubclass(executor_class, BaseRemediationExecutor):
-            raise TypeError(
-                f"Executor class must inherit from BaseRemediationExecutor"
-            )
+            raise TypeError(f"Executor class must inherit from BaseRemediationExecutor")
 
         cls._executors[executor_type] = executor_class
 
@@ -137,7 +133,7 @@ class RemediationExecutorFactory:
                 capabilities=executor.capabilities,
                 supported_targets=[],  # Executor doesn't track this by default
                 version=executor.version,
-                available=True
+                available=True,
             )
 
             return metadata
@@ -152,7 +148,7 @@ class RemediationExecutorFactory:
                 capabilities=set(),
                 supported_targets=[],
                 version="N/A",
-                available=False
+                available=False,
             )
 
     @classmethod
@@ -172,6 +168,7 @@ class RemediationExecutorFactory:
 
 
 # Convenience functions
+
 
 def get_executor(executor_type: str) -> BaseRemediationExecutor:
     """
@@ -197,11 +194,11 @@ def list_available_executors() -> List[str]:
 
 
 __all__ = [
-    'RemediationExecutorFactory',
-    'get_executor',
-    'list_available_executors',
-    'BaseRemediationExecutor',
-    'AnsibleExecutor',
-    'BashExecutor',
-    'ExecutorMetadata',
+    "RemediationExecutorFactory",
+    "get_executor",
+    "list_available_executors",
+    "BaseRemediationExecutor",
+    "AnsibleExecutor",
+    "BashExecutor",
+    "ExecutorMetadata",
 ]

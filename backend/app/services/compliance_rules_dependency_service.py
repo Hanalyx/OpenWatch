@@ -2,6 +2,7 @@
 Dependency Management Service for Compliance Rules
 Handles rule dependencies, inheritance, and impact analysis
 """
+
 from typing import Dict, List, Set, Any, Optional, Tuple, Union
 from collections import defaultdict, deque
 from datetime import datetime
@@ -29,14 +30,22 @@ class RuleDependencyGraph:
 
         # Inheritance relationships
         self.inheritance_parents: Dict[str, Optional[str]] = {}  # child → parent
-        self.inheritance_children: Dict[str, List[str]] = defaultdict(list)  # parent → [children]
+        self.inheritance_children: Dict[str, List[str]] = defaultdict(
+            list
+        )  # parent → [children]
 
         # Dependency relationships
-        self.requirements: Dict[str, List[str]] = defaultdict(list)  # rule → [required_rules]
-        self.required_by: Dict[str, List[str]] = defaultdict(list)  # rule → [rules_that_require_this]
+        self.requirements: Dict[str, List[str]] = defaultdict(
+            list
+        )  # rule → [required_rules]
+        self.required_by: Dict[str, List[str]] = defaultdict(
+            list
+        )  # rule → [rules_that_require_this]
 
         # Conflict relationships
-        self.conflicts: Dict[str, List[str]] = defaultdict(list)  # rule → [conflicting_rules]
+        self.conflicts: Dict[str, List[str]] = defaultdict(
+            list
+        )  # rule → [conflicting_rules]
 
         # Related rules (informational only)
         self.related: Dict[str, List[str]] = defaultdict(list)  # rule → [related_rules]
@@ -82,17 +91,17 @@ class RuleDependencyGraph:
 
         # Build requirement relationships
         if rule.dependencies:
-            requires = rule.dependencies.get('requires', [])
+            requires = rule.dependencies.get("requires", [])
             for required in requires:
                 self.requirements[rule_id].append(required)
                 self.required_by[required].append(rule_id)
 
             # Build conflict relationships
-            conflicts = rule.dependencies.get('conflicts', [])
+            conflicts = rule.dependencies.get("conflicts", [])
             self.conflicts[rule_id] = conflicts
 
             # Build related relationships
-            related = rule.dependencies.get('related', [])
+            related = rule.dependencies.get("related", [])
             self.related[rule_id] = related
 
     def add_rule_from_dict(self, rule_data: Dict[str, Any]):
@@ -102,7 +111,7 @@ class RuleDependencyGraph:
         Args:
             rule_data: Rule dictionary with rule_id and relationships
         """
-        rule_id = rule_data.get('rule_id')
+        rule_id = rule_data.get("rule_id")
         if not rule_id:
             return
 
@@ -111,23 +120,23 @@ class RuleDependencyGraph:
         self.rules[rule_id] = rule_data
 
         # Build inheritance relationships
-        parent = rule_data.get('inherits_from')
+        parent = rule_data.get("inherits_from")
         if parent:
             self.inheritance_parents[rule_id] = parent
             self.inheritance_children[parent].append(rule_id)
 
         # Build dependency relationships
-        dependencies = rule_data.get('dependencies', {})
+        dependencies = rule_data.get("dependencies", {})
         if dependencies:
-            requires = dependencies.get('requires', [])
+            requires = dependencies.get("requires", [])
             for required in requires:
                 self.requirements[rule_id].append(required)
                 self.required_by[required].append(rule_id)
 
-            conflicts = dependencies.get('conflicts', [])
+            conflicts = dependencies.get("conflicts", [])
             self.conflicts[rule_id] = conflicts
 
-            related = dependencies.get('related', [])
+            related = dependencies.get("related", [])
             self.related[rule_id] = related
 
     def get_descendants(self, rule_id: str) -> List[str]:
@@ -206,13 +215,13 @@ class RuleDependencyGraph:
             Detailed impact analysis including affected rules
         """
         impact = {
-            'updated_rules': updated_rules,
-            'updated_rules_count': len(updated_rules),
-            'total_affected_rules': 0,
-            'affected_by_rule': {},
-            'inheritance_impacts': [],
-            'dependency_impacts': [],
-            'conflict_warnings': []
+            "updated_rules": updated_rules,
+            "updated_rules_count": len(updated_rules),
+            "total_affected_rules": 0,
+            "affected_by_rule": {},
+            "inheritance_impacts": [],
+            "dependency_impacts": [],
+            "conflict_warnings": [],
         }
 
         all_affected = set()
@@ -220,54 +229,64 @@ class RuleDependencyGraph:
         for rule_id in updated_rules:
             # Get all affected relationships
             affected = {
-                'direct_children': self.inheritance_children.get(rule_id, []),
-                'all_descendants': self.get_descendants(rule_id),
-                'dependent_rules': self.required_by.get(rule_id, []),
-                'conflicting_rules': self.conflicts.get(rule_id, [])
+                "direct_children": self.inheritance_children.get(rule_id, []),
+                "all_descendants": self.get_descendants(rule_id),
+                "dependent_rules": self.required_by.get(rule_id, []),
+                "conflicting_rules": self.conflicts.get(rule_id, []),
             }
 
-            impact['affected_by_rule'][rule_id] = affected
+            impact["affected_by_rule"][rule_id] = affected
 
             # Track inheritance impacts
-            if affected['direct_children']:
-                impact['inheritance_impacts'].append({
-                    'parent_rule': rule_id,
-                    'direct_children_count': len(affected['direct_children']),
-                    'total_descendants_count': len(affected['all_descendants']),
-                    'direct_children': affected['direct_children'],
-                    'severity': 'high' if len(affected['all_descendants']) > 10 else 'medium'
-                })
+            if affected["direct_children"]:
+                impact["inheritance_impacts"].append(
+                    {
+                        "parent_rule": rule_id,
+                        "direct_children_count": len(affected["direct_children"]),
+                        "total_descendants_count": len(affected["all_descendants"]),
+                        "direct_children": affected["direct_children"],
+                        "severity": (
+                            "high"
+                            if len(affected["all_descendants"]) > 10
+                            else "medium"
+                        ),
+                    }
+                )
 
-                all_affected.update(affected['all_descendants'])
+                all_affected.update(affected["all_descendants"])
 
             # Track dependency impacts
-            if affected['dependent_rules']:
-                impact['dependency_impacts'].append({
-                    'required_rule': rule_id,
-                    'dependent_rules_count': len(affected['dependent_rules']),
-                    'dependent_rules': affected['dependent_rules'],
-                    'severity': 'high' if len(affected['dependent_rules']) > 5 else 'medium'
-                })
+            if affected["dependent_rules"]:
+                impact["dependency_impacts"].append(
+                    {
+                        "required_rule": rule_id,
+                        "dependent_rules_count": len(affected["dependent_rules"]),
+                        "dependent_rules": affected["dependent_rules"],
+                        "severity": (
+                            "high" if len(affected["dependent_rules"]) > 5 else "medium"
+                        ),
+                    }
+                )
 
-                all_affected.update(affected['dependent_rules'])
+                all_affected.update(affected["dependent_rules"])
 
             # Track conflicts
-            if affected['conflicting_rules']:
-                impact['conflict_warnings'].append({
-                    'rule': rule_id,
-                    'conflicts_with': affected['conflicting_rules'],
-                    'conflict_count': len(affected['conflicting_rules']),
-                    'severity': 'warning'
-                })
+            if affected["conflicting_rules"]:
+                impact["conflict_warnings"].append(
+                    {
+                        "rule": rule_id,
+                        "conflicts_with": affected["conflicting_rules"],
+                        "conflict_count": len(affected["conflicting_rules"]),
+                        "severity": "warning",
+                    }
+                )
 
-        impact['total_affected_rules'] = len(all_affected)
+        impact["total_affected_rules"] = len(all_affected)
 
         return impact
 
     def validate_dependencies(
-        self,
-        new_rules: List[Dict[str, Any]],
-        check_existing_db: bool = True
+        self, new_rules: List[Dict[str, Any]], check_existing_db: bool = True
     ) -> Dict[str, Any]:
         """
         Validate that all dependencies are satisfied for new rules
@@ -279,97 +298,101 @@ class RuleDependencyGraph:
         Returns:
             Validation result with missing/circular dependencies
         """
-        validation = {
-            'valid': True,
-            'errors': [],
-            'warnings': []
-        }
+        validation = {"valid": True, "errors": [], "warnings": []}
 
         # Build set of new rule IDs
-        new_rule_ids = {rule.get('rule_id') for rule in new_rules if rule.get('rule_id')}
+        new_rule_ids = {
+            rule.get("rule_id") for rule in new_rules if rule.get("rule_id")
+        }
 
         for rule in new_rules:
-            rule_id = rule.get('rule_id')
+            rule_id = rule.get("rule_id")
             if not rule_id:
-                validation['errors'].append({
-                    'type': 'missing_rule_id',
-                    'message': 'Rule missing rule_id field',
-                    'severity': 'error'
-                })
-                validation['valid'] = False
+                validation["errors"].append(
+                    {
+                        "type": "missing_rule_id",
+                        "message": "Rule missing rule_id field",
+                        "severity": "error",
+                    }
+                )
+                validation["valid"] = False
                 continue
 
             # Validate parent exists
-            parent = rule.get('inherits_from')
+            parent = rule.get("inherits_from")
             if parent:
-                parent_exists = (
-                    parent in new_rule_ids or
-                    (check_existing_db and parent in self.rules)
+                parent_exists = parent in new_rule_ids or (
+                    check_existing_db and parent in self.rules
                 )
 
                 if not parent_exists:
-                    validation['valid'] = False
-                    validation['errors'].append({
-                        'rule_id': rule_id,
-                        'type': 'missing_parent',
-                        'message': f"Parent rule '{parent}' not found",
-                        'severity': 'error',
-                        'field': 'inherits_from'
-                    })
+                    validation["valid"] = False
+                    validation["errors"].append(
+                        {
+                            "rule_id": rule_id,
+                            "type": "missing_parent",
+                            "message": f"Parent rule '{parent}' not found",
+                            "severity": "error",
+                            "field": "inherits_from",
+                        }
+                    )
 
             # Validate required dependencies exist
-            dependencies = rule.get('dependencies', {})
-            requires = dependencies.get('requires', [])
+            dependencies = rule.get("dependencies", {})
+            requires = dependencies.get("requires", [])
             for required in requires:
-                required_exists = (
-                    required in new_rule_ids or
-                    (check_existing_db and required in self.rules)
+                required_exists = required in new_rule_ids or (
+                    check_existing_db and required in self.rules
                 )
 
                 if not required_exists:
-                    validation['valid'] = False
-                    validation['errors'].append({
-                        'rule_id': rule_id,
-                        'type': 'missing_dependency',
-                        'message': f"Required rule '{required}' not found",
-                        'severity': 'error',
-                        'field': 'dependencies.requires'
-                    })
+                    validation["valid"] = False
+                    validation["errors"].append(
+                        {
+                            "rule_id": rule_id,
+                            "type": "missing_dependency",
+                            "message": f"Required rule '{required}' not found",
+                            "severity": "error",
+                            "field": "dependencies.requires",
+                        }
+                    )
 
             # Warn about conflicts
-            conflicts = dependencies.get('conflicts', [])
+            conflicts = dependencies.get("conflicts", [])
             for conflict in conflicts:
-                conflict_exists = (
-                    conflict in new_rule_ids or
-                    (check_existing_db and conflict in self.rules)
+                conflict_exists = conflict in new_rule_ids or (
+                    check_existing_db and conflict in self.rules
                 )
 
                 if conflict_exists:
-                    validation['warnings'].append({
-                        'rule_id': rule_id,
-                        'type': 'conflict',
-                        'message': f"Rule conflicts with '{conflict}' which exists",
-                        'severity': 'warning',
-                        'field': 'dependencies.conflicts'
-                    })
+                    validation["warnings"].append(
+                        {
+                            "rule_id": rule_id,
+                            "type": "conflict",
+                            "message": f"Rule conflicts with '{conflict}' which exists",
+                            "severity": "warning",
+                            "field": "dependencies.conflicts",
+                        }
+                    )
 
         # Check for circular dependencies
         circular = self._detect_circular_dependencies(new_rules)
         if circular:
-            validation['valid'] = False
+            validation["valid"] = False
             for chain in circular:
-                validation['errors'].append({
-                    'type': 'circular_dependency',
-                    'message': f"Circular dependency detected: {' → '.join(chain)}",
-                    'chain': chain,
-                    'severity': 'error'
-                })
+                validation["errors"].append(
+                    {
+                        "type": "circular_dependency",
+                        "message": f"Circular dependency detected: {' → '.join(chain)}",
+                        "chain": chain,
+                        "severity": "error",
+                    }
+                )
 
         return validation
 
     def _detect_circular_dependencies(
-        self,
-        new_rules: List[Dict[str, Any]]
+        self, new_rules: List[Dict[str, Any]]
     ) -> List[List[str]]:
         """
         Detect circular inheritance chains in new rules
@@ -383,8 +406,8 @@ class RuleDependencyGraph:
         # Build temporary inheritance map from new rules
         inheritance = {}
         for rule in new_rules:
-            rule_id = rule.get('rule_id')
-            parent = rule.get('inherits_from')
+            rule_id = rule.get("rule_id")
+            parent = rule.get("inherits_from")
             if rule_id and parent:
                 inheritance[rule_id] = parent
 
@@ -447,53 +470,61 @@ class RuleDependencyGraph:
             Statistics dictionary
         """
         return {
-            'total_rules': len(self.rules),
-            'rules_with_parents': len(self.inheritance_parents),
-            'abstract_rules': sum(
-                1 for rule in self.rules.values()
+            "total_rules": len(self.rules),
+            "rules_with_parents": len(self.inheritance_parents),
+            "abstract_rules": sum(
+                1
+                for rule in self.rules.values()
                 if isinstance(rule, ComplianceRule) and rule.abstract
             ),
-            'root_rules': len(self.rules) - len(self.inheritance_parents),
-            'total_inheritance_relationships': len(self.inheritance_parents),
-            'total_requirement_relationships': sum(len(v) for v in self.requirements.values()),
-            'total_conflict_relationships': sum(len(v) for v in self.conflicts.values()),
-            'max_inheritance_depth': max(
-                (self.get_inheritance_depth(rule_id) for rule_id in self.rules),
-                default=0
+            "root_rules": len(self.rules) - len(self.inheritance_parents),
+            "total_inheritance_relationships": len(self.inheritance_parents),
+            "total_requirement_relationships": sum(
+                len(v) for v in self.requirements.values()
             ),
-            'rules_with_most_children': sorted(
-                ((rule_id, len(children)) for rule_id, children in self.inheritance_children.items()),
+            "total_conflict_relationships": sum(
+                len(v) for v in self.conflicts.values()
+            ),
+            "max_inheritance_depth": max(
+                (self.get_inheritance_depth(rule_id) for rule_id in self.rules),
+                default=0,
+            ),
+            "rules_with_most_children": sorted(
+                (
+                    (rule_id, len(children))
+                    for rule_id, children in self.inheritance_children.items()
+                ),
                 key=lambda x: x[1],
-                reverse=True
-            )[:5]
+                reverse=True,
+            )[:5],
         }
 
 
 # Inheritable field definitions
 INHERITABLE_FIELDS = {
-    'severity',
-    'category',
-    'tags',
-    'frameworks',
-    'remediation_complexity',
-    'remediation_risk',
-    'base_parameters',
-    'inheritable_properties',
-    'security_function'
+    "severity",
+    "category",
+    "tags",
+    "frameworks",
+    "remediation_complexity",
+    "remediation_risk",
+    "base_parameters",
+    "inheritable_properties",
+    "security_function",
 }
 
 NON_INHERITABLE_FIELDS = {
-    'rule_id',
-    'scap_rule_id',
-    'metadata',
-    'platform_implementations',
-    'check_type',
-    'check_content',
-    'fix_content',
-    'source_file',
-    'source_hash',
-    'imported_at',
-    'updated_at'
+    "rule_id",
+    "scap_rule_id",
+    "metadata",
+    "platform_implementations",
+    "check_type",
+    "check_content",
+    "fix_content",
+    "source_file",
+    "source_hash",
+    "imported_at",
+    "updated_at",
 }
 
 
@@ -509,10 +540,7 @@ class InheritanceResolver:
         self.graph = dependency_graph
 
     async def resolve_parent_update(
-        self,
-        parent_rule_id: str,
-        parent_changes: Dict[str, Any],
-        dry_run: bool = False
+        self, parent_rule_id: str, parent_changes: Dict[str, Any], dry_run: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Determine which child rules need updates when parent changes
@@ -556,35 +584,29 @@ class InheritanceResolver:
 
                 # Check if child explicitly overrides this field
                 if self._child_overrides_field(child_rule, field):
-                    logger.debug(
-                        f"{child_id} overrides {field} - skip inheritance"
-                    )
+                    logger.debug(f"{child_id} overrides {field} - skip inheritance")
                     continue
 
                 # Child should inherit this change
-                child_updates[field] = change['new']
+                child_updates[field] = change["new"]
 
             # If any updates needed, record them
             if child_updates:
-                updates.append({
-                    'rule_id': child_id,
-                    'inherited_from': parent_rule_id,
-                    'updates': child_updates,
-                    'update_count': len(child_updates),
-                    'action': 'dry_run' if dry_run else 'update'
-                })
+                updates.append(
+                    {
+                        "rule_id": child_id,
+                        "inherited_from": parent_rule_id,
+                        "updates": child_updates,
+                        "update_count": len(child_updates),
+                        "action": "dry_run" if dry_run else "update",
+                    }
+                )
 
-        logger.info(
-            f"Inheritance resolution: {len(updates)} child rules need updates"
-        )
+        logger.info(f"Inheritance resolution: {len(updates)} child rules need updates")
 
         return updates
 
-    def _child_overrides_field(
-        self,
-        child_rule: ComplianceRule,
-        field: str
-    ) -> bool:
+    def _child_overrides_field(self, child_rule: ComplianceRule, field: str) -> bool:
         """
         Check if child rule explicitly overrides a field
 
@@ -601,11 +623,11 @@ class InheritanceResolver:
                 return True
 
         # For specific fields, check if child has own non-default value
-        if field == 'metadata':
+        if field == "metadata":
             # Child always has own metadata
             return True
 
-        if field in ['platform_implementations', 'check_content', 'fix_content']:
+        if field in ["platform_implementations", "check_content", "fix_content"]:
             # Platform-specific fields are never inherited
             return True
 
@@ -627,8 +649,7 @@ class InheritanceResolver:
         return False
 
     async def apply_inheritance_updates(
-        self,
-        updates: List[Dict[str, Any]]
+        self, updates: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Apply inheritance updates to child rules
@@ -639,15 +660,11 @@ class InheritanceResolver:
         Returns:
             Results with counts of applied updates
         """
-        results = {
-            'applied': 0,
-            'failed': 0,
-            'errors': []
-        }
+        results = {"applied": 0, "failed": 0, "errors": []}
 
         for update_spec in updates:
-            rule_id = update_spec['rule_id']
-            updates_dict = update_spec['updates']
+            rule_id = update_spec["rule_id"]
+            updates_dict = update_spec["updates"]
 
             try:
                 # Get child rule from database
@@ -656,11 +673,10 @@ class InheritanceResolver:
                 )
 
                 if not child_rule:
-                    results['failed'] += 1
-                    results['errors'].append({
-                        'rule_id': rule_id,
-                        'error': 'Rule not found in database'
-                    })
+                    results["failed"] += 1
+                    results["errors"].append(
+                        {"rule_id": rule_id, "error": "Rule not found in database"}
+                    )
                     continue
 
                 # Apply updates
@@ -673,15 +689,12 @@ class InheritanceResolver:
                 # Save to database
                 await child_rule.save()
 
-                results['applied'] += 1
+                results["applied"] += 1
                 logger.info(f"Applied inheritance updates to {rule_id}")
 
             except Exception as e:
-                results['failed'] += 1
-                results['errors'].append({
-                    'rule_id': rule_id,
-                    'error': str(e)
-                })
+                results["failed"] += 1
+                results["errors"].append({"rule_id": rule_id, "error": str(e)})
                 logger.error(f"Failed to apply updates to {rule_id}: {e}")
 
         return results

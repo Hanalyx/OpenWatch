@@ -10,4 +10,5 @@ try:
 except ImportError as e:
     # Allow tests to run without MongoDB/motor or other optional dependencies
     import logging
+
     logging.warning(f"Optional compliance routes not available: {e}")

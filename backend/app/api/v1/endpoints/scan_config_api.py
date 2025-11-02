@@ -19,7 +19,7 @@ from ....models.scan_config_models import (
     ValidateVariablesRequest,
     ValidationResult,
     ApplyTemplateRequest,
-    TemplateStatistics
+    TemplateStatistics,
 )
 from ....services.framework_metadata_service import FrameworkMetadataService
 from ....services.scan_template_service import ScanTemplateService
@@ -32,10 +32,11 @@ router = APIRouter()
 
 # Framework Discovery Endpoints
 
+
 @router.get("/frameworks", response_model=List[FrameworkMetadata])
 async def list_frameworks(
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     List all available compliance frameworks.
@@ -74,15 +75,12 @@ async def list_frameworks(
     return frameworks
 
 
-@router.get(
-    "/frameworks/{framework}/{version}",
-    response_model=FrameworkVersion
-)
+@router.get("/frameworks/{framework}/{version}", response_model=FrameworkVersion)
 async def get_framework_details(
     framework: str,
     version: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get detailed information about a specific framework version.
@@ -112,14 +110,14 @@ async def get_framework_details(
 
 @router.get(
     "/frameworks/{framework}/{version}/variables",
-    response_model=List[VariableDefinition]
+    response_model=List[VariableDefinition],
 )
 async def get_framework_variables(
     framework: str,
     version: str,
     category: Optional[str] = Query(None, description="Filter by category"),
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get variable definitions for a framework/version.
@@ -179,15 +177,14 @@ async def get_framework_variables(
 
 
 @router.post(
-    "/frameworks/{framework}/{version}/validate",
-    response_model=ValidationResult
+    "/frameworks/{framework}/{version}/validate", response_model=ValidationResult
 )
 async def validate_variables(
     framework: str,
     version: str,
     request: ValidateVariablesRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Validate variable values against constraints.
@@ -238,24 +235,20 @@ async def validate_variables(
     service = FrameworkMetadataService(db)
 
     valid, errors = await service.validate_variables(
-        framework=framework,
-        version=version,
-        variables=request.variables
+        framework=framework, version=version, variables=request.variables
     )
 
-    return ValidationResult(
-        valid=valid,
-        errors=errors
-    )
+    return ValidationResult(valid=valid, errors=errors)
 
 
 # Template Management Endpoints
 
+
 @router.post("/templates", response_model=ScanTemplate)
 async def create_template(
     request: CreateTemplateRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Create a scan configuration template.
@@ -299,8 +292,8 @@ async def create_template(
         variable_overrides=request.variable_overrides,
         rule_filter=request.rule_filter,
         tags=request.tags,
-        created_by=current_user.get('username'),
-        is_public=request.is_public
+        created_by=current_user.get("username"),
+        is_public=request.is_public,
     )
 
     return template
@@ -313,8 +306,8 @@ async def list_templates(
     is_public: Optional[bool] = Query(None, description="Filter by visibility"),
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(50, ge=1, le=100, description="Max results"),
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     List scan templates with filters.
@@ -338,12 +331,12 @@ async def list_templates(
     # Parse tags
     tag_list = None
     if tags:
-        tag_list = [t.strip() for t in tags.split(',')]
+        tag_list = [t.strip() for t in tags.split(",")]
 
     # Non-admin users see only their own + public templates
     created_by = None
-    if current_user.get('role') != 'admin':
-        created_by = current_user.get('username')
+    if current_user.get("role") != "admin":
+        created_by = current_user.get("username")
 
     templates = await service.list_templates(
         created_by=created_by,
@@ -351,7 +344,7 @@ async def list_templates(
         tags=tag_list,
         is_public=is_public,
         skip=skip,
-        limit=limit
+        limit=limit,
     )
 
     return templates
@@ -360,8 +353,8 @@ async def list_templates(
 @router.get("/templates/{template_id}", response_model=ScanTemplate)
 async def get_template(
     template_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get template by ID.
@@ -385,10 +378,12 @@ async def get_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     # Authorization check
-    if current_user.get('role') != 'admin':
-        if template.created_by != current_user.get('username') and \
-           not template.is_public and \
-           current_user.get('username') not in template.shared_with:
+    if current_user.get("role") != "admin":
+        if (
+            template.created_by != current_user.get("username")
+            and not template.is_public
+            and current_user.get("username") not in template.shared_with
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
 
     return template
@@ -398,8 +393,8 @@ async def get_template(
 async def update_template(
     template_id: str,
     request: UpdateTemplateRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Update template fields.
@@ -435,9 +430,11 @@ async def update_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     # Authorization: only owner can update
-    if current_user.get('role') != 'admin':
-        if template.created_by != current_user.get('username'):
-            raise HTTPException(status_code=403, detail="Only template owner can update")
+    if current_user.get("role") != "admin":
+        if template.created_by != current_user.get("username"):
+            raise HTTPException(
+                status_code=403, detail="Only template owner can update"
+            )
 
     # Update
     updated = await service.update_template(
@@ -447,7 +444,7 @@ async def update_template(
         variable_overrides=request.variable_overrides,
         rule_filter=request.rule_filter,
         tags=request.tags,
-        is_public=request.is_public
+        is_public=request.is_public,
     )
 
     return updated
@@ -456,8 +453,8 @@ async def update_template(
 @router.delete("/templates/{template_id}")
 async def delete_template(
     template_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete template.
@@ -486,9 +483,11 @@ async def delete_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     # Authorization
-    if current_user.get('role') != 'admin':
-        if template.created_by != current_user.get('username'):
-            raise HTTPException(status_code=403, detail="Only template owner can delete")
+    if current_user.get("role") != "admin":
+        if template.created_by != current_user.get("username"):
+            raise HTTPException(
+                status_code=403, detail="Only template owner can delete"
+            )
 
     # Delete
     await service.delete_template(template_id)
@@ -500,8 +499,8 @@ async def delete_template(
 async def apply_template(
     template_id: str,
     request: ApplyTemplateRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Apply template to target for scanning.
@@ -547,17 +546,19 @@ async def apply_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     # Authorization
-    if current_user.get('role') != 'admin':
-        if template.created_by != current_user.get('username') and \
-           not template.is_public and \
-           current_user.get('username') not in template.shared_with:
+    if current_user.get("role") != "admin":
+        if (
+            template.created_by != current_user.get("username")
+            and not template.is_public
+            and current_user.get("username") not in template.shared_with
+        ):
             raise HTTPException(status_code=403, detail="Access denied")
 
     # Apply template
     scan_config = await service.apply_template(
         template_id=template_id,
         target=request.target,
-        additional_overrides=request.variable_overrides
+        additional_overrides=request.variable_overrides,
     )
 
     return scan_config
@@ -567,8 +568,8 @@ async def apply_template(
 async def clone_template(
     template_id: str,
     new_name: str = Query(..., description="New template name"),
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Clone an existing template.
@@ -593,7 +594,7 @@ async def clone_template(
         clone = await service.clone_template(
             template_id=template_id,
             new_name=new_name,
-            created_by=current_user.get('username')
+            created_by=current_user.get("username"),
         )
         return clone
     except ValueError as e:
@@ -603,8 +604,8 @@ async def clone_template(
 @router.post("/templates/{template_id}/set-default", response_model=ScanTemplate)
 async def set_default_template(
     template_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Set template as default for framework.
@@ -632,13 +633,14 @@ async def set_default_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     # Authorization: only owner can set as default
-    if template.created_by != current_user.get('username'):
-        raise HTTPException(status_code=403, detail="Only template owner can set as default")
+    if template.created_by != current_user.get("username"):
+        raise HTTPException(
+            status_code=403, detail="Only template owner can set as default"
+        )
 
     # Set default
     updated = await service.set_as_default(
-        template_id=template_id,
-        created_by=current_user.get('username')
+        template_id=template_id, created_by=current_user.get("username")
     )
 
     return updated
@@ -646,8 +648,8 @@ async def set_default_template(
 
 @router.get("/statistics", response_model=TemplateStatistics)
 async def get_template_statistics(
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get template usage statistics.
@@ -686,8 +688,8 @@ async def get_template_statistics(
 
     # Non-admin users see only their own stats
     created_by = None
-    if current_user.get('role') != 'admin':
-        created_by = current_user.get('username')
+    if current_user.get("role") != "admin":
+        created_by = current_user.get("username")
 
     stats = await service.get_statistics(created_by=created_by)
     return stats

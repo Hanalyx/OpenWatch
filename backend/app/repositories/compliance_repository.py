@@ -5,6 +5,7 @@ OW-REFACTOR-002: MongoDB Repository Pattern
 Provides compliance-specific query methods for ComplianceRule collection.
 Centralizes all compliance rule query logic in one place.
 """
+
 from typing import List, Dict, Any, Optional
 from .base_repository import BaseRepository
 from ..models.mongo_models import ComplianceRule
@@ -33,9 +34,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         super().__init__(ComplianceRule)
 
     async def find_by_framework(
-        self,
-        framework: str,
-        version: Optional[str] = None
+        self, framework: str, version: Optional[str] = None
     ) -> List[ComplianceRule]:
         """
         Find rules by framework and optional version.
@@ -62,9 +61,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         return await self.find_many(query)
 
     async def find_by_platform(
-        self,
-        platform: str,
-        version: Optional[str] = None
+        self, platform: str, version: Optional[str] = None
     ) -> List[ComplianceRule]:
         """
         Find rules by platform and optional version.
@@ -91,9 +88,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         return await self.find_many(query)
 
     async def search_by_title(
-        self,
-        search_term: str,
-        case_sensitive: bool = False
+        self, search_term: str, case_sensitive: bool = False
     ) -> List[ComplianceRule]:
         """
         Search rules by title (supports regex).
@@ -117,9 +112,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         return await self.find_many(query)
 
     async def search_by_description(
-        self,
-        search_term: str,
-        case_sensitive: bool = False
+        self, search_term: str, case_sensitive: bool = False
     ) -> List[ComplianceRule]:
         """
         Search rules by description (supports regex).
@@ -138,10 +131,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"description": {"$regex": search_term, "$options": options}}
         return await self.find_many(query)
 
-    async def find_by_severity(
-        self,
-        severity: str
-    ) -> List[ComplianceRule]:
+    async def find_by_severity(self, severity: str) -> List[ComplianceRule]:
         """
         Find rules by severity level.
 
@@ -157,10 +147,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"severity": severity}
         return await self.find_many(query)
 
-    async def find_by_rule_id(
-        self,
-        rule_id: str
-    ) -> Optional[ComplianceRule]:
+    async def find_by_rule_id(self, rule_id: str) -> Optional[ComplianceRule]:
         """
         Find rule by unique rule_id.
 
@@ -177,8 +164,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         return await self.find_one(query)
 
     async def find_by_multiple_frameworks(
-        self,
-        frameworks: List[str]
+        self, frameworks: List[str]
     ) -> List[ComplianceRule]:
         """
         Find rules that apply to any of the specified frameworks.
@@ -201,9 +187,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         return await self.find_many(query)
 
     async def find_by_framework_and_platform(
-        self,
-        framework: str,
-        platform: str
+        self, framework: str, platform: str
     ) -> List[ComplianceRule]:
         """
         Find rules that apply to both a framework and platform.
@@ -220,7 +204,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         """
         query = {
             f"frameworks.{framework}": {"$exists": True},
-            f"platforms.{platform}": {"$exists": True}
+            f"platforms.{platform}": {"$exists": True},
         }
         return await self.find_many(query)
 
@@ -256,17 +240,19 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                 {"$project": {"frameworks": {"$objectToArray": "$frameworks"}}},
                 {"$unwind": "$frameworks"},
                 {"$group": {"_id": "$frameworks.k", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}}
+                {"$sort": {"count": -1}},
             ]
             framework_results = await self.aggregate(framework_pipeline)
-            framework_counts = {item["_id"]: item["count"] for item in framework_results}
+            framework_counts = {
+                item["_id"]: item["count"] for item in framework_results
+            }
 
             # Count by platform using aggregation
             platform_pipeline = [
                 {"$project": {"platforms": {"$objectToArray": "$platforms"}}},
                 {"$unwind": "$platforms"},
                 {"$group": {"_id": "$platforms.k", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}}
+                {"$sort": {"count": -1}},
             ]
             platform_results = await self.aggregate(platform_pipeline)
             platform_counts = {item["_id"]: item["count"] for item in platform_results}
@@ -275,7 +261,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                 "total_rules": total,
                 "by_severity": severity_counts,
                 "by_framework": framework_counts,
-                "by_platform": platform_counts
+                "by_platform": platform_counts,
             }
         except Exception as e:
             logger.error(f"Error getting compliance statistics: {e}")
@@ -298,14 +284,16 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         try:
             pipeline = [
                 {"$match": {f"frameworks.{framework}": {"$exists": True}}},
-                {"$project": {
-                    "versions": {
-                        "$objectToArray": f"$frameworks.{framework}.versions"
+                {
+                    "$project": {
+                        "versions": {
+                            "$objectToArray": f"$frameworks.{framework}.versions"
+                        }
                     }
-                }},
+                },
                 {"$unwind": "$versions"},
                 {"$group": {"_id": "$versions.k"}},
-                {"$sort": {"_id": 1}}
+                {"$sort": {"_id": 1}},
             ]
 
             results = await self.aggregate(pipeline)
@@ -334,7 +322,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                 {"$project": {"versions": f"$platforms.{platform}.versions"}},
                 {"$unwind": "$versions"},
                 {"$group": {"_id": "$versions"}},
-                {"$sort": {"_id": 1}}
+                {"$sort": {"_id": 1}},
             ]
 
             results = await self.aggregate(pipeline)

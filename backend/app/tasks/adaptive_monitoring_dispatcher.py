@@ -16,6 +16,7 @@ This design ensures:
 - Adaptive intervals (critical hosts checked more frequently)
 - Resource-aware (respects max_concurrent_checks limit)
 """
+
 import logging
 from datetime import datetime
 from typing import List, Dict
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # It's accessed via celery_app.tasks['backend.app.tasks.check_host_connectivity']
 
 
-@celery_app.task(bind=True, name='backend.app.tasks.dispatch_host_checks')
+@celery_app.task(bind=True, name="backend.app.tasks.dispatch_host_checks")
 def dispatch_host_checks(self) -> Dict:
     """
     Dispatcher task that runs every 30 seconds via Celery Beat.
@@ -53,23 +54,16 @@ def dispatch_host_checks(self) -> Dict:
             # Check if scheduler is enabled
             config = adaptive_scheduler_service.get_config(db)
 
-            if not config['enabled']:
+            if not config["enabled"]:
                 logger.debug("Adaptive scheduler is disabled, skipping dispatch")
-                return {
-                    'status': 'disabled',
-                    'hosts_dispatched': 0
-                }
+                return {"status": "disabled", "hosts_dispatched": 0}
 
             # Get hosts due for checking (respects max_concurrent_checks)
             hosts_due = adaptive_scheduler_service.get_hosts_due_for_check(db)
 
             if not hosts_due:
                 logger.debug("No hosts due for checking")
-                return {
-                    'status': 'ok',
-                    'hosts_dispatched': 0,
-                    'next_check': 'none due'
-                }
+                return {"status": "ok", "hosts_dispatched": 0, "next_check": "none due"}
 
             # Dispatch individual check tasks with priorities
             dispatched_count = 0
@@ -77,17 +71,16 @@ def dispatch_host_checks(self) -> Dict:
                 try:
                     # Get priority based on host state
                     priority = adaptive_scheduler_service.get_priority_for_state(
-                        db,
-                        host['status']
+                        db, host["status"]
                     )
 
                     # Dispatch individual host check task with priority
                     # Use send_task to avoid circular import
                     celery_app.send_task(
-                        'backend.app.tasks.check_host_connectivity',
-                        args=[host['id'], priority],
+                        "backend.app.tasks.check_host_connectivity",
+                        args=[host["id"], priority],
                         priority=priority,  # Celery queue priority
-                        queue='host_monitoring'  # Dedicated queue for monitoring tasks
+                        queue="host_monitoring",  # Dedicated queue for monitoring tasks
                     )
 
                     dispatched_count += 1
@@ -104,9 +97,9 @@ def dispatch_host_checks(self) -> Dict:
             logger.info(f"Dispatched {dispatched_count} host checks")
 
             return {
-                'status': 'ok',
-                'hosts_dispatched': dispatched_count,
-                'timestamp': datetime.utcnow().isoformat()
+                "status": "ok",
+                "hosts_dispatched": dispatched_count,
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         finally:
@@ -114,11 +107,7 @@ def dispatch_host_checks(self) -> Dict:
 
     except Exception as e:
         logger.error(f"Error in adaptive monitoring dispatcher: {e}")
-        return {
-            'status': 'error',
-            'error': str(e),
-            'hosts_dispatched': 0
-        }
+        return {"status": "error", "error": str(e), "hosts_dispatched": 0}
 
 
 # Note: check_host_connectivity task is imported from monitoring_tasks.py (line 29)
@@ -129,12 +118,12 @@ def dispatch_host_checks(self) -> Dict:
 # Celery Beat Schedule Configuration
 # This should be added to celeryconfig.py or celery_app.py
 CELERY_BEAT_SCHEDULE = {
-    'dispatch-host-checks-every-30-seconds': {
-        'task': 'backend.app.tasks.dispatch_host_checks',
-        'schedule': 30.0,  # Run every 30 seconds
-        'options': {
-            'queue': 'host_monitoring',
-            'priority': 10  # Highest priority for dispatcher
-        }
+    "dispatch-host-checks-every-30-seconds": {
+        "task": "backend.app.tasks.dispatch_host_checks",
+        "schedule": 30.0,  # Run every 30 seconds
+        "options": {
+            "queue": "host_monitoring",
+            "priority": 10,  # Highest priority for dispatcher
+        },
     },
 }

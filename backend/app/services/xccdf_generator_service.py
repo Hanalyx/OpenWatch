@@ -24,19 +24,19 @@ logger = logging.getLogger(__name__)
 class XCCDFGeneratorService:
     """
     Generates XCCDF 1.2 compliant XML from MongoDB compliance rules
-    
+
     XCCDF (Extensible Configuration Checklist Description Format) is the
     standard format for security configuration checklists.
-    
+
     Spec: https://csrc.nist.gov/publications/detail/nistir/7275/rev-4/final
     """
 
     # XCCDF 1.2 XML Namespaces
     NAMESPACES = {
-        'xccdf': 'http://checklists.nist.gov/xccdf/1.2',
-        'xhtml': 'http://www.w3.org/1999/xhtml',
-        'dc': 'http://purl.org/dc/elements/1.1/',
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        "xccdf": "http://checklists.nist.gov/xccdf/1.2",
+        "xhtml": "http://www.w3.org/1999/xhtml",
+        "dc": "http://purl.org/dc/elements/1.1/",
+        "xsi": "http://www.w3.org/2001/XMLSchema-instance",
     }
 
     # Register namespaces for ElementTree
@@ -55,7 +55,7 @@ class XCCDFGeneratorService:
         version: str,
         framework: Optional[str] = None,
         framework_version: Optional[str] = None,
-        rule_filter: Optional[Dict] = None
+        rule_filter: Optional[Dict] = None,
     ) -> str:
         """
         Generate XCCDF Benchmark XML from MongoDB rules
@@ -124,7 +124,7 @@ class XCCDFGeneratorService:
         profile_id: str,
         variable_overrides: Dict[str, str],
         title: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> str:
         """
         Generate XCCDF Tailoring file for variable customization
@@ -150,18 +150,17 @@ class XCCDFGeneratorService:
         tailoring = ET.Element(
             f"{{{self.NAMESPACES['xccdf']}}}Tailoring",
             {
-                'id': tailoring_id,
-                f"{{{self.NAMESPACES['xsi']}}}schemaLocation": 
-                    "http://checklists.nist.gov/xccdf/1.2 "
-                    "http://scap.nist.gov/schema/xccdf/1.2/xccdf_1.2.xsd"
-            }
+                "id": tailoring_id,
+                f"{{{self.NAMESPACES['xsi']}}}schemaLocation": "http://checklists.nist.gov/xccdf/1.2 "
+                "http://scap.nist.gov/schema/xccdf/1.2/xccdf_1.2.xsd",
+            },
         )
 
         # Add version
         version_elem = ET.SubElement(
             tailoring,
             f"{{{self.NAMESPACES['xccdf']}}}version",
-            {'time': datetime.now(timezone.utc).isoformat()}
+            {"time": datetime.now(timezone.utc).isoformat()},
         )
         version_elem.text = "1.0"
 
@@ -169,20 +168,14 @@ class XCCDFGeneratorService:
         benchmark_elem = ET.SubElement(
             tailoring,
             f"{{{self.NAMESPACES['xccdf']}}}benchmark",
-            {
-                'href': benchmark_href,
-                'id': benchmark_version
-            }
+            {"href": benchmark_href, "id": benchmark_version},
         )
 
         # Create Profile with variable overrides
         profile = ET.SubElement(
             tailoring,
             f"{{{self.NAMESPACES['xccdf']}}}Profile",
-            {
-                'id': f"{profile_id}_customized",
-                'extends': profile_id
-            }
+            {"id": f"{profile_id}_customized", "extends": profile_id},
         )
 
         # Add title
@@ -191,48 +184,43 @@ class XCCDFGeneratorService:
 
         # Add description
         if description:
-            desc_elem = ET.SubElement(profile, f"{{{self.NAMESPACES['xccdf']}}}description")
+            desc_elem = ET.SubElement(
+                profile, f"{{{self.NAMESPACES['xccdf']}}}description"
+            )
             desc_elem.text = description
 
         # Add variable overrides
         for var_id, var_value in variable_overrides.items():
             set_value = ET.SubElement(
-                profile,
-                f"{{{self.NAMESPACES['xccdf']}}}set-value",
-                {'idref': var_id}
+                profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id}
             )
             set_value.text = str(var_value)
 
         return self._prettify_xml(tailoring)
 
     def _create_benchmark_element(
-        self,
-        benchmark_id: str,
-        title: str,
-        description: str,
-        version: str
+        self, benchmark_id: str, title: str, description: str, version: str
     ) -> ET.Element:
         """Create root Benchmark element with metadata"""
         # XCCDF 1.2 requires benchmark IDs to follow xccdf_<reverse-DNS>_benchmark_<name>
-        if not benchmark_id.startswith('xccdf_'):
+        if not benchmark_id.startswith("xccdf_"):
             benchmark_id = f"xccdf_com.hanalyx.openwatch_benchmark_{benchmark_id}"
 
         benchmark = ET.Element(
             f"{{{self.NAMESPACES['xccdf']}}}Benchmark",
             {
-                'id': benchmark_id,
-                'resolved': 'true',
-                f"{{{self.NAMESPACES['xsi']}}}schemaLocation":
-                    "http://checklists.nist.gov/xccdf/1.2 "
-                    "http://scap.nist.gov/schema/xccdf/1.2/xccdf_1.2.xsd"
-            }
+                "id": benchmark_id,
+                "resolved": "true",
+                f"{{{self.NAMESPACES['xsi']}}}schemaLocation": "http://checklists.nist.gov/xccdf/1.2 "
+                "http://scap.nist.gov/schema/xccdf/1.2/xccdf_1.2.xsd",
+            },
         )
 
         # Add status
         status = ET.SubElement(
             benchmark,
             f"{{{self.NAMESPACES['xccdf']}}}status",
-            {'date': datetime.now(timezone.utc).strftime('%Y-%m-%d')}
+            {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d")},
         )
         status.text = "draft"
 
@@ -241,14 +229,16 @@ class XCCDFGeneratorService:
         title_elem.text = title
 
         # Add description
-        desc_elem = ET.SubElement(benchmark, f"{{{self.NAMESPACES['xccdf']}}}description")
+        desc_elem = ET.SubElement(
+            benchmark, f"{{{self.NAMESPACES['xccdf']}}}description"
+        )
         desc_elem.text = description
 
         # Add version
         version_elem = ET.SubElement(
             benchmark,
             f"{{{self.NAMESPACES['xccdf']}}}version",
-            {'time': datetime.now(timezone.utc).isoformat()}
+            {"time": datetime.now(timezone.utc).isoformat()},
         )
         version_elem.text = version
 
@@ -256,7 +246,7 @@ class XCCDFGeneratorService:
         metadata = ET.SubElement(benchmark, f"{{{self.NAMESPACES['xccdf']}}}metadata")
         creator = ET.SubElement(metadata, f"{{{self.NAMESPACES['dc']}}}creator")
         creator.text = "OpenWatch SCAP Generator"
-        
+
         publisher = ET.SubElement(metadata, f"{{{self.NAMESPACES['dc']}}}publisher")
         publisher.text = "Hanalyx OpenWatch"
 
@@ -275,56 +265,62 @@ class XCCDFGeneratorService:
           <xccdf:upper-bound>3600</xccdf:upper-bound>
         </xccdf:Value>
         """
-        var_type = var_def.get('type', 'string')
-        var_id = var_def['id']
+        var_type = var_def.get("type", "string")
+        var_id = var_def["id"]
 
         # XCCDF 1.2 requires value IDs to follow xccdf_<reverse-DNS>_value_<name>
-        if not var_id.startswith('xccdf_'):
+        if not var_id.startswith("xccdf_"):
             var_id = f"xccdf_com.hanalyx.openwatch_value_{var_id}"
 
         value = ET.Element(
             f"{{{self.NAMESPACES['xccdf']}}}Value",
             {
-                'id': var_id,
-                'type': var_type,
-                'interactive': str(var_def.get('interactive', True)).lower()
-            }
+                "id": var_id,
+                "type": var_type,
+                "interactive": str(var_def.get("interactive", True)).lower(),
+            },
         )
 
         # Add title
         title = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}title")
-        title.text = var_def.get('title', var_def['id'])
+        title.text = var_def.get("title", var_def["id"])
 
         # Add description if present
-        if var_def.get('description'):
+        if var_def.get("description"):
             desc = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}description")
-            desc.text = var_def['description']
+            desc.text = var_def["description"]
 
         # Add default value
         value_elem = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}value")
-        value_elem.text = str(var_def.get('default_value', ''))
+        value_elem.text = str(var_def.get("default_value", ""))
 
         # Add constraints
-        constraints = var_def.get('constraints', {})
-        
-        if var_type == 'number':
-            if 'min_value' in constraints:
-                lower = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}lower-bound")
-                lower.text = str(constraints['min_value'])
-            
-            if 'max_value' in constraints:
-                upper = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}upper-bound")
-                upper.text = str(constraints['max_value'])
+        constraints = var_def.get("constraints", {})
 
-        elif var_type == 'string':
-            if 'choices' in constraints:
-                for choice in constraints['choices']:
-                    choice_elem = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}choice")
+        if var_type == "number":
+            if "min_value" in constraints:
+                lower = ET.SubElement(
+                    value, f"{{{self.NAMESPACES['xccdf']}}}lower-bound"
+                )
+                lower.text = str(constraints["min_value"])
+
+            if "max_value" in constraints:
+                upper = ET.SubElement(
+                    value, f"{{{self.NAMESPACES['xccdf']}}}upper-bound"
+                )
+                upper.text = str(constraints["max_value"])
+
+        elif var_type == "string":
+            if "choices" in constraints:
+                for choice in constraints["choices"]:
+                    choice_elem = ET.SubElement(
+                        value, f"{{{self.NAMESPACES['xccdf']}}}choice"
+                    )
                     choice_elem.text = str(choice)
-            
-            if 'pattern' in constraints:
+
+            if "pattern" in constraints:
                 match = ET.SubElement(value, f"{{{self.NAMESPACES['xccdf']}}}match")
-                match.text = constraints['pattern']
+                match.text = constraints["pattern"]
 
         return value
 
@@ -344,100 +340,92 @@ class XCCDFGeneratorService:
         </xccdf:Rule>
         """
         # XCCDF 1.2 requires rule IDs to follow xccdf_<reverse-DNS>_rule_<name>
-        rule_id = rule['rule_id']
-        if not rule_id.startswith('xccdf_'):
+        rule_id = rule["rule_id"]
+        if not rule_id.startswith("xccdf_"):
             # Remove 'ow-' prefix if present
-            rule_name = rule_id.replace('ow-', '')
+            rule_name = rule_id.replace("ow-", "")
             rule_id = f"xccdf_com.hanalyx.openwatch_rule_{rule_name}"
 
         rule_elem = ET.Element(
             f"{{{self.NAMESPACES['xccdf']}}}Rule",
             {
-                'id': rule_id,
-                'severity': rule.get('severity', 'medium'),
-                'selected': 'true'
-            }
+                "id": rule_id,
+                "severity": rule.get("severity", "medium"),
+                "selected": "true",
+            },
         )
 
         # Add title
         title = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}title")
-        title.text = rule['metadata'].get('name', rule['rule_id'])
+        title.text = rule["metadata"].get("name", rule["rule_id"])
 
         # Add description
         desc = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}description")
-        desc.text = rule['metadata'].get('description', '')
+        desc.text = rule["metadata"].get("description", "")
 
         # Add rationale
-        if rule['metadata'].get('rationale'):
-            rationale = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}rationale")
-            rationale.text = rule['metadata']['rationale']
+        if rule["metadata"].get("rationale"):
+            rationale = ET.SubElement(
+                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}rationale"
+            )
+            rationale.text = rule["metadata"]["rationale"]
 
         # Add identifiers (CCE, CVE, etc.)
-        identifiers = rule.get('identifiers', {})
+        identifiers = rule.get("identifiers", {})
         for ident_type, ident_value in identifiers.items():
             ident_elem = ET.SubElement(
                 rule_elem,
                 f"{{{self.NAMESPACES['xccdf']}}}ident",
-                {'system': f"http://{ident_type}.mitre.org"}
+                {"system": f"http://{ident_type}.mitre.org"},
             )
             ident_elem.text = ident_value
 
         # Add check reference (OVAL or custom)
-        scanner_type = rule.get('scanner_type', 'oscap')
-        
-        if scanner_type == 'oscap':
+        scanner_type = rule.get("scanner_type", "oscap")
+
+        if scanner_type == "oscap":
             check_system = "http://oval.mitre.org/XMLSchema/oval-definitions-5"
-        elif scanner_type == 'kubernetes':
+        elif scanner_type == "kubernetes":
             check_system = "http://openwatch.hanalyx.com/scanner/kubernetes"
         else:
             check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
 
         check = ET.SubElement(
-            rule_elem,
-            f"{{{self.NAMESPACES['xccdf']}}}check",
-            {'system': check_system}
+            rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
         )
 
         check_ref = ET.SubElement(
             check,
             f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
             {
-                'href': f"{scanner_type}-definitions.xml",
-                'name': rule.get('scap_rule_id', rule['rule_id'])
-            }
+                "href": f"{scanner_type}-definitions.xml",
+                "name": rule.get("scap_rule_id", rule["rule_id"]),
+            },
         )
 
         # Add variable exports if rule has variables
-        if rule.get('xccdf_variables'):
-            for var_id in rule['xccdf_variables'].keys():
+        if rule.get("xccdf_variables"):
+            for var_id in rule["xccdf_variables"].keys():
                 export = ET.SubElement(
                     check,
                     f"{{{self.NAMESPACES['xccdf']}}}check-export",
-                    {
-                        'export-name': var_id,
-                        'value-id': var_id
-                    }
+                    {"export-name": var_id, "value-id": var_id},
                 )
 
         return rule_elem
 
     def _create_xccdf_group(
-        self,
-        category: str,
-        rules: List[Dict[str, Any]]
+        self, category: str, rules: List[Dict[str, Any]]
     ) -> ET.Element:
         """Create XCCDF Group element containing related rules"""
         # XCCDF 1.2 requires group IDs to follow xccdf_<reverse-DNS>_group_<name>
         group_id = f"xccdf_com.hanalyx.openwatch_group_{category}"
 
-        group = ET.Element(
-            f"{{{self.NAMESPACES['xccdf']}}}Group",
-            {'id': group_id}
-        )
+        group = ET.Element(f"{{{self.NAMESPACES['xccdf']}}}Group", {"id": group_id})
 
         # Add title
         title = ET.SubElement(group, f"{{{self.NAMESPACES['xccdf']}}}title")
-        title.text = category.replace('_', ' ').title()
+        title.text = category.replace("_", " ").title()
 
         # Add description
         desc = ET.SubElement(group, f"{{{self.NAMESPACES['xccdf']}}}description")
@@ -454,23 +442,21 @@ class XCCDFGeneratorService:
         self,
         rules: List[Dict[str, Any]],
         framework: Optional[str],
-        framework_version: Optional[str]
+        framework_version: Optional[str],
     ) -> List[ET.Element]:
         """Create XCCDF Profile elements (one per framework)"""
         profiles = []
 
         # If specific framework requested, create one profile
         if framework and framework_version:
-            profile = self._create_single_profile(
-                framework, framework_version, rules
-            )
+            profile = self._create_single_profile(framework, framework_version, rules)
             if profile is not None:
                 profiles.append(profile)
         else:
             # Create profiles for all frameworks found in rules
             frameworks_found = set()
             for rule in rules:
-                for fw, versions in rule.get('frameworks', {}).items():
+                for fw, versions in rule.get("frameworks", {}).items():
                     for version in versions.keys():
                         frameworks_found.add((fw, version))
 
@@ -482,29 +468,28 @@ class XCCDFGeneratorService:
         return profiles
 
     def _create_single_profile(
-        self,
-        framework: str,
-        framework_version: str,
-        rules: List[Dict[str, Any]]
+        self, framework: str, framework_version: str, rules: List[Dict[str, Any]]
     ) -> Optional[ET.Element]:
         """Create a single XCCDF Profile for a framework"""
         # Filter rules that belong to this framework version
         matching_rules = [
-            r for r in rules
-            if framework in r.get('frameworks', {})
-            and framework_version in r['frameworks'][framework]
+            r
+            for r in rules
+            if framework in r.get("frameworks", {})
+            and framework_version in r["frameworks"][framework]
         ]
 
         if not matching_rules:
             return None
 
         # XCCDF 1.2 requires profile IDs to follow xccdf_<reverse-DNS>_profile_<name>
-        profile_name = f"{framework}_{framework_version}".replace('-', '_').replace('.', '_')
+        profile_name = f"{framework}_{framework_version}".replace("-", "_").replace(
+            ".", "_"
+        )
         profile_id = f"xccdf_com.hanalyx.openwatch_profile_{profile_name}"
 
         profile = ET.Element(
-            f"{{{self.NAMESPACES['xccdf']}}}Profile",
-            {'id': profile_id}
+            f"{{{self.NAMESPACES['xccdf']}}}Profile", {"id": profile_id}
         )
 
         # Add title
@@ -518,18 +503,15 @@ class XCCDFGeneratorService:
         # Select all rules in this profile
         for rule in matching_rules:
             # Format rule ID properly
-            rule_id = rule['rule_id']
-            if not rule_id.startswith('xccdf_'):
-                rule_name = rule_id.replace('ow-', '')
+            rule_id = rule["rule_id"]
+            if not rule_id.startswith("xccdf_"):
+                rule_name = rule_id.replace("ow-", "")
                 rule_id = f"xccdf_com.hanalyx.openwatch_rule_{rule_name}"
 
             select = ET.SubElement(
                 profile,
                 f"{{{self.NAMESPACES['xccdf']}}}select",
-                {
-                    'idref': rule_id,
-                    'selected': 'true'
-                }
+                {"idref": rule_id, "selected": "true"},
             )
 
         return profile
@@ -537,29 +519,31 @@ class XCCDFGeneratorService:
     def _extract_all_variables(self, rules: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Extract all unique XCCDF variables across rules"""
         all_variables = {}
-        
+
         for rule in rules:
-            if rule.get('xccdf_variables'):
-                for var_id, var_def in rule['xccdf_variables'].items():
+            if rule.get("xccdf_variables"):
+                for var_id, var_def in rule["xccdf_variables"].items():
                     if var_id not in all_variables:
                         all_variables[var_id] = var_def
-        
+
         return all_variables
 
-    def _group_rules_by_category(self, rules: List[Dict[str, Any]]) -> Dict[str, List[Dict]]:
+    def _group_rules_by_category(
+        self, rules: List[Dict[str, Any]]
+    ) -> Dict[str, List[Dict]]:
         """Group rules by category for organizational purposes"""
         groups = {}
-        
+
         for rule in rules:
-            category = rule.get('category', 'uncategorized')
+            category = rule.get("category", "uncategorized")
             if category not in groups:
                 groups[category] = []
             groups[category].append(rule)
-        
+
         return groups
 
     def _prettify_xml(self, elem: ET.Element) -> str:
         """Convert ElementTree to pretty-printed XML string"""
-        rough_string = ET.tostring(elem, encoding='utf-8')
+        rough_string = ET.tostring(elem, encoding="utf-8")
         reparsed = minidom.parseString(rough_string)
-        return reparsed.toprettyxml(indent="  ", encoding='utf-8').decode('utf-8')
+        return reparsed.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")

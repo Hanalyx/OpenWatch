@@ -2,6 +2,7 @@
 Automatic SQL Migration Runner
 Executes SQL migrations from backend/app/migrations directory on application startup
 """
+
 import os
 import logging
 from pathlib import Path
@@ -17,13 +18,17 @@ class MigrationRunner:
 
     def __init__(self, db: Session, migrations_dir: Optional[Path] = None):
         self.db = db
-        self.migrations_dir = migrations_dir or Path(__file__).parent.parent / "migrations"
+        self.migrations_dir = (
+            migrations_dir or Path(__file__).parent.parent / "migrations"
+        )
         self._create_migrations_table()
 
     def _create_migrations_table(self):
         """Create migrations tracking table if it doesn't exist"""
         try:
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS _migrations (
                     id SERIAL PRIMARY KEY,
                     filename VARCHAR(255) NOT NULL UNIQUE,
@@ -31,7 +36,9 @@ class MigrationRunner:
                     success BOOLEAN NOT NULL DEFAULT TRUE,
                     error_message TEXT
                 )
-            """))
+            """
+                )
+            )
             self.db.commit()
             logger.info("Migrations tracking table ready")
         except Exception as e:
@@ -42,9 +49,13 @@ class MigrationRunner:
     def _get_applied_migrations(self) -> List[str]:
         """Get list of already applied migrations"""
         try:
-            result = self.db.execute(text("""
+            result = self.db.execute(
+                text(
+                    """
                 SELECT filename FROM _migrations WHERE success = TRUE ORDER BY id
-            """))
+            """
+                )
+            )
             return [row[0] for row in result]
         except Exception as e:
             logger.error(f"Failed to get applied migrations: {e}")
@@ -68,17 +79,22 @@ class MigrationRunner:
             logger.info(f"Applying migration: {migration_file.name}")
 
             # Read migration file
-            with open(migration_file, 'r') as f:
+            with open(migration_file, "r") as f:
                 sql = f.read()
 
             # Execute migration in a transaction
             self.db.execute(text(sql))
 
             # Record successful migration
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 INSERT INTO _migrations (filename, success)
                 VALUES (:filename, TRUE)
-            """), {"filename": migration_file.name})
+            """
+                ),
+                {"filename": migration_file.name},
+            )
 
             self.db.commit()
             logger.info(f"✅ Migration applied successfully: {migration_file.name}")
@@ -91,10 +107,15 @@ class MigrationRunner:
             # Record failed migration
             try:
                 self.db.rollback()
-                self.db.execute(text("""
+                self.db.execute(
+                    text(
+                        """
                     INSERT INTO _migrations (filename, success, error_message)
                     VALUES (:filename, FALSE, :error)
-                """), {"filename": migration_file.name, "error": str(e)})
+                """
+                    ),
+                    {"filename": migration_file.name, "error": str(e)},
+                )
                 self.db.commit()
             except Exception as log_error:
                 logger.error(f"Failed to log migration error: {log_error}")
@@ -104,9 +125,9 @@ class MigrationRunner:
 
     def run_migrations(self) -> Dict[str, any]:
         """Run all pending migrations"""
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("AUTOMATIC MIGRATION RUNNER")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         pending = self._get_pending_migrations()
 
@@ -116,7 +137,7 @@ class MigrationRunner:
                 "success": True,
                 "applied_count": 0,
                 "failed_count": 0,
-                "migrations": []
+                "migrations": [],
             }
 
         logger.info(f"Found {len(pending)} pending migration(s)")
@@ -127,25 +148,24 @@ class MigrationRunner:
 
         for migration_file in pending:
             success = self._apply_migration(migration_file)
-            results.append({
-                "filename": migration_file.name,
-                "success": success
-            })
+            results.append({"filename": migration_file.name, "success": success})
 
             if success:
                 success_count += 1
             else:
                 failed_count += 1
 
-        logger.info("="*80)
-        logger.info(f"Migration Summary: {success_count} applied, {failed_count} failed")
-        logger.info("="*80)
+        logger.info("=" * 80)
+        logger.info(
+            f"Migration Summary: {success_count} applied, {failed_count} failed"
+        )
+        logger.info("=" * 80)
 
         return {
             "success": failed_count == 0,
             "applied_count": success_count,
             "failed_count": failed_count,
-            "migrations": results
+            "migrations": results,
         }
 
 

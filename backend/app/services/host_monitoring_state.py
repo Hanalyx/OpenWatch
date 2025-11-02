@@ -2,6 +2,7 @@
 Host Monitoring State Machine
 Implements adaptive monitoring with state-based check intervals
 """
+
 import logging
 from enum import Enum
 from datetime import datetime, timedelta
@@ -24,12 +25,15 @@ class MonitoringState(Enum):
     - maintenance: Planned/manual maintenance mode
     - unknown: Host added but not yet checked
     """
-    ONLINE = "online"            # 30 min interval - fully operational (ping + ssh + privilege)
-    DEGRADED = "degraded"        # 5 min interval - permission issues (ping + ssh, no privilege)
-    CRITICAL = "critical"        # 2 min interval - partial connectivity (ping only, no ssh)
-    DOWN = "down"                # 30 min interval - completely unavailable (no ping, no ssh)
+
+    ONLINE = "online"  # 30 min interval - fully operational (ping + ssh + privilege)
+    DEGRADED = (
+        "degraded"  # 5 min interval - permission issues (ping + ssh, no privilege)
+    )
+    CRITICAL = "critical"  # 2 min interval - partial connectivity (ping only, no ssh)
+    DOWN = "down"  # 30 min interval - completely unavailable (no ping, no ssh)
     MAINTENANCE = "maintenance"  # No checks - user-defined maintenance window
-    UNKNOWN = "unknown"          # Initial state - not yet checked
+    UNKNOWN = "unknown"  # Initial state - not yet checked
 
 
 @dataclass
@@ -41,29 +45,34 @@ class StateTransitionConfig:
     - SSH failures (when ping succeeds) → critical status (partial connectivity)
     - Privilege failures (when SSH succeeds) → degraded status (permission issues)
     """
+
     # Thresholds for state transitions
-    ping_failures_to_down: int = 3          # 3 consecutive ping failures: any → down
-    ssh_failures_to_critical: int = 2       # 2 consecutive SSH failures (ping OK): online/degraded → critical
-    privilege_failures_to_degraded: int = 2 # 2 consecutive privilege failures (SSH OK): online → degraded
+    ping_failures_to_down: int = 3  # 3 consecutive ping failures: any → down
+    ssh_failures_to_critical: int = (
+        2  # 2 consecutive SSH failures (ping OK): online/degraded → critical
+    )
+    privilege_failures_to_degraded: int = (
+        2  # 2 consecutive privilege failures (SSH OK): online → degraded
+    )
 
     # Recovery thresholds
-    successes_to_online: int = 3            # 3 consecutive full successes: any → online
-    successes_to_degraded: int = 1          # 1 SSH success (from critical/down) → degraded
-    successes_to_critical: int = 1          # 1 ping success (from down) → critical
+    successes_to_online: int = 3  # 3 consecutive full successes: any → online
+    successes_to_degraded: int = 1  # 1 SSH success (from critical/down) → degraded
+    successes_to_critical: int = 1  # 1 ping success (from down) → critical
 
     # Check intervals (minutes)
-    online_interval: int = 30      # Stable hosts checked every 30 minutes
-    degraded_interval: int = 5     # Permission issues checked every 5 minutes
-    critical_interval: int = 2     # Partial connectivity checked every 2 minutes
-    down_interval: int = 30        # Down hosts checked every 30 minutes
-    unknown_interval: int = 5      # New hosts checked every 5 minutes
+    online_interval: int = 30  # Stable hosts checked every 30 minutes
+    degraded_interval: int = 5  # Permission issues checked every 5 minutes
+    critical_interval: int = 2  # Partial connectivity checked every 2 minutes
+    down_interval: int = 30  # Down hosts checked every 30 minutes
+    unknown_interval: int = 5  # New hosts checked every 5 minutes
 
     # Priority levels for Celery queue (1-10, higher = more urgent)
     online_priority: int = 3
     degraded_priority: int = 6
     critical_priority: int = 9
     down_priority: int = 4
-    unknown_priority: int = 7      # New hosts have high priority for initial check
+    unknown_priority: int = 7  # New hosts have high priority for initial check
 
 
 class HostMonitoringStateMachine:
@@ -81,37 +90,41 @@ class HostMonitoringStateMachine:
     def _load_config_from_database(self) -> StateTransitionConfig:
         """Load configuration from database host_monitoring_config table"""
         try:
-            from backend.app.services.adaptive_scheduler_service import adaptive_scheduler_service
+            from backend.app.services.adaptive_scheduler_service import (
+                adaptive_scheduler_service,
+            )
 
             db_config = adaptive_scheduler_service.get_config(self.db)
 
             # Create StateTransitionConfig from database values
             return StateTransitionConfig(
                 # Use database intervals
-                online_interval=db_config['intervals']['online'],
-                degraded_interval=db_config['intervals']['degraded'],
-                critical_interval=db_config['intervals']['critical'],
-                down_interval=db_config['intervals']['down'],
-                unknown_interval=db_config['intervals']['unknown'],
-
+                online_interval=db_config["intervals"]["online"],
+                degraded_interval=db_config["intervals"]["degraded"],
+                critical_interval=db_config["intervals"]["critical"],
+                down_interval=db_config["intervals"]["down"],
+                unknown_interval=db_config["intervals"]["unknown"],
                 # Use database priorities
-                online_priority=db_config['priorities']['online'],
-                degraded_priority=db_config['priorities']['degraded'],
-                critical_priority=db_config['priorities']['critical'],
-                down_priority=db_config['priorities']['down'],
-                unknown_priority=db_config['priorities']['unknown']
+                online_priority=db_config["priorities"]["online"],
+                degraded_priority=db_config["priorities"]["degraded"],
+                critical_priority=db_config["priorities"]["critical"],
+                down_priority=db_config["priorities"]["down"],
+                unknown_priority=db_config["priorities"]["unknown"],
             )
         except Exception as e:
             logger.warning(f"Failed to load config from database, using defaults: {e}")
             return StateTransitionConfig()
 
-    def transition_state(self, host_id: str,
-                        ping_success: bool,
-                        ssh_success: bool = False,
-                        privilege_success: bool = False,
-                        response_time_ms: Optional[int] = None,
-                        error_message: Optional[str] = None,
-                        error_type: Optional[str] = None) -> Tuple[MonitoringState, int]:
+    def transition_state(
+        self,
+        host_id: str,
+        ping_success: bool,
+        ssh_success: bool = False,
+        privilege_success: bool = False,
+        response_time_ms: Optional[int] = None,
+        error_message: Optional[str] = None,
+        error_type: Optional[str] = None,
+    ) -> Tuple[MonitoringState, int]:
         """
         Process multi-level check result and transition to new state if needed.
 
@@ -135,14 +148,19 @@ class HostMonitoringStateMachine:
         """
         try:
             # Get current host state with multi-level counters
-            result = self.db.execute(text("""
+            result = self.db.execute(
+                text(
+                    """
                 SELECT status,
                        ping_consecutive_failures, ping_consecutive_successes,
                        ssh_consecutive_failures, ssh_consecutive_successes,
                        privilege_consecutive_failures, privilege_consecutive_successes
                 FROM hosts
                 WHERE id = :host_id
-            """), {"host_id": host_id})
+            """
+                ),
+                {"host_id": host_id},
+            )
 
             row = result.fetchone()
             if not row:
@@ -171,7 +189,7 @@ class HostMonitoringStateMachine:
                 ssh_failures=ssh_failures,
                 ssh_successes=ssh_successes,
                 priv_failures=priv_failures,
-                priv_successes=priv_successes
+                priv_successes=priv_successes,
             )
 
             # Get check interval and priority for new state
@@ -181,7 +199,9 @@ class HostMonitoringStateMachine:
 
             # Update host state in database
             state_changed = new_state.value != current_status
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 UPDATE hosts
                 SET status = :status,
                     ping_consecutive_failures = :ping_failures,
@@ -197,24 +217,31 @@ class HostMonitoringStateMachine:
                     last_state_change = CASE WHEN :state_changed THEN :last_check ELSE last_state_change END,
                     updated_at = :last_check
                 WHERE id = :host_id
-            """), {
-                "host_id": host_id,
-                "status": new_state.value,
-                "ping_failures": counters['ping_failures'],
-                "ping_successes": counters['ping_successes'],
-                "ssh_failures": counters['ssh_failures'],
-                "ssh_successes": counters['ssh_successes'],
-                "priv_failures": counters['priv_failures'],
-                "priv_successes": counters['priv_successes'],
-                "next_check": next_check_time,
-                "priority": priority,
-                "response_time": response_time_ms,
-                "last_check": datetime.utcnow(),
-                "state_changed": state_changed
-            })
+            """
+                ),
+                {
+                    "host_id": host_id,
+                    "status": new_state.value,
+                    "ping_failures": counters["ping_failures"],
+                    "ping_successes": counters["ping_successes"],
+                    "ssh_failures": counters["ssh_failures"],
+                    "ssh_successes": counters["ssh_successes"],
+                    "priv_failures": counters["priv_failures"],
+                    "priv_successes": counters["priv_successes"],
+                    "next_check": next_check_time,
+                    "priority": priority,
+                    "response_time": response_time_ms,
+                    "last_check": datetime.utcnow(),
+                    "state_changed": state_changed,
+                },
+            )
 
             # Log to monitoring history
-            overall_success = ping_success and (ssh_success or not ping_success) and (privilege_success or not ssh_success)
+            overall_success = (
+                ping_success
+                and (ssh_success or not ping_success)
+                and (privilege_success or not ssh_success)
+            )
             self._log_history(
                 host_id=host_id,
                 check_time=datetime.utcnow(),
@@ -223,13 +250,15 @@ class HostMonitoringStateMachine:
                 response_time_ms=response_time_ms,
                 success=overall_success,
                 error_message=error_message,
-                error_type=error_type
+                error_type=error_type,
             )
 
             self.db.commit()
 
             if state_changed:
-                logger.info(f"Host {host_id} state transition: {current_state.value} → {new_state.value}")
+                logger.info(
+                    f"Host {host_id} state transition: {current_state.value} → {new_state.value}"
+                )
 
             return new_state, check_interval
 
@@ -238,11 +267,19 @@ class HostMonitoringStateMachine:
             self.db.rollback()
             return MonitoringState.UNKNOWN, self.config.unknown_interval
 
-    def _calculate_new_state(self, current_state: MonitoringState,
-                            ping_success: bool, ssh_success: bool, privilege_success: bool,
-                            ping_failures: int, ping_successes: int,
-                            ssh_failures: int, ssh_successes: int,
-                            priv_failures: int, priv_successes: int) -> Tuple[MonitoringState, Dict]:
+    def _calculate_new_state(
+        self,
+        current_state: MonitoringState,
+        ping_success: bool,
+        ssh_success: bool,
+        privilege_success: bool,
+        ping_failures: int,
+        ping_successes: int,
+        ssh_failures: int,
+        ssh_successes: int,
+        priv_failures: int,
+        priv_successes: int,
+    ) -> Tuple[MonitoringState, Dict]:
         """
         Calculate new state based on multi-level check results.
 
@@ -309,9 +346,11 @@ class HostMonitoringStateMachine:
         # Progressive state degradation based on total failure count
         if total_failures == 0:
             # All checks passed - transition to online after enough successes
-            if (new_ping_successes >= self.config.successes_to_online and
-                new_ssh_successes >= self.config.successes_to_online and
-                new_priv_successes >= self.config.successes_to_online):
+            if (
+                new_ping_successes >= self.config.successes_to_online
+                and new_ssh_successes >= self.config.successes_to_online
+                and new_priv_successes >= self.config.successes_to_online
+            ):
                 new_state = MonitoringState.ONLINE
             else:
                 new_state = current_state  # Stay in current state until threshold
@@ -326,12 +365,12 @@ class HostMonitoringStateMachine:
             new_state = MonitoringState.DOWN
 
         counters = {
-            'ping_failures': new_ping_failures,
-            'ping_successes': new_ping_successes,
-            'ssh_failures': new_ssh_failures,
-            'ssh_successes': new_ssh_successes,
-            'priv_failures': new_priv_failures,
-            'priv_successes': new_priv_successes
+            "ping_failures": new_ping_failures,
+            "ping_successes": new_ping_successes,
+            "ssh_failures": new_ssh_failures,
+            "ssh_successes": new_ssh_successes,
+            "priv_failures": new_priv_failures,
+            "priv_successes": new_priv_successes,
         }
 
         return new_state, counters
@@ -344,7 +383,7 @@ class HostMonitoringStateMachine:
             MonitoringState.CRITICAL: self.config.critical_interval,
             MonitoringState.DOWN: self.config.down_interval,
             MonitoringState.UNKNOWN: self.config.unknown_interval,
-            MonitoringState.MAINTENANCE: 0  # No checks during maintenance
+            MonitoringState.MAINTENANCE: 0,  # No checks during maintenance
         }
         return intervals.get(state, self.config.online_interval)
 
@@ -356,31 +395,44 @@ class HostMonitoringStateMachine:
             MonitoringState.CRITICAL: self.config.critical_priority,
             MonitoringState.DOWN: self.config.down_priority,
             MonitoringState.UNKNOWN: self.config.unknown_priority,
-            MonitoringState.MAINTENANCE: 1  # Lowest priority
+            MonitoringState.MAINTENANCE: 1,  # Lowest priority
         }
         return priorities.get(state, self.config.online_priority)
 
-    def _log_history(self, host_id: str, check_time: datetime, monitoring_state: str,
-                    previous_state: Optional[str], response_time_ms: Optional[int],
-                    success: bool, error_message: Optional[str], error_type: Optional[str]):
+    def _log_history(
+        self,
+        host_id: str,
+        check_time: datetime,
+        monitoring_state: str,
+        previous_state: Optional[str],
+        response_time_ms: Optional[int],
+        success: bool,
+        error_message: Optional[str],
+        error_type: Optional[str],
+    ):
         """Log monitoring check to history table"""
         try:
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 INSERT INTO host_monitoring_history
                 (host_id, check_time, monitoring_state, previous_state, response_time_ms,
                  success, error_message, error_type)
                 VALUES (:host_id, :check_time, :monitoring_state, :previous_state,
                         :response_time, :success, :error_message, :error_type)
-            """), {
-                "host_id": host_id,
-                "check_time": check_time,
-                "monitoring_state": monitoring_state,
-                "previous_state": previous_state,
-                "response_time": response_time_ms,
-                "success": success,
-                "error_message": error_message,
-                "error_type": error_type
-            })
+            """
+                ),
+                {
+                    "host_id": host_id,
+                    "check_time": check_time,
+                    "monitoring_state": monitoring_state,
+                    "previous_state": previous_state,
+                    "response_time": response_time_ms,
+                    "success": success,
+                    "error_message": error_message,
+                    "error_type": error_type,
+                },
+            )
         except Exception as e:
             logger.warning(f"Failed to log monitoring history for {host_id}: {e}")
 
@@ -395,7 +447,9 @@ class HostMonitoringStateMachine:
             List of host dictionaries with id, hostname, ip_address, priority
         """
         try:
-            result = self.db.execute(text("""
+            result = self.db.execute(
+                text(
+                    """
                 SELECT id, hostname, ip_address, check_priority, status
                 FROM hosts
                 WHERE is_active = true
@@ -403,17 +457,22 @@ class HostMonitoringStateMachine:
                   AND (next_check_time IS NULL OR next_check_time <= CURRENT_TIMESTAMP)
                 ORDER BY check_priority DESC, next_check_time ASC NULLS FIRST
                 LIMIT :limit
-            """), {"limit": limit})
+            """
+                ),
+                {"limit": limit},
+            )
 
             hosts = []
             for row in result:
-                hosts.append({
-                    "id": str(row.id),
-                    "hostname": row.hostname,
-                    "ip_address": row.ip_address,
-                    "priority": row.check_priority,
-                    "state": row.status
-                })
+                hosts.append(
+                    {
+                        "id": str(row.id),
+                        "hostname": row.hostname,
+                        "ip_address": row.ip_address,
+                        "priority": row.check_priority,
+                        "state": row.status,
+                    }
+                )
 
             return hosts
 
@@ -424,9 +483,15 @@ class HostMonitoringStateMachine:
     def set_maintenance_mode(self, host_id: str, enabled: bool):
         """Enable or disable maintenance mode for a host"""
         try:
-            new_state = MonitoringState.MAINTENANCE.value if enabled else MonitoringState.UNKNOWN.value
+            new_state = (
+                MonitoringState.MAINTENANCE.value
+                if enabled
+                else MonitoringState.UNKNOWN.value
+            )
 
-            self.db.execute(text("""
+            self.db.execute(
+                text(
+                    """
                 UPDATE hosts
                 SET status = :state,
                     ping_consecutive_failures = 0,
@@ -437,10 +502,15 @@ class HostMonitoringStateMachine:
                     privilege_consecutive_successes = 0,
                     last_state_change = CURRENT_TIMESTAMP
                 WHERE id = :host_id
-            """), {"host_id": host_id, "state": new_state})
+            """
+                ),
+                {"host_id": host_id, "state": new_state},
+            )
 
             self.db.commit()
-            logger.info(f"Host {host_id} maintenance mode: {'enabled' if enabled else 'disabled'}")
+            logger.info(
+                f"Host {host_id} maintenance mode: {'enabled' if enabled else 'disabled'}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to set maintenance mode for {host_id}: {e}")

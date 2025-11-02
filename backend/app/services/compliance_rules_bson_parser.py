@@ -2,6 +2,7 @@
 BSON Parser Service for Compliance Rules
 Handles Binary JSON parsing and validation for compliance rule uploads
 """
+
 import bson
 from bson import decode, encode, BSON
 from bson.errors import InvalidBSON
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class BSONParsingError(Exception):
     """BSON parsing specific exceptions"""
+
     pass
 
 
@@ -59,7 +61,7 @@ class BSONParserService:
                 )
 
             # Read BSON data
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 bson_data = f.read()
 
             # Quick validation check
@@ -120,7 +122,7 @@ class BSONParserService:
                     f"(max: {self.MAX_RULE_FILE_SIZE:,})"
                 )
 
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
@@ -159,7 +161,7 @@ class BSONParserService:
         manifest = await self.parse_bson_file(manifest_path)
 
         # Validate required manifest fields
-        required_fields = ['name', 'version', 'rules_count', 'created_at']
+        required_fields = ["name", "version", "rules_count", "created_at"]
         missing = [f for f in required_fields if f not in manifest]
 
         if missing:
@@ -168,25 +170,37 @@ class BSONParserService:
             )
 
         # Validate field types
-        if not isinstance(manifest['name'], str):
-            raise BSONParsingError(f"Manifest 'name' must be string, got {type(manifest['name']).__name__}")
+        if not isinstance(manifest["name"], str):
+            raise BSONParsingError(
+                f"Manifest 'name' must be string, got {type(manifest['name']).__name__}"
+            )
 
-        if not isinstance(manifest['version'], str):
-            raise BSONParsingError(f"Manifest 'version' must be string, got {type(manifest['version']).__name__}")
+        if not isinstance(manifest["version"], str):
+            raise BSONParsingError(
+                f"Manifest 'version' must be string, got {type(manifest['version']).__name__}"
+            )
 
-        if not isinstance(manifest['rules_count'], int):
-            raise BSONParsingError(f"Manifest 'rules_count' must be integer, got {type(manifest['rules_count']).__name__}")
+        if not isinstance(manifest["rules_count"], int):
+            raise BSONParsingError(
+                f"Manifest 'rules_count' must be integer, got {type(manifest['rules_count']).__name__}"
+            )
 
         # Convert created_at to datetime if string
-        if isinstance(manifest['created_at'], str):
+        if isinstance(manifest["created_at"], str):
             try:
-                manifest['created_at'] = datetime.fromisoformat(manifest['created_at'].replace('Z', '+00:00'))
+                manifest["created_at"] = datetime.fromisoformat(
+                    manifest["created_at"].replace("Z", "+00:00")
+                )
             except ValueError as e:
                 raise BSONParsingError(f"Invalid created_at format: {str(e)}")
-        elif not isinstance(manifest['created_at'], datetime):
-            raise BSONParsingError(f"Manifest 'created_at' must be datetime or ISO string")
+        elif not isinstance(manifest["created_at"], datetime):
+            raise BSONParsingError(
+                f"Manifest 'created_at' must be datetime or ISO string"
+            )
 
-        logger.info(f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)")
+        logger.info(
+            f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)"
+        )
 
         return manifest
 
@@ -206,7 +220,7 @@ class BSONParserService:
         manifest = await self.parse_json_file(manifest_path)
 
         # Validate required manifest fields
-        required_fields = ['name', 'version', 'rules_count', 'created_at']
+        required_fields = ["name", "version", "rules_count", "created_at"]
         missing = [f for f in required_fields if f not in manifest]
 
         if missing:
@@ -215,20 +229,22 @@ class BSONParserService:
             )
 
         # Convert created_at to datetime if string
-        if isinstance(manifest['created_at'], str):
+        if isinstance(manifest["created_at"], str):
             try:
-                manifest['created_at'] = datetime.fromisoformat(manifest['created_at'].replace('Z', '+00:00'))
+                manifest["created_at"] = datetime.fromisoformat(
+                    manifest["created_at"].replace("Z", "+00:00")
+                )
             except ValueError as e:
                 raise BSONParsingError(f"Invalid created_at format: {str(e)}")
 
-        logger.info(f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)")
+        logger.info(
+            f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)"
+        )
 
         return manifest
 
     async def parse_all_rule_files(
-        self,
-        extracted_path: Path,
-        max_rules: int = 10000
+        self, extracted_path: Path, max_rules: int = 10000
     ) -> List[Dict[str, Any]]:
         """
         Parse all rule files (.bson and .json) in directory
@@ -249,11 +265,15 @@ class BSONParserService:
 
         # Find all JSON files (backward compatibility)
         json_files = list(extracted_path.glob("**/*.json"))
-        json_files = [f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]]
+        json_files = [
+            f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]
+        ]
 
         all_files = bson_files + json_files
 
-        logger.info(f"Found {len(bson_files)} BSON files and {len(json_files)} JSON files")
+        logger.info(
+            f"Found {len(bson_files)} BSON files and {len(json_files)} JSON files"
+        )
 
         # Check rule count limit
         if len(all_files) > max_rules:
@@ -271,36 +291,38 @@ class BSONParserService:
         for file_path in all_files:
             try:
                 # Determine file type and parse accordingly
-                if file_path.suffix == '.bson':
+                if file_path.suffix == ".bson":
                     rule_data = await self.parse_bson_file(file_path)
                 else:  # .json
                     rule_data = await self.parse_json_file(file_path)
 
                 # Basic validation - must have rule_id
-                if 'rule_id' not in rule_data:
-                    self.parsing_errors.append({
-                        'file': str(file_path.name),
-                        'error': 'Missing required field: rule_id',
-                        'severity': 'error'
-                    })
+                if "rule_id" not in rule_data:
+                    self.parsing_errors.append(
+                        {
+                            "file": str(file_path.name),
+                            "error": "Missing required field: rule_id",
+                            "severity": "error",
+                        }
+                    )
                     continue
 
                 rules.append(rule_data)
 
             except BSONParsingError as e:
-                self.parsing_errors.append({
-                    'file': str(file_path.name),
-                    'error': str(e),
-                    'severity': 'error'
-                })
+                self.parsing_errors.append(
+                    {"file": str(file_path.name), "error": str(e), "severity": "error"}
+                )
                 logger.error(f"Failed to parse {file_path.name}: {e}")
 
             except Exception as e:
-                self.parsing_errors.append({
-                    'file': str(file_path.name),
-                    'error': f"Unexpected error: {str(e)}",
-                    'severity': 'error'
-                })
+                self.parsing_errors.append(
+                    {
+                        "file": str(file_path.name),
+                        "error": f"Unexpected error: {str(e)}",
+                        "severity": "error",
+                    }
+                )
                 logger.error(f"Unexpected error parsing {file_path.name}: {e}")
 
         # Log summary
@@ -384,9 +406,9 @@ class BSONParserService:
             Dictionary with parsing metrics
         """
         return {
-            'parsed_rules_count': self.parsed_rules_count,
-            'parsing_errors_count': len(self.parsing_errors),
-            'parsing_errors': self.parsing_errors
+            "parsed_rules_count": self.parsed_rules_count,
+            "parsing_errors_count": len(self.parsing_errors),
+            "parsing_errors": self.parsing_errors,
         }
 
     def reset_statistics(self):
@@ -409,24 +431,24 @@ async def detect_file_format(file_path: Path) -> str:
         ValueError: If format cannot be determined
     """
     # First check file extension
-    if file_path.suffix == '.bson':
-        return 'bson'
-    elif file_path.suffix == '.json':
-        return 'json'
+    if file_path.suffix == ".bson":
+        return "bson"
+    elif file_path.suffix == ".json":
+        return "json"
 
     # If no clear extension, try to detect by content
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             first_bytes = f.read(16)
 
         # JSON files typically start with { or [
-        if first_bytes and first_bytes[0] in [ord('{'), ord('[')]:
-            return 'json'
+        if first_bytes and first_bytes[0] in [ord("{"), ord("[")]:
+            return "json"
 
         # Try BSON decode
         try:
             bson.decode(first_bytes)
-            return 'bson'
+            return "bson"
         except:
             pass
 

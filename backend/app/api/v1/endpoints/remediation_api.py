@@ -19,14 +19,14 @@ from ....models.remediation_models import (
     RemediationResult,
     RemediationStatus,
     BulkRemediationJob,
-    RemediationSummary
+    RemediationSummary,
 )
 from ....services.remediation_orchestrator_service import RemediationOrchestrator
 from ....services.remediators import RemediationExecutorFactory
 from ....services.remediators.base_executor import (
     ExecutorNotAvailableError,
     ExecutorValidationError,
-    ExecutorExecutionError
+    ExecutorExecutionError,
 )
 from ....services.mongo_integration_service import get_mongo_service
 from ....auth import get_current_user
@@ -38,8 +38,8 @@ router = APIRouter()
 @router.post("/execute", response_model=RemediationResult)
 async def execute_remediation(
     request: RemediationRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Execute remediation for a single rule.
@@ -86,8 +86,8 @@ async def execute_remediation(
             target=request.target,
             variable_overrides=request.variable_overrides,
             dry_run=request.dry_run,
-            executed_by=current_user.get('username'),
-            scan_id=request.scan_id
+            executed_by=current_user.get("username"),
+            scan_id=request.scan_id,
         )
 
         return result
@@ -107,8 +107,8 @@ async def execute_remediation(
 @router.post("/execute-bulk", response_model=BulkRemediationJob)
 async def execute_bulk_remediation(
     request: BulkRemediationRequest,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Execute remediation for multiple rules.
@@ -168,7 +168,7 @@ async def execute_bulk_remediation(
             rule_filter=request.rule_filter,
             variable_overrides=request.variable_overrides,
             dry_run=request.dry_run,
-            executed_by=current_user.get('username')
+            executed_by=current_user.get("username"),
         )
 
         return job
@@ -182,8 +182,8 @@ async def execute_bulk_remediation(
 @router.get("/{remediation_id}", response_model=RemediationResult)
 async def get_remediation(
     remediation_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get remediation result by ID.
@@ -206,8 +206,8 @@ async def get_remediation(
         raise HTTPException(status_code=404, detail="Remediation not found")
 
     # Authorization: users can only see their own remediations unless admin
-    if current_user.get('role') != 'admin':
-        if result.executed_by != current_user.get('username'):
+    if current_user.get("role") != "admin":
+        if result.executed_by != current_user.get("username"):
             raise HTTPException(status_code=403, detail="Access denied")
 
     return result
@@ -219,8 +219,8 @@ async def list_remediations(
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     status: Optional[RemediationStatus] = Query(None, description="Filter by status"),
     scan_id: Optional[str] = Query(None, description="Filter by scan ID"),
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     List remediations with filters and pagination.
@@ -245,15 +245,11 @@ async def list_remediations(
 
     # Non-admin users can only see their own remediations
     executed_by = None
-    if current_user.get('role') != 'admin':
-        executed_by = current_user.get('username')
+    if current_user.get("role") != "admin":
+        executed_by = current_user.get("username")
 
     results = await orchestrator.list_remediations(
-        skip=skip,
-        limit=limit,
-        status=status,
-        executed_by=executed_by,
-        scan_id=scan_id
+        skip=skip, limit=limit, status=status, executed_by=executed_by, scan_id=scan_id
     )
 
     return results
@@ -262,8 +258,8 @@ async def list_remediations(
 @router.post("/{remediation_id}/rollback", response_model=RemediationResult)
 async def rollback_remediation(
     remediation_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Rollback a remediation.
@@ -293,14 +289,13 @@ async def rollback_remediation(
             raise HTTPException(status_code=404, detail="Remediation not found")
 
         # Authorization
-        if current_user.get('role') != 'admin':
-            if original.executed_by != current_user.get('username'):
+        if current_user.get("role") != "admin":
+            if original.executed_by != current_user.get("username"):
                 raise HTTPException(status_code=403, detail="Access denied")
 
         # Execute rollback
         result = await orchestrator.rollback_remediation(
-            remediation_id=remediation_id,
-            executed_by=current_user.get('username')
+            remediation_id=remediation_id, executed_by=current_user.get("username")
         )
 
         return result
@@ -316,8 +311,8 @@ async def rollback_remediation(
 @router.delete("/{remediation_id}")
 async def delete_remediation(
     remediation_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Delete remediation result.
@@ -345,8 +340,8 @@ async def delete_remediation(
         raise HTTPException(status_code=404, detail="Remediation not found")
 
     # Authorization
-    if current_user.get('role') != 'admin':
-        if result.executed_by != current_user.get('username'):
+    if current_user.get("role") != "admin":
+        if result.executed_by != current_user.get("username"):
             raise HTTPException(status_code=403, detail="Access denied")
 
     # Delete
@@ -358,8 +353,8 @@ async def delete_remediation(
 @router.get("/statistics/summary", response_model=RemediationSummary)
 async def get_remediation_statistics(
     days: int = Query(30, ge=1, le=365, description="Days to include"),
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get remediation statistics.
@@ -400,21 +395,18 @@ async def get_remediation_statistics(
 
     # Non-admin users see only their own stats
     executed_by = None
-    if current_user.get('role') != 'admin':
-        executed_by = current_user.get('username')
+    if current_user.get("role") != "admin":
+        executed_by = current_user.get("username")
 
     summary = await orchestrator.get_remediation_statistics(
-        days=days,
-        executed_by=executed_by
+        days=days, executed_by=executed_by
     )
 
     return summary
 
 
 @router.get("/executors/available")
-async def list_available_executors(
-    current_user: dict = Depends(get_current_user)
-):
+async def list_available_executors(current_user: dict = Depends(get_current_user)):
     """
     List available remediation executors.
 
@@ -455,8 +447,8 @@ async def list_available_executors(
 @router.get("/jobs/{job_id}", response_model=BulkRemediationJob)
 async def get_bulk_job(
     job_id: str,
-    mongo_service = Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user)
+    mongo_service=Depends(get_mongo_service),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get bulk remediation job status.
@@ -475,8 +467,8 @@ async def get_bulk_job(
         raise HTTPException(status_code=404, detail="Job not found")
 
     # Authorization
-    if current_user.get('role') != 'admin':
-        if job.executed_by != current_user.get('username'):
+    if current_user.get("role") != "admin":
+        if job.executed_by != current_user.get("username"):
             raise HTTPException(status_code=403, detail="Access denied")
 
     return job

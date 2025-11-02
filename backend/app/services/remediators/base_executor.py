@@ -13,7 +13,7 @@ import logging
 
 from backend.app.models.remediation_models import (
     RemediationTarget,
-    RemediationExecutionResult
+    RemediationExecutionResult,
 )
 
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ExecutorCapability(str, Enum):
     """Capabilities that an executor may support."""
+
     DRY_RUN = "dry_run"
     ROLLBACK = "rollback"
     IDEMPOTENT = "idempotent"
@@ -32,26 +33,31 @@ class ExecutorCapability(str, Enum):
 
 class RemediationExecutorError(Exception):
     """Base exception for remediation executor errors."""
+
     pass
 
 
 class ExecutorNotAvailableError(RemediationExecutorError):
     """Executor binary/tool not available on system."""
+
     pass
 
 
 class ExecutorValidationError(RemediationExecutorError):
     """Remediation content failed validation."""
+
     pass
 
 
 class ExecutorExecutionError(RemediationExecutorError):
     """Error during remediation execution."""
+
     pass
 
 
 class UnsupportedTargetError(RemediationExecutorError):
     """Target type not supported by this executor."""
+
     pass
 
 
@@ -110,7 +116,7 @@ class BaseRemediationExecutor(ABC):
         target: RemediationTarget,
         variables: Dict[str, str],
         dry_run: bool = False,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute remediation content against target.
@@ -139,7 +145,7 @@ class BaseRemediationExecutor(ABC):
         remediation_id: str,
         rollback_content: str,
         target: RemediationTarget,
-        timeout_seconds: int = 300
+        timeout_seconds: int = 300,
     ) -> RemediationExecutionResult:
         """
         Execute rollback remediation.
@@ -239,9 +245,7 @@ class BaseRemediationExecutor(ABC):
         return []
 
     def _generate_rollback_content(
-        self,
-        original_content: str,
-        execution_result: RemediationExecutionResult
+        self, original_content: str, execution_result: RemediationExecutionResult
     ) -> Optional[str]:
         """
         Generate rollback content from original remediation and execution result.
@@ -281,7 +285,7 @@ class ExecutorMetadata:
         capabilities: set[ExecutorCapability],
         supported_targets: List[str],
         version: str,
-        available: bool = True
+        available: bool = True,
     ):
         self.name = name
         self.display_name = display_name
@@ -300,5 +304,5 @@ class ExecutorMetadata:
             "capabilities": [cap.value for cap in self.capabilities],
             "supported_targets": self.supported_targets,
             "version": self.version,
-            "available": self.available
+            "available": self.available,
         }

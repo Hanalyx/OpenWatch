@@ -2,6 +2,7 @@
 OpenWatch FastAPI Application - FIPS Compliant Security Scanner
 Main application with comprehensive security middleware
 """
+
 import logging
 import os
 import asyncio
@@ -16,11 +17,45 @@ import uvicorn
 from .config import get_settings, SECURITY_HEADERS
 from .auth import jwt_manager, audit_logger, require_admin
 from .database import engine, create_tables, get_db
-from .routes import auth, hosts, scans, content, scap_content, monitoring, users, audit, host_groups, scan_templates, webhooks, mfa, ssh_settings, group_compliance, ssh_debug, adaptive_scheduler
+from .routes import (
+    auth,
+    hosts,
+    scans,
+    content,
+    scap_content,
+    monitoring,
+    users,
+    audit,
+    host_groups,
+    scan_templates,
+    webhooks,
+    mfa,
+    ssh_settings,
+    group_compliance,
+    ssh_debug,
+    adaptive_scheduler,
+)
 from .routes.system_settings_unified import router as system_settings_router
-from .routes import credentials, api_keys, remediation_callback, integration_metrics, bulk_operations, compliance, rule_scanning, capabilities, host_network_discovery, host_compliance_discovery
+from .routes import (
+    credentials,
+    api_keys,
+    remediation_callback,
+    integration_metrics,
+    bulk_operations,
+    compliance,
+    rule_scanning,
+    capabilities,
+    host_network_discovery,
+    host_compliance_discovery,
+)
 from .routes.v2 import credentials as v2_credentials  # WEEK 2: v2 credentials API
-from .routes import host_discovery, host_security_discovery, plugin_management, bulk_remediation_routes
+from .routes import (
+    host_discovery,
+    host_security_discovery,
+    plugin_management,
+    bulk_remediation_routes,
+)
+
 # Import security routes only if available
 try:
     from .routes import automated_fixes
@@ -42,8 +77,7 @@ from .services.prometheus_metrics import get_metrics_instance
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -61,10 +95,11 @@ async def lifespan(app: FastAPI):
     from .encryption import create_encryption_service, EncryptionConfig
 
     # Create encryption service with production config
-    encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
+    encryption_config = (
+        EncryptionConfig()
+    )  # Uses secure defaults (100k iterations, SHA256)
     encryption_service = create_encryption_service(
-        master_key=settings.master_key,
-        config=encryption_config
+        master_key=settings.master_key, config=encryption_config
     )
 
     # Store in app state for dependency injection
@@ -78,32 +113,40 @@ async def lifespan(app: FastAPI):
     if settings.fips_mode:
         try:
             from security.config.fips_config import FIPSConfig
+
             if not FIPSConfig.validate_fips_mode():
                 logger.warning("FIPS mode is not enabled in the system")
             else:
                 logger.info("FIPS mode validated successfully")
         except ImportError:
-            logger.warning("FIPS configuration module not found - using development mode")
-    
+            logger.warning(
+                "FIPS configuration module not found - using development mode"
+            )
+
     # Create database tables with retry logic (skip in development if fails)
     max_retries = 3
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             # Initialize complete database schema (includes tables without ORM models)
             from .init_database_schema import initialize_database_schema
+
             schema_success = initialize_database_schema()
 
             if not schema_success:
                 logger.error("Critical database schema initialization failed!")
                 logger.error("Application cannot start without required tables.")
                 if attempt < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                    logger.info(
+                        f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})"
+                    )
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
-                    raise Exception("Database schema initialization failed after all retries")
+                    raise Exception(
+                        "Database schema initialization failed after all retries"
+                    )
 
             logger.info("Complete database schema initialized successfully")
 
@@ -131,58 +174,69 @@ async def lifespan(app: FastAPI):
             # Initialize RBAC system
             try:
                 from .init_roles import initialize_rbac_system
+
                 await initialize_rbac_system()
                 logger.info("RBAC system initialized successfully")
             except Exception as rbac_error:
                 logger.warning(f"RBAC initialization failed: {rbac_error}")
                 if not settings.debug:
                     raise
-            
+
             # Legacy APScheduler disabled - using Celery Beat for adaptive monitoring
             # The new adaptive scheduler runs via Celery Beat with state-based intervals
             # See: backend/app/tasks/adaptive_monitoring_dispatcher.py
-            logger.info("Legacy APScheduler disabled - using Celery Beat adaptive monitoring")
-            
+            logger.info(
+                "Legacy APScheduler disabled - using Celery Beat adaptive monitoring"
+            )
+
             break
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.warning(f"Database connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
+                logger.warning(
+                    f"Database connection attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds..."
+                )
                 import asyncio as async_sleep_module
+
                 await async_sleep_module.sleep(retry_delay)
             else:
                 if settings.debug:
-                    logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
+                    logger.warning(
+                        f"Database connection failed in debug mode, continuing without DB: {e}"
+                    )
                 else:
-                    logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                    logger.error(
+                        f"Failed to connect to database after {max_retries} attempts: {e}"
+                    )
                     raise
-    
+
     # Initialize JWT keys
     logger.info("JWT manager initialized with RSA keys")
-    
+
     # Initialize MongoDB
     try:
         from .services.mongo_integration_service import get_mongo_service
+
         mongo_service = await get_mongo_service()
         logger.info("MongoDB integration service initialized successfully")
-        
+
         # Health monitoring models are initialized with other Beanie models
         logger.info("Health monitoring models ready")
-        
+
     except Exception as mongo_error:
         logger.warning(f"MongoDB initialization failed: {mongo_error}")
         if not settings.debug:
             raise
-    
+
     # Distributed tracing disabled for initial deployment
     logger.info("Distributed tracing disabled for initial deployment")
 
     # Background metrics collection disabled for debugging
     logger.info("Background metrics collection disabled for debugging")
-    
+
     logger.info("OpenWatch application started successfully")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down OpenWatch application...")
     background_updater.stop_background_updates()
@@ -196,7 +250,7 @@ app = FastAPI(
     version="1.2.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -206,12 +260,13 @@ app = FastAPI(
 rate_limiter = get_rate_limiting_middleware()
 app.middleware("http")(rate_limiter)
 
+
 # Security Middleware
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """Add FIPS-compliant security headers to all responses"""
     response = await call_next(request)
-    
+
     # Add security headers with development modifications
     for header, value in SECURITY_HEADERS.items():
         if header == "Content-Security-Policy" and settings.debug:
@@ -229,7 +284,7 @@ async def security_headers_middleware(request: Request, call_next):
             response.headers[header] = dev_csp
         else:
             response.headers[header] = value
-    
+
     return response
 
 
@@ -242,10 +297,7 @@ def _log_audit_event(db, event_type: str, request: Request, response, client_ip:
 
     # Log to database
     log_security_event(
-        db=db,
-        event_type=event_type,
-        ip_address=client_ip,
-        details=details
+        db=db, event_type=event_type, ip_address=client_ip, details=details
     )
 
 
@@ -269,7 +321,7 @@ async def audit_middleware(request: Request, call_next):
             "/api/scans": "SCAN_OPERATION",
             "/api/hosts": "HOST_OPERATION",
             "/api/users": "USER_OPERATION",
-            "/api/v1/webhooks": "WEBHOOK_OPERATION"
+            "/api/v1/webhooks": "WEBHOOK_OPERATION",
         }
 
         # Log based on path prefix
@@ -305,7 +357,7 @@ async def request_size_limit_middleware(request: Request, call_next):
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             content={
                 "detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"
-            }
+            },
         )
 
     return await call_next(request)
@@ -319,7 +371,7 @@ async def https_redirect_middleware(request: Request, call_next):
             https_url = request.url.replace(scheme="https")
             return JSONResponse(
                 status_code=status.HTTP_301_MOVED_PERMANENTLY,
-                headers={"Location": str(https_url)}
+                headers={"Location": str(https_url)},
             )
 
     return await call_next(request)
@@ -337,7 +389,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
-    expose_headers=["X-Total-Count"]
+    expose_headers=["X-Total-Count"],
 )
 
 # Trusted Host Middleware
@@ -349,10 +401,7 @@ if not settings.debug:
             host = origin.replace("https://", "").split(":")[0]
             trusted_hosts.append(host)
 
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=trusted_hosts
-)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware, service_name="openwatch")
@@ -368,9 +417,9 @@ async def health_check():
             "status": "healthy",
             "timestamp": time.time(),
             "version": "1.2.0",
-            "fips_mode": settings.fips_mode
+            "fips_mode": settings.fips_mode,
         }
-        
+
         # Check database connectivity - simplified approach
         db_healthy = True
         db = None
@@ -378,6 +427,7 @@ async def health_check():
             # Simple inline database check
             from sqlalchemy import text
             from .database import SessionLocal
+
             db = SessionLocal()
             db.execute(text("SELECT 1"))
             health_status["database"] = "healthy"
@@ -389,7 +439,7 @@ async def health_check():
         finally:
             if db:
                 db.close()
-        
+
         # Check Redis connectivity - simplified approach
         redis_healthy = True
         redis_client = None
@@ -397,13 +447,14 @@ async def health_check():
             # Simple inline Redis check
             import redis
             import urllib.parse
+
             parsed = urllib.parse.urlparse(settings.redis_url)
             redis_client = redis.Redis(
                 host=parsed.hostname,
                 port=parsed.port or 6379,
                 password=parsed.password,
                 socket_timeout=5,
-                socket_connect_timeout=5
+                socket_connect_timeout=5,
             )
             redis_client.ping()
             health_status["redis"] = "healthy"
@@ -415,14 +466,17 @@ async def health_check():
         finally:
             if redis_client:
                 redis_client.close()
-        
+
         # Check MongoDB connectivity
-        mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
+        mongodb_configured = bool(
+            settings.mongodb_url and "mongodb://" in settings.mongodb_url
+        )
         mongodb_healthy = True
-        
+
         if mongodb_configured:
             try:
                 from .services.mongo_integration_service import get_mongo_service
+
                 mongo_service = await get_mongo_service()
                 mongo_health = await mongo_service.health_check()
                 health_status["mongodb"] = mongo_health.get("status", "unknown")
@@ -430,7 +484,9 @@ async def health_check():
                 if mongodb_healthy:
                     logger.info("MongoDB health check successful")
                 else:
-                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
+                    logger.warning(
+                        f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}"
+                    )
             except Exception as e:
                 # Return actual error status
                 health_status["mongodb"] = "unhealthy"
@@ -442,26 +498,21 @@ async def health_check():
             health_status["mongodb"] = "not_configured"
             logger.info("MongoDB not configured - skipping health check")
             mongodb_healthy = True  # Don't fail overall health for unconfigured service
-        
+
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
             health_status["status"] = "degraded"
             return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content=health_status
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status
             )
-        
+
         return health_status
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": time.time()
-            }
+            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
         )
 
 
@@ -475,7 +526,7 @@ async def security_info(current_user: dict = Depends(require_admin)):
         "jwt_algorithm": "RS256",
         "encryption": "AES-256-GCM",
         "hash_algorithm": "Argon2id",
-        "tls_version": "1.3"
+        "tls_version": "1.3",
     }
 
 
@@ -484,13 +535,12 @@ async def security_info(current_user: dict = Depends(require_admin)):
 async def metrics():
     """Prometheus metrics endpoint"""
     from fastapi.responses import PlainTextResponse
-    
+
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
-    
+
     return PlainTextResponse(
-        content=metrics_data,
-        media_type="text/plain; version=0.0.4; charset=utf-8"
+        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
     )
 
 
@@ -506,7 +556,9 @@ app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 app.include_router(scap_content.router, prefix="/api", tags=["SCAP Content"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
-app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
+app.include_router(
+    adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"]
+)
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
@@ -514,21 +566,37 @@ app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
 app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
 app.include_router(credentials.router, tags=["Credential Sharing"])
-app.include_router(v2_credentials.router, prefix="/api", tags=["Credentials v2"])  # WEEK 2: v2 credentials API (adds /api prefix to router's /v2/credentials)
+app.include_router(
+    v2_credentials.router, prefix="/api", tags=["Credentials v2"]
+)  # WEEK 2: v2 credentials API (adds /api prefix to router's /v2/credentials)
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
-app.include_router(integration_metrics.router, prefix="/api/integration/metrics", tags=["Integration Metrics"])
+app.include_router(
+    integration_metrics.router,
+    prefix="/api/integration/metrics",
+    tags=["Integration Metrics"],
+)
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-app.include_router(compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"])
+app.include_router(
+    compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"]
+)
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
 app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
-app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
-app.include_router(group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"])
-app.include_router(host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"])
+app.include_router(
+    host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"]
+)
+app.include_router(
+    group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"]
+)
+app.include_router(
+    host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"]
+)
 app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
-app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
+app.include_router(
+    host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"]
+)
 app.include_router(plugin_management.router, tags=["Plugin Management"])
 app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
 
@@ -539,7 +607,7 @@ app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
 if automated_fixes:
     app.include_router(automated_fixes.router, tags=["Secure Automated Fixes"])
 if authorization:
-    app.include_router(authorization.router, tags=["Authorization Management"])  
+    app.include_router(authorization.router, tags=["Authorization Management"])
 if security_config:
     app.include_router(security_config.router, tags=["Security Configuration"])
 
@@ -551,24 +619,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
         client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
-    
+
     # Log the exception
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    
+
     # Log security event
     audit_logger.log_security_event(
         "EXCEPTION",
         f"Path: {request.url.path}, Exception: {type(exc).__name__}",
-        client_ip
+        client_ip,
     )
-    
+
     # Return generic error response (don't expose internal details)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Internal server error",
-            "error_id": f"{int(time.time())}"
-        }
+        content={"detail": "Internal server error", "error_id": f"{int(time.time())}"},
     )
 
 
@@ -581,5 +646,5 @@ if __name__ == "__main__":
         ssl_keyfile=settings.tls_key_file if settings.require_https else None,
         ssl_certfile=settings.tls_cert_file if settings.require_https else None,
         log_level=settings.log_level.lower(),
-        reload=settings.debug
+        reload=settings.debug,
     )

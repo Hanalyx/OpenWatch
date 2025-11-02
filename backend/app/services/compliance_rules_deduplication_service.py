@@ -2,6 +2,7 @@
 Smart Deduplication Service for Compliance Rules
 Detects content changes and updates only modified rules
 """
+
 import hashlib
 import json
 from typing import Dict, Any, Tuple, List, Union, Optional
@@ -28,63 +29,66 @@ class SmartDeduplicationService:
     # Must match RuleVersioningService.HASH_EXCLUDE_FIELDS for consistency
     EXCLUDED_FROM_HASH = {
         # Metadata that changes on every import
-        'imported_at',
-        'updated_at',
-        'source_file',
-        'source_hash',
-        'source',  # Provenance metadata (upstream_id, source_type) - not compliance content
-        '_id',
-        'id',  # Beanie auto-generated alias for _id
-        'revision_id',  # Beanie document revision tracking
+        "imported_at",
+        "updated_at",
+        "source_file",
+        "source_hash",
+        "source",  # Provenance metadata (upstream_id, source_type) - not compliance content
+        "_id",
+        "id",  # Beanie auto-generated alias for _id
+        "revision_id",  # Beanie document revision tracking
         # Immutable versioning fields (added in Phase 5)
-        'version',
-        'version_hash',
-        'is_latest',
-        'supersedes_version',
-        'superseded_by',
-        'effective_from',
-        'effective_until',
-        'source_bundle',
-        'source_bundle_hash',
-        'import_id',
-        'change_summary',
-        'created_by',
+        "version",
+        "version_hash",
+        "is_latest",
+        "supersedes_version",
+        "superseded_by",
+        "effective_from",
+        "effective_until",
+        "source_bundle",
+        "source_bundle_hash",
+        "import_id",
+        "change_summary",
+        "created_by",
         # Computed fields (OpenWatch-managed, not from bundle)
-        'derived_rules',  # Auto-populated from other rules' inherits_from
-        'parent_rule_id',  # Computed relationship field
+        "derived_rules",  # Auto-populated from other rules' inherits_from
+        "parent_rule_id",  # Computed relationship field
         # Multi-platform merge metadata (tracking only, not content)
-        'source_products',  # List of products that contributed to this merged rule
-        'platform_implementations',  # Platform-specific implementation details - metadata, not core compliance logic
-        'frameworks',  # Compliance framework mappings (NIST, CIS, STIG, etc.) - metadata about standards, not rule logic
-        'stig',  # STIG-specific metadata (srg_requirement, vuldiscussion, checktext, fixtext) - documentation, not rule logic
+        "source_products",  # List of products that contributed to this merged rule
+        "platform_implementations",  # Platform-specific implementation details - metadata, not core compliance logic
+        "frameworks",  # Compliance framework mappings (NIST, CIS, STIG, etc.) - metadata about standards, not rule logic
+        "stig",  # STIG-specific metadata (srg_requirement, vuldiscussion, checktext, fixtext) - documentation, not rule logic
     }
 
     # Fields tracked for statistics (categorized)
     TRACKED_FIELD_CATEGORIES = {
-        'metadata': ['metadata'],
-        'frameworks': ['frameworks'],
-        'platforms': ['platform_implementations'],
-        'check_content': ['check_type', 'check_content'],
-        'fix_content': ['fix_available', 'fix_content', 'manual_remediation'],
-        'severity': ['severity', 'remediation_risk', 'remediation_complexity'],
-        'inheritance': ['inherits_from', 'derived_rules', 'base_parameters', 'abstract'],
-        'dependencies': ['dependencies'],
-        'classification': ['category', 'tags', 'security_function']
+        "metadata": ["metadata"],
+        "frameworks": ["frameworks"],
+        "platforms": ["platform_implementations"],
+        "check_content": ["check_type", "check_content"],
+        "fix_content": ["fix_available", "fix_content", "manual_remediation"],
+        "severity": ["severity", "remediation_risk", "remediation_complexity"],
+        "inheritance": [
+            "inherits_from",
+            "derived_rules",
+            "base_parameters",
+            "abstract",
+        ],
+        "dependencies": ["dependencies"],
+        "classification": ["category", "tags", "security_function"],
     }
 
     def __init__(self):
         self.statistics = {
-            'imported': 0,
-            'updated': 0,
-            'skipped': 0,
-            'errors': 0,
-            'field_changes': defaultdict(int)
+            "imported": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": 0,
+            "field_changes": defaultdict(int),
         }
 
     async def process_rule(
-        self,
-        rule_data: Dict[str, Any],
-        existing_rule: Optional[ComplianceRule] = None
+        self, rule_data: Dict[str, Any], existing_rule: Optional[ComplianceRule] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Process a single rule with smart deduplication
@@ -98,16 +102,16 @@ class SmartDeduplicationService:
                 - action: 'imported' | 'updated' | 'skipped'
                 - details: Dict with action details
         """
-        rule_id = rule_data.get('rule_id', 'unknown')
+        rule_id = rule_data.get("rule_id", "unknown")
 
         try:
             if not existing_rule:
                 # New rule - import
-                self.statistics['imported'] += 1
-                return 'imported', {
-                    'rule_id': rule_id,
-                    'action': 'imported',
-                    'reason': 'New rule'
+                self.statistics["imported"] += 1
+                return "imported", {
+                    "rule_id": rule_id,
+                    "action": "imported",
+                    "reason": "New rule",
                 }
 
             # Calculate content hashes
@@ -121,13 +125,13 @@ class SmartDeduplicationService:
 
             if existing_hash == new_hash:
                 # No changes - skip
-                self.statistics['skipped'] += 1
+                self.statistics["skipped"] += 1
                 logger.info(f"Skipping unchanged rule: {rule_id}")
-                return 'skipped', {
-                    'rule_id': rule_id,
-                    'action': 'skipped',
-                    'reason': 'No content changes detected',
-                    'content_hash': existing_hash
+                return "skipped", {
+                    "rule_id": rule_id,
+                    "action": "skipped",
+                    "reason": "No content changes detected",
+                    "content_hash": existing_hash,
                 }
 
             # Detect specific changes
@@ -151,28 +155,28 @@ class SmartDeduplicationService:
 
             # Update field statistics
             for category in self.categorize_changes(changes):
-                self.statistics['field_changes'][category] += 1
+                self.statistics["field_changes"][category] += 1
 
             # Content changed - update needed
-            self.statistics['updated'] += 1
-            return 'updated', {
-                'rule_id': rule_id,
-                'action': 'updated',
-                'reason': 'Content changed',
-                'changes': changes,
-                'change_count': len(changes),
-                'changed_categories': self.categorize_changes(changes),
-                'old_hash': existing_hash,
-                'new_hash': new_hash
+            self.statistics["updated"] += 1
+            return "updated", {
+                "rule_id": rule_id,
+                "action": "updated",
+                "reason": "Content changed",
+                "changes": changes,
+                "change_count": len(changes),
+                "changed_categories": self.categorize_changes(changes),
+                "old_hash": existing_hash,
+                "new_hash": new_hash,
             }
 
         except Exception as e:
             logger.error(f"Error processing rule {rule_id}: {e}")
-            self.statistics['errors'] += 1
-            return 'error', {
-                'rule_id': rule_id,
-                'action': 'error',
-                'reason': f'Processing error: {str(e)}'
+            self.statistics["errors"] += 1
+            return "error", {
+                "rule_id": rule_id,
+                "action": "error",
+                "reason": f"Processing error: {str(e)}",
             }
 
     def _apply_pydantic_defaults(self, rule_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -197,42 +201,44 @@ class SmartDeduplicationService:
         # Apply ALL defaults that match ComplianceRule model
         # CRITICAL: Apply defaults for both missing fields AND None values
         # This ensures bundle data with None values hashes identically to MongoDB data with defaults
-        if result.get('abstract') is None:
-            result['abstract'] = False
+        if result.get("abstract") is None:
+            result["abstract"] = False
 
-        if result.get('conditions') is None:
-            result['conditions'] = []
+        if result.get("conditions") is None:
+            result["conditions"] = []
 
-        if result.get('parameter_resolution') is None:
-            result['parameter_resolution'] = "most_restrictive"
+        if result.get("parameter_resolution") is None:
+            result["parameter_resolution"] = "most_restrictive"
 
-        if result.get('dependencies') is None:
-            result['dependencies'] = {'requires': [], 'conflicts': [], 'related': []}
+        if result.get("dependencies") is None:
+            result["dependencies"] = {"requires": [], "conflicts": [], "related": []}
 
-        if result.get('check_type') is None:
-            result['check_type'] = 'custom'
+        if result.get("check_type") is None:
+            result["check_type"] = "custom"
 
-        if result.get('fix_available') is None:
-            result['fix_available'] = False
+        if result.get("fix_available") is None:
+            result["fix_available"] = False
 
-        if result.get('remediation_complexity') is None:
-            result['remediation_complexity'] = 'medium'
+        if result.get("remediation_complexity") is None:
+            result["remediation_complexity"] = "medium"
 
-        if result.get('remediation_risk') is None:
-            result['remediation_risk'] = 'low'
+        if result.get("remediation_risk") is None:
+            result["remediation_risk"] = "low"
 
-        if result.get('deprecated') is None:
-            result['deprecated'] = False
+        if result.get("deprecated") is None:
+            result["deprecated"] = False
 
-        if result.get('scanner_type') is None:
-            result['scanner_type'] = 'oscap'
+        if result.get("scanner_type") is None:
+            result["scanner_type"] = "oscap"
 
-        if result.get('platform_implementations') is None:
-            result['platform_implementations'] = {}
+        if result.get("platform_implementations") is None:
+            result["platform_implementations"] = {}
 
         return result
 
-    def calculate_content_hash(self, rule: Union[ComplianceRule, Dict[str, Any]]) -> str:
+    def calculate_content_hash(
+        self, rule: Union[ComplianceRule, Dict[str, Any]]
+    ) -> str:
         """
         Calculate SHA-256 hash of rule content
 
@@ -247,7 +253,7 @@ class SmartDeduplicationService:
         """
         try:
             # Convert to dict if Pydantic model
-            if hasattr(rule, 'dict'):
+            if hasattr(rule, "dict"):
                 # CRITICAL: Use exclude_none=True to remove None values
                 # This ensures None and {} hash identically after normalization
                 rule_dict = rule.dict(exclude_none=True)
@@ -263,23 +269,24 @@ class SmartDeduplicationService:
 
             # Remove excluded fields (metadata, versioning, computed)
             normalized = {
-                k: v for k, v in sorted(rule_dict.items())
+                k: v
+                for k, v in sorted(rule_dict.items())
                 if k not in self.EXCLUDED_FROM_HASH
             }
 
             # Remove merge-specific metadata from source field
-            if 'source' in normalized and isinstance(normalized['source'], dict):
-                source_cleaned = dict(normalized['source'])
+            if "source" in normalized and isinstance(normalized["source"], dict):
+                source_cleaned = dict(normalized["source"])
                 # These fields are added by multi-platform merging and shouldn't affect hash
-                source_cleaned.pop('merged_products', None)
-                source_cleaned.pop('build_type', None)
-                normalized['source'] = source_cleaned
+                source_cleaned.pop("merged_products", None)
+                source_cleaned.pop("build_type", None)
+                normalized["source"] = source_cleaned
 
             # Normalize empty nested structures (critical for idempotency)
             normalized = self._normalize_empty_values(normalized)
 
             # Debug: Log fields included in hash
-            rule_id = rule_dict.get('rule_id', 'unknown')
+            rule_id = rule_dict.get("rule_id", "unknown")
             included_fields = sorted(normalized.keys())
             logger.debug(
                 f"Hash calculation for {rule_id}: "
@@ -299,9 +306,7 @@ class SmartDeduplicationService:
             return ""
 
     def detect_field_changes(
-        self,
-        existing_rule: ComplianceRule,
-        new_data: Dict[str, Any]
+        self, existing_rule: ComplianceRule, new_data: Dict[str, Any]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Detect which specific fields changed between existing and new rule
@@ -337,9 +342,9 @@ class SmartDeduplicationService:
                 # Compare values
                 if not self._values_equal(old_value, new_value):
                     if old_value is None:
-                        change_type = 'added'
+                        change_type = "added"
                     else:
-                        change_type = 'modified'
+                        change_type = "modified"
 
                     # DEBUG: Log comparison details for troubleshooting
                     logger.debug(
@@ -349,9 +354,9 @@ class SmartDeduplicationService:
                     )
 
                     changes[field] = {
-                        'old': self._truncate_value(old_value),
-                        'new': self._truncate_value(new_value),
-                        'type': change_type
+                        "old": self._truncate_value(old_value),
+                        "new": self._truncate_value(new_value),
+                        "type": change_type,
                     }
 
             # Check for removed fields (fields in existing but not in new)
@@ -362,9 +367,9 @@ class SmartDeduplicationService:
 
                 if field not in new_data_normalized and old_value is not None:
                     changes[field] = {
-                        'old': self._truncate_value(old_value),
-                        'new': None,
-                        'type': 'removed'
+                        "old": self._truncate_value(old_value),
+                        "new": None,
+                        "type": "removed",
                     }
 
         except Exception as e:
@@ -426,6 +431,7 @@ class SmartDeduplicationService:
         CRITICAL: Treat None, {}, and [] as equivalent for idempotency.
         MongoDB may store fields as missing, None, or empty - all should hash identically.
         """
+
         # Normalize empty values: None, {}, [] are all treated as "empty"
         def is_empty(val):
             return val is None or val == {} or val == []
@@ -470,14 +476,14 @@ class SmartDeduplicationService:
         # For strings, truncate if too long
         if isinstance(value, str):
             if len(value) > max_length:
-                return value[:max_length] + '...'
+                return value[:max_length] + "..."
             return value
 
         # For dicts/lists, convert to string and truncate
         if isinstance(value, (dict, list)):
             value_str = json.dumps(value, default=str)
             if len(value_str) > max_length:
-                return value_str[:max_length] + '...'
+                return value_str[:max_length] + "..."
             return value
 
         return value
@@ -507,7 +513,7 @@ class SmartDeduplicationService:
         self,
         existing_rule: ComplianceRule,
         new_data: Dict[str, Any],
-        changes: Dict[str, Dict[str, Any]]
+        changes: Dict[str, Dict[str, Any]],
     ) -> ComplianceRule:
         """
         Update existing rule with only changed fields
@@ -523,7 +529,7 @@ class SmartDeduplicationService:
         try:
             # Update only changed fields
             for field, change in changes.items():
-                new_value = change['new']
+                new_value = change["new"]
                 setattr(existing_rule, field, new_value)
                 logger.debug(
                     f"Updated {existing_rule.rule_id}.{field}: "
@@ -534,14 +540,14 @@ class SmartDeduplicationService:
             existing_rule.updated_at = datetime.utcnow()
 
             # Update provenance if provided
-            if 'source_file' in new_data:
-                existing_rule.source_file = new_data['source_file']
+            if "source_file" in new_data:
+                existing_rule.source_file = new_data["source_file"]
 
-            if 'source_hash' in new_data:
-                existing_rule.source_hash = new_data['source_hash']
+            if "source_hash" in new_data:
+                existing_rule.source_hash = new_data["source_hash"]
 
-            if 'version' in new_data:
-                existing_rule.version = new_data['version']
+            if "version" in new_data:
+                existing_rule.version = new_data["version"]
 
             return existing_rule
 
@@ -557,21 +563,21 @@ class SmartDeduplicationService:
             Statistics dictionary with counts and field changes
         """
         return {
-            'imported': self.statistics['imported'],
-            'updated': self.statistics['updated'],
-            'skipped': self.statistics['skipped'],
-            'errors': self.statistics['errors'],
-            'field_changes': dict(self.statistics['field_changes'])
+            "imported": self.statistics["imported"],
+            "updated": self.statistics["updated"],
+            "skipped": self.statistics["skipped"],
+            "errors": self.statistics["errors"],
+            "field_changes": dict(self.statistics["field_changes"]),
         }
 
     def reset_statistics(self):
         """Reset statistics for new upload"""
         self.statistics = {
-            'imported': 0,
-            'updated': 0,
-            'skipped': 0,
-            'errors': 0,
-            'field_changes': defaultdict(int)
+            "imported": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": 0,
+            "field_changes": defaultdict(int),
         }
 
     def generate_summary_report(self) -> Dict[str, Any]:
@@ -582,32 +588,35 @@ class SmartDeduplicationService:
             Summary report dictionary
         """
         stats = self.get_statistics()
-        total_processed = stats['imported'] + stats['updated'] + stats['skipped']
+        total_processed = stats["imported"] + stats["updated"] + stats["skipped"]
 
         return {
-            'total_processed': total_processed,
-            'new_rules_imported': stats['imported'],
-            'existing_rules_updated': stats['updated'],
-            'unchanged_rules_skipped': stats['skipped'],
-            'errors': stats['errors'],
-            'update_efficiency': (
+            "total_processed": total_processed,
+            "new_rules_imported": stats["imported"],
+            "existing_rules_updated": stats["updated"],
+            "unchanged_rules_skipped": stats["skipped"],
+            "errors": stats["errors"],
+            "update_efficiency": (
                 f"{stats['updated']} updates vs {stats['skipped']} skipped "
                 f"({stats['updated'] / max(total_processed, 1) * 100:.1f}% changed)"
-                if total_processed > 0 else "N/A"
+                if total_processed > 0
+                else "N/A"
             ),
-            'field_change_breakdown': stats['field_changes'],
-            'most_changed_categories': sorted(
-                stats['field_changes'].items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]  # Top 5 most changed categories
+            "field_change_breakdown": stats["field_changes"],
+            "most_changed_categories": sorted(
+                stats["field_changes"].items(), key=lambda x: x[1], reverse=True
+            )[
+                :5
+            ],  # Top 5 most changed categories
         }
 
 
 class DeduplicationStrategy:
     """Enumeration of deduplication strategies"""
 
-    SKIP_UNCHANGED_UPDATE_CHANGED = "skip_unchanged_update_changed"  # Smart deduplication (default)
+    SKIP_UNCHANGED_UPDATE_CHANGED = (
+        "skip_unchanged_update_changed"  # Smart deduplication (default)
+    )
     SKIP_EXISTING = "skip_existing"  # Never update existing rules
     UPDATE_ALL = "update_all"  # Always update existing rules
     FAIL_ON_DUPLICATE = "fail_on_duplicate"  # Reject upload if duplicates found
@@ -619,7 +628,7 @@ class DeduplicationStrategy:
             cls.SKIP_UNCHANGED_UPDATE_CHANGED,
             cls.SKIP_EXISTING,
             cls.UPDATE_ALL,
-            cls.FAIL_ON_DUPLICATE
+            cls.FAIL_ON_DUPLICATE,
         ]
 
     @classmethod

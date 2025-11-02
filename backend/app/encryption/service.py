@@ -5,6 +5,7 @@ Provides FIPS 140-2 compliant encryption with configurable parameters
 and proper dependency injection (no global state).
 
 """
+
 import os
 import logging
 from typing import Optional
@@ -58,11 +59,7 @@ class EncryptionService:
         >>> service = EncryptionService(master_key="my-key", config=config)
     """
 
-    def __init__(
-        self,
-        master_key: str,
-        config: Optional[EncryptionConfig] = None
-    ):
+    def __init__(self, master_key: str, config: Optional[EncryptionConfig] = None):
         """
         Initialize encryption service.
 
@@ -81,7 +78,7 @@ class EncryptionService:
             >>> config = EncryptionConfig(kdf_iterations=200000)
             >>> service = EncryptionService("my-secret-key", config)
         """
-        self.master_key = master_key.encode('utf-8')
+        self.master_key = master_key.encode("utf-8")
         self.config = config or EncryptionConfig()
         # Config validation happens in EncryptionConfig.__post_init__
 
@@ -177,9 +174,9 @@ class EncryptionService:
 
         try:
             # Extract components
-            salt = encrypted_data[:self.config.salt_length]
+            salt = encrypted_data[: self.config.salt_length]
             nonce_end = self.config.salt_length + self.config.nonce_length
-            nonce = encrypted_data[self.config.salt_length:nonce_end]
+            nonce = encrypted_data[self.config.salt_length : nonce_end]
             ciphertext = encrypted_data[nonce_end:]
 
             # Derive key from master key and salt
@@ -235,8 +232,7 @@ class EncryptionService:
 
 
 def create_encryption_service(
-    master_key: str,
-    config: Optional[EncryptionConfig] = None
+    master_key: str, config: Optional[EncryptionConfig] = None
 ) -> EncryptionService:
     """
     Factory function to create an EncryptionService instance.

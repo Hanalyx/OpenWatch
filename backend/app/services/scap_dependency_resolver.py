@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SCAPDependency:
     """Represents a SCAP file dependency"""
+
     file_path: Path
     dependency_type: str  # 'xccdf', 'oval', 'cpe', 'tailoring', 'other'
     referenced_by: Optional[Path] = None
@@ -41,19 +42,21 @@ class SCAPDependencyResolver:
 
     # XML namespaces commonly used in SCAP content
     NAMESPACES = {
-        'xccdf': 'http://checklists.nist.gov/xccdf/1.2',
-        'xccdf-1.1': 'http://checklists.nist.gov/xccdf/1.1',
-        'oval': 'http://oval.mitre.org/XMLSchema/oval-definitions-5',
-        'scap': 'http://scap.nist.gov/schema/scap/source/1.2',
-        'ds': 'http://scap.nist.gov/schema/scap/source/1.2',
-        'cpe': 'http://cpe.mitre.org/dictionary/2.0'
+        "xccdf": "http://checklists.nist.gov/xccdf/1.2",
+        "xccdf-1.1": "http://checklists.nist.gov/xccdf/1.1",
+        "oval": "http://oval.mitre.org/XMLSchema/oval-definitions-5",
+        "scap": "http://scap.nist.gov/schema/scap/source/1.2",
+        "ds": "http://scap.nist.gov/schema/scap/source/1.2",
+        "cpe": "http://cpe.mitre.org/dictionary/2.0",
     }
 
     def __init__(self):
         self.resolved_files: Set[Path] = set()
         self.dependencies: List[SCAPDependency] = []
 
-    def resolve(self, primary_file: Path, base_dir: Optional[Path] = None) -> List[SCAPDependency]:
+    def resolve(
+        self, primary_file: Path, base_dir: Optional[Path] = None
+    ) -> List[SCAPDependency]:
         """
         Resolve all dependencies for a SCAP content file.
 
@@ -74,20 +77,20 @@ class SCAPDependencyResolver:
         # Add primary file
         file_type = self._detect_file_type(primary_file)
         primary_dep = SCAPDependency(
-            file_path=primary_file,
-            dependency_type=file_type,
-            is_primary=True
+            file_path=primary_file, dependency_type=file_type, is_primary=True
         )
         self.dependencies.append(primary_dep)
         self.resolved_files.add(primary_file)
 
         # Resolve based on file type
-        if file_type == 'xccdf':
+        if file_type == "xccdf":
             self._resolve_xccdf_dependencies(primary_file, base_dir)
-        elif file_type == 'datastream':
+        elif file_type == "datastream":
             self._resolve_datastream_dependencies(primary_file, base_dir)
 
-        logger.info(f"Resolved {len(self.dependencies)} SCAP dependencies for {primary_file.name}")
+        logger.info(
+            f"Resolved {len(self.dependencies)} SCAP dependencies for {primary_file.name}"
+        )
         return self.dependencies
 
     def _detect_file_type(self, file_path: Path) -> str:
@@ -97,21 +100,24 @@ class SCAPDependencyResolver:
             root = tree.getroot()
 
             # Check root element tag
-            if 'Benchmark' in root.tag:
-                return 'xccdf'
-            elif 'data-stream-collection' in root.tag or 'DataStreamCollection' in root.tag:
-                return 'datastream'
-            elif 'oval_definitions' in root.tag:
-                return 'oval'
-            elif 'platform-specification' in root.tag or 'cpe-list' in root.tag:
-                return 'cpe'
-            elif 'Tailoring' in root.tag:
-                return 'tailoring'
+            if "Benchmark" in root.tag:
+                return "xccdf"
+            elif (
+                "data-stream-collection" in root.tag
+                or "DataStreamCollection" in root.tag
+            ):
+                return "datastream"
+            elif "oval_definitions" in root.tag:
+                return "oval"
+            elif "platform-specification" in root.tag or "cpe-list" in root.tag:
+                return "cpe"
+            elif "Tailoring" in root.tag:
+                return "tailoring"
             else:
-                return 'other'
+                return "other"
         except Exception as e:
             logger.warning(f"Could not detect file type for {file_path}: {e}")
-            return 'other'
+            return "other"
 
     def _resolve_xccdf_dependencies(self, xccdf_file: Path, base_dir: Path):
         """
@@ -129,8 +135,8 @@ class SCAPDependencyResolver:
             # Find all check-content-ref elements
             # Try multiple namespace prefixes for compatibility
             ref_elements = []
-            for ns_prefix in ['xccdf', 'xccdf-1.1', '']:
-                ns = self.NAMESPACES.get(ns_prefix, '')
+            for ns_prefix in ["xccdf", "xccdf-1.1", ""]:
+                ns = self.NAMESPACES.get(ns_prefix, "")
                 if ns:
                     ref_elements.extend(root.findall(f".//{{{ns}}}check-content-ref"))
                 else:
@@ -138,22 +144,24 @@ class SCAPDependencyResolver:
                     ref_elements.extend(root.findall(".//check-content-ref"))
 
             # Also check for external references
-            for ns_prefix in ['xccdf', 'xccdf-1.1', '']:
-                ns = self.NAMESPACES.get(ns_prefix, '')
+            for ns_prefix in ["xccdf", "xccdf-1.1", ""]:
+                ns = self.NAMESPACES.get(ns_prefix, "")
                 if ns:
                     ref_elements.extend(root.findall(f".//{{{ns}}}reference"))
 
-            logger.debug(f"Found {len(ref_elements)} check-content-ref elements in {xccdf_file.name}")
+            logger.debug(
+                f"Found {len(ref_elements)} check-content-ref elements in {xccdf_file.name}"
+            )
 
             # Extract href attributes
             for ref in ref_elements:
-                href = ref.get('href')
+                href = ref.get("href")
                 if href:
                     self._add_dependency(href, base_dir, xccdf_file)
 
             # Look for same directory files (common pattern for MongoDB-generated content)
             # Check if there's an oval-definitions.xml in the same directory
-            for pattern in ['oval-definitions.xml', 'oval-*.xml', 'cpe-*.xml']:
+            for pattern in ["oval-definitions.xml", "oval-*.xml", "cpe-*.xml"]:
                 for oval_file in base_dir.glob(pattern):
                     if oval_file not in self.resolved_files and oval_file != xccdf_file:
                         dep_type = self._detect_file_type(oval_file)
@@ -161,7 +169,7 @@ class SCAPDependencyResolver:
                             file_path=oval_file,
                             dependency_type=dep_type,
                             referenced_by=xccdf_file,
-                            is_primary=False
+                            is_primary=False,
                         )
                         self.dependencies.append(dep)
                         self.resolved_files.add(oval_file)
@@ -184,13 +192,13 @@ class SCAPDependencyResolver:
 
             # Datastreams usually have everything embedded
             # Check for any external component-ref elements
-            for ns_prefix in ['ds', 'scap']:
-                ns = self.NAMESPACES.get(ns_prefix, '')
+            for ns_prefix in ["ds", "scap"]:
+                ns = self.NAMESPACES.get(ns_prefix, "")
                 if ns:
                     refs = root.findall(f".//{{{ns}}}component-ref")
                     for ref in refs:
-                        href = ref.get('href') or ref.get('xlink:href')
-                        if href and not href.startswith('#'):
+                        href = ref.get("href") or ref.get("xlink:href")
+                        if href and not href.startswith("#"):
                             # External reference
                             self._add_dependency(href, base_dir, datastream_file)
 
@@ -202,15 +210,15 @@ class SCAPDependencyResolver:
     def _add_dependency(self, href: str, base_dir: Path, referenced_by: Path):
         """Add a dependency from an href reference"""
         # Handle fragment identifiers (e.g., "file.xml#fragment")
-        if '#' in href:
-            href = href.split('#')[0]
+        if "#" in href:
+            href = href.split("#")[0]
 
         # Skip empty or anchor-only references
-        if not href or href.startswith('#'):
+        if not href or href.startswith("#"):
             return
 
         # Resolve path (support both relative and absolute)
-        if href.startswith('/'):
+        if href.startswith("/"):
             dep_path = Path(href)
         else:
             dep_path = (base_dir / href).resolve()
@@ -222,7 +230,7 @@ class SCAPDependencyResolver:
                 file_path=dep_path,
                 dependency_type=dep_type,
                 referenced_by=referenced_by,
-                is_primary=False
+                is_primary=False,
             )
             self.dependencies.append(dep)
             self.resolved_files.add(dep_path)

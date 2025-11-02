@@ -15,6 +15,7 @@ from enum import Enum
 
 class ScanStatus(str, Enum):
     """Scan execution status"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -24,6 +25,7 @@ class ScanStatus(str, Enum):
 
 class RuleResultStatus(str, Enum):
     """Individual rule check result"""
+
     PASS = "pass"
     FAIL = "fail"
     ERROR = "error"
@@ -36,6 +38,7 @@ class RuleResultStatus(str, Enum):
 
 class ScanTargetType(str, Enum):
     """Type of scan target"""
+
     SSH_HOST = "ssh_host"
     LOCAL = "local"
     KUBERNETES = "kubernetes"
@@ -47,76 +50,70 @@ class ScanTargetType(str, Enum):
 
 class ScanTarget(BaseModel):
     """Target system to scan"""
+
     type: ScanTargetType
     identifier: str = Field(description="Host address, cluster name, account ID, etc.")
     credentials: Optional[Dict[str, str]] = Field(
         default=None,
-        description="Encrypted credentials (SSH key, kubeconfig, cloud creds)"
+        description="Encrypted credentials (SSH key, kubeconfig, cloud creds)",
     )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Additional target metadata (OS version, K8s version, etc.)"
+        description="Additional target metadata (OS version, K8s version, etc.)",
     )
 
 
 class ScanConfiguration(BaseModel):
     """Configuration for scan execution"""
+
     target: ScanTarget
     framework: str = Field(description="Framework to scan against (nist, cis, stig)")
     framework_version: str = Field(description="Framework version (800-53r5, v2.0.0)")
     profile_id: Optional[str] = Field(
-        default=None,
-        description="XCCDF profile ID (auto-generated if not provided)"
+        default=None, description="XCCDF profile ID (auto-generated if not provided)"
     )
     variable_overrides: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Custom XCCDF variable values"
+        default_factory=dict, description="Custom XCCDF variable values"
     )
     rule_filter: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional MongoDB query to filter rules"
+        default=None, description="Additional MongoDB query to filter rules"
     )
     scan_options: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Scanner-specific options (timeout, verbosity, etc.)"
+        default=None, description="Scanner-specific options (timeout, verbosity, etc.)"
     )
 
 
 class RuleResult(BaseModel):
     """Result for a single compliance rule"""
+
     rule_id: str
     scap_rule_id: Optional[str] = None
     title: str
     severity: str
     status: RuleResultStatus
     message: Optional[str] = Field(
-        default=None,
-        description="Human-readable result message"
+        default=None, description="Human-readable result message"
     )
     scanner_output: Optional[str] = Field(
-        default=None,
-        description="Raw scanner output for this rule"
+        default=None, description="Raw scanner output for this rule"
     )
     scanner_type: str = Field(
-        default="oscap",
-        description="Scanner that executed this rule"
+        default="oscap", description="Scanner that executed this rule"
     )
     variables_applied: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Variable values used for this check"
+        default=None, description="Variable values used for this check"
     )
     check_time: Optional[float] = Field(
-        default=None,
-        description="Execution time in seconds"
+        default=None, description="Execution time in seconds"
     )
     frameworks: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Framework mappings for this rule"
+        default=None, description="Framework mappings for this rule"
     )
 
 
 class ScanResultSummary(BaseModel):
     """Summary statistics for scan results"""
+
     total_rules: int = 0
     passed: int = 0
     failed: int = 0
@@ -126,84 +123,76 @@ class ScanResultSummary(BaseModel):
     not_selected: int = 0
     informational: int = 0
     fixed: int = 0
-    
+
     # Compliance percentage
     compliance_percentage: float = Field(
-        default=0.0,
-        description="(passed / (passed + failed)) * 100"
+        default=0.0, description="(passed / (passed + failed)) * 100"
     )
-    
+
     # Results by severity
     by_severity: Dict[str, Dict[str, int]] = Field(
         default_factory=dict,
-        description="Breakdown by severity: {high: {passed: X, failed: Y}, ...}"
+        description="Breakdown by severity: {high: {passed: X, failed: Y}, ...}",
     )
-    
+
     # Results by scanner
     by_scanner: Dict[str, Dict[str, int]] = Field(
-        default_factory=dict,
-        description="Breakdown by scanner type"
+        default_factory=dict, description="Breakdown by scanner type"
     )
 
 
 class ScanResult(Document):
     """
     Complete scan execution result
-    
+
     Stores scan configuration, execution metadata, and per-rule results.
     """
-    
+
     # Scan identification
     scan_id: str = Field(description="Unique scan identifier (UUID)")
     scan_name: Optional[str] = Field(
-        default=None,
-        description="Human-readable scan name"
+        default=None, description="Human-readable scan name"
     )
-    
+
     # Scan configuration
     config: ScanConfiguration
-    
+
     # Execution metadata
     status: ScanStatus = ScanStatus.PENDING
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     duration_seconds: Optional[float] = None
-    
+
     # User who initiated scan
     started_by: str = Field(description="Username or user ID")
-    
+
     # Results
     summary: ScanResultSummary = Field(default_factory=ScanResultSummary)
     results_by_rule: List[RuleResult] = Field(default_factory=list)
-    
+
     # Scanner metadata
     scanner_versions: Optional[Dict[str, str]] = Field(
         default=None,
-        description="Version info for each scanner used (oscap: 1.3.7, etc.)"
+        description="Version info for each scanner used (oscap: 1.3.7, etc.)",
     )
     benchmark_version: Optional[str] = Field(
-        default=None,
-        description="Version of benchmark used for scan"
+        default=None, description="Version of benchmark used for scan"
     )
     tailoring_applied: bool = Field(
-        default=False,
-        description="Whether variable tailoring was applied"
+        default=False, description="Whether variable tailoring was applied"
     )
-    
+
     # Error tracking
     errors: List[str] = Field(
-        default_factory=list,
-        description="Error messages if scan failed"
+        default_factory=list, description="Error messages if scan failed"
     )
     warnings: List[str] = Field(
-        default_factory=list,
-        description="Non-fatal warnings during scan"
+        default_factory=list, description="Non-fatal warnings during scan"
     )
-    
+
     # Raw outputs (optional, for debugging)
     raw_outputs: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Raw scanner outputs (XCCDF XML, JSON, etc.)"
+        default=None, description="Raw scanner outputs (XCCDF XML, JSON, etc.)"
     )
 
     class Settings:
@@ -223,34 +212,34 @@ class ScanResult(Document):
 class ScanSchedule(Document):
     """
     Scheduled scan configuration for recurring scans
-    
+
     Future enhancement for automated compliance monitoring.
     """
+
     schedule_id: str
     name: str
     description: Optional[str] = None
     config: ScanConfiguration
-    
+
     # Schedule configuration
     enabled: bool = True
     cron_expression: str = Field(
         description="Cron expression for schedule (e.g., '0 2 * * *' for daily at 2am)"
     )
     timezone: str = Field(default="UTC")
-    
+
     # Execution tracking
     last_run_at: Optional[datetime] = None
     last_scan_id: Optional[str] = None
     next_run_at: Optional[datetime] = None
-    
+
     # Notification settings
     notify_on_completion: bool = False
     notify_on_failure: bool = True
     notification_channels: List[str] = Field(
-        default_factory=list,
-        description="Email addresses, Slack webhooks, etc."
+        default_factory=list, description="Email addresses, Slack webhooks, etc."
     )
-    
+
     # Created/updated metadata
     created_by: str
     created_at: datetime = Field(default_factory=datetime.utcnow)

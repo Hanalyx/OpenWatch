@@ -2,6 +2,7 @@
 Group Compliance Scanning Routes
 Enhanced endpoints for comprehensive group-based compliance scanning and reporting
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_
@@ -13,6 +14,7 @@ import asyncio
 
 from backend.app.database import get_db, ScapContent, Host, HostGroup, Scan, ScanResult
 from backend.app.auth import get_current_user, require_permissions
+
 # GroupScanService removed - using unified API instead
 from backend.app.services.scap_scanner import SCAPScanner
 from backend.app.celery_app import celery_app
@@ -22,7 +24,7 @@ from backend.app.schemas.group_compliance import (
     GroupComplianceReportResponse,
     GroupScanScheduleRequest,
     ComplianceMetricsResponse,
-    GroupScanHistoryResponse
+    GroupScanHistoryResponse,
 )
 
 router = APIRouter(prefix="/group-compliance", tags=["group-compliance"])
@@ -34,7 +36,7 @@ async def start_group_compliance_scan(
     scan_request: GroupComplianceScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Start a comprehensive compliance scan for all hosts in a group
@@ -42,48 +44,56 @@ async def start_group_compliance_scan(
     """
     # Verify user permissions
     require_permissions(current_user, "scans:create")
-    
+
     # Get the host group
     group = db.query(HostGroup).filter(HostGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Host group not found")
-    
+
     # Get hosts in the group
-    hosts = db.execute(text("""
+    hosts = db.execute(
+        text(
+            """
         SELECT h.id, h.hostname, h.ip_address, h.os_family, h.architecture
         FROM hosts h
         JOIN host_group_memberships hgm ON h.id = hgm.host_id
         WHERE hgm.group_id = :group_id AND h.active = true
-    """), {"group_id": group_id}).fetchall()
-    
+    """
+        ),
+        {"group_id": group_id},
+    ).fetchall()
+
     if not hosts:
         raise HTTPException(status_code=400, detail="No active hosts found in group")
-    
+
     # Validate SCAP content
     content_id = scan_request.scap_content_id or group.scap_content_id
     if not content_id:
         raise HTTPException(status_code=400, detail="No SCAP content specified")
-    
+
     scap_content = db.query(ScapContent).filter(ScapContent.id == content_id).first()
     if not scap_content:
         raise HTTPException(status_code=404, detail="SCAP content not found")
-    
+
     # Create group scan session
     session_id = str(uuid4())
     session_config = {
         "scap_content_id": content_id,
         "profile_id": scan_request.profile_id or group.default_profile_id,
-        "compliance_framework": scan_request.compliance_framework or group.compliance_framework,
+        "compliance_framework": scan_request.compliance_framework
+        or group.compliance_framework,
         "scan_options": scan_request.scan_options or {},
         "email_notifications": scan_request.email_notifications,
         "generate_reports": scan_request.generate_reports,
         "remediation_mode": scan_request.remediation_mode,
         "started_by": current_user["user_id"],
-        "started_at": datetime.utcnow().isoformat()
+        "started_at": datetime.utcnow().isoformat(),
     }
-    
+
     # Insert group scan session
-    db.execute(text("""
+    db.execute(
+        text(
+            """
         INSERT INTO group_scan_sessions (
             session_id, group_id, total_hosts, status, scan_config,
             estimated_completion, created_at, created_by
@@ -91,29 +101,35 @@ async def start_group_compliance_scan(
             :session_id, :group_id, :total_hosts, 'pending', :config,
             :estimated_completion, :created_at, :created_by
         )
-    """), {
-        "session_id": session_id,
-        "group_id": group_id,
-        "total_hosts": len(hosts),
-        "config": json.dumps(session_config),
-        "estimated_completion": datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
-        "created_at": datetime.utcnow(),
-        "created_by": current_user["user_id"]
-    })
-    
+    """
+        ),
+        {
+            "session_id": session_id,
+            "group_id": group_id,
+            "total_hosts": len(hosts),
+            "config": json.dumps(session_config),
+            "estimated_completion": datetime.utcnow()
+            + timedelta(minutes=len(hosts) * 15),
+            "created_at": datetime.utcnow(),
+            "created_by": current_user["user_id"],
+        },
+    )
+
     # Initialize host progress tracking
     for host in hosts:
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             INSERT INTO group_scan_host_progress (
                 session_id, host_id, status, progress
             ) VALUES (:session_id, :host_id, 'pending', 0)
-        """), {
-            "session_id": session_id,
-            "host_id": host.id
-        })
-    
+        """
+            ),
+            {"session_id": session_id, "host_id": host.id},
+        )
+
     db.commit()
-    
+
     # Execute scan directly for now (can be moved to background task later)
     host_ids = [host.id for host in hosts]
     scan_result = execute_group_compliance_scan(
@@ -123,9 +139,9 @@ async def start_group_compliance_scan(
         profile_id=session_config["profile_id"],
         db=db,
         user_id=current_user["user_id"],
-        session_id=session_id
+        session_id=session_id,
     )
-    
+
     return GroupComplianceScanResponse(
         session_id=session_id,
         group_id=group_id,
@@ -134,34 +150,36 @@ async def start_group_compliance_scan(
         status="pending",
         estimated_completion=datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
         compliance_framework=session_config["compliance_framework"],
-        profile_id=session_config["profile_id"]
+        profile_id=session_config["profile_id"],
     )
 
 
 @router.get("/{group_id}/report", response_model=GroupComplianceReportResponse)
 async def get_group_compliance_report(
     group_id: int,
-    framework: Optional[str] = Query(None, description="Filter by compliance framework"),
+    framework: Optional[str] = Query(
+        None, description="Filter by compliance framework"
+    ),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Generate comprehensive compliance report for a host group
     Includes trend analysis, risk assessment, and compliance gaps
     """
     require_permissions(current_user, "reports:view")
-    
+
     # Get group information
     group = db.query(HostGroup).filter(HostGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Host group not found")
-    
+
     # Build date filters
     date_filter = ""
     params = {"group_id": group_id}
-    
+
     if date_from:
         date_filter += " AND s.completed_at >= :date_from"
         params["date_from"] = date_from
@@ -171,9 +189,11 @@ async def get_group_compliance_report(
     if framework:
         date_filter += " AND sc.compliance_framework = :framework"
         params["framework"] = framework
-    
+
     # Get latest scan results for each host in the group
-    compliance_data = db.execute(text(f"""
+    compliance_data = db.execute(
+        text(
+            f"""
         WITH latest_scans AS (
             SELECT DISTINCT ON (h.id) 
                 h.id as host_id,
@@ -203,24 +223,29 @@ async def get_group_compliance_report(
             ORDER BY h.id, s.completed_at DESC
         )
         SELECT * FROM latest_scans
-    """), params).fetchall()
-    
+    """
+        ),
+        params,
+    ).fetchall()
+
     if not compliance_data:
-        raise HTTPException(status_code=404, detail="No compliance data found for group")
-    
+        raise HTTPException(
+            status_code=404, detail="No compliance data found for group"
+        )
+
     # Calculate group metrics
     total_hosts = len(compliance_data)
     total_rules = sum(row.total_rules for row in compliance_data)
     total_passed = sum(row.passed_rules for row in compliance_data)
     total_failed = sum(row.failed_rules for row in compliance_data)
-    
+
     # Compliance score calculation
     overall_score = (total_passed / total_rules * 100) if total_rules > 0 else 0
-    
+
     # Risk analysis
     high_risk_hosts = len([r for r in compliance_data if r.severity_high > 0])
     medium_risk_hosts = len([r for r in compliance_data if r.severity_medium > 0])
-    
+
     # Compliance distribution by framework
     framework_distribution = {}
     for row in compliance_data:
@@ -230,21 +255,23 @@ async def get_group_compliance_report(
                 "hosts": 0,
                 "total_rules": 0,
                 "passed_rules": 0,
-                "avg_score": 0
+                "avg_score": 0,
             }
         framework_distribution[framework]["hosts"] += 1
         framework_distribution[framework]["total_rules"] += row.total_rules
         framework_distribution[framework]["passed_rules"] += row.passed_rules
-    
+
     # Calculate average scores for each framework
     for framework_data in framework_distribution.values():
         if framework_data["total_rules"] > 0:
             framework_data["avg_score"] = (
                 framework_data["passed_rules"] / framework_data["total_rules"] * 100
             )
-    
+
     # Get compliance trend (last 30 days)
-    trend_data = db.execute(text("""
+    trend_data = db.execute(
+        text(
+            """
         SELECT 
             DATE(s.completed_at) as scan_date,
             AVG(CAST(sr.score AS FLOAT)) as avg_score,
@@ -258,13 +285,15 @@ async def get_group_compliance_report(
             AND s.status = 'completed'
         GROUP BY DATE(s.completed_at)
         ORDER BY scan_date
-    """), {
-        "group_id": group_id,
-        "trend_start": datetime.utcnow() - timedelta(days=30)
-    }).fetchall()
-    
+    """
+        ),
+        {"group_id": group_id, "trend_start": datetime.utcnow() - timedelta(days=30)},
+    ).fetchall()
+
     # Top failed rules analysis
-    failed_rules = db.execute(text("""
+    failed_rules = db.execute(
+        text(
+            """
         SELECT 
             srd.rule_id,
             srd.rule_title,
@@ -281,11 +310,11 @@ async def get_group_compliance_report(
         GROUP BY srd.rule_id, srd.rule_title, srd.severity
         ORDER BY failure_count DESC
         LIMIT 10
-    """), {
-        "group_id": group_id,
-        "total_hosts": total_hosts
-    }).fetchall()
-    
+    """
+        ),
+        {"group_id": group_id, "total_hosts": total_hosts},
+    ).fetchall()
+
     return GroupComplianceReportResponse(
         group_id=group_id,
         group_name=group.name,
@@ -303,8 +332,9 @@ async def get_group_compliance_report(
             {
                 "date": row.scan_date.isoformat(),
                 "score": round(row.avg_score, 2),
-                "scan_count": row.scan_count
-            } for row in trend_data
+                "scan_count": row.scan_count,
+            }
+            for row in trend_data
         ],
         top_failed_rules=[
             {
@@ -312,8 +342,9 @@ async def get_group_compliance_report(
                 "rule_title": row.rule_title,
                 "severity": row.severity,
                 "failure_count": row.failure_count,
-                "failure_percentage": row.failure_percentage
-            } for row in failed_rules
+                "failure_percentage": row.failure_percentage,
+            }
+            for row in failed_rules
         ],
         host_compliance_summary=[
             {
@@ -326,9 +357,10 @@ async def get_group_compliance_report(
                 "passed_rules": row.passed_rules,
                 "failed_rules": row.failed_rules,
                 "high_severity_issues": row.severity_high,
-                "last_scan_date": row.completed_at.isoformat()
-            } for row in compliance_data
-        ]
+                "last_scan_date": row.completed_at.isoformat(),
+            }
+            for row in compliance_data
+        ],
     )
 
 
@@ -337,19 +369,21 @@ async def get_group_compliance_metrics(
     group_id: int,
     timeframe: str = Query("30d", regex="^(7d|30d|90d|1y)$"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get detailed compliance metrics and KPIs for a host group
     """
     require_permissions(current_user, "reports:view")
-    
+
     # Calculate timeframe
     timeframe_days = {"7d": 7, "30d": 30, "90d": 90, "1y": 365}
     start_date = datetime.utcnow() - timedelta(days=timeframe_days[timeframe])
-    
+
     # Get compliance metrics
-    metrics = db.execute(text("""
+    metrics = db.execute(
+        text(
+            """
         SELECT 
             COUNT(DISTINCT h.id) as total_hosts,
             COUNT(DISTINCT s.id) as total_scans,
@@ -365,13 +399,15 @@ async def get_group_compliance_metrics(
         LEFT JOIN scan_results sr ON s.id = sr.scan_id
         LEFT JOIN scap_content sc ON s.content_id = sc.id
         WHERE hgm.group_id = :group_id AND h.active = true
-    """), {
-        "group_id": group_id,
-        "start_date": start_date
-    }).fetchone()
-    
+    """
+        ),
+        {"group_id": group_id, "start_date": start_date},
+    ).fetchone()
+
     # Compliance trend over time
-    trend_metrics = db.execute(text("""
+    trend_metrics = db.execute(
+        text(
+            """
         SELECT 
             DATE_TRUNC('week', s.completed_at) as week_start,
             AVG(CAST(sr.score AS FLOAT)) as avg_score,
@@ -386,11 +422,11 @@ async def get_group_compliance_metrics(
             AND s.status = 'completed'
         GROUP BY DATE_TRUNC('week', s.completed_at)
         ORDER BY week_start
-    """), {
-        "group_id": group_id,
-        "start_date": start_date
-    }).fetchall()
-    
+    """
+        ),
+        {"group_id": group_id, "start_date": start_date},
+    ).fetchall()
+
     return ComplianceMetricsResponse(
         group_id=group_id,
         timeframe=timeframe,
@@ -408,9 +444,10 @@ async def get_group_compliance_metrics(
                 "period": row.week_start.isoformat(),
                 "average_score": round(row.avg_score, 2),
                 "scan_count": row.scan_count,
-                "total_failures": row.total_failures
-            } for row in trend_metrics
-        ]
+                "total_failures": row.total_failures,
+            }
+            for row in trend_metrics
+        ],
     )
 
 
@@ -419,20 +456,22 @@ async def schedule_group_compliance_scan(
     group_id: int,
     schedule_request: GroupScanScheduleRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Schedule recurring compliance scans for a host group
     """
     require_permissions(current_user, "scans:create")
-    
+
     # Verify group exists
     group = db.query(HostGroup).filter(HostGroup.id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Host group not found")
-    
+
     # Update group with scheduling configuration
-    db.execute(text("""
+    db.execute(
+        text(
+            """
         UPDATE host_groups SET
             auto_scan_enabled = :enabled,
             scan_schedule = :schedule,
@@ -440,23 +479,26 @@ async def schedule_group_compliance_scan(
             default_profile_id = :profile_id,
             compliance_framework = :framework
         WHERE id = :group_id
-    """), {
-        "group_id": group_id,
-        "enabled": schedule_request.enabled,
-        "schedule": schedule_request.cron_expression,
-        "content_id": schedule_request.scap_content_id,
-        "profile_id": schedule_request.profile_id,
-        "framework": schedule_request.compliance_framework
-    })
-    
+    """
+        ),
+        {
+            "group_id": group_id,
+            "enabled": schedule_request.enabled,
+            "schedule": schedule_request.cron_expression,
+            "content_id": schedule_request.scap_content_id,
+            "profile_id": schedule_request.profile_id,
+            "framework": schedule_request.compliance_framework,
+        },
+    )
+
     db.commit()
-    
+
     # Schedule the recurring task using Celery
     if schedule_request.enabled:
         celery_app.conf.beat_schedule[f"group-scan-{group_id}"] = {
-            'task': 'backend.app.tasks.scheduled_group_scan',
-            'schedule': schedule_request.cron_expression,
-            'args': (group_id, schedule_request.dict())
+            "task": "backend.app.tasks.scheduled_group_scan",
+            "schedule": schedule_request.cron_expression,
+            "args": (group_id, schedule_request.dict()),
         }
         return {"message": "Group compliance scan scheduled successfully"}
     else:
@@ -472,14 +514,16 @@ async def get_group_scan_history(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get scan history for a host group
     """
     require_permissions(current_user, "reports:view")
-    
-    history = db.execute(text("""
+
+    history = db.execute(
+        text(
+            """
         SELECT 
             gss.session_id,
             gss.status,
@@ -497,12 +541,11 @@ async def get_group_scan_history(
         GROUP BY gss.session_id, gss.status, gss.total_hosts, gss.created_at, gss.completed_at, gss.scan_config
         ORDER BY gss.created_at DESC
         LIMIT :limit OFFSET :offset
-    """), {
-        "group_id": group_id,
-        "limit": limit,
-        "offset": offset
-    }).fetchall()
-    
+    """
+        ),
+        {"group_id": group_id, "limit": limit, "offset": offset},
+    ).fetchall()
+
     return [
         GroupScanHistoryResponse(
             session_id=row.session_id,
@@ -514,8 +557,9 @@ async def get_group_scan_history(
             average_progress=round(row.avg_progress or 0, 2),
             started_at=row.created_at,
             completed_at=row.completed_at,
-            scan_config=json.loads(row.scan_config) if row.scan_config else {}
-        ) for row in history
+            scan_config=json.loads(row.scan_config) if row.scan_config else {},
+        )
+        for row in history
     ]
 
 
@@ -526,7 +570,7 @@ def execute_group_compliance_scan(
     profile_id: str,
     db: Session,
     user_id: str,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute compliance scan for hosts using unified approach
@@ -535,15 +579,15 @@ def execute_group_compliance_scan(
     try:
         # Initialize SCAP scanner directly
         scanner = SCAPScanner()
-        
+
         # Get SCAP content details
-        scap_content = db.query(ScapContent).filter(
-            ScapContent.id == scap_content_id
-        ).first()
-        
+        scap_content = (
+            db.query(ScapContent).filter(ScapContent.id == scap_content_id).first()
+        )
+
         if not scap_content:
             return {"status": "failed", "error": "SCAP content not found"}
-        
+
         # Execute scan for each host
         scan_results = []
         for host_id in host_ids:
@@ -552,7 +596,7 @@ def execute_group_compliance_scan(
                 host = db.query(Host).filter(Host.id == host_id).first()
                 if not host:
                     continue
-                
+
                 # Create scan record
                 scan = Scan(
                     host_id=host_id,
@@ -560,22 +604,20 @@ def execute_group_compliance_scan(
                     profile_id=profile_id,
                     status="running",
                     started_by=user_id,
-                    started_at=datetime.utcnow()
+                    started_at=datetime.utcnow(),
                 )
                 db.add(scan)
                 db.flush()  # Get scan ID
-                
+
                 # Execute SCAP scan
                 scan_result = scanner.scan_host(
-                    host=host,
-                    scap_content=scap_content,
-                    profile_id=profile_id
+                    host=host, scap_content=scap_content, profile_id=profile_id
                 )
-                
+
                 # Update scan status
                 scan.status = "completed"
                 scan.completed_at = datetime.utcnow()
-                
+
                 # Store scan results
                 if scan_result:
                     result = ScanResult(
@@ -586,52 +628,49 @@ def execute_group_compliance_scan(
                         score=scan_result.get("score", 0),
                         severity_high=scan_result.get("severity_high", 0),
                         severity_medium=scan_result.get("severity_medium", 0),
-                        severity_low=scan_result.get("severity_low", 0)
+                        severity_low=scan_result.get("severity_low", 0),
                     )
                     db.add(result)
-                
-                scan_results.append({
-                    "host_id": host_id,
-                    "scan_id": scan.id,
-                    "status": "completed"
-                })
-                
+
+                scan_results.append(
+                    {"host_id": host_id, "scan_id": scan.id, "status": "completed"}
+                )
+
             except Exception as host_error:
                 # Mark host scan as failed
-                if 'scan' in locals():
+                if "scan" in locals():
                     scan.status = "failed"
                     scan.error_message = str(host_error)
                     scan.completed_at = datetime.utcnow()
-                
-                scan_results.append({
-                    "host_id": host_id,
-                    "status": "failed",
-                    "error": str(host_error)
-                })
-        
+
+                scan_results.append(
+                    {"host_id": host_id, "status": "failed", "error": str(host_error)}
+                )
+
         db.commit()
-        
+
         return {
             "status": "completed",
             "scan_results": scan_results,
             "total_hosts": len(host_ids),
-            "successful_scans": len([r for r in scan_results if r["status"] == "completed"])
+            "successful_scans": len(
+                [r for r in scan_results if r["status"] == "completed"]
+            ),
         }
-        
+
     except Exception as e:
         db.rollback()
         return {"status": "failed", "error": str(e)}
 
 
 async def send_compliance_scan_notification(
-    session_id: str,
-    group_id: int,
-    config: Dict[str, Any],
-    db: Session
+    session_id: str, group_id: int, config: Dict[str, Any], db: Session
 ):
     """
     Send email notification about completed compliance scan
     """
     # This would integrate with an email service
     # For now, log the notification
-    print(f"Compliance scan notification: Session {session_id} for group {group_id} completed")
+    print(
+        f"Compliance scan notification: Session {session_id} for group {group_id} completed"
+    )

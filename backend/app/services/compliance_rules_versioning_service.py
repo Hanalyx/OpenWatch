@@ -2,6 +2,7 @@
 Compliance Rules Versioning Service
 Handles immutable versioning, content hashing, and change detection for FISMA/FedRAMP/HIPAA compliance
 """
+
 import hashlib
 import json
 from typing import Dict, List, Any, Optional, Tuple
@@ -23,17 +24,33 @@ class RuleVersioningService:
 
     # Fields to exclude from content hash (metadata fields)
     HASH_EXCLUDE_FIELDS = {
-        '_id', 'id', 'revision_id',  # MongoDB/Beanie internal IDs
-        'version', 'version_hash', 'is_latest', 'supersedes_version',
-        'superseded_by', 'effective_from', 'effective_until', 'imported_at',
-        'updated_at', 'created_by', 'source_bundle', 'source_bundle_hash',
-        'import_id', 'change_summary'
+        "_id",
+        "id",
+        "revision_id",  # MongoDB/Beanie internal IDs
+        "version",
+        "version_hash",
+        "is_latest",
+        "supersedes_version",
+        "superseded_by",
+        "effective_from",
+        "effective_until",
+        "imported_at",
+        "updated_at",
+        "created_by",
+        "source_bundle",
+        "source_bundle_hash",
+        "import_id",
+        "change_summary",
     }
 
     # Fields that if changed, constitute a "breaking change" requiring re-scan
     BREAKING_CHANGE_FIELDS = {
-        'check_content', 'check_type', 'severity', 'frameworks',
-        'platform_implementations', 'dependencies.requires'
+        "check_content",
+        "check_type",
+        "severity",
+        "frameworks",
+        "platform_implementations",
+        "dependencies.requires",
     }
 
     @staticmethod
@@ -49,7 +66,8 @@ class RuleVersioningService:
         """
         # Filter out metadata fields
         content_dict = {
-            k: v for k, v in rule_data.items()
+            k: v
+            for k, v in rule_data.items()
             if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS
         }
 
@@ -57,15 +75,14 @@ class RuleVersioningService:
         content_json = json.dumps(content_dict, sort_keys=True, default=str)
 
         # Calculate SHA-256
-        hash_obj = hashlib.sha256(content_json.encode('utf-8'))
+        hash_obj = hashlib.sha256(content_json.encode("utf-8"))
         hash_hex = hash_obj.hexdigest()
 
         return f"sha256:{hash_hex}"
 
     @staticmethod
     def detect_changes(
-        old_rule: Dict[str, Any],
-        new_rule: Dict[str, Any]
+        old_rule: Dict[str, Any], new_rule: Dict[str, Any]
     ) -> Dict[str, Dict[str, Any]]:
         """
         Detect changes between two rule versions
@@ -98,10 +115,7 @@ class RuleVersioningService:
 
             # Deep comparison
             if not RuleVersioningService._values_equal(old_value, new_value):
-                changes[field] = {
-                    'old': old_value,
-                    'new': new_value
-                }
+                changes[field] = {"old": old_value, "new": new_value}
 
         # Check for removed fields (fields that exist in old but not in new)
         # Only count as removed if they had non-None values
@@ -109,10 +123,7 @@ class RuleVersioningService:
             if field in RuleVersioningService.HASH_EXCLUDE_FIELDS:
                 continue
             if field not in new_rule_normalized:
-                changes[field] = {
-                    'old': old_rule_normalized[field],
-                    'new': None
-                }
+                changes[field] = {"old": old_rule_normalized[field], "new": None}
 
         return changes
 
@@ -162,8 +173,8 @@ class RuleVersioningService:
 
             # Check nested breaking fields (e.g., "dependencies.requires")
             for breaking_field in RuleVersioningService.BREAKING_CHANGE_FIELDS:
-                if '.' in breaking_field:
-                    parent_field = breaking_field.split('.')[0]
+                if "." in breaking_field:
+                    parent_field = breaking_field.split(".")[0]
                     if changed_field == parent_field:
                         # Could be more sophisticated - check actual nested change
                         return True
@@ -174,7 +185,7 @@ class RuleVersioningService:
     def create_change_summary(
         changes: Dict[str, Dict[str, Any]],
         change_type: str = "updated",
-        change_reason: Optional[str] = None
+        change_reason: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create structured change summary for audit trail
@@ -193,14 +204,11 @@ class RuleVersioningService:
             "change_reason": change_reason or "Automated bundle import",
             "breaking_changes": RuleVersioningService.has_breaking_changes(changes),
             "change_count": len(changes),
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
     @staticmethod
-    def verify_content_hash(
-        rule_data: Dict[str, Any],
-        expected_hash: str
-    ) -> bool:
+    def verify_content_hash(rule_data: Dict[str, Any], expected_hash: str) -> bool:
         """
         Verify rule content integrity by comparing hashes
 
@@ -221,7 +229,7 @@ class RuleVersioningService:
         source_bundle: str,
         source_bundle_hash: str,
         import_id: str,
-        created_by: str = "system"
+        created_by: str = "system",
     ) -> Dict[str, Any]:
         """
         Prepare rule data for insertion as a new immutable version
@@ -241,18 +249,14 @@ class RuleVersioningService:
 
         # Determine version number
         if previous_version:
-            new_version = previous_version.get('version', 0) + 1
-            supersedes_version = previous_version.get('version')
+            new_version = previous_version.get("version", 0) + 1
+            supersedes_version = previous_version.get("version")
             change_type = "updated"
 
             # Detect changes
-            changes = RuleVersioningService.detect_changes(
-                previous_version,
-                rule_data
-            )
+            changes = RuleVersioningService.detect_changes(previous_version, rule_data)
             change_summary = RuleVersioningService.create_change_summary(
-                changes,
-                change_type="updated"
+                changes, change_type="updated"
             )
         else:
             new_version = 1
@@ -263,7 +267,7 @@ class RuleVersioningService:
                 "change_reason": "Initial import",
                 "breaking_changes": False,
                 "change_count": 0,
-                "timestamp": now.isoformat() + "Z"
+                "timestamp": now.isoformat() + "Z",
             }
 
         # Calculate content hash
@@ -271,48 +275,45 @@ class RuleVersioningService:
 
         # CRITICAL: Remove _id to prevent MongoDB duplicate key errors
         # MongoDB will auto-generate ObjectId for new documents
-        if '_id' in rule_data:
+        if "_id" in rule_data:
             logger.warning(
                 f"BUG: rule_data contains _id in prepare_new_version! "
                 f"rule_id={rule_data.get('rule_id')}, _id={rule_data['_id']}"
             )
-            del rule_data['_id']
+            del rule_data["_id"]
 
         # Prepare complete document
         versioned_rule = {
             **rule_data,
-
             # Versioning
             "version": new_version,
             "version_hash": content_hash,
             "is_latest": True,
             "supersedes_version": supersedes_version,
             "superseded_by": None,
-
             # Temporal
             "effective_from": now,
             "effective_until": None,
             "imported_at": now,
             "updated_at": now,
             "created_by": created_by,
-
             # Source tracking
             "source_bundle": source_bundle,
             "source_bundle_hash": source_bundle_hash,
             "import_id": import_id,
-
             # Change metadata
             "change_summary": change_summary,
             "deprecated": False,
             "deprecation_reason": None,
-            "replacement_rule_id": None
+            "replacement_rule_id": None,
         }
 
         return versioned_rule
 
-
     @staticmethod
-    def get_field_change_description(field_name: str, old_value: Any, new_value: Any) -> str:
+    def get_field_change_description(
+        field_name: str, old_value: Any, new_value: Any
+    ) -> str:
         """
         Generate human-readable description of a field change
 
