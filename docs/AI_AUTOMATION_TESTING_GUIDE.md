@@ -89,9 +89,85 @@ OpenWatch uses AI-powered automation for:
 
 ## 🧪 Testing Claude Code Alerts Workflow
 
+### Test 0: PREREQUISITE - Verify Workflows Exist in GitHub Repository
+
+**Purpose**: Ensure workflows are tracked in git and pushed to GitHub (not just local files).
+
+**⚠️ CRITICAL**: This test must pass before all other tests. If workflows are not in GitHub, AI automation will NOT work.
+
+```bash
+# Step 1: Check if .gitignore blocks .github/ directory
+git check-ignore -v .github/workflows/claude-code-alerts.yml
+
+# Expected output: (nothing - file should NOT be ignored)
+# If you see output like ".gitignore:649:.github/", workflows are blocked!
+
+# Step 2: Verify workflow is tracked in git
+git ls-tree HEAD .github/workflows/claude-code-alerts.yml
+
+# Expected output:
+# 100644 blob <hash>    .github/workflows/claude-code-alerts.yml
+
+# Step 3: Check if local commit is pushed to GitHub
+git log --oneline -1 .github/workflows/claude-code-alerts.yml
+
+# Get the commit hash, then check if it's on GitHub:
+git log --oneline origin/main | head -5
+
+# Commit containing workflow should appear in both
+
+# Step 4: Verify in GitHub UI
+# Go to: https://github.com/<your-org>/openwatch/actions
+# Should see: List of workflows including "Claude Code Security Triage"
+# Should NOT see: "Not found" or "This workflow does not exist"
+
+# Step 5: Check workflow file exists on GitHub
+# Go to: https://github.com/<your-org>/openwatch/tree/main/.github/workflows
+# Should see: claude-code-alerts.yml in file list
+```
+
+**✅ Success Criteria**:
+- `.github/workflows/` NOT ignored by .gitignore
+- Workflow file tracked in git (git ls-tree shows it)
+- Workflow committed and pushed to GitHub
+- Workflow visible in GitHub Actions UI
+- Workflow file visible in GitHub file browser
+
+**❌ If This Test Fails**:
+
+This is exactly what happened in your case! The `.gitignore` had:
+```gitignore
+.github/   # ← This blocked ALL workflows from being tracked!
+```
+
+**Fix Applied (2025-11-02)**:
+```bash
+# 1. Fixed .gitignore (removed .github/ blanket ignore)
+# 2. Added workflow to git: git add .github/workflows/claude-code-alerts.yml
+# 3. Committed and pushed to GitHub
+# 4. Verified workflow now appears in GitHub UI
+```
+
+**If you encounter this issue**:
+```bash
+# Check what's ignoring workflows
+git check-ignore -v .github/workflows/*.yml
+
+# If .gitignore is blocking, remove the .github/ line
+# Then add workflows:
+git add .github/workflows/*.yml
+git commit -m "fix(ci): Add GitHub Actions workflows"
+git push origin main
+
+# Verify in GitHub:
+# https://github.com/<your-org>/openwatch/actions
+```
+
+---
+
 ### Test 1: Verify Workflow File Exists and Is Valid
 
-**Purpose**: Ensure workflow is properly configured.
+**Purpose**: Ensure workflow is properly configured (after Test 0 passes).
 
 ```bash
 # Step 1: Check workflow file exists
@@ -983,6 +1059,13 @@ cat .claude/settings.local.json | grep -v "^[[:space:]]*$"
 
 Use this checklist to verify AI automation is fully functional:
 
+#### Prerequisites (5/5 required) - Test #0
+- [ ] `.github/workflows/` NOT ignored by .gitignore
+- [ ] Workflow files tracked in git (`git ls-tree HEAD .github/workflows/`)
+- [ ] Workflows committed and pushed to GitHub
+- [ ] Workflows visible in GitHub Actions UI (not "Not found")
+- [ ] Workflow files visible in GitHub file browser
+
 #### Workflow Integration (5/5 required)
 - [ ] `claude-code-alerts.yml` exists and is valid YAML
 - [ ] Workflow triggers on Dependabot PRs (`pull_request_target`)
@@ -1024,20 +1107,20 @@ Use this checklist to verify AI automation is fully functional:
 
 ## 📊 Scoring
 
-**Total Requirements**: 25
+**Total Requirements**: 30 (includes 5 new prerequisite checks from Test #0)
 
 **Grading Scale**:
-- **25/25 (100%)**: A+ - Perfect AI automation
-- **23-24/25 (92-96%)**: A - Excellent, minor improvements needed
-- **20-22/25 (80-88%)**: B - Good, some gaps to address
-- **17-19/25 (68-76%)**: C - Functional but needs work
-- **<17/25 (<68%)**: D/F - Major issues, requires immediate attention
+- **30/30 (100%)**: A+ - Perfect AI automation
+- **28-29/30 (93-97%)**: A - Excellent, minor improvements needed
+- **24-27/30 (80-90%)**: B - Good, some gaps to address
+- **20-23/30 (67-77%)**: C - Functional but needs work
+- **<20/30 (<67%)**: D/F - Major issues, requires immediate attention
 
 ---
 
 ## 🎯 Next Steps After Testing
 
-### If All Tests Pass (25/25)
+### If All Tests Pass (30/30)
 
 ✅ **AI automation fully operational!**
 
@@ -1055,7 +1138,7 @@ Use this checklist to verify AI automation is fully functional:
 
 ---
 
-### If Tests Fail (Score < 20/25)
+### If Tests Fail (Score < 24/30)
 
 🚨 **Critical issues detected**
 
