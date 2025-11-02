@@ -9,11 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from ....services.health_monitoring_service import get_health_monitoring_service, HealthMonitoringService
+from ....services.health_monitoring_service import (
+    get_health_monitoring_service,
+    HealthMonitoringService,
+)
 from ....models.health_models import (
     ServiceHealthDocument,
     ContentHealthDocument,
-    HealthSummaryDocument
+    HealthSummaryDocument,
 )
 from ....auth import get_current_user
 from ....database import User
@@ -27,11 +30,11 @@ router = APIRouter()
 @router.get("/health/service", response_model=ServiceHealthDocument)
 async def get_service_health(
     current_user: User = Depends(get_current_user),
-    health_service: HealthMonitoringService = Depends(get_health_monitoring_service)
+    health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> ServiceHealthDocument:
     """
     Get current service health metrics.
-    
+
     Returns operational health data including:
     - Core service statuses
     - Database connection health
