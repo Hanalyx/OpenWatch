@@ -113,8 +113,8 @@ jobs:
           
           # Update image in task definition
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | \
-            jq '.containerDefinitions[0].image = "ghcr.io/${{ github.repository_owner }}/openwatch-backend:${{ github.sha }}"' | \
-            jq '.containerDefinitions[1].image = "ghcr.io/${{ github.repository_owner }}/openwatch-frontend:${{ github.sha }}"')
+            jq '.containerDefinitions[0].image = "ghcr.io/hanalyx/openwatch-backend:${{ github.sha }}"' | \
+            jq '.containerDefinitions[1].image = "ghcr.io/hanalyx/openwatch-frontend:${{ github.sha }}"')
           
           # Register new task definition
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF"
@@ -187,8 +187,8 @@ jobs:
           file: ./docker/Dockerfile.backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/openwatch-backend:latest
-            ghcr.io/${{ github.repository_owner }}/openwatch-backend:${{ github.sha }}
+            ghcr.io/hanalyx/openwatch-backend:latest
+            ghcr.io/hanalyx/openwatch-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -199,8 +199,8 @@ jobs:
           file: ./docker/Dockerfile.frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/openwatch-frontend:latest
-            ghcr.io/${{ github.repository_owner }}/openwatch-frontend:${{ github.sha }}
+            ghcr.io/hanalyx/openwatch-frontend:latest
+            ghcr.io/hanalyx/openwatch-frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -215,16 +215,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The following container images have been built and published:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/openwatch-backend:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/openwatch-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/openwatch-frontend:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository_owner }}/openwatch-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/hanalyx/openwatch-backend:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/hanalyx/openwatch-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/hanalyx/openwatch-frontend:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/hanalyx/openwatch-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚀 Quick Start" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "# Pull and run the latest images" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/openwatch-backend:latest" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/openwatch-frontend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/hanalyx/openwatch-backend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/hanalyx/openwatch-frontend:latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Use docker-compose with published images" >> $GITHUB_STEP_SUMMARY
           echo "docker-compose up -d" >> $GITHUB_STEP_SUMMARY
@@ -253,8 +253,8 @@ jobs:
         run: |
           cd k8s/overlays/production
           kustomize edit set image \
-            backend=ghcr.io/${{ github.repository_owner }}/openwatch-backend:${{ github.sha }} \
-            frontend=ghcr.io/${{ github.repository_owner }}/openwatch-frontend:${{ github.sha }}
+            backend=ghcr.io/hanalyx/openwatch-backend:${{ github.sha }} \
+            frontend=ghcr.io/hanalyx/openwatch-frontend:${{ github.sha }}
 
       - name: Deploy to Kubernetes
         run: |
