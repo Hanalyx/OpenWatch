@@ -2,10 +2,7 @@
 Encryption service for sensitive data using AES-256-GCM.
 
 Provides FIPS 140-2 compliant encryption with configurable parameters
-and proper dependency injection (no global state).
-
-This is the refactored version that replaces backend/app/services/encryption.py
-with improved modularity and testability.
+and dependency injection support.
 """
 import os
 import logging
