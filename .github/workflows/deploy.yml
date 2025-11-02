@@ -164,7 +164,9 @@ jobs:
   build-and-publish:
     name: Build and Publish Containers
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # TEMPORARILY DISABLED: Requires GitHub organization package permissions
+    # Enable after configuring GitHub Container Registry permissions
+    if: false && github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
       - name: Checkout code
