@@ -306,7 +306,7 @@ const Dashboard: React.FC = () => {
       // Reset all counts to 0 when there's an error
       setTotalHosts(0);
       setOnlineHosts(0);
-      setOfflineHosts(0);
+      setDownHosts(0);
       setScanningHosts(0);
       setCriticalIssues(0);
       setTrendData([]);

@@ -125,7 +125,9 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({
                     if (onSegmentClick) {
                       const statusMap: { [key: string]: keyof FleetHealthData } = {
                         'Online': 'online',
-                        'Offline': 'offline',
+                        'Degraded': 'degraded',
+                        'Critical': 'critical',
+                        'Down': 'down',
                         'Scanning': 'scanning',
                         'Maintenance': 'maintenance'
                       };
@@ -201,7 +203,9 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({
                 if (onSegmentClick) {
                   const statusMap: { [key: string]: keyof FleetHealthData } = {
                     'Online': 'online',
-                    'Offline': 'offline',
+                    'Degraded': 'degraded',
+                    'Critical': 'critical',
+                    'Down': 'down',
                     'Scanning': 'scanning',
                     'Maintenance': 'maintenance'
                   };

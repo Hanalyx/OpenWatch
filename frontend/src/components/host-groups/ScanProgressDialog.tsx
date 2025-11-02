@@ -110,7 +110,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
         }
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to fetch progress');
+        throw new (Error as any)(errorData.detail || 'Failed to fetch progress');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch progress');

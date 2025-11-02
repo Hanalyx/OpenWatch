@@ -9,6 +9,9 @@ import { Star as StarIcon } from '@mui/icons-material';
 import { useTemplates } from '@/hooks/useTemplates';
 import type { ScanTemplate } from '@/types/scanConfig';
 
+// Extended type for grouped templates
+type GroupedTemplate = ScanTemplate & { group: string };
+
 interface TemplateSelectorProps {
   value?: string;
   onChange: (templateId: string | null) => void;
@@ -31,16 +34,16 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   const myTemplates = templates?.filter((t) => t.created_by === currentUser.username) || [];
   const publicTemplates = templates?.filter((t) => t.is_public && t.created_by !== currentUser.username) || [];
 
-  const groupedOptions = [
+  const groupedOptions: GroupedTemplate[] = [
     ...(myTemplates.length > 0
-      ? myTemplates.map((t) => ({ ...t, group: 'My Templates' }))
+      ? myTemplates.map((t) => ({ ...t, group: 'My Templates' as const }))
       : []),
     ...(publicTemplates.length > 0
-      ? publicTemplates.map((t) => ({ ...t, group: 'Public Templates' }))
+      ? publicTemplates.map((t) => ({ ...t, group: 'Public Templates' as const }))
       : []),
   ];
 
-  const selectedTemplate = templates?.find((t) => t.template_id === value);
+  const selectedTemplate = groupedOptions.find((t) => t.template_id === value);
 
   if (isLoading) {
     return (
@@ -54,7 +57,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
   }
 
   return (
-    <Autocomplete
+    <Autocomplete<GroupedTemplate>
       fullWidth
       options={groupedOptions}
       groupBy={(option) => option.group}

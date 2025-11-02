@@ -520,27 +520,30 @@ const AddHost: React.FC = () => {
                 value={formData.authMethod}
                 onChange={(e) => handleAuthMethodChange(e.target.value)}
                 row
-                disabled={authMethodLocked && !editingAuth}
               >
                 <FormControlLabel
                   value="system_default"
                   control={<Radio />}
                   label="System Default"
+                  disabled={authMethodLocked && !editingAuth}
                 />
                 <FormControlLabel
                   value="ssh_key"
                   control={<Radio />}
                   label="SSH Key"
+                  disabled={authMethodLocked && !editingAuth}
                 />
                 <FormControlLabel
                   value="password"
                   control={<Radio />}
                   label="Password"
+                  disabled={authMethodLocked && !editingAuth}
                 />
                 <FormControlLabel
                   value="both"
                   control={<Radio />}
                   label="SSH Key + Password (Fallback)"
+                  disabled={authMethodLocked && !editingAuth}
                 />
               </RadioGroup>
             </Box>
