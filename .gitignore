@@ -646,7 +646,13 @@ nginx.conf
 
 # Gitignore analysis files
 gitignore_*.md
-.github/
+
+# GitHub: Allow workflows but ignore other files
+# .github/ - DO NOT ignore entire directory (breaks CI/CD)
+# Instead, selectively ignore non-essential files:
+.github/ISSUE_TEMPLATE/*.md
+.github/PULL_REQUEST_TEMPLATE.md
+.github/.DS_Store
 
 # ======================================
 # RPM PACKAGE BUILDING FILES

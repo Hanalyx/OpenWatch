@@ -1,0 +1,344 @@
+name: Claude Code Alert Triage
+
+on:
+  # Triggered when Dependabot creates/updates a PR
+  pull_request:
+    types: [opened, synchronize]
+
+  # Triggered on new code scanning alerts
+  code_scanning_alert:
+    types: [created, reopened]
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      alert_id:
+        description: 'Alert ID to process'
+        required: true
+      alert_type:
+        description: 'Alert type (dependabot or codeql)'
+        required: true
+        default: 'codeql'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  security-events: read
+
+jobs:
+  risk-assessment:
+    name: Assess Risk Level
+    runs-on: ubuntu-latest
+    outputs:
+      risk_level: ${{ steps.assess.outputs.risk_level }}
+      alert_id: ${{ steps.assess.outputs.alert_id }}
+      description: ${{ steps.assess.outputs.description }}
+      can_auto_fix: ${{ steps.assess.outputs.can_auto_fix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Fetch Alert
+        id: fetch
+        run: |
+          mkdir -p /tmp/alerts
+
+          if [ "${{ github.event_name }}" == "code_scanning_alert" ]; then
+            # Code scanning alert
+            ALERT_ID="${{ github.event.alert.number }}"
+            echo "Fetching code scanning alert #$ALERT_ID"
+            gh api "/repos/${{ github.repository }}/code-scanning/alerts/$ALERT_ID" \
+              > /tmp/alerts/alert.json
+
+          elif [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.actor }}" == "dependabot[bot]" ]; then
+            # Dependabot PR
+            echo "Fetching Dependabot alert for PR #${{ github.event.pull_request.number }}"
+            # Extract package name from PR title
+            PACKAGE=$(echo "${{ github.event.pull_request.title }}" | grep -oP '(?<=Bump ).*(?= from)')
+            gh api "/repos/${{ github.repository }}/dependabot/alerts" \
+              --jq ".[] | select(.dependency.package.name == \"$PACKAGE\")" \
+              > /tmp/alerts/alert.json || echo '{"number": 0, "severity": "moderate"}' > /tmp/alerts/alert.json
+
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger
+            ALERT_ID="${{ github.event.inputs.alert_id }}"
+            ALERT_TYPE="${{ github.event.inputs.alert_type }}"
+
+            if [ "$ALERT_TYPE" == "codeql" ]; then
+              gh api "/repos/${{ github.repository }}/code-scanning/alerts/$ALERT_ID" \
+                > /tmp/alerts/alert.json
+            else
+              gh api "/repos/${{ github.repository }}/dependabot/alerts/$ALERT_ID" \
+                > /tmp/alerts/alert.json
+            fi
+          fi
+
+          # Verify we got data
+          if [ ! -s /tmp/alerts/alert.json ]; then
+            echo "Error: No alert data fetched"
+            echo '{"number": 0}' > /tmp/alerts/alert.json
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assess Risk
+        id: assess
+        run: |
+          # Determine alert type
+          if jq -e '.rule' /tmp/alerts/alert.json > /dev/null; then
+            ALERT_TYPE="codeql"
+          else
+            ALERT_TYPE="dependabot"
+          fi
+
+          echo "Alert type: $ALERT_TYPE"
+
+          # Run risk assessment
+          python scripts/risk_assessment.py \
+            --type="$ALERT_TYPE" \
+            --output=/tmp/alerts \
+            /tmp/alerts/alert.json
+
+          # Extract results
+          if [ -f /tmp/alerts/low_risk_alerts.json ] && [ "$(jq 'length' /tmp/alerts/low_risk_alerts.json)" -gt 0 ]; then
+            RISK_LEVEL="LOW"
+          elif [ -f /tmp/alerts/medium_risk_alerts.json ] && [ "$(jq 'length' /tmp/alerts/medium_risk_alerts.json)" -gt 0 ]; then
+            RISK_LEVEL="MEDIUM"
+          else
+            RISK_LEVEL="HIGH"
+          fi
+
+          ALERT_ID=$(jq -r '.number // "unknown"' /tmp/alerts/alert.json)
+          DESCRIPTION=$(jq -r '.rule.description // .security_vulnerability.summary // "Unknown issue"' /tmp/alerts/alert.json)
+          CAN_AUTO_FIX=$([ "$RISK_LEVEL" != "HIGH" ] && echo "true" || echo "false")
+
+          echo "risk_level=$RISK_LEVEL" >> $GITHUB_OUTPUT
+          echo "alert_id=$ALERT_ID" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "can_auto_fix=$CAN_AUTO_FIX" >> $GITHUB_OUTPUT
+
+          echo "🎯 Risk Assessment Complete:"
+          echo "  Alert ID: $ALERT_ID"
+          echo "  Risk Level: $RISK_LEVEL"
+          echo "  Can Auto-Fix: $CAN_AUTO_FIX"
+
+      - name: Upload Alert Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: alert-data
+          path: /tmp/alerts/
+
+  auto-fix-low-risk:
+    name: Auto-Fix (Low Risk)
+    needs: risk-assessment
+    if: needs.risk-assessment.outputs.risk_level == 'LOW'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-Approve Dependabot PR
+        if: github.actor == 'dependabot[bot]'
+        run: |
+          echo "✅ Auto-approving LOW risk Dependabot PR"
+          gh pr review ${{ github.event.pull_request.number }} \
+            --approve \
+            --body "✅ **Auto-approved by Risk Assessment**
+
+          **Risk Level:** LOW
+          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
+
+          This is a low-risk dependency update that passed all risk assessment checks:
+          - ✅ Patch/minor version update
+          - ✅ Low/moderate severity
+          - ✅ Non-critical package
+          - ✅ Backward compatible
+
+          Enabling auto-merge."
+
+          # Enable auto-merge
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  claude-code-fix:
+    name: Claude Code Fix (Medium Risk)
+    needs: risk-assessment
+    if: needs.risk-assessment.outputs.risk_level == 'MEDIUM'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+
+      - name: Create Claude Task
+        run: |
+          cat > /tmp/claude_task.md <<EOF
+          # Fix Security/Quality Alert
+
+          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
+          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Risk Level:** MEDIUM (requires review)
+
+          ## Your Task
+
+          1. **Analyze the Issue**
+             - Read the affected file(s)
+             - Understand the vulnerability or quality issue
+             - Review similar patterns in the codebase
+
+          2. **Implement the Fix**
+             - Follow coding standards in CLAUDE.md
+             - Make minimal, focused changes
+             - Ensure backward compatibility
+
+          3. **Test the Fix**
+             - Run relevant unit tests
+             - Run linters and type checkers
+             - Verify no regressions
+
+          4. **Create Pull Request**
+             - Commit with message: "fix: Resolve alert #${{ needs.risk-assessment.outputs.alert_id }} - <description>"
+             - Create PR with detailed description
+             - Include test results
+             - Request review from repository owner
+
+          ## Important Notes
+          - This is MEDIUM risk - human review is REQUIRED
+          - Include "Fixes #${{ needs.risk-assessment.outputs.alert_id }}" in PR description
+          - Run quality checks before committing
+          - If tests fail, document why in the PR
+
+          ## Success Criteria
+          - [ ] Issue is fixed
+          - [ ] Tests pass
+          - [ ] Code follows standards
+          - [ ] PR created with review request
+          EOF
+
+          echo "📝 Claude task created"
+          cat /tmp/claude_task.md
+
+      - name: Run Claude Code (Headless)
+        run: |
+          echo "🤖 Running Claude Code in headless mode..."
+
+          # Note: This requires Claude Code CLI to be installed
+          # For now, we'll use the GitHub Action instead
+          # Install instructions: https://docs.claude.com/docs/claude-code/headless
+
+          echo "⚠️ Claude Code headless execution placeholder"
+          echo "To enable: Install Claude Code CLI and uncomment the command below"
+
+          # claude -p "$(cat /tmp/claude_task.md)" \
+          #   --output-format json \
+          #   --allowedTools "Bash,Read,Edit,Write,Grep,Glob" \
+          #   --permission-mode acceptEdits \
+          #   > /tmp/claude_output.json
+
+          # For now, create a manual review issue
+          echo '{"status": "manual_review_needed"}' > /tmp/claude_output.json
+
+      - name: Fallback - Create Manual Review Issue
+        run: |
+          gh issue create \
+            --title "🔧 MEDIUM RISK: Fix Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --label "security" \
+            --label "medium-risk" \
+            --label "claude-review" \
+            --assignee "${{ github.repository_owner }}" \
+            --body "## Medium Risk Alert - Claude Code Assistance Available
+
+          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
+          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Risk Level:** MEDIUM
+
+          This alert requires human review but can be assisted by Claude Code.
+
+          ## How to Use Claude Code
+
+          **Option 1: Comment on this issue**
+          \`\`\`
+          @claude analyze this alert and create a fix PR
+          \`\`\`
+
+          **Option 2: Local Claude Code**
+          \`\`\`bash
+          claude -p \"Fix alert #${{ needs.risk-assessment.outputs.alert_id }}: ${{ needs.risk-assessment.outputs.description }}\"
+          \`\`\`
+
+          ## Task Details
+          $(cat /tmp/claude_task.md)
+
+          ---
+          *This issue was automatically created by the Automated Triage System*
+          *To enable automatic Claude Code fixes, install the Claude Code CLI in the workflow*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  human-review-required:
+    name: Human Review (High Risk)
+    needs: risk-assessment
+    if: needs.risk-assessment.outputs.risk_level == 'HIGH'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create High-Priority Issue
+        run: |
+          gh issue create \
+            --title "🚨 HIGH RISK: Alert #${{ needs.risk-assessment.outputs.alert_id }}" \
+            --label "security" \
+            --label "high-risk" \
+            --label "urgent" \
+            --assignee "${{ github.repository_owner }}" \
+            --body "## ⚠️ High Risk Security Alert
+
+          **Alert ID:** #${{ needs.risk-assessment.outputs.alert_id }}
+          **Description:** ${{ needs.risk-assessment.outputs.description }}
+          **Risk Level:** HIGH
+
+          This alert has been classified as HIGH risk due to:
+          - High complexity fix required, OR
+          - Critical security vulnerability, OR
+          - Potential for service disruption
+
+          ## ⚠️ DO NOT USE AUTO-FIX
+
+          This requires careful human assessment and planning.
+
+          ## Action Required
+
+          1. **Assess Impact**
+             - Review the vulnerability details
+             - Determine affected systems
+             - Estimate blast radius
+
+          2. **Plan Remediation**
+             - Research fix options
+             - Plan testing strategy
+             - Schedule deployment window
+
+          3. **Implement Carefully**
+             - Create feature branch
+             - Implement fix with thorough testing
+             - Request security review
+             - Deploy to staging first
+
+          4. **You May Use Claude Code for Assistance**
+             - Comment: \`@claude help me analyze this high-risk issue\`
+             - But ALWAYS review Claude's suggestions carefully
+             - Never auto-merge high-risk fixes
+
+          ## Resources
+
+          - [Security Response Playbook](../docs/SECURITY.md)
+          - [High Risk Change Checklist](../docs/HIGH_RISK_CHANGES.md)
+
+          ---
+          *This issue was automatically created by the Automated Triage System*
+          *Human review and approval is REQUIRED*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
