@@ -461,6 +461,48 @@ def get_db_session() -> Session:
     return SessionLocal()
 
 
+def get_encryption_service():
+    """
+    Dependency for getting encryption service from FastAPI app state.
+
+    This allows routes to receive the encryption service via dependency injection:
+
+    Example:
+        @router.post("/credentials")
+        async def create_credential(
+            db: Session = Depends(get_db),
+            encryption_service = Depends(get_encryption_service)
+        ):
+            # Use encryption_service here
+            encrypted = encryption_service.encrypt(plaintext)
+
+    Note:
+        The encryption service is initialized in main.py lifespan and stored
+        in app.state.encryption_service. This function retrieves it.
+    """
+    from fastapi import Request
+    from starlette.requests import Request as StarletteRequest
+
+    # This will be called with request context by FastAPI
+    # We need to use a callable that accepts the request
+    def _get_encryption_service(request: Request):
+        """Inner function that receives the request from FastAPI"""
+        if not hasattr(request.app.state, 'encryption_service'):
+            # Fallback for testing or if lifespan hasn't run yet
+            logger.warning(
+                "Encryption service not found in app.state - "
+                "creating temporary instance. This should only happen in tests."
+            )
+            from .encryption import create_encryption_service
+            from .config import get_settings
+            settings = get_settings()
+            return create_encryption_service(settings.master_key)
+
+        return request.app.state.encryption_service
+
+    return _get_encryption_service
+
+
 def create_tables():
     """Create database tables if they don't exist"""
     try:

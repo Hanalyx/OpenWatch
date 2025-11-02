@@ -57,7 +57,25 @@ async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
     logger.info("Starting OpenWatch application...")
-    
+
+    # Initialize encryption service with dependency injection (NEW)
+    logger.info("Initializing encryption service...")
+    from .encryption import create_encryption_service, EncryptionConfig
+
+    # Create encryption service with production config
+    encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
+    encryption_service = create_encryption_service(
+        master_key=settings.master_key,
+        config=encryption_config
+    )
+
+    # Store in app state for dependency injection
+    app.state.encryption_service = encryption_service
+    logger.info(
+        f"✅ Encryption service initialized "
+        f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
+    )
+
     # Verify FIPS mode if required
     if settings.fips_mode:
         try:
