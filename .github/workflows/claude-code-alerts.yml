@@ -5,9 +5,9 @@ on:
   pull_request:
     types: [opened, synchronize]
 
-  # Triggered on new code scanning alerts
-  code_scanning_alert:
-    types: [created, reopened]
+  # Triggered on schedule for periodic security scanning
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
 
   # Manual trigger
   workflow_dispatch:
