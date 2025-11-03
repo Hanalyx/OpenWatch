@@ -4,10 +4,11 @@
 # Run this before committing or creating a PR
 #
 # Usage:
-#   ./scripts/quality-check.sh          # Check all
-#   ./scripts/quality-check.sh backend  # Check backend only
-#   ./scripts/quality-check.sh frontend # Check frontend only
-#   ./scripts/quality-check.sh --fix    # Auto-fix issues
+#   ./scripts/quality-check.sh               # Check all
+#   ./scripts/quality-check.sh backend       # Check backend only
+#   ./scripts/quality-check.sh frontend      # Check frontend only
+#   ./scripts/quality-check.sh --fix         # Auto-fix issues
+#   ./scripts/quality-check.sh --check-message "feat: add feature"  # Validate commit message
 
 set -e
 
@@ -18,6 +19,35 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
+
+# ============================================================================
+# Special Modes
+# ============================================================================
+
+# Check commit message format
+if [[ "$1" == "--check-message" ]]; then
+    if [ -z "$2" ]; then
+        echo -e "${RED}✗ Missing commit message${NC}"
+        echo -e "${YELLOW}  Usage: $0 --check-message \"feat(api): add endpoint\"${NC}"
+        exit 1
+    fi
+
+    MESSAGE="$2"
+    echo -e "${BLUE}→ Validating commit message format${NC}"
+
+    if [ -x ".git/hooks/commit-msg-lint.sh" ]; then
+        if echo "$MESSAGE" | .git/hooks/commit-msg-lint.sh /dev/stdin; then
+            echo -e "${GREEN}✓ Commit message valid${NC}"
+            exit 0
+        else
+            exit 1
+        fi
+    else
+        echo -e "${RED}✗ commit-msg-lint.sh not found${NC}"
+        echo -e "${YELLOW}  Run: pre-commit install --hook-type commit-msg${NC}"
+        exit 1
+    fi
+fi
 
 TARGET=${1:-all}
 AUTOFIX=false
@@ -30,6 +60,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ERRORS=0
+SCRIPT_START_TIME=$(date +%s)
 
 echo -e "${BOLD}${BLUE}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -105,16 +136,25 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
         ERRORS=$((ERRORS + 1))
     fi
 
-    # 4. MyPy
-    echo -e "${BLUE}→ MyPy (Type Checking)${NC}"
+    # 4. MyPy (Strengthened - matches pre-commit config)
+    echo -e "${BLUE}→ MyPy (Type Checking - Strict Mode)${NC}"
     if command -v mypy &> /dev/null; then
-        if mypy app/ --ignore-missing-imports --no-strict-optional; then
+        if mypy app/ \
+            --ignore-missing-imports \
+            --warn-redundant-casts \
+            --warn-unused-ignores \
+            --warn-unreachable \
+            --warn-return-any \
+            --check-untyped-defs; then
             echo -e "${GREEN}✓ Type checking passed${NC}\n"
         else
-            echo -e "${YELLOW}⚠️  Type checking warnings (non-blocking)${NC}\n"
+            echo -e "${RED}✗ Type checking failed${NC}\n"
+            ERRORS=$((ERRORS + 1))
         fi
     else
-        echo -e "${YELLOW}⚠️  MyPy not installed (optional)${NC}\n"
+        echo -e "${RED}✗ MyPy not installed${NC}"
+        echo -e "${YELLOW}  Install: pipx install mypy${NC}\n"
+        ERRORS=$((ERRORS + 1))
     fi
 
     # 5. Bandit (Security)
@@ -141,6 +181,37 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
         fi
     else
         echo -e "${YELLOW}⚠️  Safety not installed (optional)${NC}\n"
+    fi
+
+    # 7. Test Coverage
+    echo -e "${BLUE}→ Test Coverage (Pytest)${NC}"
+    if command -v pytest &> /dev/null; then
+        if [ -d "tests" ]; then
+            if pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=80 -q 2>/dev/null; then
+                echo -e "${GREEN}✓ Coverage ≥80%${NC}\n"
+            else
+                echo -e "${YELLOW}⚠️  Coverage below 80% threshold (non-blocking)${NC}\n"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  No tests directory found${NC}\n"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Pytest not installed (optional)${NC}\n"
+    fi
+
+    # 8. Code Complexity (Radon)
+    echo -e "${BLUE}→ Code Complexity (Radon)${NC}"
+    if command -v radon &> /dev/null; then
+        COMPLEX_FUNCS=$(radon cc app/ -n C -j 2>/dev/null | grep -c '"complexity"' || echo "0")
+        if [ "$COMPLEX_FUNCS" -gt 0 ]; then
+            echo -e "${YELLOW}⚠️  Found $COMPLEX_FUNCS high-complexity functions${NC}"
+            radon cc app/ -n C -s 2>/dev/null || true
+            echo ""
+        else
+            echo -e "${GREEN}✓ No high-complexity functions${NC}\n"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Radon not installed (optional)${NC}\n"
     fi
 
     cd ..
@@ -204,6 +275,57 @@ fi
 # ============================================================================
 echo -e "${BOLD}${YELLOW}📦 General Checks${NC}\n"
 
+# ShellCheck (Shell Scripts)
+echo -e "${BLUE}→ ShellCheck (Shell Script Linting)${NC}"
+if command -v shellcheck &> /dev/null; then
+    SHELL_SCRIPTS=$(find . -name "*.sh" \
+        -not -path "*/node_modules/*" \
+        -not -path "*/.git/*" \
+        -not -path "*/venv/*" \
+        -not -path "*/__pycache__/*" 2>/dev/null)
+
+    if [ -n "$SHELL_SCRIPTS" ]; then
+        SHELLCHECK_ISSUES=0
+        while IFS= read -r script; do
+            if ! shellcheck -x "$script" > /dev/null 2>&1; then
+                SHELLCHECK_ISSUES=$((SHELLCHECK_ISSUES + 1))
+            fi
+        done <<< "$SHELL_SCRIPTS"
+
+        if [ $SHELLCHECK_ISSUES -eq 0 ]; then
+            echo -e "${GREEN}✓ All shell scripts validated${NC}\n"
+        else
+            echo -e "${YELLOW}⚠️  Found issues in $SHELLCHECK_ISSUES shell scripts (non-blocking)${NC}\n"
+        fi
+    else
+        echo -e "${GREEN}✓ No shell scripts to check${NC}\n"
+    fi
+else
+    echo -e "${YELLOW}⚠️  ShellCheck not installed${NC}"
+    echo -e "${YELLOW}  Install: pipx install shellcheck-py${NC}\n"
+fi
+
+# detect-secrets (Secret Scanner)
+echo -e "${BLUE}→ detect-secrets (Secret Scanner)${NC}"
+if command -v detect-secrets &> /dev/null; then
+    if [ -f ".secrets.baseline" ]; then
+        SECRETS_OUTPUT=$(detect-secrets scan 2>&1)
+        if echo "$SECRETS_OUTPUT" | grep -q "potential secrets"; then
+            echo -e "${RED}✗ Potential secrets detected${NC}"
+            echo -e "${YELLOW}  Review findings and update baseline if false positive${NC}\n"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo -e "${GREEN}✓ No new secrets detected${NC}\n"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  .secrets.baseline not found${NC}"
+        echo -e "${YELLOW}  Generate: detect-secrets scan > .secrets.baseline${NC}\n"
+    fi
+else
+    echo -e "${YELLOW}⚠️  detect-secrets not installed${NC}"
+    echo -e "${YELLOW}  Install: pipx install detect-secrets${NC}\n"
+fi
+
 # Check for TODOs
 echo -e "${BLUE}→ Checking for TODOs/FIXMEs${NC}"
 TODO_COUNT=$(find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" \) \
@@ -238,11 +360,16 @@ fi
 # ============================================================================
 # Summary
 # ============================================================================
+SCRIPT_END_TIME=$(date +%s)
+TOTAL_DURATION=$((SCRIPT_END_TIME - SCRIPT_START_TIME))
+
 echo -e "${BOLD}${BLUE}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Quality Check Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NC}"
+
+echo -e "${BLUE}⏱️  Total execution time: ${TOTAL_DURATION}s${NC}\n"
 
 if [ $ERRORS -eq 0 ]; then
     echo -e "${BOLD}${GREEN}✓ All quality checks passed!${NC}"
