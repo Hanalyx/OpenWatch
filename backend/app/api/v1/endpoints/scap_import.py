@@ -310,5 +310,5 @@ def estimate_import_duration(file_path: Path) -> float:
         file_size_mb = file_path.stat().st_size / (1024 * 1024)
         # Rough estimate: 1MB per minute for processing
         return max(1.0, file_size_mb * 1.0)
-    except:
+    except Exception:
         return 5.0  # Default estimate

@@ -305,7 +305,7 @@ def _check_aegis_availability() -> bool:
         # For now, check if AEGIS configuration exists
         aegis_url = os.environ.get("AEGIS_URL")
         return aegis_url is not None
-    except:
+    except Exception:
         return False
 
 

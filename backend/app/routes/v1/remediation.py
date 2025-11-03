@@ -584,7 +584,7 @@ async def _check_ansible_status():
                 "version": version,
                 "config": {"type": "ansible"},
             }
-    except:
+    except Exception:
         logger.debug("Ignoring exception during cleanup")
 
     return {"available": False}

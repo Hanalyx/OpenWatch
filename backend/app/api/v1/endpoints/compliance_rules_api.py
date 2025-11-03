@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
 import logging
-import json
 
 try:
     from ....services.mongo_integration_service import (

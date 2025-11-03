@@ -32,7 +32,6 @@ from ..models.system_models import (
 logger = logging.getLogger(__name__)
 
 # Lazy import to avoid cyclic dependency
-_error_sanitization_service = None
 
 
 class ReconnaissanceDetectionLevel(str, Enum):

@@ -59,7 +59,7 @@ async def discover_host_security_infrastructure(
         SecurityDiscoveryResponse containing discovered security information
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object
@@ -120,7 +120,7 @@ async def bulk_discover_security_infrastructure(
         BulkSecurityDiscoveryResponse with results for all hosts
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     if not request.host_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
@@ -203,7 +203,7 @@ async def get_host_security_summary(
         Security summary based on existing host data
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object

@@ -229,8 +229,7 @@ class RuleSpecificScanner:
             }
 
             # Calculate success rate
-            # FIXME: Disabled due to undefined remediation_report variable
-            if False:  # if remediation_report["total_rules_remediated"] > 0:
+            if verification_report["total_rules_remediated"] > 0:
                 verification_report["remediation_success_rate"] = (
                     verification_report["successfully_remediated"]
                     / verification_report["total_rules_remediated"]

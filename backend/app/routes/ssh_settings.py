@@ -170,7 +170,6 @@ async def set_ssh_policy(
         #
         #     logger.warning(f"Traceback: {traceback.format_exc()}")
         #     # Continue with operation - don't fail SSH updates due to audit issues
-        pass
 
         # Return updated configuration
         return await get_ssh_policy(db=db, current_user=current_user)
@@ -252,7 +251,6 @@ async def add_known_host(
         #     logger.warning(
         #         f"Enhanced audit logging failed for SSH known host addition: {audit_error}"
         #     )
-        pass
 
         # Return the added host
         hosts = service.get_known_hosts(host_request.hostname)
@@ -321,7 +319,6 @@ async def remove_known_host(
         #     logger.warning(
         #         f"Enhanced audit logging failed for SSH known host removal: {audit_error}"
         #     )
-        pass
 
         return {"message": f"Known host {hostname} removed successfully"}
 
@@ -381,7 +378,6 @@ async def test_ssh_connectivity(
         #     logger.warning(
         #         f"Enhanced audit logging failed for SSH connectivity test: {audit_error}"
         #     )
-        pass
 
         return {
             "host_id": host_id,

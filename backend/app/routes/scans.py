@@ -193,7 +193,7 @@ async def validate_scan_configuration(
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if validation_request.profile_id not in profile_ids:
                     raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
-            except:
+            except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Resolve credentials
@@ -366,7 +366,7 @@ async def quick_scan(
                             status_code=400,
                             detail="No profiles available in SCAP content",
                         )
-            except:
+            except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Generate scan name
@@ -468,7 +468,7 @@ async def quick_scan(
                     if len(parts) == 2:
                         avg_minutes = (int(parts[0]) + int(parts[1])) / 2
                         estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
-            except:
+            except Exception:
                 logger.debug("Ignoring exception during cleanup")
 
         return QuickScanResponse(
@@ -1038,18 +1038,14 @@ async def create_scan(
         profiles = []
         if content_result.profiles:
             try:
-                import json
-
                 profiles = json.loads(content_result.profiles)
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if scan_request.profile_id not in profile_ids:
                     raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
-            except:
+            except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Create scan record with UUID primary key
-        import json
-
         scan_id = str(uuid.uuid4())
         db.execute(
             text(
@@ -1122,7 +1118,7 @@ async def create_scan(
                     "error_code": classified_error.error_code,
                 },
             )
-        except:
+        except Exception:
             # Fallback to generic error if classification fails
             raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
 
@@ -1159,10 +1155,8 @@ async def get_scan(
         scan_options = {}
         if result.scan_options:
             try:
-                import json
-
                 scan_options = json.loads(result.scan_options)
-            except:
+            except Exception:
                 logger.debug("Ignoring exception during cleanup")
 
         scan_data = {
@@ -1775,7 +1769,7 @@ async def create_verification_scan(
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if verification_request.profile_id not in profile_ids:
                     raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
-            except:
+            except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Generate scan name

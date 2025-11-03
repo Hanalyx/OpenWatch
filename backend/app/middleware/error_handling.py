@@ -4,7 +4,6 @@ Provides standardized error responses, logging, and monitoring
 """
 
 import traceback
-import json
 import uuid
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta

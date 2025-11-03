@@ -297,7 +297,8 @@ class PluginRegistryService:
         try:
             # Count by status
             status_counts = {}
-            for status in PluginStatus:
+            # PluginStatus is an Enum (str, Enum) which is iterable
+            for status in list(PluginStatus):
                 count = await InstalledPlugin.find(InstalledPlugin.status == status).count()
                 status_counts[status.value] = count
 

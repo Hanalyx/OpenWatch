@@ -68,7 +68,7 @@ async def list_scap_content(
                     import json
 
                     profiles = json.loads(row.profiles)
-                except:
+                except Exception:
                     profiles = []
 
             content_list.append(
@@ -292,7 +292,7 @@ async def upload_scap_content(
             # Clean up temp file
             try:
                 os.unlink(temp_path)
-            except:
+            except Exception:
                 logger.debug("Ignoring exception during cleanup")
 
     except SCAPContentError as e:
@@ -334,7 +334,7 @@ async def get_scap_content(
                 import json
 
                 profiles = json.loads(result.profiles)
-            except:
+            except Exception:
                 profiles = []
 
         return {
@@ -383,7 +383,7 @@ async def get_scap_profiles(
                 import json
 
                 profiles = json.loads(result.profiles)
-            except:
+            except Exception:
                 # Re-extract profiles from file if cached version is invalid
                 if os.path.exists(result.file_path):
                     profiles = scap_scanner.extract_profiles(result.file_path)
@@ -461,7 +461,7 @@ async def delete_scap_content(
                 if parent_dir.name != "scap":  # Don't remove main scap dir
                     try:
                         parent_dir.rmdir()  # Only removes if empty
-                    except:
+                    except Exception:
                         pass
             except Exception as e:
                 logger.warning(
@@ -800,11 +800,11 @@ async def get_environment_info(current_user: dict = Depends(get_current_user)):
                     async with aiohttp.ClientSession() as session:
                         async with session.get("https://www.google.com", timeout=5) as response:
                             return response.status == 200
-                except:
+                except Exception:
                     return False
 
             has_internet = await test_connectivity()
-        except:
+        except Exception:
             has_internet = False
 
         environment_type = "connected" if has_internet else "air-gapped"

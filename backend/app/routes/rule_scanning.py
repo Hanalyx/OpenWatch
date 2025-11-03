@@ -349,8 +349,6 @@ async def create_remediation_plan(
             ).fetchone()
 
             if scan_result and scan_result.rule_details:
-                import json
-
                 rule_details = json.loads(scan_result.rule_details)
                 failed_rules = [
                     {
@@ -449,8 +447,6 @@ def _store_rule_scan_results(db: Session, scan_results: dict):
 def _store_remediation_plan(db: Session, plan, created_by: int):
     """Store remediation plan in database"""
     try:
-        import json
-
         db.execute(
             text(
                 """

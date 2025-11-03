@@ -78,7 +78,7 @@ async def discover_host_network_topology(
         NetworkDiscoveryResponse containing discovered network information
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object
@@ -139,7 +139,7 @@ async def bulk_discover_network_topology(
         BulkNetworkDiscoveryResponse with results for all hosts
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     if not request.host_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
@@ -225,7 +225,7 @@ async def assess_host_network_security(
         NetworkSecurityAssessment with security evaluation
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object
@@ -277,7 +277,7 @@ async def generate_network_topology_map(
         NetworkTopologyMap with network topology visualization data
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     if not request.host_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
@@ -314,7 +314,7 @@ async def get_network_discovery_capabilities(current_user=Depends(get_current_us
         Dictionary of supported network discovery features
     """
     # Check permissions
-    check_permission(current_user, "hosts:read")
+    check_permission(current_user["role"], "hosts", "read")
 
     capabilities = {
         "network_interfaces": {
