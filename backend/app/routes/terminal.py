@@ -65,7 +65,7 @@ async def host_terminal_websocket(
         elif websocket.client and websocket.client.host:
             client_ip = websocket.client.host
     except Exception:
-        pass
+        logger.debug("Ignoring exception during cleanup")
 
     logger.info(f"Terminal WebSocket connection requested for host {host_id} from {client_ip}")
 
@@ -88,7 +88,7 @@ async def host_terminal_websocket(
         try:
             await websocket.close()
         except Exception:
-            pass
+            logger.debug("Ignoring exception during cleanup")
 
 
 @router.get("/api/hosts/{host_id}/terminal/status")

@@ -585,6 +585,6 @@ async def _check_ansible_status():
                 "config": {"type": "ansible"},
             }
     except:
-        pass
+        logger.debug("Ignoring exception during cleanup")
 
     return {"available": False}

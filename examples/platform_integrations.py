@@ -47,7 +47,7 @@ class AnsibleRemediationSystem(RemediationSystemInterface):
             if result.returncode == 0:
                 return result.stdout.strip()
         except:
-            pass
+            logger.debug("Ignoring exception during cleanup")
         return "ansible-playbook"  # Assume in PATH
     
     async def get_system_info(self) -> RemediationSystemInfo:
@@ -254,7 +254,7 @@ class ChefRemediationSystem(RemediationSystemInterface):
             if result.returncode == 0:
                 return result.stdout.strip()
         except:
-            pass
+            logger.debug("Ignoring exception during cleanup")
         return "knife"
     
     async def get_system_info(self) -> RemediationSystemInfo:
@@ -412,7 +412,7 @@ class PuppetRemediationSystem(RemediationSystemInterface):
             if result.returncode == 0:
                 return result.stdout.strip()
         except:
-            pass
+            logger.debug("Ignoring exception during cleanup")
         return "bolt"
     
     async def get_system_info(self) -> RemediationSystemInfo:

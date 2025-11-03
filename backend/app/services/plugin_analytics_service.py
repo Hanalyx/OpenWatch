@@ -287,7 +287,7 @@ class PluginAnalyticsService:
             try:
                 await self.collection_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         logger.info("Stopped plugin metrics collection")
 

@@ -285,7 +285,7 @@ class PluginLifecycleService:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         self.health_monitors.clear()
         logger.info("Stopped health monitoring for all plugins")

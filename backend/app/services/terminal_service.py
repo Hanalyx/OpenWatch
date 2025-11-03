@@ -317,7 +317,7 @@ class SSHTerminalSession:
         try:
             await self.websocket.send_text(f"ERROR: {message}")
         except Exception:
-            pass
+            logger.debug("Ignoring exception during cleanup")
 
     async def resize_terminal(self, cols: int, rows: int):
         """
@@ -342,21 +342,21 @@ class SSHTerminalSession:
                 try:
                     await task
                 except asyncio.CancelledError:
-                    pass
+                    logger.debug("Ignoring exception during cleanup")
 
         # Close SSH resources
         if self.ssh_channel:
             try:
                 self.ssh_channel.close()
             except Exception:
-                pass
+                logger.debug("Ignoring exception during cleanup")
             self.ssh_channel = None
 
         if self.ssh_client:
             try:
                 self.ssh_client.close()
             except Exception:
-                pass
+                logger.debug("Ignoring exception during cleanup")
             self.ssh_client = None
 
         logger.info(f"SSH session to {self.host.hostname} closed")
@@ -466,7 +466,7 @@ class TerminalService:
             try:
                 await websocket.send_text(f"ERROR: Terminal service error: {str(e)}")
             except Exception:
-                pass
+                logger.debug("Ignoring exception during cleanup")
         finally:
             # Cleanup session
             if session_key in self.active_sessions:
@@ -476,7 +476,7 @@ class TerminalService:
             try:
                 await websocket.close()
             except Exception:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
 
 # Global terminal service instance

@@ -227,7 +227,7 @@ class HostMonitor:
                 if connection_result.connection:
                     connection_result.connection.close()
             except:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
             error_msg = "SSH test command error"
             logger.error(f"SSH test command failed: {type(e).__name__}: {str(e)}")

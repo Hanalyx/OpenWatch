@@ -343,7 +343,7 @@ class PluginMarketplaceService:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         self.sync_tasks.clear()
 

@@ -40,9 +40,6 @@ def create_redis_ssl_context():
     return context
 
 
-# Redis connection configuration
-redis_ssl_context = create_redis_ssl_context() if settings.redis_ssl else None
-
 # Celery broker URL with SSL
 broker_url = settings.redis_url
 if settings.redis_ssl and not broker_url.startswith("rediss://"):

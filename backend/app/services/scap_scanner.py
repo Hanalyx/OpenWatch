@@ -216,7 +216,7 @@ class SCAPScanner:
                 if connection_result.connection:
                     connection_result.connection.close()
             except:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
             logger.error(f"SSH test error for {hostname}: {e}")
             return {

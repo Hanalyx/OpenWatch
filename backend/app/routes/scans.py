@@ -469,7 +469,7 @@ async def quick_scan(
                         avg_minutes = (int(parts[0]) + int(parts[1])) / 2
                         estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
             except:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         return QuickScanResponse(
             id=scan_id,
@@ -1163,7 +1163,7 @@ async def get_scan(
 
                 scan_options = json.loads(result.scan_options)
             except:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         scan_data = {
             "id": result.id,

@@ -901,7 +901,7 @@ async def get_scheduler_settings(
             row = result.fetchone()
             enabled_from_db = row and row.setting_value == "true"
         except:
-            pass
+            logger.debug("Ignoring exception during cleanup")
 
         # Use database state if available, otherwise fall back to runtime state
         is_enabled = enabled_from_db if enabled_from_db is not None else is_running

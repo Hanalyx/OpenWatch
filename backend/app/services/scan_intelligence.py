@@ -402,7 +402,7 @@ class ScanIntelligenceService:
                             # Update rule count if available in profile metadata
                             break
                 except:
-                    pass
+                    logger.debug("Ignoring exception during cleanup")
 
             return suggestion
 

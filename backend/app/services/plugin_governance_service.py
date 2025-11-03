@@ -346,7 +346,7 @@ class PluginGovernanceService:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
         self.policy_monitors.clear()
         self.compliance_monitors.clear()

@@ -28,9 +28,11 @@ from ..models.system_models import (
     SystemReconnaissancePattern,
     SystemInfoAuditEvent,
 )
-from .error_sanitization import get_error_sanitization_service
 
 logger = logging.getLogger(__name__)
+
+# Lazy import to avoid cyclic dependency
+_error_sanitization_service = None
 
 
 class ReconnaissanceDetectionLevel(str, Enum):
@@ -141,7 +143,14 @@ class SystemInfoSanitizationService:
     def __init__(self):
         self.detection_level = ReconnaissanceDetectionLevel.STRICT
         self.audit_events: List[SystemInfoAuditEvent] = []
-        self._error_sanitization_service = get_error_sanitization_service()
+        self._error_sanitization_service = None
+
+    def _get_error_sanitization_service(self):
+        """Lazy load error sanitization service to avoid cyclic import."""
+        if self._error_sanitization_service is None:
+            from .error_sanitization import get_error_sanitization_service
+            self._error_sanitization_service = get_error_sanitization_service()
+        return self._error_sanitization_service
 
     def sanitize_system_information(
         self, raw_system_info: Dict[str, Any], context: SystemInfoSanitizationContext
@@ -281,7 +290,7 @@ class SystemInfoSanitizationService:
                 sanitized_data["system_info"] = sanitized_system_info
 
             # Apply existing error sanitization patterns
-            sanitized_error = self._error_sanitization_service.sanitize_error(
+            sanitized_error = self._get_error_sanitization_service().sanitize_error(
                 sanitized_data, user_id=context.user_id, source_ip=context.source_ip
             )
 
@@ -295,7 +304,7 @@ class SystemInfoSanitizationService:
         except Exception as e:
             logger.error(f"Integrated sanitization failed: {e}")
             # Fallback - create basic sanitized response with system_info if it existed
-            fallback_result = self._error_sanitization_service.sanitize_error(
+            fallback_result = self._get_error_sanitization_service().sanitize_error(
                 error_data, user_id=context.user_id, source_ip=context.source_ip
             ).dict()
 

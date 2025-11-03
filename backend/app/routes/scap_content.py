@@ -293,7 +293,7 @@ async def upload_scap_content(
             try:
                 os.unlink(temp_path)
             except:
-                pass
+                logger.debug("Ignoring exception during cleanup")
 
     except SCAPContentError as e:
         logger.error(f"SCAP validation error: {e}")
