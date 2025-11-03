@@ -449,10 +449,21 @@ jobs:
           echo "## Frontend Dependencies" >> audit-report.md
           cd frontend
           echo "### Outdated Packages" >> ../audit-report.md
-          ncu --jsonUpgraded > ../frontend-outdated.json || echo "{}" > ../frontend-outdated.json
 
-          # Count outdated packages
-          OUTDATED_COUNT=$(jq '. | length' ../frontend-outdated.json)
+          # Run ncu and handle empty/invalid output
+          if ncu --jsonUpgraded > ../frontend-outdated.json 2>&1; then
+            # Validate JSON and count packages
+            if jq empty ../frontend-outdated.json 2>/dev/null; then
+              OUTDATED_COUNT=$(jq '. | length' ../frontend-outdated.json 2>/dev/null || echo "0")
+            else
+              echo "{}" > ../frontend-outdated.json
+              OUTDATED_COUNT="0"
+            fi
+          else
+            echo "{}" > ../frontend-outdated.json
+            OUTDATED_COUNT="0"
+          fi
+
           echo "**$OUTDATED_COUNT packages have updates available**" >> ../audit-report.md
           echo "" >> ../audit-report.md
           
