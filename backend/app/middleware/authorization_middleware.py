@@ -302,9 +302,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
         return True
 
-    async def _extract_current_user(
-        self, request: Request
-    ) -> Optional[Dict[str, Any]]:
+    async def _extract_current_user(self, request: Request) -> Optional[Dict[str, Any]]:
         """
         Extract current user from request authentication
         """
