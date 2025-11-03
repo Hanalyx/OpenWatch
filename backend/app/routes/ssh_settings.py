@@ -140,35 +140,37 @@ async def set_ssh_policy(
                 )
 
         # Enhanced audit logging with dual system support
-        logger.info(f"SSH policy update: About to call enhanced audit logging")
-        logger.info(f"Current user: {current_user}")
-        logger.info(f"Policy request: {policy_request.policy}")
-        try:
-            # await log_enhanced_ssh_event(
-                db=db,
-                action="POLICY_UPDATED",
-                policy_data={
-                    "policy": policy_request.policy,
-                    "trusted_networks": policy_request.trusted_networks or [],
-                    "trusted_networks_count": len(policy_request.trusted_networks or []),
-                    "change_reason": "Administrator policy update",
-                },
-                user_id=current_user.get("id"),
-                username=current_user.get("username"),
-                ip_address="172.20.0.1",
-                new_values={
-                    "policy": policy_request.policy,
-                    "trusted_networks": policy_request.trusted_networks,
-                },
-            )
-            logger.info(f"Enhanced audit logging completed successfully")
-        except Exception as audit_error:
-            logger.warning(f"Enhanced audit logging failed for SSH policy update: {audit_error}")
-            logger.warning(f"Error details: {type(audit_error)} - {str(audit_error)}")
-            import traceback
-
-            logger.warning(f"Traceback: {traceback.format_exc()}")
-            # Continue with operation - don't fail SSH updates due to audit issues
+        # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented
+        # logger.info(f"SSH policy update: About to call enhanced audit logging")
+        # logger.info(f"Current user: {current_user}")
+        # logger.info(f"Policy request: {policy_request.policy}")
+        # try:
+        #     await log_enhanced_ssh_event(
+        #         db=db,
+        #         action="POLICY_UPDATED",
+        #         policy_data={
+        #             "policy": policy_request.policy,
+        #             "trusted_networks": policy_request.trusted_networks or [],
+        #             "trusted_networks_count": len(policy_request.trusted_networks or []),
+        #             "change_reason": "Administrator policy update",
+        #         },
+        #         user_id=current_user.get("id"),
+        #         username=current_user.get("username"),
+        #         ip_address="172.20.0.1",
+        #         new_values={
+        #             "policy": policy_request.policy,
+        #             "trusted_networks": policy_request.trusted_networks,
+        #         },
+        #     )
+        #     logger.info(f"Enhanced audit logging completed successfully")
+        # except Exception as audit_error:
+        #     logger.warning(f"Enhanced audit logging failed for SSH policy update: {audit_error}")
+        #     logger.warning(f"Error details: {type(audit_error)} - {str(audit_error)}")
+        #     import traceback
+        #
+        #     logger.warning(f"Traceback: {traceback.format_exc()}")
+        #     # Continue with operation - don't fail SSH updates due to audit issues
+        pass
 
         # Return updated configuration
         return await get_ssh_policy(db=db, current_user=current_user)
@@ -231,24 +233,26 @@ async def add_known_host(
             )
 
         # Enhanced audit logging
-        try:
-            # await log_enhanced_ssh_event(
-                db=db,
-                action="KNOWN_HOST_ADDED",
-                policy_data={
-                    "hostname": host_request.hostname,
-                    "ip_address": host_request.ip_address,
-                    "key_type": host_request.key_type,
-                    "action": "add_known_host",
-                },
-                user_id=current_user.get("id"),
-                username=current_user.get("username"),
-                ip_address="172.20.0.1",
-            )
-        except Exception as audit_error:
-            logger.warning(
-                f"Enhanced audit logging failed for SSH known host addition: {audit_error}"
-            )
+        # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented
+        # try:
+        #     await log_enhanced_ssh_event(
+        #         db=db,
+        #         action="KNOWN_HOST_ADDED",
+        #         policy_data={
+        #             "hostname": host_request.hostname,
+        #             "ip_address": host_request.ip_address,
+        #             "key_type": host_request.key_type,
+        #             "action": "add_known_host",
+        #         },
+        #         user_id=current_user.get("id"),
+        #         username=current_user.get("username"),
+        #         ip_address="172.20.0.1",
+        #     )
+        # except Exception as audit_error:
+        #     logger.warning(
+        #         f"Enhanced audit logging failed for SSH known host addition: {audit_error}"
+        #     )
+        pass
 
         # Return the added host
         hosts = service.get_known_hosts(host_request.hostname)
@@ -299,23 +303,25 @@ async def remove_known_host(
             )
 
         # Enhanced audit logging
-        try:
-            # await log_enhanced_ssh_event(
-                db=db,
-                action="KNOWN_HOST_REMOVED",
-                policy_data={
-                    "hostname": hostname,
-                    "key_type": key_type or "all_key_types",
-                    "action": "remove_known_host",
-                },
-                user_id=current_user.get("id"),
-                username=current_user.get("username"),
-                ip_address="172.20.0.1",
-            )
-        except Exception as audit_error:
-            logger.warning(
-                f"Enhanced audit logging failed for SSH known host removal: {audit_error}"
-            )
+        # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented
+        # try:
+        #     await log_enhanced_ssh_event(
+        #         db=db,
+        #         action="KNOWN_HOST_REMOVED",
+        #         policy_data={
+        #             "hostname": hostname,
+        #             "key_type": key_type or "all_key_types",
+        #             "action": "remove_known_host",
+        #         },
+        #         user_id=current_user.get("id"),
+        #         username=current_user.get("username"),
+        #         ip_address="172.20.0.1",
+        #     )
+        # except Exception as audit_error:
+        #     logger.warning(
+        #         f"Enhanced audit logging failed for SSH known host removal: {audit_error}"
+        #     )
+        pass
 
         return {"message": f"Known host {hostname} removed successfully"}
 
@@ -355,25 +361,27 @@ async def test_ssh_connectivity(
         )
 
         # Enhanced audit logging
-        try:
-            # await log_enhanced_ssh_event(
-                db=db,
-                action="CONNECTIVITY_TEST",
-                policy_data={
-                    "host_id": host_id,
-                    "target_ip": host.ip_address,
-                    "test_result": "SUCCESS" if is_connected else "FAILED",
-                    "error_message": error_msg,
-                    "current_policy": "default_policy",
-                },
-                user_id=current_user.get("id"),
-                username=current_user.get("username"),
-                ip_address="172.20.0.1",
-            )
-        except Exception as audit_error:
-            logger.warning(
-                f"Enhanced audit logging failed for SSH connectivity test: {audit_error}"
-            )
+        # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented
+        # try:
+        #     await log_enhanced_ssh_event(
+        #         db=db,
+        #         action="CONNECTIVITY_TEST",
+        #         policy_data={
+        #             "host_id": host_id,
+        #             "target_ip": host.ip_address,
+        #             "test_result": "SUCCESS" if is_connected else "FAILED",
+        #             "error_message": error_msg,
+        #             "current_policy": "default_policy",
+        #         },
+        #         user_id=current_user.get("id"),
+        #         username=current_user.get("username"),
+        #         ip_address="172.20.0.1",
+        #     )
+        # except Exception as audit_error:
+        #     logger.warning(
+        #         f"Enhanced audit logging failed for SSH connectivity test: {audit_error}"
+        #     )
+        pass
 
         return {
             "host_id": host_id,

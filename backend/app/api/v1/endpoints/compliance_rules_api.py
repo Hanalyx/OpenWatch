@@ -944,6 +944,7 @@ async def get_platform_statistics_from_files() -> Dict[str, Any]:
         "source": "mongodb_empty",
     }
 
+
 async def get_framework_statistics_from_files() -> Dict[str, Any]:
     """
     DEPRECATED: Return empty framework statistics when MongoDB is empty.
