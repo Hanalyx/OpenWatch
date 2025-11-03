@@ -71,20 +71,20 @@ Error Handling:
     ...     print(f"Encryption error: {e}")
 """
 
-from .service import EncryptionService, create_encryption_service
 from .config import (
-    EncryptionConfig,
-    KDFAlgorithm,
     DEFAULT_CONFIG,
     FAST_TEST_CONFIG,
     HIGH_SECURITY_CONFIG,
+    EncryptionConfig,
+    KDFAlgorithm,
 )
 from .exceptions import (
-    EncryptionError,
-    DecryptionError,
-    InvalidDataError,
     ConfigurationError,
+    DecryptionError,
+    EncryptionError,
+    InvalidDataError,
 )
+from .service import EncryptionService, create_encryption_service
 
 __all__ = [
     # Main service

@@ -3,16 +3,15 @@ OpenWatch API v1 - Host Management
 Versioned host management endpoints with enhanced capabilities
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List, Optional
-from pydantic import BaseModel
 import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from ...auth import get_current_user
 from ..hosts import (
-    # Import existing functionality from the main hosts router
-    router as hosts_router,
-    # We'll re-export the same endpoints but with v1 specific enhancements
+    router as hosts_router,  # Import existing functionality from the main hosts router; We'll re-export the same endpoints but with v1 specific enhancements
 )
 
 logger = logging.getLogger(__name__)

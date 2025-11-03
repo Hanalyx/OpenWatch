@@ -4,12 +4,13 @@ Implements adaptive monitoring with state-based check intervals
 """
 
 import logging
-from enum import Enum
-from datetime import datetime, timedelta
-from typing import Dict, Tuple, Optional
 from dataclasses import dataclass
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Dict, Optional, Tuple
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,8 @@ class StateTransitionConfig:
 
     # Thresholds for state transitions
     ping_failures_to_down: int = 3  # 3 consecutive ping failures: any → down
-    ssh_failures_to_critical: int = (
-        2  # 2 consecutive SSH failures (ping OK): online/degraded → critical
-    )
-    privilege_failures_to_degraded: int = (
-        2  # 2 consecutive privilege failures (SSH OK): online → degraded
-    )
+    ssh_failures_to_critical: int = 2  # 2 consecutive SSH failures (ping OK): online/degraded → critical
+    privilege_failures_to_degraded: int = 2  # 2 consecutive privilege failures (SSH OK): online → degraded
 
     # Recovery thresholds
     successes_to_online: int = 3  # 3 consecutive full successes: any → online
@@ -236,9 +233,7 @@ class HostMonitoringStateMachine:
 
             # Log to monitoring history
             overall_success = (
-                ping_success
-                and (ssh_success or not ping_success)
-                and (privilege_success or not ssh_success)
+                ping_success and (ssh_success or not ping_success) and (privilege_success or not ssh_success)
             )
             self._log_history(
                 host_id=host_id,
@@ -254,9 +249,7 @@ class HostMonitoringStateMachine:
             self.db.commit()
 
             if state_changed:
-                logger.info(
-                    f"Host {host_id} state transition: {current_state.value} → {new_state.value}"
-                )
+                logger.info(f"Host {host_id} state transition: {current_state.value} → {new_state.value}")
 
             return new_state, check_interval
 
@@ -481,9 +474,7 @@ class HostMonitoringStateMachine:
     def set_maintenance_mode(self, host_id: str, enabled: bool):
         """Enable or disable maintenance mode for a host"""
         try:
-            new_state = (
-                MonitoringState.MAINTENANCE.value if enabled else MonitoringState.UNKNOWN.value
-            )
+            new_state = MonitoringState.MAINTENANCE.value if enabled else MonitoringState.UNKNOWN.value
 
             self.db.execute(
                 text(

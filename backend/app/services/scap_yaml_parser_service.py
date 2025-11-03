@@ -10,10 +10,10 @@ This service parses SCAP YAML rules (ComplianceAsCode format) to extract:
 Part of Phase 1, Issue #2: Enhanced SCAP Converter with Variable Extraction
 """
 
-import re
-from typing import Dict, List, Any, Optional, Set
-from pathlib import Path
 import logging
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +132,7 @@ class XCCDFVariableExtractor:
 
         return var_def
 
-    def _create_placeholder_variable(
-        self, var_id: str, rule_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _create_placeholder_variable(self, var_id: str, rule_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Create placeholder for variable referenced but not defined
         """
@@ -176,9 +174,7 @@ class XCCDFVariableExtractor:
         title = var_id.replace("_", " ").replace("var ", "").title()
         return title
 
-    def _extract_variable_description(
-        self, var_id: str, rule_data: Dict[str, Any]
-    ) -> Optional[str]:
+    def _extract_variable_description(self, var_id: str, rule_data: Dict[str, Any]) -> Optional[str]:
         """Extract variable description from rule metadata"""
         description = rule_data.get("description", "")
         if var_id in description:
@@ -212,9 +208,7 @@ class XCCDFVariableExtractor:
         var_id_lower = var_id.lower()
         return any(pattern in var_id_lower for pattern in sensitive_patterns)
 
-    def _infer_constraints(
-        self, var_id: str, var_value: Any, var_type: str
-    ) -> Optional[Dict[str, Any]]:
+    def _infer_constraints(self, var_id: str, var_value: Any, var_type: str) -> Optional[Dict[str, Any]]:
         """Infer validation constraints"""
         constraints = {}
 
@@ -275,9 +269,7 @@ class RemediationExtractor:
         "yamlfile_value": None,  # K8s/OpenShift - no Ansible needed
     }
 
-    def extract_remediations(
-        self, rule_data: Dict[str, Any], rule_file: Path
-    ) -> Optional[Dict[str, Any]]:
+    def extract_remediations(self, rule_data: Dict[str, Any], rule_file: Path) -> Optional[Dict[str, Any]]:
         """Extract all remediation content from SCAP rule"""
         remediations = {}
 
@@ -304,9 +296,7 @@ class RemediationExtractor:
 
         return remediations if remediations else None
 
-    def _extract_from_template(
-        self, template_name: str, template_vars: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _extract_from_template(self, template_name: str, template_vars: Dict[str, Any]) -> Dict[str, Any]:
         """Extract remediation from template definition"""
         remediations = {}
 
@@ -333,9 +323,7 @@ class RemediationExtractor:
         }
         return yaml.dump([task], default_flow_style=False, sort_keys=False)
 
-    def _map_vars_to_module_params(
-        self, module_name: str, vars_dict: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _map_vars_to_module_params(self, module_name: str, vars_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Map template variables to Ansible module parameters"""
         params = {}
 
@@ -396,9 +384,7 @@ class RemediationExtractor:
             if service:
                 action = "enable" if "enabled" in template_name else "disable"
                 script_lines.append(f"systemctl {action} {service}")
-                script_lines.append(
-                    f'systemctl {"start" if action == "enable" else "stop"} {service}'
-                )
+                script_lines.append(f'systemctl {"start" if action == "enable" else "stop"} {service}')
                 return "\n".join(script_lines)
 
         return None

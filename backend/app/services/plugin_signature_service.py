@@ -5,16 +5,17 @@ Cryptographic verification for plugin authenticity
 
 import hashlib
 import json
-from typing import Dict, List, Optional, Tuple
+import logging
 from datetime import datetime
 from pathlib import Path
-import logging
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
-from cryptography.exceptions import InvalidSignature
+from typing import Dict, List, Optional, Tuple
 
-from ..models.plugin_models import PluginSignature, PluginPackage, SecurityCheckResult
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+from ..models.plugin_models import PluginPackage, PluginSignature, SecurityCheckResult
 
 logger = logging.getLogger(__name__)
 
@@ -81,17 +82,13 @@ class PluginSignatureService:
                 check_name="signature_verification",
                 passed=not require_trusted_signature,
                 severity="critical" if require_trusted_signature else "warning",
-                message=(
-                    "No signature provided" if require_trusted_signature else "Package not signed"
-                ),
+                message=("No signature provided" if require_trusted_signature else "Package not signed"),
                 details={"signed": False},
             )
 
         try:
             # Verify signature authenticity
-            verification_result = await self._verify_signature_authenticity(
-                package, package.signature
-            )
+            verification_result = await self._verify_signature_authenticity(package, package.signature)
 
             if not verification_result["valid"]:
                 return SecurityCheckResult(
@@ -135,9 +132,7 @@ class PluginSignatureService:
                 message=f"Signature verification failed: {str(e)}",
             )
 
-    async def _verify_signature_authenticity(
-        self, package: PluginPackage, signature: PluginSignature
-    ) -> Dict:
+    async def _verify_signature_authenticity(self, package: PluginPackage, signature: PluginSignature) -> Dict:
         """Verify the cryptographic signature"""
         try:
             # Get signing data (package content without signature)

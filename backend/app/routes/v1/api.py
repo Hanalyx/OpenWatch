@@ -3,27 +3,29 @@ OpenWatch API v1 - Main Router
 Unified API façade with versioned endpoints and capability-based routing
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
 import logging
+from typing import Any, Dict
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from ...api.v1.endpoints import (
+    compliance_rules_api,
+    health_monitoring,
+    mongodb_scan_api,
+    mongodb_test,
+    remediation_api,
+    rule_management,
+    scan_config_api,
+    scans_api,
+    scap_import,
+    xccdf_api,
+)
 from ...auth import get_current_user
 from ..capabilities import router as capabilities_router
 from . import hosts as v1_hosts
-from . import scans as v1_scans
-from . import remediation as v1_remediation
 from . import openapi as v1_openapi
-from ...api.v1.endpoints import mongodb_test
-from ...api.v1.endpoints import scap_import
-from ...api.v1.endpoints import rule_management
-from ...api.v1.endpoints import compliance_rules_api
-from ...api.v1.endpoints import mongodb_scan_api
-from ...api.v1.endpoints import xccdf_api
-from ...api.v1.endpoints import scans_api
-from ...api.v1.endpoints import remediation_api
-from ...api.v1.endpoints import scan_config_api
-
-from ...api.v1.endpoints import health_monitoring
+from . import remediation as v1_remediation
+from . import scans as v1_scans
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +38,7 @@ router.include_router(capabilities_router, tags=["System Capabilities"])
 # Include v1 enhanced endpoints
 router.include_router(v1_hosts.router, prefix="/hosts", tags=["Host Management v1"])
 router.include_router(v1_scans.router, prefix="/scans", tags=["Scan Management v1"])
-router.include_router(
-    v1_remediation.router, prefix="/remediation", tags=["Remediation Provider v1"]
-)
+router.include_router(v1_remediation.router, prefix="/remediation", tags=["Remediation Provider v1"])
 router.include_router(v1_openapi.router, prefix="/docs", tags=["API Documentation v1"])
 router.include_router(mongodb_test.router, prefix="/mongodb", tags=["MongoDB Integration Test"])
 router.include_router(scap_import.router, tags=["SCAP Import"])
@@ -49,14 +49,10 @@ router.include_router(mongodb_scan_api.router, tags=["MongoDB Scanning"])
 # Phase 1: XCCDF Variables + Hybrid Scanning Architecture
 router.include_router(xccdf_api.router, prefix="/xccdf", tags=["XCCDF Generator"])
 router.include_router(scans_api.router, prefix="/scan-execution", tags=["Scan Execution"])
-router.include_router(
-    remediation_api.router, prefix="/remediation-engine", tags=["ORSA Remediation"]
-)
+router.include_router(remediation_api.router, prefix="/remediation-engine", tags=["ORSA Remediation"])
 router.include_router(scan_config_api.router, prefix="/scan-config", tags=["Scan Configuration"])
 
-router.include_router(
-    health_monitoring.router, prefix="/health-monitoring", tags=["Health Monitoring"]
-)
+router.include_router(health_monitoring.router, prefix="/health-monitoring", tags=["Health Monitoring"])
 
 
 @router.get("/")

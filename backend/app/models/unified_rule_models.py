@@ -3,10 +3,11 @@ Unified Rule Models for OpenWatch Phase 2
 Defines data models for unified compliance rules, executions, and related structures
 """
 
-from typing import Dict, List, Optional, Any, Union
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
 

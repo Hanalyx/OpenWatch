@@ -3,10 +3,11 @@ Integration Metrics API Routes
 Provides endpoints for monitoring integration performance and health
 """
 
-from fastapi import APIRouter, HTTPException, Query, Response, Depends
-from typing import Optional, Dict, Any
 import json
 from datetime import datetime
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..auth import get_current_user
 from ..rbac import require_admin
@@ -156,19 +157,13 @@ async def get_performance_overview(
                 "last_hour": {
                     "requests": hour_data.total_requests if hour_data else 0,
                     "error_rate": round(hour_data.error_rate, 2) if hour_data else 0,
-                    "avg_duration_ms": (
-                        round(hour_data.average_duration * 1000, 2) if hour_data else 0
-                    ),
-                    "p95_duration_ms": (
-                        round(hour_data.p95_duration * 1000, 2) if hour_data else 0
-                    ),
+                    "avg_duration_ms": (round(hour_data.average_duration * 1000, 2) if hour_data else 0),
+                    "p95_duration_ms": (round(hour_data.p95_duration * 1000, 2) if hour_data else 0),
                 },
                 "last_24h": {
                     "requests": day_data.total_requests if day_data else 0,
                     "error_rate": round(day_data.error_rate, 2) if day_data else 0,
-                    "avg_duration_ms": (
-                        round(day_data.average_duration * 1000, 2) if day_data else 0
-                    ),
+                    "avg_duration_ms": (round(day_data.average_duration * 1000, 2) if day_data else 0),
                     "p95_duration_ms": (round(day_data.p95_duration * 1000, 2) if day_data else 0),
                 },
             }
@@ -184,11 +179,7 @@ async def get_performance_overview(
                     "performance_trend": (
                         "better"
                         if hour_data.average_duration < day_data.average_duration
-                        else (
-                            "worse"
-                            if hour_data.average_duration > day_data.average_duration
-                            else "stable"
-                        )
+                        else ("worse" if hour_data.average_duration > day_data.average_duration else "stable")
                     ),
                 }
 
@@ -196,21 +187,15 @@ async def get_performance_overview(
             "timestamp": datetime.utcnow().isoformat(),
             "performance_data": performance_data,
             "summary": {
-                "total_operations_1h": sum(
-                    data["last_hour"]["requests"] for data in performance_data.values()
-                ),
-                "total_operations_24h": sum(
-                    data["last_24h"]["requests"] for data in performance_data.values()
-                ),
+                "total_operations_1h": sum(data["last_hour"]["requests"] for data in performance_data.values()),
+                "total_operations_24h": sum(data["last_24h"]["requests"] for data in performance_data.values()),
                 "avg_error_rate_1h": (
-                    sum(data["last_hour"]["error_rate"] for data in performance_data.values())
-                    / len(performance_data)
+                    sum(data["last_hour"]["error_rate"] for data in performance_data.values()) / len(performance_data)
                     if performance_data
                     else 0
                 ),
                 "avg_error_rate_24h": (
-                    sum(data["last_24h"]["error_rate"] for data in performance_data.values())
-                    / len(performance_data)
+                    sum(data["last_24h"]["error_rate"] for data in performance_data.values()) / len(performance_data)
                     if performance_data
                     else 0
                 ),

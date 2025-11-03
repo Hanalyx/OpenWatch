@@ -3,17 +3,18 @@ OpenWatch Capabilities API
 Provides feature discovery and capability-based routing for OSS/Enterprise features
 """
 
+import asyncio
 import logging
-from typing import Dict, Any, List
+import os
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-import asyncio
-import os
+from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..config import get_settings
 from ..database import get_db
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -183,9 +184,7 @@ async def get_integration_status(
     try:
         integrations = await _check_integrations()
 
-        logger.debug(
-            f"Integration status requested by user {current_user.get('user_id', 'unknown')}"
-        )
+        logger.debug(f"Integration status requested by user {current_user.get('user_id', 'unknown')}")
 
         return integrations
 
@@ -383,6 +382,7 @@ async def _check_kubernetes_availability() -> bool:
 def _get_system_info() -> Dict[str, Any]:
     """Get basic system information"""
     import platform
+
     import psutil
 
     try:

@@ -3,9 +3,10 @@ Multi-Framework Scanner Service
 Provides data models for scan results across multiple compliance frameworks
 """
 
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 from ..models.unified_rule_models import RuleExecution

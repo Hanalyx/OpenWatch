@@ -4,15 +4,16 @@ Provides advanced caching capabilities for rule queries with intelligent invalid
 """
 
 import asyncio
-import json
 import hashlib
-from typing import Dict, List, Any, Optional, Set, Tuple
+import json
+import logging
+import pickle
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-import logging
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import redis.asyncio as redis
-from dataclasses import dataclass, asdict
-import pickle
 
 logger = logging.getLogger(__name__)
 

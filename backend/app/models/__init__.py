@@ -3,36 +3,35 @@ OpenWatch Models Package
 Enhanced MongoDB models for unified compliance architecture
 """
 
-from .mongo_models import (
-    ComplianceRule,
-    RuleIntelligence,
-    RemediationScript,
-    MongoManager,
-    mongo_manager,
-    get_mongo_manager,
-)
-
+from .authorization_models import *
 from .enhanced_mongo_models import (
-    UnifiedComplianceRule,
+    CheckContent,
+    FixContent,
+    FrameworkControlDefinition,
     FrameworkMapping,
     FrameworkVersions,
     PlatformImplementation,
-    RuleIntelligence as EnhancedRuleIntelligence,
-    FrameworkControlDefinition,
-    CheckContent,
-    FixContent,
 )
-
+from .enhanced_mongo_models import RuleIntelligence as EnhancedRuleIntelligence
+from .enhanced_mongo_models import (
+    UnifiedComplianceRule,
+)
+from .error_models import *
 from .health_models import (
-    ServiceHealthDocument,
     ContentHealthDocument,
     HealthSummaryDocument,
+    ServiceHealthDocument,
 )
-
-from .authorization_models import *
-from .error_models import *
-from .system_models import *
+from .mongo_models import (
+    ComplianceRule,
+    MongoManager,
+    RemediationScript,
+    RuleIntelligence,
+    get_mongo_manager,
+    mongo_manager,
+)
 from .plugin_models import *
+from .system_models import *
 
 __all__ = [
     # Original models

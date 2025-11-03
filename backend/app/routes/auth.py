@@ -2,20 +2,21 @@
 Authentication Routes - FIPS Compliant
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime, timedelta
-import logging
+from sqlalchemy.orm import Session
 
-from ..auth import jwt_manager, audit_logger, pwd_context
+from ..audit_db import log_login_event
+from ..auth import audit_logger, jwt_manager, pwd_context
 from ..config import get_settings
 from ..database import get_db
 from ..rbac import UserRole
-from ..audit_db import log_login_event
 from ..utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
@@ -240,9 +241,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
         # Re-raise HTTP exceptions (already logged above)
         raise
     except Exception as e:
-        logger.error(
-            f"Login failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}"
-        )
+        logger.error(f"Login failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}")
         audit_logger.log_security_event(
             "LOGIN_FAILURE",
             f"System error during login for {sanitize_username_for_log(request.username)}: system error",
@@ -316,9 +315,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         access_token = jwt_manager.create_access_token(user_data)
         refresh_token = jwt_manager.create_refresh_token(user_data)
 
-        audit_logger.log_security_event(
-            "USER_REGISTER", f"New user registered: {request.username}", "127.0.0.1"
-        )
+        audit_logger.log_security_event("USER_REGISTER", f"New user registered: {request.username}", "127.0.0.1")
 
         return LoginResponse(
             access_token=access_token,
@@ -330,9 +327,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Registration failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}"
-        )
+        logger.error(f"Registration failed for {sanitize_username_for_log(request.username)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -350,9 +345,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         # Get fresh user data from database to ensure we have latest info
         username = user_data.get("sub") or user_data.get("username")
         if not username:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token data"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token data")
 
         # Get updated user info from database
         result = db.execute(
@@ -387,9 +380,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         access_token = jwt_manager.create_access_token(fresh_user_data)
 
         # Log the refresh event
-        audit_logger.log_security_event(
-            "TOKEN_REFRESH", f"Token refreshed for user {username}", "system"
-        )
+        audit_logger.log_security_event("TOKEN_REFRESH", f"Token refreshed for user {username}", "system")
 
         return {
             "access_token": access_token,
@@ -401,9 +392,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Token refresh failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
 
 @router.post("/logout")
@@ -417,9 +406,7 @@ async def logout(token: str = Depends(security)):
 
     except Exception as e:
         logger.error(f"Logout failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Logout failed")
 
 
 @router.get("/me")

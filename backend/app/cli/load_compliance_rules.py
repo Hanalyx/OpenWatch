@@ -9,13 +9,13 @@ Usage:
     python -m backend.app.cli.load_compliance_rules stats
 """
 
+import argparse
 import asyncio
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from datetime import datetime
-import argparse
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from ..models.mongo_models import ComplianceRule, mongo_manager
 from ..services.mongo_integration_service import MongoIntegrationService
@@ -61,9 +61,7 @@ class ComplianceRulesLoader:
             logger.error(f"Failed to initialize MongoDB: {e}")
             return False
 
-    async def load_rules_from_directory(
-        self, rules_dir: Path, replace_existing: bool = False
-    ) -> Dict[str, int]:
+    async def load_rules_from_directory(self, rules_dir: Path, replace_existing: bool = False) -> Dict[str, int]:
         """Load all JSON rules from directory"""
         logger.info(f"Loading compliance rules from: {rules_dir}")
 
@@ -187,16 +185,14 @@ class ComplianceRulesLoader:
             "manual_remediation": rule_data.get("manual_remediation"),
             "remediation_complexity": rule_data.get("remediation_complexity", "medium"),
             "remediation_risk": rule_data.get("remediation_risk", "low"),
-            "dependencies": rule_data.get(
-                "dependencies", {"requires": [], "conflicts": [], "related": []}
-            ),
+            "dependencies": rule_data.get("dependencies", {"requires": [], "conflicts": [], "related": []}),
             "source_file": rule_data.get("source_file", "unknown"),
             "source_hash": rule_data.get("source_hash", "unknown"),
             "version": rule_data.get("version", "1.0.0"),
             "imported_at": datetime.fromisoformat(
-                rule_data.get(
-                    "imported_at", datetime.utcnow().isoformat().replace("+00:00", "Z")
-                ).replace("Z", "+00:00")
+                rule_data.get("imported_at", datetime.utcnow().isoformat().replace("+00:00", "Z")).replace(
+                    "Z", "+00:00"
+                )
             ),
             "updated_at": datetime.utcnow(),
         }
@@ -227,17 +223,13 @@ class ComplianceRulesLoader:
         # Count framework mappings
         framework_counts = {}
         for framework in ["nist", "cis", "stig", "pci_dss", "iso27001"]:
-            count = await ComplianceRule.find(
-                {f"frameworks.{framework}": {"$exists": True, "$ne": {}}}
-            ).count()
+            count = await ComplianceRule.find({f"frameworks.{framework}": {"$exists": True, "$ne": {}}}).count()
             framework_counts[framework] = count
 
         # Count platform implementations
         platform_counts = {}
         for platform in ["rhel", "ubuntu", "windows", "centos"]:
-            count = await ComplianceRule.find(
-                {f"platform_implementations.{platform}": {"$exists": True}}
-            ).count()
+            count = await ComplianceRule.find({f"platform_implementations.{platform}": {"$exists": True}}).count()
             platform_counts[platform] = count
 
         validation_results = {
@@ -344,9 +336,7 @@ async def main():
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules",
         help="Source directory containing JSON rule files",
     )
-    parser.add_argument(
-        "--replace", action="store_true", help="Replace existing rules if they exist"
-    )
+    parser.add_argument("--replace", action="store_true", help="Replace existing rules if they exist")
 
     args = parser.parse_args()
 
@@ -395,9 +385,7 @@ async def main():
                 print(f"  Rules: {platform['ruleCount']}")
                 print(f"  Coverage: {platform['coverage']}%")
                 print(f"  Frameworks: {', '.join(platform['frameworks'])}")
-                print(
-                    f"  Top categories: {', '.join([cat['name'] for cat in platform['categories'][:3]])}"
-                )
+                print(f"  Top categories: {', '.join([cat['name'] for cat in platform['categories'][:3]])}")
 
     except Exception as e:
         logger.error(f"Command failed: {e}")

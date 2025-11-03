@@ -22,9 +22,10 @@ State Transitions & Intervals:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Tuple
-from sqlalchemy.orm import Session
+from typing import Dict, List, Optional, Tuple
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 

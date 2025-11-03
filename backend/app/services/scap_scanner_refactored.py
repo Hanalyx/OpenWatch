@@ -3,25 +3,25 @@ OpenSCAP Scanner Service - Refactored
 Handles SCAP content processing and scanning operations using the base scanner architecture
 """
 
+import io
+import json
+import logging
 import os
+import shutil
 import subprocess
 import tempfile
-import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Tuple
-import logging
-import json
 import uuid
-from pathlib import Path
-import shutil
+import xml.etree.ElementTree as ET
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import lxml.etree as etree
 import paramiko
-import io
 from paramiko.ssh_exception import SSHException
 
-from .base_scap_scanner import BaseSCAPScanner, SCAPBaseError, SCAPConnectionManager
 from ..config import get_settings
+from .base_scap_scanner import BaseSCAPScanner, SCAPBaseError, SCAPConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,7 @@ class SCAPScanner(BaseSCAPScanner):
 
         logger.info("SCAPScanner initialized with base scanner architecture")
 
-    def execute_local_scan(
-        self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None
-    ) -> Dict:
+    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
         """Execute SCAP scan on local system"""
         try:
             logger.info(f"Starting local scan: {scan_id}")
@@ -64,15 +62,11 @@ class SCAPScanner(BaseSCAPScanner):
             xml_result, html_report, arf_result = self.get_scan_file_paths(scan_dir)
 
             # Build oscap command using base class method
-            cmd = self.build_oscap_command(
-                profile_id, xml_result, html_report, arf_result, content_path, rule_id
-            )
+            cmd = self.build_oscap_command(profile_id, xml_result, html_report, arf_result, content_path, rule_id)
 
             logger.info(f"Executing: {' '.join(cmd)}")
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=1800  # 30 minutes timeout
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 minutes timeout
 
             # Parse results with content file for remediation extraction
             scan_results = self._parse_scan_results(str(xml_result), content_path)
@@ -198,9 +192,7 @@ class SCAPScanner(BaseSCAPScanner):
                 logger.info(f"Transferred SCAP content to remote host: {remote_content_path}")
             except Exception as e:
                 sftp.close()
-                raise ScanExecutionError(
-                    f"Failed to transfer SCAP content to remote host: {str(e)}"
-                )
+                raise ScanExecutionError(f"Failed to transfer SCAP content to remote host: {str(e)}")
 
             sftp.close()
 
@@ -346,9 +338,7 @@ class SCAPScanner(BaseSCAPScanner):
                     severity = rule_result.get("severity", "unknown")
 
                     # Extract remediation information from SCAP content
-                    remediation_info = self._extract_rule_remediation(
-                        rule_id, content_tree, namespaces
-                    )
+                    remediation_info = self._extract_rule_remediation(rule_id, content_tree, namespaces)
 
                     # Create detailed rule entry
                     rule_detail = {
@@ -382,9 +372,7 @@ class SCAPScanner(BaseSCAPScanner):
 
             # Calculate score
             if results["rules_total"] > 0:
-                results["score"] = (
-                    results["rules_passed"] / (results["rules_passed"] + results["rules_failed"])
-                ) * 100
+                results["score"] = (results["rules_passed"] / (results["rules_passed"] + results["rules_failed"])) * 100
 
             return results
 

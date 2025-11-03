@@ -7,21 +7,21 @@ Executes YAML-based compliance checks against Kubernetes/OpenShift clusters.
 
 import asyncio
 import json
-from typing import List, Dict, Any, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from .base_scanner import (
-    BaseScanner,
-    ScannerNotAvailableError,
-    ScannerExecutionError,
-    UnsupportedTargetError,
-)
 from ...models.scan_models import (
     RuleResult,
+    RuleResultStatus,
+    ScanResultSummary,
     ScanTarget,
     ScanTargetType,
-    ScanResultSummary,
-    RuleResultStatus,
+)
+from .base_scanner import (
+    BaseScanner,
+    ScannerExecutionError,
+    ScannerNotAvailableError,
+    UnsupportedTargetError,
 )
 
 logger = logging.getLogger(__name__)
@@ -223,9 +223,7 @@ class KubernetesScanner(BaseScanner):
                 scanner_type="kubernetes",
             )
 
-    async def _query_resource(
-        self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str
-    ) -> Any:
+    async def _query_resource(self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str) -> Any:
         """
         Query Kubernetes resource using kubectl and JSONPath
 

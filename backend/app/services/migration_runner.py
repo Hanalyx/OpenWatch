@@ -3,10 +3,11 @@ Automatic SQL Migration Runner
 Executes SQL migrations from backend/app/migrations directory on application startup
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 

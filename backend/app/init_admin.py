@@ -4,9 +4,10 @@ Simple admin user initialization script
 """
 import os
 import sys
-from sqlalchemy import create_engine, text
+
 from passlib.context import CryptContext
 from rbac import UserRole
+from sqlalchemy import create_engine, text
 
 # Database URL
 DATABASE_URL = os.getenv(

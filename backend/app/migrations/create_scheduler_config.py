@@ -3,15 +3,16 @@
 Database Migration: Create scheduler_config table
 Adds persistence for scheduler state across application restarts
 """
-import sys
 import os
+import sys
 
 # Add the app directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from sqlalchemy import create_engine, text
-from config import get_settings
 import logging
+
+from config import get_settings
+from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
 

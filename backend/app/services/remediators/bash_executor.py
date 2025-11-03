@@ -8,22 +8,22 @@ Supports variable expansion, script validation, and basic error handling.
 import asyncio
 import re
 import tempfile
-from pathlib import Path
-from typing import Dict, Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
+from backend.app.models.remediation_models import (
+    RemediationExecutionResult,
+    RemediationTarget,
+    ScanTargetType,
+)
 from backend.app.services.remediators.base_executor import (
     BaseRemediationExecutor,
     ExecutorCapability,
+    ExecutorExecutionError,
     ExecutorNotAvailableError,
     ExecutorValidationError,
-    ExecutorExecutionError,
     UnsupportedTargetError,
-)
-from backend.app.models.remediation_models import (
-    RemediationTarget,
-    RemediationExecutionResult,
-    ScanTargetType,
 )
 
 
@@ -96,9 +96,7 @@ class BashExecutor(BaseRemediationExecutor):
 
             try:
                 # Run bash -n (syntax check)
-                result = asyncio.run(
-                    self._run_command(["bash", "-n", script_file], timeout_seconds=10)
-                )
+                result = asyncio.run(self._run_command(["bash", "-n", script_file], timeout_seconds=10))
 
                 if result["exit_code"] != 0:
                     raise ExecutorValidationError(f"Script syntax error: {result['stderr']}")
@@ -147,9 +145,7 @@ class BashExecutor(BaseRemediationExecutor):
 
         # Check target type
         if not self.supports_target(target.type):
-            raise UnsupportedTargetError(
-                f"Bash executor does not support target type: {target.type}"
-            )
+            raise UnsupportedTargetError(f"Bash executor does not support target type: {target.type}")
 
         # Dry-run: only syntax validation
         if dry_run:
@@ -258,9 +254,7 @@ class BashExecutor(BaseRemediationExecutor):
 
             try:
                 # Execute
-                result = await self._run_command(
-                    ["bash", script_file], timeout_seconds=timeout_seconds
-                )
+                result = await self._run_command(["bash", script_file], timeout_seconds=timeout_seconds)
 
                 duration = (datetime.utcnow() - start_time).total_seconds()
 
@@ -272,9 +266,7 @@ class BashExecutor(BaseRemediationExecutor):
                     duration_seconds=duration,
                     changes_made=self._extract_changes(result["stdout"]),
                     error_message=(
-                        None
-                        if result["exit_code"] == 0
-                        else f"Script failed with exit code {result['exit_code']}"
+                        None if result["exit_code"] == 0 else f"Script failed with exit code {result['exit_code']}"
                     ),
                 )
 
@@ -353,9 +345,7 @@ class BashExecutor(BaseRemediationExecutor):
                 ssh_cmd.append("bash -s")
 
                 # Execute with script as stdin
-                result = await self._run_command_with_stdin(
-                    ssh_cmd, stdin=script, timeout_seconds=timeout_seconds
-                )
+                result = await self._run_command_with_stdin(ssh_cmd, stdin=script, timeout_seconds=timeout_seconds)
 
                 duration = (datetime.utcnow() - start_time).total_seconds()
 
@@ -452,9 +442,7 @@ class BashExecutor(BaseRemediationExecutor):
             await process.wait()
             raise
 
-    async def _run_command_with_stdin(
-        self, cmd: List[str], stdin: str, timeout_seconds: int = 300
-    ) -> Dict[str, any]:
+    async def _run_command_with_stdin(self, cmd: List[str], stdin: str, timeout_seconds: int = 300) -> Dict[str, any]:
         """
         Run command with stdin input.
 

@@ -6,16 +6,16 @@ and proper dependency injection (no global state).
 
 """
 
-import os
 import logging
+import os
 from typing import Optional
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from .config import EncryptionConfig, KDFAlgorithm
-from .exceptions import EncryptionError, DecryptionError, InvalidDataError
+from .exceptions import DecryptionError, EncryptionError, InvalidDataError
 
 logger = logging.getLogger(__name__)
 
@@ -229,9 +229,7 @@ class EncryptionService:
         return kdf.derive(self.master_key)
 
 
-def create_encryption_service(
-    master_key: str, config: Optional[EncryptionConfig] = None
-) -> EncryptionService:
+def create_encryption_service(master_key: str, config: Optional[EncryptionConfig] = None) -> EncryptionService:
     """
     Factory function to create an EncryptionService instance.
 

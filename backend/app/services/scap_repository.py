@@ -4,18 +4,19 @@ Handles automatic downloading and synchronization of SCAP content from various r
 """
 
 import asyncio
-import aiohttp
+import hashlib
+import json
 import logging
 import os
-import json
-import hashlib
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Set
-from dataclasses import dataclass
-from pathlib import Path
 import xml.etree.ElementTree as ET
-from sqlalchemy.orm import Session
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Set
+
+import aiohttp
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,7 @@ class SCAPRepositoryManager:
         for repo in default_repos:
             self.repositories[repo.id] = repo
 
-    async def sync_repositories(
-        self, db: Session, repository_ids: Optional[List[str]] = None
-    ) -> Dict[str, str]:
+    async def sync_repositories(self, db: Session, repository_ids: Optional[List[str]] = None) -> Dict[str, str]:
         """
         Synchronize content from repositories
         Returns dict of repository_id -> status
@@ -176,9 +175,7 @@ class SCAPRepositoryManager:
             logger.warning(f"Failed to fetch catalog for {repo.name}: {e}")
             return await self._discover_content(repo)
 
-    def _parse_catalog_data(
-        self, catalog_data: Dict, repo: RepositoryConfig
-    ) -> List[ContentMetadata]:
+    def _parse_catalog_data(self, catalog_data: Dict, repo: RepositoryConfig) -> List[ContentMetadata]:
         """Parse catalog JSON into ContentMetadata objects"""
         content_list = []
 
@@ -199,9 +196,7 @@ class SCAPRepositoryManager:
                 url=f"{repo.url}/{item['filename']}",
                 checksum=item.get("checksum", ""),
                 size_bytes=item.get("size_bytes", 0),
-                last_modified=datetime.fromisoformat(
-                    item.get("last_modified", datetime.utcnow().isoformat())
-                ),
+                last_modified=datetime.fromisoformat(item.get("last_modified", datetime.utcnow().isoformat())),
             )
             content_list.append(content_meta)
 
@@ -273,9 +268,7 @@ class SCAPRepositoryManager:
         # Mock Ubuntu content discovery
         return []
 
-    async def _get_existing_content(
-        self, db: Session, content_meta: ContentMetadata
-    ) -> Optional[Dict]:
+    async def _get_existing_content(self, db: Session, content_meta: ContentMetadata) -> Optional[Dict]:
         """Check if content already exists in database"""
         try:
             result = db.execute(
@@ -502,9 +495,7 @@ class SCAPRepositoryManager:
                 for repo in self.repositories.values()
             ],
             "sync_running": self.sync_running,
-            "last_global_sync": (
-                self.last_global_sync.isoformat() if self.last_global_sync else None
-            ),
+            "last_global_sync": (self.last_global_sync.isoformat() if self.last_global_sync else None),
         }
 
     def enable_repository(self, repo_id: str, enabled: bool = True):

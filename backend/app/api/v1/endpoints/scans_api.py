@@ -5,20 +5,21 @@ Scan Execution API Endpoints
 Provides REST API for executing and managing compliance scans.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClient
-from typing import List, Optional
 import logging
+from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
+from ....auth import get_current_user
 from ....models.scan_models import (
     ScanConfiguration,
     ScanResult,
     ScanStatus,
     ScanTargetType,
 )
-from ....services.scan_orchestrator_service import ScanOrchestrator
 from ....services.mongo_integration_service import get_mongo_service
-from ....auth import get_current_user
+from ....services.scan_orchestrator_service import ScanOrchestrator
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -138,9 +139,7 @@ async def list_scans(
         # Admins can see all scans
         started_by = None if current_user.get("role") == "admin" else current_user.get("username")
 
-        scans = await orchestrator.list_scans(
-            skip=skip, limit=limit, status=status, started_by=started_by
-        )
+        scans = await orchestrator.list_scans(skip=skip, limit=limit, status=status, started_by=started_by)
 
         return scans
 
@@ -222,9 +221,7 @@ async def get_scan_statistics(
                 "$group": {
                     "_id": None,
                     "total_scans": {"$sum": 1},
-                    "completed_scans": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
-                    },
+                    "completed_scans": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
                     "failed_scans": {"$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}},
                     "avg_compliance": {"$avg": "$summary.compliance_percentage"},
                     "total_rules_checked": {"$sum": "$summary.total_rules"},

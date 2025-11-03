@@ -3,13 +3,13 @@ SCAP XML Parser Service for OpenWatch
 Parses XCCDF rules from SCAP datastream files and prepares them for MongoDB import
 """
 
-import xml.etree.ElementTree as ET
 import hashlib
-import re
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
 import logging
+import re
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

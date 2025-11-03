@@ -11,21 +11,21 @@ def sanitize_for_log(value: any) -> str:
 System Settings API Routes
 Handles system-wide configuration including SSH credentials
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import List, Optional
-from pydantic import BaseModel
 import logging
 from datetime import datetime
+from typing import List, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
-from ..rbac import require_permission, Permission
-from ..encryption import EncryptionService, create_encryption_service
 from ..config import get_settings
-from ..services.unified_ssh_service import validate_ssh_key, format_validation_message
-from ..services.unified_ssh_service import extract_ssh_key_metadata
+from ..database import get_db
+from ..encryption import EncryptionService, create_encryption_service
+from ..rbac import Permission, require_permission
+from ..services.unified_ssh_service import extract_ssh_key_metadata, format_validation_message, validate_ssh_key
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
@@ -60,8 +60,7 @@ def decrypt_data(encrypted_data: str) -> bytes:
 def add_deprecation_headers(response: Response, endpoint: str, username: str):
     """Add deprecation warning headers and logging for legacy credential endpoints"""
     response.headers["X-Deprecation-Warning"] = (
-        "This endpoint is deprecated. Use /api/v2/credentials instead. "
-        "Removal scheduled: November 20, 2025"
+        "This endpoint is deprecated. Use /api/v2/credentials instead. " "Removal scheduled: November 20, 2025"
     )
     response.headers["X-Deprecation-Sunset"] = "2025-11-20T23:59:59Z"
 
@@ -125,9 +124,7 @@ async def list_system_credentials(
     Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
     """
     # Add deprecation warnings
-    add_deprecation_headers(
-        response, "/api/v1/system/credentials", current_user.get("username", "unknown")
-    )
+    add_deprecation_headers(response, "/api/v1/system/credentials", current_user.get("username", "unknown"))
 
     try:
 
@@ -187,9 +184,7 @@ async def create_system_credentials(
     Removal scheduled: November 20, 2025 (Week 3 of deprecation timeline)
     """
     # Add deprecation warnings
-    add_deprecation_headers(
-        response, "/api/v1/system/credentials", current_user.get("username", "unknown")
-    )
+    add_deprecation_headers(response, "/api/v1/system/credentials", current_user.get("username", "unknown"))
     try:
 
         # If setting as default, unset other defaults
@@ -235,9 +230,7 @@ async def create_system_credentials(
         ssh_key_comment = None
 
         if credentials.private_key:
-            metadata = extract_ssh_key_metadata(
-                credentials.private_key, credentials.private_key_passphrase
-            )
+            metadata = extract_ssh_key_metadata(credentials.private_key, credentials.private_key_passphrase)
             ssh_key_fingerprint = metadata.get("fingerprint")
             ssh_key_type = metadata.get("key_type")
             ssh_key_bits = int(metadata.get("key_bits")) if metadata.get("key_bits") else None
@@ -480,9 +473,7 @@ async def update_system_credentials(
         ssh_key_comment = None
 
         if credentials.private_key:
-            metadata = extract_ssh_key_metadata(
-                credentials.private_key, credentials.private_key_passphrase
-            )
+            metadata = extract_ssh_key_metadata(credentials.private_key, credentials.private_key_passphrase)
             ssh_key_fingerprint = metadata.get("fingerprint")
             ssh_key_type = metadata.get("key_type")
             ssh_key_bits = int(metadata.get("key_bits")) if metadata.get("key_bits") else None
@@ -519,9 +510,7 @@ async def update_system_credentials(
         # Handle encrypted fields
         if credentials.password is not None:
             updates.append("encrypted_password = :encrypted_password")
-            params["encrypted_password"] = (
-                encrypt_data(credentials.password.encode()) if credentials.password else None
-            )
+            params["encrypted_password"] = encrypt_data(credentials.password.encode()) if credentials.password else None
         if credentials.private_key is not None:
             updates.append("encrypted_private_key = :encrypted_private_key")
             params["encrypted_private_key"] = (
@@ -764,8 +753,9 @@ async def restore_scheduler_state():
     global scheduler_instance
 
     try:
-        from sqlalchemy.orm import sessionmaker
         from sqlalchemy import text
+        from sqlalchemy.orm import sessionmaker
+
         from ..database import engine
 
         # Create a session to check scheduler state
@@ -799,9 +789,11 @@ async def restore_scheduler_state():
                 interval_minutes = int(row.setting_value) if row else 5
 
                 # Start the scheduler
-                from apscheduler.schedulers.background import BackgroundScheduler
-                from ..tasks.monitoring_tasks import periodic_host_monitoring
                 import atexit
+
+                from apscheduler.schedulers.background import BackgroundScheduler
+
+                from ..tasks.monitoring_tasks import periodic_host_monitoring
 
                 scheduler_instance = BackgroundScheduler()
                 scheduler_instance.add_job(
@@ -814,13 +806,9 @@ async def restore_scheduler_state():
                 scheduler_instance.start()
 
                 # Shut down the scheduler when exiting the app
-                atexit.register(
-                    lambda: (scheduler_instance.shutdown() if scheduler_instance else None)
-                )
+                atexit.register(lambda: (scheduler_instance.shutdown() if scheduler_instance else None))
 
-                logger.info(
-                    f"Host monitoring scheduler restored (every {interval_minutes} minutes)"
-                )
+                logger.info(f"Host monitoring scheduler restored (every {interval_minutes} minutes)")
             else:
                 logger.info("Scheduler was not previously enabled, staying stopped")
 
@@ -877,9 +865,7 @@ class AlertSettingsResponse(AlertSettingsBase):
 
 
 @router.get("/scheduler", response_model=SchedulerSettings)
-async def get_scheduler_settings(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_scheduler_settings(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get current scheduler settings"""
     try:
         # global scheduler_instance  # Unused
@@ -998,9 +984,11 @@ async def start_scheduler(
             logger.warning(f"Failed to save scheduler settings to database: {db_error}")
 
         # Start new scheduler with custom interval
-        from apscheduler.schedulers.background import BackgroundScheduler
-        from ..tasks.monitoring_tasks import periodic_host_monitoring
         import atexit
+
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        from ..tasks.monitoring_tasks import periodic_host_monitoring
 
         scheduler_instance = BackgroundScheduler()
         scheduler_instance.add_job(
@@ -1016,9 +1004,7 @@ async def start_scheduler(
         atexit.register(lambda: scheduler_instance.shutdown() if scheduler_instance else None)
 
         logger.info(f"Host monitoring scheduler started (every {request.interval_minutes} minutes)")
-        return {
-            "message": f"Scheduler started successfully (every {request.interval_minutes} minutes)"
-        }
+        return {"message": f"Scheduler started successfully (every {request.interval_minutes} minutes)"}
 
     except Exception as e:
         logger.error(f"Error starting scheduler: {e}")
@@ -1027,9 +1013,7 @@ async def start_scheduler(
 
 @router.post("/scheduler/stop")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def stop_scheduler(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def stop_scheduler(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Stop the host monitoring scheduler"""
     try:
         global scheduler_instance
@@ -1104,9 +1088,11 @@ async def update_scheduler_settings(
             scheduler_instance = None
 
             # Start with new interval
-            from apscheduler.schedulers.background import BackgroundScheduler
-            from ..tasks.monitoring_tasks import periodic_host_monitoring
             import atexit
+
+            from apscheduler.schedulers.background import BackgroundScheduler
+
+            from ..tasks.monitoring_tasks import periodic_host_monitoring
 
             scheduler_instance = BackgroundScheduler()
             scheduler_instance.add_job(
@@ -1119,9 +1105,7 @@ async def update_scheduler_settings(
             scheduler_instance.start()
 
             atexit.register(lambda: scheduler_instance.shutdown() if scheduler_instance else None)
-            logger.info(
-                f"Scheduler restarted with new interval: {request.interval_minutes} minutes"
-            )
+            logger.info(f"Scheduler restarted with new interval: {request.interval_minutes} minutes")
 
         return SchedulerSettings(
             enabled=was_running,
@@ -1137,9 +1121,7 @@ async def update_scheduler_settings(
 # Alert Settings endpoints
 @router.get("/alerts", response_model=List[AlertSettingsResponse])
 @require_permission(Permission.SYSTEM_CONFIG)
-async def list_alert_settings(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_alert_settings(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all alert settings for the current user"""
     try:
         user_id = current_user.get("id")
@@ -1228,9 +1210,7 @@ async def create_alert_settings(
         setting_id = result.fetchone().id
         db.commit()
 
-        logger.info(
-            f"Created/updated alert settings for {alert_settings.alert_type} (ID: {setting_id})"
-        )
+        logger.info(f"Created/updated alert settings for {alert_settings.alert_type} (ID: {setting_id})")
 
         return AlertSettingsResponse(
             id=setting_id,

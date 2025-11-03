@@ -3,10 +3,11 @@ Group Compliance Scanning Schemas
 Pydantic models for group compliance scanning API requests and responses
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class ComplianceFramework(str, Enum):
@@ -45,21 +46,11 @@ class RemediationMode(str, Enum):
 class GroupComplianceScanRequest(BaseModel):
     """Request schema for starting group compliance scan"""
 
-    scap_content_id: Optional[int] = Field(
-        None, description="SCAP content ID (uses group default if not specified)"
-    )
-    profile_id: Optional[str] = Field(
-        None, description="Compliance profile ID (uses group default if not specified)"
-    )
-    compliance_framework: Optional[ComplianceFramework] = Field(
-        None, description="Target compliance framework"
-    )
-    remediation_mode: RemediationMode = Field(
-        RemediationMode.REPORT_ONLY, description="Remediation handling mode"
-    )
-    scan_options: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Additional scan options"
-    )
+    scap_content_id: Optional[int] = Field(None, description="SCAP content ID (uses group default if not specified)")
+    profile_id: Optional[str] = Field(None, description="Compliance profile ID (uses group default if not specified)")
+    compliance_framework: Optional[ComplianceFramework] = Field(None, description="Target compliance framework")
+    remediation_mode: RemediationMode = Field(RemediationMode.REPORT_ONLY, description="Remediation handling mode")
+    scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional scan options")
     email_notifications: bool = Field(False, description="Send email notifications on completion")
     generate_reports: bool = Field(True, description="Generate compliance reports")
     concurrent_scans: int = Field(5, ge=1, le=20, description="Maximum concurrent scans")
@@ -73,9 +64,7 @@ class GroupScanScheduleRequest(BaseModel):
     cron_expression: str = Field(..., description="Cron expression for schedule")
     scap_content_id: int = Field(..., description="SCAP content ID for scheduled scans")
     profile_id: str = Field(..., description="Compliance profile ID")
-    compliance_framework: ComplianceFramework = Field(
-        ..., description="Target compliance framework"
-    )
+    compliance_framework: ComplianceFramework = Field(..., description="Target compliance framework")
     scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict)
     email_notifications: bool = Field(True, description="Send notifications for scheduled scans")
 

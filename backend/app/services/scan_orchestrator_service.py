@@ -7,18 +7,19 @@ Routes rules to appropriate scanners and aggregates results.
 """
 
 import asyncio
-import uuid
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone
-from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from ..models.scan_models import (
+    RuleResult,
     ScanConfiguration,
     ScanResult,
-    ScanStatus,
-    RuleResult,
     ScanResultSummary,
+    ScanStatus,
 )
 from .scanners import ScannerFactory
 
@@ -62,9 +63,7 @@ class ScanOrchestrator:
         # Generate scan ID
         scan_id = str(uuid.uuid4())
 
-        logger.info(
-            f"Starting scan {scan_id}: framework={config.framework}, target={config.target.identifier}"
-        )
+        logger.info(f"Starting scan {scan_id}: framework={config.framework}, target={config.target.identifier}")
 
         # Create initial scan result record
         scan_result = ScanResult(
@@ -100,9 +99,7 @@ class ScanOrchestrator:
             # 3. Execute scanners in parallel
             scanner_tasks = []
             for scanner_type, scanner_rules in rules_by_scanner.items():
-                task = self._execute_scanner(
-                    scanner_type=scanner_type, rules=scanner_rules, config=config
-                )
+                task = self._execute_scanner(scanner_type=scanner_type, rules=scanner_rules, config=config)
                 scanner_tasks.append(task)
 
             # Wait for all scanners to complete
@@ -123,9 +120,7 @@ class ScanOrchestrator:
                 else:
                     rule_results, summary, version = result
                     all_rule_results.extend(rule_results)
-                    scanner_type = (
-                        rule_results[0].scanner_type if rule_results else f"scanner_{idx}"
-                    )
+                    scanner_type = rule_results[0].scanner_type if rule_results else f"scanner_{idx}"
                     scanner_versions[scanner_type] = version
 
             # 5. Calculate overall summary
@@ -134,9 +129,7 @@ class ScanOrchestrator:
             # 6. Update scan result
             scan_result.status = ScanStatus.COMPLETED
             scan_result.completed_at = datetime.now(timezone.utc)
-            scan_result.duration_seconds = (
-                scan_result.completed_at - scan_result.started_at
-            ).total_seconds()
+            scan_result.duration_seconds = (scan_result.completed_at - scan_result.started_at).total_seconds()
             scan_result.summary = overall_summary
             scan_result.results_by_rule = all_rule_results
             scan_result.scanner_versions = scanner_versions

@@ -5,16 +5,17 @@ Provides endpoints for configuring and controlling the adaptive Celery-based
 host monitoring scheduler.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import Optional, Dict
-from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
+from typing import Dict, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
-from ..rbac import require_permission, Permission
+from ..database import get_db
+from ..rbac import Permission, require_permission
 from ..services.adaptive_scheduler_service import adaptive_scheduler_service
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,7 @@ class IntervalConfig(BaseModel):
     degraded: int = Field(default=5, ge=1, le=15, description="Partial connectivity check interval")
     critical: int = Field(default=2, ge=1, le=10, description="Severe issues check interval")
     down: int = Field(default=30, ge=10, le=120, description="Completely down check interval")
-    maintenance: int = Field(
-        default=60, ge=15, le=1440, description="Maintenance mode check interval"
-    )
+    maintenance: int = Field(default=60, ge=15, le=1440, description="Maintenance mode check interval")
 
 
 class PriorityConfig(BaseModel):
@@ -83,9 +82,7 @@ class SchedulerStatsResponse(BaseModel):
 
 
 @router.get("/config", response_model=SchedulerConfigResponse)
-async def get_scheduler_config(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_scheduler_config(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Get current adaptive scheduler configuration.
 
@@ -166,9 +163,7 @@ async def update_scheduler_config(
 
 @router.post("/start")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def start_scheduler(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def start_scheduler(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Enable the adaptive monitoring scheduler.
 
@@ -198,9 +193,7 @@ async def start_scheduler(
 
 @router.post("/stop")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def stop_scheduler(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def stop_scheduler(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Disable the adaptive monitoring scheduler.
 
@@ -227,9 +220,7 @@ async def stop_scheduler(
 
 
 @router.get("/stats", response_model=SchedulerStatsResponse)
-async def get_scheduler_stats(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_scheduler_stats(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Get real-time scheduler statistics.
 
@@ -259,9 +250,7 @@ async def get_scheduler_stats(
 
 @router.post("/reset-defaults")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def reset_to_defaults(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def reset_to_defaults(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Reset scheduler configuration to default values.
 

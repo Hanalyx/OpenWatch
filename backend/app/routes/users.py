@@ -3,25 +3,26 @@ User Management API Routes
 Handles user CRUD operations with role-based access control
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import List, Optional
-from pydantic import BaseModel, EmailStr
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import List, Optional
 
-from ..database import get_db
-from ..utils.logging_security import sanitize_id_for_log
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user, pwd_context
+from ..database import get_db
 from ..rbac import (
+    Permission,
+    RBACManager,
+    UserRole,
+    require_admin,
     require_permission,
     require_super_admin,
-    require_admin,
-    Permission,
-    UserRole,
-    RBACManager,
 )
+from ..utils.logging_security import sanitize_id_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -332,9 +333,7 @@ async def update_user(
     """Update user (admin only, or users can update themselves)"""
     try:
         # Check if user exists
-        result = db.execute(
-            text("SELECT id, role FROM users WHERE id = :user_id"), {"user_id": user_id}
-        )
+        result = db.execute(text("SELECT id, role FROM users WHERE id = :user_id"), {"user_id": user_id})
         existing_user = result.fetchone()
         if not existing_user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -417,9 +416,7 @@ async def delete_user(
             raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
         # Check if user exists
-        result = db.execute(
-            text("SELECT username FROM users WHERE id = :user_id"), {"user_id": user_id}
-        )
+        result = db.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": user_id})
         user = result.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -503,9 +500,7 @@ async def change_password(
 
 
 @router.get("/me/profile", response_model=UserResponse)
-async def get_my_profile(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
-):
+async def get_my_profile(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get current user's profile"""
     return await get_user(current_user.get("id"), current_user, db)
 

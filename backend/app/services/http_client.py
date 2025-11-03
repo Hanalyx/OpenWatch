@@ -4,13 +4,13 @@ Centralized HTTP client for OpenWatch with exponential backoff, circuit breaker,
 """
 
 import asyncio
+import logging
 import time
-from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
-import logging
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -71,10 +71,7 @@ class CircuitBreaker:
             return True
         elif self.state == CircuitBreakerState.OPEN:
             # Check if enough time has passed to try half-open
-            if (
-                self.last_failure_time
-                and time.time() - self.last_failure_time >= self.config.recovery_timeout
-            ):
+            if self.last_failure_time and time.time() - self.last_failure_time >= self.config.recovery_timeout:
                 self.state = CircuitBreakerState.HALF_OPEN
                 self.success_count = 0
                 logger.info("Circuit breaker transitioning to half-open")
@@ -99,10 +96,7 @@ class CircuitBreaker:
         self.failure_count += 1
         self.last_failure_time = time.time()
 
-        if (
-            self.state == CircuitBreakerState.CLOSED
-            and self.failure_count >= self.config.failure_threshold
-        ):
+        if self.state == CircuitBreakerState.CLOSED and self.failure_count >= self.config.failure_threshold:
             self.state = CircuitBreakerState.OPEN
             logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
         elif self.state == CircuitBreakerState.HALF_OPEN:
@@ -304,9 +298,7 @@ class WebhookHttpClient(HttpClient):
             user_agent="OpenWatch-Webhook/1.0",
         )
 
-    async def deliver_webhook(
-        self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> httpx.Response:
+    async def deliver_webhook(self, url: str, payload: Dict[str, Any], headers: Dict[str, str]) -> httpx.Response:
         """Deliver webhook with specialized handling"""
         import json
 

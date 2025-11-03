@@ -3,14 +3,14 @@ BSON Parser Service for Compliance Rules
 Handles Binary JSON parsing and validation for compliance rule uploads
 """
 
-import bson
-from bson import decode, encode, BSON
-from bson.errors import InvalidBSON
-from bson import ObjectId, Binary, Decimal128
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import bson
+from bson import BSON, Binary, Decimal128, ObjectId, decode, encode
+from bson.errors import InvalidBSON
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,7 @@ class BSONParserService:
                 raise BSONParsingError(f"BSON file is empty: {file_path.name}")
 
             if file_size > self.MAX_BSON_SIZE:
-                raise BSONParsingError(
-                    f"BSON file too large: {file_size:,} bytes " f"(max: {self.MAX_BSON_SIZE:,})"
-                )
+                raise BSONParsingError(f"BSON file too large: {file_size:,} bytes " f"(max: {self.MAX_BSON_SIZE:,})")
 
             # Read BSON data
             with open(file_path, "rb") as f:
@@ -72,9 +70,7 @@ class BSONParserService:
 
             # Validate basic structure
             if not isinstance(decoded, dict):
-                raise BSONParsingError(
-                    f"BSON file did not decode to dictionary: {type(decoded).__name__}"
-                )
+                raise BSONParsingError(f"BSON file did not decode to dictionary: {type(decoded).__name__}")
 
             # Convert BSON-specific types to Python types
             normalized = self._normalize_bson_types(decoded)
@@ -117,17 +113,14 @@ class BSONParserService:
 
             if file_size > self.MAX_RULE_FILE_SIZE:
                 raise BSONParsingError(
-                    f"JSON file too large: {file_size:,} bytes "
-                    f"(max: {self.MAX_RULE_FILE_SIZE:,})"
+                    f"JSON file too large: {file_size:,} bytes " f"(max: {self.MAX_RULE_FILE_SIZE:,})"
                 )
 
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
-                raise BSONParsingError(
-                    f"JSON file did not decode to dictionary: {type(data).__name__}"
-                )
+                raise BSONParsingError(f"JSON file did not decode to dictionary: {type(data).__name__}")
 
             logger.debug(f"Successfully parsed JSON file: {file_path.name}")
             self.parsed_rules_count += 1
@@ -168,14 +161,10 @@ class BSONParserService:
 
         # Validate field types
         if not isinstance(manifest["name"], str):
-            raise BSONParsingError(
-                f"Manifest 'name' must be string, got {type(manifest['name']).__name__}"
-            )
+            raise BSONParsingError(f"Manifest 'name' must be string, got {type(manifest['name']).__name__}")
 
         if not isinstance(manifest["version"], str):
-            raise BSONParsingError(
-                f"Manifest 'version' must be string, got {type(manifest['version']).__name__}"
-            )
+            raise BSONParsingError(f"Manifest 'version' must be string, got {type(manifest['version']).__name__}")
 
         if not isinstance(manifest["rules_count"], int):
             raise BSONParsingError(
@@ -185,17 +174,13 @@ class BSONParserService:
         # Convert created_at to datetime if string
         if isinstance(manifest["created_at"], str):
             try:
-                manifest["created_at"] = datetime.fromisoformat(
-                    manifest["created_at"].replace("Z", "+00:00")
-                )
+                manifest["created_at"] = datetime.fromisoformat(manifest["created_at"].replace("Z", "+00:00"))
             except ValueError as e:
                 raise BSONParsingError(f"Invalid created_at format: {str(e)}")
         elif not isinstance(manifest["created_at"], datetime):
             raise BSONParsingError(f"Manifest 'created_at' must be datetime or ISO string")
 
-        logger.info(
-            f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)"
-        )
+        logger.info(f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)")
 
         return manifest
 
@@ -224,21 +209,15 @@ class BSONParserService:
         # Convert created_at to datetime if string
         if isinstance(manifest["created_at"], str):
             try:
-                manifest["created_at"] = datetime.fromisoformat(
-                    manifest["created_at"].replace("Z", "+00:00")
-                )
+                manifest["created_at"] = datetime.fromisoformat(manifest["created_at"].replace("Z", "+00:00"))
             except ValueError as e:
                 raise BSONParsingError(f"Invalid created_at format: {str(e)}")
 
-        logger.info(
-            f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)"
-        )
+        logger.info(f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)")
 
         return manifest
 
-    async def parse_all_rule_files(
-        self, extracted_path: Path, max_rules: int = 10000
-    ) -> List[Dict[str, Any]]:
+    async def parse_all_rule_files(self, extracted_path: Path, max_rules: int = 10000) -> List[Dict[str, Any]]:
         """
         Parse all rule files (.bson and .json) in directory
 
@@ -266,9 +245,7 @@ class BSONParserService:
 
         # Check rule count limit
         if len(all_files) > max_rules:
-            raise BSONParsingError(
-                f"Archive contains {len(all_files)} rule files (max: {max_rules})"
-            )
+            raise BSONParsingError(f"Archive contains {len(all_files)} rule files (max: {max_rules})")
 
         if len(all_files) == 0:
             raise BSONParsingError("Archive contains no rule files")
@@ -299,9 +276,7 @@ class BSONParserService:
                 rules.append(rule_data)
 
             except BSONParsingError as e:
-                self.parsing_errors.append(
-                    {"file": str(file_path.name), "error": str(e), "severity": "error"}
-                )
+                self.parsing_errors.append({"file": str(file_path.name), "error": str(e), "severity": "error"})
                 logger.error(f"Failed to parse {file_path.name}: {e}")
 
             except Exception as e:
@@ -315,9 +290,7 @@ class BSONParserService:
                 logger.error(f"Unexpected error parsing {file_path.name}: {e}")
 
         # Log summary
-        logger.info(
-            f"Parsed {len(rules)} rules successfully, " f"{len(self.parsing_errors)} errors"
-        )
+        logger.info(f"Parsed {len(rules)} rules successfully, " f"{len(self.parsing_errors)} errors")
 
         if self.parsing_errors:
             logger.warning(f"Parsing errors: {self.parsing_errors}")

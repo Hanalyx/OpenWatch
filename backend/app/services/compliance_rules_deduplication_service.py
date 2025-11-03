@@ -5,10 +5,10 @@ Detects content changes and updates only modified rules
 
 import hashlib
 import json
-from typing import Dict, Any, Tuple, List, Union, Optional
-from datetime import datetime
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..models.mongo_models import ComplianceRule
 
@@ -118,10 +118,7 @@ class SmartDeduplicationService:
             existing_hash = self.calculate_content_hash(existing_rule)
             new_hash = self.calculate_content_hash(rule_data)
 
-            logger.debug(
-                f"Hash comparison for {rule_id}: "
-                f"existing={existing_hash[:16]}..., new={new_hash[:16]}..."
-            )
+            logger.debug(f"Hash comparison for {rule_id}: " f"existing={existing_hash[:16]}..., new={new_hash[:16]}...")
 
             if existing_hash == new_hash:
                 # No changes - skip
@@ -149,8 +146,7 @@ class SmartDeduplicationService:
                 )
 
             logger.warning(
-                f"Rule {rule_id} marked as updated - {len(changes)} fields changed: "
-                f"{list(changes.keys())[:5]}"
+                f"Rule {rule_id} marked as updated - {len(changes)} fields changed: " f"{list(changes.keys())[:5]}"
             )
 
             # Update field statistics
@@ -266,9 +262,7 @@ class SmartDeduplicationService:
                 raise ValueError(f"Cannot hash type: {type(rule)}")
 
             # Remove excluded fields (metadata, versioning, computed)
-            normalized = {
-                k: v for k, v in sorted(rule_dict.items()) if k not in self.EXCLUDED_FROM_HASH
-            }
+            normalized = {k: v for k, v in sorted(rule_dict.items()) if k not in self.EXCLUDED_FROM_HASH}
 
             # Remove merge-specific metadata from source field
             if "source" in normalized and isinstance(normalized["source"], dict):
@@ -528,8 +522,7 @@ class SmartDeduplicationService:
                 new_value = change["new"]
                 setattr(existing_rule, field, new_value)
                 logger.debug(
-                    f"Updated {existing_rule.rule_id}.{field}: "
-                    f"{change['type']} - {change.get('old')} → {new_value}"
+                    f"Updated {existing_rule.rule_id}.{field}: " f"{change['type']} - {change.get('old')} → {new_value}"
                 )
 
             # Always update these metadata fields
@@ -599,9 +592,7 @@ class SmartDeduplicationService:
                 else "N/A"
             ),
             "field_change_breakdown": stats["field_changes"],
-            "most_changed_categories": sorted(
-                stats["field_changes"].items(), key=lambda x: x[1], reverse=True
-            )[
+            "most_changed_categories": sorted(stats["field_changes"].items(), key=lambda x: x[1], reverse=True)[
                 :5
             ],  # Top 5 most changed categories
         }

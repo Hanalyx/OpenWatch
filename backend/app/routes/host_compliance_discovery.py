@@ -4,17 +4,17 @@ Provides endpoints for discovering compliance infrastructure and tooling on host
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from ..database import get_db, Host
 from ..auth import get_current_user
-from ..services.host_compliance_discovery import HostComplianceDiscoveryService
+from ..database import Host, get_db
 from ..rbac import check_permission
+from ..services.host_compliance_discovery import HostComplianceDiscoveryService
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +92,7 @@ async def discover_host_compliance_infrastructure(
         discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         logger.info(
             f"Compliance discovery completed for host {host.hostname}: "
@@ -170,9 +168,7 @@ async def bulk_discover_compliance_infrastructure(
             discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = ComplianceDiscoveryResponse(**discovery_results)
 
@@ -315,9 +311,7 @@ async def get_supported_compliance_frameworks(current_user=Depends(get_current_u
     return frameworks
 
 
-def _assess_compliance_capabilities(
-    host: Host, discovery_results: Dict[str, Any]
-) -> ComplianceCapabilityAssessment:
+def _assess_compliance_capabilities(host: Host, discovery_results: Dict[str, Any]) -> ComplianceCapabilityAssessment:
     """Assess host's compliance capabilities based on discovery results"""
 
     # Assess SCAP capability

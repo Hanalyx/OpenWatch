@@ -5,25 +5,26 @@ API endpoints for managing security policies, SSH key validation rules,
 and FIPS compliance settings.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
-from ..rbac import require_permission, Permission
-from ..services.security_config import (
-    SecurityConfigManager,
-    ConfigScope,
-    get_security_config_manager,
-)
+from ..database import get_db
+from ..rbac import Permission, require_permission
 from ..services.credential_validation import (
-    SecurityPolicyLevel,
     SecurityPolicyConfig,
+    SecurityPolicyLevel,
     get_credential_validator,
+)
+from ..services.security_config import (
+    ConfigScope,
+    SecurityConfigManager,
+    get_security_config_manager,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,9 +157,7 @@ async def update_security_config(
         )
 
         if success:
-            logger.info(
-                f"Security config updated by {current_user.get('username')} for {scope.value}:{target_id}"
-            )
+            logger.info(f"Security config updated by {current_user.get('username')} for {scope.value}:{target_id}")
             return {"message": "Security configuration updated successfully"}
         else:
             raise HTTPException(status_code=500, detail="Failed to update security configuration")
@@ -198,9 +197,7 @@ async def apply_security_template(
             )
             return {"message": f"Template '{template_name}' applied successfully"}
         else:
-            raise HTTPException(
-                status_code=400, detail=f"Failed to apply template '{template_name}'"
-            )
+            raise HTTPException(status_code=400, detail=f"Failed to apply template '{template_name}'")
 
     except HTTPException:
         raise
@@ -210,9 +207,7 @@ async def apply_security_template(
 
 
 @router.get("/templates", response_model=List[TemplateResponse])
-async def list_security_templates(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_security_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     List all available security configuration templates.
     """
@@ -247,9 +242,7 @@ async def validate_ssh_key(
     try:
         # Get effective configuration for the target
         config_manager = get_security_config_manager(db)
-        effective_config = config_manager.get_effective_config(
-            request.target_id, request.target_type
-        )
+        effective_config = config_manager.get_effective_config(request.target_id, request.target_type)
 
         # Create validator with effective configuration
         validator = get_credential_validator(
@@ -324,9 +317,7 @@ async def audit_credential(
 
 @router.get("/compliance/summary")
 @require_permission(Permission.AUDIT_READ)
-async def get_compliance_summary(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_compliance_summary(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Get system-wide compliance summary.
     """

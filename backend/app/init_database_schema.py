@@ -8,9 +8,11 @@ Critical for first-run experience when users clone the repo and run start-openwa
 """
 
 import logging
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from .database import engine, SessionLocal, Base
+
+from .database import Base, SessionLocal, engine
 
 # Import all models to ensure they're registered with Base.metadata
 from .models.system_models import SystemSettings  # noqa: F401

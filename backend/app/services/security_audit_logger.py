@@ -3,14 +3,15 @@ OpenWatch Security Audit Logger
 Handles secure logging of sensitive error information for audit purposes
 """
 
-import logging
-import json
 import hashlib
-from typing import Dict, Any, Optional, List
+import json
+import logging
 from datetime import datetime
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
-from ..models.error_models import SecurityAuditLog, ErrorSeverity
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from ..models.error_models import ErrorSeverity, SecurityAuditLog
 
 
 class SecurityAuditLogger:

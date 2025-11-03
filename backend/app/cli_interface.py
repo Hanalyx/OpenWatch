@@ -9,18 +9,16 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 # Add the backend app to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from services.scap_cli_scanner import SCAPCLIScanner, CLIScannerError
 from config import get_settings
+from services.scap_cli_scanner import CLIScannerError, SCAPCLIScanner
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -69,9 +67,7 @@ class OpenWatchCLI:
             if rule_id:
                 print(f"[OpenWatch] Scanning specific rule: {rule_id}")
 
-            result = await self.scanner.scan_single_host(
-                host_config, profile_id, content_path, rule_id
-            )
+            result = await self.scanner.scan_single_host(host_config, profile_id, content_path, rule_id)
 
             # Display results
             self._print_scan_result(result)
@@ -245,15 +241,11 @@ Examples:
 
     # Remote scan command
     remote_parser = subparsers.add_parser("scan-remote", help="Execute remote SCAP scan")
-    remote_parser.add_argument(
-        "--targets", "-t", required=True, help="Comma-separated list of target hosts"
-    )
+    remote_parser.add_argument("--targets", "-t", required=True, help="Comma-separated list of target hosts")
     remote_parser.add_argument("--profile", "-p", required=True, help="SCAP profile ID")
     remote_parser.add_argument("--content", "-c", help="SCAP content file path")
     remote_parser.add_argument("--rule", "-r", help="Specific rule ID to scan")
-    remote_parser.add_argument(
-        "--parallel", type=int, default=5, help="Max parallel scans (default: 5)"
-    )
+    remote_parser.add_argument("--parallel", type=int, default=5, help="Max parallel scans (default: 5)")
     remote_parser.add_argument("--output", "-o", help="Output file for results (JSON)")
 
     # List profiles command

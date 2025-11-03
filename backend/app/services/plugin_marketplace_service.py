@@ -7,29 +7,29 @@ Supports discovery, installation, updates, and management of plugins from variou
 """
 
 import asyncio
-import logging
-import uuid
-import aiohttp
 import hashlib
 import json
-import tempfile
-import zipfile
+import logging
 import shutil
-from typing import Dict, List, Optional, Any, Tuple, Set
+import tempfile
+import uuid
+import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import urljoin, urlparse
+
+import aiohttp
 import semver
-from urllib.parse import urlparse, urljoin
-
-from pydantic import BaseModel, Field, validator, HttpUrl
 from beanie import Document
+from pydantic import BaseModel, Field, HttpUrl, validator
 
-from ..models.plugin_models import InstalledPlugin, PluginStatus, PluginManifest
-from .plugin_registry_service import PluginRegistryService
-from .plugin_lifecycle_service import PluginLifecycleService
+from ..models.plugin_models import InstalledPlugin, PluginManifest, PluginStatus
 from .plugin_governance_service import PluginGovernanceService
+from .plugin_lifecycle_service import PluginLifecycleService
+from .plugin_registry_service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 
@@ -398,16 +398,12 @@ class PluginMarketplaceService:
                 logger.error(f"Search failed for marketplace {marketplace_id}: {e}")
 
         # Sort results by marketplace priority
-        search_results.sort(
-            key=lambda r: self.marketplaces[r.marketplace_id].priority, reverse=True
-        )
+        search_results.sort(key=lambda r: self.marketplaces[r.marketplace_id].priority, reverse=True)
 
         logger.info(f"Search completed across {len(search_results)} marketplaces")
         return search_results
 
-    async def get_plugin_details(
-        self, marketplace_id: str, plugin_id: str
-    ) -> Optional[MarketplacePlugin]:
+    async def get_plugin_details(self, marketplace_id: str, plugin_id: str) -> Optional[MarketplacePlugin]:
         """Get detailed information about a specific plugin"""
 
         marketplace = self.marketplaces.get(marketplace_id)
@@ -455,9 +451,7 @@ class PluginMarketplaceService:
         logger.info(f"Started plugin installation: {plugin_id} from {marketplace_id}")
         return installation
 
-    async def get_installation_status(
-        self, installation_id: str
-    ) -> Optional[PluginInstallationResult]:
+    async def get_installation_status(self, installation_id: str) -> Optional[PluginInstallationResult]:
         """Get installation status"""
 
         # Check active installations first
@@ -494,10 +488,7 @@ class PluginMarketplaceService:
         unique_plugins = {}
         for plugin in all_plugins:
             key = f"{plugin.name}_{plugin.author}"
-            if (
-                key not in unique_plugins
-                or plugin.rating_average > unique_plugins[key].rating_average
-            ):
+            if key not in unique_plugins or plugin.rating_average > unique_plugins[key].rating_average:
                 unique_plugins[key] = plugin
 
         sorted_plugins = sorted(
@@ -529,9 +520,7 @@ class PluginMarketplaceService:
         """Submit a rating/review for a plugin"""
 
         try:
-            success = await self._submit_rating_to_marketplace(
-                marketplace_id, plugin_id, rating, review_text, user_id
-            )
+            success = await self._submit_rating_to_marketplace(marketplace_id, plugin_id, rating, review_text, user_id)
 
             if success:
                 logger.info(f"Submitted rating {rating} for plugin {plugin_id}")
@@ -571,9 +560,7 @@ class PluginMarketplaceService:
             plugins = [await self.plugin_registry_service.get_plugin(plugin_id)]
             plugins = [p for p in plugins if p is not None]
         else:
-            plugins = await self.plugin_registry_service.find_plugins(
-                {"status": PluginStatus.ACTIVE}
-            )
+            plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
 
         for plugin in plugins:
             try:
@@ -710,10 +697,7 @@ class PluginMarketplaceService:
         cache_key = f"{marketplace_id}_{hash(str(query.dict()))}"
         if cache_key in self.search_cache:
             cached_result = self.search_cache[cache_key]
-            if (
-                datetime.utcnow() - cached_result.search_time_ms
-                < self.cache_ttl.total_seconds() * 1000
-            ):
+            if datetime.utcnow() - cached_result.search_time_ms < self.cache_ttl.total_seconds() * 1000:
                 cached_result.cached_result = True
                 return cached_result
 
@@ -802,16 +786,10 @@ class PluginMarketplaceService:
                             marketplace_url=repo["html_url"],
                             repository_url=repo["clone_url"],
                             download_count=repo["stargazers_count"],
-                            published_at=datetime.fromisoformat(
-                                repo["created_at"].replace("Z", "+00:00")
-                            ),
-                            last_updated=datetime.fromisoformat(
-                                repo["updated_at"].replace("Z", "+00:00")
-                            ),
+                            published_at=datetime.fromisoformat(repo["created_at"].replace("Z", "+00:00")),
+                            last_updated=datetime.fromisoformat(repo["updated_at"].replace("Z", "+00:00")),
                             license=(
-                                repo.get("license", {}).get("name", "Unknown")
-                                if repo.get("license")
-                                else "Unknown"
+                                repo.get("license", {}).get("name", "Unknown") if repo.get("license") else "Unknown"
                             ),
                         )
                         plugins.append(plugin)
@@ -897,9 +875,7 @@ class PluginMarketplaceService:
 
             # Download plugin
             plugin_package = await self._download_plugin(plugin_details, request.version)
-            installation.download_url = (
-                str(plugin_details.download_url) if plugin_details.download_url else None
-            )
+            installation.download_url = str(plugin_details.download_url) if plugin_details.download_url else None
             installation.download_size_bytes = len(plugin_package) if plugin_package else 0
             installation.progress = 50.0
             await installation.save()
@@ -926,9 +902,7 @@ class PluginMarketplaceService:
 
             # Install plugin
             installation.status = "installing"
-            installed_plugin = await self._install_plugin_package(
-                plugin_package, plugin_details, request
-            )
+            installed_plugin = await self._install_plugin_package(plugin_package, plugin_details, request)
 
             installation.status = "completed"
             installation.success = True
@@ -945,18 +919,14 @@ class PluginMarketplaceService:
         finally:
             installation.completed_at = datetime.utcnow()
             if installation.started_at:
-                installation.duration_seconds = (
-                    installation.completed_at - installation.started_at
-                ).total_seconds()
+                installation.duration_seconds = (installation.completed_at - installation.started_at).total_seconds()
 
             await installation.save()
 
             # Remove from active installations
             self.active_installations.pop(installation.installation_id, None)
 
-            logger.info(
-                f"Plugin installation completed: {installation.installation_id} - {installation.status}"
-            )
+            logger.info(f"Plugin installation completed: {installation.installation_id} - {installation.status}")
 
     async def _fetch_plugin_details(
         self, marketplace: MarketplaceConfig, plugin_id: str
@@ -1045,9 +1015,7 @@ class PluginMarketplaceService:
 
         return verification_result
 
-    async def _check_installation_governance(
-        self, plugin_details: MarketplacePlugin
-    ) -> Dict[str, Any]:
+    async def _check_installation_governance(self, plugin_details: MarketplacePlugin) -> Dict[str, Any]:
         """Check plugin installation against governance policies"""
 
         governance_result = {
@@ -1155,16 +1123,12 @@ class PluginMarketplaceService:
             logger.error(f"Marketplace sync failed for {marketplace.name}: {e}")
             return False
 
-    async def _fetch_official_catalog(
-        self, marketplace: MarketplaceConfig
-    ) -> List[MarketplacePlugin]:
+    async def _fetch_official_catalog(self, marketplace: MarketplaceConfig) -> List[MarketplacePlugin]:
         """Fetch plugin catalog from official marketplace"""
         # In production, would make API calls to official marketplace
         return []
 
-    async def _fetch_github_catalog(
-        self, marketplace: MarketplaceConfig
-    ) -> List[MarketplacePlugin]:
+    async def _fetch_github_catalog(self, marketplace: MarketplaceConfig) -> List[MarketplacePlugin]:
         """Fetch plugin catalog from GitHub"""
         # In production, would search GitHub for OpenWatch plugins
         return []
@@ -1189,9 +1153,7 @@ class PluginMarketplaceService:
 
         return cached_plugins[:limit]
 
-    async def _fetch_plugin_ratings(
-        self, marketplace_id: str, plugin_id: str
-    ) -> List[PluginRating]:
+    async def _fetch_plugin_ratings(self, marketplace_id: str, plugin_id: str) -> List[PluginRating]:
         """Fetch ratings for a plugin from marketplace"""
 
         # In production, would fetch from marketplace API
@@ -1276,11 +1238,7 @@ class PluginMarketplaceService:
                 "total": total_installations,
                 "successful": successful_installations,
                 "failed": failed_installations,
-                "success_rate": (
-                    successful_installations / total_installations
-                    if total_installations > 0
-                    else 0.0
-                ),
+                "success_rate": (successful_installations / total_installations if total_installations > 0 else 0.0),
                 "active": active_installations,
             },
             "sync": {

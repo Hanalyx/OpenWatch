@@ -6,16 +6,15 @@ Executors are responsible for executing remediation content (Ansible playbooks,
 Bash scripts, Terraform modules, etc.) against target systems.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Optional, List
-from enum import Enum
 import logging
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Dict, List, Optional
 
 from backend.app.models.remediation_models import (
-    RemediationTarget,
     RemediationExecutionResult,
+    RemediationTarget,
 )
-
 
 logger = logging.getLogger(__name__)
 

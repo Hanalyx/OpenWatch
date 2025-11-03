@@ -5,16 +5,17 @@ Background tasks for scheduled and batch compliance scanning
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from backend.app.celery_app import celery_app
-from backend.app.database import get_db_session, HostGroup, ScapContent
+from backend.app.database import HostGroup, ScapContent, get_db_session
+from backend.app.routes.group_compliance import execute_group_compliance_scan
 
 # GroupScanService removed - using group_compliance API instead
 from backend.app.services.scap_scanner import SCAPScanner
-from backend.app.routes.group_compliance import execute_group_compliance_scan
 
 
 @celery_app.task(bind=True, name="backend.app.tasks.scheduled_group_scan")
@@ -29,11 +30,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
         # Get database session
         with get_db_session() as db:
             # Verify group still exists and has auto-scan enabled
-            group = (
-                db.query(HostGroup)
-                .filter(HostGroup.id == group_id, HostGroup.auto_scan_enabled == True)
-                .first()
-            )
+            group = db.query(HostGroup).filter(HostGroup.id == group_id, HostGroup.auto_scan_enabled == True).first()
 
             if not group:
                 self.retry(countdown=300, max_retries=3)  # Retry after 5 minutes
@@ -109,9 +106,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
             db.commit()
 
             # Execute the scan asynchronously
-            execute_compliance_scan_async.delay(
-                session_id, group_id, [dict(host) for host in hosts], session_config
-            )
+            execute_compliance_scan_async.delay(session_id, group_id, [dict(host) for host in hosts], session_config)
 
             print(f"Scheduled compliance scan started for group {group_id}, session: {session_id}")
 
@@ -122,9 +117,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
 
 
 @celery_app.task(bind=True, name="backend.app.tasks.execute_compliance_scan_async")
-def execute_compliance_scan_async(
-    self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]
-):
+def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: List[Dict], config: Dict[str, Any]):
     """
     Execute compliance scan asynchronously
     """
@@ -305,9 +298,7 @@ def send_compliance_notification(session_id: str, group_id: int, summary: Dict[s
                 "group_name": session_info.group_name,
                 "timestamp": datetime.utcnow().isoformat(),
                 "summary": summary,
-                "compliance_framework": json.loads(session_info.scan_config or "{}").get(
-                    "compliance_framework"
-                ),
+                "compliance_framework": json.loads(session_info.scan_config or "{}").get("compliance_framework"),
                 "total_hosts": session_info.total_hosts,
                 "status": session_info.status,
             }
@@ -376,9 +367,7 @@ def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
         print(f"Failed to generate compliance report for group {group_id}: {str(e)}")
 
 
-def generate_compliance_report_data(
-    db: Session, group_id: int, config: Dict[str, Any]
-) -> Dict[str, Any]:
+def generate_compliance_report_data(db: Session, group_id: int, config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate compliance report data from database
     """

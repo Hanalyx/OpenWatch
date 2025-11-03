@@ -3,28 +3,28 @@ System Settings API Routes - Unified Credentials Version
 Updated to use the unified credentials system while maintaining API compatibility
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import List, Optional
-from pydantic import BaseModel
-import logging
-from datetime import datetime
 import hashlib
+import logging
 import uuid
+from datetime import datetime
+from typing import List, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
-from ..rbac import require_permission, Permission
+from ..database import get_db
+from ..rbac import Permission, require_permission
 from ..services.auth_service import (
-    get_auth_service,
+    AuthMethod,
     CredentialData,
     CredentialMetadata,
     CredentialScope,
-    AuthMethod,
+    get_auth_service,
 )
-from ..services.unified_ssh_service import validate_ssh_key, format_validation_message
-from ..services.unified_ssh_service import extract_ssh_key_metadata
+from ..services.unified_ssh_service import extract_ssh_key_metadata, format_validation_message, validate_ssh_key
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
@@ -100,9 +100,7 @@ def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
 
 @router.get("/credentials", response_model=List[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
-async def list_system_credentials(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_system_credentials(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all system credentials using unified credentials system"""
     try:
         auth_service = get_auth_service(db)
@@ -156,9 +154,7 @@ async def create_system_credential(
         # Validate auth method
         valid_methods = ["ssh_key", "password", "both"]
         if credential.auth_method not in valid_methods:
-            logger.error(
-                f"Invalid auth method '{credential.auth_method}', valid methods: {valid_methods}"
-            )
+            logger.error(f"Invalid auth method '{credential.auth_method}', valid methods: {valid_methods}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid auth method. Must be one of: {valid_methods}",
@@ -221,9 +217,7 @@ async def create_system_credential(
         # Extract SSH key metadata if we have a private key
         ssh_metadata = {}
         if credential.private_key:
-            ssh_metadata = extract_ssh_key_metadata(
-                credential.private_key, credential.private_key_passphrase
-            )
+            ssh_metadata = extract_ssh_key_metadata(credential.private_key, credential.private_key_passphrase)
 
         current_time = datetime.now().isoformat()
 
@@ -239,15 +233,11 @@ async def create_system_credential(
             updated_at=current_time,
             ssh_key_fingerprint=ssh_metadata.get("fingerprint"),
             ssh_key_type=ssh_metadata.get("key_type"),
-            ssh_key_bits=(
-                int(ssh_metadata.get("key_bits")) if ssh_metadata.get("key_bits") else None
-            ),
+            ssh_key_bits=(int(ssh_metadata.get("key_bits")) if ssh_metadata.get("key_bits") else None),
             ssh_key_comment=ssh_metadata.get("key_comment"),
         )
 
-        logger.info(
-            f"Created system credential '{credential.name}' with unified ID: {credential_id}"
-        )
+        logger.info(f"Created system credential '{credential.name}' with unified ID: {credential_id}")
         return response
 
     except HTTPException as http_ex:
@@ -282,9 +272,7 @@ async def get_system_credential(
 
         credential = next((c for c in credentials_list if c["id"] == uuid_id), None)
         if not credential:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found")
 
         return SystemCredentialsResponse(
             id=credential_id,  # Use original external ID
@@ -314,9 +302,7 @@ async def get_system_credential(
 
 @router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
-async def get_default_system_credential(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_default_system_credential(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get default system credential"""
     try:
         auth_service = get_auth_service(db)
@@ -372,9 +358,7 @@ async def update_system_credential(
         # Get existing credential
         existing_cred = next((c for c in credentials_list if c["id"] == uuid_id), None)
         if not existing_cred:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found")
 
         # For unified credentials, we need to create a new credential and deactivate old one
         # This is because the unified system doesn't support in-place updates yet
@@ -385,9 +369,7 @@ async def update_system_credential(
         updated_username = credential_update.username or existing_cred["username"]
         updated_auth_method = credential_update.auth_method or existing_cred["auth_method"]
         updated_is_default = (
-            credential_update.is_default
-            if credential_update.is_default is not None
-            else existing_cred["is_default"]
+            credential_update.is_default if credential_update.is_default is not None else existing_cred["is_default"]
         )
 
         # Validate auth method
@@ -493,9 +475,7 @@ async def update_system_credential(
             ssh_key_comment=updated_cred["ssh_key_comment"],
         )
 
-        logger.info(
-            f"Updated system credential '{updated_name}' with new unified ID: {new_credential_id}"
-        )
+        logger.info(f"Updated system credential '{updated_name}' with new unified ID: {new_credential_id}")
         return response
 
     except HTTPException:
@@ -530,9 +510,7 @@ async def delete_system_credential(
                 detail="Credential not found or already deleted",
             )
 
-        logger.info(
-            f"Deleted system credential with external ID: {credential_id} (unified ID: {uuid_id})"
-        )
+        logger.info(f"Deleted system credential with external ID: {credential_id} (unified ID: {uuid_id})")
         return {"message": "Credential deleted successfully"}
 
     except HTTPException:
@@ -600,9 +578,7 @@ async def get_scheduler_status(current_user: dict = Depends(get_current_user)):
                         {
                             "id": job.id,
                             "name": job.name,
-                            "next_run": (
-                                job.next_run_time.isoformat() if job.next_run_time else None
-                            ),
+                            "next_run": (job.next_run_time.isoformat() if job.next_run_time else None),
                             "trigger": str(job.trigger),
                         }
                     )
@@ -638,9 +614,7 @@ async def get_scheduler_status(current_user: dict = Depends(get_current_user)):
 
 @router.post("/scheduler/start")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def start_scheduler(
-    request: SchedulerStartRequest, current_user: dict = Depends(get_current_user)
-):
+async def start_scheduler(request: SchedulerStartRequest, current_user: dict = Depends(get_current_user)):
     """Start the monitoring scheduler"""
     try:
         global _scheduler, _scheduler_interval
@@ -760,9 +734,7 @@ async def stop_scheduler(current_user: dict = Depends(get_current_user)):
             except Exception as db_error:
                 logger.warning(f"Failed to update scheduler database state: {db_error}")
 
-            logger.info(
-                f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}"
-            )
+            logger.info(f"Host monitoring scheduler stopped by user {current_user.get('username', 'unknown')}")
 
             return {"message": "Scheduler stopped successfully", "status": "stopped"}
         else:
@@ -778,9 +750,7 @@ async def stop_scheduler(current_user: dict = Depends(get_current_user)):
 
 @router.put("/scheduler")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def update_scheduler(
-    request: SchedulerUpdateRequest, current_user: dict = Depends(get_current_user)
-):
+async def update_scheduler(request: SchedulerUpdateRequest, current_user: dict = Depends(get_current_user)):
     """Update scheduler settings"""
     try:
         global _scheduler_interval
@@ -874,9 +844,7 @@ def restore_scheduler_state():
 
             if config:
                 _scheduler_interval = config.interval_minutes
-                logger.info(
-                    f"Setting global scheduler interval to {_scheduler_interval} minutes from database"
-                )
+                logger.info(f"Setting global scheduler interval to {_scheduler_interval} minutes from database")
 
                 if config.enabled and config.auto_start:
                     logger.info(
@@ -909,9 +877,7 @@ def restore_scheduler_state():
                             name="Host Monitoring Queue Producer",
                             replace_existing=True,
                         )
-                        logger.info(
-                            f"Added new monitoring queue producer with {_scheduler_interval} minute interval"
-                        )
+                        logger.info(f"Added new monitoring queue producer with {_scheduler_interval} minute interval")
 
                         # Add daily credential purge job (90-day retention policy)
                         from ..tasks.monitoring_tasks import periodic_credential_purge
@@ -944,9 +910,7 @@ def restore_scheduler_state():
                             f"Host monitoring scheduler auto-started with {_scheduler_interval} minute interval"
                         )
                     else:
-                        logger.info(
-                            "Scheduler initialized but not auto-started (already running or failed to create)"
-                        )
+                        logger.info("Scheduler initialized but not auto-started (already running or failed to create)")
                 else:
                     logger.info("Scheduler configured but auto-start disabled or not enabled")
             else:

@@ -4,17 +4,17 @@ Provides endpoints for discovering security infrastructure on hosts
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from ..database import get_db, Host
 from ..auth import get_current_user
-from ..services.host_security_discovery import HostSecurityDiscoveryService
+from ..database import Host, get_db
 from ..rbac import check_permission
+from ..services.host_security_discovery import HostSecurityDiscoveryService
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +78,7 @@ async def discover_host_security_infrastructure(
         discovery_results = security_service.discover_security_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         logger.info(
             f"Security discovery completed for host {host.hostname}: "
@@ -156,9 +154,7 @@ async def bulk_discover_security_infrastructure(
             discovery_results = security_service.discover_security_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = SecurityDiscoveryResponse(**discovery_results)
 
@@ -224,9 +220,7 @@ async def get_host_security_summary(
             "os_family": host.os_family,
             "os_version": host.os_version,
             "architecture": host.architecture,
-            "last_os_detection": (
-                host.last_os_detection.isoformat() if host.last_os_detection else None
-            ),
+            "last_os_detection": (host.last_os_detection.isoformat() if host.last_os_detection else None),
             "auth_method": host.auth_method,
             "security_recommendations": [],
         }

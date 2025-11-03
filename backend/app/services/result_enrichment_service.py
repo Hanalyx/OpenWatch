@@ -4,18 +4,18 @@ Enhances SCAP scan results with MongoDB rule intelligence and compliance framewo
 """
 
 import asyncio
+import json
 import logging
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-import json
-import re
+from typing import Any, Dict, List, Optional, Tuple
 
-from .mongo_integration_service import get_mongo_service, MongoIntegrationService
-from .rule_service import RuleService
-from ..models.mongo_models import ComplianceRule, RuleIntelligence, RemediationScript
 from ..config import get_settings
+from ..models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from .mongo_integration_service import MongoIntegrationService, get_mongo_service
+from .rule_service import RuleService
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,7 @@ class ResultEnrichmentService:
             logger.error(f"Failed to initialize Result Enrichment Service: {e}")
             raise ScanResultEnrichmentError(f"Service initialization failed: {str(e)}")
 
-    async def enrich_scan_results(
-        self, result_file_path: str, scan_metadata: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
+    async def enrich_scan_results(self, result_file_path: str, scan_metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Main method to enrich SCAP scan results with MongoDB intelligence
 
@@ -94,14 +92,10 @@ class ResultEnrichmentService:
             remediation_guidance = await self._generate_remediation_guidance(rule_results)
 
             # Calculate compliance scores
-            compliance_scores = await self._calculate_compliance_scores(
-                rule_results, framework_mapping
-            )
+            compliance_scores = await self._calculate_compliance_scores(rule_results, framework_mapping)
 
             # Generate executive summary
-            executive_summary = await self._generate_executive_summary(
-                rule_results, compliance_scores, scan_metadata
-            )
+            executive_summary = await self._generate_executive_summary(rule_results, compliance_scores, scan_metadata)
 
             # Compile enriched results
             enriched_results = {
@@ -115,9 +109,7 @@ class ResultEnrichmentService:
                 "remediation_guidance": remediation_guidance,
                 "compliance_scores": compliance_scores,
                 "executive_summary": executive_summary,
-                "enrichment_stats": await self._calculate_enrichment_stats(
-                    rule_results, intelligence_data
-                ),
+                "enrichment_stats": await self._calculate_enrichment_stats(rule_results, intelligence_data),
             }
 
             # Update service statistics
@@ -188,9 +180,7 @@ class ResultEnrichmentService:
             logger.error(f"Failed to extract rule results: {e}")
             return []
 
-    async def _extract_check_content(
-        self, rule_elem: ET.Element, namespaces: Dict[str, str]
-    ) -> Dict[str, Any]:
+    async def _extract_check_content(self, rule_elem: ET.Element, namespaces: Dict[str, str]) -> Dict[str, Any]:
         """Extract check information from rule element"""
         check_content = {}
 
@@ -217,9 +207,7 @@ class ResultEnrichmentService:
 
         return check_content
 
-    async def _extract_fix_content(
-        self, rule_elem: ET.Element, namespaces: Dict[str, str]
-    ) -> Dict[str, Any]:
+    async def _extract_fix_content(self, rule_elem: ET.Element, namespaces: Dict[str, str]) -> Dict[str, Any]:
         """Extract fix/remediation information from rule element"""
         fix_content = {}
 
@@ -331,9 +319,7 @@ class ResultEnrichmentService:
                                             fw_mapping["controls"][control]["status"] = "compliant"
                                         elif rule_status == "fail":
                                             fw_mapping["controls"][control]["failed"] += 1
-                                            fw_mapping["controls"][control][
-                                                "status"
-                                            ] = "non_compliant"
+                                            fw_mapping["controls"][control]["status"] = "non_compliant"
 
                 except Exception as e:
                     logger.warning(f"Failed to get framework mapping for rule {rule_id}: {e}")
@@ -344,9 +330,7 @@ class ResultEnrichmentService:
                 total_controls = len(fw_data["controls"])
                 if total_controls > 0:
                     compliant_controls = sum(
-                        1
-                        for control in fw_data["controls"].values()
-                        if control["status"] == "compliant"
+                        1 for control in fw_data["controls"].values() if control["status"] == "compliant"
                     )
                     fw_data["coverage"] = total_controls  # This would need baseline data
                     fw_data["compliance_rate"] = (compliant_controls / total_controls) * 100
@@ -356,9 +340,7 @@ class ResultEnrichmentService:
 
         return framework_mapping
 
-    async def _generate_remediation_guidance(
-        self, rule_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    async def _generate_remediation_guidance(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate remediation guidance for failed rules"""
         remediation_guidance = {
             "critical_failures": [],
@@ -387,21 +369,15 @@ class ResultEnrichmentService:
                                 "remediation_scripts": scripts,
                                 "automated_available": len(scripts) > 0,
                                 "estimated_time": self._estimate_remediation_time(scripts),
-                                "risk_level": rule_data.get("rule", {}).get(
-                                    "remediation_risk", "medium"
-                                ),
+                                "risk_level": rule_data.get("rule", {}).get("remediation_risk", "medium"),
                             }
 
                             # Categorize by severity
                             if severity == "high":
                                 if any(script.get("approved", False) for script in scripts):
-                                    remediation_guidance["automated_fixes_available"].append(
-                                        guidance_item
-                                    )
+                                    remediation_guidance["automated_fixes_available"].append(guidance_item)
                                 else:
-                                    remediation_guidance["manual_intervention_required"].append(
-                                        guidance_item
-                                    )
+                                    remediation_guidance["manual_intervention_required"].append(guidance_item)
                                 remediation_guidance["high_priority"].append(guidance_item)
                             elif severity == "medium":
                                 remediation_guidance["medium_priority"].append(guidance_item)
@@ -409,9 +385,7 @@ class ResultEnrichmentService:
                                 remediation_guidance["low_priority"].append(guidance_item)
 
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to get remediation guidance for rule {rule_id}: {e}"
-                        )
+                        logger.warning(f"Failed to get remediation guidance for rule {rule_id}: {e}")
                         continue
 
         except Exception as e:
@@ -531,8 +505,7 @@ class ResultEnrichmentService:
             "recommendation": self._generate_recommendation(compliance_scores["overall"]["score"]),
             "top_priority_fixes": [rule["rule_id"] for rule in high_severity_failures[:5]],
             "framework_compliance": {
-                name: data["compliance_rate"]
-                for name, data in compliance_scores["by_framework"].items()
+                name: data["compliance_rate"] for name, data in compliance_scores["by_framework"].items()
             },
         }
 
@@ -549,9 +522,7 @@ class ResultEnrichmentService:
         elif overall_score >= 60:
             return "Below average compliance. Immediate attention required for high and medium severity issues."
         else:
-            return (
-                "Poor compliance posture. Urgent remediation required across all severity levels."
-            )
+            return "Poor compliance posture. Urgent remediation required across all severity levels."
 
     async def _calculate_enrichment_stats(
         self, rule_results: List[Dict[str, Any]], intelligence_data: Dict[str, Any]
@@ -560,9 +531,7 @@ class ResultEnrichmentService:
         return {
             "rules_processed": len(rule_results),
             "rules_enriched": len(intelligence_data),
-            "enrichment_coverage": (
-                (len(intelligence_data) / len(rule_results) * 100) if rule_results else 0
-            ),
+            "enrichment_coverage": ((len(intelligence_data) / len(rule_results) * 100) if rule_results else 0),
             "mongodb_data_available": sum(
                 1
                 for data in intelligence_data.values()
@@ -583,12 +552,10 @@ class ResultEnrichmentService:
             self.enrichment_stats["failed_enrichments"] += 1
 
         # Update average enrichment time
-        total_time = self.enrichment_stats["avg_enrichment_time"] * (
-            self.enrichment_stats["total_enrichments"] - 1
-        )
-        self.enrichment_stats["avg_enrichment_time"] = (
-            total_time + enrichment_time
-        ) / self.enrichment_stats["total_enrichments"]
+        total_time = self.enrichment_stats["avg_enrichment_time"] * (self.enrichment_stats["total_enrichments"] - 1)
+        self.enrichment_stats["avg_enrichment_time"] = (total_time + enrichment_time) / self.enrichment_stats[
+            "total_enrichments"
+        ]
 
     async def get_enrichment_statistics(self) -> Dict[str, Any]:
         """Get service performance statistics"""

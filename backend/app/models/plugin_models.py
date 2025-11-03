@@ -3,14 +3,15 @@ Plugin Models for OpenWatch
 Secure plugin management with comprehensive validation and tracking
 """
 
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
-from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
 import hashlib
 import json
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
 from beanie import Document, Indexed
-from pymongo import IndexModel, ASCENDING
+from pydantic import BaseModel, Field, root_validator, validator
+from pymongo import ASCENDING, IndexModel
 
 
 class PluginType(str, Enum):
@@ -107,9 +108,7 @@ class PluginManifest(BaseModel):
     requirements: Dict[str, str] = Field(default_factory=dict)
 
     # Configuration schema
-    config_schema: Optional[Dict[str, Any]] = Field(
-        None, description="JSON Schema for configuration"
-    )
+    config_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema for configuration")
     default_config: Dict[str, Any] = Field(default_factory=dict)
 
     @validator("platforms")
@@ -138,9 +137,7 @@ class PluginExecutor(BaseModel):
 
     type: PluginCapability
     entry_point: str = Field(..., description="Main execution entry point")
-    templates: Dict[str, str] = Field(
-        default_factory=dict, description="Platform-specific templates"
-    )
+    templates: Dict[str, str] = Field(default_factory=dict, description="Platform-specific templates")
     resource_limits: Dict[str, Union[str, int]] = Field(
         default_factory=lambda: {
             "cpu": "0.5",
@@ -179,9 +176,7 @@ class PluginPackage(BaseModel):
         hasher.update(json.dumps(self.manifest.dict(), sort_keys=True).encode())
 
         # Hash executors
-        hasher.update(
-            json.dumps({k: v.dict() for k, v in self.executors.items()}, sort_keys=True).encode()
-        )
+        hasher.update(json.dumps({k: v.dict() for k, v in self.executors.items()}, sort_keys=True).encode())
 
         # Hash files in deterministic order
         for path in sorted(self.files.keys()):
@@ -227,9 +222,7 @@ class InstalledPlugin(Document):
     files: Dict[str, str] = Field(..., description="Stored file contents")
 
     # Configuration
-    user_config: Dict[str, Any] = Field(
-        default_factory=dict, description="User configuration overrides"
-    )
+    user_config: Dict[str, Any] = Field(default_factory=dict, description="User configuration overrides")
     enabled_platforms: List[str] = Field(default_factory=list)
 
     # Usage tracking
@@ -277,9 +270,7 @@ class InstalledPlugin(Document):
         critical_failures = sum(
             1 for check in self.security_checks if not check.passed and check.severity == "critical"
         )
-        high_failures = sum(
-            1 for check in self.security_checks if not check.passed and check.severity == "high"
-        )
+        high_failures = sum(1 for check in self.security_checks if not check.passed and check.severity == "high")
 
         # Risk calculation
         risk = (critical_failures * 25) + (high_failures * 10)

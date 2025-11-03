@@ -3,19 +3,20 @@ AEGIS Remediation Callback Routes
 Handles remediation completion notifications from AEGIS
 """
 
-from fastapi import APIRouter, HTTPException, Header, Request, status, Depends
-from pydantic import BaseModel, Field, UUID4
-from typing import List, Optional, Dict
-from datetime import datetime
-import logging
 import json
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional
 
-from ..database import get_db, Scan, Host
-from ..services.webhook_security import verify_webhook_signature
-from ..config import get_settings
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import UUID4, BaseModel, Field
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
 from ..audit_db import log_audit_event
+from ..config import get_settings
+from ..database import Host, Scan, get_db
+from ..services.webhook_security import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -58,9 +59,7 @@ async def handle_remediation_callback(
     signature = x_openwatch_signature or x_hub_signature_256
     if not signature:
         logger.warning("Remediation callback received without signature")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature")
 
     # Get webhook secret from environment (AEGIS integration not currently implemented)
     # When AEGIS integration is activated, webhook_secret should be configured in settings
@@ -80,9 +79,7 @@ async def handle_remediation_callback(
 
     if not verify_webhook_signature(body.decode(), webhook_secret, signature):
         logger.error("Invalid webhook signature for remediation callback")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 
     try:
         # Find the original scan
@@ -97,9 +94,7 @@ async def handle_remediation_callback(
 
         # Verify host matches
         if str(scan.host_id) != str(callback.openwatch_host_id):
-            logger.error(
-                f"Host mismatch in remediation callback: {scan.host_id} != {callback.openwatch_host_id}"
-            )
+            logger.error(f"Host mismatch in remediation callback: {scan.host_id} != {callback.openwatch_host_id}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host ID mismatch")
 
         # Update scan with remediation information

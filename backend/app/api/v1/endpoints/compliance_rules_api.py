@@ -3,22 +3,23 @@ Direct MongoDB Compliance Rules API for Frontend
 Simplified API endpoints that connect directly to MongoDB for compliance rules
 """
 
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Query, Depends, status
-from pydantic import BaseModel, Field
+import logging
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from collections import defaultdict
-import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 try:
-    from ....services.mongo_integration_service import (
-        get_mongo_service,
-        MongoIntegrationService,
-    )
+    from ....config import get_settings
     from ....models.mongo_models import ComplianceRule
     from ....repositories import ComplianceRuleRepository
-    from ....config import get_settings
+    from ....services.mongo_integration_service import (
+        MongoIntegrationService,
+        get_mongo_service,
+    )
 
     MONGO_AVAILABLE = True
 except ImportError:
@@ -164,15 +165,11 @@ async def get_compliance_rules(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(25, ge=1, le=100, description="Number of rules to return"),
     framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
-    severity: Optional[str] = Query(
-        None, description="Filter by severity (high, medium, low, info)"
-    ),
+    severity: Optional[str] = Query(None, description="Filter by severity (high, medium, low, info)"),
     category: Optional[str] = Query(None, description="Filter by category"),
     platform: Optional[str] = Query(None, description="Filter by platform (rhel, ubuntu)"),
     search: Optional[str] = Query(None, description="Search in rule name, description, or ID"),
-    view_mode: Optional[str] = Query(
-        None, description="Special view mode: 'platform_statistics' for platform stats"
-    ),
+    view_mode: Optional[str] = Query(None, description="Special view mode: 'platform_statistics' for platform stats"),
     mongo_service: MongoIntegrationService = Depends(get_mongo_service),
 ):
     """
@@ -190,9 +187,7 @@ async def get_compliance_rules(
                     message=f"Retrieved statistics for {result.get('total_platforms', 0)} platforms",
                 )
             except Exception as e:
-                logger.warning(
-                    f"MongoDB platform statistics failed, using converted rules fallback: {e}"
-                )
+                logger.warning(f"MongoDB platform statistics failed, using converted rules fallback: {e}")
                 # Fallback to analyzing converted rules directly
                 result = await get_platform_statistics_from_files()
                 return ComplianceRulesListResponse(
@@ -457,15 +452,11 @@ async def get_compliance_rules(
                 filtered_rules = [rule for rule in filtered_rules if rule["category"] == category]
 
             if framework:
-                filtered_rules = [
-                    rule for rule in filtered_rules if framework in rule.get("frameworks", {})
-                ]
+                filtered_rules = [rule for rule in filtered_rules if framework in rule.get("frameworks", {})]
 
             if platform:
                 filtered_rules = [
-                    rule
-                    for rule in filtered_rules
-                    if platform in rule.get("platform_implementations", {})
+                    rule for rule in filtered_rules if platform in rule.get("platform_implementations", {})
                 ]
 
             # Apply pagination
@@ -489,9 +480,7 @@ async def get_compliance_rules(
                 tags=rule_dict.get("tags", []),
                 frameworks=rule_dict.get("frameworks", {}),
                 platform_implementations=rule_dict.get("platform_implementations", {}),
-                dependencies=rule_dict.get(
-                    "dependencies", {"requires": [], "conflicts": [], "related": []}
-                ),
+                dependencies=rule_dict.get("dependencies", {"requires": [], "conflicts": [], "related": []}),
                 created_at=(
                     rule_dict.get("created_at", datetime.utcnow()).isoformat()
                     if isinstance(rule_dict.get("created_at"), datetime)
@@ -729,9 +718,7 @@ async def get_semantic_rules_for_scan(
 
 
 @router.get("/{rule_id}", response_model=ComplianceRulesListResponse)
-async def get_compliance_rule_detail(
-    rule_id: str, mongo_service: MongoIntegrationService = Depends(get_mongo_service)
-):
+async def get_compliance_rule_detail(rule_id: str, mongo_service: MongoIntegrationService = Depends(get_mongo_service)):
     """
     Get detailed information for a specific compliance rule from MongoDB
     """
@@ -814,8 +801,7 @@ async def get_available_frameworks():
         }
 
         frameworks_with_display = [
-            {"value": fw, "label": framework_display_map.get(fw, fw.upper())}
-            for fw in frameworks_list
+            {"value": fw, "label": framework_display_map.get(fw, fw.upper())} for fw in frameworks_list
         ]
 
         logger.info(f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB")

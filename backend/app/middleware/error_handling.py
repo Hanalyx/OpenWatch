@@ -3,15 +3,16 @@ Comprehensive API Error Handling Middleware for OpenWatch
 Provides standardized error responses, logging, and monitoring
 """
 
+import logging
 import traceback
 import uuid
-from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from fastapi import Request, HTTPException, status
+from typing import Any, Dict, List, Optional
+
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field
-import logging
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -263,9 +264,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         if "timeout" in exc_name:
             return status.HTTP_504_GATEWAY_TIMEOUT
 
-        if any(
-            service_type in exc_name for service_type in ["connection", "service", "unavailable"]
-        ):
+        if any(service_type in exc_name for service_type in ["connection", "service", "unavailable"]):
             return status.HTTP_503_SERVICE_UNAVAILABLE
 
         # Default to internal server error
@@ -418,9 +417,7 @@ def raise_not_found_error(resource: str, identifier: Optional[str] = None):
     )
 
 
-def raise_service_error(
-    message: str, service: Optional[str] = None, retry_after: Optional[int] = None
-):
+def raise_service_error(message: str, service: Optional[str] = None, retry_after: Optional[int] = None):
     """Raise standardized service error"""
     headers = {}
     if retry_after:
@@ -438,9 +435,7 @@ def raise_service_error(
     )
 
 
-def raise_authorization_error(
-    message: str = "Insufficient permissions", required_permission: Optional[str] = None
-):
+def raise_authorization_error(message: str = "Insufficient permissions", required_permission: Optional[str] = None):
     """Raise standardized authorization error"""
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

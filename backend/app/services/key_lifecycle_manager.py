@@ -3,17 +3,18 @@ RSA Key Lifecycle Management Service for OpenWatch
 FIPS-compliant JWT signing key rotation and management
 """
 
-import os
 import logging
+import os
 import secrets
-from pathlib import Path
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
 from enum import Enum
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from ..config import get_settings
 
@@ -103,9 +104,7 @@ class RSAKeyLifecycleManager:
         hash_bytes = digest.finalize()
         return hash_bytes.hex()[:32]
 
-    def generate_rsa_key_pair(
-        self, key_size: int = None
-    ) -> Tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
+    def generate_rsa_key_pair(self, key_size: int = None) -> Tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
         """
         Generate FIPS-compliant RSA key pair
 
@@ -242,9 +241,7 @@ class RSAKeyLifecycleManager:
                 return None
 
             with open(private_key_path, "rb") as f:
-                private_key = serialization.load_pem_private_key(
-                    f.read(), password=None, backend=default_backend()
-                )
+                private_key = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())
 
             return private_key
 

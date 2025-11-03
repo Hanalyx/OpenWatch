@@ -4,10 +4,10 @@ Handles MongoDB connections, data operations, and testing
 OW-REFACTOR-002: Migrating to Repository Pattern
 """
 
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import asyncio
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 try:
     from beanie import PydanticObjectId
@@ -18,11 +18,11 @@ except ImportError:
 try:
     from ..models.mongo_models import (
         ComplianceRule,
-        RuleIntelligence,
-        RemediationScript,
-        MongoManager,
         FrameworkVersions,
+        MongoManager,
         PlatformImplementation,
+        RemediationScript,
+        RuleIntelligence,
         get_mongo_manager,
     )
 
@@ -263,15 +263,11 @@ fi
 
         # OW-REFACTOR-002: Use Repository Pattern if enabled
         if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})"
-            )
+            logger.info(f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})")
             repo = ComplianceRuleRepository()
             rules = await repo.find_many(query)
         else:
-            logger.debug(
-                f"Using direct MongoDB find for query_rules_by_platform ({platform} {version})"
-            )
+            logger.debug(f"Using direct MongoDB find for query_rules_by_platform ({platform} {version})")
             rules = await ComplianceRule.find(query).to_list()
 
         logger.info(f"Found {len(rules)} rules for {platform} {version}")
@@ -292,15 +288,11 @@ fi
 
         # OW-REFACTOR-002: Use Repository Pattern if enabled
         if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})"
-            )
+            logger.info(f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})")
             repo = ComplianceRuleRepository()
             rules = await repo.find_many(query)
         else:
-            logger.debug(
-                f"Using direct MongoDB find for query_rules_by_framework ({framework} {version})"
-            )
+            logger.debug(f"Using direct MongoDB find for query_rules_by_framework ({framework} {version})")
             rules = await ComplianceRule.find(query).to_list()
 
         logger.info(f"Found {len(rules)} rules for {framework} {version}")
@@ -318,15 +310,11 @@ fi
         # Get the rule
         # OW-REFACTOR-002: Use Repository Pattern if enabled
         if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for get_rule_with_intelligence ({rule_id})"
-            )
+            logger.info(f"Using ComplianceRuleRepository for get_rule_with_intelligence ({rule_id})")
             repo = ComplianceRuleRepository()
             rule = await repo.find_one({"rule_id": rule_id})
         else:
-            logger.debug(
-                f"Using direct MongoDB find_one for get_rule_with_intelligence ({rule_id})"
-            )
+            logger.debug(f"Using direct MongoDB find_one for get_rule_with_intelligence ({rule_id})")
             rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
 
         if not rule:
@@ -501,9 +489,7 @@ fi
             try:
                 # OW-REFACTOR-002: Use Repository Pattern if enabled
                 if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-                    logger.info(
-                        "Using ComplianceRuleRepository for get_platform_statistics aggregation"
-                    )
+                    logger.info("Using ComplianceRuleRepository for get_platform_statistics aggregation")
                     repo = ComplianceRuleRepository()
                     aggregation_results = await repo.aggregate(pipeline)
                 else:
@@ -523,18 +509,12 @@ fi
 
                         categories = []
                         total_rules = result.get("ruleCount", 0)
-                        for cat, count in sorted(
-                            category_counts.items(), key=lambda x: x[1], reverse=True
-                        ):
+                        for cat, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True):
                             categories.append(
                                 {
                                     "name": cat.replace("_", " ").title(),
                                     "count": count,
-                                    "percentage": (
-                                        round((count / total_rules) * 100, 1)
-                                        if total_rules > 0
-                                        else 0
-                                    ),
+                                    "percentage": (round((count / total_rules) * 100, 1) if total_rules > 0 else 0),
                                 }
                             )
 
@@ -564,9 +544,7 @@ fi
                     }
 
             except Exception as agg_error:
-                logger.warning(
-                    f"MongoDB aggregation failed, falling back to manual processing: {agg_error}"
-                )
+                logger.warning(f"MongoDB aggregation failed, falling back to manual processing: {agg_error}")
 
             # Fallback: Manual processing of all rules
             # OW-REFACTOR-002: Use Repository Pattern if enabled

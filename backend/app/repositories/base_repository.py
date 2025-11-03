@@ -6,10 +6,11 @@ Provides common CRUD operations and query patterns for all MongoDB collections.
 Implements consistent error handling, logging, and performance monitoring.
 """
 
-from typing import TypeVar, Generic, List, Dict, Any, Optional, Tuple
-from beanie import Document
 import logging
 import time
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
+
+from beanie import Document
 
 T = TypeVar("T", bound=Document)
 
@@ -62,9 +63,7 @@ class BaseRepository(Generic[T]):
         try:
             result = await self.model.find_one(query)
 
-            self._log_query_performance(
-                operation="find_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="find_one", query=query, duration=time.time() - start_time)
 
             return result
         except Exception as e:
@@ -222,9 +221,7 @@ class BaseRepository(Generic[T]):
 
             await doc.update(update)
 
-            self._log_query_performance(
-                operation="update_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="update_one", query=query, duration=time.time() - start_time)
 
             return doc
         except Exception as e:
@@ -292,9 +289,7 @@ class BaseRepository(Generic[T]):
 
             await doc.delete()
 
-            self._log_query_performance(
-                operation="delete_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="delete_one", query=query, duration=time.time() - start_time)
 
             return True
         except Exception as e:

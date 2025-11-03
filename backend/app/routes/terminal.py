@@ -5,13 +5,14 @@ Provides WebSocket endpoints for SSH terminal access to hosts
 """
 
 import logging
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Request
-from sqlalchemy.orm import Session
+
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..services.terminal_service import terminal_service
 from ..encryption import EncryptionService
+from ..services.terminal_service import terminal_service
 
 # from ..auth import get_current_user  # Optional for future authentication
 
@@ -41,9 +42,7 @@ def get_client_ip(request: Request) -> str:
 
 
 @router.websocket("/api/hosts/{host_id}/terminal")
-async def host_terminal_websocket(
-    websocket: WebSocket, host_id: str, db: Session = Depends(get_db)
-):
+async def host_terminal_websocket(websocket: WebSocket, host_id: str, db: Session = Depends(get_db)):
     """
     WebSocket endpoint for SSH terminal access to a specific host
 
@@ -120,9 +119,7 @@ async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
         }
 
         # Check for active sessions
-        active_sessions = [
-            key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")
-        ]
+        active_sessions = [key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")]
 
         return {
             "host_id": host_id,

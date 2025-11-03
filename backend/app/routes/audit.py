@@ -2,15 +2,16 @@
 Audit Log API Routes for OView Dashboard
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import text, desc, and_, or_
-from typing import List, Optional
 import logging
 from datetime import datetime
+from typing import List, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, desc, or_, text
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
+from ..database import get_db
 from ..rbac import RBACManager, UserRole
 
 logger = logging.getLogger(__name__)
@@ -73,9 +74,7 @@ async def get_audit_events(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Build base query
         query = """
@@ -176,9 +175,7 @@ async def get_audit_stats(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Calculate date range
         from datetime import datetime, timedelta

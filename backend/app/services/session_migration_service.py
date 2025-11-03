@@ -4,15 +4,16 @@ Ensures zero-downtime migration of existing user sessions during security upgrad
 """
 
 import logging
-import jwt
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional
+
+import jwt
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from ..auth import jwt_manager
-from ..database import get_db
 from ..config import get_settings
+from ..database import get_db
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

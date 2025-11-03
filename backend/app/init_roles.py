@@ -4,15 +4,17 @@ Initialize roles and permissions in the database
 
 import asyncio
 import base64
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from .database import SessionLocal, create_tables
-from .rbac import UserRole, ROLE_PERMISSIONS
-from .encryption import create_encryption_service
-from .config import get_settings
-import logging
 import json
+import logging
 from datetime import datetime
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from .config import get_settings
+from .database import SessionLocal, create_tables
+from .encryption import create_encryption_service
+from .rbac import ROLE_PERMISSIONS, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -163,9 +165,7 @@ def init_default_system_credentials(db: Session):
         existing_count = result.fetchone().count
 
         if existing_count > 0:
-            logger.info(
-                f"Found {existing_count} existing system credentials, skipping initialization"
-            )
+            logger.info(f"Found {existing_count} existing system credentials, skipping initialization")
             return
 
         logger.info("No system credentials found - creating placeholder credentials for easy setup")
@@ -216,9 +216,7 @@ def init_default_system_credentials(db: Session):
 
         db.commit()
 
-        logger.info(
-            "Created placeholder system credentials - users should update these in Settings"
-        )
+        logger.info("Created placeholder system credentials - users should update these in Settings")
         logger.warning(
             "SECURITY NOTICE: Default SSH credentials created with placeholder password. Users must update these credentials in Settings before performing SSH operations."
         )

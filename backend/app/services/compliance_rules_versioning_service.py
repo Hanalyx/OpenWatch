@@ -5,9 +5,9 @@ Handles immutable versioning, content hashing, and change detection for FISMA/Fe
 
 import hashlib
 import json
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,7 @@ class RuleVersioningService:
             SHA-256 hash as hex string with "sha256:" prefix
         """
         # Filter out metadata fields
-        content_dict = {
-            k: v for k, v in rule_data.items() if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS
-        }
+        content_dict = {k: v for k, v in rule_data.items() if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS}
 
         # Sort keys for deterministic hashing
         content_json = json.dumps(content_dict, sort_keys=True, default=str)
@@ -79,9 +77,7 @@ class RuleVersioningService:
         return f"sha256:{hash_hex}"
 
     @staticmethod
-    def detect_changes(
-        old_rule: Dict[str, Any], new_rule: Dict[str, Any]
-    ) -> Dict[str, Dict[str, Any]]:
+    def detect_changes(old_rule: Dict[str, Any], new_rule: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """
         Detect changes between two rule versions
 
@@ -247,9 +243,7 @@ class RuleVersioningService:
 
             # Detect changes
             changes = RuleVersioningService.detect_changes(previous_version, rule_data)
-            change_summary = RuleVersioningService.create_change_summary(
-                changes, change_type="updated"
-            )
+            change_summary = RuleVersioningService.create_change_summary(changes, change_type="updated")
         else:
             new_version = 1
             supersedes_version = None

@@ -3,21 +3,21 @@ SSH Debug Routes
 Provides detailed SSH debugging capabilities for troubleshooting authentication issues
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-import logging
-import json
 import base64
-from typing import Optional, Dict, Any, List
+import json
+import logging
+from typing import Any, Dict, List, Optional
 
-from fastapi import Request
-from ..database import get_db, Host
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
-from ..rbac import require_permission, Permission
-from ..services.unified_ssh_service import UnifiedSSHService
-from ..services.auth_service import get_auth_service
+from ..database import Host, get_db
 from ..encryption import EncryptionService
+from ..rbac import Permission, require_permission
+from ..services.auth_service import get_auth_service
+from ..services.unified_ssh_service import UnifiedSSHService
 
 logger = logging.getLogger(__name__)
 
@@ -108,14 +108,10 @@ async def debug_ssh_authentication(
                     validation_result = ssh_service.validate_ssh_key(cred_data["ssh_key"])
                     key_info = {
                         "valid": validation_result.is_valid,
-                        "type": (
-                            validation_result.key_type.value if validation_result.key_type else None
-                        ),
+                        "type": (validation_result.key_type.value if validation_result.key_type else None),
                         "size": validation_result.key_size,
                         "security_level": (
-                            validation_result.security_level.value
-                            if validation_result.security_level
-                            else None
+                            validation_result.security_level.value if validation_result.security_level else None
                         ),
                         "error": validation_result.error_message,
                     }
@@ -168,16 +164,10 @@ async def debug_ssh_authentication(
                         validation_result = ssh_service.validate_ssh_key(global_creds.private_key)
                         key_info = {
                             "valid": validation_result.is_valid,
-                            "type": (
-                                validation_result.key_type.value
-                                if validation_result.key_type
-                                else None
-                            ),
+                            "type": (validation_result.key_type.value if validation_result.key_type else None),
                             "size": validation_result.key_size,
                             "security_level": (
-                                validation_result.security_level.value
-                                if validation_result.security_level
-                                else None
+                                validation_result.security_level.value if validation_result.security_level else None
                             ),
                             "error": validation_result.error_message,
                             "warnings": validation_result.warnings,
@@ -228,12 +218,8 @@ async def debug_ssh_authentication(
         recommendations = []
 
         # Check if any credentials succeeded
-        host_success = response.host_credentials_test and response.host_credentials_test.get(
-            "success"
-        )
-        global_success = response.global_credentials_test and response.global_credentials_test.get(
-            "success"
-        )
+        host_success = response.host_credentials_test and response.host_credentials_test.get("success")
+        global_success = response.global_credentials_test and response.global_credentials_test.get("success")
 
         if not host_success and not global_success:
             recommendations.append("No working SSH credentials found. Please verify:")
@@ -246,33 +232,21 @@ async def debug_ssh_authentication(
             if response.host_credentials_test:
                 error_type = response.host_credentials_test.get("error_type")
                 if error_type == "auth_failed":
-                    recommendations.append(
-                        "- Ensure the SSH key is added to ~/.ssh/authorized_keys on the target"
-                    )
-                    recommendations.append(
-                        "- Check SSH server configuration (PermitRootLogin, PubkeyAuthentication)"
-                    )
+                    recommendations.append("- Ensure the SSH key is added to ~/.ssh/authorized_keys on the target")
+                    recommendations.append("- Check SSH server configuration (PermitRootLogin, PubkeyAuthentication)")
                 elif error_type == "key_error":
-                    recommendations.append(
-                        "- Verify the SSH private key format (RSA, Ed25519, etc.)"
-                    )
+                    recommendations.append("- Verify the SSH private key format (RSA, Ed25519, etc.)")
                     recommendations.append("- Ensure the key is not corrupted")
 
         elif host_success and not global_success:
-            recommendations.append(
-                "Host-specific credentials work. Global credentials may need updating."
-            )
+            recommendations.append("Host-specific credentials work. Global credentials may need updating.")
 
         elif not host_success and global_success:
-            recommendations.append(
-                "Global credentials work. Consider using 'default' auth method for this host."
-            )
+            recommendations.append("Global credentials work. Consider using 'default' auth method for this host.")
 
         # Add SSH policy recommendations
         if response.ssh_policy_info["current_policy"] == "strict":
-            recommendations.append(
-                "SSH policy is set to 'strict' - ensure known_hosts is properly configured"
-            )
+            recommendations.append("SSH policy is set to 'strict' - ensure known_hosts is properly configured")
 
         # Check key security if available
         if response.global_credentials_test and response.global_credentials_test.get("key_info"):
@@ -285,9 +259,7 @@ async def debug_ssh_authentication(
         # Disable debug mode
         if ssh_request.enable_paramiko_debug:
             ssh_service.disable_debug_mode()
-            recommendations.append(
-                "Check /tmp/paramiko_debug.log for detailed SSH protocol debugging"
-            )
+            recommendations.append("Check /tmp/paramiko_debug.log for detailed SSH protocol debugging")
 
         return response
 

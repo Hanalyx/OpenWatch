@@ -4,14 +4,15 @@ REST API for importing SCAP files into MongoDB
 """
 
 import asyncio
-from pathlib import Path
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
-from pydantic import BaseModel, Field
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from ....services.scap_import_service import SCAPImportService
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
 from ....services.mongo_integration_service import MongoIntegrationService
+from ....services.scap_import_service import SCAPImportService
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 
@@ -117,9 +118,7 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(
-    import_id: str, service: SCAPImportService = Depends(get_import_service)
-):
+async def get_import_status(import_id: str, service: SCAPImportService = Depends(get_import_service)):
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
@@ -218,8 +217,8 @@ async def get_import_statistics(
         # Get collection statistics from MongoDB
         from ....models.mongo_models import (
             ComplianceRule,
-            RuleIntelligence,
             RemediationScript,
+            RuleIntelligence,
         )
 
         stats = {

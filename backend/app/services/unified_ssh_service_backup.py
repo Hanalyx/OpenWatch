@@ -6,24 +6,24 @@ with consistent security policies, comprehensive audit logging, and
 automation-friendly host key handling.
 """
 
+import json
+import logging
 import os
 import socket
-import logging
-import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import paramiko
 from paramiko import SSHClient, SSHException
 
 from .ssh_utils import (
-    parse_ssh_key,
-    validate_ssh_key,
     SSHKeyError,
     SSHKeyValidationResult,
     format_validation_message,
+    parse_ssh_key,
+    validate_ssh_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,9 +180,7 @@ class UnifiedSSHService:
             # Create container known_hosts if it doesn't exist
             if not self.container_known_hosts_path.exists():
                 self.container_known_hosts_path.touch()
-                logger.debug(
-                    f"Created empty container known_hosts: {self.container_known_hosts_path}"
-                )
+                logger.debug(f"Created empty container known_hosts: {self.container_known_hosts_path}")
 
         except Exception as e:
             logger.debug(f"Could not ensure SSH directory setup (non-critical): {e}")
@@ -256,9 +254,7 @@ class UnifiedSSHService:
         if not keys_loaded:
             logger.info("No known_hosts files found - will accept new host keys")
 
-    def _audit_host_key_event(
-        self, hostname: str, event_type: str, details: Dict[str, Any]
-    ) -> None:
+    def _audit_host_key_event(self, hostname: str, event_type: str, details: Dict[str, Any]) -> None:
         """
         Audit host key events for compliance logging.
 
@@ -355,9 +351,7 @@ class UnifiedSSHService:
                 error_message=error_msg,
                 auth_method=auth_method,
             )
-            return SSHConnectionResult(
-                success=False, error_message=error_msg, error_type="invalid_parameters"
-            )
+            return SSHConnectionResult(success=False, error_message=error_msg, error_type="invalid_parameters")
 
         # Validate SSH key if using key authentication
         if auth_method in ["ssh-key", "ssh_key"]:
@@ -372,9 +366,7 @@ class UnifiedSSHService:
                     error_message=error_msg,
                     auth_method=auth_method,
                 )
-                return SSHConnectionResult(
-                    success=False, error_message=error_msg, error_type="invalid_ssh_key"
-                )
+                return SSHConnectionResult(success=False, error_message=error_msg, error_type="invalid_ssh_key")
 
         # Attempt connection with retries
         last_error = None
@@ -493,9 +485,7 @@ class UnifiedSSHService:
 
             # Log retry attempt if not the last one
             if attempt < self.max_retries - 1:
-                logger.debug(
-                    f"SSH connection attempt {attempt + 1} failed for {hostname}: {last_error}. Retrying..."
-                )
+                logger.debug(f"SSH connection attempt {attempt + 1} failed for {hostname}: {last_error}. Retrying...")
 
         # Log final failure
         self.audit_ssh_connection(

@@ -2,11 +2,12 @@
 SCAP Content Management Routes
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
+import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
-from typing import List, Optional
-import logging
 
 from ..utils.file_security import sanitize_filename, validate_file_extension
 

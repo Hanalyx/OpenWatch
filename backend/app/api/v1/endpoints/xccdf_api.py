@@ -6,21 +6,22 @@ Provides REST API for generating XCCDF benchmarks and tailoring files
 from MongoDB compliance rules.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClient
+import logging
 from datetime import datetime, timezone
 from typing import Dict
-import logging
 
+from fastapi import APIRouter, Depends, HTTPException
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
+from ....auth import get_current_user
 from ....schemas.xccdf_schemas import (
     XCCDFBenchmarkRequest,
     XCCDFBenchmarkResponse,
     XCCDFTailoringRequest,
     XCCDFTailoringResponse,
 )
-from ....services.xccdf_generator_service import XCCDFGeneratorService
 from ....services.mongo_integration_service import get_mongo_service
-from ....auth import get_current_user
+from ....services.xccdf_generator_service import XCCDFGeneratorService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,9 +47,7 @@ async def generate_benchmark(
     try:
         db = mongo_service.mongo_manager.database
 
-        logger.info(
-            f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}"
-        )
+        logger.info(f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}")
 
         # Create generator service
         generator = XCCDFGeneratorService(db)
@@ -124,9 +123,7 @@ async def generate_tailoring(
     try:
         db = mongo_service.mongo_manager.database
 
-        logger.info(
-            f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}"
-        )
+        logger.info(f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}")
 
         # Create generator service
         generator = XCCDFGeneratorService(db)

@@ -2,14 +2,15 @@
 Scan Template Routes - Quick Scan Configuration
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
-from pydantic import BaseModel
-from typing import List, Optional
-from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import List, Optional
 
-from ..database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from ..auth import get_current_user
+from ..database import get_db
 
 router = APIRouter(prefix="/scan-templates", tags=["Scan Templates"])
 
@@ -28,9 +29,7 @@ class ScanTemplate(BaseModel):
 
 
 @router.get("/")
-async def list_scan_templates(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_scan_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List available scan templates"""
     # For now, return predefined templates
     # In a full implementation, these would be stored in database

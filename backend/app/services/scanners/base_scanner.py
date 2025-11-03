@@ -5,11 +5,11 @@ Base Scanner Interface
 Abstract base class for all scanner implementations (OSCAP, Kubernetes, Cloud APIs, etc.)
 """
 
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any
 import logging
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List
 
-from ...models.scan_models import RuleResult, ScanTarget, ScanResultSummary
+from ...models.scan_models import RuleResult, ScanResultSummary, ScanTarget
 
 logger = logging.getLogger(__name__)
 

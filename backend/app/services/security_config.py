@@ -5,17 +5,18 @@ Provides centralized management of security policies and configuration
 for SSH key validation, credential enforcement, and FIPS compliance.
 """
 
-import logging
 import json
+import logging
 import os
-from typing import Dict, Optional, List, Any, Tuple
-from enum import Enum
-from dataclasses import dataclass, asdict
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
-from .credential_validation import SecurityPolicyLevel, SecurityPolicyConfig
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from .credential_validation import SecurityPolicyConfig, SecurityPolicyLevel
 
 logger = logging.getLogger(__name__)
 
@@ -251,9 +252,7 @@ class SecurityConfigManager:
 
         return success
 
-    def get_config_summary(
-        self, target_id: Optional[str] = None, target_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def get_config_summary(self, target_id: Optional[str] = None, target_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get comprehensive configuration summary including inheritance chain.
 
@@ -294,9 +293,7 @@ class SecurityConfigManager:
 
             # Group level
             if target_type in ["host", "group"] and target_id:
-                group_id = (
-                    target_id if target_type == "group" else self._get_host_group_id(target_id)
-                )
+                group_id = target_id if target_type == "group" else self._get_host_group_id(target_id)
                 if group_id:
                     group_config = self._get_config_by_scope(ConfigScope.HOST_GROUP, group_id)
                     if group_config:
@@ -412,9 +409,7 @@ class SecurityConfigManager:
         except Exception as e:
             logger.error(f"Failed to ensure default config: {e}")
 
-    def _get_config_by_scope(
-        self, scope: ConfigScope, target_id: Optional[str] = None
-    ) -> Optional[Dict]:
+    def _get_config_by_scope(self, scope: ConfigScope, target_id: Optional[str] = None) -> Optional[Dict]:
         """Get configuration data for a specific scope"""
         try:
             result = self.db.execute(

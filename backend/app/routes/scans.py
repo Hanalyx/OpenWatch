@@ -3,28 +3,28 @@ SCAP Scanning API Routes
 Handles scan job creation, monitoring, and results
 """
 
-import uuid
-import json
 import asyncio
-from typing import List, Optional
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel
-from ..utils.logging_security import sanitize_path_for_log
-
-from ..database import get_db
-from ..services.scap_scanner import SCAPScanner
-from ..services.error_classification import ErrorClassificationService, AutomatedFix
-from ..services.scan_intelligence import ScanIntelligenceService, ProfileSuggestion
-from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
-from ..services.error_sanitization import get_error_sanitization_service
-from ..models.error_models import ValidationResultResponse
-from ..auth import get_current_user
-from ..tasks.scan_tasks import execute_scan_task
+import json
 import logging
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from ..auth import get_current_user
+from ..database import get_db
+from ..models.error_models import ValidationResultResponse
+from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
+from ..services.error_classification import AutomatedFix, ErrorClassificationService
+from ..services.error_sanitization import get_error_sanitization_service
+from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceService
+from ..services.scap_scanner import SCAPScanner
+from ..tasks.scan_tasks import execute_scan_task
+from ..utils.logging_security import sanitize_path_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -205,9 +205,7 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -300,9 +298,7 @@ async def quick_scan(
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
-        logger.info(
-            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
-        )
+        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -358,9 +354,7 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(
-                            f"Requested profile not found, using fallback: {template_id}"
-                        )
+                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -387,9 +381,7 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if credential_data:
                 # Queue async validation
@@ -560,9 +552,7 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(
-                session.estimated_completion.timestamp() if session.estimated_completion else 0
-            ),
+            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
             scan_ids=session.scan_ids or [],
         )
 
@@ -1307,9 +1297,7 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
-                    )
+                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
 
         # Delete scan results first (foreign key constraint)
         db.execute(
@@ -1365,9 +1353,7 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(
-                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
-            )
+            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -1482,22 +1468,18 @@ async def get_scan_json_report(
                     from ..services.scap_scanner import SCAPScanner
 
                     scanner = SCAPScanner()
-                    enhanced_results = scanner._parse_scan_results(
-                        scan_data["result_file"], content_file
-                    )
+                    enhanced_results = scanner._parse_scan_results(scan_data["result_file"], content_file)
                 else:
                     enhanced_results = {}
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(
-                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
-                    )
+                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
                 else:
                     # Fallback to basic parsing for backward compatibility
-                    import xml.etree.ElementTree as ET
                     import os
+                    import xml.etree.ElementTree as ET
 
                     if os.path.exists(scan_data["result_file"]):
                         tree = ET.parse(scan_data["result_file"])
@@ -1641,11 +1623,7 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if (
-            not scan_result.result_file
-            or not scan_result.failed_rules
-            or scan_result.failed_rules == 0
-        ):
+        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),
@@ -1659,8 +1637,8 @@ async def get_scan_failed_rules(
             }
 
         # Parse the SCAP result file to extract failed rules
-        import xml.etree.ElementTree as ET
         import os
+        import xml.etree.ElementTree as ET
 
         failed_rules = []
         if os.path.exists(scan_result.result_file):
@@ -1917,9 +1895,7 @@ async def rescan_rule(
                 "progress": 0,
                 "started_by": current_user["id"],
                 "started_at": datetime.utcnow(),
-                "scan_options": json.dumps(
-                    {"rule_id": rescan_request.rule_id, "rescan_type": "rule"}
-                ),
+                "scan_options": json.dumps({"rule_id": rescan_request.rule_id, "rescan_type": "rule"}),
             },
         )
 

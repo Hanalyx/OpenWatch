@@ -2,13 +2,14 @@
 Email Service for sending notifications
 """
 
-import aiosmtplib
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import List, Optional
-from datetime import datetime
 import os
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import List, Optional
+
+import aiosmtplib
 
 logger = logging.getLogger(__name__)
 

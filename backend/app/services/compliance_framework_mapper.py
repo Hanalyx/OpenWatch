@@ -5,10 +5,10 @@ Maps SCAP rules to multiple compliance frameworks (NIST, CIS, STIG, CMMC 2.0)
 
 import json
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+import re
 from dataclasses import dataclass
 from enum import Enum
-import re
+from typing import Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -478,9 +478,7 @@ class ComplianceFrameworkMapper:
             aegis_rule_id=self._get_aegis_rule_id(scap_rule_id),
         )
 
-    def _infer_mappings_from_rule_id(
-        self, scap_rule_id: str, rule_title: str
-    ) -> List[FrameworkMapping]:
+    def _infer_mappings_from_rule_id(self, scap_rule_id: str, rule_title: str) -> List[FrameworkMapping]:
         """Infer framework mappings from SCAP rule ID patterns"""
         mappings = []
 
@@ -678,10 +676,7 @@ class ComplianceFrameworkMapper:
                 frameworks_affected.append(mapping.framework.value)
 
                 # Add extra weight for CMMC Level 2+ requirements
-                if (
-                    mapping.framework == ComplianceFramework.CMMC_2_0
-                    and mapping.maturity_level >= 2
-                ):
+                if mapping.framework == ComplianceFramework.CMMC_2_0 and mapping.maturity_level >= 2:
                     priority_score += 10
 
             priority_score += severity_scores.get(max_severity, 0) * 10
@@ -717,10 +712,7 @@ class ComplianceFrameworkMapper:
         # Check control categories
         if any(cat in ["Configuration Management", "Access Control"] for cat in control.categories):
             return "moderate"
-        elif any(
-            cat in ["Audit and Accountability", "System and Information Integrity"]
-            for cat in control.categories
-        ):
+        elif any(cat in ["Audit and Accountability", "System and Information Integrity"] for cat in control.categories):
             return "significant"
         else:
             return "moderate"

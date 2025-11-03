@@ -3,19 +3,20 @@ OpenWatch API v1 - Remediation Provider Interface
 Enhanced remediation interface for AEGIS integration and other remediation providers
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
-from pydantic import BaseModel, Field, UUID4
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-import logging
 import asyncio
+import logging
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from pydantic import UUID4, BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ...auth import get_current_user
-from ...database import get_db, Scan, Host
 from ...audit_db import log_audit_event
+from ...auth import get_current_user
 from ...config import get_settings
+from ...database import Host, Scan, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -317,11 +318,7 @@ async def retry_remediation_job(
         original_job = scan.metadata.get("remediation_job", {})
         if failed_rules_only and "results" in scan.metadata.get("remediation", {}):
             # Extract rules that failed
-            failed_rules = [
-                r["rule_id"]
-                for r in scan.metadata["remediation"]["results"]
-                if r["status"] == "failed"
-            ]
+            failed_rules = [r["rule_id"] for r in scan.metadata["remediation"]["results"] if r["status"] == "failed"]
         else:
             # Retry all original rules
             failed_rules = original_job.get("failed_rules", [])
@@ -464,9 +461,7 @@ async def get_remediation_summary(
         # Count scans with remediation data
         total_jobs = db.query(Scan).filter(Scan.remediation_requested == True).count()
 
-        active_jobs = (
-            db.query(Scan).filter(Scan.remediation_status.in_(["pending", "running"])).count()
-        )
+        active_jobs = db.query(Scan).filter(Scan.remediation_status.in_(["pending", "running"])).count()
 
         completed_jobs = db.query(Scan).filter(Scan.remediation_status == "completed").count()
 

@@ -4,23 +4,23 @@ Provides endpoints for executing remediation across multiple hosts with various 
 """
 
 import logging
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, ValidationError
 
-from ..models.plugin_models import PluginExecutionResult
-from ..services.bulk_remediation_service import (
-    BulkRemediationService,
-    BulkRemediationRequest,
-    BulkRemediationResult,
-    BulkExecutionStrategy,
-    BulkExecutionStatus,
-    HostExecutionResult,
-)
 from ..auth import get_current_user
 from ..database import User
+from ..models.plugin_models import PluginExecutionResult
+from ..services.bulk_remediation_service import (
+    BulkExecutionStatus,
+    BulkExecutionStrategy,
+    BulkRemediationRequest,
+    BulkRemediationResult,
+    BulkRemediationService,
+    HostExecutionResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,35 +40,21 @@ class BulkRemediationJobRequest(BaseModel):
 
     host_ids: List[str] = Field(..., min_items=1, max_items=1000, description="Target host IDs")
     rule_ids: List[str] = Field(..., min_items=1, description="Rules to remediate")
-    strategy: BulkExecutionStrategy = Field(
-        default=BulkExecutionStrategy.BATCHED, description="Execution strategy"
-    )
-    batch_size: int = Field(
-        default=10, ge=1, le=100, description="Batch size for batched execution"
-    )
+    strategy: BulkExecutionStrategy = Field(default=BulkExecutionStrategy.BATCHED, description="Execution strategy")
+    batch_size: int = Field(default=10, ge=1, le=100, description="Batch size for batched execution")
     max_parallel: int = Field(default=20, ge=1, le=100, description="Maximum parallel executions")
     dry_run: bool = Field(default=False, description="Execute in dry-run mode")
-    timeout_per_host: int = Field(
-        default=1800, ge=60, le=7200, description="Timeout per host in seconds"
-    )
-    continue_on_failure: bool = Field(
-        default=True, description="Continue execution when individual hosts fail"
-    )
+    timeout_per_host: int = Field(default=1800, ge=60, le=7200, description="Timeout per host in seconds")
+    continue_on_failure: bool = Field(default=True, description="Continue execution when individual hosts fail")
     max_failure_rate: float = Field(
         default=0.2,
         ge=0.0,
         le=1.0,
         description="Stop if failure rate exceeds this threshold",
     )
-    rollback_on_high_failure: bool = Field(
-        default=False, description="Rollback changes if failure rate is high"
-    )
-    scheduled_at: Optional[datetime] = Field(
-        default=None, description="Schedule execution for later"
-    )
-    execution_context: dict = Field(
-        default_factory=dict, description="Additional execution context"
-    )
+    rollback_on_high_failure: bool = Field(default=False, description="Rollback changes if failure rate is high")
+    scheduled_at: Optional[datetime] = Field(default=None, description="Schedule execution for later")
+    execution_context: dict = Field(default_factory=dict, description="Additional execution context")
 
 
 class BulkRemediationJobResponse(BaseModel):
@@ -221,9 +207,7 @@ async def submit_bulk_remediation_job(
             # Simple estimation based on strategy and host count
             base_time_per_host = 30  # seconds
             if request.strategy == BulkExecutionStrategy.PARALLEL:
-                estimated_duration = max(1, base_time_per_host // request.max_parallel) * len(
-                    request.host_ids
-                )
+                estimated_duration = max(1, base_time_per_host // request.max_parallel) * len(request.host_ids)
             elif request.strategy == BulkExecutionStrategy.SEQUENTIAL:
                 estimated_duration = base_time_per_host * len(request.host_ids)
             elif request.strategy == BulkExecutionStrategy.BATCHED:
@@ -318,9 +302,7 @@ async def get_bulk_job_status(job_id: str, current_user: User = Depends(get_curr
 
 
 @router.get("/jobs/{job_id}/details", response_model=DetailedBulkRemediationResponse)
-async def get_detailed_bulk_job_results(
-    job_id: str, current_user: User = Depends(get_current_user)
-):
+async def get_detailed_bulk_job_results(job_id: str, current_user: User = Depends(get_current_user)):
     """
     Get detailed results of a bulk remediation job including host-level results.
 
@@ -446,9 +428,7 @@ async def cancel_bulk_job(
 @router.get("/jobs", response_model=BulkRemediationListResponse)
 async def list_bulk_jobs(
     user: Optional[str] = Query(default=None, description="Filter by user"),
-    status_filter: Optional[BulkExecutionStatus] = Query(
-        default=None, alias="status", description="Filter by status"
-    ),
+    status_filter: Optional[BulkExecutionStatus] = Query(default=None, alias="status", description="Filter by status"),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
     current_user: User = Depends(get_current_user),
@@ -506,9 +486,7 @@ async def list_bulk_jobs(
                 )
             )
 
-        return BulkRemediationListResponse(
-            jobs=job_responses, total_count=len(jobs), page=page, page_size=page_size
-        )
+        return BulkRemediationListResponse(jobs=job_responses, total_count=len(jobs), page=page, page_size=page_size)
 
     except Exception as e:
         logger.error(f"Failed to list bulk jobs: {e}")

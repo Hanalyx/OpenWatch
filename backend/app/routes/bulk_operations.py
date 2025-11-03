@@ -5,18 +5,19 @@ Handles bulk import/export operations for hosts and other entities
 
 import csv
 import io
-import json
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Response
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, validator
 import ipaddress
+import json
+from typing import Any, Dict, List, Optional
 
-from ..database import get_db, Host
-from ..auth import get_current_user
-from ..rbac import require_role, UserRole
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from pydantic import BaseModel, Field, validator
+from sqlalchemy.orm import Session
+
 from ..audit_db import log_security_event
-from ..services.csv_analyzer import CSVAnalyzer, FieldAnalysis, CSVAnalysis
+from ..auth import get_current_user
+from ..database import Host, get_db
+from ..rbac import UserRole, require_role
+from ..services.csv_analyzer import CSVAnalysis, CSVAnalyzer, FieldAnalysis
 
 router = APIRouter()
 
@@ -136,10 +137,7 @@ async def bulk_import_hosts(
             # Check if host already exists
             existing_host = (
                 db.query(Host)
-                .filter(
-                    (Host.hostname == host_data.hostname)
-                    | (Host.ip_address == host_data.ip_address)
-                )
+                .filter((Host.hostname == host_data.hostname) | (Host.ip_address == host_data.ip_address))
                 .first()
             )
 
@@ -212,9 +210,7 @@ async def bulk_import_hosts(
             result.errors.append(
                 {
                     "row": idx + 1,
-                    "hostname": (
-                        host_data.hostname if hasattr(host_data, "hostname") else "unknown"
-                    ),
+                    "hostname": (host_data.hostname if hasattr(host_data, "hostname") else "unknown"),
                     "error": str(e),
                 }
             )
@@ -510,10 +506,7 @@ async def import_with_mapping(
                 # Check for existing host
                 existing_host = (
                     db.query(Host)
-                    .filter(
-                        (Host.hostname == mapped_data["hostname"])
-                        | (Host.ip_address == mapped_data["ip_address"])
-                    )
+                    .filter((Host.hostname == mapped_data["hostname"]) | (Host.ip_address == mapped_data["ip_address"]))
                     .first()
                 )
 

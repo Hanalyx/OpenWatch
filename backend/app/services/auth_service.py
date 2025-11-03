@@ -7,24 +7,24 @@ MIGRATION NOTE: This service now uses dependency injection for encryption.
 The encryption service is passed in the constructor instead of using global singleton.
 """
 
-import uuid
-import json
 import base64
+import json
 import logging
-from typing import Dict, Optional, List, Tuple
+import uuid
 from datetime import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from ..encryption import EncryptionService  # NEW: Modular encryption service
-from .unified_ssh_service import validate_ssh_key, parse_ssh_key
-from .unified_ssh_service import extract_ssh_key_metadata
 from .credential_validation import (
-    validate_credential_with_strict_policy,
     SecurityPolicyLevel,
+    validate_credential_with_strict_policy,
 )
+from .unified_ssh_service import extract_ssh_key_metadata, parse_ssh_key, validate_ssh_key
 
 logger = logging.getLogger(__name__)
 
@@ -191,9 +191,7 @@ class CentralizedAuthService:
 
             self.db.commit()
 
-            logger.info(
-                f"Stored {metadata.scope.value} credential '{metadata.name}' (ID: {metadata.id})"
-            )
+            logger.info(f"Stored {metadata.scope.value} credential '{metadata.name}' (ID: {metadata.id})")
             return metadata.id
 
         except Exception as e:
@@ -383,16 +381,12 @@ class CentralizedAuthService:
             # BACKWARDS COMPATIBILITY: If use_default=True or no target_id, use system default
             # This ensures existing code continues to work without changes
             if use_default or not target_id:
-                logger.info(
-                    "Using unified_credentials table for credential resolution (system default)"
-                )
+                logger.info("Using unified_credentials table for credential resolution (system default)")
                 credential = self._get_system_default()
 
                 if credential and required_auth_method and required_auth_method != "system_default":
                     # NEW: Validate auth method if required
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.error(
                             f"System default auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'"
@@ -409,15 +403,11 @@ class CentralizedAuthService:
             credential = self._get_host_credential(target_id)
 
             if credential:
-                logger.info(
-                    f"✅ Found host-specific credential (auth_method: {credential.auth_method})"
-                )
+                logger.info(f"✅ Found host-specific credential (auth_method: {credential.auth_method})")
 
                 # Validate auth method if required
                 if required_auth_method and required_auth_method != "system_default":
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.error(
                             f"Host-specific credential auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'"
@@ -430,21 +420,15 @@ class CentralizedAuthService:
                 return credential
 
             # BACKWARDS COMPATIBILITY: Fall back to system default if no host-specific found
-            logger.info(
-                f"No host-specific credential found for {target_id}, falling back to system default"
-            )
+            logger.info(f"No host-specific credential found for {target_id}, falling back to system default")
             credential = self._get_system_default()
 
             if credential:
-                logger.info(
-                    f"✅ Found system default credential (auth_method: {credential.auth_method})"
-                )
+                logger.info(f"✅ Found system default credential (auth_method: {credential.auth_method})")
 
                 # Validate auth method if required
                 if required_auth_method and required_auth_method != "system_default":
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.warning(
                             f"System default auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'. "
@@ -497,14 +481,10 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            password = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            password = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         else:
                             decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                            password = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            password = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         logger.info("Successfully decrypted legacy password")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy password: {e}")
@@ -516,14 +496,10 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            private_key = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         else:
                             decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                            private_key = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         logger.info("Successfully decrypted legacy private key")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy private key: {e}")
@@ -535,14 +511,10 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         else:
                             decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
-                                "utf-8"
-                            )
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                         logger.info("Successfully decrypted legacy passphrase")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy passphrase: {e}")
@@ -556,9 +528,7 @@ class CentralizedAuthService:
                     source="legacy_system_default",
                 )
 
-                logger.info(
-                    f"Successfully resolved legacy system default credential for user: ***REDACTED***"
-                )
+                logger.info(f"Successfully resolved legacy system default credential for user: ***REDACTED***")
                 return credential
 
             logger.warning("No legacy system default credential found in system_credentials table")
@@ -595,9 +565,7 @@ class CentralizedAuthService:
             logger.error(f"Failed to get system default credential: {e}")
             return None
 
-    def validate_credential(
-        self, credential_data: CredentialData, strict_mode: bool = True
-    ) -> Tuple[bool, str]:
+    def validate_credential(self, credential_data: CredentialData, strict_mode: bool = True) -> Tuple[bool, str]:
         """
         Validate credential data with strict security policy enforcement.
 
@@ -633,9 +601,7 @@ class CentralizedAuthService:
                 )
 
                 if not is_valid:
-                    logger.warning(
-                        f"Credential rejected by strict security policy: {error_message}"
-                    )
+                    logger.warning(f"Credential rejected by strict security policy: {error_message}")
                     return False, error_message
             else:
                 # Basic SSH key validation if not using strict mode
@@ -754,9 +720,7 @@ class CentralizedAuthService:
                         "name": row.name,
                         "description": row.description,
                         "scope": row.scope,
-                        "target_id": (
-                            str(row.target_id) if row.target_id else None
-                        ),  # Convert UUID to string
+                        "target_id": (str(row.target_id) if row.target_id else None),  # Convert UUID to string
                         "username": row.username,
                         "auth_method": row.auth_method,
                         "ssh_key_fingerprint": row.ssh_key_fingerprint,
@@ -842,9 +806,7 @@ class CentralizedAuthService:
             purged_count = result.rowcount
             if purged_count > 0:
                 self.db.commit()
-                logger.info(
-                    f"Purged {purged_count} inactive credentials older than {retention_days} days"
-                )
+                logger.info(f"Purged {purged_count} inactive credentials older than {retention_days} days")
 
             return purged_count
 

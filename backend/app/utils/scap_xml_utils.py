@@ -3,10 +3,11 @@ SCAP XML Utility Functions
 Shared utilities for XML processing across SCAP services
 """
 
+import logging
 import re
 from typing import Dict, Optional
+
 from lxml import etree
-import logging
 
 logger = logging.getLogger(__name__)
 

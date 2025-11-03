@@ -4,20 +4,21 @@ Comprehensive tracing for request flows and service integration
 Author: Noah Chen - nc9010@hanalyx.com
 """
 
-import os
 import logging
+import os
 from typing import Optional
+
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,7 @@ class TracingConfig:
         self.jaeger_endpoint = jaeger_endpoint or os.getenv(
             "JAEGER_ENDPOINT", "http://secureops-jaeger:14268/api/traces"
         )
-        self.otlp_endpoint = otlp_endpoint or os.getenv(
-            "OTLP_ENDPOINT", "http://secureops-jaeger:14250"
-        )
+        self.otlp_endpoint = otlp_endpoint or os.getenv("OTLP_ENDPOINT", "http://secureops-jaeger:14250")
 
         self.tracer_provider = None
         self.tracer = None
@@ -97,9 +96,7 @@ class TracingConfig:
 
         # OTLP exporter
         try:
-            otlp_exporter = OTLPSpanExporter(
-                endpoint=self.otlp_endpoint, insecure=True  # Use TLS in production
-            )
+            otlp_exporter = OTLPSpanExporter(endpoint=self.otlp_endpoint, insecure=True)  # Use TLS in production
             exporters.append(otlp_exporter)
             logger.info("OTLP exporter configured")
         except Exception as e:

@@ -4,11 +4,13 @@ Automatic metrics collection for HTTP requests and application events
 Author: Noah Chen - nc9010@hanalyx.com
 """
 
-import time
 import logging
+import time
+from typing import Callable
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Callable
+
 from ..services.prometheus_metrics import get_metrics_instance
 
 logger = logging.getLogger(__name__)
@@ -206,8 +208,9 @@ class BackgroundMetricsUpdater:
     async def _update_application_metrics(self):
         """Update application-specific metrics"""
         try:
-            from ..database import get_db
             from sqlalchemy import text
+
+            from ..database import get_db
 
             db = next(get_db())
 

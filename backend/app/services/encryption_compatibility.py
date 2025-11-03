@@ -20,14 +20,15 @@ import base64
 import logging
 from typing import Union
 
+from backend.app.encryption import (
+    DecryptionError,
+    EncryptionService,
+    InvalidDataError,
+    create_encryption_service,
+)
+
 # Import new modular encryption only
 from backend.app.services.encryption import get_encryption_service
-from backend.app.encryption import (
-    EncryptionService,
-    create_encryption_service,
-    DecryptionError,
-    InvalidDataError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,7 @@ def decrypt_credentials(encrypted_data: Union[bytes, str, memoryview]) -> str:
     if len(encrypted_bytes) < 28:
         logger.error(f"Encrypted data too short: {len(encrypted_bytes)} bytes")
         raise ValueError(
-            f"Encrypted data too short: {len(encrypted_bytes)} bytes "
-            f"(minimum: 28 bytes for salt + nonce)"
+            f"Encrypted data too short: {len(encrypted_bytes)} bytes " f"(minimum: 28 bytes for salt + nonce)"
         )
 
     # Decrypt using new encryption service

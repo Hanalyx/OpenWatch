@@ -10,11 +10,12 @@ Design by Emily (Security Engineer) - Implements ReBAC with audit trail
 """
 
 import uuid
-from enum import Enum
-from typing import Dict, List, Optional, Set, Any
-from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
+
+from pydantic import BaseModel, Field
 
 
 class ResourceType(str, Enum):
@@ -275,9 +276,7 @@ class PermissionCache:
         """Generate cache key for permission check"""
         return f"{user_id}:{resource.resource_type.value}:{resource.resource_id}:{action.value}"
 
-    def get(
-        self, user_id: str, resource: ResourceIdentifier, action: ActionType
-    ) -> Optional[AuthorizationResult]:
+    def get(self, user_id: str, resource: ResourceIdentifier, action: ActionType) -> Optional[AuthorizationResult]:
         """Get cached permission decision"""
         key = self._generate_key(user_id, resource, action)
 

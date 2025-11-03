@@ -3,27 +3,28 @@ Webhook Delivery Tasks
 Background tasks for delivering webhooks to AEGIS and other integrations
 """
 
-import json
-import uuid
 import hashlib
 import hmac
+import json
+import logging
 import time
+import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import httpx
-import logging
 from sqlalchemy import text
+
 from ..database import get_db
 from ..services.http_client import get_webhook_client
-from ..services.webhook_security import (
-    create_webhook_headers,
-    create_scan_completed_payload,
-    create_scan_failed_payload,
-)
 from ..services.integration_metrics import (
     record_webhook_delivery,
     time_webhook_delivery,
+)
+from ..services.webhook_security import (
+    create_scan_completed_payload,
+    create_scan_failed_payload,
+    create_webhook_headers,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,9 +85,7 @@ async def deliver_webhook(
         return False
 
     # Create webhook headers with signature
-    headers = create_webhook_headers(
-        event_data, event_data.get("event_type", "unknown"), delivery_id
-    )
+    headers = create_webhook_headers(event_data, event_data.get("event_type", "unknown"), delivery_id)
 
     # Get webhook client
     webhook_client = await get_webhook_client()

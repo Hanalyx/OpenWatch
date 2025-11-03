@@ -11,12 +11,13 @@ This service generates compliant XCCDF 1.2 XML content for scanning:
 Part of Phase 1, Issue #3: XCCDF Data-Stream Generator from MongoDB
 """
 
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone
-from motor.motor_asyncio import AsyncIOMotorDatabase
 import logging
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from xml.dom import minidom
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -187,16 +188,12 @@ class XCCDFGeneratorService:
 
         # Add variable overrides
         for var_id, var_value in variable_overrides.items():
-            set_value = ET.SubElement(
-                profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id}
-            )
+            set_value = ET.SubElement(profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id})
             set_value.text = str(var_value)
 
         return self._prettify_xml(tailoring)
 
-    def _create_benchmark_element(
-        self, benchmark_id: str, title: str, description: str, version: str
-    ) -> ET.Element:
+    def _create_benchmark_element(self, benchmark_id: str, title: str, description: str, version: str) -> ET.Element:
         """Create root Benchmark element with metadata"""
         # XCCDF 1.2 requires benchmark IDs to follow xccdf_<reverse-DNS>_benchmark_<name>
         if not benchmark_id.startswith("xccdf_"):
@@ -376,9 +373,7 @@ class XCCDFGeneratorService:
         else:
             check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
 
-        check = ET.SubElement(
-            rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-        )
+        check = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system})
 
         check_ref = ET.SubElement(
             check,
@@ -457,10 +452,7 @@ class XCCDFGeneratorService:
         """Create a single XCCDF Profile for a framework"""
         # Filter rules that belong to this framework version
         matching_rules = [
-            r
-            for r in rules
-            if framework in r.get("frameworks", {})
-            and framework_version in r["frameworks"][framework]
+            r for r in rules if framework in r.get("frameworks", {}) and framework_version in r["frameworks"][framework]
         ]
 
         if not matching_rules:

@@ -6,9 +6,10 @@ Provides centralized scanner management and instantiation.
 """
 
 from typing import Dict, Type
+
 from .base_scanner import BaseScanner
-from .oscap_scanner import OSCAPScanner
 from .kubernetes_scanner import KubernetesScanner
+from .oscap_scanner import OSCAPScanner
 
 
 class ScannerFactory:
@@ -48,8 +49,7 @@ class ScannerFactory:
 
         if not scanner_class:
             raise ValueError(
-                f"Unknown scanner type: {scanner_type}. "
-                f"Available scanners: {list(cls._scanners.keys())}"
+                f"Unknown scanner type: {scanner_type}. " f"Available scanners: {list(cls._scanners.keys())}"
             )
 
         return scanner_class()

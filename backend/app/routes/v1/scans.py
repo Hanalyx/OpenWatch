@@ -3,16 +3,14 @@ OpenWatch API v1 - Scan Management
 Versioned scan management endpoints with enhanced capabilities
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List, Optional
-from pydantic import BaseModel
 import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from ...auth import get_current_user
-from ..scans import (
-    # Import existing functionality from the main scans router
-    router as scans_router,
-)
+from ..scans import router as scans_router  # Import existing functionality from the main scans router
 
 logger = logging.getLogger(__name__)
 

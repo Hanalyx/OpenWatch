@@ -5,14 +5,14 @@ Provides CRUD operations for scan templates, including creation, listing,
 updating, deletion, and application to targets.
 """
 
+import logging
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
-import logging
 
-from ..models.scan_config_models import ScanTemplate, ScanTargetType, TemplateStatistics
-
+from ..models.scan_config_models import ScanTargetType, ScanTemplate, TemplateStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -149,9 +149,7 @@ class ScanTemplateService:
         if is_public is not None:
             query["is_public"] = is_public
 
-        templates = (
-            await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
-        )
+        templates = await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
 
         return templates
 
@@ -333,9 +331,7 @@ class ScanTemplateService:
             ScanTemplate.is_default == True,
         )
 
-    async def clone_template(
-        self, template_id: str, new_name: str, created_by: str
-    ) -> ScanTemplate:
+    async def clone_template(self, template_id: str, new_name: str, created_by: str) -> ScanTemplate:
         """
         Clone existing template with new name.
 

@@ -5,11 +5,12 @@ Provides safe models for exposing only necessary system information while
 preventing reconnaissance attacks through detailed technical information exposure.
 """
 
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -135,14 +136,10 @@ class SystemSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     setting_key = Column(String(100), unique=True, nullable=False, index=True)
     setting_value = Column(Text, nullable=True)
-    setting_type = Column(
-        String(20), default="string", nullable=False
-    )  # string, json, boolean, integer
+    setting_type = Column(String(20), default="string", nullable=False)  # string, json, boolean, integer
     description = Column(Text, nullable=True)
     created_by = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     modified_by = Column(Integer, nullable=True)
-    modified_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    modified_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

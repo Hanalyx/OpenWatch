@@ -5,14 +5,14 @@ Provides factory pattern for instantiating remediation executors and discovering
 available executor capabilities.
 """
 
-from typing import Dict, Type, List
+from typing import Dict, List, Type
 
+from .ansible_executor import AnsibleExecutor
 from .base_executor import (
     BaseRemediationExecutor,
     ExecutorMetadata,
     ExecutorNotAvailableError,
 )
-from .ansible_executor import AnsibleExecutor
 from .bash_executor import BashExecutor
 
 
@@ -55,8 +55,7 @@ class RemediationExecutorFactory:
 
         if not executor_class:
             raise ValueError(
-                f"Unknown executor type: {executor_type}. "
-                f"Available: {', '.join(cls._executors.keys())}"
+                f"Unknown executor type: {executor_type}. " f"Available: {', '.join(cls._executors.keys())}"
             )
 
         # Instantiate executor (may raise ExecutorNotAvailableError)

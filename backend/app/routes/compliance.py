@@ -5,21 +5,22 @@ Provides semantic SCAP intelligence and cross-framework compliance data
 
 import json
 import logging
-from typing import Dict, List, Any, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..services.semantic_scap_engine import get_semantic_scap_engine
-from ..services.compliance_rules_upload_service import ComplianceRulesUploadService
-from ..services.compliance_rules_deduplication_service import DeduplicationStrategy
 from ..auth import get_current_user
-from ..utils.file_security import sanitize_filename, validate_file_extension
+from ..database import get_db
 from ..models.mongo_models import UploadHistory
+from ..services.compliance_rules_deduplication_service import DeduplicationStrategy
+from ..services.compliance_rules_upload_service import ComplianceRulesUploadService
+from ..services.semantic_scap_engine import get_semantic_scap_engine
+from ..utils.file_security import sanitize_filename, validate_file_extension
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["compliance"])
@@ -70,9 +71,7 @@ class ComplianceOverview(BaseModel):
 async def get_semantic_rules(
     framework: Optional[str] = Query(None, description="Filter by framework"),
     business_impact: Optional[str] = Query(None, description="Filter by business impact"),
-    remediation_available: Optional[bool] = Query(
-        None, description="Filter by remediation availability"
-    ),
+    remediation_available: Optional[bool] = Query(None, description="Filter by remediation availability"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -123,9 +122,7 @@ async def get_semantic_rules(
                     "remediation_complexity": rule.remediation_complexity,
                     "estimated_fix_time": rule.estimated_fix_time,
                     "remediation_available": rule.remediation_available,
-                    "confidence_score": (
-                        float(rule.confidence_score) if rule.confidence_score else 1.0
-                    ),
+                    "confidence_score": (float(rule.confidence_score) if rule.confidence_score else 1.0),
                 }
             )
 
@@ -145,9 +142,7 @@ async def get_semantic_rules(
 
 
 @router.get("/framework-intelligence")
-async def get_framework_intelligence(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_framework_intelligence(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get framework intelligence overview and statistics"""
     try:
         # Get all semantic rules grouped by framework
@@ -194,9 +189,7 @@ async def get_framework_intelligence(
 
             remediation_coverage = 0
             if stats.rule_count > 0:
-                remediation_coverage = round(
-                    (stats.remediation_available_count / stats.rule_count) * 100
-                )
+                remediation_coverage = round((stats.remediation_available_count / stats.rule_count) * 100)
 
             frameworks.append(
                 {
@@ -231,9 +224,7 @@ async def get_framework_intelligence(
 
 
 @router.get("/overview")
-async def get_compliance_overview(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_compliance_overview(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get overall compliance intelligence overview metrics"""
     try:
         # Get total semantic rules count
@@ -281,9 +272,7 @@ async def get_compliance_overview(
 
     except Exception as e:
         logger.error(f"Error retrieving compliance overview: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve compliance overview: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve compliance overview: {str(e)}")
 
 
 @router.get("/semantic-analysis/{scan_id}")
@@ -313,13 +302,9 @@ async def get_semantic_analysis(
             "scan_id": str(analysis.scan_id),
             "host_id": str(analysis.host_id),
             "semantic_rules_count": analysis.semantic_rules_count,
-            "frameworks_analyzed": (
-                json.loads(analysis.frameworks_analyzed) if analysis.frameworks_analyzed else []
-            ),
+            "frameworks_analyzed": (json.loads(analysis.frameworks_analyzed) if analysis.frameworks_analyzed else []),
             "remediation_available_count": analysis.remediation_available_count,
-            "processing_metadata": (
-                json.loads(analysis.processing_metadata) if analysis.processing_metadata else {}
-            ),
+            "processing_metadata": (json.loads(analysis.processing_metadata) if analysis.processing_metadata else {}),
             "analysis_data": (json.loads(analysis.analysis_data) if analysis.analysis_data else {}),
             "created_at": (analysis.created_at.isoformat() if analysis.created_at else None),
             "updated_at": (analysis.updated_at.isoformat() if analysis.updated_at else None),
@@ -329,9 +314,7 @@ async def get_semantic_analysis(
         raise
     except Exception as e:
         logger.error(f"Error retrieving semantic analysis: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve semantic analysis: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve semantic analysis: {str(e)}")
 
 
 @router.get("/compliance-matrix")
@@ -368,9 +351,7 @@ async def get_compliance_matrix(
                 {
                     "host_id": str(row.host_id),
                     "framework": row.framework,
-                    "compliance_score": (
-                        float(row.compliance_score) if row.compliance_score else 0.0
-                    ),
+                    "compliance_score": (float(row.compliance_score) if row.compliance_score else 0.0),
                     "total_rules": row.total_rules,
                     "passed_rules": row.passed_rules,
                     "failed_rules": row.failed_rules,
@@ -378,12 +359,8 @@ async def get_compliance_matrix(
                     "trend": row.trend,
                     "last_scan_id": str(row.last_scan_id) if row.last_scan_id else None,
                     "last_updated": (row.last_updated.isoformat() if row.last_updated else None),
-                    "predicted_next_score": (
-                        float(row.predicted_next_score) if row.predicted_next_score else None
-                    ),
-                    "prediction_confidence": (
-                        float(row.prediction_confidence) if row.prediction_confidence else None
-                    ),
+                    "predicted_next_score": (float(row.predicted_next_score) if row.predicted_next_score else None),
+                    "prediction_confidence": (float(row.prediction_confidence) if row.prediction_confidence else None),
                 }
             )
 
@@ -395,9 +372,7 @@ async def get_compliance_matrix(
 
     except Exception as e:
         logger.error(f"Error retrieving compliance matrix: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve compliance matrix: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve compliance matrix: {str(e)}")
 
 
 @router.post("/remediation/strategy")
@@ -463,9 +438,7 @@ async def create_remediation_strategy(
         raise
     except Exception as e:
         logger.error(f"Error creating remediation strategy: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create remediation strategy: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to create remediation strategy: {str(e)}")
 
 
 @router.get("/health")

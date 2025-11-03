@@ -3,16 +3,15 @@
 Pydantic schemas for XCCDF generation API endpoints
 """
 
-from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class XCCDFBenchmarkRequest(BaseModel):
     """Request schema for XCCDF Benchmark generation"""
 
-    benchmark_id: str = Field(
-        ..., description="Unique benchmark identifier (e.g., 'openwatch-nist-800-53r5')"
-    )
+    benchmark_id: str = Field(..., description="Unique benchmark identifier (e.g., 'openwatch-nist-800-53r5')")
     title: str = Field(..., description="Human-readable benchmark title")
     description: str = Field(..., description="Detailed description of the benchmark")
     version: str = Field(..., description="Benchmark version string (e.g., '1.0.0')")
@@ -23,9 +22,7 @@ class XCCDFBenchmarkRequest(BaseModel):
     framework_version: Optional[str] = Field(
         None, description="Specific framework version (e.g., '800-53r5', 'v2.0.0')"
     )
-    rule_filter: Optional[Dict] = Field(
-        None, description="Additional MongoDB query filter for rules"
-    )
+    rule_filter: Optional[Dict] = Field(None, description="Additional MongoDB query filter for rules")
 
     class Config:
         schema_extra = {
@@ -57,9 +54,7 @@ class XCCDFTailoringRequest(BaseModel):
     benchmark_href: str = Field(..., description="Reference to benchmark file (path or URL)")
     benchmark_version: str = Field(..., description="Version of benchmark being tailored")
     profile_id: str = Field(..., description="Base profile to customize")
-    variable_overrides: Dict[str, str] = Field(
-        ..., description="Variable ID to custom value mappings"
-    )
+    variable_overrides: Dict[str, str] = Field(..., description="Variable ID to custom value mappings")
     title: Optional[str] = Field(None, description="Custom title for tailored profile")
     description: Optional[str] = Field(None, description="Description of customizations")
 

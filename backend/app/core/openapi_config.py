@@ -3,12 +3,13 @@ Enhanced OpenAPI Configuration for OpenWatch
 Provides comprehensive API documentation with examples, security schemes, and version management
 """
 
-from typing import Dict, List, Any, Optional
-from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
-from fastapi.responses import HTMLResponse
 import json
+from typing import Any, Dict, List, Optional
+
+from fastapi import FastAPI
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse
 
 
 def create_openapi_schema(
@@ -378,10 +379,8 @@ def create_custom_swagger_ui(
     swagger_ui_html = get_swagger_ui_html(
         openapi_url=openapi_url,
         title=title,
-        swagger_js_url=swagger_js_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url=swagger_css_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        swagger_js_url=swagger_js_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url=swagger_css_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
     ).body.decode()
 
     # Add custom CSS and branding
@@ -462,8 +461,7 @@ def create_custom_redoc(
     redoc_html = get_redoc_html(
         openapi_url=openapi_url,
         title=title,
-        redoc_js_url=redoc_js_url
-        or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
+        redoc_js_url=redoc_js_url or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
     ).body.decode()
 
     # Add custom ReDoc configuration
@@ -525,8 +523,6 @@ def setup_openapi_docs(app: FastAPI):
 
     @app.get("/redoc", include_in_schema=False)
     async def custom_redoc_html():
-        return create_custom_redoc(
-            openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation"
-        )
+        return create_custom_redoc(openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation")
 
     return app

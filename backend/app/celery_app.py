@@ -3,14 +3,15 @@ FIPS-compliant Celery configuration for secure task processing
 Redis with TLS and encrypted message passing
 """
 
+import asyncio
+import logging
 import os
 import ssl
-import logging
+
+import redis
 from celery import Celery
 from celery.signals import worker_ready, worker_shutdown
 from kombu import Queue
-import redis
-import asyncio
 
 from .config import get_settings
 
@@ -107,9 +108,7 @@ celery_app.conf.update(
         Queue("results", routing_key="results"),
         Queue("maintenance", routing_key="maintenance"),
         Queue("monitoring", routing_key="monitoring"),
-        Queue(
-            "host_monitoring", routing_key="host_monitoring"
-        ),  # Dedicated queue for adaptive monitoring
+        Queue("host_monitoring", routing_key="host_monitoring"),  # Dedicated queue for adaptive monitoring
     ],
     # Celery Beat schedule for adaptive monitoring dispatcher
     beat_schedule={

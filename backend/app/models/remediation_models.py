@@ -8,9 +8,10 @@ Security Automation) plugin architecture.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, List, Any
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
+
 from beanie import Document
+from pydantic import BaseModel, Field
 
 
 class RemediationStatus(str, Enum):
@@ -42,9 +43,7 @@ class RemediationTarget(BaseModel):
     credentials: Optional[Dict[str, str]] = Field(
         default=None, description="Encrypted credentials (SSH keys, API tokens, etc.)"
     )
-    metadata: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional target-specific metadata"
-    )
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional target-specific metadata")
 
 
 class RemediationExecutionResult(BaseModel):
@@ -156,9 +155,7 @@ class BulkRemediationJob(Document):
     scan_id: Optional[str] = Field(default=None, description="Source scan ID")
 
     # Configuration
-    rule_filter: Optional[Dict[str, Any]] = Field(
-        default=None, description="Filter criteria for rules to remediate"
-    )
+    rule_filter: Optional[Dict[str, Any]] = Field(default=None, description="Filter criteria for rules to remediate")
     target: RemediationTarget
     dry_run: bool = Field(default=False)
 
@@ -172,9 +169,7 @@ class BulkRemediationJob(Document):
     total_remediations: int = Field(default=0)
     completed_remediations: int = Field(default=0)
     failed_remediations: int = Field(default=0)
-    remediation_ids: List[str] = Field(
-        default_factory=list, description="Individual remediation IDs in this job"
-    )
+    remediation_ids: List[str] = Field(default_factory=list, description="Individual remediation IDs in this job")
 
     # User tracking
     executed_by: str

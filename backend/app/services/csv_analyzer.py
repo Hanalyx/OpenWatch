@@ -5,11 +5,11 @@ Provides intelligent analysis of CSV files for frictionless import
 
 import csv
 import io
-import re
 import ipaddress
-from typing import Dict, List, Optional, Any, Tuple
+import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class FieldType(Enum):
@@ -63,9 +63,7 @@ class CSVAnalyzer:
         ]
 
         self.hostname_patterns = [
-            re.compile(
-                r"^[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?(\.[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?)*$"
-            ),
+            re.compile(r"^[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?(\.[a-zA-Z\d]([a-zA-Z\d\-]{0,61}[a-zA-Z\d])?)*$"),
             re.compile(r"^[a-zA-Z0-9\-_]+$"),  # Simple hostname
         ]
 
@@ -187,9 +185,7 @@ class CSVAnalyzer:
             template_matches=template_matches,
         )
 
-    def _analyze_column(
-        self, column_name: str, rows: List[Dict], max_preview: int
-    ) -> FieldAnalysis:
+    def _analyze_column(self, column_name: str, rows: List[Dict], max_preview: int) -> FieldAnalysis:
         """Analyze a single column and detect its likely type"""
 
         # Extract values for this column, handling None values
@@ -410,9 +406,7 @@ class CSVAnalyzer:
 
         # Red Hat Satellite patterns
         satellite_indicators = ["name", "operating_system", "ip", "environment"]
-        if all(
-            any(indicator in h for h in headers_lower) for indicator in satellite_indicators[:2]
-        ):
+        if all(any(indicator in h for h in headers_lower) for indicator in satellite_indicators[:2]):
             templates.append("Red Hat Satellite Export")
 
         # AWS EC2 patterns

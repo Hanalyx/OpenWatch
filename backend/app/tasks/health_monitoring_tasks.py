@@ -4,10 +4,11 @@ Background tasks for health monitoring data collection.
 Scheduled tasks that periodically collect and store health metrics.
 """
 
+import logging
 from datetime import datetime, timedelta
+
 from celery import Celery
 from celery.schedules import crontab
-import logging
 
 from backend.app.celery_app import celery_app
 from backend.app.services.health_monitoring_service import get_health_monitoring_service
@@ -99,8 +100,7 @@ async def update_health_summary_task():
         await health_service.save_health_summary(summary)
 
         logger.info(
-            f"Health summary updated: {summary.overall_health_status}, "
-            f"{summary.active_issues_count} active issues"
+            f"Health summary updated: {summary.overall_health_status}, " f"{summary.active_issues_count} active issues"
         )
 
         return {
@@ -129,7 +129,7 @@ async def cleanup_old_health_data_task(retention_days: int = 7):
     try:
         logger.info(f"Starting health data cleanup task (retention: {retention_days} days)")
 
-        from ..models.health_models import ServiceHealthDocument, ContentHealthDocument
+        from ..models.health_models import ContentHealthDocument, ServiceHealthDocument
 
         cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
 

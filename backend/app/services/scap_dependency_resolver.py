@@ -12,9 +12,9 @@ Designed to support:
 
 import logging
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import List, Dict, Set, Optional
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +74,7 @@ class SCAPDependencyResolver:
 
         # Add primary file
         file_type = self._detect_file_type(primary_file)
-        primary_dep = SCAPDependency(
-            file_path=primary_file, dependency_type=file_type, is_primary=True
-        )
+        primary_dep = SCAPDependency(file_path=primary_file, dependency_type=file_type, is_primary=True)
         self.dependencies.append(primary_dep)
         self.resolved_files.add(primary_file)
 
@@ -142,9 +140,7 @@ class SCAPDependencyResolver:
                 if ns:
                     ref_elements.extend(root.findall(f".//{{{ns}}}reference"))
 
-            logger.debug(
-                f"Found {len(ref_elements)} check-content-ref elements in {xccdf_file.name}"
-            )
+            logger.debug(f"Found {len(ref_elements)} check-content-ref elements in {xccdf_file.name}")
 
             # Extract href attributes
             for ref in ref_elements:
