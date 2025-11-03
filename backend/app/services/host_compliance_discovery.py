@@ -33,9 +33,7 @@ class HostComplianceDiscoveryService:
         Returns:
             Dictionary containing discovered compliance information
         """
-        logger.info(
-            f"Starting compliance infrastructure discovery for host: {host.hostname}"
-        )
+        logger.info(f"Starting compliance infrastructure discovery for host: {host.hostname}")
 
         discovery_results = {
             "python_environments": {},
@@ -53,41 +51,29 @@ class HostComplianceDiscoveryService:
         try:
             # Establish SSH connection
             if not self.ssh_service.connect(host):
-                discovery_results["discovery_errors"].append(
-                    "Failed to establish SSH connection"
-                )
+                discovery_results["discovery_errors"].append("Failed to establish SSH connection")
                 return discovery_results
 
             # 1. Discover Python environments and versions
             python_info = self._discover_python_environments(host)
-            discovery_results["python_environments"] = python_info.get(
-                "python_environments", {}
-            )
+            discovery_results["python_environments"] = python_info.get("python_environments", {})
             discovery_results["discovery_errors"].extend(python_info.get("errors", []))
 
             # 2. Discover OpenSCAP tools and capabilities
             openscap_info = self._discover_openscap_tools(host)
-            discovery_results["openscap_tools"] = openscap_info.get(
-                "openscap_tools", {}
-            )
-            discovery_results["discovery_errors"].extend(
-                openscap_info.get("errors", [])
-            )
+            discovery_results["openscap_tools"] = openscap_info.get("openscap_tools", {})
+            discovery_results["discovery_errors"].extend(openscap_info.get("errors", []))
 
             # 3. Discover privilege escalation capabilities
             privilege_info = self._discover_privilege_escalation(host)
             discovery_results["privilege_escalation"] = privilege_info.get(
                 "privilege_escalation", {}
             )
-            discovery_results["discovery_errors"].extend(
-                privilege_info.get("errors", [])
-            )
+            discovery_results["discovery_errors"].extend(privilege_info.get("errors", []))
 
             # 4. Discover other compliance scanners
             scanner_info = self._discover_compliance_scanners(host)
-            discovery_results["compliance_scanners"] = scanner_info.get(
-                "compliance_scanners", {}
-            )
+            discovery_results["compliance_scanners"] = scanner_info.get("compliance_scanners", {})
             discovery_results["discovery_errors"].extend(scanner_info.get("errors", []))
 
             # 5. Discover filesystem capabilities
@@ -95,9 +81,7 @@ class HostComplianceDiscoveryService:
             discovery_results["filesystem_capabilities"] = filesystem_info.get(
                 "filesystem_capabilities", {}
             )
-            discovery_results["discovery_errors"].extend(
-                filesystem_info.get("errors", [])
-            )
+            discovery_results["discovery_errors"].extend(filesystem_info.get("errors", []))
 
             # 6. Discover audit and logging tools
             audit_info = self._discover_audit_tools(host)
@@ -105,14 +89,12 @@ class HostComplianceDiscoveryService:
             discovery_results["discovery_errors"].extend(audit_info.get("errors", []))
 
             # 7. Compile compliance frameworks list
-            discovery_results["compliance_frameworks"] = (
-                self._compile_compliance_frameworks(discovery_results)
+            discovery_results["compliance_frameworks"] = self._compile_compliance_frameworks(
+                discovery_results
             )
 
             # Update discovery success status
-            discovery_results["discovery_success"] = (
-                len(discovery_results["discovery_errors"]) == 0
-            )
+            discovery_results["discovery_success"] = len(discovery_results["discovery_errors"]) == 0
 
             logger.info(
                 f"Compliance infrastructure discovery completed for {host.hostname}: "
@@ -123,9 +105,7 @@ class HostComplianceDiscoveryService:
 
         except Exception as e:
             logger.error(f"Compliance discovery failed for {host.hostname}: {str(e)}")
-            discovery_results["discovery_errors"].append(
-                f"Discovery exception: {str(e)}"
-            )
+            discovery_results["discovery_errors"].append(f"Discovery exception: {str(e)}")
 
         finally:
             self.ssh_service.disconnect()
@@ -162,9 +142,7 @@ class HostComplianceDiscoveryService:
                             version_output["stdout"].strip()
                             or version_output.get("stderr", "").strip()
                         )
-                        version_match = re.search(
-                            r"Python (\\d+\\.\\d+\\.\\d+)", version_text
-                        )
+                        version_match = re.search(r"Python (\\d+\\.\\d+\\.\\d+)", version_text)
                         if version_match:
                             version = version_match.group(1)
 
@@ -197,9 +175,7 @@ class HostComplianceDiscoveryService:
                     )
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering Python environments for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering Python environments for {host.hostname}: {str(e)}")
             result["errors"].append(f"Python discovery error: {str(e)}")
 
         return result
@@ -219,9 +195,7 @@ class HostComplianceDiscoveryService:
 
         try:
             for tool_cmd, tool_name in openscap_tools.items():
-                output = self.ssh_service.execute_command(
-                    f"which {tool_cmd}", timeout=5
-                )
+                output = self.ssh_service.execute_command(f"which {tool_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
                     version_output = self.ssh_service.execute_command(
@@ -233,9 +207,7 @@ class HostComplianceDiscoveryService:
                     if version_output and version_output["success"]:
                         version_text = version_output["stdout"].strip()
                         # Extract version number
-                        version_match = re.search(
-                            r"(\\d+\\.\\d+[\\.\\d]*)", version_text
-                        )
+                        version_match = re.search(r"(\\d+\\.\\d+[\\.\\d]*)", version_text)
                         if version_match:
                             version = version_match.group(1)
 
@@ -256,16 +228,12 @@ class HostComplianceDiscoveryService:
                             capabilities.append("OVAL")
 
                         # Check for CVE support
-                        cve_output = self.ssh_service.execute_command(
-                            "oscap cve --help", timeout=5
-                        )
+                        cve_output = self.ssh_service.execute_command("oscap cve --help", timeout=5)
                         if cve_output and cve_output["success"]:
                             capabilities.append("CVE")
 
                         # Check for CPE support
-                        cpe_output = self.ssh_service.execute_command(
-                            "oscap cpe --help", timeout=5
-                        )
+                        cpe_output = self.ssh_service.execute_command("oscap cpe --help", timeout=5)
                         if cpe_output and cpe_output["success"]:
                             capabilities.append("CPE")
 
@@ -289,9 +257,7 @@ class HostComplianceDiscoveryService:
 
             available_content = []
             for content_dir in scap_content_dirs:
-                dir_check = self.ssh_service.execute_command(
-                    f"ls -la {content_dir}", timeout=5
-                )
+                dir_check = self.ssh_service.execute_command(f"ls -la {content_dir}", timeout=5)
                 if dir_check and dir_check["success"]:
                     available_content.append(content_dir)
 
@@ -303,9 +269,7 @@ class HostComplianceDiscoveryService:
                 }
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering OpenSCAP tools for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering OpenSCAP tools for {host.hostname}: {str(e)}")
             result["errors"].append(f"OpenSCAP discovery error: {str(e)}")
 
         return result
@@ -319,15 +283,11 @@ class HostComplianceDiscoveryService:
             sudo_output = self.ssh_service.execute_command("which sudo", timeout=5)
             if sudo_output and sudo_output["success"] and sudo_output["stdout"].strip():
                 # Get sudo version
-                sudo_version_output = self.ssh_service.execute_command(
-                    "sudo --version", timeout=5
-                )
+                sudo_version_output = self.ssh_service.execute_command("sudo --version", timeout=5)
                 sudo_version = "Unknown"
                 if sudo_version_output and sudo_version_output["success"]:
                     version_text = sudo_version_output["stdout"].strip()
-                    version_match = re.search(
-                        r"version (\\d+\\.\\d+[\\.\\d]*)", version_text
-                    )
+                    version_match = re.search(r"version (\\d+\\.\\d+[\\.\\d]*)", version_text)
                     if version_match:
                         sudo_version = version_match.group(1)
 
@@ -367,9 +327,7 @@ class HostComplianceDiscoveryService:
                 result["privilege_escalation"]["doas"] = {"available": False}
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering privilege escalation for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering privilege escalation for {host.hostname}: {str(e)}")
             result["errors"].append(f"Privilege escalation discovery error: {str(e)}")
 
         return result
@@ -396,9 +354,7 @@ class HostComplianceDiscoveryService:
 
         try:
             for scanner_cmd, scanner_name in scanners.items():
-                output = self.ssh_service.execute_command(
-                    f"which {scanner_cmd}", timeout=5
-                )
+                output = self.ssh_service.execute_command(f"which {scanner_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
                     version_output = self.ssh_service.execute_command(
@@ -408,9 +364,7 @@ class HostComplianceDiscoveryService:
                     if version_output and version_output["success"]:
                         version_text = version_output["stdout"].strip()
                         # Extract version number from output
-                        version_match = re.search(
-                            r"(\\d+\\.\\d+[\\.\\d]*)", version_text
-                        )
+                        version_match = re.search(r"(\\d+\\.\\d+[\\.\\d]*)", version_text)
                         if version_match:
                             version = version_match.group(1)
 
@@ -421,14 +375,10 @@ class HostComplianceDiscoveryService:
                         "available": True,
                     }
 
-                    logger.debug(
-                        f"Found compliance scanner: {scanner_name} version {version}"
-                    )
+                    logger.debug(f"Found compliance scanner: {scanner_name} version {version}")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering compliance scanners for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering compliance scanners for {host.hostname}: {str(e)}")
             result["errors"].append(f"Compliance scanner discovery error: {str(e)}")
 
         return result
@@ -474,9 +424,7 @@ class HostComplianceDiscoveryService:
             }
 
             # Check for SELinux filesystem labels (if SELinux is available)
-            selinux_labels = self.ssh_service.execute_command(
-                "which restorecon", timeout=5
-            )
+            selinux_labels = self.ssh_service.execute_command("which restorecon", timeout=5)
             result["filesystem_capabilities"]["selinux_labels"] = {
                 "available": selinux_labels
                 and selinux_labels["success"]
@@ -518,9 +466,7 @@ class HostComplianceDiscoveryService:
 
         try:
             for tool_cmd, tool_name in audit_tools.items():
-                output = self.ssh_service.execute_command(
-                    f"which {tool_cmd}", timeout=5
-                )
+                output = self.ssh_service.execute_command(f"which {tool_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
                     version_output = None
@@ -533,16 +479,12 @@ class HostComplianceDiscoveryService:
                             "systemctl --version", timeout=5
                         )
                     elif tool_cmd == "rsyslog":
-                        version_output = self.ssh_service.execute_command(
-                            "rsyslogd -v", timeout=5
-                        )
+                        version_output = self.ssh_service.execute_command("rsyslogd -v", timeout=5)
 
                     version = "Unknown"
                     if version_output and version_output["success"]:
                         version_text = version_output["stdout"].strip()
-                        version_match = re.search(
-                            r"(\\d+\\.\\d+[\\.\\d]*)", version_text
-                        )
+                        version_match = re.search(r"(\\d+\\.\\d+[\\.\\d]*)", version_text)
                         if version_match:
                             version = version_match.group(1)
 
@@ -570,16 +512,12 @@ class HostComplianceDiscoveryService:
                     logger.debug(f"Found audit tool: {tool_name} version {version}")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering audit tools for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering audit tools for {host.hostname}: {str(e)}")
             result["errors"].append(f"Audit tool discovery error: {str(e)}")
 
         return result
 
-    def _compile_compliance_frameworks(
-        self, discovery_results: Dict[str, Any]
-    ) -> List[str]:
+    def _compile_compliance_frameworks(self, discovery_results: Dict[str, Any]) -> List[str]:
         """Compile a list of supported compliance frameworks based on discovered tools"""
         frameworks = []
 
@@ -600,19 +538,11 @@ class HostComplianceDiscoveryService:
                 )
 
         # Check for Chef InSpec
-        if (
-            discovery_results.get("compliance_scanners", {})
-            .get("inspec", {})
-            .get("available")
-        ):
+        if discovery_results.get("compliance_scanners", {}).get("inspec", {}).get("available"):
             frameworks.extend(["CIS Benchmarks", "DevSec Hardening Framework"])
 
         # Check for Lynis
-        if (
-            discovery_results.get("compliance_scanners", {})
-            .get("lynis", {})
-            .get("available")
-        ):
+        if discovery_results.get("compliance_scanners", {}).get("lynis", {}).get("available"):
             frameworks.extend(["System Hardening", "Security Benchmarks"])
 
         # Check for audit tools (supports various compliance requirements)
@@ -623,9 +553,7 @@ class HostComplianceDiscoveryService:
         # Check for file integrity monitors
         fim_tools = ["aide", "tripwire", "samhain"]
         if any(
-            discovery_results.get("compliance_scanners", {})
-            .get(tool, {})
-            .get("available")
+            discovery_results.get("compliance_scanners", {}).get(tool, {}).get("available")
             for tool in fim_tools
         ):
             frameworks.extend(["File Integrity Monitoring", "Change Detection"])

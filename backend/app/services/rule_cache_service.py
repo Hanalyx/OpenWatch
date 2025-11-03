@@ -354,9 +354,7 @@ class RuleCacheService:
                 "max_memory_mb": self.max_memory_mb,
                 "avg_hit_time_ms": round(self.metrics.avg_hit_time * 1000, 2),
                 "avg_miss_time_ms": round(self.metrics.avg_miss_time * 1000, 2),
-                "redis_memory_mb": round(
-                    redis_info.get("used_memory", 0) / 1024 / 1024, 2
-                ),
+                "redis_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 2),
                 "last_updated": self.metrics.last_updated.isoformat(),
             }
 
@@ -515,10 +513,7 @@ class RuleCacheService:
             keys = []
 
             async for key in self.redis_client.scan_iter(match=cache_pattern):
-                if (
-                    not key.decode().endswith(":metrics")
-                    and not ":tags:" in key.decode()
-                ):
+                if not key.decode().endswith(":metrics") and not ":tags:" in key.decode():
                     keys.append(key)
 
             if len(keys) <= 100:  # Don't evict if cache is small
@@ -540,9 +535,7 @@ class RuleCacheService:
                     continue
 
             # Sort by priority (low first) then by access time (oldest first)
-            entries_to_analyze.sort(
-                key=lambda x: (x[1].priority.value, x[1].accessed_at)
-            )
+            entries_to_analyze.sort(key=lambda x: (x[1].priority.value, x[1].accessed_at))
 
             # Evict entries
             keys_to_evict = [entry[0] for entry in entries_to_analyze[:evict_count]]
@@ -562,10 +555,7 @@ class RuleCacheService:
                 count = 0
 
                 async for key in self.redis_client.scan_iter(match=cache_pattern):
-                    if (
-                        not key.decode().endswith(":metrics")
-                        and not ":tags:" in key.decode()
-                    ):
+                    if not key.decode().endswith(":metrics") and not ":tags:" in key.decode():
                         count += 1
 
                 self.metrics.cache_size = count

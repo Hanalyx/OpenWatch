@@ -108,11 +108,7 @@ class SCAPRepositoryManager:
 
         try:
             repos_to_sync = (
-                [
-                    self.repositories[rid]
-                    for rid in repository_ids
-                    if rid in self.repositories
-                ]
+                [self.repositories[rid] for rid in repository_ids if rid in self.repositories]
                 if repository_ids
                 else [repo for repo in self.repositories.values() if repo.enabled]
             )
@@ -155,16 +151,12 @@ class SCAPRepositoryManager:
                     new_content += 1
             elif self._should_update_content(existing, content_meta):
                 # Update existing content
-                if await self._update_existing_content(
-                    db, repo, content_meta, existing
-                ):
+                if await self._update_existing_content(db, repo, content_meta, existing):
                     updated_content += 1
 
         return f"synced: {new_content} new, {updated_content} updated"
 
-    async def _fetch_repository_catalog(
-        self, repo: RepositoryConfig
-    ) -> List[ContentMetadata]:
+    async def _fetch_repository_catalog(self, repo: RepositoryConfig) -> List[ContentMetadata]:
         """Fetch the catalog/index of available content from repository"""
 
         # This is a simplified implementation - real repositories would have
@@ -235,9 +227,7 @@ class SCAPRepositoryManager:
 
         return []
 
-    async def _discover_nist_content(
-        self, repo: RepositoryConfig
-    ) -> List[ContentMetadata]:
+    async def _discover_nist_content(self, repo: RepositoryConfig) -> List[ContentMetadata]:
         """Discover NIST SCAP content"""
         # Mock NIST content discovery
         content_list = [
@@ -273,16 +263,12 @@ class SCAPRepositoryManager:
 
         return [c for c in content_list if c.os_family in repo.os_families]
 
-    async def _discover_redhat_content(
-        self, repo: RepositoryConfig
-    ) -> List[ContentMetadata]:
+    async def _discover_redhat_content(self, repo: RepositoryConfig) -> List[ContentMetadata]:
         """Discover Red Hat security content"""
         # Mock Red Hat content discovery
         return []
 
-    async def _discover_ubuntu_content(
-        self, repo: RepositoryConfig
-    ) -> List[ContentMetadata]:
+    async def _discover_ubuntu_content(self, repo: RepositoryConfig) -> List[ContentMetadata]:
         """Discover Ubuntu security content"""
         # Mock Ubuntu content discovery
         return []
@@ -321,9 +307,7 @@ class SCAPRepositoryManager:
             logger.error(f"Error checking existing content: {e}")
             return None
 
-    def _should_update_content(
-        self, existing: Dict, content_meta: ContentMetadata
-    ) -> bool:
+    def _should_update_content(self, existing: Dict, content_meta: ContentMetadata) -> bool:
         """Determine if existing content should be updated"""
         # Check version
         if content_meta.version != existing.get("version"):
@@ -450,9 +434,7 @@ class SCAPRepositoryManager:
 
             db.commit()
 
-            logger.info(
-                f"Updated content: {content_meta.name} to version {content_meta.version}"
-            )
+            logger.info(f"Updated content: {content_meta.name} to version {content_meta.version}")
             return True
 
         except Exception as e:
@@ -479,23 +461,15 @@ class SCAPRepositoryManager:
             profiles = []
 
             # XCCDF profiles
-            for profile in root.findall(
-                ".//{http://checklists.nist.gov/xccdf/1.2}Profile"
-            ):
+            for profile in root.findall(".//{http://checklists.nist.gov/xccdf/1.2}Profile"):
                 profile_id = profile.get("id", "")
-                title_elem = profile.find(
-                    ".//{http://checklists.nist.gov/xccdf/1.2}title"
-                )
-                desc_elem = profile.find(
-                    ".//{http://checklists.nist.gov/xccdf/1.2}description"
-                )
+                title_elem = profile.find(".//{http://checklists.nist.gov/xccdf/1.2}title")
+                desc_elem = profile.find(".//{http://checklists.nist.gov/xccdf/1.2}description")
 
                 profiles.append(
                     {
                         "id": profile_id,
-                        "title": (
-                            title_elem.text if title_elem is not None else profile_id
-                        ),
+                        "title": (title_elem.text if title_elem is not None else profile_id),
                         "description": desc_elem.text if desc_elem is not None else "",
                     }
                 )

@@ -134,9 +134,7 @@ class FIPSJWTManager:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=settings.access_token_expire_minutes
-            )
+            expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
 
         to_encode.update(
             {
@@ -166,9 +164,7 @@ class FIPSJWTManager:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(
-                days=settings.refresh_token_expire_days
-            )
+            expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
 
         to_encode.update(
             {
@@ -272,9 +268,7 @@ class SecurityAuditLogger:
 
     def log_security_event(self, event_type: str, details: str, ip_address: str):
         """Log security events"""
-        self.audit_logger.warning(
-            f"SECURITY_{event_type} - Details: {details}, IP: {ip_address}"
-        )
+        self.audit_logger.warning(f"SECURITY_{event_type} - Details: {details}, IP: {ip_address}")
 
     def log_api_key_action(
         self,

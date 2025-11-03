@@ -64,9 +64,7 @@ async def get_openapi_spec_yaml(
         openapi_spec = _generate_enhanced_openapi_spec(include_internal)
 
         # Convert to YAML
-        yaml_content = yaml.dump(
-            openapi_spec, default_flow_style=False, sort_keys=False
-        )
+        yaml_content = yaml.dump(openapi_spec, default_flow_style=False, sort_keys=False)
 
         logger.debug(
             f"OpenAPI YAML spec requested by user {current_user.get('user_id', 'unknown')}"
@@ -75,9 +73,7 @@ async def get_openapi_spec_yaml(
         return Response(
             content=yaml_content,
             media_type="application/x-yaml",
-            headers={
-                "Content-Disposition": "attachment; filename=openwatch-api-v1.yaml"
-            },
+            headers={"Content-Disposition": "attachment; filename=openwatch-api-v1.yaml"},
         )
 
     except Exception as e:
@@ -366,9 +362,7 @@ def _generate_postman_collection() -> Dict[str, Any]:
                         "name": "Login",
                         "request": {
                             "method": "POST",
-                            "header": [
-                                {"key": "Content-Type", "value": "application/json"}
-                            ],
+                            "header": [{"key": "Content-Type", "value": "application/json"}],
                             "body": {
                                 "mode": "raw",
                                 "raw": json.dumps(

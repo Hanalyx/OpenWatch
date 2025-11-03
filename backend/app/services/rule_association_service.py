@@ -171,9 +171,7 @@ class RuleAssociationService:
     def __init__(self):
         self.plugin_registry_service = PluginRegistryService()
         self._keyword_cache: Dict[str, Set[str]] = {}
-        self._framework_mappings: Dict[str, Dict[str, str]] = (
-            self._load_framework_mappings()
-        )
+        self._framework_mappings: Dict[str, Dict[str, str]] = self._load_framework_mappings()
 
     def _load_framework_mappings(self) -> Dict[str, Dict[str, str]]:
         """Load predefined framework-specific rule mappings"""
@@ -249,9 +247,7 @@ class RuleAssociationService:
         query["confidence_score"] = {"$gte": min_score}
 
         mappings = (
-            await RulePluginMapping.find(query)
-            .sort(-RulePluginMapping.confidence_score)
-            .to_list()
+            await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
         )
 
         return mappings
@@ -272,9 +268,7 @@ class RuleAssociationService:
         query["confidence_score"] = {"$gte": min_score}
 
         return (
-            await RulePluginMapping.find(query)
-            .sort(-RulePluginMapping.confidence_score)
-            .to_list()
+            await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
         )
 
     async def discover_mappings_for_rule(
@@ -360,9 +354,7 @@ class RuleAssociationService:
                     # Convert mappings to recommendations
                     rule_recommendations = []
                     for mapping in existing_mappings:
-                        plugin = await self.plugin_registry_service.get_plugin(
-                            mapping.plugin_id
-                        )
+                        plugin = await self.plugin_registry_service.get_plugin(mapping.plugin_id)
                         if plugin:
                             recommendation = RuleMappingRecommendation(
                                 plugin_id=plugin.plugin_id,
@@ -393,9 +385,7 @@ class RuleAssociationService:
         self, mapping_id: str, execution_result: Dict[str, Any], success: bool
     ) -> RulePluginMapping:
         """Update mapping based on execution results"""
-        mapping = await RulePluginMapping.find_one(
-            RulePluginMapping.mapping_id == mapping_id
-        )
+        mapping = await RulePluginMapping.find_one(RulePluginMapping.mapping_id == mapping_id)
 
         if not mapping:
             raise ValueError(f"Mapping not found: {mapping_id}")
@@ -409,9 +399,7 @@ class RuleAssociationService:
 
         # Calculate effectiveness score
         if mapping.execution_count > 0:
-            mapping.effectiveness_score = (
-                mapping.success_count / mapping.execution_count
-            )
+            mapping.effectiveness_score = mapping.success_count / mapping.execution_count
 
         # Update validation status
         if not mapping.is_validated and mapping.execution_count >= 3:
@@ -463,9 +451,7 @@ class RuleAssociationService:
             source_stats[source.value] = count
 
         # Get effectiveness statistics
-        validated_mappings = await RulePluginMapping.find(
-            {"is_validated": True}
-        ).to_list()
+        validated_mappings = await RulePluginMapping.find({"is_validated": True}).to_list()
 
         if validated_mappings:
             avg_effectiveness = sum(
@@ -518,9 +504,7 @@ class RuleAssociationService:
                     plugin_id=mapping_data["plugin_id"],
                     platform=mapping_data.get("platform", "linux"),
                     created_by=created_by,
-                    confidence=MappingConfidence(
-                        mapping_data.get("confidence", "medium")
-                    ),
+                    confidence=MappingConfidence(mapping_data.get("confidence", "medium")),
                     mapping_source=source,
                     plugin_rule_id=mapping_data.get("plugin_rule_id"),
                     execution_context=mapping_data.get("context", {}),
@@ -558,9 +542,7 @@ class RuleAssociationService:
         )
 
         # Calculate text similarity
-        similarity_score = SequenceMatcher(
-            None, rule_text.lower(), plugin_text.lower()
-        ).ratio()
+        similarity_score = SequenceMatcher(None, rule_text.lower(), plugin_text.lower()).ratio()
 
         # Extract and match keywords
         rule_keywords = self._extract_keywords(rule_text)
@@ -575,9 +557,7 @@ class RuleAssociationService:
                 expected_rule = framework_rules[rule_id]
                 if expected_rule in plugin_text:
                     framework_match = True
-                    similarity_score = max(
-                        similarity_score, 0.8
-                    )  # Boost for framework match
+                    similarity_score = max(similarity_score, 0.8)  # Boost for framework match
 
         # Check platform compatibility
         platform_compatibility = platform in plugin.enabled_platforms
@@ -704,8 +684,7 @@ class RuleAssociationService:
                 {
                     "id": f"{plugin.plugin_id}_generic",
                     "name": f"{plugin.name} Generic Rule",
-                    "description": plugin.description
-                    or f"Generic remediation using {plugin.name}",
+                    "description": plugin.description or f"Generic remediation using {plugin.name}",
                 }
             )
 
@@ -725,9 +704,7 @@ class RuleAssociationService:
         total_executions = sum(m.execution_count for m in mappings)
         total_successes = sum(m.success_count for m in mappings)
 
-        success_rate = (
-            total_successes / total_executions if total_executions > 0 else None
-        )
+        success_rate = total_successes / total_executions if total_executions > 0 else None
 
         return {"success_rate": success_rate, "usage_count": total_executions}
 
@@ -789,9 +766,7 @@ async def create_stig_mappings(
         },
     ]
 
-    return await service.bulk_import_mappings(
-        stig_mappings, created_by, MappingSource.FRAMEWORK
-    )
+    return await service.bulk_import_mappings(stig_mappings, created_by, MappingSource.FRAMEWORK)
 
 
 async def create_cis_mappings(
@@ -815,6 +790,4 @@ async def create_cis_mappings(
         },
     ]
 
-    return await service.bulk_import_mappings(
-        cis_mappings, created_by, MappingSource.FRAMEWORK
-    )
+    return await service.bulk_import_mappings(cis_mappings, created_by, MappingSource.FRAMEWORK)

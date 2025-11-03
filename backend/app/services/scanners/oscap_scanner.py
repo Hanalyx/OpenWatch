@@ -84,9 +84,7 @@ class OSCAPScanner(BaseScanner):
         4. Parse XCCDF results XML
         5. Return structured results
         """
-        logger.info(
-            f"OSCAP scan starting: {len(rules)} rules, target={target.identifier}"
-        )
+        logger.info(f"OSCAP scan starting: {len(rules)} rules, target={target.identifier}")
 
         # Validate target type
         if target.type not in [ScanTargetType.SSH_HOST, ScanTargetType.LOCAL]:
@@ -102,17 +100,13 @@ class OSCAPScanner(BaseScanner):
 
         try:
             # 1. Generate XCCDF benchmark
-            benchmark_xml, profile_id = await self._generate_benchmark(
-                rules, scan_options
-            )
+            benchmark_xml, profile_id = await self._generate_benchmark(rules, scan_options)
 
             # 2. Generate tailoring file if variables provided
             tailoring_xml = None
             if variables:
                 tailoring_xml = await self._generate_tailoring(
-                    benchmark_id=scan_options.get(
-                        "benchmark_id", "openwatch-benchmark"
-                    ),
+                    benchmark_id=scan_options.get("benchmark_id", "openwatch-benchmark"),
                     profile_id=profile_id,
                     variables=variables,
                 )
@@ -132,9 +126,7 @@ class OSCAPScanner(BaseScanner):
             # 5. Calculate summary
             summary = self._calculate_summary(rule_results)
 
-            logger.info(
-                f"OSCAP scan completed: {summary.passed}/{summary.total_rules} passed"
-            )
+            logger.info(f"OSCAP scan completed: {summary.passed}/{summary.total_rules} passed")
 
             return rule_results, summary
 
@@ -238,9 +230,7 @@ class OSCAPScanner(BaseScanner):
 
         tailoring_file = None
         if tailoring_xml:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".xml", delete=False
-            ) as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
                 f.write(tailoring_xml)
                 tailoring_file = f.name
 
@@ -368,9 +358,7 @@ class OSCAPScanner(BaseScanner):
         else:
             raise ScannerExecutionError("Results file not created")
 
-    def _parse_results(
-        self, results_xml: str, rules: List[Dict[str, Any]]
-    ) -> List[RuleResult]:
+    def _parse_results(self, results_xml: str, rules: List[Dict[str, Any]]) -> List[RuleResult]:
         """
         Parse XCCDF results XML into RuleResult objects
 

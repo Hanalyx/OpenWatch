@@ -300,8 +300,7 @@ def initialize_database_schema() -> bool:
             missing_critical = [
                 table
                 for table, status in table_status.items()
-                if status.startswith("❌")
-                and table in ["users", "unified_credentials", "hosts"]
+                if status.startswith("❌") and table in ["users", "unified_credentials", "hosts"]
             ]
 
             if missing_critical:
@@ -332,9 +331,7 @@ def initialize_database_schema() -> bool:
 
 if __name__ == "__main__":
     # Allow running this script standalone for testing
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     success = initialize_database_schema()
     if success:

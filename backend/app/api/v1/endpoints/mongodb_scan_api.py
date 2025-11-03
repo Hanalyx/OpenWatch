@@ -29,9 +29,7 @@ class MongoDBScanRequest(BaseModel):
     platform: str = Field(..., description="Target platform (rhel, ubuntu, etc.)")
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
-    severity_filter: Optional[List[str]] = Field(
-        None, description="Filter by severity levels"
-    )
+    severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
     rule_ids: Optional[List[str]] = Field(
         None, description="Specific rule IDs to scan (from wizard selection)"
     )
@@ -126,9 +124,7 @@ async def start_mongodb_scan(
     This endpoint initiates a scan using rules selected from MongoDB based on
     the target platform and compliance framework requirements.
     """
-    logger.info(
-        f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ==="
-    )
+    logger.info(f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ===")
     try:
         scan_id = f"mongodb_scan_{uuid.uuid4().hex[:8]}"
         logger.info(f"Starting MongoDB scan {scan_id} for host {scan_request.hostname}")
@@ -159,9 +155,7 @@ async def start_mongodb_scan(
             )
 
         # Start the scan process
-        logger.info(
-            f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}"
-        )
+        logger.info(f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}")
         try:
             scan_result = await scanner.scan_with_mongodb_rules(
                 host_id=scan_request.host_id,
@@ -249,9 +243,7 @@ async def enrich_scan_results_task(
         if generate_report:
             reporter = await get_compliance_reporter()
             target_frameworks = (
-                [scan_metadata.get("framework")]
-                if scan_metadata.get("framework")
-                else None
+                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
             )
 
             compliance_report = await reporter.generate_compliance_report(
@@ -417,9 +409,7 @@ async def get_available_rules(
                     "description": rule.metadata.get("description", "No description"),
                     "severity": rule.severity,
                     "category": rule.category,
-                    "frameworks": (
-                        list(rule.frameworks.keys()) if rule.frameworks else []
-                    ),
+                    "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
                     "platforms": (
                         list(rule.platform_implementations.keys())
                         if rule.platform_implementations
@@ -480,22 +470,16 @@ async def get_scanner_health(current_user: User = Depends(get_current_user)):
             "status": "healthy" if mongo_status == "healthy" else "degraded",
             "components": {
                 "mongodb_scanner": {
-                    "status": (
-                        "initialized" if scanner._initialized else "not_initialized"
-                    ),
+                    "status": ("initialized" if scanner._initialized else "not_initialized"),
                     "mongodb_connection": mongo_status,
                     "mongodb_details": mongo_details,
                 },
                 "enrichment_service": {
-                    "status": (
-                        "initialized" if enrichment._initialized else "not_initialized"
-                    ),
+                    "status": ("initialized" if enrichment._initialized else "not_initialized"),
                     "stats": await enrichment.get_enrichment_statistics(),
                 },
                 "compliance_reporter": {
-                    "status": (
-                        "initialized" if reporter._initialized else "not_initialized"
-                    ),
+                    "status": ("initialized" if reporter._initialized else "not_initialized"),
                     "supported_frameworks": list(reporter.frameworks.keys()),
                 },
             },

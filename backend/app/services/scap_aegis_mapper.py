@@ -85,9 +85,7 @@ class SCAPAEGISMapper:
                         platforms=mapping_data.get("platforms", ["rhel8", "rhel9"]),
                     )
 
-                logger.info(
-                    f"Loaded {len(custom_mappings)} mappings from {mapping_file}"
-                )
+                logger.info(f"Loaded {len(custom_mappings)} mappings from {mapping_file}")
 
             except Exception as e:
                 logger.error(f"Error loading mappings from {mapping_file}: {e}")
@@ -108,9 +106,7 @@ class SCAPAEGISMapper:
                     "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config",
                     "systemctl restart sshd",
                 ],
-                verification_commands=[
-                    "grep -E '^PermitRootLogin\\s+no' /etc/ssh/sshd_config"
-                ],
+                verification_commands=["grep -E '^PermitRootLogin\\s+no' /etc/ssh/sshd_config"],
                 rollback_commands=[
                     "sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config",
                     "systemctl restart sshd",
@@ -133,9 +129,7 @@ class SCAPAEGISMapper:
                 verification_commands=[
                     "grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"
                 ],
-                rollback_commands=[
-                    "sed -i 's/^minlen.*/minlen = 8/' /etc/security/pwquality.conf"
-                ],
+                rollback_commands=["sed -i 's/^minlen.*/minlen = 8/' /etc/security/pwquality.conf"],
                 estimated_duration=20,
                 requires_reboot=False,
                 dependencies=["libpwquality"],
@@ -239,9 +233,7 @@ class SCAPAEGISMapper:
         """Create remediation plan for failed SCAP rules"""
         try:
             plan_id = f"plan_{scan_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            logger.info(
-                f"Creating remediation plan {plan_id} for {len(failed_rules)} failed rules"
-            )
+            logger.info(f"Creating remediation plan {plan_id} for {len(failed_rules)} failed rules")
 
             # Categorize rules and check for mappings
             rule_groups = {}
@@ -269,9 +261,7 @@ class SCAPAEGISMapper:
                     all_dependencies.update(mapping.dependencies)
 
             # Determine execution order based on dependencies and priorities
-            execution_order = self._determine_execution_order(
-                rule_groups, all_dependencies
-            )
+            execution_order = self._determine_execution_order(rule_groups, all_dependencies)
 
             # Check if all dependencies can be resolved
             dependencies_resolved = self._check_dependencies(all_dependencies, platform)
@@ -430,9 +420,7 @@ class SCAPAEGISMapper:
             logger.error(f"Error generating AEGIS job request: {e}")
             raise
 
-    def map_aegis_results_to_scap(
-        self, aegis_job_id: str, aegis_results: Dict
-    ) -> Dict[str, str]:
+    def map_aegis_results_to_scap(self, aegis_job_id: str, aegis_results: Dict) -> Dict[str, str]:
         """Map AEGIS remediation results back to SCAP rules"""
         try:
             scap_results = {}
@@ -447,9 +435,7 @@ class SCAPAEGISMapper:
                 # Find corresponding SCAP rule
                 for scap_id, mapping in self.rule_mappings.items():
                     if mapping.aegis_rule_id == aegis_rule_id:
-                        scap_results[scap_id] = (
-                            "pass" if status == "completed" else "fail"
-                        )
+                        scap_results[scap_id] = "pass" if status == "completed" else "fail"
                         break
 
             return scap_results

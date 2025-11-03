@@ -176,9 +176,7 @@ async def get_framework_variables(
     return variables
 
 
-@router.post(
-    "/frameworks/{framework}/{version}/validate", response_model=ValidationResult
-)
+@router.post("/frameworks/{framework}/{version}/validate", response_model=ValidationResult)
 async def validate_variables(
     framework: str,
     version: str,
@@ -432,9 +430,7 @@ async def update_template(
     # Authorization: only owner can update
     if current_user.get("role") != "admin":
         if template.created_by != current_user.get("username"):
-            raise HTTPException(
-                status_code=403, detail="Only template owner can update"
-            )
+            raise HTTPException(status_code=403, detail="Only template owner can update")
 
     # Update
     updated = await service.update_template(
@@ -485,9 +481,7 @@ async def delete_template(
     # Authorization
     if current_user.get("role") != "admin":
         if template.created_by != current_user.get("username"):
-            raise HTTPException(
-                status_code=403, detail="Only template owner can delete"
-            )
+            raise HTTPException(status_code=403, detail="Only template owner can delete")
 
     # Delete
     await service.delete_template(template_id)
@@ -634,9 +628,7 @@ async def set_default_template(
 
     # Authorization: only owner can set as default
     if template.created_by != current_user.get("username"):
-        raise HTTPException(
-            status_code=403, detail="Only template owner can set as default"
-        )
+        raise HTTPException(status_code=403, detail="Only template owner can set as default")
 
     # Set default
     updated = await service.set_as_default(

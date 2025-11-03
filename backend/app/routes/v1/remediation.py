@@ -95,16 +95,12 @@ async def start_remediation(
         # Verify scan exists and user has access
         scan = db.query(Scan).filter(Scan.id == str(request.scan_id)).first()
         if not scan:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
 
         # Verify host exists
         host = db.query(Host).filter(Host.id == str(request.host_id)).first()
         if not host:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Check if remediation is already in progress
         if scan.remediation_status in ["pending", "running"]:
@@ -346,13 +342,9 @@ async def retry_remediation_job(
         )
 
         # Start new remediation job
-        new_job = await start_remediation(
-            retry_request, BackgroundTasks(), current_user, db
-        )
+        new_job = await start_remediation(retry_request, BackgroundTasks(), current_user, db)
 
-        logger.info(
-            f"Retry remediation job {new_job.job_id} created for original job {job_id}"
-        )
+        logger.info(f"Retry remediation job {new_job.job_id} created for original job {job_id}")
 
         return {
             "status": "retry_started",
@@ -473,20 +465,14 @@ async def get_remediation_summary(
         total_jobs = db.query(Scan).filter(Scan.remediation_requested == True).count()
 
         active_jobs = (
-            db.query(Scan)
-            .filter(Scan.remediation_status.in_(["pending", "running"]))
-            .count()
+            db.query(Scan).filter(Scan.remediation_status.in_(["pending", "running"])).count()
         )
 
-        completed_jobs = (
-            db.query(Scan).filter(Scan.remediation_status == "completed").count()
-        )
+        completed_jobs = db.query(Scan).filter(Scan.remediation_status == "completed").count()
 
         failed_jobs = db.query(Scan).filter(Scan.remediation_status == "failed").count()
 
-        pending_jobs = (
-            db.query(Scan).filter(Scan.remediation_status == "pending").count()
-        )
+        pending_jobs = db.query(Scan).filter(Scan.remediation_status == "pending").count()
 
         # Calculate success rate
         success_rate = 0.0
@@ -526,17 +512,11 @@ async def _execute_remediation_job(
         logger.info(f"Starting remediation job {job_id} with provider {provider}")
 
         if provider == "aegis":
-            await _execute_aegis_remediation(
-                job_id, scan_id, host_id, failed_rules, options
-            )
+            await _execute_aegis_remediation(job_id, scan_id, host_id, failed_rules, options)
         elif provider == "ansible":
-            await _execute_ansible_remediation(
-                job_id, scan_id, host_id, failed_rules, options
-            )
+            await _execute_ansible_remediation(job_id, scan_id, host_id, failed_rules, options)
         elif provider == "manual":
-            await _execute_manual_remediation(
-                job_id, scan_id, host_id, failed_rules, options
-            )
+            await _execute_manual_remediation(job_id, scan_id, host_id, failed_rules, options)
         else:
             logger.error(f"Unknown remediation provider: {provider}")
 

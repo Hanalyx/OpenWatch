@@ -165,21 +165,17 @@ class SystemInfoSanitizationService:
             info_filter = self._create_system_filter(access_level)
 
             # Detect reconnaissance patterns
-            reconnaissance_detected, triggered_patterns = (
-                self._detect_reconnaissance_patterns(raw_system_info)
+            reconnaissance_detected, triggered_patterns = self._detect_reconnaissance_patterns(
+                raw_system_info
             )
 
             # Apply sanitization based on access level
             if access_level == SystemInfoLevel.ADMIN and not reconnaissance_detected:
                 sanitized_info = self._sanitize_for_admin(raw_system_info, info_filter)
             elif access_level == SystemInfoLevel.OPERATIONAL:
-                sanitized_info = self._sanitize_for_operational(
-                    raw_system_info, info_filter
-                )
+                sanitized_info = self._sanitize_for_operational(raw_system_info, info_filter)
             elif access_level == SystemInfoLevel.COMPLIANCE:
-                sanitized_info = self._sanitize_for_compliance(
-                    raw_system_info, info_filter
-                )
+                sanitized_info = self._sanitize_for_compliance(raw_system_info, info_filter)
             else:
                 # Default to basic (most restrictive)
                 sanitized_info = self._sanitize_for_basic(raw_system_info, info_filter)
@@ -220,9 +216,7 @@ class SystemInfoSanitizationService:
         sanitized_info, metadata = self.sanitize_system_information(raw_info, context)
 
         # Extract safe OS family
-        os_family = self._extract_safe_os_family(
-            sanitized_info.get("system_details", "")
-        )
+        os_family = self._extract_safe_os_family(sanitized_info.get("system_details", ""))
 
         # Extract compliance-relevant information only
         compliance_info = {
@@ -314,9 +308,7 @@ class SystemInfoSanitizationService:
 
             return fallback_result
 
-    def _determine_access_level(
-        self, context: SystemInfoSanitizationContext
-    ) -> SystemInfoLevel:
+    def _determine_access_level(self, context: SystemInfoSanitizationContext) -> SystemInfoLevel:
         """Determine appropriate system information access level"""
 
         # Admin users get full access (if not reconnaissance)
@@ -428,12 +420,8 @@ class SystemInfoSanitizationService:
         """Sanitize system information for operational access"""
 
         return {
-            "os_family": self._extract_safe_os_family(
-                raw_info.get("system_details", "")
-            ),
-            "service_status": self._sanitize_service_status(
-                raw_info.get("service_status", {})
-            ),
+            "os_family": self._extract_safe_os_family(raw_info.get("system_details", "")),
+            "service_status": self._sanitize_service_status(raw_info.get("service_status", {})),
             "resource_availability": self._sanitize_resource_info(
                 raw_info.get("resource_info", {})
             ),
@@ -447,9 +435,7 @@ class SystemInfoSanitizationService:
         """Sanitize system information for compliance access"""
 
         return {
-            "os_family": self._extract_safe_os_family(
-                raw_info.get("system_details", "")
-            ),
+            "os_family": self._extract_safe_os_family(raw_info.get("system_details", "")),
             "compliance_status": raw_info.get("compliance_status", {}),
             "scan_capability": self._assess_scan_capability(raw_info),
             "security_features": self._extract_safe_security_features(raw_info),
@@ -488,9 +474,7 @@ class SystemInfoSanitizationService:
         else:
             return "Unknown"
 
-    def _sanitize_service_status(
-        self, service_status: Dict[str, Any]
-    ) -> Dict[str, str]:
+    def _sanitize_service_status(self, service_status: Dict[str, Any]) -> Dict[str, str]:
         """Sanitize service status information"""
 
         sanitized = {}
@@ -548,9 +532,7 @@ class SystemInfoSanitizationService:
         else:
             return "compatibility_unknown"
 
-    def _extract_safe_security_features(
-        self, raw_info: Dict[str, Any]
-    ) -> Dict[str, bool]:
+    def _extract_safe_security_features(self, raw_info: Dict[str, Any]) -> Dict[str, bool]:
         """Extract safe security feature information"""
 
         return {
@@ -579,9 +561,7 @@ class SystemInfoSanitizationService:
         """Audit system information access for security monitoring"""
 
         audit_event = SystemInfoAuditEvent(
-            event_id=hashlib.sha256(
-                f"{context.user_id}{datetime.utcnow()}".encode()
-            ).hexdigest(),
+            event_id=hashlib.sha256(f"{context.user_id}{datetime.utcnow()}".encode()).hexdigest(),
             user_id=context.user_id,
             source_ip=context.source_ip,
             requested_level=context.access_level,
@@ -633,9 +613,7 @@ class SystemInfoSanitizationService:
         """Get summary of system information access audit events"""
 
         total_events = len(self.audit_events)
-        reconnaissance_events = sum(
-            1 for e in self.audit_events if e.reconnaissance_detected
-        )
+        reconnaissance_events = sum(1 for e in self.audit_events if e.reconnaissance_detected)
         admin_events = sum(1 for e in self.audit_events if e.admin_access)
 
         return {
@@ -644,9 +622,7 @@ class SystemInfoSanitizationService:
             "admin_access_events": admin_events,
             "reconnaissance_rate": reconnaissance_events / max(total_events, 1),
             "last_24h_events": sum(
-                1
-                for e in self.audit_events
-                if e.timestamp > datetime.utcnow() - timedelta(days=1)
+                1 for e in self.audit_events if e.timestamp > datetime.utcnow() - timedelta(days=1)
             ),
         }
 

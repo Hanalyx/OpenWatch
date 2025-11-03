@@ -202,9 +202,7 @@ class PluginInstallationResult(Document):
     request: PluginInstallationRequest
 
     # Installation status
-    status: str = Field(
-        default="pending"
-    )  # pending, downloading, installing, completed, failed
+    status: str = Field(default="pending")  # pending, downloading, installing, completed, failed
     progress: float = Field(default=0.0, ge=0.0, le=100.0)
 
     # Timing
@@ -361,9 +359,7 @@ class PluginMarketplaceService:
             # Validate marketplace connection
             validation_result = await self._validate_marketplace_connection(config)
             if not validation_result["valid"]:
-                logger.error(
-                    f"Marketplace validation failed: {validation_result['error']}"
-                )
+                logger.error(f"Marketplace validation failed: {validation_result['error']}")
                 return False
 
             # Store configuration
@@ -386,9 +382,7 @@ class PluginMarketplaceService:
         """Search for plugins across multiple marketplaces"""
 
         if not marketplace_ids:
-            marketplace_ids = [
-                mid for mid, config in self.marketplaces.items() if config.enabled
-            ]
+            marketplace_ids = [mid for mid, config in self.marketplaces.items() if config.enabled]
 
         search_results = []
 
@@ -469,9 +463,7 @@ class PluginMarketplaceService:
             return self.active_installations[installation_id]
 
         # Query database
-        installation = await PluginInstallationResult.find_one(
-            {"installation_id": installation_id}
-        )
+        installation = await PluginInstallationResult.find_one({"installation_id": installation_id})
         return installation
 
     async def list_available_plugins(
@@ -485,9 +477,7 @@ class PluginMarketplaceService:
         if marketplace_id:
             marketplace_ids = [marketplace_id]
         else:
-            marketplace_ids = [
-                mid for mid, config in self.marketplaces.items() if config.enabled
-            ]
+            marketplace_ids = [mid for mid, config in self.marketplaces.items() if config.enabled]
 
         all_plugins = []
 
@@ -516,9 +506,7 @@ class PluginMarketplaceService:
 
         return sorted_plugins[:limit]
 
-    async def get_plugin_ratings(
-        self, marketplace_id: str, plugin_id: str
-    ) -> List[PluginRating]:
+    async def get_plugin_ratings(self, marketplace_id: str, plugin_id: str) -> List[PluginRating]:
         """Get ratings and reviews for a plugin"""
 
         try:
@@ -571,9 +559,7 @@ class PluginMarketplaceService:
             logger.error(f"Marketplace sync failed for {marketplace_id}: {e}")
             return False
 
-    async def check_plugin_updates(
-        self, plugin_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def check_plugin_updates(self, plugin_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Check for available plugin updates"""
 
         updates_available = []
@@ -592,10 +578,7 @@ class PluginMarketplaceService:
                 # Find plugin in marketplaces
                 latest_version = await self._find_latest_version(plugin)
 
-                if (
-                    latest_version
-                    and semver.compare(latest_version["version"], plugin.version) > 0
-                ):
+                if latest_version and semver.compare(latest_version["version"], plugin.version) > 0:
                     updates_available.append(
                         {
                             "plugin_id": plugin.plugin_id,
@@ -603,16 +586,12 @@ class PluginMarketplaceService:
                             "latest_version": latest_version["version"],
                             "marketplace_id": latest_version["marketplace_id"],
                             "changelog": latest_version.get("changelog", ""),
-                            "breaking_changes": latest_version.get(
-                                "breaking_changes", False
-                            ),
+                            "breaking_changes": latest_version.get("breaking_changes", False),
                         }
                     )
 
             except Exception as e:
-                logger.error(
-                    f"Failed to check updates for plugin {plugin.plugin_id}: {e}"
-                )
+                logger.error(f"Failed to check updates for plugin {plugin.plugin_id}: {e}")
 
         logger.info(f"Found {len(updates_available)} plugin updates available")
         return updates_available
@@ -684,9 +663,7 @@ class PluginMarketplaceService:
         self.sync_tasks[marketplace_id] = task
         logger.info(f"Started sync task for marketplace: {marketplace.name}")
 
-    async def _validate_marketplace_connection(
-        self, config: MarketplaceConfig
-    ) -> Dict[str, Any]:
+    async def _validate_marketplace_connection(self, config: MarketplaceConfig) -> Dict[str, Any]:
         """Validate marketplace connection and configuration"""
 
         try:
@@ -874,37 +851,26 @@ class PluginMarketplaceService:
                                 version=manifest.get("version", "1.0.0"),
                                 author=manifest.get("author", "Unknown"),
                                 marketplace_url=f"file://{item}",
-                                published_at=datetime.fromtimestamp(
-                                    item.stat().st_ctime
-                                ),
-                                last_updated=datetime.fromtimestamp(
-                                    item.stat().st_mtime
-                                ),
+                                published_at=datetime.fromtimestamp(item.stat().st_ctime),
+                                last_updated=datetime.fromtimestamp(item.stat().st_mtime),
                                 license=manifest.get("license", "Unknown"),
                             )
 
                             # Apply query filters
-                            if (
-                                query.query
-                                and query.query.lower() not in plugin.name.lower()
-                            ):
+                            if query.query and query.query.lower() not in plugin.name.lower():
                                 continue
 
                             plugins.append(plugin)
 
                         except Exception as e:
-                            logger.warning(
-                                f"Failed to load manifest for {item.name}: {e}"
-                            )
+                            logger.warning(f"Failed to load manifest for {item.name}: {e}")
 
         except Exception as e:
             logger.error(f"Local marketplace search failed: {e}")
 
         return plugins
 
-    async def _execute_plugin_installation(
-        self, installation: PluginInstallationResult
-    ):
+    async def _execute_plugin_installation(self, installation: PluginInstallationResult):
         """Execute plugin installation process"""
 
         try:
@@ -920,9 +886,7 @@ class PluginMarketplaceService:
                 raise ValueError(f"Marketplace not found: {request.marketplace_id}")
 
             # Get plugin details
-            plugin_details = await self._fetch_plugin_details(
-                marketplace, request.plugin_id
-            )
+            plugin_details = await self._fetch_plugin_details(marketplace, request.plugin_id)
             if not plugin_details:
                 raise ValueError(f"Plugin not found: {request.plugin_id}")
 
@@ -930,24 +894,16 @@ class PluginMarketplaceService:
             await installation.save()
 
             # Download plugin
-            plugin_package = await self._download_plugin(
-                plugin_details, request.version
-            )
+            plugin_package = await self._download_plugin(plugin_details, request.version)
             installation.download_url = (
-                str(plugin_details.download_url)
-                if plugin_details.download_url
-                else None
+                str(plugin_details.download_url) if plugin_details.download_url else None
             )
-            installation.download_size_bytes = (
-                len(plugin_package) if plugin_package else 0
-            )
+            installation.download_size_bytes = len(plugin_package) if plugin_package else 0
             installation.progress = 50.0
             await installation.save()
 
             # Verify plugin security and compliance
-            verification_result = await self._verify_plugin_package(
-                plugin_package, plugin_details
-            )
+            verification_result = await self._verify_plugin_package(plugin_package, plugin_details)
             installation.verification_results = verification_result
             installation.progress = 70.0
             await installation.save()
@@ -956,22 +912,15 @@ class PluginMarketplaceService:
                 raise ValueError("Plugin security verification failed")
 
             # Check governance policies
-            governance_result = await self._check_installation_governance(
-                plugin_details
-            )
+            governance_result = await self._check_installation_governance(plugin_details)
             installation.governance_checks = governance_result
             installation.progress = 80.0
             await installation.save()
 
             if governance_result.get("policy_violations"):
                 installation.policy_violations = governance_result["policy_violations"]
-                if any(
-                    v.get("blocking", False)
-                    for v in governance_result["policy_violations"]
-                ):
-                    raise ValueError(
-                        "Plugin installation blocked by governance policies"
-                    )
+                if any(v.get("blocking", False) for v in governance_result["policy_violations"]):
+                    raise ValueError("Plugin installation blocked by governance policies")
 
             # Install plugin
             installation.status = "installing"
@@ -1176,9 +1125,7 @@ class PluginMarketplaceService:
 
             # Enable plugin if requested
             if request.auto_enable:
-                await self.plugin_registry_service.enable_plugin(
-                    installed_plugin.plugin_id
-                )
+                await self.plugin_registry_service.enable_plugin(installed_plugin.plugin_id)
 
             return installed_plugin
 
@@ -1199,9 +1146,7 @@ class PluginMarketplaceService:
             # Cache plugins
             self.plugin_cache[marketplace.marketplace_id] = plugins
 
-            logger.info(
-                f"Synced {len(plugins)} plugins from marketplace {marketplace.name}"
-            )
+            logger.info(f"Synced {len(plugins)} plugins from marketplace {marketplace.name}")
             return True
 
         except Exception as e:
@@ -1222,9 +1167,7 @@ class PluginMarketplaceService:
         # In production, would search GitHub for OpenWatch plugins
         return []
 
-    async def _fetch_local_catalog(
-        self, marketplace: MarketplaceConfig
-    ) -> List[MarketplacePlugin]:
+    async def _fetch_local_catalog(self, marketplace: MarketplaceConfig) -> List[MarketplacePlugin]:
         """Fetch plugin catalog from local file system"""
         # Use the same logic as _search_local_marketplace but without query filtering
         query = MarketplaceSearchQuery(per_page=1000)
@@ -1268,9 +1211,7 @@ class PluginMarketplaceService:
         logger.info(f"Rating submitted: {plugin_id} = {rating}/5.0 by {user_id}")
         return True
 
-    async def _find_latest_version(
-        self, plugin: InstalledPlugin
-    ) -> Optional[Dict[str, Any]]:
+    async def _find_latest_version(self, plugin: InstalledPlugin) -> Optional[Dict[str, Any]]:
         """Find latest version of an installed plugin in marketplaces"""
 
         # Search across all marketplaces for this plugin
@@ -1280,9 +1221,7 @@ class PluginMarketplaceService:
 
             try:
                 # Try to find plugin in this marketplace
-                plugin_details = await self._fetch_plugin_details(
-                    marketplace, plugin.plugin_id
-                )
+                plugin_details = await self._fetch_plugin_details(marketplace, plugin.plugin_id)
                 if plugin_details:
                     return {
                         "version": plugin_details.version,
@@ -1310,13 +1249,9 @@ class PluginMarketplaceService:
         # Count installations
         total_installations = await PluginInstallationResult.count()
 
-        successful_installations = await PluginInstallationResult.find(
-            {"success": True}
-        ).count()
+        successful_installations = await PluginInstallationResult.find({"success": True}).count()
 
-        failed_installations = await PluginInstallationResult.find(
-            {"success": False}
-        ).count()
+        failed_installations = await PluginInstallationResult.find({"success": False}).count()
 
         # Active operations
         active_installations = len(self.active_installations)
@@ -1327,13 +1262,7 @@ class PluginMarketplaceService:
                 "total": len(self.marketplaces),
                 "enabled": len([m for m in self.marketplaces.values() if m.enabled]),
                 "by_type": {
-                    t.value: len(
-                        [
-                            m
-                            for m in self.marketplaces.values()
-                            if m.marketplace_type == t
-                        ]
-                    )
+                    t.value: len([m for m in self.marketplaces.values() if m.marketplace_type == t])
                     for t in MarketplaceType
                 },
             },

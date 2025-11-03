@@ -30,22 +30,16 @@ class RuleDependencyGraph:
 
         # Inheritance relationships
         self.inheritance_parents: Dict[str, Optional[str]] = {}  # child → parent
-        self.inheritance_children: Dict[str, List[str]] = defaultdict(
-            list
-        )  # parent → [children]
+        self.inheritance_children: Dict[str, List[str]] = defaultdict(list)  # parent → [children]
 
         # Dependency relationships
-        self.requirements: Dict[str, List[str]] = defaultdict(
-            list
-        )  # rule → [required_rules]
+        self.requirements: Dict[str, List[str]] = defaultdict(list)  # rule → [required_rules]
         self.required_by: Dict[str, List[str]] = defaultdict(
             list
         )  # rule → [rules_that_require_this]
 
         # Conflict relationships
-        self.conflicts: Dict[str, List[str]] = defaultdict(
-            list
-        )  # rule → [conflicting_rules]
+        self.conflicts: Dict[str, List[str]] = defaultdict(list)  # rule → [conflicting_rules]
 
         # Related rules (informational only)
         self.related: Dict[str, List[str]] = defaultdict(list)  # rule → [related_rules]
@@ -245,11 +239,7 @@ class RuleDependencyGraph:
                         "direct_children_count": len(affected["direct_children"]),
                         "total_descendants_count": len(affected["all_descendants"]),
                         "direct_children": affected["direct_children"],
-                        "severity": (
-                            "high"
-                            if len(affected["all_descendants"]) > 10
-                            else "medium"
-                        ),
+                        "severity": ("high" if len(affected["all_descendants"]) > 10 else "medium"),
                     }
                 )
 
@@ -262,9 +252,7 @@ class RuleDependencyGraph:
                         "required_rule": rule_id,
                         "dependent_rules_count": len(affected["dependent_rules"]),
                         "dependent_rules": affected["dependent_rules"],
-                        "severity": (
-                            "high" if len(affected["dependent_rules"]) > 5 else "medium"
-                        ),
+                        "severity": ("high" if len(affected["dependent_rules"]) > 5 else "medium"),
                     }
                 )
 
@@ -301,9 +289,7 @@ class RuleDependencyGraph:
         validation = {"valid": True, "errors": [], "warnings": []}
 
         # Build set of new rule IDs
-        new_rule_ids = {
-            rule.get("rule_id") for rule in new_rules if rule.get("rule_id")
-        }
+        new_rule_ids = {rule.get("rule_id") for rule in new_rules if rule.get("rule_id")}
 
         for rule in new_rules:
             rule_id = rule.get("rule_id")
@@ -391,9 +377,7 @@ class RuleDependencyGraph:
 
         return validation
 
-    def _detect_circular_dependencies(
-        self, new_rules: List[Dict[str, Any]]
-    ) -> List[List[str]]:
+    def _detect_circular_dependencies(self, new_rules: List[Dict[str, Any]]) -> List[List[str]]:
         """
         Detect circular inheritance chains in new rules
 
@@ -479,12 +463,8 @@ class RuleDependencyGraph:
             ),
             "root_rules": len(self.rules) - len(self.inheritance_parents),
             "total_inheritance_relationships": len(self.inheritance_parents),
-            "total_requirement_relationships": sum(
-                len(v) for v in self.requirements.values()
-            ),
-            "total_conflict_relationships": sum(
-                len(v) for v in self.conflicts.values()
-            ),
+            "total_requirement_relationships": sum(len(v) for v in self.requirements.values()),
+            "total_conflict_relationships": sum(len(v) for v in self.conflicts.values()),
             "max_inheritance_depth": max(
                 (self.get_inheritance_depth(rule_id) for rule_id in self.rules),
                 default=0,
@@ -559,8 +539,7 @@ class InheritanceResolver:
         descendants = self.graph.get_descendants(parent_rule_id)
 
         logger.info(
-            f"Analyzing inheritance impact: {parent_rule_id} has "
-            f"{len(descendants)} descendants"
+            f"Analyzing inheritance impact: {parent_rule_id} has " f"{len(descendants)} descendants"
         )
 
         for child_id in descendants:
@@ -648,9 +627,7 @@ class InheritanceResolver:
 
         return False
 
-    async def apply_inheritance_updates(
-        self, updates: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    async def apply_inheritance_updates(self, updates: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Apply inheritance updates to child rules
 
@@ -668,9 +645,7 @@ class InheritanceResolver:
 
             try:
                 # Get child rule from database
-                child_rule = await ComplianceRule.find_one(
-                    ComplianceRule.rule_id == rule_id
-                )
+                child_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
 
                 if not child_rule:
                     results["failed"] += 1

@@ -45,8 +45,7 @@ async def load_predefined_mappings(args):
     mapping_engine = FrameworkMappingEngine()
 
     mappings_file = (
-        args.mappings_file
-        or "backend/app/data/framework_mappings/predefined_mappings.json"
+        args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
     )
 
     print(f"Loading predefined mappings from {mappings_file}...")
@@ -111,9 +110,7 @@ async def discover_mappings(args):
     for confidence in ["high", "medium", "low", "uncertain"]:
         if confidence in confidence_groups:
             group_mappings = confidence_groups[confidence]
-            print(
-                f"\n{confidence.upper()} CONFIDENCE ({len(group_mappings)} mappings):"
-            )
+            print(f"\n{confidence.upper()} CONFIDENCE ({len(group_mappings)} mappings):")
             print("-" * 40)
 
             for mapping in group_mappings:
@@ -226,9 +223,7 @@ async def analyze_relationships(args):
         print(f"\n\nFRAMEWORK COVERAGE ANALYSIS")
         print("=" * 80)
 
-        coverage = await mapping_engine.get_framework_coverage_analysis(
-            frameworks, unified_rules
-        )
+        coverage = await mapping_engine.get_framework_coverage_analysis(frameworks, unified_rules)
 
         print(
             f"Total Unique Controls: {coverage['cross_framework_analysis']['total_unique_controls']}"
@@ -382,8 +377,7 @@ async def export_mapping_data(args):
 
     # Load predefined mappings
     mappings_file = (
-        args.mappings_file
-        or "backend/app/data/framework_mappings/predefined_mappings.json"
+        args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
     )
 
     try:
@@ -453,12 +447,8 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Load mappings command
-    load_parser = subparsers.add_parser(
-        "load-mappings", help="Load predefined framework mappings"
-    )
-    load_parser.add_argument(
-        "--mappings-file", help="JSON file containing predefined mappings"
-    )
+    load_parser = subparsers.add_parser("load-mappings", help="Load predefined framework mappings")
+    load_parser.add_argument("--mappings-file", help="JSON file containing predefined mappings")
     load_parser.add_argument(
         "--verbose", action="store_true", help="Show detailed mapping information"
     )
@@ -467,12 +457,8 @@ Examples:
     discover_parser = subparsers.add_parser(
         "discover", help="Discover framework mappings from unified rules"
     )
-    discover_parser.add_argument(
-        "--source-framework", required=True, help="Source framework ID"
-    )
-    discover_parser.add_argument(
-        "--target-framework", required=True, help="Target framework ID"
-    )
+    discover_parser.add_argument("--source-framework", required=True, help="Source framework ID")
+    discover_parser.add_argument("--target-framework", required=True, help="Target framework ID")
     discover_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -481,9 +467,7 @@ Examples:
     discover_parser.add_argument(
         "--verbose", action="store_true", help="Show detailed mapping information"
     )
-    discover_parser.add_argument(
-        "--export", action="store_true", help="Export discovered mappings"
-    )
+    discover_parser.add_argument("--export", action="store_true", help="Export discovered mappings")
     discover_parser.add_argument("--output", help="Output file for exported mappings")
 
     # Analyze relationships command
@@ -509,15 +493,11 @@ Examples:
     analyze_parser.add_argument(
         "--verbose", action="store_true", help="Show detailed analysis information"
     )
-    analyze_parser.add_argument(
-        "--export", action="store_true", help="Export analysis results"
-    )
+    analyze_parser.add_argument("--export", action="store_true", help="Export analysis results")
     analyze_parser.add_argument("--output", help="Output file for exported analysis")
 
     # Generate implementation command
-    implement_parser = subparsers.add_parser(
-        "implement", help="Generate unified implementation"
-    )
+    implement_parser = subparsers.add_parser("implement", help="Generate unified implementation")
     implement_parser.add_argument(
         "--objective", required=True, help="Control objective description"
     )
@@ -543,9 +523,7 @@ Examples:
     implement_parser.add_argument(
         "--export", action="store_true", help="Export implementation details"
     )
-    implement_parser.add_argument(
-        "--output", help="Output file for exported implementation"
-    )
+    implement_parser.add_argument("--output", help="Output file for exported implementation")
 
     # Export command
     export_parser = subparsers.add_parser("export", help="Export mapping data")
@@ -555,9 +533,7 @@ Examples:
         default="json",
         help="Export format (default: json)",
     )
-    export_parser.add_argument(
-        "--mappings-file", help="JSON file containing predefined mappings"
-    )
+    export_parser.add_argument("--mappings-file", help="JSON file containing predefined mappings")
     export_parser.add_argument("--output", help="Output file for exported data")
 
     args = parser.parse_args()

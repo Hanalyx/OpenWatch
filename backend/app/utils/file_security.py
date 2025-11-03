@@ -148,9 +148,7 @@ def validate_storage_path(
     try:
         target.relative_to(base)
     except ValueError:
-        raise ValueError(
-            f"Path traversal detected: {file_path} is outside allowed directory"
-        )
+        raise ValueError(f"Path traversal detected: {file_path} is outside allowed directory")
 
     # Validate parent directory exists or can be created
     if allow_create:

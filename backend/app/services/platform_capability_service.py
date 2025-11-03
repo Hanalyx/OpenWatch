@@ -302,9 +302,7 @@ class PlatformCapabilityService:
             Dictionary mapping capability names to detection results
         """
         # Get full capability data
-        full_capabilities = await self.detect_capabilities(
-            platform, platform_version, target_host
-        )
+        full_capabilities = await self.detect_capabilities(platform, platform_version, target_host)
 
         results = {}
 
@@ -312,25 +310,17 @@ class PlatformCapabilityService:
             detected = False
 
             # Check in packages
-            packages = (
-                full_capabilities["capabilities"].get("package", {}).get("results", {})
-            )
+            packages = full_capabilities["capabilities"].get("package", {}).get("results", {})
             if isinstance(packages, dict) and capability in packages:
                 detected = True
 
             # Check in services
-            services = (
-                full_capabilities["capabilities"].get("service", {}).get("results", {})
-            )
+            services = full_capabilities["capabilities"].get("service", {}).get("results", {})
             if isinstance(services, dict) and capability in services:
                 detected = True
 
             # Check in kernel modules
-            modules = (
-                full_capabilities["capabilities"]
-                .get("kernel_module", {})
-                .get("stdout", "")
-            )
+            modules = full_capabilities["capabilities"].get("kernel_module", {}).get("stdout", "")
             if capability in modules:
                 detected = True
 
@@ -338,9 +328,7 @@ class PlatformCapabilityService:
 
         return results
 
-    async def get_platform_baseline(
-        self, platform: str, platform_version: str
-    ) -> Dict[str, Any]:
+    async def get_platform_baseline(self, platform: str, platform_version: str) -> Dict[str, Any]:
         """
         Get expected baseline capabilities for a platform/version
 
@@ -455,9 +443,7 @@ class PlatformCapabilityService:
             "total_expected": len(expected_packages) + len(expected_services),
             "total_detected": len(detected_packages) + len(detected_services),
             "missing_critical": [
-                item
-                for item in comparison["missing"]
-                if item in ["systemd", "kernel", "sshd"]
+                item for item in comparison["missing"] if item in ["systemd", "kernel", "sshd"]
             ],
             "platform_health": "good" if len(comparison["missing"]) < 3 else "degraded",
         }

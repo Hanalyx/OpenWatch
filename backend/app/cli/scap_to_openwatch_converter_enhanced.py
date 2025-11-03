@@ -40,9 +40,7 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -148,10 +146,7 @@ class EnhancedSCAPConverter:
         rule_files = []
         for rule_file in self.scap_content_path.rglob("rule.yml"):
             # Skip test files
-            if (
-                "test" not in str(rule_file).lower()
-                and "unit" not in str(rule_file).lower()
-            ):
+            if "test" not in str(rule_file).lower() and "unit" not in str(rule_file).lower():
                 rule_files.append(rule_file)
         return rule_files
 
@@ -211,9 +206,7 @@ class EnhancedSCAPConverter:
             "security_function": "access_control",
             "tags": self._generate_tags(rule_data, rule_file),
             "frameworks": self._convert_frameworks(rule_data),
-            "platform_implementations": self._convert_platform_implementations(
-                rule_data
-            ),
+            "platform_implementations": self._convert_platform_implementations(rule_data),
             "platform_requirements": {
                 "required_capabilities": [],
                 "excluded_environments": [],
@@ -277,9 +270,7 @@ class EnhancedSCAPConverter:
         with open(output_file, "wb") as f:
             f.write(bson.encode(rule))
 
-    def create_bundle(
-        self, source_dir: Path, bundle_path: Path, version: str = "0.0.1"
-    ) -> None:
+    def create_bundle(self, source_dir: Path, bundle_path: Path, version: str = "0.0.1") -> None:
         """Create tar.gz bundle from JSON or BSON files
 
         Args:
@@ -349,9 +340,7 @@ class EnhancedSCAPConverter:
                 for bson_file in rules_dir.glob("*.bson"):
                     tar.add(bson_file, arcname=f"rules/{bson_file.name}")
 
-            logger.info(
-                f"Bundle created successfully: {bundle_path} ({len(rule_files)} rules)"
-            )
+            logger.info(f"Bundle created successfully: {bundle_path} ({len(rule_files)} rules)")
 
         finally:
             # Cleanup temp directory
@@ -392,9 +381,7 @@ class EnhancedSCAPConverter:
         results = []
         for rule_id, local_rule in local_rules.items():
             # Find in MongoDB
-            mongo_rule = await collection.find_one(
-                {"rule_id": rule_id, "is_latest": True}
-            )
+            mongo_rule = await collection.find_one({"rule_id": rule_id, "is_latest": True})
 
             if not mongo_rule:
                 results.append(
@@ -572,9 +559,7 @@ def main():
 
     # Convert command
     convert_parser = subparsers.add_parser("convert", help="Convert SCAP rules")
-    convert_parser.add_argument(
-        "--scap-path", default="/home/rracine/hanalyx/scap_content/content"
-    )
+    convert_parser.add_argument("--scap-path", default="/home/rracine/hanalyx/scap_content/content")
     convert_parser.add_argument(
         "--output-path",
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules_converted",
@@ -598,20 +583,14 @@ def main():
         action="store_true",
         help="Create tar.gz bundle after conversion",
     )
-    convert_parser.add_argument(
-        "--bundle-version", default="0.0.1", help="Bundle version"
-    )
+    convert_parser.add_argument("--bundle-version", default="0.0.1", help="Bundle version")
 
     # Bundle command
-    bundle_parser = subparsers.add_parser(
-        "bundle", help="Create bundle from existing rules"
-    )
+    bundle_parser = subparsers.add_parser("bundle", help="Create bundle from existing rules")
     bundle_parser.add_argument(
         "--source", required=True, help="Source directory with JSON/BSON files"
     )
-    bundle_parser.add_argument(
-        "--output", required=True, help="Output bundle path (tar.gz)"
-    )
+    bundle_parser.add_argument("--output", required=True, help="Output bundle path (tar.gz)")
     bundle_parser.add_argument("--version", default="0.0.1", help="Bundle version")
 
     # Compare command
@@ -641,9 +620,7 @@ def main():
                 Path(args.output_path).parent
                 / f"openwatch-rules-bundle_v{args.bundle_version}.tar.gz"
             )
-            converter.create_bundle(
-                Path(args.output_path), bundle_path, args.bundle_version
-            )
+            converter.create_bundle(Path(args.output_path), bundle_path, args.bundle_version)
 
     elif args.command == "bundle":
         converter = EnhancedSCAPConverter("", "", False)
@@ -652,9 +629,7 @@ def main():
     elif args.command == "compare":
         converter = EnhancedSCAPConverter("", "", False)
         results = asyncio.run(
-            converter.compare_with_mongodb(
-                Path(args.local), args.mongodb_url, args.database
-            )
+            converter.compare_with_mongodb(Path(args.local), args.mongodb_url, args.database)
         )
 
         # Print results
@@ -662,9 +637,7 @@ def main():
             if result.status == "new":
                 print(f"[NEW] {result.rule_id}")
             elif result.status == "modified":
-                print(
-                    f"[MODIFIED] {result.rule_id} - Changed fields: {', '.join(result.changes)}"
-                )
+                print(f"[MODIFIED] {result.rule_id} - Changed fields: {', '.join(result.changes)}")
 
 
 if __name__ == "__main__":

@@ -57,9 +57,7 @@ async def debug_ssh_authentication(
         # Get host details
         host = db.query(Host).filter(Host.id == ssh_request.host_id).first()
         if not host:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         ssh_service = UnifiedSSHService(db)
         auth_service = get_auth_service(db, encryption_service)
@@ -84,9 +82,7 @@ async def debug_ssh_authentication(
             ssh_policy_info={
                 "current_policy": ssh_service.get_ssh_policy(),
                 "trusted_networks": ssh_service.get_trusted_networks(),
-                "is_host_trusted": ssh_service.is_host_in_trusted_network(
-                    host.ip_address
-                ),
+                "is_host_trusted": ssh_service.is_host_in_trusted_network(host.ip_address),
             },
             recommendations=[],
         )
@@ -109,15 +105,11 @@ async def debug_ssh_authentication(
                 # Validate key if present
                 key_info = None
                 if cred_data.get("ssh_key"):
-                    validation_result = ssh_service.validate_ssh_key(
-                        cred_data["ssh_key"]
-                    )
+                    validation_result = ssh_service.validate_ssh_key(cred_data["ssh_key"])
                     key_info = {
                         "valid": validation_result.is_valid,
                         "type": (
-                            validation_result.key_type.value
-                            if validation_result.key_type
-                            else None
+                            validation_result.key_type.value if validation_result.key_type else None
                         ),
                         "size": validation_result.key_size,
                         "security_level": (
@@ -156,9 +148,7 @@ async def debug_ssh_authentication(
                     connection_result.connection.close()
 
             except Exception as e:
-                logger.error(
-                    f"Host credential test failed: {type(e).__name__}: {str(e)}"
-                )
+                logger.error(f"Host credential test failed: {type(e).__name__}: {str(e)}")
                 response.host_credentials_test = {
                     "success": False,
                     "error": f"Failed to test host credentials: {type(e).__name__}: {str(e)}",
@@ -169,17 +159,13 @@ async def debug_ssh_authentication(
             logger.info(f"Testing global credentials for {host.hostname}")
             try:
                 # Get global credentials
-                global_creds = auth_service.resolve_credential(
-                    target_id=None, use_default=True
-                )
+                global_creds = auth_service.resolve_credential(target_id=None, use_default=True)
 
                 if global_creds:
                     # Validate key if present
                     key_info = None
                     if global_creds.private_key:
-                        validation_result = ssh_service.validate_ssh_key(
-                            global_creds.private_key
-                        )
+                        validation_result = ssh_service.validate_ssh_key(global_creds.private_key)
                         key_info = {
                             "valid": validation_result.is_valid,
                             "type": (
@@ -232,9 +218,7 @@ async def debug_ssh_authentication(
                     }
 
             except Exception as e:
-                logger.error(
-                    f"Global credential test failed: {type(e).__name__}: {str(e)}"
-                )
+                logger.error(f"Global credential test failed: {type(e).__name__}: {str(e)}")
                 response.global_credentials_test = {
                     "success": False,
                     "error": f"Failed to test global credentials: {type(e).__name__}: {str(e)}",
@@ -244,22 +228,18 @@ async def debug_ssh_authentication(
         recommendations = []
 
         # Check if any credentials succeeded
-        host_success = (
-            response.host_credentials_test
-            and response.host_credentials_test.get("success")
+        host_success = response.host_credentials_test and response.host_credentials_test.get(
+            "success"
         )
-        global_success = (
-            response.global_credentials_test
-            and response.global_credentials_test.get("success")
+        global_success = response.global_credentials_test and response.global_credentials_test.get(
+            "success"
         )
 
         if not host_success and not global_success:
             recommendations.append("No working SSH credentials found. Please verify:")
             recommendations.append("- The SSH username is correct")
             recommendations.append("- The SSH key or password is valid")
-            recommendations.append(
-                "- The target host accepts the authentication method"
-            )
+            recommendations.append("- The target host accepts the authentication method")
             recommendations.append("- SSH service is running on the target host")
 
             # Check specific error types
@@ -295,9 +275,7 @@ async def debug_ssh_authentication(
             )
 
         # Check key security if available
-        if response.global_credentials_test and response.global_credentials_test.get(
-            "key_info"
-        ):
+        if response.global_credentials_test and response.global_credentials_test.get("key_info"):
             key_info = response.global_credentials_test["key_info"]
             if key_info.get("recommendations"):
                 recommendations.extend(key_info["recommendations"])
@@ -325,9 +303,7 @@ async def debug_ssh_authentication(
 
 @router.get("/paramiko-log")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_paramiko_debug_log(
-    lines: int = 100, current_user: dict = Depends(get_current_user)
-):
+async def get_paramiko_debug_log(lines: int = 100, current_user: dict = Depends(get_current_user)):
     """
     Retrieve the last N lines of the paramiko debug log
     """

@@ -35,9 +35,7 @@ logger = logging.getLogger(__name__)
 class MongoDBSCAPScanner(SCAPScanner):
     """Enhanced SCAP Scanner that integrates with MongoDB rules"""
 
-    def __init__(
-        self, content_dir: Optional[str] = None, results_dir: Optional[str] = None
-    ):
+    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None):
         super().__init__(content_dir, results_dir)
         self.mongo_service: Optional[MongoIntegrationService] = None
         self.rule_service: Optional[RuleService] = None
@@ -69,9 +67,7 @@ class MongoDBSCAPScanner(SCAPScanner):
 
         except Exception as e:
             logger.error(f"Failed to initialize MongoDB SCAP Scanner: {e}")
-            raise SCAPContentError(
-                f"MongoDB integration initialization failed: {str(e)}"
-            )
+            raise SCAPContentError(f"MongoDB integration initialization failed: {str(e)}")
 
     async def select_platform_rules(
         self,
@@ -111,9 +107,7 @@ class MongoDBSCAPScanner(SCAPScanner):
                 else:
                     mongodb_rules.append(rule_data)
 
-            logger.info(
-                f"Selected {len(mongodb_rules)} rules for {platform} {platform_version}"
-            )
+            logger.info(f"Selected {len(mongodb_rules)} rules for {platform} {platform_version}")
             return mongodb_rules
 
         except Exception as e:
@@ -166,12 +160,10 @@ class MongoDBSCAPScanner(SCAPScanner):
                 if hasattr(rule, "inherits_from") and rule.inherits_from:
                     try:
                         # Get parent rule with inheritance resolution
-                        parent_data = (
-                            await self.rule_service.get_rule_with_dependencies(
-                                rule_id=rule.inherits_from,
-                                resolve_depth=3,
-                                include_conflicts=True,
-                            )
+                        parent_data = await self.rule_service.get_rule_with_dependencies(
+                            rule_id=rule.inherits_from,
+                            resolve_depth=3,
+                            include_conflicts=True,
                         )
 
                         # Merge parent and child rule configurations
@@ -260,16 +252,14 @@ class MongoDBSCAPScanner(SCAPScanner):
             oval_definitions_path may be None if no OVAL definitions found
         """
         try:
-            logger.info(
-                f"Generating SCAP profile '{profile_name}' from {len(rules)} MongoDB rules"
-            )
+            logger.info(f"Generating SCAP profile '{profile_name}' from {len(rules)} MongoDB rules")
 
             # Create temporary directory for SCAP content
             temp_dir = Path(tempfile.mkdtemp(prefix="openwatch_scap_"))
 
             # Generate OVAL definitions document first to get the mapping
-            oval_definitions_path, rule_to_oval_id_map = (
-                self._generate_oval_definitions(rules, platform, temp_dir)
+            oval_definitions_path, rule_to_oval_id_map = self._generate_oval_definitions(
+                rules, platform, temp_dir
             )
 
             if oval_definitions_path:
@@ -367,14 +357,10 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             # Add generator info
             generator = ET.SubElement(root, "generator")
-            ET.SubElement(generator, "product_name").text = (
-                "OpenWatch MongoDB SCAP Scanner"
-            )
+            ET.SubElement(generator, "product_name").text = "OpenWatch MongoDB SCAP Scanner"
             ET.SubElement(generator, "product_version").text = "1.0.0"
             ET.SubElement(generator, "schema_version").text = "5.11"
-            ET.SubElement(generator, "timestamp").text = (
-                datetime.utcnow().isoformat() + "Z"
-            )
+            ET.SubElement(generator, "timestamp").text = datetime.utcnow().isoformat() + "Z"
 
             # Create definitions container
             definitions = ET.SubElement(root, "definitions")
@@ -444,17 +430,13 @@ class MongoDBSCAPScanner(SCAPScanner):
                                 variables.append(variable)
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to parse OVAL file {oval_info['oval_path']}: {e}"
-                    )
+                    logger.error(f"Failed to parse OVAL file {oval_info['oval_path']}: {e}")
                     continue
 
             # Write combined OVAL definitions document
             oval_output_path = temp_dir / "oval-definitions.xml"
             tree = ET.ElementTree(root)
-            tree.write(
-                oval_output_path, encoding="utf-8", xml_declaration=True, method="xml"
-            )
+            tree.write(oval_output_path, encoding="utf-8", xml_declaration=True, method="xml")
 
             logger.info(
                 f"Generated OVAL definitions document: {oval_output_path} ({len(definition_ids_added)} definitions)"
@@ -462,9 +444,7 @@ class MongoDBSCAPScanner(SCAPScanner):
             return (str(oval_output_path), rule_to_oval_id_map)
 
         except Exception as e:
-            logger.error(
-                f"Failed to generate OVAL definitions document: {e}", exc_info=True
-            )
+            logger.error(f"Failed to generate OVAL definitions document: {e}", exc_info=True)
             return (None, {})
 
     def _strip_html_tags(self, text: str) -> str:
@@ -522,9 +502,7 @@ class MongoDBSCAPScanner(SCAPScanner):
 
         # Generate XCCDF-compliant IDs following the pattern: xccdf_<reverse-domain>_<type>_<name>
         benchmark_id = f"xccdf_com.openwatch_benchmark_{platform}"
-        profile_id = (
-            f"xccdf_com.openwatch_profile_{profile_name.lower().replace(' ', '_')}"
-        )
+        profile_id = f"xccdf_com.openwatch_profile_{profile_name.lower().replace(' ', '_')}"
 
         xml_lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -562,9 +540,7 @@ class MongoDBSCAPScanner(SCAPScanner):
             rule_id = rule.scap_rule_id or rule.rule_id
 
             # Strip HTML tags from description and rationale for XCCDF compliance
-            description = self._strip_html_tags(
-                rule.metadata.get("description", "No description")
-            )
+            description = self._strip_html_tags(rule.metadata.get("description", "No description"))
             rationale = self._strip_html_tags(
                 rule.metadata.get("rationale", "No rationale provided")
             )
@@ -603,9 +579,7 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             xml_lines.append("  </xccdf:Rule>")
 
-        logger.info(
-            f"Added {len(rules)} XCCDF rules ({rules_with_checks} with OVAL checks)"
-        )
+        logger.info(f"Added {len(rules)} XCCDF rules ({rules_with_checks} with OVAL checks)")
 
         xml_lines.append("</xccdf:Benchmark>")
 
@@ -627,9 +601,7 @@ class MongoDBSCAPScanner(SCAPScanner):
             await self.initialize()
 
         try:
-            scan_id = (
-                f"mongodb_scan_{host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            )
+            scan_id = f"mongodb_scan_{host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             logger.info(f"Starting MongoDB rule-based scan {scan_id} for {hostname}")
 
             # Step 1: Select rules - either specific IDs or platform-appropriate rules
@@ -637,9 +609,7 @@ class MongoDBSCAPScanner(SCAPScanner):
                 logger.info(f"Using {len(rule_ids)} user-selected rules")
                 rules = await self.get_rules_by_ids(rule_ids)
             else:
-                logger.info(
-                    f"Auto-selecting rules for platform {platform} {platform_version}"
-                )
+                logger.info(f"Auto-selecting rules for platform {platform} {platform_version}")
                 rules = await self.select_platform_rules(
                     platform=platform,
                     platform_version=platform_version,
@@ -674,17 +644,13 @@ class MongoDBSCAPScanner(SCAPScanner):
             )
 
             # Step 5: Enrich results with MongoDB rule intelligence
-            enriched_result = await self._enrich_scan_results(
-                scan_result, resolved_rules
-            )
+            enriched_result = await self._enrich_scan_results(scan_result, resolved_rules)
 
             # Cleanup temporary files
             # TODO: Temporarily disabled for debugging - re-enable after XCCDF fix
             try:
                 temp_dir = Path(profile_path).parent
-                logger.info(
-                    f"DEBUG: Preserved local temp directory for inspection: {temp_dir}"
-                )
+                logger.info(f"DEBUG: Preserved local temp directory for inspection: {temp_dir}")
                 # shutil.rmtree(temp_dir)
                 # logger.debug(f"Cleaned up temporary SCAP content directory: {temp_dir}")
             except Exception as e:
@@ -709,9 +675,7 @@ class MongoDBSCAPScanner(SCAPScanner):
         """Execute the actual SCAP scan with generated profile"""
         try:
             # Generate XCCDF-compliant profile ID
-            profile_id = (
-                f"xccdf_com.openwatch_profile_{profile_name.lower().replace(' ', '_')}"
-            )
+            profile_id = f"xccdf_com.openwatch_profile_{profile_name.lower().replace(' ', '_')}"
 
             # Result file paths
             result_file = self.results_dir / f"{scan_id}_results.xml"
@@ -737,13 +701,9 @@ class MongoDBSCAPScanner(SCAPScanner):
 
                     host_auth_method = host_result[0]
                     use_default = host_auth_method in ["system_default", "default"]
-                    target_id = (
-                        None if use_default else connection_params.get("host_id")
-                    )
+                    target_id = None if use_default else connection_params.get("host_id")
 
-                    logger.info(
-                        f"Host auth_method: {host_auth_method}, use_default: {use_default}"
-                    )
+                    logger.info(f"Host auth_method: {host_auth_method}, use_default: {use_default}")
 
                     # Use CentralizedAuthService to resolve credentials
                     auth_service = get_auth_service(db)
@@ -833,14 +793,10 @@ class MongoDBSCAPScanner(SCAPScanner):
 
                 # Log oscap output for debugging
                 if result.returncode not in [0, 2]:  # 0=pass, 2=some rules failed
-                    logger.error(
-                        f"oscap returned non-zero exit code: {result.returncode}"
-                    )
+                    logger.error(f"oscap returned non-zero exit code: {result.returncode}")
                     logger.error(f"oscap stderr: {result.stderr}")
                 else:
-                    logger.info(
-                        f"oscap completed successfully (exit code: {result.returncode})"
-                    )
+                    logger.info(f"oscap completed successfully (exit code: {result.returncode})")
 
                 return {
                     "success": True,
@@ -861,9 +817,7 @@ class MongoDBSCAPScanner(SCAPScanner):
             logger.error(f"MongoDB scan execution failed: {e}", exc_info=True)
             raise ScanExecutionError(f"Scan execution failed: {str(e)}")
 
-    async def _enrich_scan_results(
-        self, scan_result: Dict, rules: List[ComplianceRule]
-    ) -> Dict:
+    async def _enrich_scan_results(self, scan_result: Dict, rules: List[ComplianceRule]) -> Dict:
         """Enrich scan results with MongoDB rule intelligence"""
         try:
             if not scan_result.get("success") or not scan_result.get("result_file"):
@@ -909,16 +863,12 @@ class MongoDBSCAPScanner(SCAPScanner):
         for rule_id, rule in rule_lookup.items():
             try:
                 # Get rule intelligence from MongoDB
-                intel_result = await self.mongo_service.get_rule_with_intelligence(
-                    rule.rule_id
-                )
+                intel_result = await self.mongo_service.get_rule_with_intelligence(rule.rule_id)
 
                 if intel_result and "intelligence" in intel_result:
                     intelligence_data[rule_id] = {
                         "rule_id": rule.rule_id,
-                        "business_impact": intel_result["intelligence"].get(
-                            "business_impact"
-                        ),
+                        "business_impact": intel_result["intelligence"].get("business_impact"),
                         "compliance_importance": intel_result["intelligence"].get(
                             "compliance_importance"
                         ),

@@ -36,9 +36,7 @@ class PluginExecutionService:
         self.execution_history = {}
         self.active_executions = {}
 
-    async def execute_plugin(
-        self, request: PluginExecutionRequest
-    ) -> PluginExecutionResult:
+    async def execute_plugin(self, request: PluginExecutionRequest) -> PluginExecutionResult:
         """
         Execute a plugin with full security isolation
 
@@ -82,14 +80,10 @@ class PluginExecutionService:
                 "request": request,
             }
 
-            logger.info(
-                f"Starting plugin execution {execution_id}: {request.plugin_id}"
-            )
+            logger.info(f"Starting plugin execution {execution_id}: {request.plugin_id}")
 
             # Create execution environment
-            execution_env = await self._create_execution_environment(
-                plugin, request, execution_id
-            )
+            execution_env = await self._create_execution_environment(plugin, request, execution_id)
 
             # Select appropriate executor
             executor = await self._select_executor(plugin, request.platform)
@@ -271,21 +265,15 @@ class PluginExecutionService:
         try:
             # Prepare execution command based on executor type
             if executor.type == PluginCapability.SHELL:
-                result = await self._execute_shell_plugin(
-                    plugin, executor, request, execution_env
-                )
+                result = await self._execute_shell_plugin(plugin, executor, request, execution_env)
             elif executor.type == PluginCapability.PYTHON:
-                result = await self._execute_python_plugin(
-                    plugin, executor, request, execution_env
-                )
+                result = await self._execute_python_plugin(plugin, executor, request, execution_env)
             elif executor.type == PluginCapability.ANSIBLE:
                 result = await self._execute_ansible_plugin(
                     plugin, executor, request, execution_env
                 )
             elif executor.type == PluginCapability.API:
-                result = await self._execute_api_plugin(
-                    plugin, executor, request, execution_env
-                )
+                result = await self._execute_api_plugin(plugin, executor, request, execution_env)
             else:
                 raise ValueError(f"Unsupported executor type: {executor.type}")
 
@@ -349,9 +337,7 @@ class PluginExecutionService:
         sandbox = CommandSandbox()
 
         # Execute with timeout
-        timeout = request.timeout_override or executor.resource_limits.get(
-            "timeout", 300
-        )
+        timeout = request.timeout_override or executor.resource_limits.get("timeout", 300)
 
         try:
             result = await sandbox.run_command(
@@ -409,9 +395,7 @@ class PluginExecutionService:
 
         # Execute in sandbox
         sandbox = CommandSandbox()
-        timeout = request.timeout_override or executor.resource_limits.get(
-            "timeout", 300
-        )
+        timeout = request.timeout_override or executor.resource_limits.get("timeout", 300)
 
         try:
             result = await sandbox.run_command(
@@ -469,9 +453,7 @@ class PluginExecutionService:
 
         # Execute in sandbox
         sandbox = CommandSandbox()
-        timeout = request.timeout_override or executor.resource_limits.get(
-            "timeout", 600
-        )
+        timeout = request.timeout_override or executor.resource_limits.get("timeout", 600)
 
         try:
             result = await sandbox.run_command(

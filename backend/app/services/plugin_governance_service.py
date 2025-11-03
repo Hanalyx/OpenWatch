@@ -461,9 +461,7 @@ class PluginGovernanceService:
                 continue
 
             # Evaluate policy rules
-            policy_violations = await self._evaluate_policy_rules(
-                policy, plugin, event_context
-            )
+            policy_violations = await self._evaluate_policy_rules(policy, plugin, event_context)
             violations.extend(policy_violations)
 
         # Log violations
@@ -526,14 +524,10 @@ class PluginGovernanceService:
         compliant_plugins = len(
             [r for r in compliance_results.values() if r.get("compliant", False)]
         )
-        overall_score = (
-            (compliant_plugins / total_plugins * 100) if total_plugins > 0 else 100.0
-        )
+        overall_score = (compliant_plugins / total_plugins * 100) if total_plugins > 0 else 100.0
 
         # Generate findings and recommendations
-        findings = await self._generate_compliance_findings(
-            compliance_results, standard
-        )
+        findings = await self._generate_compliance_findings(compliance_results, standard)
         recommendations = await self._generate_compliance_recommendations(
             compliance_results, standard
         )
@@ -603,12 +597,7 @@ class PluginGovernanceService:
                 timestamp_query["$lte"] = end_date
             query["timestamp"] = timestamp_query
 
-        events = (
-            await AuditEvent.find(query)
-            .sort(-AuditEvent.timestamp)
-            .limit(limit)
-            .to_list()
-        )
+        events = await AuditEvent.find(query).sort(-AuditEvent.timestamp).limit(limit).to_list()
 
         logger.info(f"Retrieved {len(events)} audit events")
         return events
@@ -832,9 +821,7 @@ class PluginGovernanceService:
 
                     for plugin in plugins:
                         if await self._policy_applies_to_plugin(policy, plugin):
-                            violations = await self._evaluate_policy_rules(
-                                policy, plugin
-                            )
+                            violations = await self._evaluate_policy_rules(policy, plugin)
 
                             # Handle violations
                             for violation in violations:
@@ -878,9 +865,7 @@ class PluginGovernanceService:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(
-                        f"Compliance monitoring error for {standard.value}: {e}"
-                    )
+                    logger.error(f"Compliance monitoring error for {standard.value}: {e}")
                     await asyncio.sleep(3600)  # 1 hour on error
 
         task = asyncio.create_task(compliance_monitor_loop())
@@ -932,10 +917,7 @@ class PluginGovernanceService:
             return False
 
         # Check plugin types
-        if (
-            policy.applies_to_types
-            and plugin.plugin_type not in policy.applies_to_types
-        ):
+        if policy.applies_to_types and plugin.plugin_type not in policy.applies_to_types:
             return False
 
         # Check plugin tags
@@ -962,9 +944,7 @@ class PluginGovernanceService:
             threshold = rule.get("threshold")
 
             # Perform the check
-            check_result = await self._perform_policy_check(
-                plugin, check_type, threshold
-            )
+            check_result = await self._perform_policy_check(plugin, check_type, threshold)
 
             if not check_result["passed"]:
                 violation = PolicyViolation(
@@ -1040,11 +1020,7 @@ class PluginGovernanceService:
             elif check_type == "license_approved":
                 # Check if plugin license is approved
                 plugin_license = getattr(plugin, "license", None)
-                passed = (
-                    plugin_license in threshold
-                    if isinstance(threshold, list)
-                    else False
-                )
+                passed = plugin_license in threshold if isinstance(threshold, list) else False
                 return {
                     "passed": passed,
                     "message": f"License: {plugin_license} (approved: {threshold})",
@@ -1115,9 +1091,7 @@ class PluginGovernanceService:
 
         elif policy.enforcement_level == PolicyEnforcementLevel.QUARANTINE:
             # Quarantine the plugin
-            logger.error(
-                f"Quarantining plugin for violation: {violation.rule_violated}"
-            )
+            logger.error(f"Quarantining plugin for violation: {violation.rule_violated}")
             await self._quarantine_plugin_for_violation(violation)
 
     async def _evaluate_standard_compliance(
@@ -1146,9 +1120,7 @@ class PluginGovernanceService:
             elif standard == ComplianceStandard.NIST_CSF:
                 result = await self._evaluate_nist_csf_compliance(plugin, config)
             else:
-                result = await self._evaluate_generic_compliance(
-                    plugin, standard, config
-                )
+                result = await self._evaluate_generic_compliance(plugin, standard, config)
 
             compliance_result.update(result)
 
@@ -1181,9 +1153,7 @@ class PluginGovernanceService:
         for control in required_controls:
             control_result = await self._check_soc2_control(plugin, control)
             if not control_result["compliant"]:
-                findings.append(
-                    f"Control {control} not implemented: {control_result['reason']}"
-                )
+                findings.append(f"Control {control} not implemented: {control_result['reason']}")
                 violations.append(control)
                 score -= 100.0 / len(required_controls)
 
@@ -1194,9 +1164,7 @@ class PluginGovernanceService:
             "violations": violations,
         }
 
-    async def _check_soc2_control(
-        self, plugin: InstalledPlugin, control: str
-    ) -> Dict[str, Any]:
+    async def _check_soc2_control(self, plugin: InstalledPlugin, control: str) -> Dict[str, Any]:
         """Check a specific SOC 2 control"""
 
         if control == "access_control":
@@ -1280,18 +1248,14 @@ class PluginGovernanceService:
                     "name": plugin.name,
                     "version": plugin.version,
                     "status": plugin.status.value,
-                    "created_at": (
-                        plugin.created_at.isoformat() if plugin.created_at else None
-                    ),
+                    "created_at": (plugin.created_at.isoformat() if plugin.created_at else None),
                 },
             }
         )
 
         # Health check evidence
         try:
-            health_check = await self.plugin_lifecycle_service.check_plugin_health(
-                plugin.plugin_id
-            )
+            health_check = await self.plugin_lifecycle_service.check_plugin_health(plugin.plugin_id)
             evidence.append(
                 {
                     "type": "health_check",
@@ -1306,9 +1270,7 @@ class PluginGovernanceService:
                 }
             )
         except Exception as e:
-            logger.warning(
-                f"Could not collect health check evidence for {plugin.plugin_id}: {e}"
-            )
+            logger.warning(f"Could not collect health check evidence for {plugin.plugin_id}: {e}")
 
         # Audit trail evidence
         recent_events = await self.get_audit_trail(
@@ -1382,9 +1344,7 @@ class PluginGovernanceService:
         recommendations = []
 
         # Count non-compliant plugins
-        non_compliant = [
-            r for r in compliance_results.values() if not r.get("compliant", True)
-        ]
+        non_compliant = [r for r in compliance_results.values() if not r.get("compliant", True)]
 
         if non_compliant:
             recommendations.append(
@@ -1458,9 +1418,7 @@ class PluginGovernanceService:
 
         # Log high-risk events
         if risk_level in ["high", "critical"]:
-            logger.warning(
-                f"High-risk audit event: {event_description} (Risk: {risk_level})"
-            )
+            logger.warning(f"High-risk audit event: {event_description} (Risk: {risk_level})")
 
         return audit_event
 
@@ -1521,9 +1479,7 @@ class PluginGovernanceService:
             "compliance": {
                 "standards_configured": len(self.compliance_configs),
                 "monitored_standards": monitored_compliance,
-                "required_standards": [
-                    s.value for s in self.governance_config.required_standards
-                ],
+                "required_standards": [s.value for s in self.governance_config.required_standards],
             },
             "audit": {
                 "total_events": total_events,

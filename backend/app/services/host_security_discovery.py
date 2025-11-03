@@ -33,9 +33,7 @@ class HostSecurityDiscoveryService:
         Returns:
             Dictionary containing discovered security information
         """
-        logger.info(
-            f"Starting security infrastructure discovery for host: {host.hostname}"
-        )
+        logger.info(f"Starting security infrastructure discovery for host: {host.hostname}")
 
         discovery_results = {
             "package_managers": {},
@@ -52,16 +50,12 @@ class HostSecurityDiscoveryService:
         try:
             # Establish SSH connection
             if not self.ssh_service.connect(host):
-                discovery_results["discovery_errors"].append(
-                    "Failed to establish SSH connection"
-                )
+                discovery_results["discovery_errors"].append("Failed to establish SSH connection")
                 return discovery_results
 
             # 1. Discover package managers
             pkg_mgr_info = self._discover_package_managers(host)
-            discovery_results["package_managers"] = pkg_mgr_info.get(
-                "package_managers", {}
-            )
+            discovery_results["package_managers"] = pkg_mgr_info.get("package_managers", {})
             discovery_results["discovery_errors"].extend(pkg_mgr_info.get("errors", []))
 
             # 2. Discover service manager
@@ -69,44 +63,28 @@ class HostSecurityDiscoveryService:
             discovery_results["service_manager"] = service_mgr_info.get(
                 "service_manager", "Unknown"
             )
-            discovery_results["discovery_errors"].extend(
-                service_mgr_info.get("errors", [])
-            )
+            discovery_results["discovery_errors"].extend(service_mgr_info.get("errors", []))
 
             # 3. Discover SELinux status
             selinux_info = self._discover_selinux_status(host)
-            discovery_results["selinux_status"] = selinux_info.get(
-                "selinux_status", "Unknown"
-            )
+            discovery_results["selinux_status"] = selinux_info.get("selinux_status", "Unknown")
             discovery_results["discovery_errors"].extend(selinux_info.get("errors", []))
 
             # 4. Discover AppArmor status
             apparmor_info = self._discover_apparmor_status(host)
-            discovery_results["apparmor_status"] = apparmor_info.get(
-                "apparmor_status", "Unknown"
-            )
-            discovery_results["discovery_errors"].extend(
-                apparmor_info.get("errors", [])
-            )
+            discovery_results["apparmor_status"] = apparmor_info.get("apparmor_status", "Unknown")
+            discovery_results["discovery_errors"].extend(apparmor_info.get("errors", []))
 
             # 5. Discover active firewall services
             firewall_info = self._discover_firewall_services(host)
-            discovery_results["firewall_services"] = firewall_info.get(
-                "firewall_services", {}
-            )
-            discovery_results["discovery_errors"].extend(
-                firewall_info.get("errors", [])
-            )
+            discovery_results["firewall_services"] = firewall_info.get("firewall_services", {})
+            discovery_results["discovery_errors"].extend(firewall_info.get("errors", []))
 
             # 6. Compile security tools list
-            discovery_results["security_tools"] = self._compile_security_tools(
-                discovery_results
-            )
+            discovery_results["security_tools"] = self._compile_security_tools(discovery_results)
 
             # Update discovery success status
-            discovery_results["discovery_success"] = (
-                len(discovery_results["discovery_errors"]) == 0
-            )
+            discovery_results["discovery_success"] = len(discovery_results["discovery_errors"]) == 0
 
             logger.info(
                 f"Security infrastructure discovery completed for {host.hostname}: "
@@ -118,9 +96,7 @@ class HostSecurityDiscoveryService:
 
         except Exception as e:
             logger.error(f"Security discovery failed for {host.hostname}: {str(e)}")
-            discovery_results["discovery_errors"].append(
-                f"Discovery exception: {str(e)}"
-            )
+            discovery_results["discovery_errors"].append(f"Discovery exception: {str(e)}")
 
         finally:
             self.ssh_service.disconnect()
@@ -165,14 +141,10 @@ class HostSecurityDiscoveryService:
                         "available": True,
                     }
 
-                    logger.debug(
-                        f"Found package manager: {pm_name} at {output['stdout'].strip()}"
-                    )
+                    logger.debug(f"Found package manager: {pm_name} at {output['stdout'].strip()}")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering package managers for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering package managers for {host.hostname}: {str(e)}")
             result["errors"].append(f"Package manager discovery error: {str(e)}")
 
         return result
@@ -209,9 +181,7 @@ class HostSecurityDiscoveryService:
                 logger.debug(f"Detected service manager: {result['service_manager']}")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering service manager for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering service manager for {host.hostname}: {str(e)}")
             result["errors"].append(f"Service manager discovery error: {str(e)}")
 
         return result
@@ -227,9 +197,7 @@ class HostSecurityDiscoveryService:
                 enforcement_mode = output["stdout"].strip()
                 if enforcement_mode:
                     # Get additional details with sestatus
-                    status_output = self.ssh_service.execute_command(
-                        "sestatus", timeout=10
-                    )
+                    status_output = self.ssh_service.execute_command("sestatus", timeout=10)
                     if status_output and status_output["success"]:
                         status_text = status_output["stdout"]
                         # Parse sestatus output for more details
@@ -240,11 +208,7 @@ class HostSecurityDiscoveryService:
 
                         selinux_info = {
                             "enforcement_mode": enforcement_mode,
-                            "status": (
-                                "enabled"
-                                if enforcement_mode != "Disabled"
-                                else "disabled"
-                            ),
+                            "status": ("enabled" if enforcement_mode != "Disabled" else "disabled"),
                         }
 
                         if policy_match:
@@ -257,18 +221,12 @@ class HostSecurityDiscoveryService:
                     else:
                         result["selinux_status"] = {
                             "enforcement_mode": enforcement_mode,
-                            "status": (
-                                "enabled"
-                                if enforcement_mode != "Disabled"
-                                else "disabled"
-                            ),
+                            "status": ("enabled" if enforcement_mode != "Disabled" else "disabled"),
                         }
                     return result
 
             # Check if SELinux is installed but not active
-            output = self.ssh_service.execute_command(
-                "ls /etc/selinux/config", timeout=5
-            )
+            output = self.ssh_service.execute_command("ls /etc/selinux/config", timeout=5)
             if output and output["success"]:
                 result["selinux_status"] = {
                     "status": "installed_but_inactive",
@@ -281,9 +239,7 @@ class HostSecurityDiscoveryService:
                 }
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering SELinux status for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering SELinux status for {host.hostname}: {str(e)}")
             result["errors"].append(f"SELinux discovery error: {str(e)}")
 
         return result
@@ -302,9 +258,7 @@ class HostSecurityDiscoveryService:
                 apparmor_info = {"status": "enabled"}
 
                 # Extract profile counts
-                profiles_loaded_match = re.search(
-                    r"(\d+) profiles are loaded", status_text
-                )
+                profiles_loaded_match = re.search(r"(\d+) profiles are loaded", status_text)
                 profiles_enforce_match = re.search(
                     r"(\d+) profiles are in enforce mode", status_text
                 )
@@ -313,17 +267,11 @@ class HostSecurityDiscoveryService:
                 )
 
                 if profiles_loaded_match:
-                    apparmor_info["profiles_loaded"] = int(
-                        profiles_loaded_match.group(1)
-                    )
+                    apparmor_info["profiles_loaded"] = int(profiles_loaded_match.group(1))
                 if profiles_enforce_match:
-                    apparmor_info["profiles_enforce"] = int(
-                        profiles_enforce_match.group(1)
-                    )
+                    apparmor_info["profiles_enforce"] = int(profiles_enforce_match.group(1))
                 if profiles_complain_match:
-                    apparmor_info["profiles_complain"] = int(
-                        profiles_complain_match.group(1)
-                    )
+                    apparmor_info["profiles_complain"] = int(profiles_complain_match.group(1))
 
                 result["apparmor_status"] = apparmor_info
                 logger.debug(
@@ -332,18 +280,14 @@ class HostSecurityDiscoveryService:
                 return result
 
             # Check if AppArmor is installed but not running
-            output = self.ssh_service.execute_command(
-                "which apparmor_status", timeout=5
-            )
+            output = self.ssh_service.execute_command("which apparmor_status", timeout=5)
             if output and output["success"]:
                 result["apparmor_status"] = {"status": "installed_but_inactive"}
             else:
                 result["apparmor_status"] = {"status": "not_installed"}
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering AppArmor status for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering AppArmor status for {host.hostname}: {str(e)}")
             result["errors"].append(f"AppArmor discovery error: {str(e)}")
 
         return result
@@ -366,11 +310,7 @@ class HostSecurityDiscoveryService:
                 output = self.ssh_service.execute_command(
                     f"systemctl is-active {fw_service}", timeout=5
                 )
-                if (
-                    output
-                    and output["success"]
-                    and "active" in output["stdout"].strip()
-                ):
+                if output and output["success"] and "active" in output["stdout"].strip():
                     # Get additional status info
                     status_output = self.ssh_service.execute_command(
                         f"systemctl status {fw_service} --no-pager -l", timeout=10
@@ -396,9 +336,7 @@ class HostSecurityDiscoveryService:
 
                 # Special handling for iptables - check if rules exist
                 elif fw_service == "iptables":
-                    output = self.ssh_service.execute_command(
-                        "iptables -L -n | wc -l", timeout=10
-                    )
+                    output = self.ssh_service.execute_command("iptables -L -n | wc -l", timeout=10)
                     if output and output["success"]:
                         rule_count = (
                             int(output["stdout"].strip())
@@ -414,9 +352,7 @@ class HostSecurityDiscoveryService:
                             logger.debug(f"Found iptables with {rule_count} rules")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering firewall services for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering firewall services for {host.hostname}: {str(e)}")
             result["errors"].append(f"Firewall discovery error: {str(e)}")
 
         return result
@@ -443,19 +379,13 @@ class HostSecurityDiscoveryService:
 
         # Add SELinux if enabled
         selinux_status = discovery_results.get("selinux_status")
-        if (
-            isinstance(selinux_status, dict)
-            and selinux_status.get("status") == "enabled"
-        ):
+        if isinstance(selinux_status, dict) and selinux_status.get("status") == "enabled":
             mode = selinux_status.get("enforcement_mode", "Unknown")
             tools.append(f"SELinux: {mode}")
 
         # Add AppArmor if enabled
         apparmor_status = discovery_results.get("apparmor_status")
-        if (
-            isinstance(apparmor_status, dict)
-            and apparmor_status.get("status") == "enabled"
-        ):
+        if isinstance(apparmor_status, dict) and apparmor_status.get("status") == "enabled":
             profiles = apparmor_status.get("profiles_loaded", 0)
             tools.append(f"AppArmor: {profiles} profiles loaded")
 

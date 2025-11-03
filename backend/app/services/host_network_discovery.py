@@ -52,19 +52,13 @@ class HostNetworkDiscoveryService:
         try:
             # Establish SSH connection
             if not self.ssh_service.connect(host):
-                discovery_results["discovery_errors"].append(
-                    "Failed to establish SSH connection"
-                )
+                discovery_results["discovery_errors"].append("Failed to establish SSH connection")
                 return discovery_results
 
             # 1. Discover network interfaces
             interface_info = self._discover_network_interfaces(host)
-            discovery_results["network_interfaces"] = interface_info.get(
-                "network_interfaces", {}
-            )
-            discovery_results["discovery_errors"].extend(
-                interface_info.get("errors", [])
-            )
+            discovery_results["network_interfaces"] = interface_info.get("network_interfaces", {})
+            discovery_results["discovery_errors"].extend(interface_info.get("errors", []))
 
             # 2. Discover routing table
             routing_info = self._discover_routing_table(host)
@@ -73,23 +67,17 @@ class HostNetworkDiscoveryService:
 
             # 3. Discover DNS configuration
             dns_info = self._discover_dns_configuration(host)
-            discovery_results["dns_configuration"] = dns_info.get(
-                "dns_configuration", {}
-            )
+            discovery_results["dns_configuration"] = dns_info.get("dns_configuration", {})
             discovery_results["discovery_errors"].extend(dns_info.get("errors", []))
 
             # 4. Discover NTP configuration
             ntp_info = self._discover_ntp_configuration(host)
-            discovery_results["ntp_configuration"] = ntp_info.get(
-                "ntp_configuration", {}
-            )
+            discovery_results["ntp_configuration"] = ntp_info.get("ntp_configuration", {})
             discovery_results["discovery_errors"].extend(ntp_info.get("errors", []))
 
             # 5. Discover network services
             service_info = self._discover_network_services(host)
-            discovery_results["network_services"] = service_info.get(
-                "network_services", {}
-            )
+            discovery_results["network_services"] = service_info.get("network_services", {})
             discovery_results["discovery_errors"].extend(service_info.get("errors", []))
 
             # 6. Perform connectivity tests
@@ -97,23 +85,15 @@ class HostNetworkDiscoveryService:
             discovery_results["connectivity_tests"] = connectivity_info.get(
                 "connectivity_tests", {}
             )
-            discovery_results["discovery_errors"].extend(
-                connectivity_info.get("errors", [])
-            )
+            discovery_results["discovery_errors"].extend(connectivity_info.get("errors", []))
 
             # 7. Assess network security
             security_info = self._assess_network_security(host)
-            discovery_results["network_security"] = security_info.get(
-                "network_security", {}
-            )
-            discovery_results["discovery_errors"].extend(
-                security_info.get("errors", [])
-            )
+            discovery_results["network_security"] = security_info.get("network_security", {})
+            discovery_results["discovery_errors"].extend(security_info.get("errors", []))
 
             # Update discovery success status
-            discovery_results["discovery_success"] = (
-                len(discovery_results["discovery_errors"]) == 0
-            )
+            discovery_results["discovery_success"] = len(discovery_results["discovery_errors"]) == 0
 
             interface_count = len(discovery_results["network_interfaces"])
             route_count = len(discovery_results["routing_table"])
@@ -124,9 +104,7 @@ class HostNetworkDiscoveryService:
 
         except Exception as e:
             logger.error(f"Network discovery failed for {host.hostname}: {str(e)}")
-            discovery_results["discovery_errors"].append(
-                f"Discovery exception: {str(e)}"
-            )
+            discovery_results["discovery_errors"].append(f"Discovery exception: {str(e)}")
 
         finally:
             self.ssh_service.disconnect()
@@ -145,16 +123,12 @@ class HostNetworkDiscoveryService:
                 result["network_interfaces"].update(interfaces)
             else:
                 # Fallback to ifconfig if ip command fails
-                ifconfig_output = self.ssh_service.execute_command(
-                    "ifconfig -a", timeout=15
-                )
+                ifconfig_output = self.ssh_service.execute_command("ifconfig -a", timeout=15)
                 if ifconfig_output and ifconfig_output["success"]:
                     interfaces = self._parse_ifconfig_output(ifconfig_output["stdout"])
                     result["network_interfaces"].update(interfaces)
                 else:
-                    result["errors"].append(
-                        "Failed to retrieve network interface information"
-                    )
+                    result["errors"].append("Failed to retrieve network interface information")
 
             # Get additional interface statistics
             for interface_name in result["network_interfaces"].keys():
@@ -181,18 +155,16 @@ class HostNetworkDiscoveryService:
                 if speed_output and speed_output["success"]:
                     for line in speed_output["stdout"].split("\\n"):
                         if "Speed:" in line:
-                            result["network_interfaces"][interface_name]["speed"] = (
-                                line.split("Speed:")[1].strip()
-                            )
+                            result["network_interfaces"][interface_name]["speed"] = line.split(
+                                "Speed:"
+                            )[1].strip()
                         elif "Duplex:" in line:
-                            result["network_interfaces"][interface_name]["duplex"] = (
-                                line.split("Duplex:")[1].strip()
-                            )
+                            result["network_interfaces"][interface_name]["duplex"] = line.split(
+                                "Duplex:"
+                            )[1].strip()
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering network interfaces for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering network interfaces for {host.hostname}: {str(e)}")
             result["errors"].append(f"Network interface discovery error: {str(e)}")
 
         return result
@@ -205,36 +177,24 @@ class HostNetworkDiscoveryService:
             # Get IPv4 routing table
             route_output = self.ssh_service.execute_command("ip route show", timeout=10)
             if route_output and route_output["success"]:
-                ipv4_routes = self._parse_ip_route_output(
-                    route_output["stdout"], "ipv4"
-                )
+                ipv4_routes = self._parse_ip_route_output(route_output["stdout"], "ipv4")
                 result["routing_table"].extend(ipv4_routes)
 
             # Get IPv6 routing table
-            route6_output = self.ssh_service.execute_command(
-                "ip -6 route show", timeout=10
-            )
+            route6_output = self.ssh_service.execute_command("ip -6 route show", timeout=10)
             if route6_output and route6_output["success"]:
-                ipv6_routes = self._parse_ip_route_output(
-                    route6_output["stdout"], "ipv6"
-                )
+                ipv6_routes = self._parse_ip_route_output(route6_output["stdout"], "ipv6")
                 result["routing_table"].extend(ipv6_routes)
 
             # If ip command fails, try route command
             if not result["routing_table"]:
-                fallback_output = self.ssh_service.execute_command(
-                    "route -n", timeout=10
-                )
+                fallback_output = self.ssh_service.execute_command("route -n", timeout=10)
                 if fallback_output and fallback_output["success"]:
-                    fallback_routes = self._parse_route_n_output(
-                        fallback_output["stdout"]
-                    )
+                    fallback_routes = self._parse_route_n_output(fallback_output["stdout"])
                     result["routing_table"].extend(fallback_routes)
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering routing table for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering routing table for {host.hostname}: {str(e)}")
             result["errors"].append(f"Routing table discovery error: {str(e)}")
 
         return result
@@ -245,9 +205,7 @@ class HostNetworkDiscoveryService:
 
         try:
             # Read /etc/resolv.conf
-            resolv_output = self.ssh_service.execute_command(
-                "cat /etc/resolv.conf", timeout=5
-            )
+            resolv_output = self.ssh_service.execute_command("cat /etc/resolv.conf", timeout=5)
             if resolv_output and resolv_output["success"]:
                 dns_config = self._parse_resolv_conf(resolv_output["stdout"])
                 result["dns_configuration"].update(dns_config)
@@ -268,15 +226,11 @@ class HostNetworkDiscoveryService:
                     "systemd-resolve --status", timeout=10
                 )
                 if resolved_status and resolved_status["success"]:
-                    resolved_info = self._parse_systemd_resolved_status(
-                        resolved_status["stdout"]
-                    )
+                    resolved_info = self._parse_systemd_resolved_status(resolved_status["stdout"])
                     result["dns_configuration"]["resolved_info"] = resolved_info
 
             # Test DNS resolution
-            dns_test = self.ssh_service.execute_command(
-                "nslookup google.com", timeout=10
-            )
+            dns_test = self.ssh_service.execute_command("nslookup google.com", timeout=10)
             if dns_test and dns_test["success"]:
                 result["dns_configuration"]["resolution_test"] = "passed"
             else:
@@ -284,9 +238,7 @@ class HostNetworkDiscoveryService:
                 result["errors"].append("DNS resolution test failed")
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering DNS configuration for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering DNS configuration for {host.hostname}: {str(e)}")
             result["errors"].append(f"DNS configuration discovery error: {str(e)}")
 
         return result
@@ -317,27 +269,19 @@ class HostNetworkDiscoveryService:
             # Get NTP configuration based on active service
             if active_service == "chronyd":
                 # Chrony configuration
-                chrony_config = self.ssh_service.execute_command(
-                    "cat /etc/chrony.conf", timeout=5
-                )
+                chrony_config = self.ssh_service.execute_command("cat /etc/chrony.conf", timeout=5)
                 if chrony_config and chrony_config["success"]:
                     ntp_servers = self._parse_chrony_config(chrony_config["stdout"])
                     result["ntp_configuration"]["servers"] = ntp_servers
 
                 # Chrony sources
-                chrony_sources = self.ssh_service.execute_command(
-                    "chronyc sources", timeout=10
-                )
+                chrony_sources = self.ssh_service.execute_command("chronyc sources", timeout=10)
                 if chrony_sources and chrony_sources["success"]:
-                    result["ntp_configuration"]["sources_status"] = chrony_sources[
-                        "stdout"
-                    ]
+                    result["ntp_configuration"]["sources_status"] = chrony_sources["stdout"]
 
             elif active_service in ["ntp", "ntpd"]:
                 # NTP configuration
-                ntp_config = self.ssh_service.execute_command(
-                    "cat /etc/ntp.conf", timeout=5
-                )
+                ntp_config = self.ssh_service.execute_command("cat /etc/ntp.conf", timeout=5)
                 if ntp_config and ntp_config["success"]:
                     ntp_servers = self._parse_ntp_config(ntp_config["stdout"])
                     result["ntp_configuration"]["servers"] = ntp_servers
@@ -353,9 +297,7 @@ class HostNetworkDiscoveryService:
                     "cat /etc/systemd/timesyncd.conf", timeout=5
                 )
                 if timesyncd_config and timesyncd_config["success"]:
-                    ntp_servers = self._parse_timesyncd_config(
-                        timesyncd_config["stdout"]
-                    )
+                    ntp_servers = self._parse_timesyncd_config(timesyncd_config["stdout"])
                     result["ntp_configuration"]["servers"] = ntp_servers
 
                 # Timesyncd status
@@ -363,23 +305,17 @@ class HostNetworkDiscoveryService:
                     "timedatectl show-timesync", timeout=10
                 )
                 if timesyncd_status and timesyncd_status["success"]:
-                    result["ntp_configuration"]["timesyncd_status"] = timesyncd_status[
-                        "stdout"
-                    ]
+                    result["ntp_configuration"]["timesyncd_status"] = timesyncd_status["stdout"]
 
             # General time synchronization status
-            timedatectl_output = self.ssh_service.execute_command(
-                "timedatectl status", timeout=5
-            )
+            timedatectl_output = self.ssh_service.execute_command("timedatectl status", timeout=5)
             if timedatectl_output and timedatectl_output["success"]:
-                result["ntp_configuration"]["time_status"] = (
-                    self._parse_timedatectl_status(timedatectl_output["stdout"])
+                result["ntp_configuration"]["time_status"] = self._parse_timedatectl_status(
+                    timedatectl_output["stdout"]
                 )
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering NTP configuration for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering NTP configuration for {host.hostname}: {str(e)}")
             result["errors"].append(f"NTP configuration discovery error: {str(e)}")
 
         return result
@@ -396,9 +332,7 @@ class HostNetworkDiscoveryService:
                 result["network_services"]["listening_ports"] = services
             else:
                 # Fallback to netstat
-                netstat_output = self.ssh_service.execute_command(
-                    "netstat -tuln", timeout=15
-                )
+                netstat_output = self.ssh_service.execute_command("netstat -tuln", timeout=15)
                 if netstat_output and netstat_output["success"]:
                     services = self._parse_netstat_output(netstat_output["stdout"])
                     result["network_services"]["listening_ports"] = services
@@ -423,9 +357,7 @@ class HostNetworkDiscoveryService:
             result["network_services"]["system_services"] = running_services
 
         except Exception as e:
-            logger.warning(
-                f"Error discovering network services for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error discovering network services for {host.hostname}: {str(e)}")
             result["errors"].append(f"Network services discovery error: {str(e)}")
 
         return result
@@ -479,9 +411,7 @@ class HostNetworkDiscoveryService:
                     ] = https_success
 
         except Exception as e:
-            logger.warning(
-                f"Error performing connectivity tests for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error performing connectivity tests for {host.hostname}: {str(e)}")
             result["errors"].append(f"Connectivity test error: {str(e)}")
 
         return result
@@ -532,14 +462,8 @@ class HostNetworkDiscoveryService:
             active_security_tools = []
 
             for tool in security_tools:
-                tool_check = self.ssh_service.execute_command(
-                    f"which {tool}", timeout=5
-                )
-                if (
-                    tool_check
-                    and tool_check["success"]
-                    and tool_check["stdout"].strip()
-                ):
+                tool_check = self.ssh_service.execute_command(f"which {tool}", timeout=5)
+                if tool_check and tool_check["success"] and tool_check["stdout"].strip():
                     active_security_tools.append(tool)
 
             result["network_security"]["security_tools"] = active_security_tools
@@ -554,9 +478,7 @@ class HostNetworkDiscoveryService:
 
             hardening_status = {}
             for param, description in hardening_checks:
-                param_output = self.ssh_service.execute_command(
-                    f"sysctl {param}", timeout=5
-                )
+                param_output = self.ssh_service.execute_command(f"sysctl {param}", timeout=5)
                 if param_output and param_output["success"]:
                     value = param_output["stdout"].split("=")[-1].strip()
                     hardening_status[description] = value
@@ -564,9 +486,7 @@ class HostNetworkDiscoveryService:
             result["network_security"]["hardening_status"] = hardening_status
 
         except Exception as e:
-            logger.warning(
-                f"Error assessing network security for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Error assessing network security for {host.hostname}: {str(e)}")
             result["errors"].append(f"Network security assessment error: {str(e)}")
 
         return result
@@ -651,9 +571,7 @@ class HostNetworkDiscoveryService:
 
         return interfaces
 
-    def _parse_ip_route_output(
-        self, output: str, ip_version: str
-    ) -> List[Dict[str, Any]]:
+    def _parse_ip_route_output(self, output: str, ip_version: str) -> List[Dict[str, Any]]:
         """Parse 'ip route show' output"""
         routes = []
 
@@ -839,9 +757,7 @@ class HostNetworkDiscoveryService:
             stats["packet_loss_percent"] = int(loss_match.group(1))
 
         # Extract round-trip times
-        rtt_match = re.search(
-            r"min/avg/max/mdev = ([\\d.]+)/([\\d.]+)/([\\d.]+)/([\\d.]+)", output
-        )
+        rtt_match = re.search(r"min/avg/max/mdev = ([\\d.]+)/([\\d.]+)/([\\d.]+)/([\\d.]+)", output)
         if rtt_match:
             stats["rtt_min"] = float(rtt_match.group(1))
             stats["rtt_avg"] = float(rtt_match.group(2))

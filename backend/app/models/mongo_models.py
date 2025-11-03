@@ -72,9 +72,7 @@ class FrameworkVersions(BaseModel):
 class PlatformImplementation(BaseModel):
     """Platform-specific implementation details"""
 
-    versions: List[str] = Field(
-        description="OS versions this implementation applies to"
-    )
+    versions: List[str] = Field(description="OS versions this implementation applies to")
     service_name: Optional[str] = Field(
         default=None, description="System service name if applicable"
     )
@@ -111,9 +109,7 @@ class ConditionalLogic(BaseModel):
     if_condition: Dict[str, Any] = Field(
         description="Condition to evaluate (e.g., {'platform': 'rhel', 'version': {'$gte': '8'}})"
     )
-    then_action: Dict[str, Any] = Field(
-        description="Action to take when condition is true"
-    )
+    then_action: Dict[str, Any] = Field(description="Action to take when condition is true")
     else_action: Optional[Dict[str, Any]] = Field(
         default=None, description="Action to take when condition is false"
     )
@@ -138,9 +134,7 @@ class PlatformCapability(BaseModel):
 class CheckContent(BaseModel):
     """Enhanced check content structure"""
 
-    check_type: str = Field(
-        description="Type of check (file, command, service, package, etc.)"
-    )
+    check_type: str = Field(description="Type of check (file, command, service, package, etc.)")
     file_path: Optional[str] = Field(default=None)
     parameter: Optional[str] = Field(default=None)
     pattern: Optional[str] = Field(default=None)
@@ -164,9 +158,7 @@ class CheckContent(BaseModel):
 class FixContent(BaseModel):
     """Multi-format remediation content"""
 
-    shell: Optional[Dict[str, Any]] = Field(
-        default=None, description="Shell script remediation"
-    )
+    shell: Optional[Dict[str, Any]] = Field(default=None, description="Shell script remediation")
     ansible: Optional[Dict[str, Any]] = Field(
         default=None, description="Ansible playbook remediation"
     )
@@ -202,9 +194,7 @@ class XCCDFVariable(BaseModel):
         pattern="^(string|number|boolean)$",
         description="Variable data type: string, number, or boolean",
     )
-    default_value: str = Field(
-        description="Default value if user doesn't provide custom value"
-    )
+    default_value: str = Field(description="Default value if user doesn't provide custom value")
     interactive: bool = Field(
         default=True,
         description="Whether this variable can be customized via UI/API (set to False for system variables)",
@@ -234,9 +224,7 @@ class XCCDFVariable(BaseModel):
         """Ensure type is one of the supported XCCDF types"""
         valid_types = ["string", "number", "boolean"]
         if v not in valid_types:
-            raise ValueError(
-                f"Invalid type '{v}'. Must be one of: {', '.join(valid_types)}"
-            )
+            raise ValueError(f"Invalid type '{v}'. Must be one of: {', '.join(valid_types)}")
         return v
 
     @validator("constraints")
@@ -330,9 +318,7 @@ class ComplianceRule(Document):
         default=None,
         description="High-level security function (network_protection, data_encryption, etc.)",
     )
-    tags: List[str] = Field(
-        default_factory=list, description="Searchable tags for categorization"
-    )
+    tags: List[str] = Field(default_factory=list, description="Searchable tags for categorization")
 
     # Cross-Reference Identifiers (CCE, CVE, OVAL, etc.)
     identifiers: Optional[Dict[str, str]] = Field(
@@ -432,9 +418,7 @@ class ComplianceRule(Document):
     )
 
     # Change Tracking and Provenance
-    source_file: str = Field(
-        default="unknown", description="Original source file (SCAP XML, etc.)"
-    )
+    source_file: str = Field(default="unknown", description="Original source file (SCAP XML, etc.)")
     source_hash: str = Field(
         default="unknown", description="Hash of the source content for change detection"
     )
@@ -744,9 +728,7 @@ class RuleIntelligence(Document):
         default=1.0,
         description="Success rate of remediation across environments",
     )
-    usage_count: int = Field(
-        default=0, description="How often this rule is used in scans"
-    )
+    usage_count: int = Field(default=0, description="How often this rule is used in scans")
     last_validation: datetime = Field(
         default_factory=datetime.utcnow,
         description="Last time intelligence was validated",
@@ -788,9 +770,7 @@ class RemediationScript(Document):
         default=True,
         description="Whether script requires root/administrator privileges",
     )
-    estimated_duration_seconds: int = Field(
-        description="Estimated execution time in seconds"
-    )
+    estimated_duration_seconds: int = Field(description="Estimated execution time in seconds")
 
     # Validation
     validation_command: Optional[str] = Field(
@@ -805,9 +785,7 @@ class RemediationScript(Document):
         default_factory=list,
         description="OS versions/distributions where this was tested",
     )
-    contributed_by: Optional[str] = Field(
-        default=None, description="Who contributed this script"
-    )
+    contributed_by: Optional[str] = Field(default=None, description="Who contributed this script")
     approved: bool = Field(
         default=False, description="Whether this script has been approved for use"
     )
@@ -836,22 +814,16 @@ class UploadHistory(Document):
         ]
 
     # Upload identification
-    upload_id: str = Field(
-        description="UUID of upload operation from ComplianceRulesUploadService"
-    )
+    upload_id: str = Field(description="UUID of upload operation from ComplianceRulesUploadService")
     filename: str = Field(
         description="Original bundle filename (e.g., openwatch-rhel8-bundle_v1.0.4.tar.gz)"
     )
-    file_hash: str = Field(
-        description="SHA-512 hash of uploaded file for integrity verification"
-    )
+    file_hash: str = Field(description="SHA-512 hash of uploaded file for integrity verification")
 
     # Upload metadata
     uploaded_at: datetime = Field(description="Upload timestamp (UTC)")
     uploaded_by: str = Field(description="Username of user who uploaded the bundle")
-    user_id: Optional[str] = Field(
-        default=None, description="User ID from authentication system"
-    )
+    user_id: Optional[str] = Field(default=None, description="User ID from authentication system")
 
     # Processing results
     success: bool = Field(description="Whether upload completed successfully")
@@ -904,9 +876,7 @@ class MongoManager:
         self.database = None
         self.initialized = False
 
-    async def initialize(
-        self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs
-    ):
+    async def initialize(self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs):
         """Initialize MongoDB connection and Beanie ODM"""
 
         if self.initialized:
@@ -928,9 +898,7 @@ class MongoManager:
                     "tls": True,
                     "tlsCertificateKeyFile": kwargs.get("ssl_cert"),
                     "tlsCAFile": kwargs.get("ssl_ca"),
-                    "tlsAllowInvalidCertificates": kwargs.get(
-                        "ssl_allow_invalid", False
-                    ),
+                    "tlsAllowInvalidCertificates": kwargs.get("ssl_allow_invalid", False),
                 }
             )
 

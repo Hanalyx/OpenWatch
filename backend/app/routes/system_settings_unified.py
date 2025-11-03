@@ -78,9 +78,7 @@ def uuid_to_int(uuid_str) -> int:
         uuid_str = str(uuid_str)
     # Use first 8 bytes of SHA256 hash as integer
     hash_bytes = hashlib.sha256(uuid_str.encode()).digest()[:8]
-    return int.from_bytes(hash_bytes, byteorder="big", signed=False) % (
-        2**31
-    )  # Keep positive
+    return int.from_bytes(hash_bytes, byteorder="big", signed=False) % (2**31)  # Keep positive
 
 
 def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
@@ -183,9 +181,7 @@ async def create_system_credential(
         if credential.private_key:
             validation_result = validate_ssh_key(credential.private_key)
             if not validation_result.is_valid:
-                logger.error(
-                    f"SSH key validation failed: {validation_result.error_message}"
-                )
+                logger.error(f"SSH key validation failed: {validation_result.error_message}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid SSH key: {validation_result.error_message}",
@@ -244,9 +240,7 @@ async def create_system_credential(
             ssh_key_fingerprint=ssh_metadata.get("fingerprint"),
             ssh_key_type=ssh_metadata.get("key_type"),
             ssh_key_bits=(
-                int(ssh_metadata.get("key_bits"))
-                if ssh_metadata.get("key_bits")
-                else None
+                int(ssh_metadata.get("key_bits")) if ssh_metadata.get("key_bits") else None
             ),
             ssh_key_comment=ssh_metadata.get("key_comment"),
         )
@@ -387,13 +381,9 @@ async def update_system_credential(
 
         # Merge updates with existing values
         updated_name = credential_update.name or existing_cred["name"]
-        updated_description = (
-            credential_update.description or existing_cred["description"]
-        )
+        updated_description = credential_update.description or existing_cred["description"]
         updated_username = credential_update.username or existing_cred["username"]
-        updated_auth_method = (
-            credential_update.auth_method or existing_cred["auth_method"]
-        )
+        updated_auth_method = credential_update.auth_method or existing_cred["auth_method"]
         updated_is_default = (
             credential_update.is_default
             if credential_update.is_default is not None
@@ -478,9 +468,7 @@ async def update_system_credential(
 
         # Get the created credential for response
         updated_cred_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
-        updated_cred = next(
-            (c for c in updated_cred_list if c["id"] == new_credential_id), None
-        )
+        updated_cred = next((c for c in updated_cred_list if c["id"] == new_credential_id), None)
 
         if not updated_cred:
             raise HTTPException(
@@ -613,9 +601,7 @@ async def get_scheduler_status(current_user: dict = Depends(get_current_user)):
                             "id": job.id,
                             "name": job.name,
                             "next_run": (
-                                job.next_run_time.isoformat()
-                                if job.next_run_time
-                                else None
+                                job.next_run_time.isoformat() if job.next_run_time else None
                             ),
                             "trigger": str(job.trigger),
                         }
@@ -908,9 +894,7 @@ def restore_scheduler_state():
 
                         # Remove any existing job first (including the hardcoded one from setup)
                         existing_jobs = scheduler.get_jobs()
-                        logger.info(
-                            f"Found {len(existing_jobs)} existing jobs to remove"
-                        )
+                        logger.info(f"Found {len(existing_jobs)} existing jobs to remove")
                         for job in existing_jobs:
                             logger.info(f"Removing existing job: {job.id} - {job.name}")
                             scheduler.remove_job(job.id)
@@ -964,9 +948,7 @@ def restore_scheduler_state():
                             "Scheduler initialized but not auto-started (already running or failed to create)"
                         )
                 else:
-                    logger.info(
-                        "Scheduler configured but auto-start disabled or not enabled"
-                    )
+                    logger.info("Scheduler configured but auto-start disabled or not enabled")
             else:
                 # No configuration found, create default
                 db.execute(
@@ -984,9 +966,7 @@ def restore_scheduler_state():
                 logger.info("Created default scheduler configuration")
 
         except Exception as db_error:
-            logger.warning(
-                f"Database scheduler config not available, using defaults: {db_error}"
-            )
+            logger.warning(f"Database scheduler config not available, using defaults: {db_error}")
             # Fall back to basic initialization without auto-start
             scheduler = get_scheduler()
             if scheduler:

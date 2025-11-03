@@ -54,20 +54,14 @@ class XCCDFTailoringRequest(BaseModel):
     """Request schema for XCCDF Tailoring file generation"""
 
     tailoring_id: str = Field(..., description="Unique tailoring identifier")
-    benchmark_href: str = Field(
-        ..., description="Reference to benchmark file (path or URL)"
-    )
-    benchmark_version: str = Field(
-        ..., description="Version of benchmark being tailored"
-    )
+    benchmark_href: str = Field(..., description="Reference to benchmark file (path or URL)")
+    benchmark_version: str = Field(..., description="Version of benchmark being tailored")
     profile_id: str = Field(..., description="Base profile to customize")
     variable_overrides: Dict[str, str] = Field(
         ..., description="Variable ID to custom value mappings"
     )
     title: Optional[str] = Field(None, description="Custom title for tailored profile")
-    description: Optional[str] = Field(
-        None, description="Description of customizations"
-    )
+    description: Optional[str] = Field(None, description="Description of customizations")
 
     class Config:
         schema_extra = {
@@ -98,18 +92,12 @@ class XCCDFValidationRequest(BaseModel):
     """Request schema for XCCDF validation"""
 
     xccdf_content: str = Field(..., description="XCCDF XML content to validate")
-    xccdf_type: str = Field(
-        ..., description="Type of XCCDF document (benchmark, tailoring)"
-    )
+    xccdf_type: str = Field(..., description="Type of XCCDF document (benchmark, tailoring)")
 
 
 class XCCDFValidationResponse(BaseModel):
     """Response schema for XCCDF validation"""
 
     valid: bool = Field(..., description="Whether the XCCDF is valid")
-    errors: List[str] = Field(
-        default_factory=list, description="Validation errors if any"
-    )
-    warnings: List[str] = Field(
-        default_factory=list, description="Validation warnings if any"
-    )
+    errors: List[str] = Field(default_factory=list, description="Validation errors if any")
+    warnings: List[str] = Field(default_factory=list, description="Validation warnings if any")

@@ -226,9 +226,7 @@ This is an automated message from OpenWatch Security Scanner.
                     password=self.smtp_password if self.smtp_password else None,
                 )
 
-            logger.info(
-                f"Email sent successfully to {len(recipients)} recipients: {subject}"
-            )
+            logger.info(f"Email sent successfully to {len(recipients)} recipients: {subject}")
             return True
 
         except Exception as e:

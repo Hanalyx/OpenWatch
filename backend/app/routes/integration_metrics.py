@@ -26,9 +26,7 @@ async def integration_health():
         total_operations = sum(summary.total_requests for summary in summaries.values())
         total_errors = sum(summary.failed_requests for summary in summaries.values())
 
-        error_rate = (
-            (total_errors / total_operations * 100) if total_operations > 0 else 0
-        )
+        error_rate = (total_errors / total_operations * 100) if total_operations > 0 else 0
 
         # Determine health status
         if error_rate < 1:
@@ -87,9 +85,7 @@ async def get_integration_stats(
             },
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get integration stats: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get integration stats: {e}")
 
 
 @router.get("/metrics")
@@ -119,9 +115,7 @@ async def get_metrics(
             for metric in all_metrics[-1000:]:  # Last 1000 metrics
                 metrics_data.append(
                     {
-                        "timestamp": datetime.fromtimestamp(
-                            metric.timestamp
-                        ).isoformat(),
+                        "timestamp": datetime.fromtimestamp(metric.timestamp).isoformat(),
                         "metric_type": metric.metric_type,
                         "operation": metric.operation,
                         "value": metric.value,
@@ -175,9 +169,7 @@ async def get_performance_overview(
                     "avg_duration_ms": (
                         round(day_data.average_duration * 1000, 2) if day_data else 0
                     ),
-                    "p95_duration_ms": (
-                        round(day_data.p95_duration * 1000, 2) if day_data else 0
-                    ),
+                    "p95_duration_ms": (round(day_data.p95_duration * 1000, 2) if day_data else 0),
                 },
             }
 
@@ -187,11 +179,7 @@ async def get_performance_overview(
                     "error_rate_trend": (
                         "up"
                         if hour_data.error_rate > day_data.error_rate
-                        else (
-                            "down"
-                            if hour_data.error_rate < day_data.error_rate
-                            else "stable"
-                        )
+                        else ("down" if hour_data.error_rate < day_data.error_rate else "stable")
                     ),
                     "performance_trend": (
                         "better"
@@ -215,19 +203,13 @@ async def get_performance_overview(
                     data["last_24h"]["requests"] for data in performance_data.values()
                 ),
                 "avg_error_rate_1h": (
-                    sum(
-                        data["last_hour"]["error_rate"]
-                        for data in performance_data.values()
-                    )
+                    sum(data["last_hour"]["error_rate"] for data in performance_data.values())
                     / len(performance_data)
                     if performance_data
                     else 0
                 ),
                 "avg_error_rate_24h": (
-                    sum(
-                        data["last_24h"]["error_rate"]
-                        for data in performance_data.values()
-                    )
+                    sum(data["last_24h"]["error_rate"] for data in performance_data.values())
                     / len(performance_data)
                     if performance_data
                     else 0
@@ -235,9 +217,7 @@ async def get_performance_overview(
             },
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get performance overview: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get performance overview: {e}")
 
 
 @router.post("/cleanup")

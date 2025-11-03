@@ -235,13 +235,9 @@ class BulkRemediationService:
             return self.active_jobs[job_id]
 
         # Query database
-        return await BulkRemediationResult.find_one(
-            BulkRemediationResult.job_id == job_id
-        )
+        return await BulkRemediationResult.find_one(BulkRemediationResult.job_id == job_id)
 
-    async def cancel_bulk_job(
-        self, job_id: str, reason: str = "User cancelled"
-    ) -> bool:
+    async def cancel_bulk_job(self, job_id: str, reason: str = "User cancelled") -> bool:
         """Cancel running bulk remediation job"""
         try:
             result = await self.get_bulk_job_status(job_id)
@@ -261,9 +257,7 @@ class BulkRemediationService:
             result.completed_at = datetime.utcnow()
 
             if result.started_at:
-                result.duration_seconds = (
-                    result.completed_at - result.started_at
-                ).total_seconds()
+                result.duration_seconds = (result.completed_at - result.started_at).total_seconds()
 
             await result.save()
 
@@ -324,9 +318,7 @@ class BulkRemediationService:
                     break
 
             if not rule_supported:
-                logger.warning(
-                    f"Rule {rule_id} may not have available remediation plugins"
-                )
+                logger.warning(f"Rule {rule_id} may not have available remediation plugins")
 
         # Validate batch configuration
         if request.batch_size > len(request.host_ids):
@@ -369,9 +361,7 @@ class BulkRemediationService:
             result.completed_at = datetime.utcnow()
 
             if result.started_at:
-                result.duration_seconds = (
-                    result.completed_at - result.started_at
-                ).total_seconds()
+                result.duration_seconds = (result.completed_at - result.started_at).total_seconds()
 
             await result.save()
 
@@ -449,15 +439,11 @@ class BulkRemediationService:
             batch.status = "running"
 
             # Execute batch in parallel
-            semaphore = asyncio.Semaphore(
-                min(request.max_parallel, len(batch.host_ids))
-            )
+            semaphore = asyncio.Semaphore(min(request.max_parallel, len(batch.host_ids)))
 
             async def execute_host(host_id: str) -> HostExecutionResult:
                 async with semaphore:
-                    return await self._execute_host_remediation(
-                        host_id, request, result
-                    )
+                    return await self._execute_host_remediation(host_id, request, result)
 
             tasks = [execute_host(host_id) for host_id in batch.host_ids]
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -499,10 +485,7 @@ class BulkRemediationService:
         current_batch_size = min(2, len(request.host_ids))
         processed = 0
 
-        while (
-            processed < len(request.host_ids)
-            and result.status != BulkExecutionStatus.CANCELLED
-        ):
+        while processed < len(request.host_ids) and result.status != BulkExecutionStatus.CANCELLED:
             # Get next batch
             batch_hosts = request.host_ids[processed : processed + current_batch_size]
 
@@ -515,9 +498,7 @@ class BulkRemediationService:
 
             async def execute_host(host_id: str) -> HostExecutionResult:
                 async with semaphore:
-                    return await self._execute_host_remediation(
-                        host_id, request, result
-                    )
+                    return await self._execute_host_remediation(host_id, request, result)
 
             tasks = [execute_host(host_id) for host_id in batch_hosts]
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -558,9 +539,7 @@ class BulkRemediationService:
             if await self._should_stop_on_failure(request, result):
                 break
 
-    async def _execute_staged(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_staged(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute hosts by priority/stage"""
         # Group hosts by priority (simplified - would use host metadata)
         stages = {"high_priority": [], "medium_priority": [], "low_priority": []}
@@ -587,9 +566,7 @@ class BulkRemediationService:
 
             async def execute_host(host_id: str) -> HostExecutionResult:
                 async with semaphore:
-                    return await self._execute_host_remediation(
-                        host_id, request, result
-                    )
+                    return await self._execute_host_remediation(host_id, request, result)
 
             tasks = [execute_host(host_id) for host_id in host_ids]
             stage_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -682,9 +659,7 @@ class BulkRemediationService:
                     )
 
                     # Execute plugin
-                    result = await self.plugin_execution_service.execute_plugin(
-                        execution_request
-                    )
+                    result = await self.plugin_execution_service.execute_plugin(execution_request)
                     plugin_results.append(result)
 
                     if result.status == "success":
@@ -700,9 +675,7 @@ class BulkRemediationService:
                             requires_reboot = True
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to execute rule {rule_id} on host {host_id}: {e}"
-                    )
+                    logger.error(f"Failed to execute rule {rule_id} on host {host_id}: {e}")
                     rules_failed += 1
 
             completed_at = datetime.utcnow()
@@ -747,9 +720,7 @@ class BulkRemediationService:
                 error_message=str(e),
             )
 
-    async def _find_plugins_for_rule(
-        self, rule_id: str, platform: str
-    ) -> List[InstalledPlugin]:
+    async def _find_plugins_for_rule(self, rule_id: str, platform: str) -> List[InstalledPlugin]:
         """Find plugins that can remediate a specific rule on a platform"""
         plugins = await self.plugin_registry_service.find_plugins(
             {"status": PluginStatus.ACTIVE, "platform": platform}
@@ -758,10 +729,7 @@ class BulkRemediationService:
         # Simple matching - in production would be more sophisticated
         matching_plugins = []
         for plugin in plugins:
-            if (
-                rule_id in plugin.applied_to_rules
-                or platform in plugin.enabled_platforms
-            ):
+            if rule_id in plugin.applied_to_rules or platform in plugin.enabled_platforms:
                 matching_plugins.append(plugin)
 
         return matching_plugins
@@ -769,27 +737,17 @@ class BulkRemediationService:
     async def _update_progress(self, result: BulkRemediationResult):
         """Update execution progress and statistics"""
         result.completed_hosts = len(result.host_results)
-        result.successful_hosts = len(
-            [r for r in result.host_results if r.status == "success"]
-        )
-        result.failed_hosts = len(
-            [r for r in result.host_results if r.status == "failed"]
-        )
+        result.successful_hosts = len([r for r in result.host_results if r.status == "success"])
+        result.failed_hosts = len([r for r in result.host_results if r.status == "failed"])
 
         # Calculate totals
         result.total_rules_executed = sum(r.rules_executed for r in result.host_results)
-        result.total_rules_successful = sum(
-            r.rules_successful for r in result.host_results
-        )
+        result.total_rules_successful = sum(r.rules_successful for r in result.host_results)
         result.total_rules_failed = sum(r.rules_failed for r in result.host_results)
 
         # System impact
-        result.hosts_with_changes = len(
-            [r for r in result.host_results if r.changes_made]
-        )
-        result.hosts_requiring_reboot = len(
-            [r for r in result.host_results if r.requires_reboot]
-        )
+        result.hosts_with_changes = len([r for r in result.host_results if r.changes_made])
+        result.hosts_requiring_reboot = len([r for r in result.host_results if r.requires_reboot])
 
         await result.save()
 
@@ -813,9 +771,7 @@ class BulkRemediationService:
         result.completed_at = datetime.utcnow()
 
         if result.started_at:
-            result.duration_seconds = (
-                result.completed_at - result.started_at
-            ).total_seconds()
+            result.duration_seconds = (result.completed_at - result.started_at).total_seconds()
 
         # Determine final status
         if result.status == BulkExecutionStatus.CANCELLED:
@@ -843,9 +799,7 @@ class BulkRemediationService:
         """Schedule bulk execution for later (placeholder implementation)"""
         # In production, would integrate with a job scheduler like Celery
         # For now, just log the scheduled time
-        logger.info(
-            f"Bulk remediation scheduled for {request.scheduled_at}: {request.job_id}"
-        )
+        logger.info(f"Bulk remediation scheduled for {request.scheduled_at}: {request.job_id}")
 
         # Could use asyncio to delay execution
         if request.scheduled_at:

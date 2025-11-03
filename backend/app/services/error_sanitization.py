@@ -334,9 +334,7 @@ class ErrorSanitizationService:
         )
 
         # Also log summary to main logger
-        logger.info(
-            f"Sanitized error response for {audit_entry.error_code} from IP {source_ip}"
-        )
+        logger.info(f"Sanitized error response for {audit_entry.error_code} from IP {source_ip}")
 
     def _cleanup_rate_limit_cache(self):
         """Clean up expired rate limit entries"""
@@ -372,9 +370,7 @@ class ErrorSanitizationService:
                     get_system_info_sanitization_service,
                 )
 
-                _system_info_sanitization_service = (
-                    get_system_info_sanitization_service()
-                )
+                _system_info_sanitization_service = get_system_info_sanitization_service()
 
             # Create sanitization context
             from ..models.system_models import (
@@ -392,9 +388,7 @@ class ErrorSanitizationService:
 
             # Apply integrated sanitization
             sanitized_info, metadata = (
-                _system_info_sanitization_service.sanitize_system_information(
-                    system_info, context
-                )
+                _system_info_sanitization_service.sanitize_system_information(system_info, context)
             )
 
             # Only keep safe metadata
@@ -435,9 +429,7 @@ class ErrorSanitizationService:
                     get_system_info_sanitization_service,
                 )
 
-                _system_info_sanitization_service = (
-                    get_system_info_sanitization_service()
-                )
+                _system_info_sanitization_service = get_system_info_sanitization_service()
 
             # Create comprehensive sanitization context
             from ..models.system_models import (
@@ -467,9 +459,7 @@ class ErrorSanitizationService:
 
             # Apply sanitization
             sanitized_info, metadata = (
-                _system_info_sanitization_service.sanitize_system_information(
-                    system_info, context
-                )
+                _system_info_sanitization_service.sanitize_system_information(system_info, context)
             )
 
             # Add sanitization metadata
@@ -485,9 +475,7 @@ class ErrorSanitizationService:
         except Exception as e:
             logger.error(f"Enhanced system info sanitization failed: {e}")
             # Fallback to basic sanitization
-            return self._sanitize_system_info_integration(
-                system_info, user_id, source_ip
-            )
+            return self._sanitize_system_info_integration(system_info, user_id, source_ip)
 
     def create_validation_result_sanitizer(
         self, validation_result: Dict[str, Any]

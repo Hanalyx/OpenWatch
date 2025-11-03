@@ -135,9 +135,7 @@ class MFAService:
             logger.error(f"Failed to decrypt MFA secret: {e}")
             raise
 
-    def validate_totp_code(
-        self, secret: str, user_code: str, used_codes_cache: set = None
-    ) -> bool:
+    def validate_totp_code(self, secret: str, user_code: str, used_codes_cache: set = None) -> bool:
         """
         Validate TOTP code with replay protection
 
@@ -237,9 +235,7 @@ class MFAService:
             logger.error(
                 f"MFA enrollment failed for {sanitize_username_for_log(username)}: {type(e).__name__}"
             )
-            return MFAEnrollmentResult(
-                success=False, error_message=f"Enrollment failed: {str(e)}"
-            )
+            return MFAEnrollmentResult(success=False, error_message=f"Enrollment failed: {str(e)}")
 
     def validate_mfa_code(
         self,
@@ -268,17 +264,13 @@ class MFAService:
                 try:
                     secret = self.decrypt_mfa_secret(encrypted_secret)
                     if self.validate_totp_code(secret, user_code, used_codes_cache):
-                        return MFAValidationResult(
-                            valid=True, method_used=MFAMethod.TOTP
-                        )
+                        return MFAValidationResult(valid=True, method_used=MFAMethod.TOTP)
                 except Exception as e:
                     logger.warning(f"TOTP validation failed: {e}")
 
             # Try backup code validation
             if len(user_code) == self.backup_code_length:
-                is_valid, used_code_hash = self.validate_backup_code(
-                    hashed_backup_codes, user_code
-                )
+                is_valid, used_code_hash = self.validate_backup_code(hashed_backup_codes, user_code)
                 if is_valid:
                     return MFAValidationResult(
                         valid=True,
@@ -292,9 +284,7 @@ class MFAService:
 
         except Exception as e:
             logger.error(f"MFA validation error: {e}")
-            return MFAValidationResult(
-                valid=False, error_message=f"Validation failed: {str(e)}"
-            )
+            return MFAValidationResult(valid=False, error_message=f"Validation failed: {str(e)}")
 
     def regenerate_backup_codes(self, username: str) -> List[str]:
         """
@@ -308,9 +298,7 @@ class MFAService:
         """
         try:
             backup_codes = self.generate_backup_codes()
-            logger.info(
-                f"Regenerated backup codes for user: {sanitize_username_for_log(username)}"
-            )
+            logger.info(f"Regenerated backup codes for user: {sanitize_username_for_log(username)}")
             return backup_codes
 
         except Exception as e:
@@ -361,9 +349,7 @@ def validate_mfa(
     encrypted_secret: str, backup_codes: List[str], code: str, used_codes: set = None
 ) -> MFAValidationResult:
     """Validate MFA code"""
-    return get_mfa_service().validate_mfa_code(
-        encrypted_secret, backup_codes, code, used_codes
-    )
+    return get_mfa_service().validate_mfa_code(encrypted_secret, backup_codes, code, used_codes)
 
 
 def regenerate_backup_codes(username: str) -> List[str]:

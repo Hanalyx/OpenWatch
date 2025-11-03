@@ -75,9 +75,7 @@ class HostBasicDiscoveryService:
         try:
             # Establish SSH connection
             if not self.ssh_service.connect(host):
-                discovery_results["discovery_errors"].append(
-                    "Failed to establish SSH connection"
-                )
+                discovery_results["discovery_errors"].append("Failed to establish SSH connection")
                 return discovery_results
 
             # 1. Get hostname
@@ -97,9 +95,7 @@ class HostBasicDiscoveryService:
             discovery_results.update(kernel_info)
 
             # Update discovery success status
-            discovery_results["discovery_success"] = (
-                len(discovery_results["discovery_errors"]) == 0
-            )
+            discovery_results["discovery_success"] = len(discovery_results["discovery_errors"]) == 0
 
             # Update host object with discovered information
             self._update_host_with_discovery(host, discovery_results)
@@ -112,9 +108,7 @@ class HostBasicDiscoveryService:
 
         except Exception as e:
             logger.error(f"System discovery failed for {host.hostname}: {str(e)}")
-            discovery_results["discovery_errors"].append(
-                f"Discovery exception: {str(e)}"
-            )
+            discovery_results["discovery_errors"].append(f"Discovery exception: {str(e)}")
 
         finally:
             self.ssh_service.disconnect()
@@ -208,9 +202,7 @@ class HostBasicDiscoveryService:
 
         try:
             # Try /etc/redhat-release for RHEL-based systems
-            output = self.ssh_service.execute_command(
-                "cat /etc/redhat-release", timeout=5
-            )
+            output = self.ssh_service.execute_command("cat /etc/redhat-release", timeout=5)
             if output and output["success"]:
                 content = output["stdout"].strip()
                 if "red hat" in content.lower() or "rhel" in content.lower():
@@ -223,9 +215,7 @@ class HostBasicDiscoveryService:
                 return result
 
             # Try /etc/debian_version for Debian-based systems
-            output = self.ssh_service.execute_command(
-                "cat /etc/debian_version", timeout=5
-            )
+            output = self.ssh_service.execute_command("cat /etc/debian_version", timeout=5)
             if output and output["success"]:
                 version = output["stdout"].strip()
                 result["os_family"] = "debian"
@@ -257,9 +247,7 @@ class HostBasicDiscoveryService:
                 ]
 
         except Exception as e:
-            logger.warning(
-                f"Failed to discover architecture for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Failed to discover architecture for {host.hostname}: {str(e)}")
             result["discovery_errors"] = [f"Architecture discovery error: {str(e)}"]
 
         return result
@@ -298,16 +286,12 @@ class HostBasicDiscoveryService:
                 ]
 
         except Exception as e:
-            logger.warning(
-                f"Failed to discover kernel version for {host.hostname}: {str(e)}"
-            )
+            logger.warning(f"Failed to discover kernel version for {host.hostname}: {str(e)}")
             result["discovery_errors"] = [f"Kernel discovery error: {str(e)}"]
 
         return result
 
-    def _update_host_with_discovery(
-        self, host: Host, discovery_results: Dict[str, Any]
-    ):
+    def _update_host_with_discovery(self, host: Host, discovery_results: Dict[str, Any]):
         """Update host object with discovered information"""
         try:
             # Update host fields with discovered data
@@ -327,11 +311,7 @@ class HostBasicDiscoveryService:
             # Update discovery timestamp
             host.last_os_detection = discovery_results["discovery_timestamp"]
 
-            logger.info(
-                f"Updated host {host.hostname} with discovered system information"
-            )
+            logger.info(f"Updated host {host.hostname} with discovered system information")
 
         except Exception as e:
-            logger.error(
-                f"Failed to update host {host.hostname} with discovery results: {str(e)}"
-            )
+            logger.error(f"Failed to update host {host.hostname} with discovery results: {str(e)}")

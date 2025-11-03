@@ -52,9 +52,7 @@ def periodic_host_monitoring():
         online_count = sum(1 for r in results if r["status"] == "online")
         total_count = len(results)
 
-        logger.info(
-            f"Host monitoring completed: {online_count}/{total_count} hosts online"
-        )
+        logger.info(f"Host monitoring completed: {online_count}/{total_count} hosts online")
 
         # Log any status changes
         for result in results:
@@ -91,9 +89,7 @@ def periodic_credential_purge():
 
             # Purge old inactive credentials
             auth_service = get_auth_service(db, encryption_service)
-            purged_count = auth_service.purge_old_inactive_credentials(
-                retention_days=90
-            )
+            purged_count = auth_service.purge_old_inactive_credentials(retention_days=90)
 
             if purged_count > 0:
                 logger.info(
@@ -154,9 +150,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
             ).fetchone()
 
             if not host_result:
-                logger.warning(
-                    f"Host {host_id} not found or inactive for connectivity check"
-                )
+                logger.warning(f"Host {host_id} not found or inactive for connectivity check")
                 return {
                     "host_id": host_id,
                     "success": False,
@@ -263,9 +257,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
     except Exception as exc:
         logger.error(f"Critical error in check_host_connectivity for {host_id}: {exc}")
         # Retry with exponential backoff (max 3 retries)
-        raise self.retry(
-            exc=exc, countdown=min(2**self.request.retries * 60, 300), max_retries=3
-        )
+        raise self.retry(exc=exc, countdown=min(2**self.request.retries * 60, 300), max_retries=3)
 
 
 @celery_app.task(bind=True, name="backend.app.tasks.queue_host_checks")

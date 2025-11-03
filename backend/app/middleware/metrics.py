@@ -102,9 +102,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
         return normalized_path
 
-    def _record_application_metrics(
-        self, request: Request, response: Response, duration: float
-    ):
+    def _record_application_metrics(self, request: Request, response: Response, duration: float):
         """Record application-specific metrics based on request/response"""
         path = request.url.path
 

@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class HostMonitor:
-    def __init__(
-        self, db_session: Session = None, encryption_service: EncryptionService = None
-    ):
+    def __init__(self, db_session: Session = None, encryption_service: EncryptionService = None):
         """
         Initialize HostMonitor with optional database session and encryption service
 
@@ -89,9 +87,7 @@ class HostMonitor:
                     result = sock.connect_ex((ip_address, port))
                     sock.close()
                     if result == 0:
-                        logger.debug(
-                            f"Socket test successful on port {port} for {ip_address}"
-                        )
+                        logger.debug(f"Socket test successful on port {port} for {ip_address}")
                         return True  # Connection successful, host is reachable
                     # Create new socket for next attempt
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -190,13 +186,9 @@ class HostMonitor:
             )
 
             if connection_result.error_type == "auth_failed":
-                error_message = (
-                    f"SSH authentication failed: {connection_result.error_message}"
-                )
+                error_message = f"SSH authentication failed: {connection_result.error_message}"
             elif connection_result.error_type == "auth_error":
-                error_message = (
-                    f"SSH authentication error: {connection_result.error_message}"
-                )
+                error_message = f"SSH authentication error: {connection_result.error_message}"
             elif connection_result.error_type == "key_error":
                 error_message = f"SSH key error: {connection_result.error_message}"
             elif connection_result.error_type == "timeout":
@@ -302,29 +294,21 @@ class HostMonitor:
 
                         credentials = {
                             "username": cred_data.get("username", row.username),
-                            "auth_method": cred_data.get(
-                                "auth_method", row.auth_method
-                            ),
+                            "auth_method": cred_data.get("auth_method", row.auth_method),
                             "password": cred_data.get("password"),
                             "private_key": cred_data.get("ssh_key"),
                             "private_key_passphrase": None,
                             "source": "host_encrypted_credentials",
                         }
-                        logger.info(
-                            f"Decrypted host credentials for {host_data.get('hostname')}"
-                        )
+                        logger.info(f"Decrypted host credentials for {host_data.get('hostname')}")
                         return credentials
                     except Exception as e:
-                        logger.error(
-                            f"Failed to decrypt host credentials: {type(e).__name__}"
-                        )
+                        logger.error(f"Failed to decrypt host credentials: {type(e).__name__}")
 
             # Try centralized auth service (for system defaults or if host decryption failed)
             # Pass the host's auth_method to enforce user intent
             required_auth_method = (
-                host_auth_method
-                if host_auth_method not in ["default", "system_default"]
-                else None
+                host_auth_method if host_auth_method not in ["default", "system_default"] else None
             )
 
             credential_data = auth_service.resolve_credential(
@@ -334,9 +318,7 @@ class HostMonitor:
             )
 
             if not credential_data:
-                logger.warning(
-                    f"No credentials available for host {host_data.get('hostname')}"
-                )
+                logger.warning(f"No credentials available for host {host_data.get('hostname')}")
                 logger.info(
                     "Please configure system SSH credentials in Settings to enable remote host monitoring and scanning"
                 )
@@ -358,9 +340,7 @@ class HostMonitor:
             return credentials
 
         except Exception as e:
-            logger.error(
-                f"Failed to resolve credentials for host monitoring: {type(e).__name__}"
-            )
+            logger.error(f"Failed to resolve credentials for host monitoring: {type(e).__name__}")
             return None
 
     def validate_ssh_credentials(self, credentials: Dict) -> Tuple[bool, str]:
@@ -440,9 +420,7 @@ class HostMonitor:
 
             # Step 2: Port connectivity
             logger.info(f"Checking port {port} connectivity for {hostname}")
-            check_results["port_open"] = await self.check_port_connectivity(
-                ip_address, port
-            )
+            check_results["port_open"] = await self.check_port_connectivity(ip_address, port)
 
             # Step 3: SSH connectivity (with credentials inheritance)
             ssh_credentials = None
@@ -450,9 +428,7 @@ class HostMonitor:
                 logger.info(
                     f"Database connection available, looking up SSH credentials for {hostname}"
                 )
-                ssh_credentials = await self.get_effective_ssh_credentials(
-                    host_data, db
-                )
+                ssh_credentials = await self.get_effective_ssh_credentials(host_data, db)
             else:
                 logger.warning(
                     f"No database connection available for SSH credential lookup for {hostname}"
@@ -460,9 +436,7 @@ class HostMonitor:
 
             if ssh_credentials:
                 # Validate credentials before attempting connection
-                is_valid, validation_error = self.validate_ssh_credentials(
-                    ssh_credentials
-                )
+                is_valid, validation_error = self.validate_ssh_credentials(ssh_credentials)
 
                 username = ssh_credentials["username"]
                 password = ssh_credentials.get("password")
@@ -497,9 +471,7 @@ class HostMonitor:
                     check_results["ssh_accessible"] = ssh_success
 
                     if ssh_success:
-                        check_results[
-                            "credential_details"
-                        ] += " - SSH authentication successful"
+                        check_results["credential_details"] += " - SSH authentication successful"
                         logger.info(
                             f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)"
                         )
@@ -539,9 +511,7 @@ class HostMonitor:
                 check_results["status"] = (
                     "ping_only"  # Responds to connectivity test but port closed
                 )
-                logger.info(
-                    f"Host {hostname} responds to connectivity test but port {port} closed"
-                )
+                logger.info(f"Host {hostname} responds to connectivity test but port {port} closed")
             else:
                 check_results["status"] = "offline"
                 check_results["error_message"] = (
@@ -597,16 +567,12 @@ class HostMonitor:
                 query += ", response_time_ms = :response_time_ms"
 
             # Calculate and set next check time based on adaptive scheduler config
-            next_check_time = adaptive_scheduler_service.calculate_next_check_time(
-                db, status
-            )
+            next_check_time = adaptive_scheduler_service.calculate_next_check_time(db, status)
             update_data["next_check_time"] = next_check_time
             query += ", next_check_time = :next_check_time"
 
             # Update check priority based on state
-            check_priority = adaptive_scheduler_service.get_priority_for_state(
-                db, status
-            )
+            check_priority = adaptive_scheduler_service.get_priority_for_state(db, status)
             update_data["check_priority"] = check_priority
             query += ", check_priority = :check_priority"
 

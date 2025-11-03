@@ -63,9 +63,7 @@ class RemediationExecutorFactory:
         return executor_class()
 
     @classmethod
-    def register_executor(
-        cls, executor_type: str, executor_class: Type[BaseRemediationExecutor]
-    ):
+    def register_executor(cls, executor_type: str, executor_class: Type[BaseRemediationExecutor]):
         """
         Register a custom executor type.
 

@@ -216,9 +216,7 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Send to all registered endpoints
         for webhook in webhooks:
             try:
-                await deliver_webhook(
-                    webhook.url, webhook.secret_hash, event_data, str(webhook.id)
-                )
+                await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
                 logger.error(
                     "Failed to deliver scan.completed webhook",
@@ -227,14 +225,10 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
                 )
 
     except Exception as e:
-        logger.error(
-            "Failed to process scan.completed webhooks", scan_id=scan_id, error=str(e)
-        )
+        logger.error("Failed to process scan.completed webhooks", scan_id=scan_id, error=str(e))
 
 
-async def send_scan_failed_webhook(
-    scan_id: str, scan_data: Dict[str, Any], error_message: str
-):
+async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_message: str):
     """Send scan.failed webhook to all registered endpoints"""
     try:
         # Get active webhook endpoints that listen for scan.failed events
@@ -264,9 +258,7 @@ async def send_scan_failed_webhook(
         # Send to all registered endpoints
         for webhook in webhooks:
             try:
-                await deliver_webhook(
-                    webhook.url, webhook.secret_hash, event_data, str(webhook.id)
-                )
+                await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
                 logger.error(
                     "Failed to deliver scan.failed webhook",
@@ -275,6 +267,4 @@ async def send_scan_failed_webhook(
                 )
 
     except Exception as e:
-        logger.error(
-            "Failed to process scan.failed webhooks", scan_id=scan_id, error=str(e)
-        )
+        logger.error("Failed to process scan.failed webhooks", scan_id=scan_id, error=str(e))

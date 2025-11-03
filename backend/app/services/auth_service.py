@@ -116,9 +116,7 @@ class CentralizedAuthService:
             # Validate credential format and connectivity
             validation_result = self.validate_credential(credential_data)
             if not validation_result[0]:
-                raise ValueError(
-                    f"Credential validation failed: {validation_result[1]}"
-                )
+                raise ValueError(f"Credential validation failed: {validation_result[1]}")
 
             # Extract SSH key metadata if provided
             ssh_metadata = {}
@@ -144,9 +142,7 @@ class CentralizedAuthService:
             if credential_data.private_key:
                 plaintext_bytes = credential_data.private_key.encode("utf-8")
                 encrypted_bytes = self.encryption_service.encrypt(plaintext_bytes)
-                encrypted_private_key = base64.b64encode(encrypted_bytes).decode(
-                    "ascii"
-                )
+                encrypted_private_key = base64.b64encode(encrypted_bytes).decode("ascii")
 
             if credential_data.private_key_passphrase:
                 plaintext_bytes = credential_data.private_key_passphrase.encode("utf-8")
@@ -248,15 +244,11 @@ class CentralizedAuthService:
                 if isinstance(encrypted_data, bytes):
                     # bytes - decode base64 then decrypt
                     decoded_bytes = base64.b64decode(encrypted_data)
-                    password = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    password = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                 else:
                     # string - decode base64 then decrypt
                     decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                    password = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    password = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
 
             if row.encrypted_private_key:
                 encrypted_data = row.encrypted_private_key
@@ -264,14 +256,10 @@ class CentralizedAuthService:
                     encrypted_data = bytes(encrypted_data)
                 if isinstance(encrypted_data, bytes):
                     decoded_bytes = base64.b64decode(encrypted_data)
-                    private_key = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    private_key = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                 else:
                     decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                    private_key = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    private_key = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
 
             if row.encrypted_passphrase:
                 encrypted_data = row.encrypted_passphrase
@@ -279,14 +267,10 @@ class CentralizedAuthService:
                     encrypted_data = bytes(encrypted_data)
                 if isinstance(encrypted_data, bytes):
                     decoded_bytes = base64.b64decode(encrypted_data)
-                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
                 else:
                     decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
-                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
-                        "utf-8"
-                    )
+                    passphrase = self.encryption_service.decrypt(decoded_bytes).decode("utf-8")
 
             return CredentialData(
                 username=row.username,
@@ -404,11 +388,7 @@ class CentralizedAuthService:
                 )
                 credential = self._get_system_default()
 
-                if (
-                    credential
-                    and required_auth_method
-                    and required_auth_method != "system_default"
-                ):
+                if credential and required_auth_method and required_auth_method != "system_default":
                     # NEW: Validate auth method if required
                     if not self._auth_method_compatible(
                         credential.auth_method.value, required_auth_method
@@ -425,9 +405,7 @@ class CentralizedAuthService:
                 return credential
 
             # NEW FEATURE: Try host-specific credential first
-            logger.info(
-                f"Attempting to resolve host-specific credential for target: {target_id}"
-            )
+            logger.info(f"Attempting to resolve host-specific credential for target: {target_id}")
             credential = self._get_host_credential(target_id)
 
             if credential:
@@ -477,9 +455,7 @@ class CentralizedAuthService:
 
                 return credential
 
-            logger.error(
-                "No credentials available (neither host-specific nor system default)"
-            )
+            logger.error("No credentials available (neither host-specific nor system default)")
             return None
 
         except AuthMethodMismatchError:
@@ -492,9 +468,7 @@ class CentralizedAuthService:
     def _get_legacy_system_default(self) -> Optional[CredentialData]:
         """Get system default credential from legacy system_credentials table"""
         try:
-            logger.info(
-                "Getting legacy system default credential from system_credentials table"
-            )
+            logger.info("Getting legacy system default credential from system_credentials table")
             result = self.db.execute(
                 text(
                     """
@@ -523,16 +497,14 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            password = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
-                        else:
-                            decoded_bytes = base64.b64decode(
-                                encrypted_data.encode("ascii")
+                            password = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
                             )
-                            password = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
+                        else:
+                            decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
+                            password = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
+                            )
                         logger.info("Successfully decrypted legacy password")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy password: {e}")
@@ -544,16 +516,14 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            private_key = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
-                        else:
-                            decoded_bytes = base64.b64decode(
-                                encrypted_data.encode("ascii")
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
                             )
-                            private_key = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
+                        else:
+                            decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
+                            private_key = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
+                            )
                         logger.info("Successfully decrypted legacy private key")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy private key: {e}")
@@ -565,16 +535,14 @@ class CentralizedAuthService:
                             encrypted_data = bytes(encrypted_data)
                         if isinstance(encrypted_data, bytes):
                             decoded_bytes = base64.b64decode(encrypted_data)
-                            passphrase = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
-                        else:
-                            decoded_bytes = base64.b64decode(
-                                encrypted_data.encode("ascii")
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
                             )
-                            passphrase = self.encryption_service.decrypt(
-                                decoded_bytes
-                            ).decode("utf-8")
+                        else:
+                            decoded_bytes = base64.b64decode(encrypted_data.encode("ascii"))
+                            passphrase = self.encryption_service.decrypt(decoded_bytes).decode(
+                                "utf-8"
+                            )
                         logger.info("Successfully decrypted legacy passphrase")
                     except Exception as e:
                         logger.warning(f"Failed to decrypt legacy passphrase: {e}")
@@ -593,9 +561,7 @@ class CentralizedAuthService:
                 )
                 return credential
 
-            logger.warning(
-                "No legacy system default credential found in system_credentials table"
-            )
+            logger.warning("No legacy system default credential found in system_credentials table")
             return None
 
         except Exception as e:
@@ -622,9 +588,7 @@ class CentralizedAuthService:
                     credential.source = "system_default"
                     return credential
 
-            logger.warning(
-                "No system default credential found in unified_credentials table"
-            )
+            logger.warning("No system default credential found in unified_credentials table")
             return None
 
         except Exception as e:
@@ -689,18 +653,14 @@ class CentralizedAuthService:
             logger.error(f"Credential validation error: {e}")
             return False, f"Validation error: {str(e)}"
 
-    def _extract_ssh_key_metadata(
-        self, private_key: str, passphrase: str = None
-    ) -> Dict:
+    def _extract_ssh_key_metadata(self, private_key: str, passphrase: str = None) -> Dict:
         """Extract SSH key metadata for storage"""
         try:
             metadata = extract_ssh_key_metadata(private_key, passphrase)
             return {
                 "fingerprint": metadata.get("fingerprint"),
                 "key_type": metadata.get("key_type"),
-                "key_bits": (
-                    int(metadata.get("key_bits")) if metadata.get("key_bits") else None
-                ),
+                "key_bits": (int(metadata.get("key_bits")) if metadata.get("key_bits") else None),
                 "key_comment": metadata.get("key_comment"),
             }
         except Exception as e:
@@ -790,9 +750,7 @@ class CentralizedAuthService:
             for row in result:
                 credentials.append(
                     {
-                        "id": str(
-                            row.id
-                        ),  # Convert UUID to string for Pydantic validation
+                        "id": str(row.id),  # Convert UUID to string for Pydantic validation
                         "name": row.name,
                         "description": row.description,
                         "scope": row.scope,
@@ -843,9 +801,7 @@ class CentralizedAuthService:
 
             if result.rowcount > 0:
                 self.db.commit()
-                logger.info(
-                    f"Soft deleted credential {credential_id} (90-day retention)"
-                )
+                logger.info(f"Soft deleted credential {credential_id} (90-day retention)")
                 return True
             else:
                 logger.warning(f"Credential {credential_id} not found for deletion")
@@ -899,9 +855,7 @@ class CentralizedAuthService:
 
 
 # Factory function for service creation
-def get_auth_service(
-    db: Session, encryption_service: EncryptionService
-) -> CentralizedAuthService:
+def get_auth_service(db: Session, encryption_service: EncryptionService) -> CentralizedAuthService:
     """
     Factory function to create CentralizedAuthService instance.
 

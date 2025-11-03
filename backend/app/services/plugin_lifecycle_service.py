@@ -265,9 +265,7 @@ class PluginLifecycleService:
         self.monitoring_enabled = True
 
         # Start health monitoring for all active plugins
-        plugins = await self.plugin_registry_service.find_plugins(
-            {"status": PluginStatus.ACTIVE}
-        )
+        plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
 
         for plugin in plugins:
             await self._start_plugin_health_monitor(plugin.plugin_id)
@@ -317,17 +315,13 @@ class PluginLifecycleService:
             health_check.dependency_check = dependencies_ok
 
             # Resource check
-            resources_ok, memory_usage, cpu_usage = await self._check_plugin_resources(
-                plugin
-            )
+            resources_ok, memory_usage, cpu_usage = await self._check_plugin_resources(plugin)
             health_check.resource_check = resources_ok
             health_check.memory_usage_mb = memory_usage
             health_check.cpu_usage_percent = cpu_usage
 
             # Performance check
-            performance_ok, response_time, error_rate = (
-                await self._check_plugin_performance(plugin)
-            )
+            performance_ok, response_time, error_rate = await self._check_plugin_performance(plugin)
             health_check.performance_check = performance_ok
             health_check.response_time_ms = response_time
             health_check.error_rate = error_rate
@@ -379,14 +373,10 @@ class PluginLifecycleService:
         )
 
         if not target_version_info:
-            raise ValueError(
-                f"Version {target_version} not available for plugin {plugin_id}"
-            )
+            raise ValueError(f"Version {target_version} not available for plugin {plugin_id}")
 
         # Check compatibility
-        compatibility_issues = await self._check_version_compatibility(
-            plugin, target_version_info
-        )
+        compatibility_issues = await self._check_version_compatibility(plugin, target_version_info)
 
         # Create update plan
         update_plan = PluginUpdatePlan(
@@ -431,23 +421,17 @@ class PluginLifecycleService:
             update_plan.estimated_duration_minutes = 60
 
         if compatibility_issues:
-            logger.warning(
-                f"Compatibility issues detected for update plan: {compatibility_issues}"
-            )
+            logger.warning(f"Compatibility issues detected for update plan: {compatibility_issues}")
 
         logger.info(
             f"Created update plan for {plugin_id}: {plugin.version} -> {target_version} ({strategy.value})"
         )
         return update_plan
 
-    async def execute_plugin_update(
-        self, update_plan: PluginUpdatePlan
-    ) -> PluginUpdateExecution:
+    async def execute_plugin_update(self, update_plan: PluginUpdatePlan) -> PluginUpdateExecution:
         """Execute a plugin update according to the plan"""
 
-        execution = PluginUpdateExecution(
-            update_plan=update_plan, status=UpdateStatus.PENDING
-        )
+        execution = PluginUpdateExecution(update_plan=update_plan, status=UpdateStatus.PENDING)
 
         await execution.save()
         self.active_updates[execution.execution_id] = execution
@@ -499,9 +483,7 @@ class PluginLifecycleService:
 
         await execution.save()
 
-        logger.info(
-            f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}"
-        )
+        logger.info(f"Started plugin rollback: {plugin_id} {plugin.version} -> {target_version}")
         return execution
 
     async def get_available_versions(self, plugin_id: str) -> List[PluginVersion]:
@@ -594,22 +576,14 @@ class PluginLifecycleService:
             plan = execution.update_plan
 
             # Step 1: Pre-update health check
-            await self._add_execution_step(
-                execution, "pre_update_health_check", "running"
-            )
+            await self._add_execution_step(execution, "pre_update_health_check", "running")
             execution.pre_update_health = await self.check_plugin_health(plan.plugin_id)
-            await self._add_execution_step(
-                execution, "pre_update_health_check", "completed"
-            )
+            await self._add_execution_step(execution, "pre_update_health_check", "completed")
 
             # Step 2: Pre-update validation
-            await self._add_execution_step(
-                execution, "pre_update_validation", "running"
-            )
+            await self._add_execution_step(execution, "pre_update_validation", "running")
             await self._run_validation_steps(plan.pre_update_validation, execution)
-            await self._add_execution_step(
-                execution, "pre_update_validation", "completed"
-            )
+            await self._add_execution_step(execution, "pre_update_validation", "completed")
 
             # Step 3: Execute update based on strategy
             await self._add_execution_step(execution, "plugin_update", "running")
@@ -626,24 +600,14 @@ class PluginLifecycleService:
             await self._add_execution_step(execution, "plugin_update", "completed")
 
             # Step 4: Post-update validation
-            await self._add_execution_step(
-                execution, "post_update_validation", "running"
-            )
+            await self._add_execution_step(execution, "post_update_validation", "running")
             await self._run_validation_steps(plan.post_update_validation, execution)
-            await self._add_execution_step(
-                execution, "post_update_validation", "completed"
-            )
+            await self._add_execution_step(execution, "post_update_validation", "completed")
 
             # Step 5: Post-update health check
-            await self._add_execution_step(
-                execution, "post_update_health_check", "running"
-            )
-            execution.post_update_health = await self.check_plugin_health(
-                plan.plugin_id
-            )
-            await self._add_execution_step(
-                execution, "post_update_health_check", "completed"
-            )
+            await self._add_execution_step(execution, "post_update_health_check", "running")
+            execution.post_update_health = await self.check_plugin_health(plan.plugin_id)
+            await self._add_execution_step(execution, "post_update_health_check", "completed")
 
             # Check if rollback is needed
             if (
@@ -666,9 +630,7 @@ class PluginLifecycleService:
 
             # Attempt rollback if enabled
             if execution.update_plan.rollback_enabled:
-                await self._trigger_automatic_rollback(
-                    execution, f"Update failed: {str(e)}"
-                )
+                await self._trigger_automatic_rollback(execution, f"Update failed: {str(e)}")
 
         finally:
             execution.completed_at = datetime.utcnow()
@@ -700,9 +662,7 @@ class PluginLifecycleService:
 
                     # Check for critical issues
                     if health_check.health_status == PluginHealthStatus.CRITICAL:
-                        logger.error(
-                            f"Critical health issue detected for plugin {plugin_id}"
-                        )
+                        logger.error(f"Critical health issue detected for plugin {plugin_id}")
                         # Could trigger alerts here
 
                     # Wait before next check (5 minutes for critical, 15 minutes for others)
@@ -786,9 +746,7 @@ class PluginLifecycleService:
 
         if not health_check.dependency_check:
             health_check.issues.append("Plugin dependency check failed")
-            health_check.remediation_suggestions.append(
-                "Verify all dependencies are installed"
-            )
+            health_check.remediation_suggestions.append("Verify all dependencies are installed")
 
         if not health_check.resource_check:
             if health_check.memory_usage_mb and health_check.memory_usage_mb > 512:
@@ -800,29 +758,19 @@ class PluginLifecycleService:
                 )
 
             if health_check.cpu_usage_percent and health_check.cpu_usage_percent > 50:
-                health_check.issues.append(
-                    f"High CPU usage: {health_check.cpu_usage_percent:.1f}%"
-                )
-                health_check.remediation_suggestions.append(
-                    "Investigate CPU-intensive operations"
-                )
+                health_check.issues.append(f"High CPU usage: {health_check.cpu_usage_percent:.1f}%")
+                health_check.remediation_suggestions.append("Investigate CPU-intensive operations")
 
         if not health_check.performance_check:
             if health_check.response_time_ms and health_check.response_time_ms > 1000:
                 health_check.issues.append(
                     f"Slow response time: {health_check.response_time_ms:.1f}ms"
                 )
-                health_check.remediation_suggestions.append(
-                    "Optimize plugin performance"
-                )
+                health_check.remediation_suggestions.append("Optimize plugin performance")
 
             if health_check.error_rate and health_check.error_rate > 0.05:
-                health_check.issues.append(
-                    f"High error rate: {health_check.error_rate:.1%}"
-                )
-                health_check.remediation_suggestions.append(
-                    "Review plugin logs for errors"
-                )
+                health_check.issues.append(f"High error rate: {health_check.error_rate:.1%}")
+                health_check.remediation_suggestions.append("Review plugin logs for errors")
 
     async def _check_version_compatibility(
         self, plugin: InstalledPlugin, target_version: PluginVersion
@@ -839,9 +787,7 @@ class PluginLifecycleService:
 
         # Check dependency conflicts
         if target_version.conflicts:
-            issues.append(
-                f"Version has conflicts with: {', '.join(target_version.conflicts)}"
-            )
+            issues.append(f"Version has conflicts with: {', '.join(target_version.conflicts)}")
 
         return issues
 
@@ -869,9 +815,7 @@ class PluginLifecycleService:
                 logger.info(f"Running validation step: {step}")
                 await asyncio.sleep(1)  # Simulate validation time
             except Exception as e:
-                execution.execution_errors.append(
-                    f"Validation step {step} failed: {str(e)}"
-                )
+                execution.execution_errors.append(f"Validation step {step} failed: {str(e)}")
                 raise
 
     async def _execute_immediate_update(
@@ -906,9 +850,7 @@ class PluginLifecycleService:
         logger.info(f"Executing canary update for {plan.plugin_id}")
         await asyncio.sleep(20)  # Simulate update time
 
-    async def _trigger_automatic_rollback(
-        self, execution: PluginUpdateExecution, reason: str
-    ):
+    async def _trigger_automatic_rollback(self, execution: PluginUpdateExecution, reason: str):
         """Trigger automatic rollback due to failure"""
         logger.warning(
             f"Triggering automatic rollback for {execution.update_plan.plugin_id}: {reason}"

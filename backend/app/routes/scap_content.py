@@ -212,9 +212,7 @@ async def upload_scap_content(
             profiles = datastream_processor.extract_profiles_with_metadata(temp_path)
 
             # Extract content components for framework mapping
-            content_components = datastream_processor.extract_content_components(
-                temp_path
-            )
+            content_components = datastream_processor.extract_content_components(temp_path)
 
             # Create permanent storage location with secure path
             content_id = str(uuid.uuid4())
@@ -305,9 +303,7 @@ async def upload_scap_content(
         raise HTTPException(status_code=400, detail=f"SCAP validation failed: {str(e)}")
     except Exception as e:
         logger.error(f"Error uploading SCAP content: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to upload SCAP content: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to upload SCAP content: {str(e)}")
 
 
 @router.get("/{content_id}")
@@ -519,9 +515,7 @@ async def delete_scap_content(
         )
     except Exception as e:
         # Handle any other unexpected errors
-        logger.error(
-            f"Unexpected error deleting SCAP content {content_id}: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error deleting SCAP content {content_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred during deletion. Please try again or contact an administrator.",
@@ -615,17 +609,9 @@ def _extract_os_info(filename: str, validation_result: Dict) -> Tuple[str, str]:
             os_version = "unknown"
     elif "ubuntu" in filename_lower:
         os_family = "ubuntu"
-        if (
-            "22.04" in filename_lower
-            or "22_04" in filename_lower
-            or "2204" in filename_lower
-        ):
+        if "22.04" in filename_lower or "22_04" in filename_lower or "2204" in filename_lower:
             os_version = "22.04"
-        elif (
-            "20.04" in filename_lower
-            or "20_04" in filename_lower
-            or "2004" in filename_lower
-        ):
+        elif "20.04" in filename_lower or "20_04" in filename_lower or "2004" in filename_lower:
             os_version = "20.04"
         else:
             os_version = "unknown"
@@ -698,9 +684,7 @@ async def get_compliance_analysis(
             raise HTTPException(status_code=404, detail="SCAP content not found")
 
         # Extract content components
-        content_components = datastream_processor.extract_content_components(
-            result.file_path
-        )
+        content_components = datastream_processor.extract_content_components(result.file_path)
 
         # Get compliance framework summary
         rule_ids = [rule["id"] for rule in content_components.get("rules", [])]
@@ -723,9 +707,7 @@ async def get_compliance_analysis(
 
     except Exception as e:
         logger.error(f"Error analyzing compliance content: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to analyze compliance content"
-        )
+        raise HTTPException(status_code=500, detail="Failed to analyze compliance content")
 
 
 @router.post("/{content_id}/validate-datastream")
@@ -750,9 +732,7 @@ async def validate_datastream_content(
             raise HTTPException(status_code=404, detail="SCAP content not found")
 
         # Create validation report
-        validation_report = datastream_processor.create_content_validation_report(
-            result.file_path
-        )
+        validation_report = datastream_processor.create_content_validation_report(result.file_path)
 
         return {
             "content_id": content_id,
@@ -762,9 +742,7 @@ async def validate_datastream_content(
 
     except Exception as e:
         logger.error(f"Error validating datastream content: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to validate datastream content"
-        )
+        raise HTTPException(status_code=500, detail="Failed to validate datastream content")
 
 
 @router.get("/framework-mappings")
@@ -798,9 +776,7 @@ async def enable_repository(
     """Enable or disable a repository"""
     try:
         scap_repository_manager.enable_repository(repository_id, enabled)
-        return {
-            "message": f"Repository {repository_id} {'enabled' if enabled else 'disabled'}"
-        }
+        return {"message": f"Repository {repository_id} {'enabled' if enabled else 'disabled'}"}
     except Exception as e:
         logger.error(f"Error updating repository: {e}")
         raise HTTPException(status_code=500, detail="Failed to update repository")
@@ -822,9 +798,7 @@ async def get_environment_info(current_user: dict = Depends(get_current_user)):
             async def test_connectivity():
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            "https://www.google.com", timeout=5
-                        ) as response:
+                        async with session.get("https://www.google.com", timeout=5) as response:
                             return response.status == 200
                 except:
                     return False
@@ -838,8 +812,7 @@ async def get_environment_info(current_user: dict = Depends(get_current_user)):
         return {
             "type": environment_type,
             "repositories": repositories,
-            "auto_sync_enabled": has_internet
-            and any(r["enabled"] for r in repositories),
+            "auto_sync_enabled": has_internet and any(r["enabled"] for r in repositories),
             "last_global_sync": (
                 scap_repository_manager.last_global_sync.isoformat()
                 if scap_repository_manager.last_global_sync
@@ -849,6 +822,4 @@ async def get_environment_info(current_user: dict = Depends(get_current_user)):
         }
     except Exception as e:
         logger.error(f"Error getting environment info: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to get environment information"
-        )
+        raise HTTPException(status_code=500, detail="Failed to get environment information")

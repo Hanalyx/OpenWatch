@@ -107,9 +107,7 @@ class PluginSecurityService:
                 return False, checks, None
 
             # Step 2: Extract package safely
-            extraction_result = await self._safe_extract_package(
-                package_data, package_format
-            )
+            extraction_result = await self._safe_extract_package(package_data, package_format)
             checks.append(extraction_result["check"])
             if not extraction_result["check"].passed:
                 return False, checks, None
@@ -312,9 +310,7 @@ class PluginSecurityService:
         # Scan based on plugin capabilities
         for capability in manifest.capabilities:
             if capability.value in ["shell", "python", "ansible"]:
-                checks.extend(
-                    await self._scan_code_patterns(extracted_path, capability.value)
-                )
+                checks.extend(await self._scan_code_patterns(extracted_path, capability.value))
 
         # Check for forbidden file access
         checks.append(await self._scan_file_access_patterns(extracted_path))
@@ -331,9 +327,7 @@ class PluginSecurityService:
 
         return checks
 
-    async def _scan_code_patterns(
-        self, path: Path, code_type: str
-    ) -> List[SecurityCheckResult]:
+    async def _scan_code_patterns(self, path: Path, code_type: str) -> List[SecurityCheckResult]:
         """Scan for dangerous code patterns"""
         checks = []
         patterns = self.DANGEROUS_PATTERNS.get(code_type, [])
@@ -442,14 +436,9 @@ class PluginSecurityService:
 
         for pattern in self.DANGEROUS_PATTERNS["network"]:
             for file_path in path.rglob("*"):
-                if (
-                    file_path.is_file()
-                    and file_path.stat().st_size < self.MAX_FILE_SIZES["script"]
-                ):
+                if file_path.is_file() and file_path.stat().st_size < self.MAX_FILE_SIZES["script"]:
                     try:
-                        with open(
-                            file_path, "r", encoding="utf-8", errors="ignore"
-                        ) as f:
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                             content = f.read()
 
                         matches = re.findall(pattern, content)
@@ -607,13 +596,9 @@ class PluginSecurityService:
         except Exception as e:
             logger.warning(f"Failed to cleanup temp files: {e}")
 
-    def calculate_trust_level(
-        self, checks: List[SecurityCheckResult]
-    ) -> PluginTrustLevel:
+    def calculate_trust_level(self, checks: List[SecurityCheckResult]) -> PluginTrustLevel:
         """Calculate plugin trust level based on security checks"""
-        critical_failures = sum(
-            1 for c in checks if not c.passed and c.severity == "critical"
-        )
+        critical_failures = sum(1 for c in checks if not c.passed and c.severity == "critical")
         high_failures = sum(1 for c in checks if not c.passed and c.severity == "high")
 
         if critical_failures > 0:
@@ -621,6 +606,4 @@ class PluginSecurityService:
         elif high_failures > 0:
             return PluginTrustLevel.COMMUNITY
         else:
-            return (
-                PluginTrustLevel.COMMUNITY
-            )  # Can be upgraded to VERIFIED with signature
+            return PluginTrustLevel.COMMUNITY  # Can be upgraded to VERIFIED with signature

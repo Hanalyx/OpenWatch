@@ -4,9 +4,7 @@ def sanitize_for_log(value: any) -> str:
         return "None"
     str_value = str(value)
     # Remove newlines and control characters to prevent log injection
-    return (
-        str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
-    )
+    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 """
@@ -95,9 +93,7 @@ class ContainerRuntimeClient:
                     return docker.DockerClient(base_url=podman_socket)
                 # Fallback to system Podman
                 elif os.path.exists("/run/podman/podman.sock"):
-                    return docker.DockerClient(
-                        base_url="unix:///run/podman/podman.sock"
-                    )
+                    return docker.DockerClient(base_url="unix:///run/podman/podman.sock")
                 else:
                     logger.warning("Podman socket not found, falling back to Docker")
                     return docker.from_env()
@@ -120,25 +116,18 @@ class CommandSandbox:
         self.runtime = self.container_client.runtime
         logger.info(f"CommandSandbox initialized with {self.runtime} runtime")
 
-    async def run_command(
-        self, command, cwd=None, env=None, timeout=300, capture_output=True
-    ):
+    async def run_command(self, command, cwd=None, env=None, timeout=300, capture_output=True):
         """Run command with containerized execution"""
         import subprocess
         import asyncio
 
         try:
             # If containerized execution is available, use it
-            if (
-                hasattr(self.container_client, "client")
-                and self.container_client.client
-            ):
+            if hasattr(self.container_client, "client") and self.container_client.client:
                 return await self._run_containerized(command, cwd, env, timeout)
             else:
                 # Fallback to subprocess execution with warning
-                logger.warning(
-                    "Container runtime not available, using subprocess execution"
-                )
+                logger.warning("Container runtime not available, using subprocess execution")
                 return await self._run_subprocess(command, cwd, env, timeout)
 
         except Exception as e:
@@ -176,9 +165,7 @@ class CommandSandbox:
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout
-                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
 
                 return CommandResult(
                     returncode=process.returncode,
@@ -355,9 +342,7 @@ class SandboxEnvironment:
 
         try:
             # Execute command with timeout
-            result = self.container.exec_run(
-                command, timeout=timeout, stdout=True, stderr=True
-            )
+            result = self.container.exec_run(command, timeout=timeout, stdout=True, stderr=True)
 
             stdout = result.output.decode("utf-8") if result.output else ""
             stderr = ""  # Docker exec_run combines stdout/stderr
@@ -391,9 +376,7 @@ class CommandSignatureService:
         try:
             # Load private key
             with open(private_key_path, "rb") as f:
-                private_key = serialization.load_pem_private_key(
-                    f.read(), password=None
-                )
+                private_key = serialization.load_pem_private_key(f.read(), password=None)
 
             # Create command payload for signing
             payload = {
@@ -422,9 +405,7 @@ class CommandSignatureService:
             logger.error(f"Failed to sign command {command.command_id}: {e}")
             raise
 
-    def verify_command(
-        self, command: SecureCommand, signature: str, public_key_path: str
-    ) -> bool:
+    def verify_command(self, command: SecureCommand, signature: str, public_key_path: str) -> bool:
         """Verify cryptographic signature for command"""
         try:
             # Load public key
@@ -457,9 +438,7 @@ class CommandSignatureService:
             return True
 
         except Exception as e:
-            logger.warning(
-                f"Command signature verification failed for {command.command_id}: {e}"
-            )
+            logger.warning(f"Command signature verification failed for {command.command_id}: {e}")
             return False
 
 
@@ -532,9 +511,7 @@ class CommandSandboxService:
 
         logger.info(f"Loaded {len(self.allowed_commands)} secure command templates")
 
-    def validate_command_parameters(
-        self, command_id: str, parameters: Dict[str, Any]
-    ) -> bool:
+    def validate_command_parameters(self, command_id: str, parameters: Dict[str, Any]) -> bool:
         """Validate command parameters against allowed patterns"""
         if command_id not in self.allowed_commands:
             return False
@@ -620,9 +597,7 @@ class CommandSandboxService:
         request.status = ExecutionStatus.APPROVED
         request.approved_by = approved_by
 
-        logger.info(
-            f"Command execution approved: {request.command_id} by {approved_by}"
-        )
+        logger.info(f"Command execution approved: {request.command_id} by {approved_by}")
         return True
 
     async def execute_secure_command(self, request_id: str) -> ExecutionRequest:

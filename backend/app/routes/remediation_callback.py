@@ -69,9 +69,7 @@ async def handle_remediation_callback(
     if not webhook_secret:
         # AEGIS webhooks not configured - this endpoint should not be accessible
         # In production, configure AEGIS_WEBHOOK_SECRET environment variable
-        logger.warning(
-            "AEGIS webhook callback received but webhook secret not configured"
-        )
+        logger.warning("AEGIS webhook callback received but webhook secret not configured")
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="AEGIS webhook integration not configured",
@@ -102,9 +100,7 @@ async def handle_remediation_callback(
             logger.error(
                 f"Host mismatch in remediation callback: {scan.host_id} != {callback.openwatch_host_id}"
             )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Host ID mismatch"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host ID mismatch")
 
         # Update scan with remediation information
         scan.aegis_remediation_id = str(callback.remediation_job_id)
@@ -145,16 +141,12 @@ async def handle_remediation_callback(
             ip_address="127.0.0.1",  # Internal system
         )
 
-        logger.info(
-            f"Remediation callback processed for scan {scan.id}: {callback.status}"
-        )
+        logger.info(f"Remediation callback processed for scan {scan.id}: {callback.status}")
 
         # Check if we should trigger a verification scan
         if callback.status == "completed" and callback.successful_rules > 0:
             # TODO: Trigger verification scan
-            logger.info(
-                f"Verification scan should be triggered for host {scan.host_id}"
-            )
+            logger.info(f"Verification scan should be triggered for host {scan.host_id}")
 
         return {
             "status": "success",

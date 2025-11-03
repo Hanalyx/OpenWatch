@@ -204,9 +204,7 @@ class AdaptiveSchedulerService:
                 self._config_cache = None
                 self._cache_timestamp = None
 
-                logger.info(
-                    f"Scheduler configuration updated by user {user_id}: {params}"
-                )
+                logger.info(f"Scheduler configuration updated by user {user_id}: {params}")
 
             return self.get_config(db)
 
@@ -295,9 +293,7 @@ class AdaptiveSchedulerService:
         config = self.get_config(db)
         return config["maintenance_mode"] == "skip"
 
-    def get_hosts_due_for_check(
-        self, db: Session, limit: Optional[int] = None
-    ) -> List[Dict]:
+    def get_hosts_due_for_check(self, db: Session, limit: Optional[int] = None) -> List[Dict]:
         """
         Get hosts that are due for monitoring checks.
 

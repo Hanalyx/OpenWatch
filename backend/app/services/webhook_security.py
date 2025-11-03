@@ -47,17 +47,13 @@ class WebhookSecurity:
         """
         if not self.secret:
             if self.settings.debug:
-                logger.warning(
-                    "Webhook signature generation skipped - no secret in debug mode"
-                )
+                logger.warning("Webhook signature generation skipped - no secret in debug mode")
                 return "sha256=debug-signature"
             raise ValueError("Webhook secret not configured")
 
         # Normalize payload to bytes
         if isinstance(payload, dict):
-            message = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
-                "utf-8"
-            )
+            message = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
         elif isinstance(payload, str):
             message = payload.encode("utf-8")
         elif isinstance(payload, bytes):
@@ -66,9 +62,7 @@ class WebhookSecurity:
             raise ValueError(f"Unsupported payload type: {type(payload)}")
 
         # Generate HMAC-SHA256 signature
-        signature = hmac.new(
-            self.secret.encode("utf-8"), message, hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(self.secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
         return f"sha256={signature}"
 
@@ -90,9 +84,7 @@ class WebhookSecurity:
         """
         if not self.secret:
             if self.settings.debug:
-                logger.warning(
-                    "Webhook signature verification skipped - no secret in debug mode"
-                )
+                logger.warning("Webhook signature verification skipped - no secret in debug mode")
                 return True
             raise ValueError("Webhook secret not configured")
 
@@ -234,9 +226,7 @@ class WebhookSecurity:
 
         if payload:
             signature = self.generate_signature(payload)
-            headers.update(
-                {"X-OpenWatch-Signature": signature, "Content-Type": "application/json"}
-            )
+            headers.update({"X-OpenWatch-Signature": signature, "Content-Type": "application/json"})
 
         return headers
 
@@ -267,9 +257,7 @@ def generate_webhook_signature(payload: Union[Dict[str, Any], str, bytes]) -> st
     return get_webhook_security().generate_signature(payload)
 
 
-def verify_webhook_signature(
-    payload: Union[Dict[str, Any], str, bytes], signature: str
-) -> bool:
+def verify_webhook_signature(payload: Union[Dict[str, Any], str, bytes], signature: str) -> bool:
     """
     Verify webhook signature
 
@@ -299,14 +287,10 @@ def create_webhook_headers(
     Returns:
         Dictionary of headers
     """
-    return get_webhook_security().create_webhook_headers(
-        payload, event_type, delivery_id
-    )
+    return get_webhook_security().create_webhook_headers(payload, event_type, delivery_id)
 
 
-def create_scan_completed_payload(
-    scan_id: str, scan_data: Dict[str, Any]
-) -> Dict[str, Any]:
+def create_scan_completed_payload(scan_id: str, scan_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create scan.completed webhook payload
 

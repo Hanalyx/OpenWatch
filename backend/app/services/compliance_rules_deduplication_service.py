@@ -236,9 +236,7 @@ class SmartDeduplicationService:
 
         return result
 
-    def calculate_content_hash(
-        self, rule: Union[ComplianceRule, Dict[str, Any]]
-    ) -> str:
+    def calculate_content_hash(self, rule: Union[ComplianceRule, Dict[str, Any]]) -> str:
         """
         Calculate SHA-256 hash of rule content
 
@@ -269,9 +267,7 @@ class SmartDeduplicationService:
 
             # Remove excluded fields (metadata, versioning, computed)
             normalized = {
-                k: v
-                for k, v in sorted(rule_dict.items())
-                if k not in self.EXCLUDED_FROM_HASH
+                k: v for k, v in sorted(rule_dict.items()) if k not in self.EXCLUDED_FROM_HASH
             }
 
             # Remove merge-specific metadata from source field
@@ -614,9 +610,7 @@ class SmartDeduplicationService:
 class DeduplicationStrategy:
     """Enumeration of deduplication strategies"""
 
-    SKIP_UNCHANGED_UPDATE_CHANGED = (
-        "skip_unchanged_update_changed"  # Smart deduplication (default)
-    )
+    SKIP_UNCHANGED_UPDATE_CHANGED = "skip_unchanged_update_changed"  # Smart deduplication (default)
     SKIP_EXISTING = "skip_existing"  # Never update existing rules
     UPDATE_ALL = "update_all"  # Always update existing rules
     FAIL_ON_DUPLICATE = "fail_on_duplicate"  # Reject upload if duplicates found

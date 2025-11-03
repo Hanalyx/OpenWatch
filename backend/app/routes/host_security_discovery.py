@@ -45,9 +45,7 @@ class BulkSecurityDiscoveryResponse(BaseModel):
     errors: Dict[str, str]
 
 
-@router.post(
-    "/hosts/{host_id}/security-discovery", response_model=SecurityDiscoveryResponse
-)
+@router.post("/hosts/{host_id}/security-discovery", response_model=SecurityDiscoveryResponse)
 async def discover_host_security_infrastructure(
     host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -125,9 +123,7 @@ async def bulk_discover_security_infrastructure(
     check_permission(current_user, "hosts:read")
 
     if not request.host_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
 
     if len(request.host_ids) > 50:  # Limit bulk operations
         raise HTTPException(
@@ -249,9 +245,7 @@ async def get_host_security_summary(
                         "Keep system updated with dnf/yum",
                     ]
                 )
-            elif (
-                "ubuntu" in host.os_family.lower() or "debian" in host.os_family.lower()
-            ):
+            elif "ubuntu" in host.os_family.lower() or "debian" in host.os_family.lower():
                 summary["security_recommendations"].extend(
                     [
                         "Consider configuring AppArmor profiles",

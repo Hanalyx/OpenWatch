@@ -205,25 +205,19 @@ class RBACManager:
         return required_permission in role_permissions
 
     @staticmethod
-    def has_any_permission(
-        user_role: UserRole, required_permissions: List[Permission]
-    ) -> bool:
+    def has_any_permission(user_role: UserRole, required_permissions: List[Permission]) -> bool:
         """Check if a role has any of the required permissions"""
         role_permissions = RBACManager.get_role_permissions(user_role)
         return any(perm in role_permissions for perm in required_permissions)
 
     @staticmethod
-    def has_all_permissions(
-        user_role: UserRole, required_permissions: List[Permission]
-    ) -> bool:
+    def has_all_permissions(user_role: UserRole, required_permissions: List[Permission]) -> bool:
         """Check if a role has all required permissions"""
         role_permissions = RBACManager.get_role_permissions(user_role)
         return all(perm in role_permissions for perm in required_permissions)
 
     @staticmethod
-    def can_access_resource(
-        user_role: UserRole, resource_type: str, action: str
-    ) -> bool:
+    def can_access_resource(user_role: UserRole, resource_type: str, action: str) -> bool:
         """Check if a role can perform an action on a resource type"""
         permission_map = {
             "user": {
@@ -254,10 +248,7 @@ class RBACManager:
             "audit": {"read": Permission.AUDIT_READ},
         }
 
-        if (
-            resource_type not in permission_map
-            or action not in permission_map[resource_type]
-        ):
+        if resource_type not in permission_map or action not in permission_map[resource_type]:
             return False
 
         required_permission = permission_map[resource_type][action]
@@ -368,9 +359,7 @@ def require_super_admin():
 
 def require_analyst_or_above():
     """Require analyst level or above"""
-    return require_role(
-        [UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN, UserRole.SECURITY_ANALYST]
-    )
+    return require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN, UserRole.SECURITY_ANALYST])
 
 
 def check_permission(user_role: str, resource_type: str, action: str):
@@ -396,9 +385,7 @@ def check_permission(user_role: str, resource_type: str, action: str):
         )
 
 
-def check_permission_async(
-    current_user: dict, required_permission: Permission, db: Any = None
-):
+def check_permission_async(current_user: dict, required_permission: Permission, db: Any = None):
     """Async permission check for specific permissions"""
     if not current_user:
         raise HTTPException(

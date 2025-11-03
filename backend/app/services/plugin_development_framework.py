@@ -384,9 +384,7 @@ class PluginDevelopmentFramework:
             await self._validate_security(package_path_obj, validation_result)
 
             # Performance validation
-            await self._validate_performance_indicators(
-                package_path_obj, validation_result
-            )
+            await self._validate_performance_indicators(package_path_obj, validation_result)
 
             # Calculate final scores
             self._calculate_validation_scores(validation_result)
@@ -403,9 +401,7 @@ class PluginDevelopmentFramework:
             validation_result.is_valid = False
             validation_result.critical_count += 1
 
-        logger.info(
-            f"Plugin validation completed: {validation_result.validation_score:.1f}/100"
-        )
+        logger.info(f"Plugin validation completed: {validation_result.validation_score:.1f}/100")
         return validation_result
 
     async def create_test_suite(
@@ -499,9 +495,7 @@ class PluginDevelopmentFramework:
         elif benchmark_config.benchmark_type == BenchmarkType.SCALABILITY:
             result = await self._benchmark_scalability(plugin, benchmark_config)
         else:
-            raise ValueError(
-                f"Unsupported benchmark type: {benchmark_config.benchmark_type}"
-            )
+            raise ValueError(f"Unsupported benchmark type: {benchmark_config.benchmark_type}")
 
         completed_at = datetime.utcnow()
         duration = (completed_at - started_at).total_seconds()
@@ -532,14 +526,10 @@ class PluginDevelopmentFramework:
         # Store as new baseline if better than previous
         self._update_benchmark_baseline(plugin_id, benchmark_result)
 
-        logger.info(
-            f"Benchmark completed for {plugin_id}: {benchmark_config.benchmark_type.value}"
-        )
+        logger.info(f"Benchmark completed for {plugin_id}: {benchmark_config.benchmark_type.value}")
         return benchmark_result
 
-    async def get_test_execution_status(
-        self, execution_id: str
-    ) -> Optional[TestExecution]:
+    async def get_test_execution_status(self, execution_id: str) -> Optional[TestExecution]:
         """Get test execution status and results"""
         # Check active tests first
         if execution_id in self.active_tests:
@@ -557,9 +547,7 @@ class PluginDevelopmentFramework:
         template_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate plugin.py
-        plugin_code = self._generate_plugin_code_template(
-            plugin_name, plugin_type, author
-        )
+        plugin_code = self._generate_plugin_code_template(plugin_name, plugin_type, author)
         (template_dir / "plugin.py").write_text(plugin_code)
 
         # Generate manifest.json
@@ -664,9 +652,7 @@ class PluginDevelopmentFramework:
                 try:
                     # Simple version validation
                     version_parts = manifest_data["version"].split(".")
-                    if len(version_parts) != 3 or not all(
-                        part.isdigit() for part in version_parts
-                    ):
+                    if len(version_parts) != 3 or not all(part.isdigit() for part in version_parts):
                         validation_result.issues.append(
                             {
                                 "severity": ValidationSeverity.WARNING,
@@ -696,9 +682,7 @@ class PluginDevelopmentFramework:
             validation_result.critical_count += 1
             validation_result.is_valid = False
 
-    async def _validate_code_quality(
-        self, package_path: Path, validation_result: ValidationResult
-    ):
+    async def _validate_code_quality(self, package_path: Path, validation_result: ValidationResult):
         """Validate Python code quality"""
 
         python_files = list(package_path.glob("*.py"))
@@ -758,15 +742,9 @@ class PluginDevelopmentFramework:
                         validation_result.info_count += 1
 
                     # Check for classes and functions
-                    classes = [
-                        node
-                        for node in ast.walk(tree)
-                        if isinstance(node, ast.ClassDef)
-                    ]
+                    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
                     functions = [
-                        node
-                        for node in ast.walk(tree)
-                        if isinstance(node, ast.FunctionDef)
+                        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
                     ]
 
                     if not classes and not functions:
@@ -809,9 +787,7 @@ class PluginDevelopmentFramework:
         else:
             validation_result.code_quality_score = 0
 
-    async def _validate_security(
-        self, package_path: Path, validation_result: ValidationResult
-    ):
+    async def _validate_security(self, package_path: Path, validation_result: ValidationResult):
         """Basic security validation"""
 
         python_files = list(package_path.glob("*.py"))
@@ -939,9 +915,7 @@ class PluginDevelopmentFramework:
                 "Consider performance optimizations for better execution"
             )
 
-    async def _execute_test_suite_async(
-        self, test_suite: TestSuite, execution: TestExecution
-    ):
+    async def _execute_test_suite_async(self, test_suite: TestSuite, execution: TestExecution):
         """Execute test suite asynchronously"""
         try:
             execution.overall_status = TestStatus.RUNNING
@@ -971,9 +945,7 @@ class PluginDevelopmentFramework:
 
             # Calculate final results
             execution.success_rate = (
-                execution.passed_tests / execution.total_tests
-                if execution.total_tests > 0
-                else 0.0
+                execution.passed_tests / execution.total_tests if execution.total_tests > 0 else 0.0
             )
 
             # Determine overall status
@@ -1003,9 +975,7 @@ class PluginDevelopmentFramework:
                 f"Test suite execution completed: {execution.execution_id} - {execution.overall_status.value}"
             )
 
-    async def _execute_test_case(
-        self, test_case: TestCase, execution: TestExecution
-    ) -> TestResult:
+    async def _execute_test_case(self, test_case: TestCase, execution: TestExecution) -> TestResult:
         """Execute a single test case"""
         started_at = datetime.utcnow()
 
@@ -1029,9 +999,7 @@ class PluginDevelopmentFramework:
                 test_result.status = TestStatus.PASSED
                 test_result.assertions_passed = 5
 
-            test_result.return_code = (
-                0 if test_result.status == TestStatus.PASSED else 1
-            )
+            test_result.return_code = 0 if test_result.status == TestStatus.PASSED else 1
 
         except Exception as e:
             test_result.status = TestStatus.ERROR
@@ -1165,9 +1133,7 @@ class PluginDevelopmentFramework:
 
         return comparison
 
-    def _check_benchmark_criteria(
-        self, result: BenchmarkResult, config: BenchmarkConfig
-    ) -> bool:
+    def _check_benchmark_criteria(self, result: BenchmarkResult, config: BenchmarkConfig) -> bool:
         """Check if benchmark meets configured criteria"""
         meets_criteria = True
 
@@ -1388,9 +1354,7 @@ class Test{class_name}Plugin:
             assert "error" in result.error
 '''
 
-    def _generate_readme_template(
-        self, plugin_name: str, plugin_type: str, author: str
-    ) -> str:
+    def _generate_readme_template(self, plugin_name: str, plugin_type: str, author: str) -> str:
         """Generate README template"""
         return f"""# {plugin_name.title()} Plugin
 
@@ -1442,9 +1406,7 @@ MIT License - see LICENSE file for details.
 For issues and questions, please contact {author}.
 """
 
-    def _generate_config_template(
-        self, plugin_name: str, plugin_type: str
-    ) -> Dict[str, Any]:
+    def _generate_config_template(self, plugin_name: str, plugin_type: str) -> Dict[str, Any]:
         """Generate configuration template"""
         return {
             "plugin": {"name": plugin_name, "enabled": True, "log_level": "INFO"},

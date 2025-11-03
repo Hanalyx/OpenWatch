@@ -297,9 +297,7 @@ class RemediationRecommendationEngine:
         Returns:
             List of detailed remediation recommendations
         """
-        logger.info(
-            f"Generating remediation recommendations for {len(compliance_gaps)} gaps"
-        )
+        logger.info(f"Generating remediation recommendations for {len(compliance_gaps)} gaps")
 
         recommendations = []
 
@@ -311,9 +309,7 @@ class RemediationRecommendationEngine:
                 if recommendation:
                     recommendations.append(recommendation)
             except Exception as e:
-                logger.error(
-                    f"Failed to generate recommendation for gap {gap.gap_id}: {e}"
-                )
+                logger.error(f"Failed to generate recommendation for gap {gap.gap_id}: {e}")
                 continue
 
         logger.info(f"Generated {len(recommendations)} remediation recommendations")
@@ -383,9 +379,7 @@ class RemediationRecommendationEngine:
         if cache_key in self.procedure_library:
             return list(self.procedure_library[cache_key].values())
 
-        procedures = await self._load_framework_procedures(
-            framework_id, control_id, platform
-        )
+        procedures = await self._load_framework_procedures(framework_id, control_id, platform)
 
         # Cache for future use
         if cache_key not in self.procedure_library:
@@ -452,10 +446,7 @@ class RemediationRecommendationEngine:
         gaps = []
 
         for framework_result in host_result.framework_results:
-            if (
-                target_frameworks
-                and framework_result.framework_id not in target_frameworks
-            ):
+            if target_frameworks and framework_result.framework_id not in target_frameworks:
                 continue
 
             framework_gaps = await self._analyze_framework_gaps(
@@ -509,9 +500,7 @@ class RemediationRecommendationEngine:
                 break
 
         if not framework_mapping:
-            logger.warning(
-                f"No framework mapping found for {framework_result.framework_id}"
-            )
+            logger.warning(f"No framework mapping found for {framework_result.framework_id}")
             return None
 
         # Determine priority based on rule risk level and compliance status
@@ -531,9 +520,7 @@ class RemediationRecommendationEngine:
             rule_id=rule_execution.rule_id,
             framework_id=framework_result.framework_id,
             control_id=(
-                framework_mapping.control_ids[0]
-                if framework_mapping.control_ids
-                else "unknown"
+                framework_mapping.control_ids[0] if framework_mapping.control_ids else "unknown"
             ),
             host_id=host_result.host_id,
             title=unified_rule.title,
@@ -543,9 +530,7 @@ class RemediationRecommendationEngine:
             priority=priority,
             risk_level=unified_rule.risk_level,
             business_impact=self._assess_business_impact(unified_rule, rule_execution),
-            security_implications=self._assess_security_implications(
-                unified_rule, rule_execution
-            ),
+            security_implications=self._assess_security_implications(unified_rule, rule_execution),
             platform=host_result.platform_info.get("platform", "unknown"),
             failed_checks=failed_checks,
             error_details=rule_execution.error_message,
@@ -608,18 +593,10 @@ class RemediationRecommendationEngine:
             orsa_compatible_rules=orsa_rules,
             remediation_job_template=job_template,
             root_cause_analysis=await self._analyze_root_cause(gap, unified_rule),
-            business_justification=await self._generate_business_justification(
-                gap, unified_rule
-            ),
-            compliance_benefit=await self._generate_compliance_benefit(
-                gap, unified_rule
-            ),
-            recommended_approach=await self._generate_recommended_approach(
-                primary_procedure, gap
-            ),
-            testing_recommendations=await self._generate_testing_recommendations(
-                primary_procedure
-            ),
+            business_justification=await self._generate_business_justification(gap, unified_rule),
+            compliance_benefit=await self._generate_compliance_benefit(gap, unified_rule),
+            recommended_approach=await self._generate_recommended_approach(primary_procedure, gap),
+            testing_recommendations=await self._generate_testing_recommendations(primary_procedure),
             monitoring_recommendations=await self._generate_monitoring_recommendations(
                 unified_rule, gap
             ),
@@ -650,9 +627,7 @@ class RemediationRecommendationEngine:
             platform_impl = unified_rule.platform_implementations[0]
 
         if not platform_impl:
-            logger.warning(
-                f"No platform implementation found for {gap.rule_id} on {gap.platform}"
-            )
+            logger.warning(f"No platform implementation found for {gap.rule_id} on {gap.platform}")
             return None
 
         # Get framework-specific procedure text
@@ -666,9 +641,7 @@ class RemediationRecommendationEngine:
         steps = self._create_remediation_steps(platform_impl, gap)
 
         # Determine complexity based on steps and risk
-        complexity = self._determine_complexity(
-            steps, unified_rule.risk_level, platform_impl
-        )
+        complexity = self._determine_complexity(steps, unified_rule.risk_level, platform_impl)
 
         procedure = RemediationProcedure(
             procedure_id=f"PROC-{gap.rule_id}-{gap.platform}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
@@ -688,20 +661,14 @@ class RemediationRecommendationEngine:
             backup_recommended=True,  # Always recommend backup
             rollback_available=True,  # Most procedures can be rolled back
             risk_level=unified_rule.risk_level,
-            potential_side_effects=self._identify_side_effects(
-                platform_impl, unified_rule
-            ),
+            potential_side_effects=self._identify_side_effects(platform_impl, unified_rule),
             prerequisites=self._generate_prerequisites(platform_impl),
             stig_fix_text=self._get_stig_fix_text(gap.framework_id, framework_mapping),
-            cis_remediation_procedure=self._get_cis_procedure(
-                gap.framework_id, framework_mapping
-            ),
+            cis_remediation_procedure=self._get_cis_procedure(gap.framework_id, framework_mapping),
             nist_implementation_guidance=self._get_nist_guidance(
                 gap.framework_id, framework_mapping
             ),
-            custom_procedure_text=(
-                framework_mapping.justification if framework_mapping else None
-            ),
+            custom_procedure_text=(framework_mapping.justification if framework_mapping else None),
         )
 
         return procedure
@@ -879,9 +846,7 @@ class RemediationRecommendationEngine:
         else:
             return RemediationComplexity.EXPERT
 
-    def _determine_category(
-        self, platform_impl: PlatformImplementation
-    ) -> RemediationCategory:
+    def _determine_category(self, platform_impl: PlatformImplementation) -> RemediationCategory:
         """Determine remediation category from implementation"""
         if platform_impl.implementation_type == "package":
             return RemediationCategory.PACKAGE_MANAGEMENT
@@ -964,9 +929,7 @@ class RemediationRecommendationEngine:
         rules = []
 
         # Convert primary procedure
-        primary_rule = await self._convert_procedure_to_orsa_rule(
-            primary_procedure, gap
-        )
+        primary_rule = await self._convert_procedure_to_orsa_rule(primary_procedure, gap)
         if primary_rule:
             rules.append(primary_rule)
 
@@ -1001,9 +964,7 @@ class RemediationRecommendationEngine:
     ) -> str:
         return f"Recommended approach: Execute {procedure.title} with {procedure.complexity.value} complexity"
 
-    async def _generate_testing_recommendations(
-        self, procedure: RemediationProcedure
-    ) -> List[str]:
+    async def _generate_testing_recommendations(self, procedure: RemediationProcedure) -> List[str]:
         return [
             "Test in non-production environment",
             "Verify rollback procedures",
@@ -1046,10 +1007,7 @@ class RemediationRecommendationEngine:
         related = []
 
         for rule_id, rule in unified_rules.items():
-            if (
-                rule_id != gap.rule_id
-                and rule.category == unified_rules[gap.rule_id].category
-            ):
+            if rule_id != gap.rule_id and rule.category == unified_rules[gap.rule_id].category:
                 for mapping in rule.framework_mappings:
                     if mapping.framework_id == gap.framework_id:
                         related.extend(mapping.control_ids)
@@ -1068,9 +1026,7 @@ class RemediationRecommendationEngine:
 
         return conditions
 
-    def _generate_post_validation(
-        self, platform_impl: PlatformImplementation
-    ) -> List[str]:
+    def _generate_post_validation(self, platform_impl: PlatformImplementation) -> List[str]:
         validation = []
 
         for cmd in platform_impl.validation_commands:
@@ -1138,9 +1094,7 @@ class RemediationRecommendationEngine:
         effects = []
 
         if platform_impl.services_affected:
-            effects.append(
-                f"Services may restart: {', '.join(platform_impl.services_affected)}"
-            )
+            effects.append(f"Services may restart: {', '.join(platform_impl.services_affected)}")
 
         if unified_rule.risk_level in ["high", "critical"]:
             effects.append("May impact system performance")
@@ -1150,9 +1104,7 @@ class RemediationRecommendationEngine:
 
         return effects
 
-    def _generate_prerequisites(
-        self, platform_impl: PlatformImplementation
-    ) -> List[str]:
+    def _generate_prerequisites(self, platform_impl: PlatformImplementation) -> List[str]:
         prereqs = ["Administrative privileges", "Network connectivity"]
 
         if platform_impl.services_affected:

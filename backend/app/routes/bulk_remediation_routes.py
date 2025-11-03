@@ -38,9 +38,7 @@ bulk_remediation_service = BulkRemediationService()
 class BulkRemediationJobRequest(BaseModel):
     """Request to submit bulk remediation job"""
 
-    host_ids: List[str] = Field(
-        ..., min_items=1, max_items=1000, description="Target host IDs"
-    )
+    host_ids: List[str] = Field(..., min_items=1, max_items=1000, description="Target host IDs")
     rule_ids: List[str] = Field(..., min_items=1, description="Rules to remediate")
     strategy: BulkExecutionStrategy = Field(
         default=BulkExecutionStrategy.BATCHED, description="Execution strategy"
@@ -48,9 +46,7 @@ class BulkRemediationJobRequest(BaseModel):
     batch_size: int = Field(
         default=10, ge=1, le=100, description="Batch size for batched execution"
     )
-    max_parallel: int = Field(
-        default=20, ge=1, le=100, description="Maximum parallel executions"
-    )
+    max_parallel: int = Field(default=20, ge=1, le=100, description="Maximum parallel executions")
     dry_run: bool = Field(default=False, description="Execute in dry-run mode")
     timeout_per_host: int = Field(
         default=1800, ge=60, le=7200, description="Timeout per host in seconds"
@@ -225,15 +221,13 @@ async def submit_bulk_remediation_job(
             # Simple estimation based on strategy and host count
             base_time_per_host = 30  # seconds
             if request.strategy == BulkExecutionStrategy.PARALLEL:
-                estimated_duration = max(
-                    1, base_time_per_host // request.max_parallel
-                ) * len(request.host_ids)
+                estimated_duration = max(1, base_time_per_host // request.max_parallel) * len(
+                    request.host_ids
+                )
             elif request.strategy == BulkExecutionStrategy.SEQUENTIAL:
                 estimated_duration = base_time_per_host * len(request.host_ids)
             elif request.strategy == BulkExecutionStrategy.BATCHED:
-                batches = (
-                    len(request.host_ids) + request.batch_size - 1
-                ) // request.batch_size
+                batches = (len(request.host_ids) + request.batch_size - 1) // request.batch_size
                 estimated_duration = base_time_per_host * batches
             else:
                 estimated_duration = base_time_per_host * len(request.host_ids) // 2
@@ -268,9 +262,7 @@ async def submit_bulk_remediation_job(
 
 
 @router.get("/jobs/{job_id}/status", response_model=BulkRemediationStatusResponse)
-async def get_bulk_job_status(
-    job_id: str, current_user: User = Depends(get_current_user)
-):
+async def get_bulk_job_status(job_id: str, current_user: User = Depends(get_current_user)):
     """
     Get the current status of a bulk remediation job.
 
@@ -419,9 +411,7 @@ async def get_detailed_bulk_job_results(
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_bulk_job(
     job_id: str,
-    reason: str = Query(
-        default="User cancelled", description="Reason for cancellation"
-    ),
+    reason: str = Query(default="User cancelled", description="Reason for cancellation"),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -611,9 +601,7 @@ async def get_execution_strategies():
 
 @router.get("/statistics", response_model=dict)
 async def get_bulk_remediation_statistics(
-    days: int = Query(
-        default=30, ge=1, le=365, description="Days to include in statistics"
-    ),
+    days: int = Query(default=30, ge=1, le=365, description="Days to include in statistics"),
     current_user: User = Depends(get_current_user),
 ):
     """

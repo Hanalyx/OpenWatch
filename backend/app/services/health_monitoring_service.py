@@ -85,9 +85,7 @@ class HealthMonitoringService:
                 scanner_id=self.scanner_id,
                 health_check_timestamp=datetime.utcnow(),
                 overall_status=HealthStatus.HEALTHY,
-                uptime_seconds=int(
-                    (datetime.utcnow() - self.start_time).total_seconds()
-                ),
+                uptime_seconds=int((datetime.utcnow() - self.start_time).total_seconds()),
             )
 
             # Collect core services health
@@ -97,9 +95,7 @@ class HealthMonitoringService:
             health_data.data_services = await self._collect_data_services_health()
 
             # Collect integration services health
-            health_data.integration_services = (
-                await self._collect_integration_services_health()
-            )
+            health_data.integration_services = await self._collect_integration_services_health()
 
             # Collect resource usage
             health_data.resource_usage = await self._collect_resource_usage()
@@ -116,9 +112,7 @@ class HealthMonitoringService:
             return health_data
 
         except Exception as e:
-            logger.error(
-                f"Error collecting service health: {type(e).__name__}: {str(e)}"
-            )
+            logger.error(f"Error collecting service health: {type(e).__name__}: {str(e)}")
             import traceback
 
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -260,9 +254,7 @@ class HealthMonitoringService:
                 "cpu_cores": psutil.cpu_count(),
                 "cpu_usage_percent": cpu_percent,
                 "load_average": (
-                    list(psutil.getloadavg())
-                    if hasattr(psutil, "getloadavg")
-                    else [0, 0, 0]
+                    list(psutil.getloadavg()) if hasattr(psutil, "getloadavg") else [0, 0, 0]
                 ),
             },
             "storage": {
@@ -299,18 +291,12 @@ class HealthMonitoringService:
         alerts = []
 
         # Check memory usage
-        memory_usage = health_data.resource_usage.get("system", {}).get(
-            "memory_usage_percent", 0
-        )
+        memory_usage = health_data.resource_usage.get("system", {}).get("memory_usage_percent", 0)
         if memory_usage > 80:
             alerts.append(
                 OperationalAlert(
                     id=f"alert_mem_{datetime.utcnow().timestamp()}",
-                    severity=(
-                        AlertSeverity.HIGH
-                        if memory_usage > 90
-                        else AlertSeverity.MEDIUM
-                    ),
+                    severity=(AlertSeverity.HIGH if memory_usage > 90 else AlertSeverity.MEDIUM),
                     component="system",
                     message=f"High memory usage: {memory_usage:.1f}%",
                     timestamp=datetime.utcnow(),
@@ -336,9 +322,7 @@ class HealthMonitoringService:
 
         return alerts
 
-    def _calculate_overall_status(
-        self, health_data: ServiceHealthDocument
-    ) -> HealthStatus:
+    def _calculate_overall_status(self, health_data: ServiceHealthDocument) -> HealthStatus:
         """Calculate overall system health status"""
         statuses = []
 
@@ -392,16 +376,14 @@ class HealthMonitoringService:
             health_data.performance_metrics = await self._collect_content_performance()
 
             # Generate alerts and recommendations
-            health_data.alerts_and_recommendations = (
-                await self._generate_content_alerts(health_data)
+            health_data.alerts_and_recommendations = await self._generate_content_alerts(
+                health_data
             )
 
             return health_data
 
         except Exception as e:
-            logger.error(
-                f"Error collecting content health: {type(e).__name__}: {str(e)}"
-            )
+            logger.error(f"Error collecting content health: {type(e).__name__}: {str(e)}")
             import traceback
 
             logger.error(f"Traceback: {traceback.format_exc()}")
@@ -438,9 +420,7 @@ class HealthMonitoringService:
                 for r in all_rules
                 if any(
                     framework_id in str(mapping)
-                    for mapping in getattr(r, "compliance_mappings", {}).get(
-                        "frameworks", []
-                    )
+                    for mapping in getattr(r, "compliance_mappings", {}).get("frameworks", [])
                 )
             ]
 
@@ -448,14 +428,9 @@ class HealthMonitoringService:
                 # Get unique controls
                 implemented_controls = set()
                 for rule in framework_rules:
-                    mappings = getattr(rule, "compliance_mappings", {}).get(
-                        "frameworks", []
-                    )
+                    mappings = getattr(rule, "compliance_mappings", {}).get("frameworks", [])
                     for mapping in mappings:
-                        if (
-                            isinstance(mapping, dict)
-                            and mapping.get("framework") == framework_id
-                        ):
+                        if isinstance(mapping, dict) and mapping.get("framework") == framework_id:
                             implemented_controls.update(mapping.get("controls", []))
 
                 frameworks[framework_id] = FrameworkHealth(
@@ -467,9 +442,7 @@ class HealthMonitoringService:
                     ),
                     total_controls=config["total_controls"],
                     implemented_controls=len(implemented_controls),
-                    coverage_percentage=(
-                        len(implemented_controls) / config["total_controls"]
-                    )
+                    coverage_percentage=(len(implemented_controls) / config["total_controls"])
                     * 100,
                     rule_count=len(framework_rules),
                     benchmark_dependencies=[],  # TODO: Extract from mappings
@@ -512,9 +485,7 @@ class HealthMonitoringService:
         for benchmark_id, config in benchmark_configs.items():
             # Count rules for this benchmark
             benchmark_rules = [
-                r
-                for r in all_rules
-                if benchmark_id in str(getattr(r, "compliance_mappings", {}))
+                r for r in all_rules if benchmark_id in str(getattr(r, "compliance_mappings", {}))
             ]
 
             if benchmark_rules:
@@ -532,14 +503,11 @@ class HealthMonitoringService:
                     last_updated=last_update,
                     total_rules=config["total_rules"],
                     implemented_rules=len(benchmark_rules),
-                    coverage_percentage=(len(benchmark_rules) / config["total_rules"])
-                    * 100,
+                    coverage_percentage=(len(benchmark_rules) / config["total_rules"]) * 100,
                     satisfies_frameworks=[],  # TODO: Extract from mappings
                     content_freshness={
                         "days_since_update": days_since_update,
-                        "freshness_status": (
-                            "current" if days_since_update < 30 else "stale"
-                        ),
+                        "freshness_status": ("current" if days_since_update < 30 else "stale"),
                     },
                 )
 
@@ -590,9 +558,7 @@ class HealthMonitoringService:
                 "rules_with_plugin_support": len(
                     [r for r in all_rules if getattr(r, "fix_extension", False)]
                 ),
-                "last_import": max(
-                    (r.imported_at for r in all_rules), default=datetime.utcnow()
-                ),
+                "last_import": max((r.imported_at for r in all_rules), default=datetime.utcnow()),
             },
             "rule_distribution": {
                 "by_severity": severity_counts,
@@ -624,9 +590,7 @@ class HealthMonitoringService:
 
         for rule in all_rules:
             # Check required fields
-            if not getattr(rule, "rule_id", None) or not getattr(
-                rule, "metadata", None
-            ):
+            if not getattr(rule, "rule_id", None) or not getattr(rule, "metadata", None):
                 missing_fields.append(getattr(rule, "rule_id", "unknown"))
 
         return {
@@ -687,8 +651,7 @@ class HealthMonitoringService:
                         type="info",
                         category="coverage",
                         message=f"{framework_id} coverage is only {framework.coverage_percentage:.1f}%",
-                        rule_impact=framework.total_controls
-                        - framework.implemented_controls,
+                        rule_impact=framework.total_controls - framework.implemented_controls,
                         recommended_action=f"Import additional rules for {framework_id}",
                         urgency="low",
                     )
@@ -710,10 +673,7 @@ class HealthMonitoringService:
 
             # Determine content health status
             content_status = HealthStatus.HEALTHY
-            if any(
-                alert.type == "warning"
-                for alert in content_health.alerts_and_recommendations
-            ):
+            if any(alert.type == "warning" for alert in content_health.alerts_and_recommendations):
                 content_status = HealthStatus.WARNING
 
             # Create summary
@@ -727,12 +687,12 @@ class HealthMonitoringService:
                 ),
                 key_metrics={
                     "uptime_seconds": service_health.uptime_seconds,
-                    "total_rules": content_health.rule_statistics.get(
-                        "summary", {}
-                    ).get("total_rules", 0),
-                    "memory_usage_percent": service_health.resource_usage.get(
-                        "system", {}
-                    ).get("memory_usage_percent", 0),
+                    "total_rules": content_health.rule_statistics.get("summary", {}).get(
+                        "total_rules", 0
+                    ),
+                    "memory_usage_percent": service_health.resource_usage.get("system", {}).get(
+                        "memory_usage_percent", 0
+                    ),
                     "active_alerts": len(service_health.alerts)
                     + len(content_health.alerts_and_recommendations),
                 },
@@ -785,9 +745,7 @@ class HealthMonitoringService:
         """Save content health data to MongoDB"""
         return await health_data.save()
 
-    async def save_health_summary(
-        self, summary: HealthSummaryDocument
-    ) -> HealthSummaryDocument:
+    async def save_health_summary(self, summary: HealthSummaryDocument) -> HealthSummaryDocument:
         """Save or update health summary"""
         # Upsert based on scanner_id
         existing = await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})

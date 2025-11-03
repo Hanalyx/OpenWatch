@@ -228,9 +228,7 @@ class AuthorizationConfiguration(BaseModel):
     """Authorization system configuration"""
 
     default_decision: AuthorizationDecision = AuthorizationDecision.DENY
-    conflict_resolution: PolicyConflictResolution = (
-        PolicyConflictResolution.DENY_OVERRIDES
-    )
+    conflict_resolution: PolicyConflictResolution = PolicyConflictResolution.DENY_OVERRIDES
     cache_ttl_seconds: int = 300  # 5 minutes
     max_cache_size: int = 10000
     enable_audit_logging: bool = True
@@ -273,9 +271,7 @@ class PermissionCache:
         self.max_size = max_size
         self.access_times: Dict[str, datetime] = {}
 
-    def _generate_key(
-        self, user_id: str, resource: ResourceIdentifier, action: ActionType
-    ) -> str:
+    def _generate_key(self, user_id: str, resource: ResourceIdentifier, action: ActionType) -> str:
         """Generate cache key for permission check"""
         return f"{user_id}:{resource.resource_type.value}:{resource.resource_id}:{action.value}"
 
@@ -291,9 +287,7 @@ class PermissionCache:
         cached_item = self.cache[key]
         cached_time = cached_item.get("timestamp")
 
-        if not cached_time or datetime.utcnow() - cached_time > timedelta(
-            seconds=self.ttl_seconds
-        ):
+        if not cached_time or datetime.utcnow() - cached_time > timedelta(seconds=self.ttl_seconds):
             # Cache expired
             del self.cache[key]
             if key in self.access_times:

@@ -75,9 +75,7 @@ class ImportProgress:
             "skipped_rules": self.skipped_rules,
             "error_count": self.error_count,
             "progress_percentage": (
-                (self.processed_rules / self.total_rules * 100)
-                if self.total_rules > 0
-                else 0
+                (self.processed_rules / self.total_rules * 100) if self.total_rules > 0 else 0
             ),
             "current_phase": self.current_phase,
             "current_rule": self.current_rule,
@@ -141,9 +139,7 @@ class SCAPImportService:
 
             if parsed_scap["errors"]:
                 result["errors"].extend(parsed_scap["errors"])
-                logger.error(
-                    f"SCAP parsing failed with {len(parsed_scap['errors'])} errors"
-                )
+                logger.error(f"SCAP parsing failed with {len(parsed_scap['errors'])} errors")
                 result["status"] = "failed"
                 return result
 
@@ -244,19 +240,13 @@ class SCAPImportService:
 
         for rule_data in batch:
             try:
-                result = await self._import_single_rule(
-                    rule_data, deduplication_strategy
-                )
+                result = await self._import_single_rule(rule_data, deduplication_strategy)
                 stats[result] += 1
 
             except Exception as e:
-                logger.error(
-                    f"Failed to import rule {rule_data.get('rule_id')}: {str(e)}"
-                )
+                logger.error(f"Failed to import rule {rule_data.get('rule_id')}: {str(e)}")
                 stats["errors"] += 1
-                self.progress.errors.append(
-                    {"rule_id": rule_data.get("rule_id"), "error": str(e)}
-                )
+                self.progress.errors.append({"rule_id": rule_data.get("rule_id"), "error": str(e)})
 
         return stats
 
@@ -298,9 +288,7 @@ class SCAPImportService:
         # Create basic rule intelligence
         await self._create_rule_intelligence(rule_data)
 
-    async def _update_existing_rule(
-        self, existing_rule: ComplianceRule, rule_data: Dict[str, Any]
-    ):
+    async def _update_existing_rule(self, existing_rule: ComplianceRule, rule_data: Dict[str, Any]):
         """Update an existing compliance rule"""
         # Update fields that should be refreshed
         existing_rule.metadata = rule_data["metadata"]
@@ -445,9 +433,7 @@ class SCAPImportService:
 
         # Get sample rules
         sample_rules = (
-            await ComplianceRule.find(ComplianceRule.source_hash == file_hash)
-            .limit(5)
-            .to_list()
+            await ComplianceRule.find(ComplianceRule.source_hash == file_hash).limit(5).to_list()
         )
 
         return {

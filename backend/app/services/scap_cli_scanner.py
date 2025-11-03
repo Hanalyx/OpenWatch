@@ -60,9 +60,7 @@ class SCAPCLIScanner:
         try:
             scan_id = str(uuid.uuid4())
 
-            logger.info(
-                f"Starting scan {scan_id} for {host_config.get('hostname', 'localhost')}"
-            )
+            logger.info(f"Starting scan {scan_id} for {host_config.get('hostname', 'localhost')}")
 
             # Determine if this is a local or remote scan
             hostname = host_config.get("hostname", "localhost")
@@ -87,9 +85,7 @@ class SCAPCLIScanner:
                 )
 
         except Exception as e:
-            logger.error(
-                f"Scan failed for {host_config.get('hostname', 'unknown')}: {e}"
-            )
+            logger.error(f"Scan failed for {host_config.get('hostname', 'unknown')}: {e}")
             return {
                 "scan_id": scan_id if "scan_id" in locals() else str(uuid.uuid4()),
                 "hostname": host_config.get("hostname", "unknown"),
@@ -131,9 +127,7 @@ class SCAPCLIScanner:
 
         async def scan_with_semaphore(host_config: Dict) -> Dict:
             async with semaphore:
-                return await self.scan_single_host(
-                    host_config, profile_id, content_path, rule_id
-                )
+                return await self.scan_single_host(host_config, profile_id, content_path, rule_id)
 
         # Create all scan tasks
         scan_tasks = [scan_with_semaphore(host_config) for host_config in hosts_configs]
@@ -181,9 +175,7 @@ class SCAPCLIScanner:
                 "hostname": target,
                 "port": 22,
                 "username": (
-                    default_credentials.get("username", "root")
-                    if default_credentials
-                    else "root"
+                    default_credentials.get("username", "root") if default_credentials else "root"
                 ),
                 "auth_method": (
                     default_credentials.get("auth_method", "password")
@@ -191,9 +183,7 @@ class SCAPCLIScanner:
                     else "password"
                 ),
                 "credential": (
-                    default_credentials.get("credential", "")
-                    if default_credentials
-                    else ""
+                    default_credentials.get("credential", "") if default_credentials else ""
                 ),
             }
             hosts_configs.append(host_config)
@@ -329,22 +319,12 @@ class SCAPCLIScanner:
         error_scans = len([r for r in results if r.get("status") == "error"])
 
         # Aggregate rule statistics
-        total_rules = sum(
-            r.get("rules_total", 0) for r in results if "rules_total" in r
-        )
-        total_passed = sum(
-            r.get("rules_passed", 0) for r in results if "rules_passed" in r
-        )
-        total_failed = sum(
-            r.get("rules_failed", 0) for r in results if "rules_failed" in r
-        )
+        total_rules = sum(r.get("rules_total", 0) for r in results if "rules_total" in r)
+        total_passed = sum(r.get("rules_passed", 0) for r in results if "rules_passed" in r)
+        total_failed = sum(r.get("rules_failed", 0) for r in results if "rules_failed" in r)
 
         # Calculate average score
-        scores = [
-            r.get("score", 0)
-            for r in results
-            if "score" in r and r.get("score") is not None
-        ]
+        scores = [r.get("score", 0) for r in results if "score" in r and r.get("score") is not None]
         avg_score = sum(scores) / len(scores) if scores else 0
 
         return {
@@ -353,9 +333,7 @@ class SCAPCLIScanner:
                 "successful_scans": successful_scans,
                 "failed_scans": failed_scans,
                 "error_scans": error_scans,
-                "success_rate": (
-                    (successful_scans / total_hosts * 100) if total_hosts > 0 else 0
-                ),
+                "success_rate": ((successful_scans / total_hosts * 100) if total_hosts > 0 else 0),
             },
             "compliance_summary": {
                 "total_rules_checked": total_rules,

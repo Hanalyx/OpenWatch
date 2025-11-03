@@ -95,9 +95,7 @@ async def lifespan(app: FastAPI):
     from .encryption import create_encryption_service, EncryptionConfig
 
     # Create encryption service with production config
-    encryption_config = (
-        EncryptionConfig()
-    )  # Uses secure defaults (100k iterations, SHA256)
+    encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
     encryption_service = create_encryption_service(
         master_key=settings.master_key, config=encryption_config
     )
@@ -119,9 +117,7 @@ async def lifespan(app: FastAPI):
             else:
                 logger.info("FIPS mode validated successfully")
         except ImportError:
-            logger.warning(
-                "FIPS configuration module not found - using development mode"
-            )
+            logger.warning("FIPS configuration module not found - using development mode")
 
     # Create database tables with retry logic (skip in development if fails)
     max_retries = 3
@@ -144,9 +140,7 @@ async def lifespan(app: FastAPI):
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
-                    raise Exception(
-                        "Database schema initialization failed after all retries"
-                    )
+                    raise Exception("Database schema initialization failed after all retries")
 
             logger.info("Complete database schema initialized successfully")
 
@@ -185,9 +179,7 @@ async def lifespan(app: FastAPI):
             # Legacy APScheduler disabled - using Celery Beat for adaptive monitoring
             # The new adaptive scheduler runs via Celery Beat with state-based intervals
             # See: backend/app/tasks/adaptive_monitoring_dispatcher.py
-            logger.info(
-                "Legacy APScheduler disabled - using Celery Beat adaptive monitoring"
-            )
+            logger.info("Legacy APScheduler disabled - using Celery Beat adaptive monitoring")
 
             break
         except Exception as e:
@@ -204,9 +196,7 @@ async def lifespan(app: FastAPI):
                         f"Database connection failed in debug mode, continuing without DB: {e}"
                     )
                 else:
-                    logger.error(
-                        f"Failed to connect to database after {max_retries} attempts: {e}"
-                    )
+                    logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                     raise
 
     # Initialize JWT keys
@@ -296,9 +286,7 @@ def _log_audit_event(db, event_type: str, request: Request, response, client_ip:
     audit_logger.log_security_event(event_type, details, client_ip)
 
     # Log to database
-    log_security_event(
-        db=db, event_type=event_type, ip_address=client_ip, details=details
-    )
+    log_security_event(db=db, event_type=event_type, ip_address=client_ip, details=details)
 
 
 @app.middleware("http")
@@ -468,9 +456,7 @@ async def health_check():
                 redis_client.close()
 
         # Check MongoDB connectivity
-        mongodb_configured = bool(
-            settings.mongodb_url and "mongodb://" in settings.mongodb_url
-        )
+        mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
         mongodb_healthy = True
 
         if mongodb_configured:
@@ -556,9 +542,7 @@ app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 app.include_router(scap_content.router, prefix="/api", tags=["SCAP Content"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
-app.include_router(
-    adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"]
-)
+app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
@@ -578,25 +562,17 @@ app.include_router(
 )
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-app.include_router(
-    compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"]
-)
+app.include_router(compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"])
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
 app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
-app.include_router(
-    host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"]
-)
-app.include_router(
-    group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"]
-)
+app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
+app.include_router(group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"])
 app.include_router(
     host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"]
 )
 app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
-app.include_router(
-    host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"]
-)
+app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
 app.include_router(plugin_management.router, tags=["Plugin Management"])
 app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
 

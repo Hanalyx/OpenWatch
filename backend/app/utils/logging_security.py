@@ -202,9 +202,7 @@ def sanitize_error_message_for_log(error_msg: Optional[str]) -> str:
     return sanitize_for_log(str_msg, max_length=500, allow_special=True)
 
 
-def sanitize_resource_for_log(
-    resource_type: Optional[str], resource_id: Optional[str]
-) -> str:
+def sanitize_resource_for_log(resource_type: Optional[str], resource_id: Optional[str]) -> str:
     """
     Sanitize resource information for logging.
 

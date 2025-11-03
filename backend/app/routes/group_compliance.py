@@ -80,8 +80,7 @@ async def start_group_compliance_scan(
     session_config = {
         "scap_content_id": content_id,
         "profile_id": scan_request.profile_id or group.default_profile_id,
-        "compliance_framework": scan_request.compliance_framework
-        or group.compliance_framework,
+        "compliance_framework": scan_request.compliance_framework or group.compliance_framework,
         "scan_options": scan_request.scan_options or {},
         "email_notifications": scan_request.email_notifications,
         "generate_reports": scan_request.generate_reports,
@@ -108,8 +107,7 @@ async def start_group_compliance_scan(
             "group_id": group_id,
             "total_hosts": len(hosts),
             "config": json.dumps(session_config),
-            "estimated_completion": datetime.utcnow()
-            + timedelta(minutes=len(hosts) * 15),
+            "estimated_completion": datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
             "created_at": datetime.utcnow(),
             "created_by": current_user["user_id"],
         },
@@ -157,9 +155,7 @@ async def start_group_compliance_scan(
 @router.get("/{group_id}/report", response_model=GroupComplianceReportResponse)
 async def get_group_compliance_report(
     group_id: int,
-    framework: Optional[str] = Query(
-        None, description="Filter by compliance framework"
-    ),
+    framework: Optional[str] = Query(None, description="Filter by compliance framework"),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
@@ -229,9 +225,7 @@ async def get_group_compliance_report(
     ).fetchall()
 
     if not compliance_data:
-        raise HTTPException(
-            status_code=404, detail="No compliance data found for group"
-        )
+        raise HTTPException(status_code=404, detail="No compliance data found for group")
 
     # Calculate group metrics
     total_hosts = len(compliance_data)
@@ -581,9 +575,7 @@ def execute_group_compliance_scan(
         scanner = SCAPScanner()
 
         # Get SCAP content details
-        scap_content = (
-            db.query(ScapContent).filter(ScapContent.id == scap_content_id).first()
-        )
+        scap_content = db.query(ScapContent).filter(ScapContent.id == scap_content_id).first()
 
         if not scap_content:
             return {"status": "failed", "error": "SCAP content not found"}
@@ -632,9 +624,7 @@ def execute_group_compliance_scan(
                     )
                     db.add(result)
 
-                scan_results.append(
-                    {"host_id": host_id, "scan_id": scan.id, "status": "completed"}
-                )
+                scan_results.append({"host_id": host_id, "scan_id": scan.id, "status": "completed"})
 
             except Exception as host_error:
                 # Mark host scan as failed
@@ -653,9 +643,7 @@ def execute_group_compliance_scan(
             "status": "completed",
             "scan_results": scan_results,
             "total_hosts": len(host_ids),
-            "successful_scans": len(
-                [r for r in scan_results if r["status"] == "completed"]
-            ),
+            "successful_scans": len([r for r in scan_results if r["status"] == "completed"]),
         }
 
     except Exception as e:
@@ -671,6 +659,4 @@ async def send_compliance_scan_notification(
     """
     # This would integrate with an email service
     # For now, log the notification
-    print(
-        f"Compliance scan notification: Session {session_id} for group {group_id} completed"
-    )
+    print(f"Compliance scan notification: Session {session_id} for group {group_id} completed")

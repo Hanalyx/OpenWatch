@@ -89,9 +89,7 @@ class HostCreate(BaseModel):
     operating_system: str
     port: Optional[int] = 22
     username: Optional[str] = None
-    auth_method: Optional[str] = Field(
-        "ssh_key", pattern="^(password|ssh_key|system_default)$"
-    )
+    auth_method: Optional[str] = Field("ssh_key", pattern="^(password|ssh_key|system_default)$")
     ssh_key: Optional[str] = None
     password: Optional[str] = None
     environment: Optional[str] = "production"
@@ -106,9 +104,7 @@ class HostUpdate(BaseModel):
     operating_system: Optional[str] = None
     port: Optional[int] = None
     username: Optional[str] = None
-    auth_method: Optional[str] = Field(
-        None, pattern="^(password|ssh_key|system_default)$"
-    )
+    auth_method: Optional[str] = Field(None, pattern="^(password|ssh_key|system_default)$")
     ssh_key: Optional[str] = None
     password: Optional[str] = None
     environment: Optional[str] = None
@@ -153,18 +149,14 @@ async def validate_credentials(
 
         # Validate SSH key
         if auth_method == "ssh_key" and ssh_key:
-            logger.info(
-                "Validating SSH key credentials via validate-credentials endpoint"
-            )
+            logger.info("Validating SSH key credentials via validate-credentials endpoint")
             validation_result = validate_ssh_key(ssh_key)
 
             return {
                 "is_valid": validation_result.is_valid,
                 "auth_method": "ssh_key",
                 "key_type": (
-                    validation_result.key_type.value
-                    if validation_result.key_type
-                    else None
+                    validation_result.key_type.value if validation_result.key_type else None
                 ),
                 "key_bits": validation_result.key_size,
                 "security_level": (
@@ -186,9 +178,7 @@ async def validate_credentials(
                     "auth_method": "password",
                     "error_message": "Password cannot be empty",
                     "warnings": [],
-                    "recommendations": [
-                        "Use a strong password with at least 12 characters"
-                    ],
+                    "recommendations": ["Use a strong password with at least 12 characters"],
                 }
 
             return {
@@ -223,9 +213,7 @@ async def validate_credentials(
 
 
 @router.get("/", response_model=List[Host])
-async def list_hosts(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all managed hosts"""
     try:
         # Try to get hosts from database with latest scan information and group details
@@ -316,11 +304,7 @@ async def list_hosts(
                 host_data.last_scan = (
                     row.scan_completed_at.isoformat() + "Z"
                     if row.scan_completed_at
-                    else (
-                        row.scan_started_at.isoformat() + "Z"
-                        if row.scan_started_at
-                        else None
-                    )
+                    else (row.scan_started_at.isoformat() + "Z" if row.scan_started_at else None)
                 )
                 host_data.compliance_score = compliance_score
                 host_data.failed_rules = row.failed_rules or 0
@@ -393,16 +377,8 @@ async def create_host(
                 credential_data = CredentialData(
                     username=host.username,
                     auth_method=AuthMethod(host.auth_method),
-                    password=(
-                        host.password
-                        if host.auth_method in ["password", "both"]
-                        else None
-                    ),
-                    private_key=(
-                        host.ssh_key
-                        if host.auth_method in ["ssh_key", "both"]
-                        else None
-                    ),
+                    password=(host.password if host.auth_method in ["password", "both"] else None),
+                    private_key=(host.ssh_key if host.auth_method in ["ssh_key", "both"] else None),
                     private_key_passphrase=None,
                 )
 
@@ -578,9 +554,7 @@ async def get_host(
 
         row = result.fetchone()
         if not row:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         return Host(
             id=str(row.id),
@@ -645,9 +619,7 @@ async def update_host(
         )
 
         if not result.fetchone():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Get current host data for partial updates
         current_host_result = db.execute(
@@ -663,18 +635,14 @@ async def update_host(
 
         current_host = current_host_result.fetchone()
         if not current_host:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Update host - use existing values if new ones not provided
         current_time = datetime.utcnow()
 
         # Handle display_name logic properly
         new_hostname = (
-            host_update.hostname
-            if host_update.hostname is not None
-            else current_host.hostname
+            host_update.hostname if host_update.hostname is not None else current_host.hostname
         )
         new_display_name = (
             host_update.display_name
@@ -806,13 +774,9 @@ async def update_host(
                 if host_update.operating_system is not None
                 else current_host.operating_system
             ),
-            "port": (
-                host_update.port if host_update.port is not None else current_host.port
-            ),
+            "port": (host_update.port if host_update.port is not None else current_host.port),
             "username": (
-                host_update.username
-                if host_update.username is not None
-                else current_host.username
+                host_update.username if host_update.username is not None else current_host.username
             ),
             "auth_method": (
                 host_update.auth_method
@@ -946,9 +910,7 @@ async def delete_host(
         )
 
         if not result.fetchone():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Check if host has any scans (optional - you might want to prevent deletion)
         scan_result = db.execute(
@@ -1044,9 +1006,7 @@ async def delete_host_ssh_key(
 
         row = result.fetchone()
         if not row:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         if not row.ssh_key_fingerprint:
             raise HTTPException(

@@ -104,9 +104,7 @@ class CircuitBreaker:
             and self.failure_count >= self.config.failure_threshold
         ):
             self.state = CircuitBreakerState.OPEN
-            logger.warning(
-                f"Circuit breaker opened after {self.failure_count} failures"
-            )
+            logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
         elif self.state == CircuitBreakerState.HALF_OPEN:
             self.state = CircuitBreakerState.OPEN
             logger.warning("Circuit breaker reopened during half-open test")
@@ -123,9 +121,7 @@ class HttpClient:
         user_agent: str = "OpenWatch-HttpClient/1.0",
     ):
         self.retry_policy = retry_policy or RetryPolicy()
-        self.circuit_breaker = CircuitBreaker(
-            circuit_breaker_config or CircuitBreakerConfig()
-        )
+        self.circuit_breaker = CircuitBreaker(circuit_breaker_config or CircuitBreakerConfig())
         self.timeout = httpx.Timeout(timeout)
         self.user_agent = user_agent
         self.stats = HTTPClientStats()
@@ -144,8 +140,7 @@ class HttpClient:
     def _calculate_delay(self, attempt: int) -> float:
         """Calculate delay for exponential backoff"""
         delay = min(
-            self.retry_policy.base_delay
-            * (self.retry_policy.exponential_base**attempt),
+            self.retry_policy.base_delay * (self.retry_policy.exponential_base**attempt),
             self.retry_policy.max_delay,
         )
 
@@ -227,10 +222,7 @@ class HttpClient:
                 )
 
                 # Check if we should retry
-                if (
-                    attempt < self.retry_policy.max_retries
-                    and self._is_retryable_error(e)
-                ):
+                if attempt < self.retry_policy.max_retries and self._is_retryable_error(e):
                     delay = self._calculate_delay(attempt)
                     logger.debug(f"Retrying request in {delay:.2f} seconds")
                     await asyncio.sleep(delay)

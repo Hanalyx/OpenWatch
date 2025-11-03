@@ -139,9 +139,7 @@ class IntegrationMetricsCollector:
             relevant_metrics = [m for m in self.metrics if m.timestamp >= cutoff_time]
 
             if operation:
-                relevant_metrics = [
-                    m for m in relevant_metrics if m.operation == operation
-                ]
+                relevant_metrics = [m for m in relevant_metrics if m.operation == operation]
 
             # Group by operation
             grouped_metrics = defaultdict(list)
@@ -170,9 +168,7 @@ class IntegrationMetricsCollector:
                         min_duration=min(durations),
                         max_duration=max(durations),
                         p95_duration=(
-                            durations[p95_index]
-                            if p95_index < len(durations)
-                            else max(durations)
+                            durations[p95_index] if p95_index < len(durations) else max(durations)
                         ),
                         error_rate=(len(failed) / len(metrics_list)) * 100,
                     )
@@ -228,9 +224,7 @@ class IntegrationMetricsCollector:
 
             for operation, summary in summaries.items():
                 safe_op = operation.replace("-", "_").replace(".", "_")
-                lines.append(
-                    f"# HELP integration_{safe_op}_duration_seconds Operation duration"
-                )
+                lines.append(f"# HELP integration_{safe_op}_duration_seconds Operation duration")
                 lines.append(f"# TYPE integration_{safe_op}_duration_seconds histogram")
                 lines.append(
                     f"integration_{safe_op}_duration_seconds_sum {summary.average_duration * summary.total_requests}"
@@ -239,9 +233,7 @@ class IntegrationMetricsCollector:
                     f"integration_{safe_op}_duration_seconds_count {summary.total_requests}"
                 )
 
-                lines.append(
-                    f"# HELP integration_{safe_op}_error_rate Error rate percentage"
-                )
+                lines.append(f"# HELP integration_{safe_op}_error_rate Error rate percentage")
                 lines.append(f"# TYPE integration_{safe_op}_error_rate gauge")
                 lines.append(f"integration_{safe_op}_error_rate {summary.error_rate}")
 
@@ -255,9 +247,7 @@ metrics_collector = IntegrationMetricsCollector()
 
 
 # Convenience functions for common operations
-def record_webhook_delivery(
-    success: bool, duration: float, target_service: str, error: str = None
-):
+def record_webhook_delivery(success: bool, duration: float, target_service: str, error: str = None):
     """Record webhook delivery metrics"""
     metrics_collector.record_metric(
         metric_type="duration",

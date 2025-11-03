@@ -46,9 +46,7 @@ class SCAPScanner(BaseSCAPScanner):
     BaseSCAPScanner and focusing on implementation-specific logic.
     """
 
-    def __init__(
-        self, content_dir: Optional[str] = None, results_dir: Optional[str] = None
-    ):
+    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None):
         # Initialize base class with directory setup and shared components
         super().__init__(content_dir, results_dir)
 
@@ -178,9 +176,7 @@ class SCAPScanner(BaseSCAPScanner):
             elif auth_method in ["ssh-key", "ssh_key"]:
                 # Use base class connection manager for key validation and parsing
                 key = self.connection_manager.validate_and_parse_key(credential)
-                ssh.connect(
-                    hostname, port=port, username=username, pkey=key, timeout=30
-                )
+                ssh.connect(hostname, port=port, username=username, pkey=key, timeout=30)
             else:
                 raise ScanExecutionError(f"Unsupported auth method: {auth_method}")
 
@@ -199,9 +195,7 @@ class SCAPScanner(BaseSCAPScanner):
 
             try:
                 sftp.put(content_path, remote_content_path)
-                logger.info(
-                    f"Transferred SCAP content to remote host: {remote_content_path}"
-                )
+                logger.info(f"Transferred SCAP content to remote host: {remote_content_path}")
             except Exception as e:
                 sftp.close()
                 raise ScanExecutionError(
@@ -228,9 +222,7 @@ class SCAPScanner(BaseSCAPScanner):
 
             logger.info(f"Executing remote command: {oscap_cmd}")
 
-            stdin, stdout, stderr = ssh.exec_command(
-                oscap_cmd, timeout=1800
-            )  # 30 minutes
+            stdin, stdout, stderr = ssh.exec_command(oscap_cmd, timeout=1800)  # 30 minutes
 
             # Wait for command completion and get exit code
             exit_code = stdout.channel.recv_exit_status()
@@ -338,9 +330,7 @@ class SCAPScanner(BaseSCAPScanner):
             if content_file and os.path.exists(content_file):
                 try:
                     content_tree = etree.parse(content_file)
-                    logger.info(
-                        f"Loaded SCAP content for remediation extraction: {content_file}"
-                    )
+                    logger.info(f"Loaded SCAP content for remediation extraction: {content_file}")
                 except Exception as e:
                     logger.warning(f"Could not load SCAP content file: {e}")
 
@@ -380,9 +370,7 @@ class SCAPScanner(BaseSCAPScanner):
                     elif result_value == "fail":
                         results["rules_failed"] += 1
                         # Extract failed rule info (backward compatibility)
-                        results["failed_rules"].append(
-                            {"rule_id": rule_id, "severity": severity}
-                        )
+                        results["failed_rules"].append({"rule_id": rule_id, "severity": severity})
                     elif result_value == "error":
                         results["rules_error"] += 1
                     elif result_value == "unknown":
@@ -395,8 +383,7 @@ class SCAPScanner(BaseSCAPScanner):
             # Calculate score
             if results["rules_total"] > 0:
                 results["score"] = (
-                    results["rules_passed"]
-                    / (results["rules_passed"] + results["rules_failed"])
+                    results["rules_passed"] / (results["rules_passed"] + results["rules_failed"])
                 ) * 100
 
             return results
@@ -405,9 +392,7 @@ class SCAPScanner(BaseSCAPScanner):
             logger.error(f"Error parsing scan results: {e}")
             return {"error": f"Failed to parse results: {str(e)}"}
 
-    def _extract_rule_remediation(
-        self, rule_id: str, content_tree, namespaces: Dict
-    ) -> Dict:
+    def _extract_rule_remediation(self, rule_id: str, content_tree, namespaces: Dict) -> Dict:
         """Extract detailed rule information and remediation from SCAP content"""
         remediation_info = {
             "title": "",
@@ -444,14 +429,10 @@ class SCAPScanner(BaseSCAPScanner):
             # Extract rationale
             rationale_elem = rule.find("xccdf:rationale", namespaces)
             if rationale_elem is not None:
-                remediation_info["rationale"] = self._extract_text_content(
-                    rationale_elem
-                )
+                remediation_info["rationale"] = self._extract_text_content(rationale_elem)
 
             # Extract remediation information
-            remediation_info["remediation"] = self._extract_remediation_details(
-                rule, namespaces
-            )
+            remediation_info["remediation"] = self._extract_remediation_details(rule, namespaces)
 
             # Extract references
             remediation_info["references"] = self._extract_references(rule, namespaces)

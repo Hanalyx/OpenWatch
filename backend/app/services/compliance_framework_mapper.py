@@ -533,10 +533,7 @@ class ComplianceFrameworkMapper:
         """Infer control family from rule title"""
         title_lower = rule_title.lower()
 
-        if any(
-            word in title_lower
-            for word in ["ssh", "password", "authentication", "login"]
-        ):
+        if any(word in title_lower for word in ["ssh", "password", "authentication", "login"]):
             return "Identification and Authentication"
         elif any(word in title_lower for word in ["audit", "log", "logging"]):
             return "Audit and Accountability"
@@ -566,9 +563,7 @@ class ComplianceFrameworkMapper:
         else:
             return "low"
 
-    def _infer_nist_control(
-        self, rule_title: str, control_family: str
-    ) -> Optional[str]:
+    def _infer_nist_control(self, rule_title: str, control_family: str) -> Optional[str]:
         """Infer NIST control ID from rule title and family"""
         title_lower = rule_title.lower()
 
@@ -658,9 +653,7 @@ class ComplianceFrameworkMapper:
 
         return summary
 
-    def get_remediation_priorities(
-        self, failed_rules: List[Dict[str, str]]
-    ) -> List[Dict]:
+    def get_remediation_priorities(self, failed_rules: List[Dict[str, str]]) -> List[Dict]:
         """Prioritize failed rules for remediation based on framework requirements"""
         priorities = []
 
@@ -680,9 +673,7 @@ class ComplianceFrameworkMapper:
             frameworks_affected = []
 
             for mapping in control.frameworks:
-                if severity_scores.get(mapping.severity, 0) > severity_scores.get(
-                    max_severity, 0
-                ):
+                if severity_scores.get(mapping.severity, 0) > severity_scores.get(max_severity, 0):
                     max_severity = mapping.severity
                 frameworks_affected.append(mapping.framework.value)
 
@@ -724,10 +715,7 @@ class ComplianceFrameworkMapper:
             return "minimal"
 
         # Check control categories
-        if any(
-            cat in ["Configuration Management", "Access Control"]
-            for cat in control.categories
-        ):
+        if any(cat in ["Configuration Management", "Access Control"] for cat in control.categories):
             return "moderate"
         elif any(
             cat in ["Audit and Accountability", "System and Information Integrity"]
@@ -752,9 +740,7 @@ class ComplianceFrameworkMapper:
             rule_entry = {"rule_id": rule_id, "title": control.title, "mappings": {}}
 
             for framework in ComplianceFramework:
-                framework_mappings = [
-                    m for m in control.frameworks if m.framework == framework
-                ]
+                framework_mappings = [m for m in control.frameworks if m.framework == framework]
                 if framework_mappings:
                     mapping = framework_mappings[0]
                     rule_entry["mappings"][framework.value] = {

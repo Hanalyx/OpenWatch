@@ -128,9 +128,7 @@ class ComplianceFrameworkReporter:
             )
 
             # Generate gap analysis
-            gap_analysis = await self._generate_gap_analysis(
-                enriched_results, target_frameworks
-            )
+            gap_analysis = await self._generate_gap_analysis(enriched_results, target_frameworks)
 
             # Create remediation roadmap
             remediation_roadmap = await self._create_remediation_roadmap(
@@ -156,14 +154,10 @@ class ComplianceFrameworkReporter:
                 "framework_analysis": framework_analysis,
                 "gap_analysis": gap_analysis,
                 "remediation_roadmap": remediation_roadmap,
-                "detailed_findings": await self._compile_detailed_findings(
-                    enriched_results
-                ),
+                "detailed_findings": await self._compile_detailed_findings(enriched_results),
                 "appendix": {
                     "framework_definitions": {
-                        fw: self.frameworks[fw]
-                        for fw in target_frameworks
-                        if fw in self.frameworks
+                        fw: self.frameworks[fw] for fw in target_frameworks if fw in self.frameworks
                     },
                     "methodology": await self._get_methodology_notes(),
                     "glossary": await self._get_glossary(),
@@ -176,13 +170,9 @@ class ComplianceFrameworkReporter:
                     compliance_report
                 )
             elif report_format == "pdf":
-                compliance_report["pdf_path"] = await self._generate_pdf_report(
-                    compliance_report
-                )
+                compliance_report["pdf_path"] = await self._generate_pdf_report(compliance_report)
 
-            logger.info(
-                f"Compliance report generated for {len(target_frameworks)} frameworks"
-            )
+            logger.info(f"Compliance report generated for {len(target_frameworks)} frameworks")
             return compliance_report
 
         except Exception as e:
@@ -217,9 +207,7 @@ class ComplianceFrameworkReporter:
                 1 for control in controls.values() if control["status"] == "compliant"
             )
             non_compliant_controls = sum(
-                1
-                for control in controls.values()
-                if control["status"] == "non_compliant"
+                1 for control in controls.values() if control["status"] == "non_compliant"
             )
 
             # Categorize by severity/importance
@@ -229,9 +217,7 @@ class ComplianceFrameworkReporter:
 
             for control_id, control_data in controls.items():
                 if control_data["status"] == "non_compliant":
-                    failure_severity = await self._assess_control_criticality(
-                        framework, control_id
-                    )
+                    failure_severity = await self._assess_control_criticality(framework, control_id)
 
                     failure_info = {
                         "control": control_id,
@@ -371,9 +357,7 @@ class ComplianceFrameworkReporter:
 
             # Get actual controls tested
             framework_mapping = enriched_results.get("framework_mapping", {})
-            tested_controls = set(
-                framework_mapping.get(framework, {}).get("controls", {}).keys()
-            )
+            tested_controls = set(framework_mapping.get(framework, {}).get("controls", {}).keys())
 
             # Calculate gaps
             missing_controls = expected_controls - tested_controls
@@ -515,10 +499,8 @@ class ComplianceFrameworkReporter:
         # Add framework-specific priorities
         framework_priorities = {}
         for framework in target_frameworks:
-            framework_priorities[framework] = (
-                await self._get_framework_remediation_priorities(
-                    framework, enriched_results
-                )
+            framework_priorities[framework] = await self._get_framework_remediation_priorities(
+                framework, enriched_results
             )
 
         roadmap["framework_priorities"] = framework_priorities
@@ -566,18 +548,12 @@ class ComplianceFrameworkReporter:
 
         dashboard = {
             "key_metrics": {
-                "overall_compliance_score": compliance_scores.get("overall", {}).get(
-                    "score", 0
-                ),
+                "overall_compliance_score": compliance_scores.get("overall", {}).get("score", 0),
                 "overall_grade": compliance_scores.get("overall", {}).get("grade", "F"),
                 "critical_issues": len(
-                    enriched_results.get("remediation_guidance", {}).get(
-                        "critical_failures", []
-                    )
+                    enriched_results.get("remediation_guidance", {}).get("critical_failures", [])
                 ),
-                "total_rules_tested": compliance_scores.get("overall", {}).get(
-                    "total_rules", 0
-                ),
+                "total_rules_tested": compliance_scores.get("overall", {}).get("total_rules", 0),
             },
             "framework_overview": {},
             "trend_indicators": {
@@ -617,9 +593,7 @@ class ComplianceFrameworkReporter:
         else:
             return "low"
 
-    async def _compile_detailed_findings(
-        self, enriched_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def _compile_detailed_findings(self, enriched_results: Dict[str, Any]) -> Dict[str, Any]:
         """Compile detailed findings section"""
         return {
             "rule_results_summary": {
@@ -724,9 +698,7 @@ class ComplianceFrameworkReporter:
     async def _generate_pdf_report(self, report_data: Dict[str, Any]) -> str:
         """Generate PDF version of the compliance report"""
         # This would use a PDF generation library like ReportLab or WeasyPrint
-        pdf_path = (
-            f"/tmp/compliance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        )
+        pdf_path = f"/tmp/compliance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
 
         # Mock PDF generation
         with open(pdf_path, "w") as f:

@@ -56,24 +56,16 @@ class RuleQuery(BaseModel):
     platform: Optional[str] = Field(
         None, description="Target platform (rhel, ubuntu, windows, etc.)"
     )
-    platform_version: Optional[str] = Field(
-        None, description="Platform version (8, 20.04, etc.)"
-    )
+    platform_version: Optional[str] = Field(None, description="Platform version (8, 20.04, etc.)")
     framework: Optional[str] = Field(
         None, description="Compliance framework (nist, cis, stig, etc.)"
     )
     framework_version: Optional[str] = Field(
         None, description="Framework version (800-53r5, v8, etc.)"
     )
-    severity: Optional[List[str]] = Field(
-        None, description="Severity levels to include"
-    )
-    category: Optional[List[str]] = Field(
-        None, description="Rule categories to include"
-    )
-    priority: QueryPriority = Field(
-        QueryPriority.NORMAL, description="Query priority for caching"
-    )
+    severity: Optional[List[str]] = Field(None, description="Severity levels to include")
+    category: Optional[List[str]] = Field(None, description="Rule categories to include")
+    priority: QueryPriority = Field(QueryPriority.NORMAL, description="Query priority for caching")
     include_abstract: bool = Field(False, description="Include abstract/base rules")
     include_inheritance: bool = Field(True, description="Resolve rule inheritance")
 
@@ -92,9 +84,7 @@ class RuleDependencyQuery(BaseModel):
     """Rule dependency resolution parameters"""
 
     rule_id: str = Field(..., description="Rule ID to resolve dependencies for")
-    resolve_depth: int = Field(
-        3, ge=1, le=10, description="Maximum dependency resolution depth"
-    )
+    resolve_depth: int = Field(3, ge=1, le=10, description="Maximum dependency resolution depth")
     include_conflicts: bool = Field(True, description="Include conflicting rules")
 
 
@@ -103,9 +93,7 @@ class PlatformCapabilityQuery(BaseModel):
 
     platform: str = Field(..., description="Platform name")
     platform_version: str = Field(..., description="Platform version")
-    target_host: Optional[str] = Field(
-        None, description="Target host for remote detection"
-    )
+    target_host: Optional[str] = Field(None, description="Target host for remote detection")
 
 
 class ApplicableRulesQuery(BaseModel):
@@ -113,9 +101,7 @@ class ApplicableRulesQuery(BaseModel):
 
     platform: str = Field(..., description="Platform name")
     platform_version: str = Field(..., description="Platform version")
-    capabilities: Dict[str, Any] = Field(
-        ..., description="Detected platform capabilities"
-    )
+    capabilities: Dict[str, Any] = Field(..., description="Detected platform capabilities")
     framework: Optional[str] = Field(None, description="Compliance framework filter")
     minimum_severity: str = Field("low", description="Minimum rule severity")
 
@@ -125,9 +111,7 @@ class RuleExportOptions(BaseModel):
 
     format: str = Field("json", pattern="^(json|csv|xml)$", description="Export format")
     include_inheritance: bool = Field(True, description="Include resolved inheritance")
-    include_dependencies: bool = Field(
-        False, description="Include dependency information"
-    )
+    include_dependencies: bool = Field(False, description="Include dependency information")
     filters: Optional[RuleQuery] = Field(None, description="Query filters to apply")
 
 
@@ -228,9 +212,7 @@ class APIResponse(BaseModel):
 # API Endpoints
 
 
-@router.get(
-    "/", response_model=APIResponse, summary="List rules with advanced filtering"
-)
+@router.get("/", response_model=APIResponse, summary="List rules with advanced filtering")
 async def list_rules(
     query: RuleQuery = Depends(),
     db: Session = Depends(get_db),
@@ -295,9 +277,7 @@ async def list_rules(
 async def get_rule_detail(
     rule_id: str = Path(..., description="Rule ID"),
     resolve_inheritance: bool = Query(True, description="Resolve rule inheritance"),
-    include_dependencies: bool = Query(
-        False, description="Include dependency information"
-    ),
+    include_dependencies: bool = Query(False, description="Include dependency information"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
@@ -359,9 +339,7 @@ async def get_rule_detail(
 
             rule_detail = RuleDetail(**rule_data)
 
-            return APIResponse(
-                success=True, data=rule_detail, message=f"Retrieved rule {rule_id}"
-            )
+            return APIResponse(success=True, data=rule_detail, message=f"Retrieved rule {rule_id}")
 
     except Exception as e:
         raise HTTPException(
@@ -431,9 +409,7 @@ async def search_rules(
         )
 
 
-@router.post(
-    "/dependencies", response_model=APIResponse, summary="Get rule dependency graph"
-)
+@router.post("/dependencies", response_model=APIResponse, summary="Get rule dependency graph")
 async def get_rule_dependencies(
     dependency_query: RuleDependencyQuery,
     db: Session = Depends(get_db),
@@ -505,9 +481,7 @@ async def detect_platform_capabilities(
 
         baseline_comparison = None
         if baseline:
-            baseline_comparison = await platform_svc.compare_with_baseline(
-                capabilities, baseline
-            )
+            baseline_comparison = await platform_svc.compare_with_baseline(capabilities, baseline)
 
         result = PlatformCapabilities(
             platform=capabilities["platform"],
@@ -584,13 +558,9 @@ async def get_applicable_rules(
         )
 
 
-@router.get(
-    "/statistics", response_model=APIResponse, summary="Get rule statistics and metrics"
-)
+@router.get("/statistics", response_model=APIResponse, summary="Get rule statistics and metrics")
 async def get_rule_statistics(
-    include_cache_stats: bool = Query(
-        True, description="Include cache performance statistics"
-    ),
+    include_cache_stats: bool = Query(True, description="Include cache performance statistics"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
@@ -619,9 +589,7 @@ async def get_rule_statistics(
             last_updated=stats["last_updated"],
         )
 
-        return APIResponse(
-            success=True, data=statistics, message="Retrieved rule statistics"
-        )
+        return APIResponse(success=True, data=statistics, message="Retrieved rule statistics")
 
     except Exception as e:
         raise HTTPException(
@@ -688,9 +656,7 @@ async def export_rules(
                             "rule_id": rule.get("rule_id", ""),
                             "severity": rule.get("severity", ""),
                             "category": rule.get("category", ""),
-                            "platforms": ",".join(
-                                rule.get("platform_implementations", {}).keys()
-                            ),
+                            "platforms": ",".join(rule.get("platform_implementations", {}).keys()),
                             "frameworks": ",".join(rule.get("frameworks", {}).keys()),
                         }
                     )
@@ -740,13 +706,9 @@ async def warm_cache(
             await service.cache_service.warm_cache()
             cache_info = await service.cache_service.get_cache_info()
 
-            return APIResponse(
-                success=True, data=cache_info, message="Cache warming completed"
-            )
+            return APIResponse(success=True, data=cache_info, message="Cache warming completed")
         else:
-            return APIResponse(
-                success=False, data=None, message="Cache service not available"
-            )
+            return APIResponse(success=False, data=None, message="Cache service not available")
 
     except Exception as e:
         raise HTTPException(
@@ -755,9 +717,7 @@ async def warm_cache(
         )
 
 
-@router.delete(
-    "/cache/invalidate", response_model=APIResponse, summary="Invalidate rule cache"
-)
+@router.delete("/cache/invalidate", response_model=APIResponse, summary="Invalidate rule cache")
 async def invalidate_cache(
     tags: Optional[List[str]] = Query(None, description="Cache tags to invalidate"),
     pattern: Optional[str] = Query(None, description="Cache key pattern to invalidate"),
@@ -768,9 +728,7 @@ async def invalidate_cache(
     """Invalidate rule cache by tags or patterns."""
     try:
         if not service.cache_service:
-            return APIResponse(
-                success=False, data=None, message="Cache service not available"
-            )
+            return APIResponse(success=False, data=None, message="Cache service not available")
 
         invalidated = 0
 
@@ -804,9 +762,7 @@ async def get_cache_info(
         if service.cache_service:
             cache_info = await service.cache_service.get_cache_info()
 
-            return APIResponse(
-                success=True, data=cache_info, message="Retrieved cache information"
-            )
+            return APIResponse(success=True, data=cache_info, message="Retrieved cache information")
         else:
             return APIResponse(
                 success=False,

@@ -248,9 +248,7 @@ fi
         logger.info(f"Created test remediation script for: {rule_id}")
         return script
 
-    async def query_rules_by_platform(
-        self, platform: str, version: str
-    ) -> List[ComplianceRule]:
+    async def query_rules_by_platform(self, platform: str, version: str) -> List[ComplianceRule]:
         """Query rules by platform and version
         OW-REFACTOR-002: Supports Repository Pattern
         """
@@ -279,9 +277,7 @@ fi
         logger.info(f"Found {len(rules)} rules for {platform} {version}")
         return rules
 
-    async def query_rules_by_framework(
-        self, framework: str, version: str
-    ) -> List[ComplianceRule]:
+    async def query_rules_by_framework(self, framework: str, version: str) -> List[ComplianceRule]:
         """Query rules by compliance framework and version
         OW-REFACTOR-002: Supports Repository Pattern
         """
@@ -337,14 +333,10 @@ fi
             return {"error": "Rule not found"}
 
         # Get intelligence
-        intelligence = await RuleIntelligence.find_one(
-            RuleIntelligence.rule_id == rule_id
-        )
+        intelligence = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_id)
 
         # Get remediation scripts
-        scripts = await RemediationScript.find(
-            RemediationScript.rule_id == rule_id
-        ).to_list()
+        scripts = await RemediationScript.find(RemediationScript.rule_id == rule_id).to_list()
 
         return {
             "rule": rule.dict() if rule else None,
@@ -359,12 +351,8 @@ fi
 
         # Delete test rules
         await ComplianceRule.find(ComplianceRule.rule_id.regex("^ow-test-")).delete()
-        await RuleIntelligence.find(
-            RuleIntelligence.rule_id.regex("^ow-test-")
-        ).delete()
-        await RemediationScript.find(
-            RemediationScript.rule_id.regex("^ow-test-")
-        ).delete()
+        await RuleIntelligence.find(RuleIntelligence.rule_id.regex("^ow-test-")).delete()
+        await RemediationScript.find(RemediationScript.rule_id.regex("^ow-test-")).delete()
 
         logger.info("Cleaned up test data")
 
@@ -435,9 +423,7 @@ fi
             start_time = datetime.utcnow()
             # Perform multiple queries to test indexes
             for _ in range(10):
-                await ComplianceRule.find(ComplianceRule.severity == "high").limit(
-                    100
-                ).to_list()
+                await ComplianceRule.find(ComplianceRule.severity == "high").limit(100).to_list()
 
             end_time = datetime.utcnow()
             query_duration_ms = (end_time - start_time).total_seconds() * 1000
@@ -445,15 +431,11 @@ fi
             test_results["tests"]["index_performance"] = {
                 "status": "passed" if query_duration_ms < 1000 else "warning",
                 "duration_ms": query_duration_ms,
-                "queries_per_second": (
-                    10000 / query_duration_ms if query_duration_ms > 0 else 0
-                ),
+                "queries_per_second": (10000 / query_duration_ms if query_duration_ms > 0 else 0),
             }
 
             # Final status
-            failed_tests = [
-                k for k, v in test_results["tests"].items() if v["status"] == "failed"
-            ]
+            failed_tests = [k for k, v in test_results["tests"].items() if v["status"] == "failed"]
             test_results["status"] = "failed" if failed_tests else "passed"
             test_results["failed_tests"] = failed_tests
 
@@ -525,9 +507,7 @@ fi
                     repo = ComplianceRuleRepository()
                     aggregation_results = await repo.aggregate(pipeline)
                 else:
-                    logger.debug(
-                        "Using direct MongoDB aggregation for get_platform_statistics"
-                    )
+                    logger.debug("Using direct MongoDB aggregation for get_platform_statistics")
                     cursor = ComplianceRule.aggregate(pipeline)
                     aggregation_results = await cursor.to_list()
 
@@ -569,15 +549,11 @@ fi
                         platform_stats.append(
                             {
                                 "name": result["platform"].upper(),
-                                "version": ", ".join(
-                                    result.get("versions", ["Unknown"])
-                                ),
+                                "version": ", ".join(result.get("versions", ["Unknown"])),
                                 "ruleCount": total_rules,
                                 "categories": categories[:6],  # Top 6 categories
                                 "frameworks": list(frameworks),
-                                "coverage": round(
-                                    min(100, (total_rules / 1000) * 100), 1
-                                ),
+                                "coverage": round(min(100, (total_rules / 1000) * 100), 1),
                             }
                         )
 
@@ -595,15 +571,11 @@ fi
             # Fallback: Manual processing of all rules
             # OW-REFACTOR-002: Use Repository Pattern if enabled
             if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-                logger.info(
-                    "Using ComplianceRuleRepository for get_platform_statistics fallback"
-                )
+                logger.info("Using ComplianceRuleRepository for get_platform_statistics fallback")
                 repo = ComplianceRuleRepository()
                 all_rules = await repo.find_many({})
             else:
-                logger.debug(
-                    "Using direct MongoDB find for get_platform_statistics fallback"
-                )
+                logger.debug("Using direct MongoDB find for get_platform_statistics fallback")
                 all_rules = await ComplianceRule.find().to_list()
 
             platform_analysis = {}
@@ -636,13 +608,8 @@ fi
                         platform_analysis[platform_id]["rules"].add(rule.rule_id)
 
                         # Count categories
-                        if (
-                            rule_category
-                            not in platform_analysis[platform_id]["categories"]
-                        ):
-                            platform_analysis[platform_id]["categories"][
-                                rule_category
-                            ] = 0
+                        if rule_category not in platform_analysis[platform_id]["categories"]:
+                            platform_analysis[platform_id]["categories"][rule_category] = 0
                         platform_analysis[platform_id]["categories"][rule_category] += 1
 
                         # Collect frameworks
@@ -652,18 +619,12 @@ fi
                                 # It's a Pydantic model
                                 fw_dict = rule.frameworks.dict()
                                 for framework in fw_dict.keys():
-                                    if fw_dict[
-                                        framework
-                                    ]:  # Only add if framework has data
-                                        platform_analysis[platform_id][
-                                            "frameworks"
-                                        ].add(framework)
+                                    if fw_dict[framework]:  # Only add if framework has data
+                                        platform_analysis[platform_id]["frameworks"].add(framework)
                             elif isinstance(rule.frameworks, dict):
                                 for framework in rule.frameworks.keys():
                                     if rule.frameworks[framework]:
-                                        platform_analysis[platform_id][
-                                            "frameworks"
-                                        ].add(framework)
+                                        platform_analysis[platform_id]["frameworks"].add(framework)
 
             # Convert to final format
             platform_stats = []

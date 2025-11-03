@@ -4,9 +4,7 @@ def sanitize_for_log(value: any) -> str:
         return "None"
     str_value = str(value)
     # Remove newlines and control characters to prevent log injection
-    return (
-        str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
-    )
+    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 """
@@ -117,15 +115,9 @@ async def evaluate_fix_options(
         return {
             "secure_options": secure_options,
             "total_options": len(secure_options),
-            "safe_options": len(
-                [opt for opt in secure_options if opt.get("is_safe", False)]
-            ),
+            "safe_options": len([opt for opt in secure_options if opt.get("is_safe", False)]),
             "blocked_options": len(
-                [
-                    opt
-                    for opt in secure_options
-                    if opt.get("security_level") == "blocked"
-                ]
+                [opt for opt in secure_options if opt.get("security_level") == "blocked"]
             ),
             "evaluation_timestamp": datetime.utcnow().isoformat(),
         }
@@ -165,9 +157,7 @@ async def request_fix_execution(
             justification=request.justification,
         )
 
-        logger.info(
-            f"Fix execution requested: {request.fix_id} by {current_user.get('username')}"
-        )
+        logger.info(f"Fix execution requested: {request.fix_id} by {current_user.get('username')}")
 
         return result
 
@@ -207,9 +197,7 @@ async def approve_fix_request(
         )
 
         if result["success"]:
-            logger.info(
-                f"Fix request approved: {request_id} by {current_user.get('username')}"
-            )
+            logger.info(f"Fix request approved: {request_id} by {current_user.get('username')}")
         else:
             logger.warning(
                 f"Fix approval failed: {request_id} - {sanitize_for_log(result['message'])}"
@@ -398,9 +386,7 @@ async def get_secure_command_catalog(
         return {
             "secure_commands": commands,
             "total_commands": len(commands),
-            "safe_commands": len(
-                [cmd for cmd in commands if cmd["security_level"] == "safe"]
-            ),
+            "safe_commands": len([cmd for cmd in commands if cmd["security_level"] == "safe"]),
             "privileged_commands": len(
                 [cmd for cmd in commands if cmd["security_level"] == "privileged"]
             ),

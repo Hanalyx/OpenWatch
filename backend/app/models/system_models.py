@@ -40,9 +40,7 @@ class OperationalSystemInfo(ComplianceSystemInfo):
     """System information for operational purposes"""
 
     kernel_family: Optional[str] = None  # e.g., "Linux", "NT" (generic)
-    service_status: Dict[str, str] = Field(
-        default_factory=dict
-    )  # sanitized service info
+    service_status: Dict[str, str] = Field(default_factory=dict)  # sanitized service info
     resource_availability: Dict[str, Any] = Field(default_factory=dict)
     info_level: SystemInfoLevel = SystemInfoLevel.OPERATIONAL
 
@@ -147,6 +145,4 @@ class SystemSettings(Base):
     modified_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
-    is_secure = Column(
-        Boolean, default=False, nullable=False
-    )  # Encrypt sensitive values
+    is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

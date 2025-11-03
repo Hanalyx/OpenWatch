@@ -107,9 +107,7 @@ class SecureAutomatedFix:
         import re
 
         # Service name extraction
-        service_match = re.search(
-            r"systemctl\s+status\s+([a-zA-Z0-9\-_.]+)", self.command
-        )
+        service_match = re.search(r"systemctl\s+status\s+([a-zA-Z0-9\-_.]+)", self.command)
         if service_match:
             parameters["service_name"] = service_match.group(1)
 
@@ -143,9 +141,7 @@ class FixExecutionAudit:
 
         await self._persist_audit_entry(entry)
 
-    async def log_fix_approval(
-        self, request_id: str, approved_by: str, approval_reason: str
-    ):
+    async def log_fix_approval(self, request_id: str, approved_by: str, approval_reason: str):
         """Log fix approval decision"""
         entry = {
             "event_type": "fix_approved",
@@ -158,9 +154,7 @@ class FixExecutionAudit:
 
         await self._persist_audit_entry(entry)
 
-    async def log_fix_execution(
-        self, request_id: str, execution_result: ExecutionRequest
-    ):
+    async def log_fix_execution(self, request_id: str, execution_result: ExecutionRequest):
         """Log fix execution results"""
         entry = {
             "event_type": "fix_executed",
@@ -168,9 +162,7 @@ class FixExecutionAudit:
             "command_id": execution_result.command_id,
             "exit_code": execution_result.exit_code,
             "execution_duration": (
-                (
-                    execution_result.completed_at - execution_result.executed_at
-                ).total_seconds()
+                (execution_result.completed_at - execution_result.executed_at).total_seconds()
                 if execution_result.completed_at and execution_result.executed_at
                 else None
             ),
@@ -183,9 +175,7 @@ class FixExecutionAudit:
 
         await self._persist_audit_entry(entry)
 
-    async def log_fix_rollback(
-        self, request_id: str, rollback_by: str, rollback_success: bool
-    ):
+    async def log_fix_rollback(self, request_id: str, rollback_by: str, rollback_success: bool):
         """Log fix rollback operation"""
         entry = {
             "event_type": "fix_rolled_back",
@@ -229,11 +219,7 @@ class FixExecutionAudit:
                         "action": entry["event_type"],
                         "old_values": None,
                         "new_values": json.dumps(
-                            {
-                                k: v
-                                for k, v in entry.items()
-                                if k not in ["event_type", "timestamp"]
-                            }
+                            {k: v for k, v in entry.items() if k not in ["event_type", "timestamp"]}
                         ),
                         "ip_address": "system",
                         "user_agent": "openwatch-secure-fix-executor",
@@ -266,9 +252,7 @@ class SecureAutomatedFixExecutor:
 
             # Only include fixes that can be mapped to secure commands
             if secure_fix.secure_command_id:
-                secure_command = self.sandbox_service.get_command_info(
-                    secure_fix.secure_command_id
-                )
+                secure_command = self.sandbox_service.get_command_info(secure_fix.secure_command_id)
 
                 if secure_command:
                     option = {
@@ -280,19 +264,14 @@ class SecureAutomatedFixExecutor:
                         "secure_command_id": secure_fix.secure_command_id,
                         "parameters": secure_fix.parameters,
                         "rollback_available": bool(secure_command.rollback_template),
-                        "is_safe": secure_fix.security_level
-                        == CommandSecurityLevel.SAFE,
+                        "is_safe": secure_fix.security_level == CommandSecurityLevel.SAFE,
                     }
                     secure_options.append(option)
                 else:
-                    logger.warning(
-                        f"Secure command not found: {secure_fix.secure_command_id}"
-                    )
+                    logger.warning(f"Secure command not found: {secure_fix.secure_command_id}")
             else:
                 # Create a warning for unmappable fixes
-                logger.warning(
-                    f"Legacy fix cannot be securely executed: {legacy_fix.fix_id}"
-                )
+                logger.warning(f"Legacy fix cannot be securely executed: {legacy_fix.fix_id}")
                 secure_options.append(
                     {
                         "fix_id": legacy_fix.fix_id,
@@ -374,9 +353,7 @@ class SecureAutomatedFixExecutor:
 
         try:
             # Approve through sandbox service
-            success = await self.sandbox_service.approve_request(
-                request_id, approved_by
-            )
+            success = await self.sandbox_service.approve_request(request_id, approved_by)
 
             if success:
                 # Log approval
@@ -453,18 +430,14 @@ class SecureAutomatedFixExecutor:
         """Rollback a previously executed fix"""
 
         try:
-            success = await self.sandbox_service.rollback_execution(
-                request_id, rollback_by
-            )
+            success = await self.sandbox_service.rollback_execution(request_id, rollback_by)
 
             # Log rollback attempt
             await self.audit_service.log_fix_rollback(request_id, rollback_by, success)
 
             return {
                 "success": success,
-                "message": (
-                    "Fix rolled back successfully" if success else "Fix rollback failed"
-                ),
+                "message": ("Fix rolled back successfully" if success else "Fix rollback failed"),
             }
 
         except Exception as e:
@@ -485,12 +458,8 @@ class SecureAutomatedFixExecutor:
             "target_host": request.target_host,
             "requested_by": request.requested_by,
             "approved_by": request.approved_by,
-            "executed_at": (
-                request.executed_at.isoformat() if request.executed_at else None
-            ),
-            "completed_at": (
-                request.completed_at.isoformat() if request.completed_at else None
-            ),
+            "executed_at": (request.executed_at.isoformat() if request.executed_at else None),
+            "completed_at": (request.completed_at.isoformat() if request.completed_at else None),
             "exit_code": request.exit_code,
             "rollback_available": request.rollback_available,
         }
@@ -507,9 +476,7 @@ class SecureAutomatedFixExecutor:
                 "target_host": req.target_host,
                 "requested_by": req.requested_by,
                 "justification": req.justification,
-                "requested_at": self.pending_approvals.get(req.request_id, {}).get(
-                    "requested_at"
-                ),
+                "requested_at": self.pending_approvals.get(req.request_id, {}).get("requested_at"),
             }
             for req in pending
         ]

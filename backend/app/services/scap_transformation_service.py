@@ -47,9 +47,7 @@ class SCAPTransformationService:
 
     def transform_rules(self, parsed_scap: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Transform parsed SCAP rules to OpenWatch format"""
-        logger.info(
-            f"Starting transformation of {len(parsed_scap['rules'])} SCAP rules"
-        )
+        logger.info(f"Starting transformation of {len(parsed_scap['rules'])} SCAP rules")
 
         transformed_rules = []
         file_info = {
@@ -65,12 +63,8 @@ class SCAPTransformationService:
                     transformed_rules.append(transformed)
                     self.transformed_count += 1
             except Exception as e:
-                logger.error(
-                    f"Failed to transform rule {rule.get('scap_rule_id')}: {str(e)}"
-                )
-                self.errors.append(
-                    {"rule_id": rule.get("scap_rule_id"), "error": str(e)}
-                )
+                logger.error(f"Failed to transform rule {rule.get('scap_rule_id')}: {str(e)}")
+                self.errors.append({"rule_id": rule.get("scap_rule_id"), "error": str(e)})
 
         logger.info(f"Successfully transformed {len(transformed_rules)} rules")
         return transformed_rules
@@ -92,14 +86,10 @@ class SCAPTransformationService:
             "abstract": False,
             "severity": self._normalize_severity(scap_rule.get("severity")),
             "category": scap_rule.get("category", "system"),
-            "security_function": scap_rule.get(
-                "security_function", "system_configuration"
-            ),
+            "security_function": scap_rule.get("security_function", "system_configuration"),
             "tags": scap_rule.get("tags", []),
             "frameworks": self._transform_frameworks(scap_rule.get("frameworks", {})),
-            "platform_implementations": self._generate_platform_implementations(
-                scap_rule
-            ),
+            "platform_implementations": self._generate_platform_implementations(scap_rule),
             "check_type": self._determine_check_type(scap_rule),
             "check_content": self._transform_check_content(scap_rule.get("check", {})),
             "fix_available": scap_rule.get("fix", {}).get("available", False),
@@ -202,9 +192,7 @@ class SCAPTransformationService:
                 platform_name, versions = platform_info
 
                 # Generate implementation based on rule content
-                impl = self._generate_platform_implementation(
-                    platform_name, versions, scap_rule
-                )
+                impl = self._generate_platform_implementation(platform_name, versions, scap_rule)
 
                 if impl:
                     implementations[platform_name] = impl
@@ -215,9 +203,7 @@ class SCAPTransformationService:
 
         return implementations
 
-    def _detect_platforms_from_content(
-        self, scap_rule: Dict[str, Any]
-    ) -> Dict[str, List[str]]:
+    def _detect_platforms_from_content(self, scap_rule: Dict[str, Any]) -> Dict[str, List[str]]:
         """Detect platforms from rule content"""
         platforms = {}
 
@@ -242,9 +228,7 @@ class SCAPTransformationService:
                     # Try to extract version
                     version_pattern = self.VERSION_PATTERNS.get(platform)
                     if version_pattern:
-                        version_matches = re.findall(
-                            version_pattern, combined_text, re.IGNORECASE
-                        )
+                        version_matches = re.findall(version_pattern, combined_text, re.IGNORECASE)
                         versions = [v for v in version_matches if v]
                     else:
                         versions = []
@@ -358,7 +342,9 @@ class SCAPTransformationService:
         else:
             # Determine from content
             content = scap_rule.get("metadata", {})
-            combined_text = f"{content.get('title') or ''} {content.get('description') or ''}".lower()
+            combined_text = (
+                f"{content.get('title') or ''} {content.get('description') or ''}".lower()
+            )
 
             if "file" in combined_text or "config" in combined_text:
                 return "file"
@@ -434,9 +420,7 @@ class SCAPTransformationService:
 
         return fix_content if fix_content else None
 
-    def _generate_check_command(
-        self, platform: str, scap_rule: Dict[str, Any]
-    ) -> Optional[str]:
+    def _generate_check_command(self, platform: str, scap_rule: Dict[str, Any]) -> Optional[str]:
         """Generate check command for platform"""
         # This would contain platform-specific logic
         # For now, return a generic placeholder
@@ -458,7 +442,9 @@ class SCAPTransformationService:
         """Determine check method from rule content"""
         rule_id = scap_rule.get("scap_rule_id") or ""
         metadata = scap_rule.get("metadata", {})
-        combined_text = f"{rule_id} {metadata.get('title') or ''} {metadata.get('description') or ''}".lower()
+        combined_text = (
+            f"{rule_id} {metadata.get('title') or ''} {metadata.get('description') or ''}".lower()
+        )
 
         if "file" in combined_text or "config" in combined_text:
             return "file"
@@ -490,9 +476,7 @@ class SCAPTransformationService:
 
         # Search in all text content
         metadata = scap_rule.get("metadata", {})
-        text_content = (
-            f"{metadata.get('description', '')} {metadata.get('rationale', '')}"
-        )
+        text_content = f"{metadata.get('description', '')} {metadata.get('rationale', '')}"
 
         for pattern in file_patterns:
             matches = re.findall(pattern, text_content)
@@ -501,9 +485,7 @@ class SCAPTransformationService:
         # Remove duplicates and sort
         return sorted(list(set(config_files)))
 
-    def _generate_enable_command(
-        self, platform: str, scap_rule: Dict[str, Any]
-    ) -> Optional[str]:
+    def _generate_enable_command(self, platform: str, scap_rule: Dict[str, Any]) -> Optional[str]:
         """Generate enable/fix command for platform"""
         # This would contain remediation logic
         return "# Platform-specific remediation command needed"
@@ -532,7 +514,9 @@ class SCAPTransformationService:
         ]
 
         metadata = scap_rule.get("metadata", {})
-        text_content = f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
+        text_content = (
+            f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
+        )
 
         for pattern in service_patterns:
             if pattern in text_content:
@@ -556,7 +540,9 @@ class SCAPTransformationService:
 
         # Assess based on content
         metadata = scap_rule.get("metadata", {})
-        combined_text = f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
+        combined_text = (
+            f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
+        )
 
         if "kernel" in combined_text or "reboot" in combined_text:
             return "high"
@@ -595,6 +581,4 @@ class SCAPTransformationService:
             "info": f"Informational {category} check for compliance visibility",
         }
 
-        return justifications.get(
-            severity, f"Standard {category} security configuration"
-        )
+        return justifications.get(severity, f"Standard {category} security configuration")

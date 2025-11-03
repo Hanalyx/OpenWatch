@@ -182,36 +182,24 @@ class ContinuousComplianceMonitor(Document):
     name: str = Field(..., description="Monitor name")
 
     # Monitoring scope
-    host_group_ids: List[str] = Field(
-        default_factory=list, description="Host groups to monitor"
-    )
-    host_ids: List[str] = Field(
-        default_factory=list, description="Specific hosts to monitor"
-    )
+    host_group_ids: List[str] = Field(default_factory=list, description="Host groups to monitor")
+    host_ids: List[str] = Field(default_factory=list, description="Specific hosts to monitor")
     rule_ids: List[str] = Field(..., description="Rules to monitor for compliance")
     framework: Optional[str] = None
 
     # Monitoring schedule
-    scan_frequency_hours: int = Field(
-        default=24, ge=1, le=168, description="How often to scan"
-    )
+    scan_frequency_hours: int = Field(default=24, ge=1, le=168, description="How often to scan")
     verification_delay_minutes: int = Field(
         default=30, ge=1, le=1440, description="Wait time after remediation"
     )
 
     # Actions on non-compliance
-    auto_remediate: bool = Field(
-        default=False, description="Automatically trigger remediation"
-    )
+    auto_remediate: bool = Field(default=False, description="Automatically trigger remediation")
     remediation_plugin_preferences: Dict[str, str] = Field(default_factory=dict)
-    max_auto_remediations: int = Field(
-        default=3, description="Max automatic remediation attempts"
-    )
+    max_auto_remediations: int = Field(default=3, description="Max automatic remediation attempts")
 
     # Notification settings
-    notify_on_drift: bool = Field(
-        default=True, description="Notify when compliance drifts"
-    )
+    notify_on_drift: bool = Field(default=True, description="Notify when compliance drifts")
     notification_channels: List[str] = Field(default_factory=list)
 
     # Status
@@ -342,18 +330,14 @@ class PostRemediationVerificationService:
 
         return verification
 
-    async def get_verification_job(
-        self, verification_id: str
-    ) -> Optional[VerificationJob]:
+    async def get_verification_job(self, verification_id: str) -> Optional[VerificationJob]:
         """Get verification job by ID"""
         # Check active verifications first
         if verification_id in self.active_verifications:
             return self.active_verifications[verification_id]
 
         # Query database
-        return await VerificationJob.find_one(
-            VerificationJob.verification_id == verification_id
-        )
+        return await VerificationJob.find_one(VerificationJob.verification_id == verification_id)
 
     async def list_verification_jobs(
         self,
@@ -437,9 +421,7 @@ class PostRemediationVerificationService:
         await monitor.save()
         self.continuous_monitors[monitor.monitor_id] = monitor
 
-        logger.info(
-            f"Created continuous compliance monitor: {monitor.monitor_id} ({name})"
-        )
+        logger.info(f"Created continuous compliance monitor: {monitor.monitor_id} ({name})")
         return monitor
 
     async def get_continuous_monitor(
@@ -491,18 +473,14 @@ class PostRemediationVerificationService:
             verification.started_at = datetime.utcnow()
             await verification.save()
 
-            logger.info(
-                f"Starting verification execution: {verification.verification_id}"
-            )
+            logger.info(f"Starting verification execution: {verification.verification_id}")
 
             # Get pre-remediation scan results
             bulk_job = await self.bulk_remediation_service.get_bulk_job_status(
                 verification.bulk_job_id
             )
             if not bulk_job:
-                raise ValueError(
-                    f"Bulk remediation job not found: {verification.bulk_job_id}"
-                )
+                raise ValueError(f"Bulk remediation job not found: {verification.bulk_job_id}")
 
             # Execute post-remediation scans for each host
             host_results = []
@@ -736,15 +714,11 @@ class PostRemediationVerificationService:
             try:
                 await self._execute_continuous_monitor(monitor)
             except Exception as e:
-                logger.error(
-                    f"Continuous monitor execution failed: {monitor.monitor_id}: {e}"
-                )
+                logger.error(f"Continuous monitor execution failed: {monitor.monitor_id}: {e}")
 
     async def _execute_continuous_monitor(self, monitor: ContinuousComplianceMonitor):
         """Execute a continuous compliance monitor"""
-        logger.info(
-            f"Executing continuous monitor: {monitor.monitor_id} ({monitor.name})"
-        )
+        logger.info(f"Executing continuous monitor: {monitor.monitor_id} ({monitor.name})")
 
         # Get target hosts
         target_hosts = []
@@ -771,9 +745,7 @@ class PostRemediationVerificationService:
         # Update monitor statistics
         monitor.total_scans += 1
         monitor.last_scan_at = datetime.utcnow()
-        monitor.next_scan_at = datetime.utcnow() + timedelta(
-            hours=monitor.scan_frequency_hours
-        )
+        monitor.next_scan_at = datetime.utcnow() + timedelta(hours=monitor.scan_frequency_hours)
 
         # Check for compliance drift
         drift_detected = False
@@ -789,14 +761,9 @@ class PostRemediationVerificationService:
             monitor.drift_detections += 1
 
             # Trigger auto-remediation if enabled
-            if (
-                monitor.auto_remediate
-                and monitor.auto_remediations < monitor.max_auto_remediations
-            ):
+            if monitor.auto_remediate and monitor.auto_remediations < monitor.max_auto_remediations:
 
-                logger.info(
-                    f"Triggering auto-remediation for monitor: {monitor.monitor_id}"
-                )
+                logger.info(f"Triggering auto-remediation for monitor: {monitor.monitor_id}")
 
                 # Would trigger remediation job here
                 # await self._trigger_auto_remediation(monitor, verification)
@@ -828,15 +795,13 @@ class PostRemediationVerificationService:
 
         avg_success_rate = 0.0
         if completed_verifications:
-            avg_success_rate = sum(
-                v.overall_success_rate for v in completed_verifications
-            ) / len(completed_verifications)
+            avg_success_rate = sum(v.overall_success_rate for v in completed_verifications) / len(
+                completed_verifications
+            )
 
         # Continuous monitoring statistics
         total_monitors = await ContinuousComplianceMonitor.count()
-        active_monitors = await ContinuousComplianceMonitor.find(
-            {"is_active": True}
-        ).count()
+        active_monitors = await ContinuousComplianceMonitor.find({"is_active": True}).count()
 
         return {
             "total_verifications": total_verifications,

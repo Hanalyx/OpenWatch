@@ -287,9 +287,7 @@ class RemediationExtractor:
             template_name = template.get("name", "")
             template_vars = template.get("vars", {})
 
-            remediation_content = self._extract_from_template(
-                template_name, template_vars
-            )
+            remediation_content = self._extract_from_template(template_name, template_vars)
             if remediation_content:
                 remediations.update(remediation_content)
 
@@ -316,9 +314,7 @@ class RemediationExtractor:
             ansible_module = self.TEMPLATE_MAPPINGS[template_name]
 
             if ansible_module:
-                ansible_task = self._generate_ansible_task(
-                    ansible_module, template_vars
-                )
+                ansible_task = self._generate_ansible_task(ansible_module, template_vars)
                 remediations["ansible"] = ansible_task
 
             bash_script = self._generate_bash_script(template_name, template_vars)
@@ -327,9 +323,7 @@ class RemediationExtractor:
 
         return remediations
 
-    def _generate_ansible_task(
-        self, module_name: str, vars_dict: Dict[str, Any]
-    ) -> str:
+    def _generate_ansible_task(self, module_name: str, vars_dict: Dict[str, Any]) -> str:
         """Generate Ansible task YAML"""
         import yaml
 
@@ -374,9 +368,7 @@ class RemediationExtractor:
 
         return params
 
-    def _generate_bash_script(
-        self, template_name: str, vars_dict: Dict[str, Any]
-    ) -> Optional[str]:
+    def _generate_bash_script(self, template_name: str, vars_dict: Dict[str, Any]) -> Optional[str]:
         """Generate Bash script for simple remediation"""
         script_lines = ["#!/bin/bash", f"# Apply {template_name} configuration", ""]
 
@@ -385,9 +377,7 @@ class RemediationExtractor:
             sysctl_val = vars_dict.get("sysctlval")
             if sysctl_var and sysctl_val is not None:
                 script_lines.append(f"sysctl -w {sysctl_var}={sysctl_val}")
-                script_lines.append(
-                    f'echo "{sysctl_var} = {sysctl_val}" >> /etc/sysctl.conf'
-                )
+                script_lines.append(f'echo "{sysctl_var} = {sysctl_val}" >> /etc/sysctl.conf')
                 return "\n".join(script_lines)
 
         elif template_name in ["file_permissions", "file_owner", "file_groupowner"]:

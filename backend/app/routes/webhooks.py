@@ -40,9 +40,7 @@ class WebhookEndpointCreate(BaseModel):
         ]
         for event in v:
             if event not in valid_events:
-                raise ValueError(
-                    f"Invalid event type: {event}. Must be one of: {valid_events}"
-                )
+                raise ValueError(f"Invalid event type: {event}. Must be one of: {valid_events}")
         return v
 
     @validator("url")
@@ -71,9 +69,7 @@ class WebhookEndpointUpdate(BaseModel):
         ]
         for event in v:
             if event not in valid_events:
-                raise ValueError(
-                    f"Invalid event type: {event}. Must be one of: {valid_events}"
-                )
+                raise ValueError(f"Invalid event type: {event}. Must be one of: {valid_events}")
         return v
 
     @validator("url")
@@ -107,9 +103,7 @@ async def list_webhook_endpoints(
             where_conditions.append("event_types::jsonb ? :event_type")
             params["event_type"] = event_type
 
-        where_clause = (
-            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        )
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
         query = f"""
             SELECT id, name, url, event_types, is_active, created_by, created_at, updated_at
@@ -156,9 +150,7 @@ async def list_webhook_endpoints(
 
     except Exception as e:
         logger.error(f"Error listing webhook endpoints: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve webhook endpoints"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve webhook endpoints")
 
 
 @router.post("/")
@@ -254,9 +246,7 @@ async def get_webhook_endpoint(
         raise
     except Exception as e:
         logger.error(f"Error getting webhook endpoint: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve webhook endpoint"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve webhook endpoint")
 
 
 @router.put("/{webhook_id}")
@@ -313,17 +303,13 @@ async def update_webhook_endpoint(
 
         if webhook_update.secret is not None:
             updates.append(allowed_updates["secret"])
-            params["secret_hash"] = hashlib.sha256(
-                webhook_update.secret.encode()
-            ).hexdigest()
+            params["secret_hash"] = hashlib.sha256(webhook_update.secret.encode()).hexdigest()
 
         updates.append(allowed_updates["updated_at"])
 
         if updates:
             # Security Fix: Use safe string concatenation instead of f-string
-            query = (
-                "UPDATE webhook_endpoints SET " + ", ".join(updates) + " WHERE id = :id"
-            )
+            query = "UPDATE webhook_endpoints SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
 
@@ -449,9 +435,7 @@ async def get_webhook_deliveries(
                 "response_body": row.response_body,
                 "error_message": row.error_message,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "delivered_at": (
-                    row.delivered_at.isoformat() if row.delivered_at else None
-                ),
+                "delivered_at": (row.delivered_at.isoformat() if row.delivered_at else None),
             }
             deliveries.append(delivery_data)
 
@@ -474,9 +458,7 @@ async def get_webhook_deliveries(
         raise
     except Exception as e:
         logger.error(f"Error getting webhook deliveries: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve webhook deliveries"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve webhook deliveries")
 
 
 @router.post("/{webhook_id}/test")
@@ -500,9 +482,7 @@ async def test_webhook_endpoint(
         ).fetchone()
 
         if not webhook_result:
-            raise HTTPException(
-                status_code=404, detail="Webhook endpoint not found or inactive"
-            )
+            raise HTTPException(status_code=404, detail="Webhook endpoint not found or inactive")
 
         # Create test event data
         test_event = {

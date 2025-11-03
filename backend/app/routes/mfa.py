@@ -64,9 +64,7 @@ class MFAValidationRequest(BaseModel):
         code = v.strip().replace(" ", "")
         if not code:
             raise ValueError("MFA code cannot be empty")
-        if not (len(code) == 6 and code.isdigit()) and not (
-            len(code) == 8 and code.isalnum()
-        ):
+        if not (len(code) == 6 and code.isdigit()) and not (len(code) == 8 and code.isalnum()):
             raise ValueError("Invalid MFA code format")
         return code
 
@@ -153,13 +151,9 @@ async def get_mfa_status(
 
         user_data = result.fetchone()
         if not user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        backup_codes_count = (
-            len(user_data.backup_codes) if user_data.backup_codes else 0
-        )
+        backup_codes_count = len(user_data.backup_codes) if user_data.backup_codes else 0
 
         return MFAStatusResponse(
             mfa_enabled=bool(user_data.mfa_enabled),
@@ -207,9 +201,7 @@ async def enroll_mfa(
 
         user_data = result.fetchone()
         if not user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(request.verify_password, user_data.hashed_password):
             await log_mfa_action(
@@ -221,9 +213,7 @@ async def enroll_mfa(
                 user_agent,
                 details={"reason": "invalid_password"},
             )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
 
         if user_data.mfa_enabled:
             raise HTTPException(
@@ -254,8 +244,7 @@ async def enroll_mfa(
 
         # Hash backup codes for storage
         hashed_backup_codes = [
-            mfa_service.hash_backup_code(code)
-            for code in enrollment_result.backup_codes
+            mfa_service.hash_backup_code(code) for code in enrollment_result.backup_codes
         ]
 
         # Update user record
@@ -377,9 +366,7 @@ async def validate_mfa_code(
                 code_hash = hashlib.sha256(
                     f"{request.code}_{int(datetime.now().timestamp() // 30)}".encode()
                 ).hexdigest()
-                used_code = MFAUsedCodes(
-                    user_id=current_user["id"], code_hash=code_hash
-                )
+                used_code = MFAUsedCodes(user_id=current_user["id"], code_hash=code_hash)
                 db.add(used_code)
 
             # Remove used backup code if applicable
@@ -423,9 +410,7 @@ async def validate_mfa_code(
                 details={"error": validation_result.error_message},
             )
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid MFA code"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid MFA code")
 
     except HTTPException:
         raise
@@ -583,15 +568,11 @@ async def regenerate_backup_codes(
                 user_agent,
                 details={"reason": "invalid_mfa_code"},
             )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid MFA code"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid MFA code")
 
         # Generate new backup codes
         new_backup_codes = mfa_service.regenerate_backup_codes(current_user["username"])
-        hashed_backup_codes = [
-            mfa_service.hash_backup_code(code) for code in new_backup_codes
-        ]
+        hashed_backup_codes = [mfa_service.hash_backup_code(code) for code in new_backup_codes]
 
         # Update database
         db.execute(
@@ -617,16 +598,12 @@ async def regenerate_backup_codes(
             method="backup_codes",
         )
 
-        return BackupCodesRegenerateResponse(
-            success=True, backup_codes=new_backup_codes
-        )
+        return BackupCodesRegenerateResponse(success=True, backup_codes=new_backup_codes)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Backup code regeneration failed for user {current_user['id']}: {e}"
-        )
+        logger.error(f"Backup code regeneration failed for user {current_user['id']}: {e}")
         await log_mfa_action(
             db,
             current_user["id"],
@@ -675,9 +652,7 @@ async def disable_mfa(
 
         user_data = result.fetchone()
         if not user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(request.verify_password, user_data.hashed_password):
             await log_mfa_action(
@@ -689,9 +664,7 @@ async def disable_mfa(
                 user_agent,
                 details={"reason": "invalid_password"},
             )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
 
         if not user_data.mfa_enabled:
             raise HTTPException(
@@ -725,9 +698,7 @@ async def disable_mfa(
 
         db.commit()
 
-        await log_mfa_action(
-            db, current_user["id"], "disable", True, client_ip, user_agent
-        )
+        await log_mfa_action(db, current_user["id"], "disable", True, client_ip, user_agent)
 
         return {"success": True, "message": "MFA disabled successfully"}
 

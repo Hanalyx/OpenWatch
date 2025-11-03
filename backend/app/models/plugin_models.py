@@ -98,9 +98,7 @@ class PluginManifest(BaseModel):
     license: str = Field(..., min_length=3, max_length=50)
 
     # Compatibility
-    openwatch_version: str = Field(
-        ..., description="Compatible OpenWatch version (e.g., >=2.0.0)"
-    )
+    openwatch_version: str = Field(..., description="Compatible OpenWatch version (e.g., >=2.0.0)")
     platforms: List[str] = Field(..., min_items=1)
 
     # Capabilities and requirements
@@ -182,9 +180,7 @@ class PluginPackage(BaseModel):
 
         # Hash executors
         hasher.update(
-            json.dumps(
-                {k: v.dict() for k, v in self.executors.items()}, sort_keys=True
-            ).encode()
+            json.dumps({k: v.dict() for k, v in self.executors.items()}, sort_keys=True).encode()
         )
 
         # Hash files in deterministic order
@@ -207,15 +203,11 @@ class InstalledPlugin(Document):
     """Installed plugin registry with full tracking"""
 
     # Identity
-    plugin_id: Indexed(str) = Field(
-        ..., unique=True, description="Unique plugin identifier"
-    )
+    plugin_id: Indexed(str) = Field(..., unique=True, description="Unique plugin identifier")
     manifest: PluginManifest
 
     # Source tracking
-    source_url: Optional[str] = Field(
-        None, description="Where plugin was downloaded from"
-    )
+    source_url: Optional[str] = Field(None, description="Where plugin was downloaded from")
     source_hash: str = Field(..., description="Hash of original package")
 
     # Import metadata
@@ -247,9 +239,7 @@ class InstalledPlugin(Document):
     execution_history: List[Dict[str, Any]] = Field(default_factory=list, max_items=100)
 
     # Versioning
-    previous_versions: List[str] = Field(
-        default_factory=list, description="Previous version IDs"
-    )
+    previous_versions: List[str] = Field(default_factory=list, description="Previous version IDs")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
@@ -277,10 +267,7 @@ class InstalledPlugin(Document):
 
     def is_active(self) -> bool:
         """Check if plugin is active and ready for use"""
-        return (
-            self.status == PluginStatus.ACTIVE
-            and self.trust_level != PluginTrustLevel.UNTRUSTED
-        )
+        return self.status == PluginStatus.ACTIVE and self.trust_level != PluginTrustLevel.UNTRUSTED
 
     def get_risk_score(self) -> int:
         """Calculate risk score based on security checks (0-100)"""
@@ -288,14 +275,10 @@ class InstalledPlugin(Document):
             return 100  # Maximum risk if not checked
 
         critical_failures = sum(
-            1
-            for check in self.security_checks
-            if not check.passed and check.severity == "critical"
+            1 for check in self.security_checks if not check.passed and check.severity == "critical"
         )
         high_failures = sum(
-            1
-            for check in self.security_checks
-            if not check.passed and check.severity == "high"
+            1 for check in self.security_checks if not check.passed and check.severity == "high"
         )
 
         # Risk calculation
@@ -307,9 +290,7 @@ class PluginAssociation(BaseModel):
     """Associate plugin with compliance rule"""
 
     plugin_id: str
-    plugin_version: str = Field(
-        ..., pattern="^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9]+)?$"
-    )
+    plugin_version: str = Field(..., pattern="^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9]+)?$")
     priority: int = Field(default=0, ge=0, le=100)
 
     # Platform-specific configuration

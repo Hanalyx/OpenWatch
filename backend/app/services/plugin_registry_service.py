@@ -298,9 +298,7 @@ class PluginRegistryService:
             # Count by status
             status_counts = {}
             for status in PluginStatus:
-                count = await InstalledPlugin.find(
-                    InstalledPlugin.status == status
-                ).count()
+                count = await InstalledPlugin.find(InstalledPlugin.status == status).count()
                 status_counts[status.value] = count
 
             # Count by trust level
@@ -323,9 +321,7 @@ class PluginRegistryService:
             total_usage = 0
             most_used_plugins = []
 
-            async for plugin in (
-                InstalledPlugin.find().sort(-InstalledPlugin.usage_count).limit(10)
-            ):
+            async for plugin in InstalledPlugin.find().sort(-InstalledPlugin.usage_count).limit(10):
                 total_usage += plugin.usage_count
                 most_used_plugins.append(
                     {
@@ -337,10 +333,7 @@ class PluginRegistryService:
 
             # Recent activity
             recent_imports = (
-                await InstalledPlugin.find()
-                .sort(-InstalledPlugin.imported_at)
-                .limit(5)
-                .to_list()
+                await InstalledPlugin.find().sort(-InstalledPlugin.imported_at).limit(5).to_list()
             )
 
             return {
@@ -399,9 +392,7 @@ class PluginRegistryService:
                             "plugin_id": plugin.plugin_id,
                             "name": plugin.manifest.name,
                             "imported_at": plugin.imported_at.isoformat(),
-                            "size_mb": await self._get_plugin_storage_size(
-                                plugin.plugin_id
-                            ),
+                            "size_mb": await self._get_plugin_storage_size(plugin.plugin_id),
                         }
                     )
 
@@ -426,9 +417,7 @@ class PluginRegistryService:
                         cleaned_up.append(candidate)
                         total_size_freed += candidate["size_mb"]
                 except Exception as e:
-                    logger.error(
-                        f"Failed to cleanup plugin {candidate['plugin_id']}: {e}"
-                    )
+                    logger.error(f"Failed to cleanup plugin {candidate['plugin_id']}: {e}")
 
             return {
                 "dry_run": False,
@@ -442,14 +431,10 @@ class PluginRegistryService:
             logger.error(f"Plugin cleanup failed: {e}")
             return {"error": str(e)}
 
-    async def _validate_plugin_registration(
-        self, plugin: InstalledPlugin
-    ) -> Dict[str, Any]:
+    async def _validate_plugin_registration(self, plugin: InstalledPlugin) -> Dict[str, Any]:
         """Validate plugin before registration"""
         # Check for duplicate plugin ID
-        existing = await InstalledPlugin.find_one(
-            InstalledPlugin.plugin_id == plugin.plugin_id
-        )
+        existing = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin.plugin_id)
         if existing:
             return {
                 "valid": False,

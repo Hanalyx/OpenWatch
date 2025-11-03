@@ -91,21 +91,15 @@ class RuleResult(BaseModel):
     title: str
     severity: str
     status: RuleResultStatus
-    message: Optional[str] = Field(
-        default=None, description="Human-readable result message"
-    )
+    message: Optional[str] = Field(default=None, description="Human-readable result message")
     scanner_output: Optional[str] = Field(
         default=None, description="Raw scanner output for this rule"
     )
-    scanner_type: str = Field(
-        default="oscap", description="Scanner that executed this rule"
-    )
+    scanner_type: str = Field(default="oscap", description="Scanner that executed this rule")
     variables_applied: Optional[Dict[str, str]] = Field(
         default=None, description="Variable values used for this check"
     )
-    check_time: Optional[float] = Field(
-        default=None, description="Execution time in seconds"
-    )
+    check_time: Optional[float] = Field(default=None, description="Execution time in seconds")
     frameworks: Optional[Dict[str, Any]] = Field(
         default=None, description="Framework mappings for this rule"
     )
@@ -150,9 +144,7 @@ class ScanResult(Document):
 
     # Scan identification
     scan_id: str = Field(description="Unique scan identifier (UUID)")
-    scan_name: Optional[str] = Field(
-        default=None, description="Human-readable scan name"
-    )
+    scan_name: Optional[str] = Field(default=None, description="Human-readable scan name")
 
     # Scan configuration
     config: ScanConfiguration
@@ -183,12 +175,8 @@ class ScanResult(Document):
     )
 
     # Error tracking
-    errors: List[str] = Field(
-        default_factory=list, description="Error messages if scan failed"
-    )
-    warnings: List[str] = Field(
-        default_factory=list, description="Non-fatal warnings during scan"
-    )
+    errors: List[str] = Field(default_factory=list, description="Error messages if scan failed")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings during scan")
 
     # Raw outputs (optional, for debugging)
     raw_outputs: Optional[Dict[str, str]] = Field(

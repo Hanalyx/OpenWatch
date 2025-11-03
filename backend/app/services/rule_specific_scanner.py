@@ -54,9 +54,7 @@ class RuleSpecificScanner:
             # Security Fix: Sanitize host_id to prevent path injection
             sanitized_host_id = self._sanitize_identifier(host_id)
             scan_id = f"rule_scan_{sanitized_host_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            logger.info(
-                f"Starting rule-specific scan {scan_id} for {len(rule_ids)} rules"
-            )
+            logger.info(f"Starting rule-specific scan {scan_id} for {len(rule_ids)} rules")
 
             # Create scan results structure
             results = {
@@ -251,9 +249,7 @@ class RuleSpecificScanner:
                         {
                             "rule_id": rule_result["rule_id"],
                             "title": rule_result["title"],
-                            "error": rule_result.get(
-                                "error", "Remediation not effective"
-                            ),
+                            "error": rule_result.get("error", "Remediation not effective"),
                         }
                     )
 
@@ -573,16 +569,11 @@ class RuleSpecificScanner:
 
                 if mapping.related_controls:
                     guidance["references"].extend(
-                        [
-                            f"{mapping.framework.value}: {ctrl}"
-                            for ctrl in mapping.related_controls
-                        ]
+                        [f"{mapping.framework.value}: {ctrl}" for ctrl in mapping.related_controls]
                     )
 
             # Remove duplicates
-            guidance["assessment_objectives"] = list(
-                set(guidance["assessment_objectives"])
-            )
+            guidance["assessment_objectives"] = list(set(guidance["assessment_objectives"]))
             guidance["references"] = list(set(guidance["references"]))
 
             return guidance

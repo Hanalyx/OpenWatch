@@ -94,9 +94,7 @@ class SCAPParserService:
                 raise ValueError("No Benchmark element found in SCAP file")
 
             # Extract benchmark metadata
-            result["metadata"]["benchmark"] = self._extract_benchmark_metadata(
-                benchmark
-            )
+            result["metadata"]["benchmark"] = self._extract_benchmark_metadata(benchmark)
 
             # Parse all rules
             rules = self._parse_all_rules(benchmark)
@@ -114,9 +112,7 @@ class SCAPParserService:
 
         except Exception as e:
             logger.error(f"Failed to parse SCAP file: {str(e)}")
-            result["errors"].append(
-                {"type": "parse_error", "message": str(e), "file": file_path}
-            )
+            result["errors"].append({"type": "parse_error", "message": str(e), "file": file_path})
 
         return result
 
@@ -173,9 +169,7 @@ class SCAPParserService:
             "id": benchmark.get("id", "unknown"),
             "resolved": benchmark.get("resolved", "false"),
             "style": benchmark.get("style"),
-            "lang": benchmark.get(
-                "{http://www.w3.org/XML/1998/namespace}lang", "en-US"
-            ),
+            "lang": benchmark.get("{http://www.w3.org/XML/1998/namespace}lang", "en-US"),
         }
 
         # Extract title
@@ -497,9 +491,7 @@ class SCAPParserService:
 
         return list(set(tags))
 
-    def _map_to_frameworks(
-        self, rule_elem: ET.Element
-    ) -> Dict[str, Dict[str, List[str]]]:
+    def _map_to_frameworks(self, rule_elem: ET.Element) -> Dict[str, Dict[str, List[str]]]:
         """Map references to framework versions"""
         frameworks = {
             "nist": {},
@@ -644,15 +636,11 @@ class SCAPParserService:
         for rule in rules:
             # Severity stats
             severity = rule.get("severity", "unknown")
-            stats["rules_by_severity"][severity] = (
-                stats["rules_by_severity"].get(severity, 0) + 1
-            )
+            stats["rules_by_severity"][severity] = stats["rules_by_severity"].get(severity, 0) + 1
 
             # Category stats
             category = rule.get("category", "unknown")
-            stats["rules_by_category"][category] = (
-                stats["rules_by_category"].get(category, 0) + 1
-            )
+            stats["rules_by_category"][category] = stats["rules_by_category"].get(category, 0) + 1
 
             # Framework coverage
             for framework, versions in rule.get("frameworks", {}).items():
@@ -664,10 +652,7 @@ class SCAPParserService:
                 stats["framework_coverage"][framework]["total_rules"] += 1
 
                 for version in versions:
-                    if (
-                        version
-                        not in stats["framework_coverage"][framework]["versions"]
-                    ):
+                    if version not in stats["framework_coverage"][framework]["versions"]:
                         stats["framework_coverage"][framework]["versions"][version] = 0
                     stats["framework_coverage"][framework]["versions"][version] += 1
 

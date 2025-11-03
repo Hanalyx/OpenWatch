@@ -112,13 +112,9 @@ class UnifiedValidationService:
 
                 if not privilege_result["success"]:
                     if privilege_result["severity"] == "error":
-                        errors.append(
-                            self._create_privilege_error(privilege_result["error"])
-                        )
+                        errors.append(self._create_privilege_error(privilege_result["error"]))
                     else:
-                        warnings.append(
-                            self._create_privilege_warning(privilege_result["error"])
-                        )
+                        warnings.append(self._create_privilege_warning(privilege_result["error"]))
 
             # Step 5: System resources check (map to "resources" for frontend compatibility)
             if validation_checks.get("authentication", False):
@@ -128,9 +124,7 @@ class UnifiedValidationService:
                 validation_checks["resources"] = resource_result["success"]
 
                 if not resource_result["success"]:
-                    warnings.append(
-                        self._create_resource_warning(resource_result["error"])
-                    )
+                    warnings.append(self._create_resource_warning(resource_result["error"]))
 
             # Step 6: OpenSCAP dependencies check (map to "dependencies" for frontend compatibility)
             if validation_checks.get("authentication", False):
@@ -140,9 +134,7 @@ class UnifiedValidationService:
                 validation_checks["dependencies"] = scap_result["success"]
 
                 if not scap_result["success"]:
-                    warnings.append(
-                        self._create_dependency_warning(scap_result["error"])
-                    )
+                    warnings.append(self._create_dependency_warning(scap_result["error"]))
 
         except Exception as e:
             logger.error(f"Unexpected error during validation: {e}", exc_info=True)
@@ -163,9 +155,7 @@ class UnifiedValidationService:
         )
 
         # Create sanitized response for frontend
-        sanitized_response = await self._sanitize_validation_result(
-            internal_result, current_user
-        )
+        sanitized_response = await self._sanitize_validation_result(internal_result, current_user)
 
         logger.info(
             f"Validation completed for host {request.host_id}: "
@@ -219,9 +209,7 @@ class UnifiedValidationService:
                 port=port,
                 username=credential_data.username,
                 auth_method=credential_data.auth_method.value,
-                credential=credential_data.private_key
-                or credential_data.password
-                or "",
+                credential=credential_data.private_key or credential_data.password or "",
             )
 
             return {

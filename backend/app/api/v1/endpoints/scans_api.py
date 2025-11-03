@@ -136,11 +136,7 @@ async def list_scans(
 
         # Regular users can only see their own scans
         # Admins can see all scans
-        started_by = (
-            None
-            if current_user.get("role") == "admin"
-            else current_user.get("username")
-        )
+        started_by = None if current_user.get("role") == "admin" else current_user.get("username")
 
         scans = await orchestrator.list_scans(
             skip=skip, limit=limit, status=status, started_by=started_by
@@ -174,10 +170,7 @@ async def delete_scan(
             raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
 
         # Check permissions
-        if (
-            scan.started_by != current_user.get("username")
-            and current_user.get("role") != "admin"
-        ):
+        if scan.started_by != current_user.get("username") and current_user.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Permission denied")
 
         await scan.delete()
@@ -211,9 +204,7 @@ async def get_scan_statistics(
         from datetime import datetime, timedelta, timezone
 
         # Build aggregation pipeline
-        match_stage = {
-            "started_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=days)}
-        }
+        match_stage = {"started_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=days)}}
 
         if framework:
             match_stage["config.framework"] = framework
@@ -234,9 +225,7 @@ async def get_scan_statistics(
                     "completed_scans": {
                         "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
                     },
-                    "failed_scans": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}
-                    },
+                    "failed_scans": {"$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}},
                     "avg_compliance": {"$avg": "$summary.compliance_percentage"},
                     "total_rules_checked": {"$sum": "$summary.total_rules"},
                     "total_passed": {"$sum": "$summary.passed"},

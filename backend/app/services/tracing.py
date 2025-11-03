@@ -150,9 +150,7 @@ class TracingConfig:
     def instrument_sqlalchemy(self, engine):
         """Instrument SQLAlchemy for database tracing"""
         try:
-            SQLAlchemyInstrumentor().instrument(
-                engine=engine, tracer_provider=self.tracer_provider
-            )
+            SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=self.tracer_provider)
             logger.info("SQLAlchemy instrumentation enabled")
         except Exception as e:
             logger.error(f"SQLAlchemy instrumentation failed: {e}")
@@ -253,9 +251,7 @@ class SecureOpsTracer:
         if span and error:
             span.set_status(trace.Status(trace.StatusCode.ERROR))
             span.record_exception(error)
-            span.set_attributes(
-                {"error.type": type(error).__name__, "error.message": str(error)}
-            )
+            span.set_attributes({"error.type": type(error).__name__, "error.message": str(error)})
 
 
 # Global tracing configuration

@@ -26,21 +26,11 @@ router = APIRouter(prefix="/system/adaptive-scheduler", tags=["Adaptive Schedule
 class IntervalConfig(BaseModel):
     """Check intervals for each host state (in minutes)"""
 
-    unknown: int = Field(
-        default=0, ge=0, le=60, description="Immediate checks for new hosts"
-    )
-    online: int = Field(
-        default=15, ge=5, le=60, description="Healthy hosts check interval"
-    )
-    degraded: int = Field(
-        default=5, ge=1, le=15, description="Partial connectivity check interval"
-    )
-    critical: int = Field(
-        default=2, ge=1, le=10, description="Severe issues check interval"
-    )
-    down: int = Field(
-        default=30, ge=10, le=120, description="Completely down check interval"
-    )
+    unknown: int = Field(default=0, ge=0, le=60, description="Immediate checks for new hosts")
+    online: int = Field(default=15, ge=5, le=60, description="Healthy hosts check interval")
+    degraded: int = Field(default=5, ge=1, le=15, description="Partial connectivity check interval")
+    critical: int = Field(default=2, ge=1, le=10, description="Severe issues check interval")
+    down: int = Field(default=30, ge=10, le=120, description="Completely down check interval")
     maintenance: int = Field(
         default=60, ge=15, le=1440, description="Maintenance mode check interval"
     )
@@ -117,9 +107,7 @@ async def get_scheduler_config(
 
     except Exception as e:
         logger.error(f"Error getting scheduler config: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve scheduler configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve scheduler configuration")
 
 
 @router.put("/config", response_model=SchedulerConfigResponse)
@@ -173,9 +161,7 @@ async def update_scheduler_config(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating scheduler config: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to update scheduler configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to update scheduler configuration")
 
 
 @router.post("/start")
@@ -195,9 +181,7 @@ async def start_scheduler(
         user_id = current_user.get("id")
 
         # Enable scheduler
-        config = adaptive_scheduler_service.update_config(
-            db, enabled=True, user_id=user_id
-        )
+        config = adaptive_scheduler_service.update_config(db, enabled=True, user_id=user_id)
 
         logger.info(f"Adaptive scheduler started by user {user_id}")
 
@@ -228,9 +212,7 @@ async def stop_scheduler(
         user_id = current_user.get("id")
 
         # Disable scheduler
-        config = adaptive_scheduler_service.update_config(
-            db, enabled=False, user_id=user_id
-        )
+        config = adaptive_scheduler_service.update_config(db, enabled=False, user_id=user_id)
 
         logger.info(f"Adaptive scheduler stopped by user {user_id}")
 
@@ -272,9 +254,7 @@ async def get_scheduler_stats(
 
     except Exception as e:
         logger.error(f"Error getting scheduler stats: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve scheduler statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve scheduler statistics")
 
 
 @router.post("/reset-defaults")
@@ -327,6 +307,4 @@ async def reset_to_defaults(
 
     except Exception as e:
         logger.error(f"Error resetting scheduler: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to reset scheduler configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to reset scheduler configuration")

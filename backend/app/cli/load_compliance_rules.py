@@ -21,9 +21,7 @@ from ..models.mongo_models import ComplianceRule, mongo_manager
 from ..services.mongo_integration_service import MongoIntegrationService
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -163,9 +161,7 @@ class ComplianceRulesLoader:
 
         # Transform platform implementations
         platform_impls = {}
-        for platform, impl_data in rule_data.get(
-            "platform_implementations", {}
-        ).items():
+        for platform, impl_data in rule_data.get("platform_implementations", {}).items():
             from ..models.mongo_models import PlatformImplementation
 
             platform_impls[platform] = PlatformImplementation(**impl_data)
@@ -285,17 +281,11 @@ class ComplianceRulesLoader:
 
             # Get category breakdown
             category_pipeline = [
-                {
-                    "$match": {
-                        f"platform_implementations.{platform_key}": {"$exists": True}
-                    }
-                },
+                {"$match": {f"platform_implementations.{platform_key}": {"$exists": True}}},
                 {"$group": {"_id": "$category", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
             ]
-            category_results = await ComplianceRule.aggregate(
-                category_pipeline
-            ).to_list()
+            category_results = await ComplianceRule.aggregate(category_pipeline).to_list()
 
             # Calculate percentages
             categories = []
@@ -304,9 +294,7 @@ class ComplianceRulesLoader:
                     {
                         "name": cat_result["_id"].replace("_", " ").title(),
                         "count": cat_result["count"],
-                        "percentage": round(
-                            (cat_result["count"] / rule_count) * 100, 1
-                        ),
+                        "percentage": round((cat_result["count"] / rule_count) * 100, 1),
                     }
                 )
 
@@ -350,9 +338,7 @@ class ComplianceRulesLoader:
 async def main():
     """Main CLI interface"""
     parser = argparse.ArgumentParser(description="OpenWatch Compliance Rules Loader")
-    parser.add_argument(
-        "command", choices=["load", "validate", "stats"], help="Command to execute"
-    )
+    parser.add_argument("command", choices=["load", "validate", "stats"], help="Command to execute")
     parser.add_argument(
         "--source",
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules",

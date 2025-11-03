@@ -90,15 +90,11 @@ async def scan_specific_rules(
             if rule["result"] == "fail"
         ]
 
-        remediation_priorities = framework_mapper.get_remediation_priorities(
-            failed_rules
-        )
+        remediation_priorities = framework_mapper.get_remediation_priorities(failed_rules)
 
         return {
             "scan_results": scan_results,
-            "remediation_recommendations": remediation_priorities[
-                :10
-            ],  # Top 10 priorities
+            "remediation_recommendations": remediation_priorities[:10],  # Top 10 priorities
             "summary": {
                 "total_scanned": scan_results["total_rules"],
                 "passed": scan_results["passed_rules"],
@@ -153,9 +149,7 @@ async def rescan_failed_rules(
 
         return {
             "scan_results": scan_results,
-            "improvement_analysis": _analyze_improvement(
-                previous_scan_id, scan_results
-            ),
+            "improvement_analysis": _analyze_improvement(previous_scan_id, scan_results),
         }
 
     except Exception as e:
@@ -194,9 +188,7 @@ async def verify_remediation(
         )
 
         # Update remediation plan status if exists
-        await _update_remediation_plan_status(
-            db, request.aegis_remediation_id, verification_report
-        )
+        await _update_remediation_plan_status(db, request.aegis_remediation_id, verification_report)
 
         return verification_report
 
@@ -266,18 +258,14 @@ async def get_rule_scan_history(
 
 
 @router.get("/rule/{rule_id}/compliance-info")
-async def get_rule_compliance_info(
-    rule_id: str, current_user: dict = Depends(get_current_user)
-):
+async def get_rule_compliance_info(rule_id: str, current_user: dict = Depends(get_current_user)):
     """Get compliance framework information for a specific rule"""
     try:
         # Get unified control information
         control = framework_mapper.get_unified_control(rule_id)
 
         if not control:
-            raise HTTPException(
-                status_code=404, detail="Rule not found in framework mappings"
-            )
+            raise HTTPException(status_code=404, detail="Rule not found in framework mappings")
 
         # Get AEGIS mapping if available
         aegis_mapping = aegis_mapper.get_aegis_mapping(rule_id)
@@ -302,12 +290,8 @@ async def get_rule_compliance_info(
             "automated_remediation": {
                 "available": control.automated_remediation,
                 "aegis_rule_id": control.aegis_rule_id,
-                "estimated_duration": (
-                    aegis_mapping.estimated_duration if aegis_mapping else None
-                ),
-                "requires_reboot": (
-                    aegis_mapping.requires_reboot if aegis_mapping else False
-                ),
+                "estimated_duration": (aegis_mapping.estimated_duration if aegis_mapping else None),
+                "requires_reboot": (aegis_mapping.requires_reboot if aegis_mapping else False),
                 "category": aegis_mapping.rule_category if aegis_mapping else None,
             },
             "tags": control.tags,
@@ -347,8 +331,7 @@ async def create_remediation_plan(
 
         if history_results:
             failed_rules = [
-                {"rule_id": row.rule_id, "severity": row.severity}
-                for row in history_results
+                {"rule_id": row.rule_id, "severity": row.severity} for row in history_results
             ]
         else:
             # Fallback to getting from scan results table if exists
@@ -377,9 +360,7 @@ async def create_remediation_plan(
                 ]
 
         if not failed_rules:
-            raise HTTPException(
-                status_code=404, detail="No failed rules found for scan"
-            )
+            raise HTTPException(status_code=404, detail="No failed rules found for scan")
 
         # Create remediation plan
         plan = aegis_mapper.create_remediation_plan(
@@ -456,9 +437,7 @@ def _store_rule_scan_results(db: Session, scan_results: dict):
             )
 
         db.commit()
-        logger.info(
-            f"Stored {len(scan_results.get('rule_results', []))} rule scan results"
-        )
+        logger.info(f"Stored {len(scan_results.get('rule_results', []))} rule scan results")
 
     except Exception as e:
         logger.error(f"Error storing rule scan results: {e}")
@@ -538,9 +517,7 @@ def _update_remediation_plan_status(
             ),
             {
                 "status": status,
-                "remediated_rules": verification_report.get(
-                    "successfully_remediated", 0
-                ),
+                "remediated_rules": verification_report.get("successfully_remediated", 0),
                 "aegis_job_id": aegis_remediation_id,
             },
         )

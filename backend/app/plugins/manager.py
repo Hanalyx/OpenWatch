@@ -45,9 +45,7 @@ class PluginManager:
     Handles plugin discovery, loading, configuration, and execution
     """
 
-    def __init__(
-        self, plugins_dir: str = "/app/plugins", config_dir: str = "/app/config/plugins"
-    ):
+    def __init__(self, plugins_dir: str = "/app/plugins", config_dir: str = "/app/config/plugins"):
         self.plugins_dir = Path(plugins_dir)
         self.config_dir = Path(config_dir)
         self.loaded_plugins: Dict[str, PluginInterface] = {}
@@ -87,9 +85,7 @@ class PluginManager:
             # Register plugin hooks
             await self._register_plugin_hooks()
 
-            logger.info(
-                f"Plugin manager initialized with {len(self.loaded_plugins)} plugins"
-            )
+            logger.info(f"Plugin manager initialized with {len(self.loaded_plugins)} plugins")
             return True
 
         except Exception as e:
@@ -240,13 +236,9 @@ class PluginManager:
             try:
                 result = await plugin.handle_hook(hook_context)
                 if result:
-                    results.append(
-                        {"plugin": plugin.get_metadata().name, "result": result}
-                    )
+                    results.append({"plugin": plugin.get_metadata().name, "result": result})
             except Exception as e:
-                logger.error(
-                    f"Hook execution failed for plugin {plugin.get_metadata().name}: {e}"
-                )
+                logger.error(f"Hook execution failed for plugin {plugin.get_metadata().name}: {e}")
                 results.append({"plugin": plugin.get_metadata().name, "error": str(e)})
 
         return results
@@ -280,9 +272,7 @@ class PluginManager:
         return health_status
 
     # Scanner Plugin Helpers
-    async def find_compatible_scanner(
-        self, host_config: Dict
-    ) -> Optional[ScannerPlugin]:
+    async def find_compatible_scanner(self, host_config: Dict) -> Optional[ScannerPlugin]:
         """Find a scanner plugin that can handle the specified host"""
         scanners = self.get_plugins_by_type(PluginType.SCANNER)
 
@@ -300,10 +290,7 @@ class PluginManager:
         reporters = self.get_plugins_by_type(PluginType.REPORTER)
 
         for reporter in reporters:
-            if (
-                reporter.is_enabled()
-                and format_type in reporter.get_supported_formats()
-            ):
+            if reporter.is_enabled() and format_type in reporter.get_supported_formats():
                 try:
                     return await reporter.generate_report(scan_results, format_type)
                 except Exception as e:
@@ -322,9 +309,7 @@ class PluginManager:
         compatible_plugins = []
 
         for plugin in remediation_plugins:
-            if plugin.is_enabled() and await plugin.can_remediate_rule(
-                rule_id, host_config
-            ):
+            if plugin.is_enabled() and await plugin.can_remediate_rule(rule_id, host_config):
                 compatible_plugins.append(plugin)
 
         return compatible_plugins
@@ -410,9 +395,7 @@ class PluginManager:
             if hook_name not in self.hook_registry:
                 self.hook_registry[hook_name] = []
             self.hook_registry[hook_name].append(plugin)
-            logger.debug(
-                f"Registered hook {hook_name} for plugin {plugin.get_metadata().name}"
-            )
+            logger.debug(f"Registered hook {hook_name} for plugin {plugin.get_metadata().name}")
 
 
 # Global plugin manager instance

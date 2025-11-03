@@ -152,9 +152,7 @@ async def list_host_groups(
                 "default_profile_id": row.default_profile_id,
                 "compliance_framework": row.compliance_framework,
                 "auto_scan_enabled": (
-                    row.auto_scan_enabled
-                    if row.auto_scan_enabled is not None
-                    else False
+                    row.auto_scan_enabled if row.auto_scan_enabled is not None else False
                 ),
                 "scan_schedule": row.scan_schedule,
                 "validation_rules": (
@@ -315,9 +313,7 @@ async def create_host_group(
                 "auto_scan_enabled": group_data.auto_scan_enabled or False,
                 "scan_schedule": group_data.scan_schedule,
                 "validation_rules": (
-                    json.dumps(group_data.validation_rules)
-                    if group_data.validation_rules
-                    else None
+                    json.dumps(group_data.validation_rules) if group_data.validation_rules else None
                 ),
             },
         )
@@ -341,9 +337,7 @@ async def create_host_group(
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
             "auto_scan_enabled": (
-                group.auto_scan_enabled
-                if group.auto_scan_enabled is not None
-                else False
+                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
             ),
             "scan_schedule": group.scan_schedule,
             "validation_rules": (
@@ -459,9 +453,7 @@ async def update_host_group(
         if group_data.validation_rules is not None:
             update_fields.append("validation_rules = :validation_rules")
             update_params["validation_rules"] = (
-                json.dumps(group_data.validation_rules)
-                if group_data.validation_rules
-                else None
+                json.dumps(group_data.validation_rules) if group_data.validation_rules else None
             )
 
         update_fields.append("updated_at = :updated_at")
@@ -529,9 +521,7 @@ async def update_host_group(
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
             "auto_scan_enabled": (
-                group.auto_scan_enabled
-                if group.auto_scan_enabled is not None
-                else False
+                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
             ),
             "scan_schedule": group.scan_schedule,
             "validation_rules": (
@@ -651,9 +641,7 @@ async def assign_hosts_to_group(
 
         db.commit()
 
-        return {
-            "message": f"Successfully assigned {len(request.host_ids)} hosts to group"
-        }
+        return {"message": f"Successfully assigned {len(request.host_ids)} hosts to group"}
 
     except HTTPException:
         raise
@@ -699,9 +687,7 @@ async def remove_host_from_group(
 # Smart validation endpoints
 
 
-@router.post(
-    "/{group_id}/validate-hosts", response_model=CompatibilityValidationResponse
-)
+@router.post("/{group_id}/validate-hosts", response_model=CompatibilityValidationResponse)
 async def validate_host_compatibility(
     group_id: int,
     request: ValidateHostsRequest,
@@ -728,9 +714,7 @@ async def validate_host_compatibility(
         raise HTTPException(status_code=e.status_code or 400, detail=e.message)
     except Exception as e:
         logger.error(f"Error validating host compatibility: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to validate host compatibility"
-        )
+        raise HTTPException(status_code=500, detail="Failed to validate host compatibility")
 
 
 @router.post("/smart-create")
@@ -789,9 +773,7 @@ async def create_smart_group(
                 force_assignment=True,
             )
 
-            await assign_hosts_to_group(
-                group_response["id"], assign_request, db, current_user
-            )
+            await assign_hosts_to_group(group_response["id"], assign_request, db, current_user)
 
             return {
                 "group": group_response,
@@ -832,9 +814,7 @@ async def get_group_compatibility_report(
         raise HTTPException(status_code=e.status_code or 404, detail=e.message)
     except Exception as e:
         logger.error(f"Error generating compatibility report: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to generate compatibility report"
-        )
+        raise HTTPException(status_code=500, detail="Failed to generate compatibility report")
 
 
 @router.post("/{group_id}/hosts/validate")
@@ -940,6 +920,4 @@ async def validate_and_assign_hosts(
         raise
     except Exception as e:
         logger.error(f"Error validating and assigning hosts: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to validate and assign hosts"
-        )
+        raise HTTPException(status_code=500, detail="Failed to validate and assign hosts")

@@ -18,9 +18,7 @@ class MigrationRunner:
 
     def __init__(self, db: Session, migrations_dir: Optional[Path] = None):
         self.db = db
-        self.migrations_dir = (
-            migrations_dir or Path(__file__).parent.parent / "migrations"
-        )
+        self.migrations_dir = migrations_dir or Path(__file__).parent.parent / "migrations"
         self._create_migrations_table()
 
     def _create_migrations_table(self):
@@ -156,9 +154,7 @@ class MigrationRunner:
                 failed_count += 1
 
         logger.info("=" * 80)
-        logger.info(
-            f"Migration Summary: {success_count} applied, {failed_count} failed"
-        )
+        logger.info(f"Migration Summary: {success_count} applied, {failed_count} failed")
         logger.info("=" * 80)
 
         return {

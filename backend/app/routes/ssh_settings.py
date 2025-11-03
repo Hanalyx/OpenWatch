@@ -150,9 +150,7 @@ async def set_ssh_policy(
                 policy_data={
                     "policy": policy_request.policy,
                     "trusted_networks": policy_request.trusted_networks or [],
-                    "trusted_networks_count": len(
-                        policy_request.trusted_networks or []
-                    ),
+                    "trusted_networks_count": len(policy_request.trusted_networks or []),
                     "change_reason": "Administrator policy update",
                 },
                 user_id=current_user.get("id"),
@@ -165,9 +163,7 @@ async def set_ssh_policy(
             )
             logger.info(f"Enhanced audit logging completed successfully")
         except Exception as audit_error:
-            logger.warning(
-                f"Enhanced audit logging failed for SSH policy update: {audit_error}"
-            )
+            logger.warning(f"Enhanced audit logging failed for SSH policy update: {audit_error}")
             logger.warning(f"Error details: {type(audit_error)} - {str(audit_error)}")
             import traceback
 
@@ -260,8 +256,7 @@ async def add_known_host(
             (
                 h
                 for h in hosts
-                if h["hostname"] == host_request.hostname
-                and h["key_type"] == host_request.key_type
+                if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type
             ),
             None,
         )
@@ -347,9 +342,7 @@ async def test_ssh_connectivity(
         # Get host
         host = db.query(Host).filter(Host.id == host_id).first()
         if not host:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Test connectivity
         monitor = HostMonitor()

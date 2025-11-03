@@ -80,9 +80,7 @@ class PermissionCheckRequest(BaseModel):
     """Request to check permissions for resources"""
 
     user_id: Optional[str] = None  # If not provided, uses current user
-    resource_type: str = Field(
-        ..., description="Resource type: host, host_group, scan, etc."
-    )
+    resource_type: str = Field(..., description="Resource type: host, host_group, scan, etc.")
     resource_id: str = Field(..., description="Resource identifier")
     action: str = Field(..., description="Action to check: read, write, execute, etc.")
 
@@ -102,9 +100,7 @@ class BulkPermissionCheckRequest(BaseModel):
     """Request for bulk permission checking"""
 
     user_id: Optional[str] = None
-    resources: List[Dict] = Field(
-        ..., description="List of {resource_type, resource_id} dicts"
-    )
+    resources: List[Dict] = Field(..., description="List of {resource_type, resource_id} dicts")
     action: str
     fail_fast: bool = True
 
@@ -143,9 +139,7 @@ async def grant_host_permission(
             )
 
         # Validate that exactly one subject is specified
-        subject_count = sum(
-            1 for x in [request.user_id, request.group_id, request.role_name] if x
-        )
+        subject_count = sum(1 for x in [request.user_id, request.group_id, request.role_name] if x)
         if subject_count != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -295,9 +289,7 @@ async def get_host_permissions(
         for row in result:
             import json
 
-            actions = (
-                json.loads(row.actions) if isinstance(row.actions, str) else row.actions
-            )
+            actions = json.loads(row.actions) if isinstance(row.actions, str) else row.actions
 
             permissions.append(
                 {
@@ -313,12 +305,8 @@ async def get_host_permissions(
                     "conditions": row.conditions,
                     "granted_by": row.granted_by,
                     "granted_by_username": row.granted_by_username,
-                    "granted_at": (
-                        row.granted_at.isoformat() if row.granted_at else None
-                    ),
-                    "expires_at": (
-                        row.expires_at.isoformat() if row.expires_at else None
-                    ),
+                    "granted_at": (row.granted_at.isoformat() if row.granted_at else None),
+                    "expires_at": (row.expires_at.isoformat() if row.expires_at else None),
                     "is_active": row.is_active,
                 }
             )
@@ -364,9 +352,7 @@ async def check_permission(
             )
 
         # Create resource identifier
-        resource = ResourceIdentifier(
-            resource_type=resource_type, resource_id=request.resource_id
-        )
+        resource = ResourceIdentifier(resource_type=resource_type, resource_id=request.resource_id)
 
         # Perform authorization check
         auth_service = get_authorization_service(db)
@@ -376,9 +362,7 @@ async def check_permission(
             allowed=(result.decision.value == "allow"),
             decision=result.decision.value,
             reason=result.reason,
-            evaluated_policies=[
-                p.get("id", "unknown") for p in result.applied_policies
-            ],
+            evaluated_policies=[p.get("id", "unknown") for p in result.applied_policies],
             evaluation_time_ms=result.evaluation_time_ms,
             timestamp=result.timestamp,
         )
@@ -573,9 +557,7 @@ async def get_authorization_audit_log(
                     "action": row.action,
                     "decision": row.decision,
                     "policies_evaluated": (
-                        row.policies_evaluated.split(",")
-                        if row.policies_evaluated
-                        else []
+                        row.policies_evaluated.split(",") if row.policies_evaluated else []
                     ),
                     "context": row.context,
                     "ip_address": row.ip_address,
@@ -693,19 +675,14 @@ async def get_authorization_summary(
                 "allowed_checks_24h": audit_stats.allowed_checks or 0,
                 "denied_checks_24h": audit_stats.denied_checks or 0,
                 "avg_evaluation_time_ms": (
-                    float(audit_stats.avg_evaluation_time)
-                    if audit_stats.avg_evaluation_time
-                    else 0
+                    float(audit_stats.avg_evaluation_time) if audit_stats.avg_evaluation_time else 0
                 ),
                 "avg_risk_score": (
-                    float(audit_stats.avg_risk_score)
-                    if audit_stats.avg_risk_score
-                    else 0
+                    float(audit_stats.avg_risk_score) if audit_stats.avg_risk_score else 0
                 ),
             },
             "most_active_users": [
-                {"username": row.username, "check_count": row.check_count}
-                for row in active_users
+                {"username": row.username, "check_count": row.check_count} for row in active_users
             ],
         }
 

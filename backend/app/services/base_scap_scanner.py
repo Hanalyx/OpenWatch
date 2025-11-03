@@ -42,15 +42,11 @@ class SCAPConnectionManager:
             validation_result = validate_ssh_key(credential)
             if not validation_result.is_valid:
                 logger.error(f"Invalid SSH key: {validation_result.error_message}")
-                raise SSHException(
-                    f"Invalid SSH key: {validation_result.error_message}"
-                )
+                raise SSHException(f"Invalid SSH key: {validation_result.error_message}")
 
             # Log any warnings
             if validation_result.warnings:
-                logger.warning(
-                    f"SSH key warnings: {'; '.join(validation_result.warnings)}"
-                )
+                logger.warning(f"SSH key warnings: {'; '.join(validation_result.warnings)}")
 
             # Parse key using unified parser
             return parse_ssh_key(credential)
@@ -91,9 +87,7 @@ class SCAPConnectionManager:
                 )
             elif auth_method in ["ssh-key", "ssh_key"]:
                 key = cls.validate_and_parse_key(credential)
-                ssh.connect(
-                    hostname, port=port, username=username, pkey=key, timeout=10
-                )
+                ssh.connect(hostname, port=port, username=username, pkey=key, timeout=10)
             else:
                 raise SCAPBaseError(f"Unsupported auth method: {auth_method}")
 
@@ -439,9 +433,7 @@ class BaseSCAPScanner(ABC):
             else:
                 # Handle SSH key using connection manager
                 key = self.connection_manager.validate_and_parse_key(credential)
-                ssh.connect(
-                    hostname, port=port, username=username, pkey=key, timeout=10
-                )
+                ssh.connect(hostname, port=port, username=username, pkey=key, timeout=10)
 
             # Execute commands to get system info
             commands = {

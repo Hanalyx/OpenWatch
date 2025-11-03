@@ -22,9 +22,7 @@ from dataclasses import dataclass
 import argparse
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -94,9 +92,7 @@ class FrameworkMapper:
 
             # Parse reference values (can be comma-separated)
             if isinstance(ref_value, str):
-                ref_list = [
-                    item.strip() for item in ref_value.split(",") if item.strip()
-                ]
+                ref_list = [item.strip() for item in ref_value.split(",") if item.strip()]
             elif isinstance(ref_value, list):
                 ref_list = ref_value
             else:
@@ -151,9 +147,7 @@ class TemplateProcessor:
             "sysctl": self._handle_sysctl,
         }
 
-    def process_template(
-        self, template_name: str, template_vars: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def process_template(self, template_name: str, template_vars: Dict[str, Any]) -> Dict[str, Any]:
         """Process template into platform implementations"""
         handler = self.template_handlers.get(template_name)
         if handler:
@@ -264,9 +258,7 @@ class TemplateProcessor:
             },
         }
 
-    def _handle_generic_template(
-        self, template_name: str, vars: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _handle_generic_template(self, template_name: str, vars: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unknown templates with basic structure"""
         return {
             "rhel": {
@@ -294,25 +286,18 @@ class SCAPToOpenWatchConverter:
 
     def convert_all_rules(self) -> ConversionStats:
         """Convert all SCAP rules to OpenWatch format"""
-        logger.info(
-            f"Starting conversion from {self.scap_content_path} to {self.output_path}"
-        )
+        logger.info(f"Starting conversion from {self.scap_content_path} to {self.output_path}")
 
         # Find all rule.yml files, excluding test directories
         rule_files = []
         for rule_file in self.scap_content_path.rglob("rule.yml"):
             # Skip test files and unit test directories
-            if (
-                "test" not in str(rule_file).lower()
-                and "unit" not in str(rule_file).lower()
-            ):
+            if "test" not in str(rule_file).lower() and "unit" not in str(rule_file).lower():
                 rule_files.append(rule_file)
 
         self.stats.total_rules_found = len(rule_files)
 
-        logger.info(
-            f"Found {self.stats.total_rules_found} rule files (excluding tests)"
-        )
+        logger.info(f"Found {self.stats.total_rules_found} rule files (excluding tests)")
 
         for rule_file in rule_files:
             try:
@@ -374,9 +359,7 @@ class SCAPToOpenWatchConverter:
             # Framework mappings
             "frameworks": self._convert_frameworks(rule_data),
             # Platform implementations
-            "platform_implementations": self._convert_platform_implementations(
-                rule_data
-            ),
+            "platform_implementations": self._convert_platform_implementations(rule_data),
             # Platform requirements
             "platform_requirements": self._generate_platform_requirements(rule_data),
             # Check configuration
@@ -410,9 +393,7 @@ class SCAPToOpenWatchConverter:
         # Rule ID is typically the parent directory name
         return rule_file.parent.name.replace("-", "_")
 
-    def _convert_metadata(
-        self, rule_data: Dict[str, Any], rule_file: Path
-    ) -> Dict[str, Any]:
+    def _convert_metadata(self, rule_data: Dict[str, Any], rule_file: Path) -> Dict[str, Any]:
         """Convert SCAP metadata to OpenWatch format"""
         return {
             "name": rule_data.get("title", ""),
@@ -427,9 +408,7 @@ class SCAPToOpenWatchConverter:
             },
         }
 
-    def _convert_frameworks(
-        self, rule_data: Dict[str, Any]
-    ) -> Dict[str, Dict[str, List[str]]]:
+    def _convert_frameworks(self, rule_data: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
         """Convert SCAP references to OpenWatch framework structure"""
         references = rule_data.get("references", {})
         frameworks = self.framework_mapper.map_references_to_frameworks(references)
@@ -439,9 +418,7 @@ class SCAPToOpenWatchConverter:
 
         return frameworks
 
-    def _convert_platform_implementations(
-        self, rule_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _convert_platform_implementations(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert template to platform-specific implementations"""
         template = rule_data.get("template")
         if not template:
@@ -450,9 +427,7 @@ class SCAPToOpenWatchConverter:
         template_name = template.get("name", "")
         template_vars = template.get("vars", {})
 
-        platform_impls = self.template_processor.process_template(
-            template_name, template_vars
-        )
+        platform_impls = self.template_processor.process_template(template_name, template_vars)
 
         if platform_impls:
             self.stats.template_expansions += 1
@@ -537,9 +512,7 @@ class SCAPToOpenWatchConverter:
         """Determine high-level security function"""
         return "access_control"  # Simplified for now
 
-    def _generate_platform_requirements(
-        self, rule_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _generate_platform_requirements(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate platform requirements"""
         return {"required_capabilities": [], "excluded_environments": []}
 
@@ -550,9 +523,7 @@ class SCAPToOpenWatchConverter:
             return "template"
         return "scap"
 
-    def _convert_check_content(
-        self, rule_data: Dict[str, Any], rule_id: str
-    ) -> Dict[str, Any]:
+    def _convert_check_content(self, rule_data: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
         """Convert check content"""
         return {
             "scap_rule_id": f"xccdf_org.ssgproject.content_rule_{rule_id}",
@@ -583,9 +554,7 @@ class SCAPToOpenWatchConverter:
 
 def main():
     """Main CLI interface"""
-    parser = argparse.ArgumentParser(
-        description="SCAP to OpenWatch Compliance Rules Converter"
-    )
+    parser = argparse.ArgumentParser(description="SCAP to OpenWatch Compliance Rules Converter")
     parser.add_argument(
         "command", choices=["convert", "validate", "stats"], help="Command to execute"
     )
@@ -599,9 +568,7 @@ def main():
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules_converted",
         help="Output directory for converted rules",
     )
-    parser.add_argument(
-        "--limit", type=int, help="Limit number of rules to convert (for testing)"
-    )
+    parser.add_argument("--limit", type=int, help="Limit number of rules to convert (for testing)")
 
     args = parser.parse_args()
 

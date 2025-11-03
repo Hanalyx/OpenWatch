@@ -133,9 +133,7 @@ class VersionRegistry:
     def register_version(self, version: APIVersion):
         """Register a new API version"""
         self.versions[version.version] = version
-        logger.info(
-            f"Registered API version {version.version} with status {version.status.value}"
-        )
+        logger.info(f"Registered API version {version.version} with status {version.status.value}")
 
     def get_version(self, version: str) -> Optional[APIVersion]:
         """Get version specification"""
@@ -170,17 +168,13 @@ class VersionRegistry:
             api_version.sunset_date = sunset_date
             api_version.migration_guide_url = migration_guide_url
 
-            logger.warning(
-                f"API version {version} deprecated. Sunset date: {sunset_date}"
-            )
+            logger.warning(f"API version {version} deprecated. Sunset date: {sunset_date}")
 
 
 class VersionDetector:
     """Detect API version from request"""
 
-    def __init__(
-        self, registry: VersionRegistry, strategies: List[VersionStrategy] = None
-    ):
+    def __init__(self, registry: VersionRegistry, strategies: List[VersionStrategy] = None):
         self.registry = registry
         self.strategies = strategies or [
             VersionStrategy.URL_PATH,
@@ -229,11 +223,7 @@ class VersionDetector:
         # Check for custom version header
         version_header = request.headers.get("x-api-version")
         if version_header:
-            return (
-                f"v{version_header}"
-                if not version_header.startswith("v")
-                else version_header
-            )
+            return f"v{version_header}" if not version_header.startswith("v") else version_header
 
         return None
 
@@ -241,11 +231,7 @@ class VersionDetector:
         """Detect version from query parameter (?version=1)"""
         version_param = request.query_params.get("version")
         if version_param:
-            return (
-                f"v{version_param}"
-                if not version_param.startswith("v")
-                else version_param
-            )
+            return f"v{version_param}" if not version_param.startswith("v") else version_param
         return None
 
     def _detect_from_media_type(self, request: Request) -> Optional[str]:
@@ -292,9 +278,7 @@ class VersionMiddleware:
                     "error": "api_version_sunset",
                     "message": f"API version '{version}' is no longer supported",
                     "sunset_date": (
-                        api_version.sunset_date.isoformat()
-                        if api_version.sunset_date
-                        else None
+                        api_version.sunset_date.isoformat() if api_version.sunset_date else None
                     ),
                     "migration_guide": api_version.migration_guide_url,
                     "supported_versions": [
@@ -317,9 +301,7 @@ class VersionMiddleware:
         # Add deprecation warnings if applicable
         if api_version.is_deprecated():
             response.headers["Deprecation"] = (
-                api_version.deprecation_date.isoformat()
-                if api_version.deprecation_date
-                else "true"
+                api_version.deprecation_date.isoformat() if api_version.deprecation_date else "true"
             )
             if api_version.sunset_date:
                 response.headers["Sunset"] = api_version.sunset_date.isoformat()

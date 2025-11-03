@@ -169,10 +169,8 @@ class BulkScanOrchestrator:
 
             # SECURITY CHECK 2: Per-host authorization validation
             logger.info(f"Performing authorization checks for {len(host_ids)} hosts")
-            authorized_hosts, authorization_failures = (
-                await self._validate_bulk_scan_authorization(
-                    user_id, host_ids, auth_context
-                )
+            authorized_hosts, authorization_failures = await self._validate_bulk_scan_authorization(
+                user_id, host_ids, auth_context
             )
 
             if not authorized_hosts:
@@ -291,9 +289,7 @@ class BulkScanOrchestrator:
             # Start scans with staggered execution
             started_scans = await self._execute_staggered_scans(session.scan_ids)
 
-            logger.info(
-                f"Started bulk scan session {session_id} with {len(started_scans)} scans"
-            )
+            logger.info(f"Started bulk scan session {session_id} with {len(started_scans)} scans")
             return {
                 "session_id": session_id,
                 "status": "started",
@@ -320,9 +316,7 @@ class BulkScanOrchestrator:
             total_scans = len(session.scan_ids)
             completed = sum(1 for s in scan_statuses if s["status"] == "completed")
             failed = sum(1 for s in scan_statuses if s["status"] == "failed")
-            running = sum(
-                1 for s in scan_statuses if s["status"] in ["pending", "running"]
-            )
+            running = sum(1 for s in scan_statuses if s["status"] in ["pending", "running"])
 
             # Update session stats
             session.completed_hosts = completed
@@ -339,9 +333,7 @@ class BulkScanOrchestrator:
             await self._update_scan_session(session)
 
             # Calculate progress percentage
-            progress_percent = (
-                int((completed / total_scans) * 100) if total_scans > 0 else 0
-            )
+            progress_percent = int((completed / total_scans) * 100) if total_scans > 0 else 0
 
             return {
                 "session_id": session_id,
@@ -352,9 +344,7 @@ class BulkScanOrchestrator:
                 "completed_hosts": completed,
                 "failed_hosts": failed,
                 "running_hosts": running,
-                "started_at": (
-                    session.started_at.isoformat() if session.started_at else None
-                ),
+                "started_at": (session.started_at.isoformat() if session.started_at else None),
                 "estimated_completion": (
                     session.estimated_completion.isoformat()
                     if session.estimated_completion
@@ -458,16 +448,12 @@ class BulkScanOrchestrator:
         # For now, use the intelligence service to suggest for the first host
         # In a more sophisticated implementation, this would analyze all hosts
         if hosts and template_id == "auto":
-            suggestion = await self.intelligence_service.suggest_scan_profile(
-                hosts[0].id
-            )
+            suggestion = await self.intelligence_service.suggest_scan_profile(hosts[0].id)
             return suggestion.content_id, suggestion.profile_id
         else:
             # Use default content and specified template
             return 1, (
-                template_id
-                if template_id != "auto"
-                else "xccdf_org.ssgproject.content_profile_cui"
+                template_id if template_id != "auto" else "xccdf_org.ssgproject.content_profile_cui"
             )
 
     def _create_batch_scans(
@@ -674,9 +660,7 @@ class BulkScanOrchestrator:
                         "display_name": row.display_name,
                         "status": row.status,
                         "progress": row.progress,
-                        "started_at": (
-                            row.started_at.isoformat() if row.started_at else None
-                        ),
+                        "started_at": (row.started_at.isoformat() if row.started_at else None),
                         "completed_at": (
                             row.completed_at.isoformat() if row.completed_at else None
                         ),
@@ -769,12 +753,8 @@ class BulkScanOrchestrator:
                 parallel_evaluation=True,  # Enable parallel processing
             )
 
-            logger.debug(
-                f"Performing bulk authorization check for {len(resources)} hosts"
-            )
-            auth_result = await self.authorization_service.check_bulk_permissions(
-                bulk_request
-            )
+            logger.debug(f"Performing bulk authorization check for {len(resources)} hosts")
+            auth_result = await self.authorization_service.check_bulk_permissions(bulk_request)
 
             # Get host details for results
             host_details = await self._get_host_details(host_ids)
@@ -868,9 +848,7 @@ class BulkScanOrchestrator:
             row = result.fetchone()
             if not row:
                 logger.warning(f"User {user_id} not found or inactive")
-                return AuthorizationContext(
-                    user_id=user_id, user_roles=[], user_groups=[]
-                )
+                return AuthorizationContext(user_id=user_id, user_roles=[], user_groups=[])
 
             user_groups = json.loads(row.user_groups) if row.user_groups else []
 
@@ -881,9 +859,7 @@ class BulkScanOrchestrator:
             )
 
         except Exception as e:
-            logger.error(
-                f"Error building authorization context for user {user_id}: {e}"
-            )
+            logger.error(f"Error building authorization context for user {user_id}: {e}")
             return AuthorizationContext(user_id=user_id, user_roles=[], user_groups=[])
 
     def _get_host_details(self, host_ids: List[str]) -> List[Dict]:
@@ -949,9 +925,7 @@ class BulkScanOrchestrator:
             for i, host in enumerate(batch.hosts):
                 # Additional authorization check
                 if host.id not in authorized_host_ids:
-                    logger.warning(
-                        f"Skipping scan creation for unauthorized host {host.id}"
-                    )
+                    logger.warning(f"Skipping scan creation for unauthorized host {host.id}")
                     continue
 
                 scan_id = str(uuid.uuid4())

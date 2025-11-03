@@ -186,24 +186,20 @@ class FrameworkMappingEngine:
             # Create bidirectional relationships
             for source_control in source_controls:
                 for target_control in target_controls:
-                    control_relationships[source_control][target_control].add(
-                        rule.rule_id
-                    )
+                    control_relationships[source_control][target_control].add(rule.rule_id)
 
         # Analyze relationships and create mappings
         for source_control, target_mappings in control_relationships.items():
             for target_control, shared_rules in target_mappings.items():
                 if len(shared_rules) > 0:
                     # Determine mapping characteristics
-                    mapping_type, confidence = (
-                        await self._analyze_mapping_characteristics(
-                            source_framework,
-                            source_control,
-                            target_framework,
-                            target_control,
-                            shared_rules,
-                            unified_rules,
-                        )
+                    mapping_type, confidence = await self._analyze_mapping_characteristics(
+                        source_framework,
+                        source_control,
+                        target_framework,
+                        target_control,
+                        shared_rules,
+                        unified_rules,
                     )
 
                     control_mapping = ControlMapping(
@@ -214,10 +210,7 @@ class FrameworkMappingEngine:
                         mapping_type=mapping_type,
                         confidence=confidence,
                         rationale=f"Mapped through {len(shared_rules)} shared unified rules",
-                        evidence=[
-                            f"Unified rule: {rule_id}"
-                            for rule_id in list(shared_rules)[:3]
-                        ],
+                        evidence=[f"Unified rule: {rule_id}" for rule_id in list(shared_rules)[:3]],
                         implementation_notes=f"Implementation shared across {len(shared_rules)} rules",
                     )
 
@@ -255,12 +248,8 @@ class FrameworkMappingEngine:
 
         # Calculate overlap ratios
         shared_count = len(shared_rules)
-        source_overlap = (
-            shared_count / source_total_rules if source_total_rules > 0 else 0
-        )
-        target_overlap = (
-            shared_count / target_total_rules if target_total_rules > 0 else 0
-        )
+        source_overlap = shared_count / source_total_rules if source_total_rules > 0 else 0
+        target_overlap = shared_count / target_total_rules if target_total_rules > 0 else 0
 
         # Determine mapping type
         if source_overlap >= 0.9 and target_overlap >= 0.9:
@@ -348,9 +337,7 @@ class FrameworkMappingEngine:
         framework_b_unique = len(framework_b_controls - mapped_b_controls)
 
         total_controls = len(framework_a_controls.union(framework_b_controls))
-        overlap_percentage = (
-            (common_controls / total_controls * 100) if total_controls > 0 else 0
-        )
+        overlap_percentage = (common_controls / total_controls * 100) if total_controls > 0 else 0
 
         # Determine relationship type and strength
         if overlap_percentage >= 80:
@@ -370,9 +357,7 @@ class FrameworkMappingEngine:
             strength = 0.1
 
         # Identify implementation synergies
-        synergies = await self._identify_implementation_synergies(
-            all_mappings, unified_rules
-        )
+        synergies = await self._identify_implementation_synergies(all_mappings, unified_rules)
 
         # Identify conflict areas
         conflicts = await self._identify_conflict_areas(all_mappings, unified_rules)
@@ -454,9 +439,7 @@ class FrameworkMappingEngine:
         conflicts = []
 
         # Look for low-confidence mappings
-        uncertain_mappings = [
-            m for m in mappings if m.confidence == MappingConfidence.UNCERTAIN
-        ]
+        uncertain_mappings = [m for m in mappings if m.confidence == MappingConfidence.UNCERTAIN]
         if len(uncertain_mappings) >= 5:
             conflicts.append(
                 f"Mapping uncertainty: {len(uncertain_mappings)} control mappings have low confidence "
@@ -557,9 +540,7 @@ class FrameworkMappingEngine:
                 "base_rule": best_rule.rule_id,
                 "category": best_rule.category,
                 "security_function": best_rule.security_function,
-                "platforms": [
-                    impl.platform.value for impl in best_rule.platform_implementations
-                ],
+                "platforms": [impl.platform.value for impl in best_rule.platform_implementations],
             },
             platform_specifics={
                 impl.platform: impl
@@ -610,9 +591,7 @@ class FrameworkMappingEngine:
                 "total_controls": len(controls),
                 "total_rules": len(rules),
                 "controls": list(controls),
-                "coverage_percentage": (
-                    len(rules) / len(controls) * 100 if controls else 0
-                ),
+                "coverage_percentage": (len(rules) / len(controls) * 100 if controls else 0),
             }
 
         # Cross-framework analysis
@@ -649,9 +628,7 @@ class FrameworkMappingEngine:
                 coverage_analysis["coverage_gaps"].append(
                     {
                         "framework": framework,
-                        "gap_percentage": (len(controls) - len(rules))
-                        / len(controls)
-                        * 100,
+                        "gap_percentage": (len(controls) - len(rules)) / len(controls) * 100,
                         "missing_controls": len(controls) - len(rules),
                     }
                 )

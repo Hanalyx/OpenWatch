@@ -122,9 +122,9 @@ async def analyze_results(args):
     if aggregated_results.compliance_gaps:
         print(f"\nTop Compliance Gaps:")
         print("-" * 80)
-        for gap in sorted(
-            aggregated_results.compliance_gaps, key=lambda g: g.remediation_priority
-        )[: args.max_gaps]:
+        for gap in sorted(aggregated_results.compliance_gaps, key=lambda g: g.remediation_priority)[
+            : args.max_gaps
+        ]:
             print(f"{gap.gap_id} [{gap.severity.upper()}] {gap.description}")
             print(f"    Affected hosts: {len(gap.affected_hosts)}")
             print(f"    Framework: {gap.framework_id}")
@@ -157,12 +157,8 @@ async def analyze_results(args):
                 f"({comparison.common_controls} common controls)"
             )
             print(f"    Correlation: {comparison.compliance_correlation:.2f}")
-            print(
-                f"    Unique to {comparison.framework_a}: {comparison.framework_a_unique}"
-            )
-            print(
-                f"    Unique to {comparison.framework_b}: {comparison.framework_b_unique}"
-            )
+            print(f"    Unique to {comparison.framework_a}: {comparison.framework_a_unique}")
+            print(f"    Unique to {comparison.framework_b}: {comparison.framework_b_unique}")
             print()
 
     # Performance metrics
@@ -210,9 +206,7 @@ async def generate_dashboard_data(args):
     print(f"Generating dashboard data from {len(scan_results)} scan results...")
 
     # Generate dashboard data
-    dashboard_data = await aggregation_service.generate_compliance_dashboard_data(
-        scan_results
-    )
+    dashboard_data = await aggregation_service.generate_compliance_dashboard_data(scan_results)
 
     # Output dashboard data
     if args.output:
@@ -304,9 +298,7 @@ Examples:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Analyze command
-    analyze_parser = subparsers.add_parser(
-        "analyze", help="Analyze compliance scan results"
-    )
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze compliance scan results")
     analyze_parser.add_argument(
         "--scan-files",
         nargs="+",
@@ -322,9 +314,7 @@ Examples:
     analyze_parser.add_argument(
         "--time-period", default="current", help="Time period description for analysis"
     )
-    analyze_parser.add_argument(
-        "--show-hosts", action="store_true", help="Show per-host breakdown"
-    )
+    analyze_parser.add_argument("--show-hosts", action="store_true", help="Show per-host breakdown")
     analyze_parser.add_argument(
         "--show-strategic", action="store_true", help="Show strategic recommendations"
     )
@@ -350,18 +340,14 @@ Examples:
     analyze_parser.add_argument("--output", help="Output file for exported results")
 
     # Dashboard command
-    dashboard_parser = subparsers.add_parser(
-        "dashboard", help="Generate dashboard data"
-    )
+    dashboard_parser = subparsers.add_parser("dashboard", help="Generate dashboard data")
     dashboard_parser.add_argument(
         "--scan-files",
         nargs="+",
         required=True,
         help="JSON files containing scan results",
     )
-    dashboard_parser.add_argument(
-        "--output", help="Output file for dashboard data (JSON format)"
-    )
+    dashboard_parser.add_argument("--output", help="Output file for dashboard data (JSON format)")
 
     # Trends command
     trends_parser = subparsers.add_parser("trends", help="Perform trend analysis")

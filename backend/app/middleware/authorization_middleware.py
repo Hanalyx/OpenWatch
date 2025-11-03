@@ -206,9 +206,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             endpoint_config = self.protected_endpoints[endpoint_pattern]
 
             # Extract resources from request
-            resources = await self._extract_resources(
-                request, endpoint_config, current_user
-            )
+            resources = await self._extract_resources(request, endpoint_config, current_user)
             if not resources:
                 logger.warning(
                     f"Authorization failed: Could not extract resources from request {request.method} {sanitize_for_log(str(request.url.path))}"
@@ -220,9 +218,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 )
 
             # Create authorization context
-            auth_context = await self._build_authorization_context(
-                request, current_user
-            )
+            auth_context = await self._build_authorization_context(request, current_user)
 
             # Perform authorization check
             authorization_result = await self._perform_authorization_check(
@@ -382,9 +378,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     host_id = path_params.get("host_id")
                     if host_id:
                         resources.append(
-                            ResourceIdentifier(
-                                resource_type=ResourceType.HOST, resource_id=host_id
-                            )
+                            ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id)
                         )
                     else:
                         # Check request body for host_id
@@ -426,9 +420,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 host_ids = await self._extract_bulk_host_ids(request, endpoint_config)
                 for host_id in host_ids:
                     resources.append(
-                        ResourceIdentifier(
-                            resource_type=ResourceType.HOST, resource_id=host_id
-                        )
+                        ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id)
                     )
 
             logger.debug(f"Extracted {len(resources)} resources from request")
@@ -534,9 +526,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     if "host_ids" in data:
                         return data["host_ids"]
                     elif "hosts" in data:
-                        return [
-                            host.get("id") for host in data["hosts"] if host.get("id")
-                        ]
+                        return [host.get("id") for host in data["hosts"] if host.get("id")]
                     elif "host_id" in data:
                         # Single host in bulk format
                         return [data["host_id"]]
@@ -578,9 +568,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 )
 
                 row = result.fetchone()
-                user_groups = (
-                    json.loads(row.user_groups) if row and row.user_groups else []
-                )
+                user_groups = json.loads(row.user_groups) if row and row.user_groups else []
             finally:
                 db.close()
 
@@ -695,9 +683,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 fresh_evaluations=0,
             )
 
-    def _create_error_response(
-        self, status_code: int, message: str, path: str
-    ) -> JSONResponse:
+    def _create_error_response(self, status_code: int, message: str, path: str) -> JSONResponse:
         """
         Create standardized error response
         """
@@ -711,9 +697,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             },
         )
 
-    def _create_authorization_error_response(
-        self, auth_result, path: str
-    ) -> JSONResponse:
+    def _create_authorization_error_response(self, auth_result, path: str) -> JSONResponse:
         """
         Create detailed authorization error response
         """
@@ -747,9 +731,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
 
 # Factory function to create middleware with proper dependency injection
-def create_authorization_middleware(
-    app, authorization_service_factory: Callable = None
-):
+def create_authorization_middleware(app, authorization_service_factory: Callable = None):
     """
     Factory function to create authorization middleware instance
     """

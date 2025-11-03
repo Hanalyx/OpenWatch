@@ -71,9 +71,7 @@ async def generate_benchmark(
         if request.rule_filter:
             query.update(request.rule_filter)
         if request.framework and request.framework_version:
-            query[f"frameworks.{request.framework}.{request.framework_version}"] = {
-                "$exists": True
-            }
+            query[f"frameworks.{request.framework}.{request.framework_version}"] = {"$exists": True}
 
         rules_count = await db.compliance_rules.count_documents(query)
 
@@ -103,9 +101,7 @@ async def generate_benchmark(
 
     except Exception as e:
         logger.error(f"Failed to generate benchmark: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Benchmark generation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Benchmark generation failed: {str(e)}")
 
 
 @router.post("/generate-tailoring", response_model=XCCDFTailoringResponse)
@@ -154,9 +150,7 @@ async def generate_tailoring(
 
     except Exception as e:
         logger.error(f"Failed to generate tailoring: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Tailoring generation failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Tailoring generation failed: {str(e)}")
 
 
 @router.get("/frameworks")

@@ -54,9 +54,7 @@ class SCAPDependencyResolver:
         self.resolved_files: Set[Path] = set()
         self.dependencies: List[SCAPDependency] = []
 
-    def resolve(
-        self, primary_file: Path, base_dir: Optional[Path] = None
-    ) -> List[SCAPDependency]:
+    def resolve(self, primary_file: Path, base_dir: Optional[Path] = None) -> List[SCAPDependency]:
         """
         Resolve all dependencies for a SCAP content file.
 
@@ -88,9 +86,7 @@ class SCAPDependencyResolver:
         elif file_type == "datastream":
             self._resolve_datastream_dependencies(primary_file, base_dir)
 
-        logger.info(
-            f"Resolved {len(self.dependencies)} SCAP dependencies for {primary_file.name}"
-        )
+        logger.info(f"Resolved {len(self.dependencies)} SCAP dependencies for {primary_file.name}")
         return self.dependencies
 
     def _detect_file_type(self, file_path: Path) -> str:
@@ -102,10 +98,7 @@ class SCAPDependencyResolver:
             # Check root element tag
             if "Benchmark" in root.tag:
                 return "xccdf"
-            elif (
-                "data-stream-collection" in root.tag
-                or "DataStreamCollection" in root.tag
-            ):
+            elif "data-stream-collection" in root.tag or "DataStreamCollection" in root.tag:
                 return "datastream"
             elif "oval_definitions" in root.tag:
                 return "oval"

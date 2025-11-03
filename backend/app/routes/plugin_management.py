@@ -62,12 +62,8 @@ class PluginImportResponse(BaseModel):
 
 @router.post("/import", response_model=PluginImportResponse)
 async def import_plugin_from_file(
-    file: UploadFile = File(
-        ..., description="Plugin package file (.zip, .tar.gz, .owplugin)"
-    ),
-    verify_signature: bool = Form(
-        True, description="Whether to verify plugin signature"
-    ),
+    file: UploadFile = File(..., description="Plugin package file (.zip, .tar.gz, .owplugin)"),
+    verify_signature: bool = Form(True, description="Whether to verify plugin signature"),
     trust_level_override: Optional[PluginTrustLevel] = Form(
         None, description="Override trust level (admin only)"
     ),
@@ -122,9 +118,7 @@ async def import_plugin_from_file(
                 ip_address="127.0.0.1",
                 details=f"Plugin imported: {result.get('plugin_id')}",
             )
-            logger.info(
-                f"Plugin {result.get('plugin_id')} imported by user {current_user.id}"
-            )
+            logger.info(f"Plugin {result.get('plugin_id')} imported by user {current_user.id}")
         else:
             log_security_event(
                 db=db,
@@ -151,9 +145,7 @@ async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     status: Optional[PluginStatus] = Query(None, description="Filter by status"),
-    trust_level: Optional[PluginTrustLevel] = Query(
-        None, description="Filter by trust level"
-    ),
+    trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
     search: Optional[str] = Query(None, description="Search in name/description"),
     current_user: User = Depends(get_current_user),
@@ -257,9 +249,7 @@ async def get_plugin_details(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Build detailed response
         plugin_details = {
@@ -283,17 +273,13 @@ async def get_plugin_details(
             "configuration": {
                 "user_config": plugin.user_config,
                 "enabled_platforms": plugin.enabled_platforms,
-                "executors": {
-                    name: executor.dict() for name, executor in plugin.executors.items()
-                },
+                "executors": {name: executor.dict() for name, executor in plugin.executors.items()},
             },
             "usage": {
                 "usage_count": plugin.usage_count,
                 "last_used": plugin.last_used.isoformat() if plugin.last_used else None,
                 "applied_to_rules": plugin.applied_to_rules,
-                "execution_history": plugin.execution_history[
-                    -10:
-                ],  # Last 10 executions
+                "execution_history": plugin.execution_history[-10:],  # Last 10 executions
             },
         }
 
@@ -335,9 +321,7 @@ async def delete_plugin(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Check if plugin is in use
         if plugin.applied_to_rules and not force:
@@ -494,9 +478,7 @@ async def get_plugin_executions(
     Returns recent executions with timing, status, and basic output information.
     """
     try:
-        history = await plugin_execution_service.get_plugin_execution_history(
-            plugin_id, limit
-        )
+        history = await plugin_execution_service.get_plugin_execution_history(plugin_id, limit)
 
         return {
             "plugin_id": plugin_id,

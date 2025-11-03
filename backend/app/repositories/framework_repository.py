@@ -123,9 +123,7 @@ class FrameworkRepository(BaseRepository[Framework]):
         query = {"description": {"$regex": search_term, "$options": options}}
         return await self.find_many(query, sort=[("name", 1)])
 
-    async def get_framework_with_rules_count(
-        self, framework_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_framework_with_rules_count(self, framework_id: str) -> Optional[Dict[str, Any]]:
         """
         Get framework details with count of associated rules.
 
@@ -168,9 +166,7 @@ class FrameworkRepository(BaseRepository[Framework]):
             return framework_dict
 
         except Exception as e:
-            logger.error(
-                f"Error getting framework with rule count for {framework_id}: {e}"
-            )
+            logger.error(f"Error getting framework with rule count for {framework_id}: {e}")
             raise
 
     async def get_frameworks_with_rules_counts(self) -> List[Dict[str, Any]]:
@@ -201,18 +197,12 @@ class FrameworkRepository(BaseRepository[Framework]):
                 from ..models.mongo_models import ComplianceRule
 
                 pipeline = [
-                    {
-                        "$match": {
-                            f"frameworks.{framework.framework_id}": {"$exists": True}
-                        }
-                    },
+                    {"$match": {f"frameworks.{framework.framework_id}": {"$exists": True}}},
                     {"$count": "total"},
                 ]
 
                 count_result = await ComplianceRule.aggregate(pipeline).to_list()
-                framework_dict["rule_count"] = (
-                    count_result[0]["total"] if count_result else 0
-                )
+                framework_dict["rule_count"] = count_result[0]["total"] if count_result else 0
 
                 results.append(framework_dict)
 
@@ -286,9 +276,7 @@ class FrameworkRepository(BaseRepository[Framework]):
                 {"$match": {f"frameworks.{framework_id}": {"$exists": True}}},
                 {
                     "$project": {
-                        "versions": {
-                            "$objectToArray": f"$frameworks.{framework_id}.versions"
-                        }
+                        "versions": {"$objectToArray": f"$frameworks.{framework_id}.versions"}
                     }
                 },
                 {"$unwind": "$versions"},
@@ -303,9 +291,7 @@ class FrameworkRepository(BaseRepository[Framework]):
             logger.error(f"Error getting available versions for {framework_id}: {e}")
             raise
 
-    async def find_by_multiple_categories(
-        self, categories: List[str]
-    ) -> List[Framework]:
+    async def find_by_multiple_categories(self, categories: List[str]) -> List[Framework]:
         """
         Find frameworks in any of the specified categories.
 

@@ -64,9 +64,7 @@ class RateLimitStore:
         # Last cleanup time
         self.last_cleanup = time.time()
 
-    def get_or_create_bucket(
-        self, bucket_key: str, capacity: int, rate: float
-    ) -> TokenBucket:
+    def get_or_create_bucket(self, bucket_key: str, capacity: int, rate: float) -> TokenBucket:
         """Get or create token bucket for client"""
         if bucket_key not in self.buckets:
             self.buckets[bucket_key] = TokenBucket(
@@ -116,9 +114,7 @@ class RateLimitStore:
 
         # Clean up old token buckets
         buckets_to_remove = [
-            key
-            for key, bucket in self.buckets.items()
-            if now - bucket.last_update > cleanup_age
+            key for key, bucket in self.buckets.items() if now - bucket.last_update > cleanup_age
         ]
 
         for key in buckets_to_remove:
@@ -144,9 +140,7 @@ class RateLimitStore:
 
         self.last_cleanup = now
         if buckets_to_remove:
-            logger.debug(
-                f"Rate limit cleanup: removed {len(buckets_to_remove)} unused buckets"
-            )
+            logger.debug(f"Rate limit cleanup: removed {len(buckets_to_remove)} unused buckets")
 
 
 class RateLimitingMiddleware:
@@ -254,11 +248,7 @@ class RateLimitingMiddleware:
             return await call_next(request)
 
         # Get appropriate configuration
-        config_key = (
-            endpoint_category
-            if endpoint_category in self.limits_config
-            else client_type
-        )
+        config_key = endpoint_category if endpoint_category in self.limits_config else client_type
         config = self.limits_config.get(config_key, self.limits_config["anonymous"])
 
         # Get or create token bucket
@@ -375,9 +365,7 @@ class RateLimitingMiddleware:
             return "system"
 
         # Authentication endpoints
-        if any(
-            p in path_lower for p in ["/auth/", "/login", "/token", "/register", "/mfa"]
-        ):
+        if any(p in path_lower for p in ["/auth/", "/login", "/token", "/register", "/mfa"]):
             return "auth"
 
         # Validation endpoints
@@ -391,9 +379,7 @@ class RateLimitingMiddleware:
         # Default to regular API
         return "api"
 
-    def _create_rate_limit_headers(
-        self, bucket: TokenBucket, config: Dict
-    ) -> Dict[str, str]:
+    def _create_rate_limit_headers(self, bucket: TokenBucket, config: Dict) -> Dict[str, str]:
         """Create industry-standard rate limit headers"""
         current_minute = int(time.time() // 60)
         reset_time = (current_minute + 1) * 60  # Next minute boundary
@@ -414,13 +400,9 @@ class RateLimitingMiddleware:
 
         rate_limit_response = RateLimitResponse(retry_after=retry_after)
 
-        return JSONResponse(
-            status_code=429, content=rate_limit_response.dict(), headers=headers
-        )
+        return JSONResponse(status_code=429, content=rate_limit_response.dict(), headers=headers)
 
-    def _track_suspicious_patterns(
-        self, client_id: str, endpoint: str, request: Request
-    ):
+    def _track_suspicious_patterns(self, client_id: str, endpoint: str, request: Request):
         """Track patterns that might indicate suspicious behavior"""
         endpoint_lower = endpoint.lower()
 
@@ -455,10 +437,7 @@ class RateLimitingMiddleware:
             "validation_endpoints",
             self.SUSPICIOUS_PATTERNS["validation_farming"]["window_minutes"],
         )
-        if (
-            validation_count
-            > self.SUSPICIOUS_PATTERNS["validation_farming"]["threshold"]
-        ):
+        if validation_count > self.SUSPICIOUS_PATTERNS["validation_farming"]["threshold"]:
             suspicious.append("validation_farming")
 
         # Check auth brute force

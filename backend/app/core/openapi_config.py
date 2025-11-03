@@ -108,9 +108,7 @@ OpenWatch supports webhooks for real-time notifications:
 """
 
     # Generate base OpenAPI schema
-    schema = get_openapi(
-        title=title, version=version, description=description, routes=app.routes
-    )
+    schema = get_openapi(title=title, version=version, description=description, routes=app.routes)
 
     # Add comprehensive server information
     schema["servers"] = [
@@ -449,9 +447,7 @@ def create_custom_swagger_ui(
     """
 
     # Inject custom styles and scripts
-    enhanced_html = swagger_ui_html.replace(
-        "</head>", f"{custom_css}{custom_js}</head>"
-    )
+    enhanced_html = swagger_ui_html.replace("</head>", f"{custom_css}{custom_js}</head>")
 
     return HTMLResponse(content=enhanced_html)
 

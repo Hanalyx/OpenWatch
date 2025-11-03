@@ -4,9 +4,7 @@ def sanitize_for_log(value: any) -> str:
         return "None"
     str_value = str(value)
     # Remove newlines and control characters to prevent log injection
-    return (
-        str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
-    )
+    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 """
@@ -170,9 +168,7 @@ async def list_system_credentials(
 
     except Exception as e:
         logger.error(f"Error listing system credentials: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve system credentials"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve system credentials")
 
 
 @router.post("/credentials", response_model=SystemCredentialsResponse)
@@ -208,9 +204,7 @@ async def create_system_credentials(
 
         # Validate SSH key if provided
         if credentials.private_key and credentials.auth_method in ["ssh_key", "both"]:
-            logger.info(
-                f"Validating SSH key for system credentials '{credentials.name}'"
-            )
+            logger.info(f"Validating SSH key for system credentials '{credentials.name}'")
             validation_result = validate_ssh_key(credentials.private_key)
 
             if not validation_result.is_valid:
@@ -246,9 +240,7 @@ async def create_system_credentials(
             )
             ssh_key_fingerprint = metadata.get("fingerprint")
             ssh_key_type = metadata.get("key_type")
-            ssh_key_bits = (
-                int(metadata.get("key_bits")) if metadata.get("key_bits") else None
-            )
+            ssh_key_bits = int(metadata.get("key_bits")) if metadata.get("key_bits") else None
             ssh_key_comment = metadata.get("key_comment")
 
             if metadata.get("error"):
@@ -266,9 +258,7 @@ async def create_system_credentials(
         if credentials.private_key:
             encrypted_private_key = encrypt_data(credentials.private_key.encode())
         if credentials.private_key_passphrase:
-            encrypted_passphrase = encrypt_data(
-                credentials.private_key_passphrase.encode()
-            )
+            encrypted_passphrase = encrypt_data(credentials.private_key_passphrase.encode())
 
         current_time = datetime.utcnow()
 
@@ -311,9 +301,7 @@ async def create_system_credentials(
         credential_id = result.fetchone().id
         db.commit()
 
-        logger.info(
-            f"Created system credentials '{credentials.name}' (ID: {credential_id})"
-        )
+        logger.info(f"Created system credentials '{credentials.name}' (ID: {credential_id})")
 
         return SystemCredentialsResponse(
             id=credential_id,
@@ -336,9 +324,7 @@ async def create_system_credentials(
     except Exception as e:
         logger.error(f"Error creating system credentials: {e}")
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail="Failed to create system credentials"
-        )
+        raise HTTPException(status_code=500, detail="Failed to create system credentials")
 
 
 @router.get("/credentials/default")
@@ -463,9 +449,7 @@ async def update_system_credentials(
 
         # Validate SSH key if provided
         if credentials.private_key and credentials.auth_method in ["ssh_key", "both"]:
-            logger.info(
-                f"Validating SSH key for system credentials update (ID: {credential_id})"
-            )
+            logger.info(f"Validating SSH key for system credentials update (ID: {credential_id})")
             validation_result = validate_ssh_key(credentials.private_key)
 
             if not validation_result.is_valid:
@@ -501,9 +485,7 @@ async def update_system_credentials(
             )
             ssh_key_fingerprint = metadata.get("fingerprint")
             ssh_key_type = metadata.get("key_type")
-            ssh_key_bits = (
-                int(metadata.get("key_bits")) if metadata.get("key_bits") else None
-            )
+            ssh_key_bits = int(metadata.get("key_bits")) if metadata.get("key_bits") else None
             ssh_key_comment = metadata.get("key_comment")
 
             if metadata.get("error"):
@@ -538,30 +520,22 @@ async def update_system_credentials(
         if credentials.password is not None:
             updates.append("encrypted_password = :encrypted_password")
             params["encrypted_password"] = (
-                encrypt_data(credentials.password.encode())
-                if credentials.password
-                else None
+                encrypt_data(credentials.password.encode()) if credentials.password else None
             )
         if credentials.private_key is not None:
             updates.append("encrypted_private_key = :encrypted_private_key")
             params["encrypted_private_key"] = (
-                encrypt_data(credentials.private_key.encode())
-                if credentials.private_key
-                else None
+                encrypt_data(credentials.private_key.encode()) if credentials.private_key else None
             )
             # Update SSH key metadata when private key changes
             updates.append("ssh_key_fingerprint = :ssh_key_fingerprint")
-            params["ssh_key_fingerprint"] = (
-                ssh_key_fingerprint if credentials.private_key else None
-            )
+            params["ssh_key_fingerprint"] = ssh_key_fingerprint if credentials.private_key else None
             updates.append("ssh_key_type = :ssh_key_type")
             params["ssh_key_type"] = ssh_key_type if credentials.private_key else None
             updates.append("ssh_key_bits = :ssh_key_bits")
             params["ssh_key_bits"] = ssh_key_bits if credentials.private_key else None
             updates.append("ssh_key_comment = :ssh_key_comment")
-            params["ssh_key_comment"] = (
-                ssh_key_comment if credentials.private_key else None
-            )
+            params["ssh_key_comment"] = ssh_key_comment if credentials.private_key else None
         if credentials.private_key_passphrase is not None:
             updates.append("private_key_passphrase = :private_key_passphrase")
             params["private_key_passphrase"] = (
@@ -573,11 +547,7 @@ async def update_system_credentials(
         if updates:
             updates.append("updated_at = :updated_at")
             # Security Fix: Use safe string concatenation instead of f-string
-            query = (
-                "UPDATE system_credentials SET "
-                + ", ".join(updates)
-                + " WHERE id = :id"
-            )
+            query = "UPDATE system_credentials SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
 
@@ -616,9 +586,7 @@ async def update_system_credentials(
     except Exception as e:
         logger.error(f"Error updating system credentials: {e}")
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail="Failed to update system credentials"
-        )
+        raise HTTPException(status_code=500, detail="Failed to update system credentials")
 
 
 @router.delete("/credentials/{credential_id}")
@@ -695,9 +663,7 @@ async def delete_system_credentials(
     except Exception as e:
         logger.error(f"Error deleting system credentials: {e}")
         db.rollback()
-        raise HTTPException(
-            status_code=500, detail="Failed to delete system credentials"
-        )
+        raise HTTPException(status_code=500, detail="Failed to delete system credentials")
 
 
 @router.delete("/credentials/{credential_id}/ssh-key")
@@ -849,9 +815,7 @@ async def restore_scheduler_state():
 
                 # Shut down the scheduler when exiting the app
                 atexit.register(
-                    lambda: (
-                        scheduler_instance.shutdown() if scheduler_instance else None
-                    )
+                    lambda: (scheduler_instance.shutdown() if scheduler_instance else None)
                 )
 
                 logger.info(
@@ -1049,13 +1013,9 @@ async def start_scheduler(
         scheduler_instance.start()
 
         # Shut down the scheduler when exiting the app
-        atexit.register(
-            lambda: scheduler_instance.shutdown() if scheduler_instance else None
-        )
+        atexit.register(lambda: scheduler_instance.shutdown() if scheduler_instance else None)
 
-        logger.info(
-            f"Host monitoring scheduler started (every {request.interval_minutes} minutes)"
-        )
+        logger.info(f"Host monitoring scheduler started (every {request.interval_minutes} minutes)")
         return {
             "message": f"Scheduler started successfully (every {request.interval_minutes} minutes)"
         }
@@ -1089,9 +1049,7 @@ async def stop_scheduler(
             )
             db.commit()
         except Exception as db_error:
-            logger.warning(
-                f"Failed to save scheduler disabled state to database: {db_error}"
-            )
+            logger.warning(f"Failed to save scheduler disabled state to database: {db_error}")
 
         if scheduler_instance and scheduler_instance.running:
             scheduler_instance.shutdown()
@@ -1160,9 +1118,7 @@ async def update_scheduler_settings(
             )
             scheduler_instance.start()
 
-            atexit.register(
-                lambda: scheduler_instance.shutdown() if scheduler_instance else None
-            )
+            atexit.register(lambda: scheduler_instance.shutdown() if scheduler_instance else None)
             logger.info(
                 f"Scheduler restarted with new interval: {request.interval_minutes} minutes"
             )
@@ -1175,9 +1131,7 @@ async def update_scheduler_settings(
 
     except Exception as e:
         logger.error(f"Error updating scheduler settings: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to update scheduler settings"
-        )
+        raise HTTPException(status_code=500, detail="Failed to update scheduler settings")
 
 
 # Alert Settings endpoints
@@ -1346,9 +1300,7 @@ async def update_alert_settings(
         if updates:
             updates.append("updated_at = :updated_at")
             # Security Fix: Use safe string concatenation instead of f-string
-            query = (
-                "UPDATE alert_settings SET " + ", ".join(updates) + " WHERE id = :id"
-            )
+            query = "UPDATE alert_settings SET " + ", ".join(updates) + " WHERE id = :id"
             db.execute(text(query), params)
             db.commit()
 

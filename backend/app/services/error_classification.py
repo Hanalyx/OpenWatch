@@ -57,9 +57,7 @@ class NetworkValidator:
     """Network connectivity validation"""
 
     @staticmethod
-    async def validate_connectivity(
-        hostname: str, port: int = 22
-    ) -> List[ScanErrorInternal]:
+    async def validate_connectivity(hostname: str, port: int = 22) -> List[ScanErrorInternal]:
         """Comprehensive network connectivity validation"""
         errors = []
 
@@ -163,9 +161,7 @@ class NetworkValidator:
                             category=ErrorCategory.NETWORK,
                             severity=ErrorSeverity.WARNING,
                             message=f"Unexpected service on port {port}",
-                            technical_details={
-                                "banner": banner.decode("utf-8", errors="ignore")
-                            },
+                            technical_details={"banner": banner.decode("utf-8", errors="ignore")},
                             user_guidance=f"Port {port} is not running SSH service. Verify SSH daemon is running on the correct port.",
                             documentation_url="https://docs.openwatch.dev/troubleshooting/network#wrong-service",
                         )
@@ -321,9 +317,7 @@ class AuthenticationValidator:
 
                     # Parse and test the key
                     key = parse_ssh_key(credential)
-                    ssh.connect(
-                        hostname, port=port, username=username, pkey=key, timeout=10
-                    )
+                    ssh.connect(hostname, port=port, username=username, pkey=key, timeout=10)
                     ssh.close()
                     return errors  # Success
 
@@ -381,9 +375,7 @@ class PrivilegeValidator:
 
         try:
             # Check sudo access for oscap
-            _, stdout, stderr = ssh_client.exec_command(
-                "sudo -n oscap --version", timeout=10
-            )
+            _, stdout, stderr = ssh_client.exec_command("sudo -n oscap --version", timeout=10)
             exit_status = stdout.channel.recv_exit_status()
             stderr_output = stderr.read().decode()
 
@@ -415,9 +407,7 @@ class PrivilegeValidator:
                     )
 
             # Check SELinux enforcement (if applicable)
-            stdin, stdout, stderr = ssh_client.exec_command(
-                "getenforce 2>/dev/null", timeout=5
-            )
+            stdin, stdout, stderr = ssh_client.exec_command("getenforce 2>/dev/null", timeout=5)
             selinux_status = stdout.read().decode().strip().lower()
 
             if selinux_status == "enforcing":
@@ -467,9 +457,7 @@ class ResourceValidator:
     MIN_MEMORY_MB = 512
 
     @classmethod
-    async def validate_resources(
-        cls, ssh_client: paramiko.SSHClient
-    ) -> List[ScanErrorInternal]:
+    async def validate_resources(cls, ssh_client: paramiko.SSHClient) -> List[ScanErrorInternal]:
         """Check system resource availability"""
         errors = []
 
@@ -511,9 +499,7 @@ class ResourceValidator:
                             )
                         )
                 except ValueError:
-                    logger.warning(
-                        f"Could not parse disk space output: {available_output}"
-                    )
+                    logger.warning(f"Could not parse disk space output: {available_output}")
 
             # Check memory availability
             stdin, stdout, stderr = ssh_client.exec_command(
@@ -554,9 +540,7 @@ class DependencyValidator:
     MIN_OPENSCAP_VERSION = "1.3.0"
 
     @classmethod
-    async def validate_dependencies(
-        cls, ssh_client: paramiko.SSHClient
-    ) -> List[ScanErrorInternal]:
+    async def validate_dependencies(cls, ssh_client: paramiko.SSHClient) -> List[ScanErrorInternal]:
         """Validate OpenSCAP installation and dependencies"""
         errors = []
 
@@ -598,9 +582,7 @@ class DependencyValidator:
                 return errors
 
             # Check OpenSCAP version
-            stdin, stdout, stderr = ssh_client.exec_command(
-                "oscap --version", timeout=10
-            )
+            stdin, stdout, stderr = ssh_client.exec_command("oscap --version", timeout=10)
             version_output = stdout.read().decode()
 
             version = cls._parse_openscap_version(version_output)
@@ -708,8 +690,7 @@ class ErrorClassificationService:
 
         # Network errors
         if any(
-            keyword in error_str
-            for keyword in ["connection refused", "timeout", "unreachable"]
+            keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]
         ):
             return ScanErrorInternal(
                 error_code="NET_006",
@@ -741,10 +722,7 @@ class ErrorClassificationService:
             )
 
         # Resource errors
-        if any(
-            keyword in error_str
-            for keyword in ["no space", "disk full", "out of memory"]
-        ):
+        if any(keyword in error_str for keyword in ["no space", "disk full", "out of memory"]):
             return ScanErrorInternal(
                 error_code="RES_003",
                 category=ErrorCategory.RESOURCE,
@@ -784,15 +762,11 @@ class ErrorClassificationService:
         system_info = {}
         validation_checks = {}
 
-        logger.info(
-            f"Starting pre-flight validation for ***REDACTED***@{hostname}:{port}"
-        )
+        logger.info(f"Starting pre-flight validation for ***REDACTED***@{hostname}:{port}")
 
         # Stage 1: Network Connectivity
         try:
-            network_errors = await self.network_validator.validate_connectivity(
-                hostname, port
-            )
+            network_errors = await self.network_validator.validate_connectivity(hostname, port)
             validation_checks["network_connectivity"] = len(network_errors) == 0
             errors.extend(
                 [
@@ -801,9 +775,7 @@ class ErrorClassificationService:
                     if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
                 ]
             )
-            warnings.extend(
-                [e for e in network_errors if e.severity == ErrorSeverity.WARNING]
-            )
+            warnings.extend([e for e in network_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if network fails
                 duration = (datetime.utcnow() - start_time).total_seconds()
@@ -832,9 +804,7 @@ class ErrorClassificationService:
                     if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
                 ]
             )
-            warnings.extend(
-                [e for e in auth_errors if e.severity == ErrorSeverity.WARNING]
-            )
+            warnings.extend([e for e in auth_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if auth fails
                 duration = (datetime.utcnow() - start_time).total_seconds()
@@ -849,9 +819,7 @@ class ErrorClassificationService:
         except Exception as e:
             logger.error(f"Authentication validation failed: {e}")
             validation_checks["authentication"] = False
-            errors.append(
-                await self.classify_error(e, {"stage": "authentication_validation"})
-            )
+            errors.append(await self.classify_error(e, {"stage": "authentication_validation"}))
 
         # Stage 3: Advanced validations (if we can connect)
         ssh_client = None
@@ -880,9 +848,7 @@ class ErrorClassificationService:
                 from .unified_ssh_service import parse_ssh_key
 
                 key = parse_ssh_key(credential)
-                ssh_client.connect(
-                    hostname, port=port, username=username, pkey=key, timeout=10
-                )
+                ssh_client.connect(hostname, port=port, username=username, pkey=key, timeout=10)
 
             # Get system information (will be sanitized later)
             stdin, stdout, stderr = ssh_client.exec_command(
@@ -920,12 +886,9 @@ class ErrorClassificationService:
                 system_info["memory"] = int(memory_output)
 
             # Privilege validation
-            privilege_errors = await self.privilege_validator.validate_privileges(
-                ssh_client
-            )
+            privilege_errors = await self.privilege_validator.validate_privileges(ssh_client)
             validation_checks["privileges"] = (
-                len([e for e in privilege_errors if e.severity == ErrorSeverity.ERROR])
-                == 0
+                len([e for e in privilege_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
             errors.extend(
                 [
@@ -934,17 +897,12 @@ class ErrorClassificationService:
                     if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
                 ]
             )
-            warnings.extend(
-                [e for e in privilege_errors if e.severity == ErrorSeverity.WARNING]
-            )
+            warnings.extend([e for e in privilege_errors if e.severity == ErrorSeverity.WARNING])
 
             # Resource validation
-            resource_errors = await self.resource_validator.validate_resources(
-                ssh_client
-            )
+            resource_errors = await self.resource_validator.validate_resources(ssh_client)
             validation_checks["resources"] = (
-                len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR])
-                == 0
+                len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
             errors.extend(
                 [
@@ -953,17 +911,12 @@ class ErrorClassificationService:
                     if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
                 ]
             )
-            warnings.extend(
-                [e for e in resource_errors if e.severity == ErrorSeverity.WARNING]
-            )
+            warnings.extend([e for e in resource_errors if e.severity == ErrorSeverity.WARNING])
 
             # Dependency validation
-            dependency_errors = await self.dependency_validator.validate_dependencies(
-                ssh_client
-            )
+            dependency_errors = await self.dependency_validator.validate_dependencies(ssh_client)
             validation_checks["dependencies"] = (
-                len([e for e in dependency_errors if e.severity == ErrorSeverity.ERROR])
-                == 0
+                len([e for e in dependency_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
             errors.extend(
                 [
@@ -972,16 +925,12 @@ class ErrorClassificationService:
                     if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
                 ]
             )
-            warnings.extend(
-                [e for e in dependency_errors if e.severity == ErrorSeverity.WARNING]
-            )
+            warnings.extend([e for e in dependency_errors if e.severity == ErrorSeverity.WARNING])
 
         except Exception as e:
             logger.error(f"Advanced validation failed: {e}")
             # Don't fail completely - basic connectivity/auth worked
-            warnings.append(
-                await self.classify_error(e, {"stage": "advanced_validation"})
-            )
+            warnings.append(await self.classify_error(e, {"stage": "advanced_validation"}))
         finally:
             if ssh_client:
                 ssh_client.close()

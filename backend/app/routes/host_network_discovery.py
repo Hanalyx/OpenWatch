@@ -64,9 +64,7 @@ class NetworkSecurityAssessment(BaseModel):
     network_vulnerabilities: List[str]
 
 
-@router.post(
-    "/hosts/{host_id}/network-discovery", response_model=NetworkDiscoveryResponse
-)
+@router.post("/hosts/{host_id}/network-discovery", response_model=NetworkDiscoveryResponse)
 async def discover_host_network_topology(
     host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -144,13 +142,9 @@ async def bulk_discover_network_topology(
     check_permission(current_user, "hosts:read")
 
     if not request.host_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
 
-    if (
-        len(request.host_ids) > 10
-    ):  # Limit bulk operations for network discovery (most intensive)
+    if len(request.host_ids) > 10:  # Limit bulk operations for network discovery (most intensive)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Too many hosts requested. Maximum 10 hosts per bulk network discovery operation.",
@@ -286,9 +280,7 @@ async def generate_network_topology_map(
     check_permission(current_user, "hosts:read")
 
     if not request.host_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
 
     if len(request.host_ids) > 20:  # Allow more hosts for topology mapping
         raise HTTPException(
@@ -458,26 +450,20 @@ def _assess_network_security(
     # Check IP forwarding
     if network_security.get("ip_forwarding"):
         assessment.network_vulnerabilities.append("IP forwarding is enabled")
-        assessment.hardening_recommendations.append(
-            "Disable IP forwarding if not needed"
-        )
+        assessment.hardening_recommendations.append("Disable IP forwarding if not needed")
         assessment.security_score -= 0.1
 
     # Check risky ports
     if risky_ports:
         assessment.security_score -= len(risky_ports) * 0.1
-        assessment.hardening_recommendations.append(
-            "Review and secure risky open ports"
-        )
+        assessment.hardening_recommendations.append("Review and secure risky open ports")
 
     # Check hardening status
     hardening_status = network_security.get("hardening_status", {})
 
     # TCP SYN cookies should be enabled
     if hardening_status.get("TCP SYN Cookies") != "1":
-        assessment.hardening_recommendations.append(
-            "Enable TCP SYN cookies for DDoS protection"
-        )
+        assessment.hardening_recommendations.append("Enable TCP SYN cookies for DDoS protection")
         assessment.security_score -= 0.05
 
     # Accept redirects should be disabled
@@ -496,9 +482,7 @@ def _assess_network_security(
         1 for test in connectivity_tests.values() if not test.get("ping_success", True)
     )
     if failed_tests > 0:
-        assessment.network_vulnerabilities.append(
-            f"{failed_tests} connectivity tests failed"
-        )
+        assessment.network_vulnerabilities.append(f"{failed_tests} connectivity tests failed")
 
     # Ensure score doesn't go below 0
     assessment.security_score = max(0.0, assessment.security_score)
@@ -531,13 +515,9 @@ def _generate_topology_map(
                 "hostname": host.hostname,
                 "ip_address": host.ip_address,
                 "interfaces": list(result.network_interfaces.keys()),
-                "gateway_count": len(
-                    [r for r in result.routing_table if r.get("gateway")]
-                ),
+                "gateway_count": len([r for r in result.routing_table if r.get("gateway")]),
                 "open_ports": len(result.network_services.get("listening_ports", [])),
-                "connectivity_score": _calculate_connectivity_score(
-                    result.connectivity_tests
-                ),
+                "connectivity_score": _calculate_connectivity_score(result.connectivity_tests),
             }
 
             hosts.append(host_info)
@@ -560,9 +540,7 @@ def _generate_topology_map(
                         )
 
         except Exception as e:
-            logger.warning(
-                f"Error processing host {host_id} for topology map: {str(e)}"
-            )
+            logger.warning(f"Error processing host {host_id} for topology map: {str(e)}")
             continue
 
     # Generate connectivity matrix (simplified - based on ping tests)

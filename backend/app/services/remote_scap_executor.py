@@ -154,22 +154,16 @@ class RemoteSCAPExecutor:
             elif auth_method == "password":
                 credential_value = credential_data.password
             elif auth_method == "both":
-                credential_value = (
-                    credential_data.private_key or credential_data.password
-                )
+                credential_value = credential_data.private_key or credential_data.password
             else:
-                raise RemoteSCAPExecutionError(
-                    f"Unsupported auth method: {auth_method}"
-                )
+                raise RemoteSCAPExecutionError(f"Unsupported auth method: {auth_method}")
 
             if not credential_value:
                 raise RemoteSCAPExecutionError(
                     f"No credential available for auth method: {auth_method}"
                 )
 
-            logger.info(
-                f"Connecting to {hostname}:{port} as {username} via {auth_method}"
-            )
+            logger.info(f"Connecting to {hostname}:{port} as {username} via {auth_method}")
 
             connection_result = self.ssh_service.connect_with_credentials(
                 hostname=hostname,
@@ -220,9 +214,7 @@ class RemoteSCAPExecutor:
                 # Step 7: Cleanup remote files
                 # TODO: Temporarily disabled for debugging - re-enable after XCCDF fix
                 # self._cleanup_remote_directory(ssh, remote_dir)
-                logger.info(
-                    f"DEBUG: Preserved remote directory for inspection: {remote_dir}"
-                )
+                logger.info(f"DEBUG: Preserved remote directory for inspection: {remote_dir}")
 
                 # Calculate execution time
                 execution_time = (datetime.utcnow() - start_time).total_seconds()
@@ -297,9 +289,7 @@ class RemoteSCAPExecutor:
 
             if exit_code != 0:
                 error = stderr.read().decode()
-                raise RemoteSCAPExecutionError(
-                    f"Failed to create remote directory: {error}"
-                )
+                raise RemoteSCAPExecutionError(f"Failed to create remote directory: {error}")
 
             logger.debug(f"Created remote directory: {remote_dir}")
 
@@ -328,9 +318,7 @@ class RemoteSCAPExecutor:
                 remote_path = f"{remote_dir}/{local_path.name}"
 
                 # Transfer file
-                logger.debug(
-                    f"Transferring {local_path.name} ({local_path.stat().st_size} bytes)"
-                )
+                logger.debug(f"Transferring {local_path.name} ({local_path.stat().st_size} bytes)")
                 sftp.put(str(local_path), remote_path)
 
                 # Verify transfer with file size check
@@ -451,9 +439,7 @@ class RemoteSCAPExecutor:
             if exit_code == 0:
                 logger.debug(f"Cleaned up remote directory: {remote_dir}")
             else:
-                logger.warning(
-                    f"Failed to cleanup remote directory: {stderr.read().decode()}"
-                )
+                logger.warning(f"Failed to cleanup remote directory: {stderr.read().decode()}")
 
         except Exception as e:
             logger.warning(f"Remote cleanup failed: {e}")

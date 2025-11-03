@@ -131,9 +131,7 @@ class RuleService:
                 repo = ComplianceRuleRepository()
                 rules = await repo.find_many(query_filter)
             else:
-                logger.debug(
-                    f"Using direct MongoDB find for get_rules_by_platform ({platform})"
-                )
+                logger.debug(f"Using direct MongoDB find for get_rules_by_platform ({platform})")
                 rules = await ComplianceRule.find(query_filter).to_list()
 
             # Resolve inheritance for each rule
@@ -301,18 +299,12 @@ class RuleService:
         # Platform filter
         if platform_filter:
             pipeline.append(
-                {
-                    "$match": {
-                        f"platform_implementations.{platform_filter}": {"$exists": True}
-                    }
-                }
+                {"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}}
             )
 
         # Framework filter
         if framework_filter:
-            pipeline.append(
-                {"$match": {f"frameworks.{framework_filter}": {"$exists": True}}}
-            )
+            pipeline.append({"$match": {f"frameworks.{framework_filter}": {"$exists": True}}})
 
         # Sort by relevance and severity
         sort_stage = {"$sort": {}}
@@ -392,15 +384,9 @@ class RuleService:
                 "intelligence_records": total_intelligence,
                 "remediation_scripts": total_scripts,
             },
-            "severity_distribution": {
-                item["_id"]: item["count"] for item in severity_stats
-            },
-            "platform_coverage": {
-                item["_id"]: item["count"] for item in platform_stats
-            },
-            "framework_coverage": {
-                item["_id"]: item["count"] for item in framework_stats
-            },
+            "severity_distribution": {item["_id"]: item["count"] for item in severity_stats},
+            "platform_coverage": {item["_id"]: item["count"] for item in platform_stats},
+            "framework_coverage": {item["_id"]: item["count"] for item in framework_stats},
             "query_performance": self.query_stats,
             "last_updated": datetime.utcnow().isoformat(),
         }
@@ -536,20 +522,14 @@ class RuleService:
 
         return merged
 
-    def _merge_dependencies(
-        self, parent_deps: Dict, child_deps: Dict
-    ) -> Dict[str, List[str]]:
+    def _merge_dependencies(self, parent_deps: Dict, child_deps: Dict) -> Dict[str, List[str]]:
         """Merge dependency lists from parent and child"""
         merged = {
-            "requires": list(
-                set(parent_deps.get("requires", []) + child_deps.get("requires", []))
-            ),
+            "requires": list(set(parent_deps.get("requires", []) + child_deps.get("requires", []))),
             "conflicts": list(
                 set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))
             ),
-            "related": list(
-                set(parent_deps.get("related", []) + child_deps.get("related", []))
-            ),
+            "related": list(set(parent_deps.get("related", []) + child_deps.get("related", []))),
         }
 
         return merged
@@ -581,9 +561,7 @@ class RuleService:
         overrides = rule_data.get("parameter_overrides", {})
         for context_key in reversed(context_keys):  # Apply in reverse order
             if context_key in overrides:
-                rule_data = self._apply_override_values(
-                    rule_data, overrides[context_key]
-                )
+                rule_data = self._apply_override_values(rule_data, overrides[context_key])
 
         return rule_data
 
@@ -647,9 +625,7 @@ class RuleService:
             if use_repo:
                 dep_rule = await repo.find_one({"rule_id": dep_id})
             else:
-                dep_rule = await ComplianceRule.find_one(
-                    ComplianceRule.rule_id == dep_id
-                )
+                dep_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == dep_id)
 
             if dep_rule:
                 dep_data = await self._resolve_rule_inheritance(dep_rule)
@@ -683,22 +659,16 @@ class RuleService:
             if use_repo:
                 related_rule = await repo.find_one({"rule_id": related_id})
             else:
-                related_rule = await ComplianceRule.find_one(
-                    ComplianceRule.rule_id == related_id
-                )
+                related_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == related_id)
 
             if related_rule:
                 related_data = await self._resolve_rule_inheritance(related_rule)
-                result["related"].append(
-                    {"rule": related_data, "relationship": "related"}
-                )
+                result["related"].append({"rule": related_data, "relationship": "related"})
 
         visited.remove(rule.rule_id)
         return result
 
-    async def _is_rule_applicable(
-        self, rule: Dict[str, Any], capabilities: Dict[str, Any]
-    ) -> bool:
+    async def _is_rule_applicable(self, rule: Dict[str, Any], capabilities: Dict[str, Any]) -> bool:
         """Check if rule is applicable to detected capabilities"""
         rule_requirements = rule.get("platform_requirements", {})
 
@@ -779,6 +749,4 @@ class RuleService:
         # Update rolling average response time
         total = self.query_stats["total_queries"]
         current_avg = self.query_stats["avg_response_time"]
-        self.query_stats["avg_response_time"] = (
-            (current_avg * (total - 1)) + duration
-        ) / total
+        self.query_stats["avg_response_time"] = ((current_avg * (total - 1)) + duration) / total

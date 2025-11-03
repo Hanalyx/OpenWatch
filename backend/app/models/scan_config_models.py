@@ -37,12 +37,8 @@ class ScanTemplate(Document):
     description: Optional[str] = Field(default=None, description="Template description")
 
     # Configuration
-    framework: str = Field(
-        ..., description="Compliance framework (e.g., 'nist', 'cis')"
-    )
-    framework_version: str = Field(
-        ..., description="Framework version (e.g., 'rev5', '1.0.0')"
-    )
+    framework: str = Field(..., description="Compliance framework (e.g., 'nist', 'cis')")
+    framework_version: str = Field(..., description="Framework version (e.g., 'rev5', '1.0.0')")
     target_type: ScanTargetType = Field(..., description="Target system type")
 
     variable_overrides: Dict[str, str] = Field(
@@ -59,20 +55,14 @@ class ScanTemplate(Document):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    is_default: bool = Field(
-        default=False, description="Default template for this framework/user"
-    )
+    is_default: bool = Field(default=False, description="Default template for this framework/user")
 
-    tags: List[str] = Field(
-        default_factory=list, description="User-defined tags for organization"
-    )
+    tags: List[str] = Field(default_factory=list, description="User-defined tags for organization")
 
     version: int = Field(default=1, description="Template version number")
 
     # Sharing
-    shared_with: List[str] = Field(
-        default_factory=list, description="Usernames with read access"
-    )
+    shared_with: List[str] = Field(default_factory=list, description="Usernames with read access")
 
     is_public: bool = Field(default=False, description="Template visible to all users")
 
@@ -93,20 +83,14 @@ class VariableConstraint(BaseModel):
     """XCCDF variable constraints."""
 
     # Range constraints (numbers)
-    lower_bound: Optional[float] = Field(
-        default=None, description="Minimum value (inclusive)"
-    )
-    upper_bound: Optional[float] = Field(
-        default=None, description="Maximum value (inclusive)"
-    )
+    lower_bound: Optional[float] = Field(default=None, description="Minimum value (inclusive)")
+    upper_bound: Optional[float] = Field(default=None, description="Maximum value (inclusive)")
 
     # Choice constraints (enums)
     choices: Optional[List[str]] = Field(default=None, description="Allowed values")
 
     # Pattern constraint (regex)
-    match: Optional[str] = Field(
-        default=None, description="Regex pattern for validation"
-    )
+    match: Optional[str] = Field(default=None, description="Regex pattern for validation")
 
 
 class VariableDefinition(BaseModel):
@@ -127,13 +111,9 @@ class VariableDefinition(BaseModel):
         default=None, description="Validation constraints"
     )
 
-    interactive: bool = Field(
-        default=True, description="Whether user input is required"
-    )
+    interactive: bool = Field(default=True, description="Whether user input is required")
 
-    category: Optional[str] = Field(
-        default=None, description="Variable category for UI grouping"
-    )
+    category: Optional[str] = Field(default=None, description="Variable category for UI grouping")
 
 
 class FrameworkMetadata(BaseModel):
@@ -176,9 +156,7 @@ class FrameworkVersion(BaseModel):
         default_factory=list, description="All variables for this framework/version"
     )
 
-    categories: List[str] = Field(
-        default_factory=list, description="Available rule categories"
-    )
+    categories: List[str] = Field(default_factory=list, description="Available rule categories")
 
     target_types: List[ScanTargetType] = Field(
         default_factory=list, description="Supported target types"
@@ -216,9 +194,7 @@ class UpdateTemplateRequest(BaseModel):
 class ValidateVariablesRequest(BaseModel):
     """Request schema for variable validation."""
 
-    variables: Dict[str, Any] = Field(
-        ..., description="Variable ID -> value mapping to validate"
-    )
+    variables: Dict[str, Any] = Field(..., description="Variable ID -> value mapping to validate")
 
 
 class ValidationResult(BaseModel):

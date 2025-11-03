@@ -84,9 +84,7 @@ class MaintenanceWindow(BaseModel):
     )
 
     # Approval settings
-    requires_approval: bool = Field(
-        default=True, description="Require approval before execution"
-    )
+    requires_approval: bool = Field(default=True, description="Require approval before execution")
     approval_window_hours: int = Field(
         default=24, ge=1, le=168, description="Hours before window to require approval"
     )
@@ -238,9 +236,7 @@ class ScheduleExecution(Document):
 
     # Results
     bulk_job_id: Optional[str] = None
-    execution_status: str = Field(
-        ..., description="pending, running, success, failed, cancelled"
-    )
+    execution_status: str = Field(..., description="pending, running, success, failed, cancelled")
     error_message: Optional[str] = None
 
     # Context
@@ -300,9 +296,7 @@ class RemediationSchedulerService:
 
         logger.info("Remediation scheduler stopped")
 
-    async def create_schedule(
-        self, schedule: RemediationSchedule
-    ) -> RemediationSchedule:
+    async def create_schedule(self, schedule: RemediationSchedule) -> RemediationSchedule:
         """Create a new remediation schedule"""
         try:
             # Calculate next execution time
@@ -328,9 +322,7 @@ class RemediationSchedulerService:
             # Save schedule
             await schedule.save()
 
-            logger.info(
-                f"Created remediation schedule: {schedule.schedule_id} ({schedule.name})"
-            )
+            logger.info(f"Created remediation schedule: {schedule.schedule_id} ({schedule.name})")
             return schedule
 
         except Exception as e:
@@ -339,9 +331,7 @@ class RemediationSchedulerService:
 
     async def get_schedule(self, schedule_id: str) -> Optional[RemediationSchedule]:
         """Get a remediation schedule by ID"""
-        return await RemediationSchedule.find_one(
-            RemediationSchedule.schedule_id == schedule_id
-        )
+        return await RemediationSchedule.find_one(RemediationSchedule.schedule_id == schedule_id)
 
     async def list_schedules(
         self,
@@ -406,9 +396,7 @@ class RemediationSchedulerService:
         logger.info(f"Deleted remediation schedule: {schedule_id}")
         return True
 
-    async def approve_schedule(
-        self, schedule_id: str, approver: str, notes: str = None
-    ) -> bool:
+    async def approve_schedule(self, schedule_id: str, approver: str, notes: str = None) -> bool:
         """Approve a schedule for execution"""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
@@ -421,10 +409,7 @@ class RemediationSchedulerService:
             return True  # Already approved
 
         # Check if approval deadline has passed
-        if (
-            schedule.approval_required_by
-            and datetime.utcnow() > schedule.approval_required_by
-        ):
+        if schedule.approval_required_by and datetime.utcnow() > schedule.approval_required_by:
             logger.warning(f"Approval deadline passed for schedule {schedule_id}")
             return False
 
@@ -446,17 +431,13 @@ class RemediationSchedulerService:
 
         return await self._execute_schedule(schedule, triggered_by)
 
-    async def add_maintenance_window(
-        self, window: MaintenanceWindow
-    ) -> MaintenanceWindow:
+    async def add_maintenance_window(self, window: MaintenanceWindow) -> MaintenanceWindow:
         """Add a maintenance window"""
         self.maintenance_windows[window.window_id] = window
         logger.info(f"Added maintenance window: {window.window_id} ({window.name})")
         return window
 
-    async def get_maintenance_window(
-        self, window_id: str
-    ) -> Optional[MaintenanceWindow]:
+    async def get_maintenance_window(self, window_id: str) -> Optional[MaintenanceWindow]:
         """Get a maintenance window by ID"""
         return self.maintenance_windows.get(window_id)
 
@@ -475,9 +456,7 @@ class RemediationSchedulerService:
             .to_list()
         )
 
-    async def get_upcoming_schedules(
-        self, hours_ahead: int = 24
-    ) -> List[RemediationSchedule]:
+    async def get_upcoming_schedules(self, hours_ahead: int = 24) -> List[RemediationSchedule]:
         """Get schedules that will execute in the next N hours"""
         cutoff = datetime.utcnow() + timedelta(hours=hours_ahead)
 
@@ -519,19 +498,14 @@ class RemediationSchedulerService:
                 if schedule.requires_approval:
                     if not schedule.approved_at:
                         # Check if approval deadline passed
-                        if (
-                            schedule.approval_required_by
-                            and now > schedule.approval_required_by
-                        ):
+                        if schedule.approval_required_by and now > schedule.approval_required_by:
                             logger.warning(
                                 f"Schedule {schedule.schedule_id} missed approval deadline, skipping execution"
                             )
                             await self._advance_schedule(schedule)
                             continue
                         else:
-                            logger.info(
-                                f"Schedule {schedule.schedule_id} waiting for approval"
-                            )
+                            logger.info(f"Schedule {schedule.schedule_id} waiting for approval")
                             continue
 
                 # Execute the schedule
@@ -553,9 +527,7 @@ class RemediationSchedulerService:
 
                 await schedule.save()
 
-    async def _execute_schedule(
-        self, schedule: RemediationSchedule, triggered_by: str
-    ) -> str:
+    async def _execute_schedule(self, schedule: RemediationSchedule, triggered_by: str) -> str:
         """Execute a specific schedule"""
         execution = ScheduleExecution(
             schedule_id=schedule.schedule_id,
@@ -570,10 +542,8 @@ class RemediationSchedulerService:
             await execution.save()
 
             # Submit bulk remediation job
-            bulk_job_result = (
-                await self.bulk_remediation_service.submit_bulk_remediation(
-                    schedule.remediation_request
-                )
+            bulk_job_result = await self.bulk_remediation_service.submit_bulk_remediation(
+                schedule.remediation_request
             )
 
             execution.bulk_job_id = bulk_job_result.job_id
@@ -647,9 +617,8 @@ class RemediationSchedulerService:
 
                     # Set new approval deadline
                     if schedule.next_execution_at:
-                        schedule.approval_required_by = (
-                            schedule.next_execution_at
-                            - timedelta(hours=window.approval_window_hours)
+                        schedule.approval_required_by = schedule.next_execution_at - timedelta(
+                            hours=window.approval_window_hours
                         )
 
         await schedule.save()

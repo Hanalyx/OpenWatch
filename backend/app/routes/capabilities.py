@@ -130,9 +130,7 @@ async def get_capabilities(
             system_info=system_info,
         )
 
-        logger.info(
-            f"Capabilities requested by user {current_user.get('user_id', 'unknown')}"
-        )
+        logger.info(f"Capabilities requested by user {current_user.get('user_id', 'unknown')}")
 
         return response
 
@@ -160,9 +158,7 @@ async def get_feature_flags(
         license_info = await _detect_license_info()
         features = await _determine_feature_flags(license_info, settings)
 
-        logger.debug(
-            f"Feature flags requested by user {current_user.get('user_id', 'unknown')}"
-        )
+        logger.debug(f"Feature flags requested by user {current_user.get('user_id', 'unknown')}")
 
         return features
 

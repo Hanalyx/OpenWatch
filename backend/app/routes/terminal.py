@@ -67,9 +67,7 @@ async def host_terminal_websocket(
     except Exception:
         pass
 
-    logger.info(
-        f"Terminal WebSocket connection requested for host {host_id} from {client_ip}"
-    )
+    logger.info(f"Terminal WebSocket connection requested for host {host_id} from {client_ip}")
 
     # Note: WebSocket connections don't easily support standard HTTP auth middleware
     # For now, we'll accept connections and rely on network-level security
@@ -107,9 +105,7 @@ async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
     """
     try:
         # Check if host exists using raw SQL query
-        result = db.execute(
-            text("SELECT * FROM hosts WHERE id = :host_id"), {"host_id": host_id}
-        )
+        result = db.execute(text("SELECT * FROM hosts WHERE id = :host_id"), {"host_id": host_id})
         host_data = result.fetchone()
 
         if not host_data:
@@ -125,9 +121,7 @@ async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
 
         # Check for active sessions
         active_sessions = [
-            key
-            for key in terminal_service.active_sessions.keys()
-            if key.startswith(f"{host_id}_")
+            key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")
         ]
 
         return {

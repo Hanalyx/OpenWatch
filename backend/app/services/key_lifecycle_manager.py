@@ -119,9 +119,7 @@ class RSAKeyLifecycleManager:
             key_size = self.key_size
 
         if key_size < 2048:
-            raise ValueError(
-                "RSA key size must be at least 2048 bits for FIPS compliance"
-            )
+            raise ValueError("RSA key size must be at least 2048 bits for FIPS compliance")
 
         try:
             # Generate RSA private key with FIPS-approved parameters
@@ -262,9 +260,7 @@ class RSAKeyLifecycleManager:
                 return None
 
             with open(public_key_path, "rb") as f:
-                public_key = serialization.load_pem_public_key(
-                    f.read(), backend=default_backend()
-                )
+                public_key = serialization.load_pem_public_key(f.read(), backend=default_backend())
 
             return public_key
 
@@ -346,9 +342,7 @@ class RSAKeyLifecycleManager:
             # Activate new key
             metadata.status = KeyStatus.ACTIVE
             metadata.activated_at = datetime.utcnow()
-            metadata.expires_at = datetime.utcnow() + timedelta(
-                days=self.key_lifetime_days
-            )
+            metadata.expires_at = datetime.utcnow() + timedelta(days=self.key_lifetime_days)
 
             self.update_key_metadata(key_id, metadata)
 
@@ -390,9 +384,7 @@ class RSAKeyLifecycleManager:
 
             self.update_key_metadata(key_id, metadata)
 
-            logger.warning(
-                f"Revoked RSA key: {key_id}. Reason: {reason or 'Not specified'}"
-            )
+            logger.warning(f"Revoked RSA key: {key_id}. Reason: {reason or 'Not specified'}")
 
         except Exception as e:
             logger.error(f"Failed to revoke key {key_id}: {e}")

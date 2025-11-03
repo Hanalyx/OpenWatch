@@ -47,9 +47,9 @@ async def get_service_health(
         health_data = await health_service.get_latest_service_health()
 
         # If no data or data is older than 5 minutes, collect fresh
-        if not health_data or (
-            datetime.utcnow() - health_data.health_check_timestamp
-        ) > timedelta(minutes=5):
+        if not health_data or (datetime.utcnow() - health_data.health_check_timestamp) > timedelta(
+            minutes=5
+        ):
             health_data = await health_service.collect_service_health()
             await health_service.save_service_health(health_data)
 
@@ -84,9 +84,9 @@ async def get_content_health(
         health_data = await health_service.get_latest_content_health()
 
         # If no data or data is older than 1 hour, collect fresh
-        if not health_data or (
-            datetime.utcnow() - health_data.health_check_timestamp
-        ) > timedelta(hours=1):
+        if not health_data or (datetime.utcnow() - health_data.health_check_timestamp) > timedelta(
+            hours=1
+        ):
             health_data = await health_service.collect_content_health()
             await health_service.save_content_health(health_data)
 
@@ -166,9 +166,7 @@ async def refresh_health_data(
 
 @router.get("/health/history/service")
 async def get_service_health_history(
-    hours: int = Query(
-        default=24, ge=1, le=168, description="Hours of history to retrieve"
-    ),
+    hours: int = Query(default=24, ge=1, le=168, description="Hours of history to retrieve"),
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> Dict[str, Any]:
@@ -204,9 +202,7 @@ async def get_service_health_history(
 
 @router.get("/health/history/content")
 async def get_content_health_history(
-    hours: int = Query(
-        default=24, ge=1, le=168, description="Hours of history to retrieve"
-    ),
+    hours: int = Query(default=24, ge=1, le=168, description="Hours of history to retrieve"),
     current_user: User = Depends(get_current_user),
     health_service: HealthMonitoringService = Depends(get_health_monitoring_service),
 ) -> Dict[str, Any]:

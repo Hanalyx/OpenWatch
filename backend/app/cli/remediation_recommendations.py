@@ -118,13 +118,9 @@ async def analyze_gaps(args):
                 print(f"    Platform: {gap.platform}")
                 if args.verbose:
                     print(f"    Business Impact: {gap.business_impact}")
-                    print(
-                        f"    Security Implications: {len(gap.security_implications)} identified"
-                    )
+                    print(f"    Security Implications: {len(gap.security_implications)} identified")
                     if gap.compliance_deadline:
-                        print(
-                            f"    Deadline: {gap.compliance_deadline.strftime('%Y-%m-%d')}"
-                        )
+                        print(f"    Deadline: {gap.compliance_deadline.strftime('%Y-%m-%d')}")
                     print()
 
     # Framework breakdown
@@ -170,8 +166,7 @@ async def analyze_gaps(args):
                     priority: len(gaps) for priority, gaps in gaps_by_priority.items()
                 },
                 "framework_distribution": {
-                    framework: len(gaps)
-                    for framework, gaps in gaps_by_framework.items()
+                    framework: len(gaps) for framework, gaps in gaps_by_framework.items()
                 },
                 "platform_distribution": {
                     platform: len(gaps) for platform, gaps in gaps_by_platform.items()
@@ -198,9 +193,7 @@ async def analyze_gaps(args):
                     "last_scan_time": gap.last_scan_time.isoformat(),
                     "regulatory_requirements": gap.regulatory_requirements,
                     "compliance_deadline": (
-                        gap.compliance_deadline.isoformat()
-                        if gap.compliance_deadline
-                        else None
+                        gap.compliance_deadline.isoformat() if gap.compliance_deadline else None
                     ),
                 }
                 for gap in compliance_gaps
@@ -289,9 +282,7 @@ async def generate_recommendations(args):
                 print(f"    Complexity: {procedure.complexity.value}")
                 print(f"    Category: {procedure.category.value}")
                 print(f"    Estimated Time: {procedure.estimated_time_minutes} minutes")
-                print(
-                    f"    Requires Reboot: {'Yes' if procedure.requires_reboot else 'No'}"
-                )
+                print(f"    Requires Reboot: {'Yes' if procedure.requires_reboot else 'No'}")
                 print(f"    Confidence Score: {rec.confidence_score:.2f}")
 
                 if args.verbose:
@@ -299,12 +290,8 @@ async def generate_recommendations(args):
                     print(
                         f"    Rollback Available: {'Yes' if procedure.rollback_available else 'No'}"
                     )
-                    print(
-                        f"    Business Justification: {rec.business_justification[:100]}..."
-                    )
-                    print(
-                        f"    Testing Recommendations: {len(rec.testing_recommendations)}"
-                    )
+                    print(f"    Business Justification: {rec.business_justification[:100]}...")
+                    print(f"    Testing Recommendations: {len(rec.testing_recommendations)}")
                     print()
 
     # Complexity analysis
@@ -391,8 +378,7 @@ async def generate_recommendations(args):
                     },
                     "orsa_integration": {
                         "compatible_rules_count": len(rec.orsa_compatible_rules),
-                        "job_template_available": rec.remediation_job_template
-                        is not None,
+                        "job_template_available": rec.remediation_job_template is not None,
                     },
                     "metadata": {
                         "created_at": rec.created_at.isoformat(),
@@ -447,9 +433,7 @@ async def generate_orsa_mapping(args):
     print("=" * 80)
 
     total_rules = sum(len(rules) for rules in orsa_mappings.values())
-    print(
-        f"Generated {total_rules} ORSA-compatible rules across {len(orsa_mappings)} platforms"
-    )
+    print(f"Generated {total_rules} ORSA-compatible rules across {len(orsa_mappings)} platforms")
 
     for platform, rules in orsa_mappings.items():
         print(f"\n{platform.upper()} PLATFORM ({len(rules)} rules):")
@@ -472,8 +456,7 @@ async def generate_orsa_mapping(args):
 
     # Export ORSA mappings
     output_file = (
-        args.output_file
-        or f"orsa_mappings_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+        args.output_file or f"orsa_mappings_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
     )
 
     export_data = {
@@ -557,27 +540,19 @@ Examples:
         required=True,
         help="Directory containing unified rules JSON files",
     )
-    gaps_parser.add_argument(
-        "--frameworks", help="Comma-separated list of target frameworks"
-    )
-    gaps_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed gap information"
-    )
+    gaps_parser.add_argument("--frameworks", help="Comma-separated list of target frameworks")
+    gaps_parser.add_argument("--verbose", action="store_true", help="Show detailed gap information")
     gaps_parser.add_argument(
         "--max-display",
         type=int,
         default=10,
         help="Maximum gaps to display per priority",
     )
-    gaps_parser.add_argument(
-        "--export", action="store_true", help="Export compliance gaps to JSON"
-    )
+    gaps_parser.add_argument("--export", action="store_true", help="Export compliance gaps to JSON")
     gaps_parser.add_argument("--output-file", help="Output file for exported data")
 
     # Generate recommendations command
-    gen_parser = subparsers.add_parser(
-        "generate", help="Generate remediation recommendations"
-    )
+    gen_parser = subparsers.add_parser("generate", help="Generate remediation recommendations")
     gen_parser.add_argument(
         "--scan-results", required=True, help="JSON file containing scan results"
     )
@@ -586,9 +561,7 @@ Examples:
         required=True,
         help="Directory containing unified rules JSON files",
     )
-    gen_parser.add_argument(
-        "--frameworks", help="Comma-separated list of target frameworks"
-    )
+    gen_parser.add_argument("--frameworks", help="Comma-separated list of target frameworks")
     gen_parser.add_argument(
         "--min-priority",
         choices=["critical", "high", "medium", "low", "info"],
@@ -605,9 +578,7 @@ Examples:
         default=10,
         help="Maximum recommendations to display per priority",
     )
-    gen_parser.add_argument(
-        "--export", action="store_true", help="Export recommendations to JSON"
-    )
+    gen_parser.add_argument("--export", action="store_true", help="Export recommendations to JSON")
     gen_parser.add_argument("--output-file", help="Output file for exported data")
 
     # ORSA mapping command
@@ -622,9 +593,7 @@ Examples:
         required=True,
         help="Directory containing unified rules JSON files",
     )
-    orsa_parser.add_argument(
-        "--frameworks", help="Comma-separated list of target frameworks"
-    )
+    orsa_parser.add_argument("--frameworks", help="Comma-separated list of target frameworks")
     orsa_parser.add_argument(
         "--verbose", action="store_true", help="Show detailed ORSA rule information"
     )
@@ -634,9 +603,7 @@ Examples:
         default=10,
         help="Maximum rules to display per platform",
     )
-    orsa_parser.add_argument(
-        "--output-file", help="Output file for ORSA mappings (JSON)"
-    )
+    orsa_parser.add_argument("--output-file", help="Output file for ORSA mappings (JSON)")
 
     args = parser.parse_args()
 

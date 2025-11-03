@@ -58,9 +58,7 @@ class RegisterRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(
-    request: LoginRequest, http_request: Request, db: Session = Depends(get_db)
-):
+async def login(request: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
     """Authenticate user with username/password and optional MFA"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent")
@@ -259,9 +257,7 @@ async def login(
             user_agent=user_agent,
             failure_reason=f"System error: {str(e)}",
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -442,6 +438,4 @@ async def get_current_user(token: str = Depends(security)):
 
     except Exception as e:
         logger.error(f"Failed to get current user: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

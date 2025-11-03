@@ -66,9 +66,7 @@ class SessionMigrationService:
                     logger.info(f"Legacy token accepted for user: {payload.get('sub')}")
                     return payload
                 else:
-                    logger.warning(
-                        f"Legacy token expired for user: {payload.get('sub')}"
-                    )
+                    logger.warning(f"Legacy token expired for user: {payload.get('sub')}")
 
             return None
 

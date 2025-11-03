@@ -88,8 +88,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                     "group_id": group_id,
                     "total_hosts": len(hosts),
                     "config": json.dumps(session_config),
-                    "estimated_completion": datetime.utcnow()
-                    + timedelta(minutes=len(hosts) * 15),
+                    "estimated_completion": datetime.utcnow() + timedelta(minutes=len(hosts) * 15),
                     "created_at": datetime.utcnow(),
                 },
             )
@@ -114,9 +113,7 @@ def scheduled_group_scan(self, group_id: int, config: Dict[str, Any]):
                 session_id, group_id, [dict(host) for host in hosts], session_config
             )
 
-            print(
-                f"Scheduled compliance scan started for group {group_id}, session: {session_id}"
-            )
+            print(f"Scheduled compliance scan started for group {group_id}, session: {session_id}")
 
     except Exception as exc:
         print(f"Scheduled scan failed for group {group_id}: {str(exc)}")
@@ -278,9 +275,7 @@ def execute_compliance_scan_async(
 
 
 @celery_app.task(name="backend.app.tasks.send_compliance_notification")
-def send_compliance_notification(
-    session_id: str, group_id: int, summary: Dict[str, Any]
-):
+def send_compliance_notification(session_id: str, group_id: int, summary: Dict[str, Any]):
     """
     Send compliance scan completion notification
     """
@@ -310,18 +305,16 @@ def send_compliance_notification(
                 "group_name": session_info.group_name,
                 "timestamp": datetime.utcnow().isoformat(),
                 "summary": summary,
-                "compliance_framework": json.loads(
-                    session_info.scan_config or "{}"
-                ).get("compliance_framework"),
+                "compliance_framework": json.loads(session_info.scan_config or "{}").get(
+                    "compliance_framework"
+                ),
                 "total_hosts": session_info.total_hosts,
                 "status": session_info.status,
             }
 
             # Here you would integrate with your notification system
             # For example: send email, Slack notification, webhook, etc.
-            print(
-                f"Compliance scan notification: {json.dumps(notification_data, indent=2)}"
-            )
+            print(f"Compliance scan notification: {json.dumps(notification_data, indent=2)}")
 
             # Log notification in audit trail
             db.execute(
@@ -343,9 +336,7 @@ def send_compliance_notification(
             db.commit()
 
     except Exception as e:
-        print(
-            f"Failed to send compliance notification for session {session_id}: {str(e)}"
-        )
+        print(f"Failed to send compliance notification for session {session_id}: {str(e)}")
 
 
 @celery_app.task(name="backend.app.tasks.compliance_report_generation")
@@ -359,9 +350,7 @@ def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
             report_data = generate_compliance_report_data(db, group_id, report_config)
 
             # Save report to file system or cloud storage
-            report_path = save_compliance_report(
-                report_data, report_config.get("format", "json")
-            )
+            report_path = save_compliance_report(report_data, report_config.get("format", "json"))
 
             # Update group with latest report
             db.execute(

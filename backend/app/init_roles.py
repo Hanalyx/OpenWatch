@@ -60,13 +60,9 @@ def init_roles(db: Session):
             )
 
             if result.fetchone():
-                logger.info(
-                    f"Role {role_name.value} already exists, updating permissions..."
-                )
+                logger.info(f"Role {role_name.value} already exists, updating permissions...")
                 # Update existing role permissions
-                permissions_json = json.dumps(
-                    [p.value for p in ROLE_PERMISSIONS[role_name]]
-                )
+                permissions_json = json.dumps([p.value for p in ROLE_PERMISSIONS[role_name]])
                 db.execute(
                     text(
                         """
@@ -88,9 +84,7 @@ def init_roles(db: Session):
             else:
                 logger.info(f"Creating role {role_name.value}...")
                 # Create new role
-                permissions_json = json.dumps(
-                    [p.value for p in ROLE_PERMISSIONS[role_name]]
-                )
+                permissions_json = json.dumps([p.value for p in ROLE_PERMISSIONS[role_name]])
                 db.execute(
                     text(
                         """
@@ -133,9 +127,7 @@ def create_default_super_admin(db: Session):
             # Create new super admin user
             from .auth import pwd_context
 
-            hashed_password = pwd_context.hash(
-                "admin123"
-            )  # Default password - should be changed
+            hashed_password = pwd_context.hash("admin123")  # Default password - should be changed
 
             db.execute(
                 text(
@@ -146,9 +138,7 @@ def create_default_super_admin(db: Session):
                 ),
                 {"password": hashed_password},
             )
-            logger.info(
-                "Created new super admin user (username: admin, password: admin123)"
-            )
+            logger.info("Created new super admin user (username: admin, password: admin123)")
 
         db.commit()
 
@@ -178,9 +168,7 @@ def init_default_system_credentials(db: Session):
             )
             return
 
-        logger.info(
-            "No system credentials found - creating placeholder credentials for easy setup"
-        )
+        logger.info("No system credentials found - creating placeholder credentials for easy setup")
 
         # Create placeholder credentials that guide users to configure actual credentials
         placeholder_description = (

@@ -114,9 +114,7 @@ class OpenWatchCLI:
                 return 1
 
             # Remote scanning requires proper credential management
-            print(
-                "[OpenWatch] NOTE: Remote scanning requires SSH credentials to be configured"
-            )
+            print("[OpenWatch] NOTE: Remote scanning requires SSH credentials to be configured")
 
             default_credentials = {
                 "username": "root",
@@ -173,9 +171,7 @@ class OpenWatchCLI:
             for i, profile in enumerate(profiles, 1):
                 print(f"{i}. {profile.get('id', 'Unknown ID')}")
                 print(f"   Title: {profile.get('title', 'No title')}")
-                print(
-                    f"   Description: {profile.get('description', 'No description')[:100]}..."
-                )
+                print(f"   Description: {profile.get('description', 'No description')[:100]}...")
                 print()
 
             return 0
@@ -248,9 +244,7 @@ Examples:
     local_parser.add_argument("--output", "-o", help="Output file for results (JSON)")
 
     # Remote scan command
-    remote_parser = subparsers.add_parser(
-        "scan-remote", help="Execute remote SCAP scan"
-    )
+    remote_parser = subparsers.add_parser("scan-remote", help="Execute remote SCAP scan")
     remote_parser.add_argument(
         "--targets", "-t", required=True, help="Comma-separated list of target hosts"
     )
@@ -263,9 +257,7 @@ Examples:
     remote_parser.add_argument("--output", "-o", help="Output file for results (JSON)")
 
     # List profiles command
-    list_parser = subparsers.add_parser(
-        "list-profiles", help="List available SCAP profiles"
-    )
+    list_parser = subparsers.add_parser("list-profiles", help="List available SCAP profiles")
     list_parser.add_argument("--content", "-c", help="SCAP content file path")
 
     args = parser.parse_args()
@@ -278,9 +270,7 @@ Examples:
 
     try:
         if args.command == "scan-local":
-            return await cli.scan_local(
-                args.profile, args.content, args.rule, args.output
-            )
+            return await cli.scan_local(args.profile, args.content, args.rule, args.output)
 
         elif args.command == "scan-remote":
             targets = [t.strip() for t in args.targets.split(",") if t.strip()]

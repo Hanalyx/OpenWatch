@@ -162,36 +162,24 @@ class Host(Base):
 
     __tablename__ = "hosts"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, default=uuid4, index=True
-    )  # Native UUID
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     hostname = Column(String(255), nullable=False)
     ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6
     display_name = Column(String(255), nullable=True)
     operating_system = Column(String(255), nullable=True)
     os_family = Column(String(50), nullable=True)  # Added for compatibility validation
-    os_version = Column(
-        String(100), nullable=True
-    )  # Added for compatibility validation
-    architecture = Column(
-        String(50), nullable=True
-    )  # Added for compatibility validation
-    last_os_detection = Column(
-        DateTime, nullable=True
-    )  # Added for OS detection tracking
+    os_version = Column(String(100), nullable=True)  # Added for compatibility validation
+    architecture = Column(String(50), nullable=True)  # Added for compatibility validation
+    last_os_detection = Column(DateTime, nullable=True)  # Added for OS detection tracking
     status = Column(
         String(50), default="unknown", nullable=False
     )  # Current status: online, down, unknown, critical, maintenance, degraded
     port = Column(Integer, default=22, nullable=False)
     username = Column(String(50), nullable=True)  # Made optional
     auth_method = Column(String(20), default="ssh_key", nullable=True)  # Made optional
-    encrypted_credentials = Column(
-        LargeBinary, nullable=True
-    )  # Made optional for basic hosts
+    encrypted_credentials = Column(LargeBinary, nullable=True)  # Made optional for basic hosts
     description = Column(Text, nullable=True)
-    environment = Column(
-        String(50), nullable=True, default="production"
-    )  # Added for bulk import
+    environment = Column(String(50), nullable=True, default="production")  # Added for bulk import
     tags = Column(String(500), nullable=True)  # Added for bulk import (comma-separated)
     owner = Column(String(100), nullable=True)  # Added for bulk import
     is_active = Column(Boolean, default=True, nullable=False)
@@ -199,9 +187,7 @@ class Host(Base):
         Integer, ForeignKey("users.id"), nullable=True
     )  # Made optional for development
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Host monitoring fields
     last_check = Column(DateTime, nullable=True)  # Last monitoring check timestamp
@@ -235,12 +221,8 @@ class ScapContent(Base):
     description = Column(Text, nullable=True)
     version = Column(String(50), nullable=True)
     os_family = Column(String(50), nullable=True)  # Added for compatibility validation
-    os_version = Column(
-        String(100), nullable=True
-    )  # Added for OS version compatibility validation
-    compliance_framework = Column(
-        String(100), nullable=True
-    )  # Added for compliance tracking
+    os_version = Column(String(100), nullable=True)  # Added for OS version compatibility validation
+    compliance_framework = Column(String(100), nullable=True)  # Added for compliance tracking
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     file_hash = Column(String(64), nullable=False)  # SHA-256 hash for integrity
@@ -251,9 +233,7 @@ class Scan(Base):
 
     __tablename__ = "scans"
 
-    id = Column(
-        UUID(as_uuid=True), primary_key=True, default=uuid4, index=True
-    )  # Native UUID
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     name = Column(String(100), nullable=False)
     host_id = Column(
         UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False
@@ -285,9 +265,7 @@ class Scan(Base):
     )  # True if this is a verification scan
     remediation_status = Column(String(20), nullable=True)  # completed, failed, partial
     remediation_completed_at = Column(DateTime, nullable=True)
-    scan_metadata = Column(
-        JSON, nullable=True
-    )  # Additional metadata including remediation results
+    scan_metadata = Column(JSON, nullable=True)  # Additional metadata including remediation results
 
 
 class ScanResult(Base):
@@ -324,21 +302,15 @@ class SystemCredentials(Base):
     encrypted_private_key = Column(LargeBinary, nullable=True)  # AES-256-GCM encrypted
     private_key_passphrase = Column(LargeBinary, nullable=True)  # AES-256-GCM encrypted
     # SSH key metadata for fingerprint display
-    ssh_key_fingerprint = Column(
-        String(128), nullable=True, index=True
-    )  # SHA256:base64hash
+    ssh_key_fingerprint = Column(String(128), nullable=True, index=True)  # SHA256:base64hash
     ssh_key_type = Column(String(20), nullable=True)  # rsa, ed25519, ecdsa, dsa
     ssh_key_bits = Column(Integer, nullable=True)  # Key size in bits
     ssh_key_comment = Column(String(255), nullable=True)  # Key comment/label
-    is_default = Column(
-        Boolean, default=False, nullable=False
-    )  # Only one can be default
+    is_default = Column(Boolean, default=False, nullable=False)  # Only one can be default
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class Role(Base):
@@ -347,17 +319,13 @@ class Role(Base):
     __tablename__ = "roles"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(
-        String(50), unique=True, nullable=False
-    )  # super_admin, security_admin, etc.
+    name = Column(String(50), unique=True, nullable=False)  # super_admin, security_admin, etc.
     display_name = Column(String(100), nullable=False)  # "Super Administrator"
     description = Column(Text, nullable=True)
     permissions = Column(JSON, nullable=False)  # JSON array of permission strings
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class UserGroup(Base):
@@ -370,9 +338,7 @@ class UserGroup(Base):
     description = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class UserGroupMembership(Base):
@@ -394,12 +360,8 @@ class HostAccess(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
-    user_id = Column(
-        Integer, ForeignKey("users.id"), nullable=True
-    )  # Direct user access
-    group_id = Column(
-        Integer, ForeignKey("user_groups.id"), nullable=True
-    )  # Group access
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Direct user access
+    group_id = Column(Integer, ForeignKey("user_groups.id"), nullable=True)  # Group access
     access_level = Column(
         Enum("read", "write", "admin", name="access_levels"),
         default="read",
@@ -421,9 +383,7 @@ class HostGroup(Base):
     color = Column(String(7), nullable=True)  # Hex color code
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     # Smart group validation fields
     os_family = Column(String(50), nullable=True)
     os_version_pattern = Column(String(100), nullable=True)
@@ -478,9 +438,7 @@ class WebhookEndpoint(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class WebhookDelivery(Base):
@@ -489,9 +447,7 @@ class WebhookDelivery(Base):
     __tablename__ = "webhook_deliveries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    webhook_id = Column(
-        UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False
-    )
+    webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False)
     event_type = Column(String(50), nullable=False)
     event_data = Column(JSON, nullable=False)
     delivery_status = Column(
@@ -529,9 +485,7 @@ class IntegrationAuditLog(Base):
     __tablename__ = "integration_audit_log"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
-    event_type = Column(
-        String(50), nullable=False
-    )  # scan.completed, remediation.requested, etc.
+    event_type = Column(String(50), nullable=False)  # scan.completed, remediation.requested, etc.
     source_service = Column(String(20), nullable=False)  # openwatch, aegis
     target_service = Column(String(20), nullable=True)
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=True)
@@ -551,22 +505,16 @@ class AlertSettings(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    alert_type = Column(
-        String(50), nullable=False
-    )  # host_offline, host_online, scan_failed, etc.
+    alert_type = Column(String(50), nullable=False)  # host_offline, host_online, scan_failed, etc.
     enabled = Column(Boolean, default=True, nullable=False)
     email_enabled = Column(Boolean, default=False, nullable=False)
     email_addresses = Column(JSON, nullable=True)  # List of email addresses
     webhook_url = Column(String(500), nullable=True)
     webhook_enabled = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "alert_type", name="uq_user_alert_type"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "alert_type", name="uq_user_alert_type"),)
 
 
 # Database dependency for FastAPI
@@ -662,9 +610,7 @@ class DatabaseManager:
         self, username: str, email: str, hashed_password: str, role: str = "user"
     ) -> User:
         """Create new user with audit logging"""
-        user = User(
-            username=username, email=email, hashed_password=hashed_password, role=role
-        )
+        user = User(username=username, email=email, hashed_password=hashed_password, role=role)
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
@@ -747,9 +693,7 @@ async def init_database():
         # Create tables
         create_tables()
 
-        logger.info(
-            "Database initialized successfully with FIPS-compliant configuration"
-        )
+        logger.info("Database initialized successfully with FIPS-compliant configuration")
 
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")

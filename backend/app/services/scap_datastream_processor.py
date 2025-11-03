@@ -47,11 +47,7 @@ class SCAPDataStreamProcessor:
         """Validate SCAP data-stream file and extract metadata"""
         try:
             # Validate file path to prevent path traversal attacks
-            if (
-                not isinstance(file_path, str)
-                or ".." in file_path
-                or not os.path.isfile(file_path)
-            ):
+            if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
                 raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
 
             logger.info(f"Validating SCAP data-stream: {file_path}")
@@ -88,9 +84,7 @@ class SCAPDataStreamProcessor:
             xml_metadata = self._extract_xml_metadata(file_path)
             metadata.update(xml_metadata)
 
-            logger.info(
-                f"Data-stream validated successfully: {metadata.get('title', 'Unknown')}"
-            )
+            logger.info(f"Data-stream validated successfully: {metadata.get('title', 'Unknown')}")
             return metadata
 
         except subprocess.TimeoutExpired:
@@ -103,11 +97,7 @@ class SCAPDataStreamProcessor:
         """Extract profiles with full metadata using oscap info --profiles"""
         try:
             # Validate file path to prevent path traversal attacks
-            if (
-                not isinstance(file_path, str)
-                or ".." in file_path
-                or not os.path.isfile(file_path)
-            ):
+            if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
                 raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
 
             logger.info(f"Extracting profiles from: {file_path}")
@@ -149,11 +139,7 @@ class SCAPDataStreamProcessor:
         """Extract all components from SCAP content (data-streams, benchmarks, checks)"""
         try:
             # Validate file path to prevent path traversal attacks
-            if (
-                not isinstance(file_path, str)
-                or ".." in file_path
-                or not os.path.isfile(file_path)
-            ):
+            if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
                 raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
 
             components = {
@@ -198,11 +184,7 @@ class SCAPDataStreamProcessor:
     def create_content_validation_report(self, file_path: str) -> Dict:
         """Create comprehensive validation report for SCAP content"""
         # Validate file path to prevent path traversal attacks
-        if (
-            not isinstance(file_path, str)
-            or ".." in file_path
-            or not os.path.isfile(file_path)
-        ):
+        if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
             return {
                 "file_path": "INVALID_PATH",
                 "timestamp": datetime.now().isoformat(),
@@ -260,9 +242,7 @@ class SCAPDataStreamProcessor:
             )
 
             if info_result.returncode == 0:
-                report["info"]["content_metadata"] = self._parse_oscap_info(
-                    info_result.stdout
-                )
+                report["info"]["content_metadata"] = self._parse_oscap_info(info_result.stdout)
 
             # Check for common issues
             self._check_common_issues(file_path, report)
@@ -298,10 +278,7 @@ class SCAPDataStreamProcessor:
                             if file.endswith((".xml", ".scap")):
                                 full_path = os.path.join(root, file)
                                 # Additional security check
-                                if (
-                                    not os.path.commonpath([full_path, temp_dir])
-                                    == temp_dir
-                                ):
+                                if not os.path.commonpath([full_path, temp_dir]) == temp_dir:
                                     continue
                                 # Skip small files (likely metadata)
                                 if os.path.getsize(full_path) > 1000:
@@ -449,9 +426,7 @@ class SCAPDataStreamProcessor:
 
         return profiles
 
-    def _enhance_profiles_from_xml(
-        self, file_path: str, profiles: List[Dict]
-    ) -> List[Dict]:
+    def _enhance_profiles_from_xml(self, file_path: str, profiles: List[Dict]) -> List[Dict]:
         """Enhance profile information by parsing XML directly"""
         try:
             tree = etree.parse(file_path)
@@ -461,9 +436,7 @@ class SCAPDataStreamProcessor:
             profile_lookup = {p["id"]: p for p in profiles}
 
             # Find all Profile elements
-            profile_elements = root.xpath(
-                ".//xccdf:Profile", namespaces=self.namespaces
-            )
+            profile_elements = root.xpath(".//xccdf:Profile", namespaces=self.namespaces)
 
             for profile_elem in profile_elements:
                 profile_id = profile_elem.get("id", "")
@@ -472,34 +445,22 @@ class SCAPDataStreamProcessor:
                     profile = profile_lookup[profile_id]
 
                     # Extract additional metadata
-                    profile["metadata"]["severity"] = profile_elem.get(
-                        "severity", "unknown"
-                    )
+                    profile["metadata"]["severity"] = profile_elem.get("severity", "unknown")
 
                     # Extract platform information
-                    platforms = profile_elem.xpath(
-                        ".//xccdf:platform", namespaces=self.namespaces
-                    )
-                    profile["metadata"]["platforms"] = [
-                        p.get("idref", "") for p in platforms
-                    ]
+                    platforms = profile_elem.xpath(".//xccdf:platform", namespaces=self.namespaces)
+                    profile["metadata"]["platforms"] = [p.get("idref", "") for p in platforms]
 
                     # Count selected rules
-                    selections = profile_elem.xpath(
-                        ".//xccdf:select", namespaces=self.namespaces
-                    )
+                    selections = profile_elem.xpath(".//xccdf:select", namespaces=self.namespaces)
                     profile["metadata"]["rule_count"] = len(
                         [s for s in selections if s.get("selected") == "true"]
                     )
 
                     # Extract profile notes or remarks
-                    remarks = profile_elem.xpath(
-                        ".//xccdf:remark", namespaces=self.namespaces
-                    )
+                    remarks = profile_elem.xpath(".//xccdf:remark", namespaces=self.namespaces)
                     if remarks:
-                        profile["metadata"]["remarks"] = [
-                            r.text for r in remarks if r.text
-                        ]
+                        profile["metadata"]["remarks"] = [r.text for r in remarks if r.text]
                 else:
                     # Profile found in XML but not in oscap output
                     new_profile = self._extract_profile_from_element(profile_elem)
@@ -603,9 +564,7 @@ class SCAPDataStreamProcessor:
             }
 
             # Extract component references
-            components = ds_elem.xpath(
-                ".//ds:component-ref", namespaces=self.namespaces
-            )
+            components = ds_elem.xpath(".//ds:component-ref", namespaces=self.namespaces)
             for comp in components:
                 ds_info["components"].append(
                     {
@@ -678,9 +637,7 @@ class SCAPDataStreamProcessor:
             # Extract description
             desc_elem = rule_elem.find(".//xccdf:description", self.namespaces)
             if desc_elem is not None:
-                rule["description"] = (
-                    self._extract_text_content(desc_elem)[:200] + "..."
-                )
+                rule["description"] = self._extract_text_content(desc_elem)[:200] + "..."
 
             # Extract rationale
             rat_elem = rule_elem.find(".//xccdf:rationale", self.namespaces)
@@ -688,9 +645,7 @@ class SCAPDataStreamProcessor:
                 rule["rationale"] = self._extract_text_content(rat_elem)[:200] + "..."
 
             # Extract references (CCE, CCI, etc.)
-            ref_elements = rule_elem.xpath(
-                ".//xccdf:reference", namespaces=self.namespaces
-            )
+            ref_elements = rule_elem.xpath(".//xccdf:reference", namespaces=self.namespaces)
             for ref_elem in ref_elements:
                 rule["references"].append(
                     {"href": ref_elem.get("href", ""), "text": ref_elem.text or ""}
@@ -718,9 +673,7 @@ class SCAPDataStreamProcessor:
         oval_refs = set()
 
         # Look for check-content-ref elements
-        check_refs = root.xpath(
-            ".//xccdf:check-content-ref", namespaces=self.namespaces
-        )
+        check_refs = root.xpath(".//xccdf:check-content-ref", namespaces=self.namespaces)
         for check_ref in check_refs:
             href = check_ref.get("href", "")
             if "oval" in href.lower():
@@ -761,9 +714,7 @@ class SCAPDataStreamProcessor:
                 )
 
             # Check for OVAL content references
-            oval_refs = root.xpath(
-                ".//xccdf:check-content-ref[@href]", namespaces=self.namespaces
-            )
+            oval_refs = root.xpath(".//xccdf:check-content-ref[@href]", namespaces=self.namespaces)
             if oval_refs:
                 report["info"]["has_oval_content"] = True
                 report["info"]["oval_ref_count"] = len(oval_refs)

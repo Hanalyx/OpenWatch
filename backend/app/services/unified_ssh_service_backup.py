@@ -49,9 +49,7 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
         """
         self.audit_callback = audit_callback
 
-    def missing_host_key(
-        self, client: SSHClient, hostname: str, key: paramiko.PKey
-    ) -> None:
+    def missing_host_key(self, client: SSHClient, hostname: str, key: paramiko.PKey) -> None:
         """
         Handle missing host key by logging warning and storing key.
 
@@ -139,9 +137,7 @@ class UnifiedSSHService:
         # Ensure SSH directory exists in container environment
         self._ensure_ssh_directory()
 
-        logger.info(
-            f"UnifiedSSHService initialized with ssh_strict_mode={self.ssh_strict_mode}"
-        )
+        logger.info(f"UnifiedSSHService initialized with ssh_strict_mode={self.ssh_strict_mode}")
 
     def _detect_ssh_strict_mode(self) -> bool:
         """
@@ -151,11 +147,7 @@ class UnifiedSSHService:
             bool: True if strict mode should be enabled
         """
         # Check FIPS mode from settings
-        if (
-            self.settings
-            and hasattr(self.settings, "fips_mode")
-            and self.settings.fips_mode
-        ):
+        if self.settings and hasattr(self.settings, "fips_mode") and self.settings.fips_mode:
             logger.info("SSH strict mode enabled due to FIPS mode")
             return True
 
@@ -255,9 +247,7 @@ class UnifiedSSHService:
             if self.container_known_hosts_path.exists():
                 ssh_client.load_host_keys(str(self.container_known_hosts_path))
                 keys_loaded = True
-                logger.debug(
-                    f"Loaded container host keys from {self.container_known_hosts_path}"
-                )
+                logger.debug(f"Loaded container host keys from {self.container_known_hosts_path}")
             else:
                 logger.debug("Container known_hosts file does not exist yet")
         except Exception as e:
@@ -457,9 +447,7 @@ class UnifiedSSHService:
                     if transport:
                         remote_server_key = transport.get_remote_server_key()
                         if remote_server_key:
-                            host_key_fingerprint = (
-                                remote_server_key.get_fingerprint().hex()
-                            )
+                            host_key_fingerprint = remote_server_key.get_fingerprint().hex()
                 except Exception as e:
                     logger.debug(f"Could not get host key fingerprint: {e}")
 
@@ -520,9 +508,7 @@ class UnifiedSSHService:
             additional_info={"total_attempts": self.max_retries},
         )
 
-        return SSHConnectionResult(
-            success=False, error_message=last_error, error_type=error_type
-        )
+        return SSHConnectionResult(success=False, error_message=last_error, error_type=error_type)
 
     def execute_command(
         self, ssh_connection: SSHClient, command: str, timeout: Optional[int] = None
@@ -542,9 +528,7 @@ class UnifiedSSHService:
 
         try:
             # Execute command
-            stdin, stdout, stderr = ssh_connection.exec_command(
-                command, timeout=command_timeout
-            )
+            stdin, stdout, stderr = ssh_connection.exec_command(command, timeout=command_timeout)
 
             # Get output
             stdout_data = stdout.read().decode("utf-8", errors="replace").strip()
@@ -638,9 +622,7 @@ class UnifiedSSHService:
                     logger.debug(f"Command '{key}' result: {command_result.stdout}")
                 else:
                     results[key] = "unknown"
-                    logger.warning(
-                        f"Command '{key}' failed: {command_result.error_message}"
-                    )
+                    logger.warning(f"Command '{key}' failed: {command_result.error_message}")
 
             # Log successful minimal discovery
             logger.info(f"Minimal system discovery completed for {hostname}: {results}")

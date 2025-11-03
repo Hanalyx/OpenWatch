@@ -18,9 +18,7 @@ from ..rbac import check_permission
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/host-compliance-discovery", tags=["Host Compliance Discovery"]
-)
+router = APIRouter(prefix="/host-compliance-discovery", tags=["Host Compliance Discovery"])
 
 
 class ComplianceDiscoveryResponse(BaseModel):
@@ -61,9 +59,7 @@ class ComplianceCapabilityAssessment(BaseModel):
     readiness_score: float  # 0.0 to 1.0
 
 
-@router.post(
-    "/hosts/{host_id}/compliance-discovery", response_model=ComplianceDiscoveryResponse
-)
+@router.post("/hosts/{host_id}/compliance-discovery", response_model=ComplianceDiscoveryResponse)
 async def discover_host_compliance_infrastructure(
     host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -122,9 +118,7 @@ async def discover_host_compliance_infrastructure(
         )
 
 
-@router.post(
-    "/bulk-compliance-discovery", response_model=BulkComplianceDiscoveryResponse
-)
+@router.post("/bulk-compliance-discovery", response_model=BulkComplianceDiscoveryResponse)
 async def bulk_discover_compliance_infrastructure(
     request: BulkComplianceDiscoveryRequest,
     current_user=Depends(get_current_user),
@@ -143,13 +137,9 @@ async def bulk_discover_compliance_infrastructure(
     check_permission(current_user, "hosts:read")
 
     if not request.host_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
 
-    if (
-        len(request.host_ids) > 20
-    ):  # Limit bulk operations for compliance (more intensive)
+    if len(request.host_ids) > 20:  # Limit bulk operations for compliance (more intensive)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Too many hosts requested. Maximum 20 hosts per bulk compliance discovery operation.",
@@ -177,9 +167,7 @@ async def bulk_discover_compliance_infrastructure(
                 continue
 
             # Perform compliance discovery
-            discovery_results = compliance_service.discover_compliance_infrastructure(
-                host
-            )
+            discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
             discovery_results["discovery_timestamp"] = discovery_results[

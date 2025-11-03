@@ -69,9 +69,7 @@ class PluginImportService:
             logger.info(f"Starting plugin import {import_id} from file: {filename}")
 
             # Step 1: Basic validation
-            validation_result = await self._validate_import_request(
-                file_content, filename, user_id
-            )
+            validation_result = await self._validate_import_request(file_content, filename, user_id)
             if not validation_result["valid"]:
                 return {
                     "success": False,
@@ -283,9 +281,7 @@ class PluginImportService:
                 "import_id": import_id,
                 "user_id": user_id,
                 "failed_checks": len(failed_checks),
-                "critical_failures": len(
-                    [c for c in failed_checks if c.severity == "critical"]
-                ),
+                "critical_failures": len([c for c in failed_checks if c.severity == "critical"]),
             },
         )
 
@@ -409,9 +405,7 @@ class PluginImportService:
             logger.error(f"Post-import validation failed for {plugin.plugin_id}: {e}")
             # Don't fail the import for post-validation issues
 
-    def _validate_executor(
-        self, executor: PluginExecutor, manifest: PluginManifest
-    ) -> bool:
+    def _validate_executor(self, executor: PluginExecutor, manifest: PluginManifest) -> bool:
         """Validate executor configuration"""
         try:
             # Check that executor type is supported by manifest
@@ -562,9 +556,7 @@ class PluginImportService:
         # Count by trust level
         trust_counts = {}
         for trust_level in PluginTrustLevel:
-            count = await InstalledPlugin.find(
-                InstalledPlugin.trust_level == trust_level
-            ).count()
+            count = await InstalledPlugin.find(InstalledPlugin.trust_level == trust_level).count()
             trust_counts[trust_level.value] = count
 
         return {
@@ -575,8 +567,6 @@ class PluginImportService:
                 "upload": await InstalledPlugin.find(
                     InstalledPlugin.import_method == "upload"
                 ).count(),
-                "url": await InstalledPlugin.find(
-                    InstalledPlugin.import_method == "url"
-                ).count(),
+                "url": await InstalledPlugin.find(InstalledPlugin.import_method == "url").count(),
             },
         }

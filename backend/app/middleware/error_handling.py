@@ -113,9 +113,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             return await self._handle_unexpected_exception(request, exc)
 
-    async def _handle_http_exception(
-        self, request: Request, exc: HTTPException
-    ) -> JSONResponse:
+    async def _handle_http_exception(self, request: Request, exc: HTTPException) -> JSONResponse:
         """Handle FastAPI HTTP exceptions"""
         error_type = self.error_mappings.get(exc.status_code, ErrorType.INTERNAL_ERROR)
 
@@ -175,9 +173,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
         return JSONResponse(status_code=exc.status_code, content=error_response.dict())
 
-    async def _handle_unexpected_exception(
-        self, request: Request, exc: Exception
-    ) -> JSONResponse:
+    async def _handle_unexpected_exception(self, request: Request, exc: Exception) -> JSONResponse:
         """Handle unexpected exceptions"""
         error_id = str(uuid.uuid4())[:8]
 
@@ -190,9 +186,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
         # Add debug information if enabled
         if self.include_debug_info:
-            details.append(
-                ErrorDetail(message=traceback.format_exc(), type="traceback")
-            )
+            details.append(ErrorDetail(message=traceback.format_exc(), type="traceback"))
 
         error_response = APIErrorResponse(
             error=error_type,
@@ -228,10 +222,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         exc_name = type(exc).__name__.lower()
 
         # Database-related errors
-        if any(
-            db_type in exc_name
-            for db_type in ["sql", "database", "connection", "operational"]
-        ):
+        if any(db_type in exc_name for db_type in ["sql", "database", "connection", "operational"]):
             return ErrorType.DATABASE_ERROR
 
         # Cache-related errors
@@ -239,10 +230,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return ErrorType.CACHE_ERROR
 
         # Service-related errors
-        if any(
-            service_type in exc_name
-            for service_type in ["timeout", "connection", "service"]
-        ):
+        if any(service_type in exc_name for service_type in ["timeout", "connection", "service"]):
             return ErrorType.SERVICE_ERROR
 
         # Validation errors
@@ -250,10 +238,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return ErrorType.VALIDATION_ERROR
 
         # Permission errors
-        if any(
-            perm_type in exc_name
-            for perm_type in ["permission", "forbidden", "unauthorized"]
-        ):
+        if any(perm_type in exc_name for perm_type in ["permission", "forbidden", "unauthorized"]):
             return ErrorType.AUTHORIZATION_ERROR
 
         # Default to internal error
@@ -280,8 +265,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             return status.HTTP_504_GATEWAY_TIMEOUT
 
         if any(
-            service_type in exc_name
-            for service_type in ["connection", "service", "unavailable"]
+            service_type in exc_name for service_type in ["connection", "service", "unavailable"]
         ):
             return status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -292,9 +276,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 class APIValidationError(Exception):
     """Custom validation error for API operations"""
 
-    def __init__(
-        self, message: str, field: Optional[str] = None, code: Optional[str] = None
-    ):
+    def __init__(self, message: str, field: Optional[str] = None, code: Optional[str] = None):
         self.message = message
         self.field = field
         self.code = code
@@ -407,9 +389,7 @@ def get_error_monitor() -> ErrorMonitor:
 
 
 # Utility functions for common error scenarios
-def raise_validation_error(
-    message: str, field: Optional[str] = None, code: Optional[str] = None
-):
+def raise_validation_error(message: str, field: Optional[str] = None, code: Optional[str] = None):
     """Raise standardized validation error"""
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,

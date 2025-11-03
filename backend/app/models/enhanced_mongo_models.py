@@ -47,9 +47,7 @@ class FrameworkVersions(BaseModel):
     nist_800_53_r4: Optional[FrameworkMapping] = Field(
         default=None, description="NIST 800-53 Revision 4 mappings (legacy)"
     )
-    cis_v8: Optional[FrameworkMapping] = Field(
-        default=None, description="CIS Controls v8 mappings"
-    )
+    cis_v8: Optional[FrameworkMapping] = Field(default=None, description="CIS Controls v8 mappings")
     cis_v7: Optional[FrameworkMapping] = Field(
         default=None, description="CIS Controls v7 mappings (legacy)"
     )
@@ -83,12 +81,8 @@ class FrameworkVersions(BaseModel):
     iso_27001_2013: Optional[FrameworkMapping] = Field(
         default=None, description="ISO 27001:2013 controls (legacy)"
     )
-    hipaa: Optional[FrameworkMapping] = Field(
-        default=None, description="HIPAA safeguards"
-    )
-    ccm_v4: Optional[FrameworkMapping] = Field(
-        default=None, description="Cloud Control Matrix v4"
-    )
+    hipaa: Optional[FrameworkMapping] = Field(default=None, description="HIPAA safeguards")
+    ccm_v4: Optional[FrameworkMapping] = Field(default=None, description="Cloud Control Matrix v4")
     fedramp_high: Optional[FrameworkMapping] = Field(
         default=None, description="FedRAMP High baseline"
     )
@@ -188,9 +182,7 @@ class RuleIntelligence(BaseModel):
     enhancement_opportunities: List[str] = Field(
         default_factory=list, description="Opportunities to enhance this rule"
     )
-    usage_frequency: int = Field(
-        default=0, description="How often this rule is used in scans"
-    )
+    usage_frequency: int = Field(default=0, description="How often this rule is used in scans")
     last_intelligence_update: datetime = Field(
         default_factory=datetime.utcnow,
         description="When intelligence was last updated",
@@ -200,9 +192,7 @@ class RuleIntelligence(BaseModel):
 class CheckContent(BaseModel):
     """Enhanced check content structure"""
 
-    check_type: str = Field(
-        description="Type of check (file, command, service, package, etc.)"
-    )
+    check_type: str = Field(description="Type of check (file, command, service, package, etc.)")
     file_path: Optional[str] = Field(default=None)
     parameter: Optional[str] = Field(default=None)
     pattern: Optional[str] = Field(default=None)
@@ -226,9 +216,7 @@ class CheckContent(BaseModel):
 class FixContent(BaseModel):
     """Multi-format remediation content"""
 
-    shell: Optional[Dict[str, Any]] = Field(
-        default=None, description="Shell script remediation"
-    )
+    shell: Optional[Dict[str, Any]] = Field(default=None, description="Shell script remediation")
     ansible: Optional[Dict[str, Any]] = Field(
         default=None, description="Ansible playbook remediation"
     )
@@ -292,9 +280,7 @@ class UnifiedComplianceRule(Document):
         default="general",
         description="Control family (password, encryption, logging, etc.)",
     )
-    tags: List[str] = Field(
-        default_factory=list, description="Searchable tags for categorization"
-    )
+    tags: List[str] = Field(default_factory=list, description="Searchable tags for categorization")
 
     # Cross-Framework Intelligence
     frameworks: FrameworkVersions = Field(
@@ -352,9 +338,7 @@ class UnifiedComplianceRule(Document):
     )
 
     # Change Tracking and Provenance
-    source_file: str = Field(
-        default="unknown", description="Original source file (SCAP XML, etc.)"
-    )
+    source_file: str = Field(default="unknown", description="Original source file (SCAP XML, etc.)")
     source_hash: str = Field(
         default="unknown", description="Hash of the source content for change detection"
     )
@@ -436,21 +420,13 @@ class UnifiedComplianceRule(Document):
 class FrameworkControlDefinition(Document):
     """Framework control definitions for cross-referencing"""
 
-    framework_id: str = Field(
-        description="Framework identifier (e.g., nist_800_53_r5, cis_v8)"
-    )
+    framework_id: str = Field(description="Framework identifier (e.g., nist_800_53_r5, cis_v8)")
     control_id: str = Field(description="Control ID within the framework")
     title: str = Field(description="Control title")
     description: str = Field(description="Control description")
-    family: Optional[str] = Field(
-        default=None, description="Control family or category"
-    )
-    priority: Optional[str] = Field(
-        default=None, description="Control priority or baseline"
-    )
-    supplemental_guidance: Optional[str] = Field(
-        default=None, description="Additional guidance"
-    )
+    family: Optional[str] = Field(default=None, description="Control family or category")
+    priority: Optional[str] = Field(default=None, description="Control priority or baseline")
+    supplemental_guidance: Optional[str] = Field(default=None, description="Additional guidance")
     related_controls: List[str] = Field(
         default_factory=list, description="Related controls within the same framework"
     )

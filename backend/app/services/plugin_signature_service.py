@@ -82,9 +82,7 @@ class PluginSignatureService:
                 passed=not require_trusted_signature,
                 severity="critical" if require_trusted_signature else "warning",
                 message=(
-                    "No signature provided"
-                    if require_trusted_signature
-                    else "Package not signed"
+                    "No signature provided" if require_trusted_signature else "Package not signed"
                 ),
                 details={"signed": False},
             )
@@ -146,9 +144,7 @@ class PluginSignatureService:
             signing_data = self._get_signing_data(package)
 
             # Get public key for verification
-            public_key_result = await self._get_verification_key(
-                signature.public_key_id
-            )
+            public_key_result = await self._get_verification_key(signature.public_key_id)
             if not public_key_result["found"]:
                 return {
                     "valid": False,
@@ -179,9 +175,7 @@ class PluginSignatureService:
                 public_key.verify(
                     signature_bytes,
                     signing_data,
-                    padding.PSS(
-                        mgf=padding.MGF1(hash_algo), salt_length=padding.PSS.MAX_LENGTH
-                    ),
+                    padding.PSS(mgf=padding.MGF1(hash_algo), salt_length=padding.PSS.MAX_LENGTH),
                     hash_algo,
                 )
 
@@ -254,9 +248,7 @@ class PluginSignatureService:
             for key_id, info in self.trusted_keys_cache.items()
         ]
 
-    async def add_trusted_key(
-        self, public_key_pem: str, key_name: str, signer_info: Dict
-    ) -> Dict:
+    async def add_trusted_key(self, public_key_pem: str, key_name: str, signer_info: Dict) -> Dict:
         """Add a new trusted public key"""
         try:
             # Parse public key
@@ -326,9 +318,7 @@ class PluginSignatureService:
             logger.error(f"Failed to remove trusted key: {e}")
             return {"success": False, "error": str(e)}
 
-    def validate_signature_format(
-        self, signature_data: Dict
-    ) -> Tuple[bool, Optional[str]]:
+    def validate_signature_format(self, signature_data: Dict) -> Tuple[bool, Optional[str]]:
         """Validate signature data format"""
         required_fields = [
             "algorithm",

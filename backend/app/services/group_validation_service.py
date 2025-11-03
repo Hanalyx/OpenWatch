@@ -62,9 +62,7 @@ class GroupValidationService:
     def __init__(self, db: Session):
         self.db = db
         self.sanitization_service = SystemInfoSanitizationService()
-        self.cache_duration = timedelta(
-            hours=24
-        )  # Cache compatibility results for 24 hours
+        self.cache_duration = timedelta(hours=24)  # Cache compatibility results for 24 hours
 
     def validate_host_group_compatibility(
         self, host_ids: List[str], group_id: int, user_role: Optional[str] = None
@@ -152,8 +150,7 @@ class GroupValidationService:
         # Calculate overall compatibility score
         if hosts:
             total_score = sum(
-                h["compatibility_score"]
-                for h in results["compatible"] + results["incompatible"]
+                h["compatibility_score"] for h in results["compatible"] + results["incompatible"]
             )
             results["summary"]["compatibility_score"] = total_score / len(hosts)
 
@@ -234,9 +231,7 @@ class GroupValidationService:
 
         return compatibility
 
-    def _check_os_family_compatibility(
-        self, host: Host, group: HostGroup
-    ) -> Dict[str, Any]:
+    def _check_os_family_compatibility(self, host: Host, group: HostGroup) -> Dict[str, Any]:
         """Check if host OS family matches group requirements"""
         result = {"compatible": True, "score": 1.0, "reason": ""}
 
@@ -281,9 +276,7 @@ class GroupValidationService:
 
         return result
 
-    def _check_os_version_compatibility(
-        self, host: Host, group: HostGroup
-    ) -> Dict[str, Any]:
+    def _check_os_version_compatibility(self, host: Host, group: HostGroup) -> Dict[str, Any]:
         """Check if host OS version matches group pattern"""
         result = {"compatible": True, "score": 1.0, "reason": ""}
 
@@ -312,9 +305,7 @@ class GroupValidationService:
 
         return result
 
-    def _check_architecture_compatibility(
-        self, host: Host, group: HostGroup
-    ) -> Dict[str, Any]:
+    def _check_architecture_compatibility(self, host: Host, group: HostGroup) -> Dict[str, Any]:
         """Check if host architecture matches group requirements"""
         result = {"compatible": True, "score": 1.0, "reason": ""}
 
@@ -356,17 +347,13 @@ class GroupValidationService:
 
         return result
 
-    def _check_scap_content_compatibility(
-        self, host: Host, group: HostGroup
-    ) -> Dict[str, Any]:
+    def _check_scap_content_compatibility(self, host: Host, group: HostGroup) -> Dict[str, Any]:
         """Check if SCAP content is compatible with host"""
         result = {"compatible": True, "score": 1.0, "reason": ""}
 
         # Get SCAP content
         scap_content = (
-            self.db.query(ScapContent)
-            .filter(ScapContent.id == group.scap_content_id)
-            .first()
+            self.db.query(ScapContent).filter(ScapContent.id == group.scap_content_id).first()
         )
 
         if not scap_content:
@@ -427,9 +414,7 @@ class GroupValidationService:
 
         return result
 
-    def _apply_custom_validation_rules(
-        self, host: Host, group: HostGroup
-    ) -> List[Dict[str, Any]]:
+    def _apply_custom_validation_rules(self, host: Host, group: HostGroup) -> List[Dict[str, Any]]:
         """Apply custom validation rules defined for the group"""
         results = []
 
@@ -630,9 +615,7 @@ class GroupValidationService:
             if host.os_version:
                 os_versions[host.os_version] = os_versions.get(host.os_version, 0) + 1
             if host.architecture:
-                architectures[host.architecture] = (
-                    architectures.get(host.architecture, 0) + 1
-                )
+                architectures[host.architecture] = architectures.get(host.architecture, 0) + 1
 
         # Determine group characteristics
         result = {
@@ -660,9 +643,7 @@ class GroupValidationService:
                     # Find common version pattern
                     common_prefix = self._find_common_version_pattern(versions)
                     if common_prefix:
-                        result["recommendations"][
-                            "os_version_pattern"
-                        ] = f"{common_prefix}*"
+                        result["recommendations"]["os_version_pattern"] = f"{common_prefix}*"
 
             # Recommend SCAP content
             scap_content = self._find_matching_scap_content(
@@ -813,10 +794,7 @@ class GroupValidationService:
                 }
             )
 
-        if (
-            report["statistics"]["partially_compatible"]
-            > report["statistics"]["fully_compatible"]
-        ):
+        if report["statistics"]["partially_compatible"] > report["statistics"]["fully_compatible"]:
             report["recommendations"].append(
                 {
                     "type": "info",

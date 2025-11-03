@@ -194,9 +194,7 @@ class BaseRepository(Generic[T]):
             self.logger.error(f"Error creating document: {e}")
             raise
 
-    async def update_one(
-        self, query: Dict[str, Any], update: Dict[str, Any]
-    ) -> Optional[T]:
+    async def update_one(self, query: Dict[str, Any], update: Dict[str, Any]) -> Optional[T]:
         """
         Update single document and return updated version.
 

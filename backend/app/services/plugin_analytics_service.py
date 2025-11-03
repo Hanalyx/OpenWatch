@@ -184,9 +184,7 @@ class PluginPerformanceReport(BaseModel):
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Executive summary
-    overall_score: float = Field(
-        ..., ge=0.0, le=100.0, description="Overall performance score"
-    )
+    overall_score: float = Field(..., ge=0.0, le=100.0, description="Overall performance score")
     health_status: str = Field(..., description="excellent, good, fair, poor, critical")
 
     # Key metrics
@@ -203,9 +201,7 @@ class PluginPerformanceReport(BaseModel):
 
     # Issues and recommendations
     identified_issues: List[Dict[str, Any]] = Field(default_factory=list)
-    optimization_recommendations: List[OptimizationRecommendation] = Field(
-        default_factory=list
-    )
+    optimization_recommendations: List[OptimizationRecommendation] = Field(default_factory=list)
 
     # Cost analysis
     resource_costs: Optional[Dict[str, float]] = None
@@ -239,9 +235,7 @@ class SystemWideAnalytics(Document):
     bottlenecks_detected: List[str] = Field(default_factory=list)
 
     # Recommendations
-    system_recommendations: List[OptimizationRecommendation] = Field(
-        default_factory=list
-    )
+    system_recommendations: List[OptimizationRecommendation] = Field(default_factory=list)
 
     class Settings:
         collection = "system_wide_analytics"
@@ -299,15 +293,11 @@ class PluginAnalyticsService:
 
     async def record_plugin_metric(self, metric: PluginMetric):
         """Record a plugin metric data point"""
-        metric_key = (
-            f"{metric.plugin_id}:{metric.metric_type.value}:{metric.metric_name}"
-        )
+        metric_key = f"{metric.plugin_id}:{metric.metric_type.value}:{metric.metric_name}"
         self.metrics_buffer[metric_key].append(metric)
 
         # Invalidate related cache entries
-        cache_keys_to_invalidate = [
-            k for k in self.analytics_cache.keys() if metric.plugin_id in k
-        ]
+        cache_keys_to_invalidate = [k for k in self.analytics_cache.keys() if metric.plugin_id in k]
         for key in cache_keys_to_invalidate:
             self.analytics_cache.pop(key, None)
 
@@ -333,9 +323,7 @@ class PluginAnalyticsService:
             if not metric_key.startswith(f"{plugin_id}:"):
                 continue
 
-            if metric_type and not metric_key.startswith(
-                f"{plugin_id}:{metric_type.value}:"
-            ):
+            if metric_type and not metric_key.startswith(f"{plugin_id}:{metric_type.value}:"):
                 continue
 
             for metric in metric_deque:
@@ -443,9 +431,7 @@ class PluginAnalyticsService:
         )
 
         # Calculate basic statistics
-        total_executions = len(
-            [m for m in execution_metrics if m.metric_name == "execution_count"]
-        )
+        total_executions = len([m for m in execution_metrics if m.metric_name == "execution_count"])
         successful_executions = len(
             [m for m in execution_metrics if m.metric_name == "successful_execution"]
         )
@@ -455,9 +441,7 @@ class PluginAnalyticsService:
         execution_times = [
             m.value for m in performance_metrics if m.metric_name == "execution_time"
         ]
-        avg_execution_time = (
-            statistics.mean(execution_times) if execution_times else None
-        )
+        avg_execution_time = statistics.mean(execution_times) if execution_times else None
 
         # Analyze usage patterns
         usage_patterns = self._analyze_usage_patterns(execution_metrics)
@@ -468,20 +452,14 @@ class PluginAnalyticsService:
         )
 
         # Calculate resource consumption
-        cpu_metrics = [
-            m.value for m in resource_metrics if m.metric_name == "cpu_usage"
-        ]
-        memory_metrics = [
-            m.value for m in resource_metrics if m.metric_name == "memory_usage"
-        ]
+        cpu_metrics = [m.value for m in resource_metrics if m.metric_name == "cpu_usage"]
+        memory_metrics = [m.value for m in resource_metrics if m.metric_name == "memory_usage"]
 
         total_cpu_seconds = sum(cpu_metrics) if cpu_metrics else None
         total_memory_mb_hours = sum(memory_metrics) if memory_metrics else None
 
         # Calculate availability
-        availability_percentage = self._calculate_availability(
-            plugin_id, start_time, end_time
-        )
+        availability_percentage = self._calculate_availability(plugin_id, start_time, end_time)
 
         return PluginUsageStats(
             plugin_id=plugin_id,
@@ -514,10 +492,7 @@ class PluginAnalyticsService:
         usage_stats = await self.generate_usage_stats(plugin_id, start_time, end_time)
 
         # Performance recommendations
-        if (
-            usage_stats.average_execution_time
-            and usage_stats.average_execution_time > 30
-        ):
+        if usage_stats.average_execution_time and usage_stats.average_execution_time > 30:
             recommendations.append(
                 OptimizationRecommendation(
                     plugin_id=plugin_id,
@@ -528,9 +503,7 @@ class PluginAnalyticsService:
                     confidence_score=0.8,
                     implementation_effort="medium",
                     estimated_improvement="30-50% faster execution times",
-                    supporting_metrics={
-                        "avg_execution_time": usage_stats.average_execution_time
-                    },
+                    supporting_metrics={"avg_execution_time": usage_stats.average_execution_time},
                 )
             )
 
@@ -554,9 +527,7 @@ class PluginAnalyticsService:
 
         # Resource optimization recommendations
         if usage_stats.total_cpu_seconds and usage_stats.total_executions > 0:
-            avg_cpu_per_execution = (
-                usage_stats.total_cpu_seconds / usage_stats.total_executions
-            )
+            avg_cpu_per_execution = usage_stats.total_cpu_seconds / usage_stats.total_executions
             if avg_cpu_per_execution > 10:  # > 10 CPU seconds per execution
                 recommendations.append(
                     OptimizationRecommendation(
@@ -568,9 +539,7 @@ class PluginAnalyticsService:
                         confidence_score=0.7,
                         implementation_effort="medium",
                         estimated_improvement="20-40% reduction in CPU usage",
-                        supporting_metrics={
-                            "avg_cpu_per_execution": avg_cpu_per_execution
-                        },
+                        supporting_metrics={"avg_cpu_per_execution": avg_cpu_per_execution},
                     )
                 )
 
@@ -605,25 +574,19 @@ class PluginAnalyticsService:
                 performance_metrics[metric_name] = summaries[-1]  # Latest summary
 
         # Calculate overall performance score
-        overall_score = self._calculate_performance_score(
-            usage_stats, performance_metrics
-        )
+        overall_score = self._calculate_performance_score(usage_stats, performance_metrics)
 
         # Determine health status
         health_status = self._determine_health_status(overall_score)
 
         # Generate optimization recommendations
-        recommendations = await self.generate_optimization_recommendations(
-            plugin_id, lookback_days
-        )
+        recommendations = await self.generate_optimization_recommendations(plugin_id, lookback_days)
 
         # Analyze trends
         performance_trends = self._analyze_performance_trends(performance_metrics)
 
         # Identify issues
-        identified_issues = self._identify_performance_issues(
-            usage_stats, performance_metrics
-        )
+        identified_issues = self._identify_performance_issues(usage_stats, performance_metrics)
 
         return PluginPerformanceReport(
             plugin_id=plugin_id,
@@ -657,9 +620,7 @@ class PluginAnalyticsService:
         plugin_scores = []
 
         for plugin in active_plugins:
-            usage_stats = await self.generate_usage_stats(
-                plugin.plugin_id, start_time, end_time
-            )
+            usage_stats = await self.generate_usage_stats(plugin.plugin_id, start_time, end_time)
             total_executions += usage_stats.total_executions
             total_successes += usage_stats.successful_executions
 
@@ -680,9 +641,7 @@ class PluginAnalyticsService:
             )
 
         # Calculate system-wide success rate
-        success_rate = (
-            (total_successes / total_executions) if total_executions > 0 else 0.0
-        )
+        success_rate = (total_successes / total_executions) if total_executions > 0 else 0.0
 
         # Rank plugins
         plugin_scores.sort(key=lambda x: x["score"], reverse=True)
@@ -781,9 +740,7 @@ class PluginAnalyticsService:
             await self.record_plugin_metric(memory_metric)
 
         except Exception as e:
-            logger.error(
-                f"Failed to collect metrics for plugin {plugin.plugin_id}: {e}"
-            )
+            logger.error(f"Failed to collect metrics for plugin {plugin.plugin_id}: {e}")
 
     def _group_metrics_by_period(
         self, metrics: List[PluginMetric], period: AggregationPeriod
@@ -796,18 +753,14 @@ class PluginAnalyticsService:
             if period == AggregationPeriod.MINUTE:
                 period_start = metric.timestamp.replace(second=0, microsecond=0)
             elif period == AggregationPeriod.HOUR:
-                period_start = metric.timestamp.replace(
-                    minute=0, second=0, microsecond=0
-                )
+                period_start = metric.timestamp.replace(minute=0, second=0, microsecond=0)
             elif period == AggregationPeriod.DAY:
-                period_start = metric.timestamp.replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
+                period_start = metric.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
             elif period == AggregationPeriod.WEEK:
                 days_since_monday = metric.timestamp.weekday()
-                period_start = (
-                    metric.timestamp - timedelta(days=days_since_monday)
-                ).replace(hour=0, minute=0, second=0, microsecond=0)
+                period_start = (metric.timestamp - timedelta(days=days_since_monday)).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
             elif period == AggregationPeriod.MONTH:
                 period_start = metric.timestamp.replace(
                     day=1, hour=0, minute=0, second=0, microsecond=0
@@ -863,9 +816,7 @@ class PluginAnalyticsService:
                 summary.trend_direction = "stable"
                 summary.trend_confidence = 0.8
 
-    def _analyze_usage_patterns(
-        self, execution_metrics: List[PluginMetric]
-    ) -> Dict[str, Any]:
+    def _analyze_usage_patterns(self, execution_metrics: List[PluginMetric]) -> Dict[str, Any]:
         """Analyze usage patterns from execution metrics"""
         if not execution_metrics:
             return {}
@@ -882,9 +833,7 @@ class PluginAnalyticsService:
                 daily_counts[day] += 1
 
         # Find peak usage hour
-        peak_hour = (
-            max(hourly_counts.items(), key=lambda x: x[1])[0] if hourly_counts else None
-        )
+        peak_hour = max(hourly_counts.items(), key=lambda x: x[1])[0] if hourly_counts else None
 
         # Calculate average daily executions
         avg_daily = statistics.mean(daily_counts.values()) if daily_counts else None
@@ -892,9 +841,7 @@ class PluginAnalyticsService:
         # Determine trend
         if len(daily_counts) >= 7:
             recent_days = list(daily_counts.values())[-7:]
-            earlier_days = (
-                list(daily_counts.values())[:-7] if len(daily_counts) > 7 else []
-            )
+            earlier_days = list(daily_counts.values())[:-7] if len(daily_counts) > 7 else []
 
             if earlier_days:
                 recent_avg = statistics.mean(recent_days)
@@ -933,9 +880,7 @@ class PluginAnalyticsService:
 
         # Reliability factor (40% of score)
         if usage_stats.total_executions > 0:
-            success_rate = (
-                usage_stats.successful_executions / usage_stats.total_executions
-            )
+            success_rate = usage_stats.successful_executions / usage_stats.total_executions
             reliability_score = success_rate * 40
         else:
             reliability_score = 40  # No executions = neutral
@@ -962,12 +907,7 @@ class PluginAnalyticsService:
         # Resource efficiency factor (10% of score)
         efficiency_score = 10  # Default
 
-        total_score = (
-            reliability_score
-            + performance_score
-            + availability_score
-            + efficiency_score
-        )
+        total_score = reliability_score + performance_score + availability_score + efficiency_score
         return min(100.0, max(0.0, total_score))
 
     def _determine_health_status(self, score: float) -> str:
@@ -1037,10 +977,7 @@ class PluginAnalyticsService:
                 )
 
         # Low availability
-        if (
-            usage_stats.availability_percentage
-            and usage_stats.availability_percentage < 95
-        ):
+        if usage_stats.availability_percentage and usage_stats.availability_percentage < 95:
             issues.append(
                 {
                     "type": "low_availability",
@@ -1056,15 +993,11 @@ class PluginAnalyticsService:
         """Calculate overall plugin score for ranking"""
 
         # Base score from executions (usage)
-        execution_score = min(
-            100, usage_stats.total_executions / 10
-        )  # Normalize to 0-100
+        execution_score = min(100, usage_stats.total_executions / 10)  # Normalize to 0-100
 
         # Success rate score
         if usage_stats.total_executions > 0:
-            success_rate = (
-                usage_stats.successful_executions / usage_stats.total_executions
-            )
+            success_rate = usage_stats.successful_executions / usage_stats.total_executions
             reliability_score = success_rate * 100
         else:
             reliability_score = 50  # Neutral score for no executions
@@ -1073,8 +1006,6 @@ class PluginAnalyticsService:
         availability_score = usage_stats.availability_percentage or 95
 
         # Weighted average
-        overall_score = (
-            execution_score * 0.4 + reliability_score * 0.4 + availability_score * 0.2
-        )
+        overall_score = execution_score * 0.4 + reliability_score * 0.4 + availability_score * 0.2
 
         return overall_score

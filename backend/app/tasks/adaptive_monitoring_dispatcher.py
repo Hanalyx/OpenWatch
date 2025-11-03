@@ -70,9 +70,7 @@ def dispatch_host_checks(self) -> Dict:
             for host in hosts_due:
                 try:
                     # Get priority based on host state
-                    priority = adaptive_scheduler_service.get_priority_for_state(
-                        db, host["status"]
-                    )
+                    priority = adaptive_scheduler_service.get_priority_for_state(db, host["status"])
 
                     # Dispatch individual host check task with priority
                     # Use send_task to avoid circular import

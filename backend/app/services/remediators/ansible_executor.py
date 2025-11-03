@@ -244,14 +244,8 @@ class AnsibleExecutor(BaseRemediationExecutor):
             inventory_content = "[local]\nlocalhost ansible_connection=local\n"
         else:
             # SSH remote execution
-            username = (
-                target.credentials.get("username", "root")
-                if target.credentials
-                else "root"
-            )
-            inventory_content = (
-                f"[targets]\n{target.identifier} ansible_user={username}\n"
-            )
+            username = target.credentials.get("username", "root") if target.credentials else "root"
+            inventory_content = f"[targets]\n{target.identifier} ansible_user={username}\n"
 
         inventory_file.write_text(inventory_content)
 
@@ -370,9 +364,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
             if "changed:" in line.lower():
                 # Extract task name if available
                 if "TASK" in line:
-                    task_name = (
-                        line.split("[")[1].split("]")[0] if "[" in line else "unknown"
-                    )
+                    task_name = line.split("[")[1].split("]")[0] if "[" in line else "unknown"
                     changes.append(f"Changed: {task_name}")
                 else:
                     changes.append(line.strip())
@@ -394,9 +386,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
 
         return changes
 
-    async def _run_command(
-        self, cmd: List[str], timeout_seconds: int = 300
-    ) -> Dict[str, any]:
+    async def _run_command(self, cmd: List[str], timeout_seconds: int = 300) -> Dict[str, any]:
         """
         Run command asynchronously.
 
@@ -415,9 +405,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=timeout_seconds
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
 
             return {
                 "stdout": stdout.decode("utf-8", errors="replace"),

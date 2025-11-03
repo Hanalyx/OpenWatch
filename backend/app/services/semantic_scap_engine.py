@@ -83,9 +83,7 @@ class SemanticSCAPEngine:
 
     def __init__(self):
         self.settings = get_settings()
-        self.aegis_base_url = getattr(
-            self.settings, "aegis_api_url", "http://localhost:8001"
-        )
+        self.aegis_base_url = getattr(self.settings, "aegis_api_url", "http://localhost:8001")
         self._rule_mappings_cache: Dict[str, SemanticRule] = {}
         self._framework_cache: Dict[str, Any] = {}
         self._cache_ttl = 3600  # 1 hour cache TTL
@@ -116,9 +114,7 @@ class SemanticSCAPEngine:
             )
 
             # 2. Map to universal compliance frameworks
-            framework_mappings = await self._map_to_universal_frameworks(
-                semantic_rules, host_info
-            )
+            framework_mappings = await self._map_to_universal_frameworks(semantic_rules, host_info)
 
             # 3. Analyze cross-framework compliance impact
             compliance_matrix = await self._analyze_compliance_matrix(
@@ -245,9 +241,7 @@ class SemanticSCAPEngine:
         """Map a SCAP rule ID to semantic understanding"""
 
         # Try to get mapping from AEGIS first
-        semantic_mapping = await self._query_aegis_for_semantic_mapping(
-            scap_rule_id, host_info
-        )
+        semantic_mapping = await self._query_aegis_for_semantic_mapping(scap_rule_id, host_info)
 
         if semantic_mapping:
             return semantic_mapping
@@ -430,9 +424,7 @@ class SemanticSCAPEngine:
                             ),
                             estimated_fix_time=rule_data.get("estimated_fix_time", 10),
                             dependencies=rule_data.get("dependencies", []),
-                            cross_framework_mappings=rule_data.get(
-                                "cross_framework_mappings", {}
-                            ),
+                            cross_framework_mappings=rule_data.get("cross_framework_mappings", {}),
                             remediation_available=True,
                         )
 
@@ -468,9 +460,7 @@ class SemanticSCAPEngine:
         # Query AEGIS for framework information
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.aegis_base_url}/api/v1/frameworks", timeout=5.0
-                )
+                response = await client.get(f"{self.aegis_base_url}/api/v1/frameworks", timeout=5.0)
 
                 if response.status_code == 200:
                     frameworks_data = response.json()
@@ -551,9 +541,7 @@ class SemanticSCAPEngine:
             for r in semantic_rules
             if r.remediation_complexity == "simple" and r.estimated_fix_time <= 10
         ]
-        complex_rules = [
-            r for r in semantic_rules if r.remediation_complexity == "complex"
-        ]
+        complex_rules = [r for r in semantic_rules if r.remediation_complexity == "complex"]
 
         # Calculate total estimated time
         total_time = sum(rule.estimated_fix_time for rule in semantic_rules)
@@ -582,15 +570,9 @@ class SemanticSCAPEngine:
             "quick_wins": [r.to_dict() for r in quick_wins[:5]],  # Top 5
             "priority_order": [r.name for r in priority_rules],
             "complexity_breakdown": {
-                "simple": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "simple"]
-                ),
+                "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
                 "moderate": len(
-                    [
-                        r
-                        for r in semantic_rules
-                        if r.remediation_complexity == "moderate"
-                    ]
+                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
                 ),
                 "complex": len(
                     [r for r in semantic_rules if r.remediation_complexity == "complex"]
@@ -614,9 +596,7 @@ class SemanticSCAPEngine:
         impact_prediction = {}
 
         for framework_name, current_score in current_compliance.items():
-            framework_rules = [
-                r for r in semantic_rules if framework_name in r.frameworks
-            ]
+            framework_rules = [r for r in semantic_rules if framework_name in r.frameworks]
 
             if framework_rules:
                 # Estimate improvement (simplified calculation)
@@ -639,12 +619,8 @@ class SemanticSCAPEngine:
 
         recommendations = []
 
-        high_impact_count = len(
-            [r for r in semantic_rules if r.business_impact == "high"]
-        )
-        quick_wins_count = len(
-            [r for r in semantic_rules if r.estimated_fix_time <= 10]
-        )
+        high_impact_count = len([r for r in semantic_rules if r.business_impact == "high"])
+        quick_wins_count = len([r for r in semantic_rules if r.estimated_fix_time <= 10])
 
         if high_impact_count > 0:
             recommendations.append(
@@ -681,15 +657,9 @@ class SemanticSCAPEngine:
                 "low": len([r for r in semantic_rules if r.risk_level == "low"]),
             },
             "remediation_complexity_trend": {
-                "simple": len(
-                    [r for r in semantic_rules if r.remediation_complexity == "simple"]
-                ),
+                "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
                 "moderate": len(
-                    [
-                        r
-                        for r in semantic_rules
-                        if r.remediation_complexity == "moderate"
-                    ]
+                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
                 ),
                 "complex": len(
                     [r for r in semantic_rules if r.remediation_complexity == "complex"]
@@ -701,12 +671,8 @@ class SemanticSCAPEngine:
             },
             "predictions": {
                 "next_scan_recommendation": "Schedule follow-up scan after remediation",
-                "compliance_drift_risk": (
-                    "low" if len(semantic_rules) < 10 else "medium"
-                ),
-                "maintenance_frequency": (
-                    "monthly" if len(semantic_rules) < 5 else "bi-weekly"
-                ),
+                "compliance_drift_risk": ("low" if len(semantic_rules) < 10 else "medium"),
+                "maintenance_frequency": ("monthly" if len(semantic_rules) < 5 else "bi-weekly"),
             },
         }
 
@@ -761,9 +727,7 @@ class SemanticSCAPEngine:
         except Exception as e:
             logger.warning(f"Failed to store semantic analysis: {e}")
 
-    async def get_semantic_analysis(
-        self, scan_id: str
-    ) -> Optional[IntelligentScanResult]:
+    async def get_semantic_analysis(self, scan_id: str) -> Optional[IntelligentScanResult]:
         """Retrieve stored semantic analysis"""
 
         try:
@@ -784,8 +748,7 @@ class SemanticSCAPEngine:
 
                     # Reconstruct SemanticRule objects
                     semantic_rules = [
-                        SemanticRule(**rule_data)
-                        for rule_data in data.get("semantic_rules", [])
+                        SemanticRule(**rule_data) for rule_data in data.get("semantic_rules", [])
                     ]
 
                     return IntelligentScanResult(

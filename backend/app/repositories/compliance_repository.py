@@ -163,9 +163,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"rule_id": rule_id}
         return await self.find_one(query)
 
-    async def find_by_multiple_frameworks(
-        self, frameworks: List[str]
-    ) -> List[ComplianceRule]:
+    async def find_by_multiple_frameworks(self, frameworks: List[str]) -> List[ComplianceRule]:
         """
         Find rules that apply to any of the specified frameworks.
 
@@ -243,9 +241,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                 {"$sort": {"count": -1}},
             ]
             framework_results = await self.aggregate(framework_pipeline)
-            framework_counts = {
-                item["_id"]: item["count"] for item in framework_results
-            }
+            framework_counts = {item["_id"]: item["count"] for item in framework_results}
 
             # Count by platform using aggregation
             platform_pipeline = [
@@ -284,13 +280,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         try:
             pipeline = [
                 {"$match": {f"frameworks.{framework}": {"$exists": True}}},
-                {
-                    "$project": {
-                        "versions": {
-                            "$objectToArray": f"$frameworks.{framework}.versions"
-                        }
-                    }
-                },
+                {"$project": {"versions": {"$objectToArray": f"$frameworks.{framework}.versions"}}},
                 {"$unwind": "$versions"},
                 {"$group": {"_id": "$versions.k"}},
                 {"$sort": {"_id": 1}},

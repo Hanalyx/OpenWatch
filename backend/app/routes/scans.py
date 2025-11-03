@@ -157,9 +157,7 @@ async def validate_scan_configuration(
 ) -> ValidationResultResponse:
     """Pre-flight validation for scan configuration"""
     try:
-        logger.info(
-            f"Pre-flight validation requested for host {validation_request.host_id}"
-        )
+        logger.info(f"Pre-flight validation requested for host {validation_request.host_id}")
 
         # Get host details
         host_result = db.execute(
@@ -194,13 +192,9 @@ async def validate_scan_configuration(
                 profiles = json.loads(content_result.profiles)
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if validation_request.profile_id not in profile_ids:
-                    raise HTTPException(
-                        status_code=400, detail="Profile not found in SCAP content"
-                    )
+                    raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
             except:
-                raise HTTPException(
-                    status_code=400, detail="Invalid SCAP content profiles"
-                )
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Resolve credentials
         try:
@@ -216,9 +210,7 @@ async def validate_scan_configuration(
             )
 
             if not credential_data:
-                raise HTTPException(
-                    status_code=400, detail="No credentials available for host"
-                )
+                raise HTTPException(status_code=400, detail="No credentials available for host")
 
             # Extract credential value based on auth method
             if credential_data.auth_method.value == "password":
@@ -242,9 +234,7 @@ async def validate_scan_configuration(
         client_ip = request.client.host if request.client else "unknown"
         user_id = current_user.get("sub") if current_user else None
         user_role = current_user.get("role") if current_user else None
-        is_admin = (
-            user_role in ["SUPER_ADMIN", "SECURITY_ADMIN"] if user_role else False
-        )
+        is_admin = user_role in ["SUPER_ADMIN", "SECURITY_ADMIN"] if user_role else False
 
         # Perform comprehensive validation (returns internal result with sensitive data)
         internal_result = await error_service.validate_scan_prerequisites(
@@ -297,9 +287,7 @@ async def validate_scan_configuration(
         )
 
         # Return generic error message to prevent information disclosure
-        raise HTTPException(
-            status_code=500, detail=f"Validation failed: {sanitized_error.message}"
-        )
+        raise HTTPException(status_code=500, detail=f"Validation failed: {sanitized_error.message}")
 
 
 @router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
@@ -379,17 +367,13 @@ async def quick_scan(
                             detail="No profiles available in SCAP content",
                         )
             except:
-                raise HTTPException(
-                    status_code=400, detail="Invalid SCAP content profiles"
-                )
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Generate scan name
         scan_name = quick_scan_request.name
         if not scan_name:
             profile_name = suggested_profile.name if suggested_profile else "Quick Scan"
-            scan_name = (
-                f"{profile_name} - {host_result.display_name or host_result.hostname}"
-            )
+            scan_name = f"{profile_name} - {host_result.display_name or host_result.hostname}"
 
         # Create scan record with UUID primary key
         scan_id = str(uuid.uuid4())
@@ -481,9 +465,7 @@ async def quick_scan(
                     parts = duration_str.replace(" min", "").split("-")
                     if len(parts) == 2:
                         avg_minutes = (int(parts[0]) + int(parts[1])) / 2
-                        estimated_time = datetime.utcnow().timestamp() + (
-                            avg_minutes * 60
-                        )
+                        estimated_time = datetime.utcnow().timestamp() + (avg_minutes * 60)
             except:
                 pass
 
@@ -511,9 +493,7 @@ async def quick_scan(
         logger.error(f"Error creating quick scan: {e}", exc_info=True)
         # Classify the error for better user guidance
         try:
-            classified_error = await error_service.classify_error(
-                e, {"operation": "quick_scan"}
-            )
+            classified_error = await error_service.classify_error(e, {"operation": "quick_scan"})
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -526,9 +506,7 @@ async def quick_scan(
             )
         except Exception as fallback_error:
             # Fallback to generic error if classification fails
-            logger.error(
-                f"Quick scan creation failed with classification error: {fallback_error}"
-            )
+            logger.error(f"Quick scan creation failed with classification error: {fallback_error}")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to create scan due to system configuration error",
@@ -557,9 +535,7 @@ async def create_bulk_scan(
             raise HTTPException(status_code=400, detail="No host IDs provided")
 
         if len(bulk_scan_request.host_ids) > 100:
-            raise HTTPException(
-                status_code=400, detail="Maximum 100 hosts per bulk scan"
-            )
+            raise HTTPException(status_code=400, detail="Maximum 100 hosts per bulk scan")
 
         # Initialize orchestrator
         orchestrator = BulkScanOrchestrator(db)
@@ -583,9 +559,7 @@ async def create_bulk_scan(
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
             estimated_completion=(
-                session.estimated_completion.timestamp()
-                if session.estimated_completion
-                else 0
+                session.estimated_completion.timestamp() if session.estimated_completion else 0
             ),
             scan_ids=session.scan_ids or [],
         )
@@ -594,9 +568,7 @@ async def create_bulk_scan(
         raise
     except Exception as e:
         logger.error(f"Error creating bulk scan: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create bulk scan: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to create bulk scan: {str(e)}")
 
 
 @router.get("/bulk-scan/{session_id}/progress")
@@ -699,9 +671,7 @@ async def list_scan_sessions(
         """
 
         if where_conditions:
-            sessions_query = (
-                base_sessions_query + " WHERE " + " AND ".join(where_conditions)
-            )
+            sessions_query = base_sessions_query + " WHERE " + " AND ".join(where_conditions)
         else:
             sessions_query = base_sessions_query
 
@@ -721,19 +691,11 @@ async def list_scan_sessions(
                     "running_hosts": row.running_hosts,
                     "status": row.status,
                     "created_by": row.created_by,
-                    "created_at": (
-                        row.created_at.isoformat() if row.created_at else None
-                    ),
-                    "started_at": (
-                        row.started_at.isoformat() if row.started_at else None
-                    ),
-                    "completed_at": (
-                        row.completed_at.isoformat() if row.completed_at else None
-                    ),
+                    "created_at": (row.created_at.isoformat() if row.created_at else None),
+                    "started_at": (row.started_at.isoformat() if row.started_at else None),
+                    "completed_at": (row.completed_at.isoformat() if row.completed_at else None),
                     "estimated_completion": (
-                        row.estimated_completion.isoformat()
-                        if row.estimated_completion
-                        else None
+                        row.estimated_completion.isoformat() if row.estimated_completion else None
                     ),
                 }
             )
@@ -822,16 +784,12 @@ async def recover_scan(
                 "progress": 0,
                 "started_by": current_user["id"],
                 "started_at": datetime.utcnow(),
-                "scan_options": json.dumps(
-                    {"recovery_scan": True, "original_scan_id": scan_id}
-                ),
+                "scan_options": json.dumps({"recovery_scan": True, "original_scan_id": scan_id}),
             },
         )
         db.commit()
 
-        logger.info(
-            f"Recovery scan created: {recovery_scan_id} for failed scan {scan_id}"
-        )
+        logger.info(f"Recovery scan created: {recovery_scan_id} for failed scan {scan_id}")
 
         return {
             "can_recover": True,
@@ -922,9 +880,7 @@ async def list_scans(
     """List scans with optional filtering"""
     try:
         # Quick fix: Check if there are any scans at all
-        scan_count_result = db.execute(
-            text("SELECT COUNT(*) as count FROM scans")
-        ).fetchone()
+        scan_count_result = db.execute(text("SELECT COUNT(*) as count FROM scans")).fetchone()
         if scan_count_result.count == 0:
             return {"scans": [], "total": 0, "limit": limit, "offset": offset}
 
@@ -979,9 +935,7 @@ async def list_scans(
                     "ip_address": row.ip_address,
                     "operating_system": row.operating_system,
                     "status": row.host_status,
-                    "last_check": (
-                        row.last_check.isoformat() if row.last_check else None
-                    ),
+                    "last_check": (row.last_check.isoformat() if row.last_check else None),
                 },
                 "content_id": row.content_id,
                 "content_name": row.content_name,
@@ -990,9 +944,7 @@ async def list_scans(
                 "status": row.status,
                 "progress": row.progress,
                 "started_at": row.started_at.isoformat() if row.started_at else None,
-                "completed_at": (
-                    row.completed_at.isoformat() if row.completed_at else None
-                ),
+                "completed_at": (row.completed_at.isoformat() if row.completed_at else None),
                 "started_by": row.started_by,
                 "error_message": row.error_message,
                 "result_file": row.result_file,
@@ -1012,9 +964,7 @@ async def list_scans(
                     "severity_high": row.severity_high,
                     "severity_medium": row.severity_medium,
                     "severity_low": row.severity_low,
-                    "created_at": (
-                        row.completed_at.isoformat() if row.completed_at else None
-                    ),
+                    "created_at": (row.completed_at.isoformat() if row.completed_at else None),
                 }
 
             scans.append(scan_data)
@@ -1091,13 +1041,9 @@ async def create_scan(
                 profiles = json.loads(content_result.profiles)
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if scan_request.profile_id not in profile_ids:
-                    raise HTTPException(
-                        status_code=400, detail="Profile not found in SCAP content"
-                    )
+                    raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
             except:
-                raise HTTPException(
-                    status_code=400, detail="Invalid SCAP content profiles"
-                )
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Create scan record with UUID primary key
         import json
@@ -1163,9 +1109,7 @@ async def create_scan(
         logger.error(f"Error creating scan: {e}", exc_info=True)
         # Classify the error for better user guidance
         try:
-            classified_error = await error_service.classify_error(
-                e, {"operation": "create_scan"}
-            )
+            classified_error = await error_service.classify_error(e, {"operation": "create_scan"})
             raise HTTPException(
                 status_code=500,
                 detail={
@@ -1178,9 +1122,7 @@ async def create_scan(
             )
         except:
             # Fallback to generic error if classification fails
-            raise HTTPException(
-                status_code=500, detail=f"Failed to create scan: {str(e)}"
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
 
 
 @router.get("/{scan_id}")
@@ -1238,9 +1180,7 @@ async def get_scan(
             "error_message": result.error_message,
             "scan_options": scan_options,
             "started_at": result.started_at.isoformat() if result.started_at else None,
-            "completed_at": (
-                result.completed_at.isoformat() if result.completed_at else None
-            ),
+            "completed_at": (result.completed_at.isoformat() if result.completed_at else None),
             "started_by": result.started_by,
             "celery_task_id": result.celery_task_id,
         }
@@ -1553,10 +1493,7 @@ async def get_scan_json_report(
                     enhanced_results = {}
 
                 # Add enhanced rule details with remediation
-                if (
-                    "rule_details" in enhanced_results
-                    and enhanced_results["rule_details"]
-                ):
+                if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
                     logger.info(
                         f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
@@ -1574,9 +1511,7 @@ async def get_scan_json_report(
                         namespaces = {"xccdf": "http://checklists.nist.gov/xccdf/1.2"}
                         rule_results = []
 
-                        for rule_result in root.findall(
-                            ".//xccdf:rule-result", namespaces
-                        ):
+                        for rule_result in root.findall(".//xccdf:rule-result", namespaces):
                             rule_id = rule_result.get("idref", "")
                             result_elem = rule_result.find("xccdf:result", namespaces)
 
@@ -1585,9 +1520,7 @@ async def get_scan_json_report(
                                     {
                                         "rule_id": rule_id,
                                         "result": result_elem.text,
-                                        "severity": rule_result.get(
-                                            "severity", "unknown"
-                                        ),
+                                        "severity": rule_result.get("severity", "unknown"),
                                         "title": "",
                                         "description": "",
                                         "rationale": "",
@@ -1597,9 +1530,7 @@ async def get_scan_json_report(
                                 )
 
                         scan_data["rule_results"] = rule_results
-                        logger.info(
-                            f"Added {len(rule_results)} basic rules (fallback mode)"
-                        )
+                        logger.info(f"Added {len(rule_results)} basic rules (fallback mode)")
 
             except Exception as e:
                 logger.error(f"Error extracting enhanced rule data: {e}")
@@ -1661,9 +1592,7 @@ async def get_scan_csv_report(
             writer.writerow(["Rule Results"])
             writer.writerow(["Rule ID", "Result", "Severity"])
             for rule in scan_data["rule_results"]:
-                writer.writerow(
-                    [rule.get("rule_id"), rule.get("result"), rule.get("severity")]
-                )
+                writer.writerow([rule.get("rule_id"), rule.get("result"), rule.get("severity")])
 
         # Return CSV
         from fastapi.responses import Response
@@ -1671,9 +1600,7 @@ async def get_scan_csv_report(
         return Response(
             content=output.getvalue(),
             media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename=scan_{scan_id}_report.csv"
-            },
+            headers={"Content-Disposition": f"attachment; filename=scan_{scan_id}_report.csv"},
         )
 
     except HTTPException:
@@ -1759,9 +1686,7 @@ async def get_scan_failed_rules(
                         check_elem = rule_result.find("xccdf:check", namespaces)
                         check_content_ref = ""
                         if check_elem is not None:
-                            content_ref = check_elem.find(
-                                "xccdf:check-content-ref", namespaces
-                            )
+                            content_ref = check_elem.find("xccdf:check-content-ref", namespaces)
                             if content_ref is not None:
                                 check_content_ref = content_ref.get("href", "")
 
@@ -1847,18 +1772,12 @@ async def create_verification_scan(
                 profiles = json.loads(content_result.profiles)
                 profile_ids = [p.get("id") for p in profiles if p.get("id")]
                 if verification_request.profile_id not in profile_ids:
-                    raise HTTPException(
-                        status_code=400, detail="Profile not found in SCAP content"
-                    )
+                    raise HTTPException(status_code=400, detail="Profile not found in SCAP content")
             except:
-                raise HTTPException(
-                    status_code=400, detail="Invalid SCAP content profiles"
-                )
+                raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
         # Generate scan name
-        scan_name = (
-            verification_request.name or f"Verification Scan - {host_result.hostname}"
-        )
+        scan_name = verification_request.name or f"Verification Scan - {host_result.hostname}"
         if verification_request.original_scan_id:
             scan_name += f" (Post-Remediation)"
 
@@ -1937,9 +1856,7 @@ async def create_verification_scan(
         raise
     except Exception as e:
         logger.error(f"Error creating verification scan: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create verification scan: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to create verification scan: {str(e)}")
 
 
 @router.post("/{scan_id}/rescan/rule")
@@ -1952,9 +1869,7 @@ async def rescan_rule(
 ):
     """Rescan a specific rule from a completed scan"""
     try:
-        logger.info(
-            f"Rule rescan requested for scan {scan_id}, rule {rescan_request.rule_id}"
-        )
+        logger.info(f"Rule rescan requested for scan {scan_id}, rule {rescan_request.rule_id}")
 
         # Get the original scan details
         result = db.execute(
@@ -1978,9 +1893,7 @@ async def rescan_rule(
 
         # Validate that the host is still active
         if not scan_data.encrypted_credentials:
-            raise HTTPException(
-                status_code=400, detail="Host credentials not available"
-            )
+            raise HTTPException(status_code=400, detail="Host credentials not available")
 
         # Validate that the SCAP content file exists
         if not scan_data.file_path:

@@ -123,15 +123,11 @@ class SecurityConfigManager:
                 # Get host's group and apply group config
                 group_id = self._get_host_group_id(target_id)
                 if group_id:
-                    group_config = self._get_config_by_scope(
-                        ConfigScope.HOST_GROUP, group_id
-                    )
+                    group_config = self._get_config_by_scope(ConfigScope.HOST_GROUP, group_id)
                     if group_config:
                         config_data.update(group_config)
             elif target_type == "group" and target_id:
-                group_config = self._get_config_by_scope(
-                    ConfigScope.HOST_GROUP, target_id
-                )
+                group_config = self._get_config_by_scope(ConfigScope.HOST_GROUP, target_id)
                 if group_config:
                     config_data.update(group_config)
 
@@ -145,9 +141,7 @@ class SecurityConfigManager:
             return self._dict_to_policy_config(config_data)
 
         except Exception as e:
-            logger.error(
-                f"Failed to get effective config for {target_type}:{target_id}: {e}"
-            )
+            logger.error(f"Failed to get effective config for {target_type}:{target_id}: {e}")
             # Return default strict config on error
             return SecurityPolicyConfig()
 
@@ -207,9 +201,7 @@ class SecurityConfigManager:
 
             self.db.commit()
 
-            logger.info(
-                f"Updated security config for scope={scope.value}, target={target_id}"
-            )
+            logger.info(f"Updated security config for scope={scope.value}, target={target_id}")
             return True
 
         except Exception as e:
@@ -255,9 +247,7 @@ class SecurityConfigManager:
         success = self.set_config(scope, config, target_id, created_by)
 
         if success:
-            logger.info(
-                f"Applied template '{template_name}' to {scope.value}:{target_id}"
-            )
+            logger.info(f"Applied template '{template_name}' to {scope.value}:{target_id}")
 
         return success
 
@@ -305,14 +295,10 @@ class SecurityConfigManager:
             # Group level
             if target_type in ["host", "group"] and target_id:
                 group_id = (
-                    target_id
-                    if target_type == "group"
-                    else self._get_host_group_id(target_id)
+                    target_id if target_type == "group" else self._get_host_group_id(target_id)
                 )
                 if group_id:
-                    group_config = self._get_config_by_scope(
-                        ConfigScope.HOST_GROUP, group_id
-                    )
+                    group_config = self._get_config_by_scope(ConfigScope.HOST_GROUP, group_id)
                     if group_config:
                         inheritance_chain.append(
                             {
@@ -342,9 +328,7 @@ class SecurityConfigManager:
                     "allow_dsa_keys": effective_config.allow_dsa_keys,
                     "minimum_password_length": effective_config.minimum_password_length,
                     "require_complex_passwords": effective_config.require_complex_passwords,
-                    "allowed_key_types": [
-                        kt.value for kt in effective_config.allowed_key_types
-                    ],
+                    "allowed_key_types": [kt.value for kt in effective_config.allowed_key_types],
                 },
                 "inheritance_chain": inheritance_chain,
                 "compliance_level": self._assess_compliance_level(effective_config),
@@ -383,9 +367,7 @@ class SecurityConfigManager:
         # FIPS compliance validation
         if config.enforce_fips:
             if config.allow_dsa_keys:
-                messages.append(
-                    "DSA keys are not FIPS compliant and should be disabled"
-                )
+                messages.append("DSA keys are not FIPS compliant and should be disabled")
                 is_valid = False
 
             if config.minimum_rsa_bits < 2048:
@@ -398,9 +380,7 @@ class SecurityConfigManager:
                 messages.append("Strict policy should require RSA keys of 3072+ bits")
 
             if config.minimum_password_length < 12:
-                messages.append(
-                    "Strict policy should require passwords of 12+ characters"
-                )
+                messages.append("Strict policy should require passwords of 12+ characters")
 
         # Consistency checks
         if not config.require_complex_passwords and config.minimum_password_length < 16:
@@ -487,9 +467,7 @@ class SecurityConfigManager:
 
             # Override with provided values
             if "policy_level" in config_data:
-                policy_config.policy_level = SecurityPolicyLevel(
-                    config_data["policy_level"]
-                )
+                policy_config.policy_level = SecurityPolicyLevel(config_data["policy_level"])
             if "enforce_fips" in config_data:
                 policy_config.enforce_fips = config_data["enforce_fips"]
             if "minimum_rsa_bits" in config_data:
@@ -497,13 +475,9 @@ class SecurityConfigManager:
             if "allow_dsa_keys" in config_data:
                 policy_config.allow_dsa_keys = config_data["allow_dsa_keys"]
             if "minimum_password_length" in config_data:
-                policy_config.minimum_password_length = config_data[
-                    "minimum_password_length"
-                ]
+                policy_config.minimum_password_length = config_data["minimum_password_length"]
             if "require_complex_passwords" in config_data:
-                policy_config.require_complex_passwords = config_data[
-                    "require_complex_passwords"
-                ]
+                policy_config.require_complex_passwords = config_data["require_complex_passwords"]
 
             return policy_config
 

@@ -73,9 +73,7 @@ class ScanIntelligenceService:
             "financial": "xccdf_org.ssgproject.content_profile_pci",
             "default": "xccdf_org.ssgproject.content_profile_cui",
         },
-        "staging": {
-            "default": "xccdf_org.ssgproject.content_profile_cis_level1_server"
-        },
+        "staging": {"default": "xccdf_org.ssgproject.content_profile_cis_level1_server"},
         "development": {"default": "xccdf_org.ssgproject.content_profile_essential"},
         "test": {"default": "xccdf_org.ssgproject.content_profile_essential"},
     }
@@ -137,9 +135,7 @@ class ScanIntelligenceService:
             best_suggestion = self._select_best_suggestion(suggestions, host_info)
 
             # Enhance with content metadata
-            enhanced_suggestion = await self._enhance_suggestion_with_content(
-                best_suggestion
-            )
+            enhanced_suggestion = await self._enhance_suggestion_with_content(best_suggestion)
 
             logger.info(
                 f"Profile suggested for host {host_id}: {enhanced_suggestion.profile_id} (confidence: {enhanced_suggestion.confidence})"
@@ -205,9 +201,7 @@ class ScanIntelligenceService:
             logger.error(f"Error getting host info for {host_id}: {e}")
             return None
 
-    def _suggest_by_environment(
-        self, host_info: HostInfo
-    ) -> Optional[ProfileSuggestion]:
+    def _suggest_by_environment(self, host_info: HostInfo) -> Optional[ProfileSuggestion]:
         """Suggest profile based on environment and owner characteristics"""
         env = host_info.environment.lower()
         owner = (host_info.owner or "").lower()
@@ -217,12 +211,7 @@ class ScanIntelligenceService:
             env_profiles = self.ENVIRONMENT_PROFILES[env]
 
             # Check for federal/regulatory
-            if (
-                "federal" in owner
-                or "gov" in owner
-                or "dod" in owner
-                or "regulatory" in owner
-            ):
+            if "federal" in owner or "gov" in owner or "dod" in owner or "regulatory" in owner:
                 if "federal" in env_profiles:
                     return ProfileSuggestion(
                         profile_id=env_profiles["federal"],
@@ -256,10 +245,7 @@ class ScanIntelligenceService:
                     )
 
             # Check for financial services
-            if any(
-                keyword in owner
-                for keyword in ["bank", "financial", "payment", "finance"]
-            ):
+            if any(keyword in owner for keyword in ["bank", "financial", "payment", "finance"]):
                 if "financial" in env_profiles:
                     return ProfileSuggestion(
                         profile_id=env_profiles["financial"],
@@ -373,9 +359,7 @@ class ScanIntelligenceService:
             return self._suggest_by_os(host_info)
 
         # Sort by confidence and priority
-        suggestions.sort(
-            key=lambda s: (s.confidence, s.priority.value == "high"), reverse=True
-        )
+        suggestions.sort(key=lambda s: (s.confidence, s.priority.value == "high"), reverse=True)
 
         best = suggestions[0]
 
@@ -476,9 +460,7 @@ class ScanIntelligenceService:
 
             # OS diversity recommendation
             if len(os_groups) > 3:
-                recommendations.append(
-                    "Consider grouping by OS for better content optimization"
-                )
+                recommendations.append("Consider grouping by OS for better content optimization")
 
             # Environment mixing warning
             if "production" in env_groups and len(env_groups) > 1:

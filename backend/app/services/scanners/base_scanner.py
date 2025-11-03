@@ -89,9 +89,7 @@ class BaseScanner(ABC):
 
         return summary
 
-    def _group_by_severity(
-        self, results: List[RuleResult]
-    ) -> Dict[str, Dict[str, int]]:
+    def _group_by_severity(self, results: List[RuleResult]) -> Dict[str, Dict[str, int]]:
         """Group results by severity level"""
         by_severity = {}
 

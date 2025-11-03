@@ -398,9 +398,7 @@ async def get_remediation_statistics(
     if current_user.get("role") != "admin":
         executed_by = current_user.get("username")
 
-    summary = await orchestrator.get_remediation_statistics(
-        days=days, executed_by=executed_by
-    )
+    summary = await orchestrator.get_remediation_statistics(days=days, executed_by=executed_by)
 
     return summary
 

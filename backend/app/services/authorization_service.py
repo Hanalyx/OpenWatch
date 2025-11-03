@@ -4,9 +4,7 @@ def sanitize_for_log(value: any) -> str:
         return "None"
     str_value = str(value)
     # Remove newlines and control characters to prevent log injection
-    return (
-        str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
-    )
+    return str_value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")[:1000]
 
 
 """
@@ -71,9 +69,7 @@ class AuthorizationService:
     5. Cross-Host Validation - Prevents privilege escalation through bulk operations
     """
 
-    def __init__(
-        self, db: Session, config: Optional[AuthorizationConfiguration] = None
-    ):
+    def __init__(self, db: Session, config: Optional[AuthorizationConfiguration] = None):
         self.db = db
         self.config = config or AuthorizationConfiguration()
         self.permission_cache = PermissionCache(
@@ -130,10 +126,7 @@ class AuthorizationService:
             result.evaluation_time_ms = evaluation_time
 
             # Cache positive results if caching enabled
-            if (
-                self.config.cache_ttl_seconds > 0
-                and result.decision == AuthorizationDecision.ALLOW
-            ):
+            if self.config.cache_ttl_seconds > 0 and result.decision == AuthorizationDecision.ALLOW:
                 self.permission_cache.put(user_id, resource, action, result)
 
             # Audit log the decision
@@ -222,17 +215,12 @@ class AuthorizationService:
                         fresh_count += 1
 
                     # Fail fast if configured and we hit a deny
-                    if (
-                        request.fail_fast
-                        and result.decision == AuthorizationDecision.DENY
-                    ):
+                    if request.fail_fast and result.decision == AuthorizationDecision.DENY:
                         logger.info(
                             f"Fail-fast triggered: Access denied for resource {resource.resource_id}"
                         )
                         # Still need to create placeholder results for remaining resources
-                        remaining_resources = request.resources[
-                            len(individual_results) :
-                        ]
+                        remaining_resources = request.resources[len(individual_results) :]
                         for remaining_resource in remaining_resources:
                             individual_results.append(
                                 AuthorizationResult(
@@ -342,9 +330,7 @@ class AuthorizationService:
                 )
 
             # Step 2: Get all applicable policies for this request
-            policies = await self._get_applicable_policies(
-                user_id, resource, action, context
-            )
+            policies = await self._get_applicable_policies(user_id, resource, action, context)
 
             # Step 3: Evaluate policies using conflict resolution strategy
             decision, reason = self._evaluate_policies(policies)
@@ -473,9 +459,7 @@ class AuthorizationService:
                     import json
 
                     actions = (
-                        json.loads(row.actions)
-                        if isinstance(row.actions, str)
-                        else row.actions
+                        json.loads(row.actions) if isinstance(row.actions, str) else row.actions
                     )
                 except:
                     actions = [row.actions] if row.actions else []
@@ -507,9 +491,7 @@ class AuthorizationService:
             logger.error(f"Error getting applicable policies: {e}")
             return []
 
-    def _evaluate_policies(
-        self, policies: List[Dict]
-    ) -> Tuple[AuthorizationDecision, str]:
+    def _evaluate_policies(self, policies: List[Dict]) -> Tuple[AuthorizationDecision, str]:
         """
         Evaluate policies based on conflict resolution strategy
         """
@@ -531,9 +513,7 @@ class AuthorizationService:
                     f"Access granted by {len(allow_policies)} allow policies",
                 )
 
-        elif (
-            self.config.conflict_resolution == PolicyConflictResolution.ALLOW_OVERRIDES
-        ):
+        elif self.config.conflict_resolution == PolicyConflictResolution.ALLOW_OVERRIDES:
             if allow_policies:
                 return (
                     AuthorizationDecision.ALLOW,
@@ -655,9 +635,7 @@ class AuthorizationService:
 
             row = result.fetchone()
             if not row:
-                return AuthorizationContext(
-                    user_id=user_id, user_roles=[], user_groups=[]
-                )
+                return AuthorizationContext(user_id=user_id, user_roles=[], user_groups=[])
 
             import json
 
@@ -707,9 +685,7 @@ class AuthorizationService:
                 resource_id=result.resource.resource_id,
                 action=result.action,
                 decision=result.decision,
-                policies_evaluated=[
-                    p.get("id", "unknown") for p in result.applied_policies
-                ],
+                policies_evaluated=[p.get("id", "unknown") for p in result.applied_policies],
                 context={
                     "user_roles": context.user_roles,
                     "user_groups": context.user_groups,
@@ -795,9 +771,7 @@ class AuthorizationService:
                 session_id=request.context.session_id,
                 evaluation_time_ms=evaluation_time_ms,
                 reason=f"Bulk authorization: {allowed_count} allowed, {denied_count} denied",
-                risk_score=self._calculate_bulk_risk_score(
-                    denied_count, len(request.resources)
-                ),
+                risk_score=self._calculate_bulk_risk_score(denied_count, len(request.resources)),
             )
 
             # Store bulk audit event

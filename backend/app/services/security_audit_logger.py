@@ -87,9 +87,7 @@ class SecurityAuditLogger:
             event_type="error_classification",
             error_code=error_code,
             user_id=user_id,
-            source_ip=(
-                self._hash_ip(source_ip) if source_ip else None
-            ),  # Hash IP for privacy
+            source_ip=(self._hash_ip(source_ip) if source_ip else None),  # Hash IP for privacy
             session_id=session_id,
             technical_details=technical_details,
             sanitized_response=sanitized_response,

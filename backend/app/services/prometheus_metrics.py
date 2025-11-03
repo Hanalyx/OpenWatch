@@ -46,9 +46,7 @@ http_request_duration_seconds = Histogram(
 # Service Health Metrics
 service_info = Info("secureops_service", "Service information", registry=registry)
 
-service_up = Gauge(
-    "secureops_service_up", "Service up status", ["service"], registry=registry
-)
+service_up = Gauge("secureops_service_up", "Service up status", ["service"], registry=registry)
 
 # SCAP Scanning Metrics
 scans_total = Counter(
@@ -58,9 +56,7 @@ scans_total = Counter(
     registry=registry,
 )
 
-scans_active = Gauge(
-    "secureops_scans_active", "Currently active scans", registry=registry
-)
+scans_active = Gauge("secureops_scans_active", "Currently active scans", registry=registry)
 
 scan_duration_seconds = Histogram(
     "secureops_scan_duration_seconds",
@@ -221,9 +217,7 @@ class PrometheusMetrics:
     def __init__(self):
         self.start_time = time.time()
         # Initialize service info
-        service_info.info(
-            {"version": "1.0.0", "service": "openwatch", "environment": "production"}
-        )
+        service_info.info({"version": "1.0.0", "service": "openwatch", "environment": "production"})
 
     def record_http_request(
         self,
@@ -254,16 +248,12 @@ class PrometheusMetrics:
         scans_total.labels(status=status, profile=profile, framework=framework).inc()
 
         if duration is not None:
-            scan_duration_seconds.labels(profile=profile, framework=framework).observe(
-                duration
-            )
+            scan_duration_seconds.labels(profile=profile, framework=framework).observe(duration)
 
         if rules_processed:
             for rule_status, count in rules_processed.items():
                 severity = rules_processed.get("severity", "medium")
-                scan_rules_processed.labels(status=rule_status, severity=severity).inc(
-                    count
-                )
+                scan_rules_processed.labels(status=rule_status, severity=severity).inc(count)
 
     def update_compliance_score(self, host_id: str, framework: str, score: float):
         """Update compliance score for a host"""
@@ -287,21 +277,13 @@ class PrometheusMetrics:
         for status, count in status_counts.items():
             hosts_total.labels(status=status).set(count)
 
-    def record_integration_call(
-        self, target: str, endpoint: str, status: str, duration: float
-    ):
+    def record_integration_call(self, target: str, endpoint: str, status: str, duration: float):
         """Record integration call metrics"""
-        integration_calls_total.labels(
-            target=target, endpoint=endpoint, status=status
-        ).inc()
+        integration_calls_total.labels(target=target, endpoint=endpoint, status=status).inc()
 
-        integration_call_duration_seconds.labels(
-            target=target, endpoint=endpoint
-        ).observe(duration)
+        integration_call_duration_seconds.labels(target=target, endpoint=endpoint).observe(duration)
 
-    def record_remediation(
-        self, status: str, severity: str, duration: Optional[float] = None
-    ):
+    def record_remediation(self, status: str, severity: str, duration: Optional[float] = None):
         """Record remediation metrics"""
         remediations_total.labels(status=status, severity=severity).inc()
 
@@ -333,15 +315,15 @@ class PrometheusMetrics:
             for partition in psutil.disk_partitions():
                 try:
                     usage = psutil.disk_usage(partition.mountpoint)
-                    system_disk_usage_bytes.labels(
-                        device=partition.device, type="total"
-                    ).set(usage.total)
-                    system_disk_usage_bytes.labels(
-                        device=partition.device, type="used"
-                    ).set(usage.used)
-                    system_disk_usage_bytes.labels(
-                        device=partition.device, type="free"
-                    ).set(usage.free)
+                    system_disk_usage_bytes.labels(device=partition.device, type="total").set(
+                        usage.total
+                    )
+                    system_disk_usage_bytes.labels(device=partition.device, type="used").set(
+                        usage.used
+                    )
+                    system_disk_usage_bytes.labels(device=partition.device, type="free").set(
+                        usage.free
+                    )
                 except PermissionError:
                     # Skip inaccessible partitions
                     continue

@@ -121,7 +121,5 @@ DEFAULT_CONFIG = EncryptionConfig()
 FAST_TEST_CONFIG = EncryptionConfig(kdf_iterations=10000)
 """Fast configuration for unit tests (10000 iterations minimum)"""
 
-HIGH_SECURITY_CONFIG = EncryptionConfig(
-    kdf_iterations=200000, kdf_algorithm=KDFAlgorithm.SHA512
-)
+HIGH_SECURITY_CONFIG = EncryptionConfig(kdf_iterations=200000, kdf_algorithm=KDFAlgorithm.SHA512)
 """High-security configuration (200000 iterations, SHA512)"""

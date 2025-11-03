@@ -101,9 +101,7 @@ class BashExecutor(BaseRemediationExecutor):
                 )
 
                 if result["exit_code"] != 0:
-                    raise ExecutorValidationError(
-                        f"Script syntax error: {result['stderr']}"
-                    )
+                    raise ExecutorValidationError(f"Script syntax error: {result['stderr']}")
 
                 return True
 
@@ -173,9 +171,7 @@ class BashExecutor(BaseRemediationExecutor):
         if target.type == ScanTargetType.LOCAL:
             result = await self._execute_local(script_with_vars, timeout_seconds)
         else:  # SSH_HOST
-            result = await self._execute_remote(
-                target, script_with_vars, timeout_seconds
-            )
+            result = await self._execute_remote(target, script_with_vars, timeout_seconds)
 
         return result
 
@@ -238,9 +234,7 @@ class BashExecutor(BaseRemediationExecutor):
 
         return "\n".join(script_lines)
 
-    async def _execute_local(
-        self, script: str, timeout_seconds: int
-    ) -> RemediationExecutionResult:
+    async def _execute_local(self, script: str, timeout_seconds: int) -> RemediationExecutionResult:
         """
         Execute script locally.
 
@@ -289,9 +283,7 @@ class BashExecutor(BaseRemediationExecutor):
                 Path(script_file).unlink(missing_ok=True)
 
         except asyncio.TimeoutError:
-            raise ExecutorExecutionError(
-                f"Script execution exceeded timeout of {timeout_seconds}s"
-            )
+            raise ExecutorExecutionError(f"Script execution exceeded timeout of {timeout_seconds}s")
         except Exception as e:
             self.logger.error(f"Local execution failed: {e}")
             raise ExecutorExecutionError(f"Local execution failed: {e}")
@@ -314,9 +306,7 @@ class BashExecutor(BaseRemediationExecutor):
 
         # Get SSH credentials
         if not target.credentials:
-            raise ExecutorExecutionError(
-                "SSH credentials required for remote execution"
-            )
+            raise ExecutorExecutionError("SSH credentials required for remote execution")
 
         username = target.credentials.get("username", "root")
         ssh_key = target.credentials.get("ssh_key")
@@ -326,9 +316,7 @@ class BashExecutor(BaseRemediationExecutor):
             # Write SSH key to temp file if provided
             ssh_key_file = None
             if ssh_key:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".pem", delete=False
-                ) as f:
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".pem", delete=False) as f:
                     f.write(ssh_key)
                     ssh_key_file = f.name
                 Path(ssh_key_file).chmod(0o600)
@@ -392,9 +380,7 @@ class BashExecutor(BaseRemediationExecutor):
                     Path(ssh_key_file).unlink(missing_ok=True)
 
         except asyncio.TimeoutError:
-            raise ExecutorExecutionError(
-                f"Remote execution exceeded timeout of {timeout_seconds}s"
-            )
+            raise ExecutorExecutionError(f"Remote execution exceeded timeout of {timeout_seconds}s")
         except Exception as e:
             self.logger.error(f"Remote execution failed: {e}")
             raise ExecutorExecutionError(f"Remote execution failed: {e}")
@@ -433,9 +419,7 @@ class BashExecutor(BaseRemediationExecutor):
 
         return changes
 
-    async def _run_command(
-        self, cmd: List[str], timeout_seconds: int = 300
-    ) -> Dict[str, any]:
+    async def _run_command(self, cmd: List[str], timeout_seconds: int = 300) -> Dict[str, any]:
         """
         Run command asynchronously.
 
@@ -454,9 +438,7 @@ class BashExecutor(BaseRemediationExecutor):
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=timeout_seconds
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
 
             return {
                 "stdout": stdout.decode("utf-8", errors="replace"),

@@ -150,11 +150,7 @@ class ScanTemplateService:
             query["is_public"] = is_public
 
         templates = (
-            await ScanTemplate.find(query)
-            .sort("-created_at")
-            .skip(skip)
-            .limit(limit)
-            .to_list()
+            await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
         )
 
         return templates
@@ -320,9 +316,7 @@ class ScanTemplateService:
         logger.info(f"Set template {template_id} as default")
         return template
 
-    async def get_default_template(
-        self, framework: str, created_by: str
-    ) -> Optional[ScanTemplate]:
+    async def get_default_template(self, framework: str, created_by: str) -> Optional[ScanTemplate]:
         """
         Get default template for user/framework.
 
@@ -379,9 +373,7 @@ class ScanTemplateService:
         logger.info(f"Cloned template {template_id} to {clone.template_id}")
         return clone
 
-    async def get_statistics(
-        self, created_by: Optional[str] = None
-    ) -> TemplateStatistics:
+    async def get_statistics(self, created_by: Optional[str] = None) -> TemplateStatistics:
         """
         Get template usage statistics.
 
@@ -406,14 +398,10 @@ class ScanTemplateService:
 
         for template in templates:
             # By framework
-            framework_counts[template.framework] = (
-                framework_counts.get(template.framework, 0) + 1
-            )
+            framework_counts[template.framework] = framework_counts.get(template.framework, 0) + 1
 
             # By user
-            user_counts[template.created_by] = (
-                user_counts.get(template.created_by, 0) + 1
-            )
+            user_counts[template.created_by] = user_counts.get(template.created_by, 0) + 1
 
             # Public count
             if template.is_public:

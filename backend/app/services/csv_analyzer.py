@@ -202,9 +202,7 @@ class CSVAnalyzer:
         sample_values = non_empty_values[:max_preview]
 
         # Detect field type
-        detected_type, confidence = self._detect_field_type(
-            column_name, non_empty_values
-        )
+        detected_type, confidence = self._detect_field_type(column_name, non_empty_values)
 
         # Generate suggestions
         suggestions = self._generate_suggestions(detected_type, non_empty_values)
@@ -219,9 +217,7 @@ class CSVAnalyzer:
             suggestions=suggestions,
         )
 
-    def _detect_field_type(
-        self, column_name: str, values: List[str]
-    ) -> Tuple[FieldType, float]:
+    def _detect_field_type(self, column_name: str, values: List[str]) -> Tuple[FieldType, float]:
         """Detect the most likely field type for a column"""
 
         if not values:
@@ -352,9 +348,7 @@ class CSVAnalyzer:
 
         return auth_matches / min(len(values), 20)
 
-    def _generate_suggestions(
-        self, field_type: FieldType, values: List[str]
-    ) -> List[str]:
+    def _generate_suggestions(self, field_type: FieldType, values: List[str]) -> List[str]:
         """Generate helpful suggestions for field mapping"""
         suggestions = []
 
@@ -380,9 +374,7 @@ class CSVAnalyzer:
 
         return suggestions
 
-    def _generate_auto_mappings(
-        self, field_analyses: List[FieldAnalysis]
-    ) -> Dict[str, str]:
+    def _generate_auto_mappings(self, field_analyses: List[FieldAnalysis]) -> Dict[str, str]:
         """Generate automatic field mappings based on confidence scores"""
         mappings = {}
 
@@ -392,15 +384,10 @@ class CSVAnalyzer:
         assigned_targets = set()
 
         # Sort by confidence (highest first)
-        sorted_analyses = sorted(
-            field_analyses, key=lambda x: x.confidence, reverse=True
-        )
+        sorted_analyses = sorted(field_analyses, key=lambda x: x.confidence, reverse=True)
 
         for analysis in sorted_analyses:
-            if (
-                analysis.confidence >= 0.7
-                and analysis.detected_type != FieldType.UNKNOWN
-            ):
+            if analysis.confidence >= 0.7 and analysis.detected_type != FieldType.UNKNOWN:
                 target_field = analysis.detected_type.value
 
                 # Avoid duplicate mappings
@@ -424,8 +411,7 @@ class CSVAnalyzer:
         # Red Hat Satellite patterns
         satellite_indicators = ["name", "operating_system", "ip", "environment"]
         if all(
-            any(indicator in h for h in headers_lower)
-            for indicator in satellite_indicators[:2]
+            any(indicator in h for h in headers_lower) for indicator in satellite_indicators[:2]
         ):
             templates.append("Red Hat Satellite Export")
 

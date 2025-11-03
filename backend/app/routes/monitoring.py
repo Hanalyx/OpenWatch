@@ -190,9 +190,7 @@ async def get_hosts_status_summary(
         )
 
         # Count monitoring checks performed today
-        today_start = datetime.utcnow().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         checks_today_result = db.execute(
             text(
                 """
@@ -364,12 +362,8 @@ async def jit_connectivity_check(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error performing JIT connectivity check for {host_id}: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=500, detail=f"Failed to check connectivity: {str(e)}"
-        )
+        logger.error(f"Error performing JIT connectivity check for {host_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to check connectivity: {str(e)}")
 
 
 @router.get("/hosts/{host_id}/state")
@@ -463,9 +457,7 @@ async def get_host_monitoring_state(
             "ping_consecutive_successes": host.ping_consecutive_successes,
             "ssh_consecutive_failures": host.ssh_consecutive_failures,
             "ssh_consecutive_successes": host.ssh_consecutive_successes,
-            "next_check_time": (
-                host.next_check_time.isoformat() if host.next_check_time else None
-            ),
+            "next_check_time": (host.next_check_time.isoformat() if host.next_check_time else None),
             "last_state_change": (
                 host.last_state_change.isoformat() if host.last_state_change else None
             ),

@@ -118,9 +118,7 @@ class TrustedKeyAddRequest(BaseModel):
 # Plugin Import Endpoints
 @router.post("/import/file", response_model=PluginImportResponse)
 async def import_plugin_from_file(
-    file: UploadFile = File(
-        ..., description="Plugin package file (.tar.gz, .zip, .owplugin)"
-    ),
+    file: UploadFile = File(..., description="Plugin package file (.tar.gz, .zip, .owplugin)"),
     verify_signature: bool = Query(True, description="Verify plugin signature"),
     trust_level_override: Optional[PluginTrustLevel] = Query(
         None, description="Override trust level (admin only)"
@@ -201,9 +199,7 @@ async def import_plugin_from_file(
 async def import_plugin_from_url(
     plugin_url: str = Query(..., description="HTTPS URL to plugin package"),
     verify_signature: bool = Query(True, description="Verify plugin signature"),
-    max_size_mb: int = Query(
-        50, ge=1, le=100, description="Maximum download size in MB"
-    ),
+    max_size_mb: int = Query(50, ge=1, le=100, description="Maximum download size in MB"),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
 ):
@@ -264,12 +260,8 @@ async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=100, description="Items per page"),
     status: Optional[PluginStatus] = Query(None, description="Filter by status"),
-    trust_level: Optional[PluginTrustLevel] = Query(
-        None, description="Filter by trust level"
-    ),
-    plugin_type: Optional[PluginType] = Query(
-        None, description="Filter by plugin type"
-    ),
+    trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
+    plugin_type: Optional[PluginType] = Query(None, description="Filter by plugin type"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
     search: Optional[str] = Query(None, description="Search in name and description"),
     current_user: User = Depends(get_current_user),
@@ -359,9 +351,7 @@ async def list_plugins(
 
 
 @router.get("/{plugin_id}", response_model=PluginDetailsResponse)
-async def get_plugin_details(
-    plugin_id: str, current_user: User = Depends(get_current_user)
-):
+async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_current_user)):
     """Get detailed information about a specific plugin"""
     try:
         await check_permission(current_user, "plugin:read")
@@ -396,9 +386,7 @@ async def get_plugin_details(
         }
 
         # Recent execution history (limited)
-        execution_history = (
-            plugin.execution_history[-10:] if plugin.execution_history else []
-        )
+        execution_history = plugin.execution_history[-10:] if plugin.execution_history else []
 
         return PluginDetailsResponse(
             plugin_id=plugin.plugin_id,
@@ -497,9 +485,7 @@ async def update_plugin_status(
 @router.delete("/{plugin_id}")
 async def uninstall_plugin(
     plugin_id: str,
-    remove_from_rules: bool = Query(
-        False, description="Remove plugin associations from rules"
-    ),
+    remove_from_rules: bool = Query(False, description="Remove plugin associations from rules"),
     current_user: User = Depends(get_current_user),
 ):
     """Uninstall plugin and optionally remove rule associations"""
@@ -558,9 +544,7 @@ async def uninstall_plugin(
 @router.get("/security/trusted-keys")
 async def list_trusted_keys(
     current_user: User = Depends(get_current_user),
-    signature_service: PluginSignatureService = Depends(
-        lambda: PluginSignatureService()
-    ),
+    signature_service: PluginSignatureService = Depends(lambda: PluginSignatureService()),
 ):
     """List trusted public keys for signature verification"""
     try:
@@ -584,9 +568,7 @@ async def list_trusted_keys(
 async def add_trusted_key(
     key_request: TrustedKeyAddRequest,
     current_user: User = Depends(get_current_user),
-    signature_service: PluginSignatureService = Depends(
-        lambda: PluginSignatureService()
-    ),
+    signature_service: PluginSignatureService = Depends(lambda: PluginSignatureService()),
 ):
     """Add a trusted public key for plugin signature verification (admin only)"""
     try:
@@ -612,9 +594,7 @@ async def add_trusted_key(
         )
 
         if not result["success"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"]
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
 
         # Log key addition
         logger.info(

@@ -80,15 +80,11 @@ class KubernetesScanner(BaseScanner):
            - Evaluate condition against actual value
         3. Return structured results
         """
-        logger.info(
-            f"Kubernetes scan starting: {len(rules)} rules, cluster={target.identifier}"
-        )
+        logger.info(f"Kubernetes scan starting: {len(rules)} rules, cluster={target.identifier}")
 
         # Validate target type
         if target.type != ScanTargetType.KUBERNETES:
-            raise UnsupportedTargetError(
-                f"Kubernetes scanner only supports KUBERNETES target type"
-            )
+            raise UnsupportedTargetError(f"Kubernetes scanner only supports KUBERNETES target type")
 
         # Check kubectl availability
         if not await self._check_kubectl_available():
@@ -109,9 +105,7 @@ class KubernetesScanner(BaseScanner):
             # Calculate summary
             summary = self._calculate_summary(rule_results)
 
-            logger.info(
-                f"Kubernetes scan completed: {summary.passed}/{summary.total_rules} passed"
-            )
+            logger.info(f"Kubernetes scan completed: {summary.passed}/{summary.total_rules} passed")
 
             return rule_results, summary
 
@@ -214,9 +208,7 @@ class KubernetesScanner(BaseScanner):
                 severity=rule.get("severity", "unknown"),
                 status=status,
                 message=message,
-                scanner_output=json.dumps(
-                    {"actual": actual_value, "expected": expected}
-                ),
+                scanner_output=json.dumps({"actual": actual_value, "expected": expected}),
                 scanner_type="kubernetes",
             )
 

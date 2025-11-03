@@ -38,9 +38,7 @@ class RemediationTarget(BaseModel):
     """Target system for remediation execution."""
 
     type: ScanTargetType
-    identifier: str = Field(
-        ..., description="Host address, cluster name, account ID, etc."
-    )
+    identifier: str = Field(..., description="Host address, cluster name, account ID, etc.")
     credentials: Optional[Dict[str, str]] = Field(
         default=None, description="Encrypted credentials (SSH keys, API tokens, etc.)"
     )
@@ -77,9 +75,7 @@ class RemediationResult(Document):
     rule_title: str = Field(..., description="Human-readable rule title")
 
     # Execution details
-    executor_type: str = Field(
-        ..., description="Executor used (ansible, bash, terraform, etc.)"
-    )
+    executor_type: str = Field(..., description="Executor used (ansible, bash, terraform, etc.)")
     target: RemediationTarget = Field(..., description="Target system")
     status: RemediationStatus = Field(default=RemediationStatus.PENDING)
 
@@ -90,9 +86,7 @@ class RemediationResult(Document):
 
     # Configuration
     dry_run: bool = Field(default=False, description="Preview mode (no actual changes)")
-    content_executed: str = Field(
-        ..., description="Remediation content (playbook, script, etc.)"
-    )
+    content_executed: str = Field(..., description="Remediation content (playbook, script, etc.)")
     variables_applied: Dict[str, str] = Field(
         default_factory=dict, description="Variable values applied during execution"
     )

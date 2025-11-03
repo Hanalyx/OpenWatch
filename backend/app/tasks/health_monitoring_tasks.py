@@ -31,9 +31,7 @@ async def collect_service_health_task():
         service_health = await health_service.collect_service_health()
         await health_service.save_service_health(service_health)
 
-        logger.info(
-            f"Service health collected successfully: {service_health.overall_status}"
-        )
+        logger.info(f"Service health collected successfully: {service_health.overall_status}")
 
         return {
             "status": "success",
@@ -129,9 +127,7 @@ async def cleanup_old_health_data_task(retention_days: int = 7):
     Runs daily to remove health data older than retention period.
     """
     try:
-        logger.info(
-            f"Starting health data cleanup task (retention: {retention_days} days)"
-        )
+        logger.info(f"Starting health data cleanup task (retention: {retention_days} days)")
 
         from ..models.health_models import ServiceHealthDocument, ContentHealthDocument
 

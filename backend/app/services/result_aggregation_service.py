@@ -228,9 +228,7 @@ class ResultAggregationService:
             aggregation_level=aggregation_level,
             time_period=time_period,
             generated_at=datetime.utcnow(),
-            overall_metrics=ComplianceMetrics(
-                0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0
-            ),
+            overall_metrics=ComplianceMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0),
             framework_metrics={},
             host_metrics={},
             trend_analysis=[],
@@ -289,9 +287,7 @@ class ResultAggregationService:
                         host_executions[host_result.host_id].append(execution)
 
         # Calculate overall metrics
-        aggregated_results.overall_metrics = self._calculate_metrics_from_executions(
-            all_executions
-        )
+        aggregated_results.overall_metrics = self._calculate_metrics_from_executions(all_executions)
 
         # Calculate framework metrics
         for framework_id, executions in framework_executions.items():
@@ -301,8 +297,8 @@ class ResultAggregationService:
 
         # Calculate host metrics
         for host_id, executions in host_executions.items():
-            aggregated_results.host_metrics[host_id] = (
-                self._calculate_metrics_from_executions(executions)
+            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(
+                executions
             )
 
         # Store platform distribution
@@ -330,8 +326,7 @@ class ResultAggregationService:
         if all_executions:
             aggregated_results.performance_metrics = {
                 "rules_per_second": (
-                    len(all_executions)
-                    / sum(sr.total_execution_time for sr in scan_results)
+                    len(all_executions) / sum(sr.total_execution_time for sr in scan_results)
                     if sum(sr.total_execution_time for sr in scan_results) > 0
                     else 0.0
                 ),
@@ -364,9 +359,7 @@ class ResultAggregationService:
             for host_result in scan_result.host_results:
                 for framework_result in host_result.framework_results:
                     framework_id = framework_result.framework_id
-                    framework_data[framework_id].extend(
-                        framework_result.rule_executions
-                    )
+                    framework_data[framework_id].extend(framework_result.rule_executions)
 
         # Calculate metrics for each framework
         for framework_id, executions in framework_data.items():
@@ -381,15 +374,11 @@ class ResultAggregationService:
                 total_rules=sum(fm.total_rules for fm in framework_metrics),
                 executed_rules=sum(fm.executed_rules for fm in framework_metrics),
                 compliant_rules=sum(fm.compliant_rules for fm in framework_metrics),
-                non_compliant_rules=sum(
-                    fm.non_compliant_rules for fm in framework_metrics
-                ),
+                non_compliant_rules=sum(fm.non_compliant_rules for fm in framework_metrics),
                 error_rules=sum(fm.error_rules for fm in framework_metrics),
                 exceeds_rules=sum(fm.exceeds_rules for fm in framework_metrics),
                 partial_rules=sum(fm.partial_rules for fm in framework_metrics),
-                not_applicable_rules=sum(
-                    fm.not_applicable_rules for fm in framework_metrics
-                ),
+                not_applicable_rules=sum(fm.not_applicable_rules for fm in framework_metrics),
                 compliance_percentage=0.0,  # Will be calculated in __post_init__
                 exceeds_percentage=0.0,
                 error_percentage=0.0,
@@ -411,8 +400,8 @@ class ResultAggregationService:
 
         # Calculate metrics for each host
         for host_id, executions in host_data.items():
-            aggregated_results.host_metrics[host_id] = (
-                self._calculate_metrics_from_executions(executions)
+            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(
+                executions
             )
 
         # Calculate overall metrics as average of hosts
@@ -426,9 +415,7 @@ class ResultAggregationService:
                 error_rules=sum(hm.error_rules for hm in host_metrics),
                 exceeds_rules=sum(hm.exceeds_rules for hm in host_metrics),
                 partial_rules=sum(hm.partial_rules for hm in host_metrics),
-                not_applicable_rules=sum(
-                    hm.not_applicable_rules for hm in host_metrics
-                ),
+                not_applicable_rules=sum(hm.not_applicable_rules for hm in host_metrics),
                 compliance_percentage=0.0,  # Will be calculated in __post_init__
                 exceeds_percentage=0.0,
                 error_percentage=0.0,
@@ -452,16 +439,12 @@ class ResultAggregationService:
                     all_executions.extend(framework_result.rule_executions)
 
             metrics = self._calculate_metrics_from_executions(all_executions)
-            time_series_data.append(
-                (scan_result.started_at, metrics.compliance_percentage)
-            )
+            time_series_data.append((scan_result.started_at, metrics.compliance_percentage))
 
         # Generate trend analysis
         if len(time_series_data) >= 2:
             current_value = time_series_data[-1][1]
-            previous_value = (
-                time_series_data[-2][1] if len(time_series_data) >= 2 else None
-            )
+            previous_value = time_series_data[-2][1] if len(time_series_data) >= 2 else None
 
             trend = TrendAnalysis(
                 metric_name="Overall Compliance",
@@ -487,13 +470,9 @@ class ResultAggregationService:
             1 for e in executions if e.compliance_status == ComplianceStatus.COMPLIANT
         )
         non_compliant_rules = sum(
-            1
-            for e in executions
-            if e.compliance_status == ComplianceStatus.NON_COMPLIANT
+            1 for e in executions if e.compliance_status == ComplianceStatus.NON_COMPLIANT
         )
-        error_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.ERROR
-        )
+        error_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.ERROR)
         exceeds_rules = sum(
             1 for e in executions if e.compliance_status == ComplianceStatus.EXCEEDS
         )
@@ -501,9 +480,7 @@ class ResultAggregationService:
             1 for e in executions if e.compliance_status == ComplianceStatus.PARTIAL
         )
         not_applicable_rules = sum(
-            1
-            for e in executions
-            if e.compliance_status == ComplianceStatus.NOT_APPLICABLE
+            1 for e in executions if e.compliance_status == ComplianceStatus.NOT_APPLICABLE
         )
 
         return ComplianceMetrics(
@@ -534,13 +511,8 @@ class ResultAggregationService:
             for host_result in scan_result.host_results:
                 for framework_result in host_result.framework_results:
                     for execution in framework_result.rule_executions:
-                        if (
-                            execution.compliance_status
-                            == ComplianceStatus.NON_COMPLIANT
-                        ):
-                            pattern_key = (
-                                f"{framework_result.framework_id}:{execution.rule_id}"
-                            )
+                        if execution.compliance_status == ComplianceStatus.NON_COMPLIANT:
+                            pattern_key = f"{framework_result.framework_id}:{execution.rule_id}"
                             failure_patterns[pattern_key].append(
                                 {
                                     "host_id": host_result.host_id,
@@ -612,9 +584,7 @@ class ResultAggregationService:
         # Compare frameworks pairwise
         for i, framework_a in enumerate(frameworks):
             for j, framework_b in enumerate(frameworks[i + 1 :], i + 1):
-                comparison = await self._compare_frameworks(
-                    framework_a, framework_b, scan_results
-                )
+                comparison = await self._compare_frameworks(framework_a, framework_b, scan_results)
                 if comparison:
                     comparisons.append(comparison)
 
@@ -634,14 +604,10 @@ class ResultAggregationService:
             for host_result in scan_result.host_results:
                 for framework_result in host_result.framework_results:
                     if framework_result.framework_id == framework_a:
-                        rules_a.update(
-                            e.rule_id for e in framework_result.rule_executions
-                        )
+                        rules_a.update(e.rule_id for e in framework_result.rule_executions)
                         compliance_a.append(framework_result.compliance_percentage)
                     elif framework_result.framework_id == framework_b:
-                        rules_b.update(
-                            e.rule_id for e in framework_result.rule_executions
-                        )
+                        rules_b.update(e.rule_id for e in framework_result.rule_executions)
                         compliance_b.append(framework_result.compliance_percentage)
 
         if not rules_a or not rules_b:
@@ -655,9 +621,7 @@ class ResultAggregationService:
         if compliance_a and compliance_b:
             min_length = min(len(compliance_a), len(compliance_b))
             correlation = (
-                statistics.correlation(
-                    compliance_a[:min_length], compliance_b[:min_length]
-                )
+                statistics.correlation(compliance_a[:min_length], compliance_b[:min_length])
                 if min_length > 1
                 else 0.0
             )
@@ -682,13 +646,9 @@ class ResultAggregationService:
 
         # Priority recommendations based on compliance gaps
         critical_gaps = [
-            gap
-            for gap in aggregated_results.compliance_gaps
-            if gap.severity == "critical"
+            gap for gap in aggregated_results.compliance_gaps if gap.severity == "critical"
         ]
-        high_gaps = [
-            gap for gap in aggregated_results.compliance_gaps if gap.severity == "high"
-        ]
+        high_gaps = [gap for gap in aggregated_results.compliance_gaps if gap.severity == "high"]
 
         if critical_gaps:
             priority_recommendations.append(
@@ -713,8 +673,7 @@ class ResultAggregationService:
 
         # Exceeding compliance opportunities
         total_exceeds = sum(
-            metrics.exceeds_rules
-            for metrics in aggregated_results.framework_metrics.values()
+            metrics.exceeds_rules for metrics in aggregated_results.framework_metrics.values()
         )
         if total_exceeds > 0:
             strategic_recommendations.append(
@@ -755,9 +714,7 @@ class ResultAggregationService:
             "overview": {
                 "overall_compliance": org_results.overall_metrics.compliance_percentage,
                 "total_hosts": org_results.execution_statistics.get("total_hosts", 0),
-                "total_frameworks": org_results.execution_statistics.get(
-                    "total_frameworks", 0
-                ),
+                "total_frameworks": org_results.execution_statistics.get("total_frameworks", 0),
                 "total_rules": org_results.overall_metrics.total_rules,
                 "exceeds_percentage": org_results.overall_metrics.exceeds_percentage,
             },

@@ -79,9 +79,7 @@ class RoleInfo(BaseModel):
 
 
 @router.get("/roles", response_model=List[RoleInfo])
-async def list_roles(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
-):
+async def list_roles(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """List all available roles (admin only)"""
     user_role = UserRole(current_user.get("role", "guest"))
     if not RBACManager.has_permission(user_role, Permission.USER_READ):
@@ -115,9 +113,7 @@ async def list_roles(
                     name=row.name,
                     display_name=row.display_name,
                     description=row.description,
-                    permissions=(
-                        row.permissions if isinstance(row.permissions, list) else []
-                    ),
+                    permissions=(row.permissions if isinstance(row.permissions, list) else []),
                 )
             )
 
@@ -203,15 +199,11 @@ async def list_users(
                     created_at=row.created_at.isoformat(),
                     last_login=row.last_login.isoformat() if row.last_login else None,
                     failed_login_attempts=row.failed_login_attempts,
-                    locked_until=(
-                        row.locked_until.isoformat() if row.locked_until else None
-                    ),
+                    locked_until=(row.locked_until.isoformat() if row.locked_until else None),
                 )
             )
 
-        return UserListResponse(
-            users=users, total=total, page=page, page_size=page_size
-        )
+        return UserListResponse(users=users, total=total, page=page, page_size=page_size)
 
     except Exception as e:
         logger.error(f"Error listing users: {e}")
@@ -238,9 +230,7 @@ async def create_user(
         )
 
         if result.fetchone():
-            raise HTTPException(
-                status_code=400, detail="Username or email already exists"
-            )
+            raise HTTPException(status_code=400, detail="Username or email already exists")
 
         # Hash password
         hashed_password = pwd_context.hash(user_data.password)
@@ -266,9 +256,7 @@ async def create_user(
         row = insert_result.fetchone()
         db.commit()
 
-        logger.info(
-            f"User {user_data.username} created by {current_user.get('username')}"
-        )
+        logger.info(f"User {user_data.username} created by {current_user.get('username')}")
 
         return UserResponse(
             id=row.id,
@@ -329,9 +317,7 @@ async def get_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error retrieving user {sanitize_id_for_log(user_id)}: {type(e).__name__}"
-        )
+        logger.error(f"Error retrieving user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Failed to retrieve user")
 
 
@@ -357,17 +343,11 @@ async def update_user(
         current_user_role = UserRole(current_user.get("role", "guest"))
         is_self_update = current_user.get("id") == user_id
 
-        if not RBACManager.has_permission(
-            current_user_role, Permission.USER_MANAGE_ROLES
-        ):
+        if not RBACManager.has_permission(current_user_role, Permission.USER_MANAGE_ROLES):
             if not is_self_update:
-                raise HTTPException(
-                    status_code=403, detail="Can only update your own profile"
-                )
+                raise HTTPException(status_code=403, detail="Can only update your own profile")
             if user_data.role and user_data.role != UserRole(existing_user.role):
-                raise HTTPException(
-                    status_code=403, detail="Cannot change your own role"
-                )
+                raise HTTPException(status_code=403, detail="Cannot change your own role")
 
         # Build update query with secure column mapping
         updates = []
@@ -418,9 +398,7 @@ async def update_user(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error updating user {sanitize_id_for_log(user_id)}: {type(e).__name__}"
-        )
+        logger.error(f"Error updating user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update user")
 
@@ -436,9 +414,7 @@ async def delete_user(
     try:
         # Prevent self-deletion
         if current_user.get("id") == user_id:
-            raise HTTPException(
-                status_code=400, detail="Cannot delete your own account"
-            )
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
         # Check if user exists
         result = db.execute(
@@ -462,17 +438,13 @@ async def delete_user(
 
         db.commit()
 
-        logger.info(
-            f"User {user.username} deactivated by {current_user.get('username')}"
-        )
+        logger.info(f"User {user.username} deactivated by {current_user.get('username')}")
         return {"message": "User deactivated successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error deleting user {sanitize_id_for_log(user_id)}: {type(e).__name__}"
-        )
+        logger.error(f"Error deleting user {sanitize_id_for_log(user_id)}: {type(e).__name__}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete user")
 

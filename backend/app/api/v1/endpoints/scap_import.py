@@ -82,9 +82,7 @@ async def import_scap_file(
     # Validate file exists
     file_path = Path(request.file_path)
     if not file_path.exists():
-        raise HTTPException(
-            status_code=404, detail=f"SCAP file not found: {request.file_path}"
-        )
+        raise HTTPException(status_code=404, detail=f"SCAP file not found: {request.file_path}")
 
     if not file_path.suffix.lower() == ".xml":
         raise HTTPException(status_code=400, detail="File must be an XML file")
@@ -171,9 +169,7 @@ async def cancel_import(import_id: str):
     import_info = active_imports[import_id]
 
     if import_info["status"] in ["completed", "failed"]:
-        raise HTTPException(
-            status_code=400, detail="Cannot cancel completed or failed import"
-        )
+        raise HTTPException(status_code=400, detail="Cannot cancel completed or failed import")
 
     # Update status (actual cancellation would require more complex implementation)
     active_imports[import_id]["status"] = "cancelled"
@@ -190,15 +186,11 @@ async def list_imported_files(service: SCAPImportService = Depends(get_import_se
         files = await service.list_imported_files()
         return {"imported_files": files, "total_files": len(files)}
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to list imported files: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to list imported files: {str(e)}")
 
 
 @router.post("/validate/{import_id}")
-async def validate_import(
-    import_id: str, service: SCAPImportService = Depends(get_import_service)
-):
+async def validate_import(import_id: str, service: SCAPImportService = Depends(get_import_service)):
     """Validate the integrity of an imported file"""
 
     if import_id not in active_imports:
@@ -207,9 +199,7 @@ async def validate_import(
     import_info = active_imports[import_id]
 
     if import_info["status"] != "completed":
-        raise HTTPException(
-            status_code=400, detail="Can only validate completed imports"
-        )
+        raise HTTPException(status_code=400, detail="Can only validate completed imports")
 
     try:
         validation = await service.validate_import_integrity(import_info["file_path"])
@@ -236,9 +226,7 @@ async def get_import_statistics(
             "total_rules": await ComplianceRule.count(),
             "rules_by_severity": {},
             "rules_by_category": {},
-            "rules_with_fixes": await ComplianceRule.count(
-                ComplianceRule.fix_available == True
-            ),
+            "rules_with_fixes": await ComplianceRule.count(ComplianceRule.fix_available == True),
             "total_intelligence_records": await RuleIntelligence.count(),
             "total_remediation_scripts": await RemediationScript.count(),
         }
@@ -272,9 +260,7 @@ async def get_import_statistics(
         return stats
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get statistics: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
 
 
 # Background task functions

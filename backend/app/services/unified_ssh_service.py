@@ -141,9 +141,7 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
         """
         self.audit_callback = audit_callback
 
-    def missing_host_key(
-        self, client: SSHClient, hostname: str, key: paramiko.PKey
-    ) -> None:
+    def missing_host_key(self, client: SSHClient, hostname: str, key: paramiko.PKey) -> None:
         """
         Handle missing host key by logging warning and storing key.
 
@@ -218,9 +216,7 @@ def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
             try:
                 if "-----BEGIN OPENSSH PRIVATE KEY-----" in content_str:
                     # Private key - try to parse to determine type
-                    key = paramiko.Ed25519Key.from_private_key_file(
-                        io.StringIO(content_str)
-                    )
+                    key = paramiko.Ed25519Key.from_private_key_file(io.StringIO(content_str))
                     return SSHKeyType.ED25519
                 elif content_str.startswith("ssh-ed25519"):
                     return SSHKeyType.ED25519
@@ -297,9 +293,7 @@ def parse_ssh_key(key_content: str, passphrase: Optional[str] = None) -> paramik
             except Exception:
                 continue
 
-        raise SSHKeyError(
-            "Unable to parse SSH key - unsupported format or incorrect passphrase"
-        )
+        raise SSHKeyError("Unable to parse SSH key - unsupported format or incorrect passphrase")
 
     except SSHKeyError:
         raise
@@ -373,9 +367,7 @@ def assess_key_security(
                 ["Consider upgrading to 4096-bit RSA or Ed25519"],
             )
         else:
-            warnings.append(
-                f"RSA key size {key_size} is below current security standards"
-            )
+            warnings.append(f"RSA key size {key_size} is below current security standards")
             recommendations.append("Replace with at least 2048-bit RSA or Ed25519 key")
             return SSHKeySecurityLevel.DEPRECATED, warnings, recommendations
 
@@ -409,9 +401,7 @@ def assess_key_security(
         return SSHKeySecurityLevel.ACCEPTABLE, warnings, ["Use Ed25519 for new keys"]
 
 
-def validate_ssh_key(
-    key_content: str, passphrase: Optional[str] = None
-) -> SSHKeyValidationResult:
+def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
     """
     Simplified SSH key validation using paramiko's built-in capabilities.
 
@@ -452,9 +442,7 @@ def validate_ssh_key(
             pkey = None
             for key_class, key_name in key_classes:
                 try:
-                    pkey = key_class.from_private_key(
-                        io.StringIO(key_content), passphrase
-                    )
+                    pkey = key_class.from_private_key(io.StringIO(key_content), passphrase)
                     break
                 except (paramiko.PasswordRequiredException, paramiko.SSHException):
                     continue
@@ -467,9 +455,7 @@ def validate_ssh_key(
                 )
 
             # Extract key information using paramiko's methods
-            key_name = (
-                pkey.get_name()
-            )  # e.g., 'ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256'
+            key_name = pkey.get_name()  # e.g., 'ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256'
             key_size = pkey.get_bits()
 
             # Map paramiko key names to our enum types for backward compatibility
@@ -486,9 +472,7 @@ def validate_ssh_key(
             key_type = key_type_mapping.get(key_name, SSHKeyType.RSA)
 
             # Assess security using existing logic
-            security_level, warnings, recommendations = assess_key_security(
-                key_type, key_size
-            )
+            security_level, warnings, recommendations = assess_key_security(key_type, key_size)
 
             return SSHKeyValidationResult(
                 is_valid=True,
@@ -514,14 +498,10 @@ def validate_ssh_key(
             )
 
     except Exception as e:
-        return SSHKeyValidationResult(
-            is_valid=False, error_message=f"Validation error: {str(e)}"
-        )
+        return SSHKeyValidationResult(is_valid=False, error_message=f"Validation error: {str(e)}")
 
 
-def get_key_fingerprint(
-    key_content: str, passphrase: Optional[str] = None
-) -> Optional[str]:
+def get_key_fingerprint(key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
     """
     Generate MD5 fingerprint for SSH key using paramiko's built-in method.
 
@@ -736,9 +716,7 @@ def extract_key_comment(key_content: str) -> Optional[str]:
         return None
 
 
-def format_key_display_info(
-    fingerprint, key_type, key_bits, key_comment, created_date
-) -> str:
+def format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date) -> str:
     """
     Format SSH key information for user-friendly display.
 
@@ -783,9 +761,7 @@ def format_key_display_info(
     return " · ".join(parts) if parts else "SSH Key"
 
 
-def get_key_security_indicator(
-    key_type: Optional[str], key_bits: Optional[str]
-) -> Tuple[str, str]:
+def get_key_security_indicator(key_type: Optional[str], key_bits: Optional[str]) -> Tuple[str, str]:
     """
     Get security level indicator for UI display.
 
@@ -1069,9 +1045,7 @@ class UnifiedSSHService:
             from ..models.system_models import SystemSettings
 
             setting = (
-                self.db.query(SystemSettings)
-                .filter(SystemSettings.setting_key == key)
-                .first()
+                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
             )
 
             if not setting:
@@ -1079,11 +1053,7 @@ class UnifiedSSHService:
 
             # Convert based on type
             if setting.setting_type == "json":
-                return (
-                    json.loads(setting.setting_value)
-                    if setting.setting_value
-                    else default
-                )
+                return json.loads(setting.setting_value) if setting.setting_value else default
             elif setting.setting_type == "boolean":
                 return (
                     setting.setting_value.lower() in ("true", "1", "yes")
@@ -1124,9 +1094,7 @@ class UnifiedSSHService:
 
             # Update or create setting
             setting = (
-                self.db.query(SystemSettings)
-                .filter(SystemSettings.setting_key == key)
-                .first()
+                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
             )
 
             if setting:
@@ -1165,9 +1133,7 @@ class UnifiedSSHService:
         valid_policies = ["strict", "auto_add", "auto_add_warning", "bypass_trusted"]
 
         if policy not in valid_policies:
-            logger.error(
-                f"Invalid SSH policy: {policy}. Valid options: {valid_policies}"
-            )
+            logger.error(f"Invalid SSH policy: {policy}. Valid options: {valid_policies}")
             return False
 
         return self.set_setting(
@@ -1244,9 +1210,7 @@ class UnifiedSSHService:
             # Default to warning policy
             return SecurityWarningPolicy()
 
-    def configure_ssh_client(
-        self, ssh: paramiko.SSHClient, host_ip: str = None
-    ) -> None:
+    def configure_ssh_client(self, ssh: paramiko.SSHClient, host_ip: str = None) -> None:
         """Configure SSH client with security policy"""
         try:
             policy = self.create_ssh_policy(host_ip)
@@ -1315,12 +1279,8 @@ class UnifiedSSHService:
             connect_timeout = timeout or 30
 
             if self._debug_mode:
-                logger.info(
-                    f"[DEBUG] SSH connection attempt to {hostname}:{port} as {username}"
-                )
-                logger.info(
-                    f"[DEBUG] Auth method: {auth_method}, Timeout: {connect_timeout}s"
-                )
+                logger.info(f"[DEBUG] SSH connection attempt to {hostname}:{port} as {username}")
+                logger.info(f"[DEBUG] Auth method: {auth_method}, Timeout: {connect_timeout}s")
                 logger.info(f"[DEBUG] Service: {service_name}")
 
             # NEW: Handle "both" authentication with fallback (Phase 3)
@@ -1477,9 +1437,7 @@ class UnifiedSSHService:
             # Get host key fingerprint
             transport = client.get_transport()
             host_key = transport.get_remote_server_key()
-            host_key_fingerprint = (
-                host_key.get_fingerprint().hex() if host_key else None
-            )
+            host_key_fingerprint = host_key.get_fingerprint().hex() if host_key else None
 
             # Log successful connection
             duration = (datetime.utcnow() - start_time).total_seconds()
@@ -1544,9 +1502,7 @@ class UnifiedSSHService:
         except socket.timeout:
             if client:
                 client.close()
-            logger.warning(
-                f"SSH connection timeout to {hostname}:{port} after {connect_timeout}s"
-            )
+            logger.warning(f"SSH connection timeout to {hostname}:{port} after {connect_timeout}s")
             return SSHConnectionResult(
                 success=False,
                 error_message=f"Connection timeout to {hostname}:{port} after {connect_timeout}s",
@@ -1561,9 +1517,7 @@ class UnifiedSSHService:
             # Provide specific socket error messages
             if hasattr(e, "errno"):
                 if e.errno == errno.ECONNREFUSED:  # Connection refused
-                    specific_error = (
-                        "Connection refused (SSH service may not be running)"
-                    )
+                    specific_error = "Connection refused (SSH service may not be running)"
                 elif e.errno == errno.EHOSTUNREACH:  # No route to host
                     specific_error = "No route to host (network unreachable)"
                 elif e.errno == errno.ETIMEDOUT:  # Connection timed out
@@ -1582,9 +1536,7 @@ class UnifiedSSHService:
         except Exception as e:
             if client:
                 client.close()
-            logger.error(
-                f"Unexpected SSH connection error: {type(e).__name__}: {str(e)}"
-            )
+            logger.error(f"Unexpected SSH connection error: {type(e).__name__}: {str(e)}")
             logger.debug(f"Full exception details:", exc_info=True)
             return SSHConnectionResult(
                 success=False,
@@ -1611,9 +1563,7 @@ class UnifiedSSHService:
 
         try:
             # Execute command
-            stdin, stdout, stderr = ssh_connection.exec_command(
-                command, timeout=command_timeout
-            )
+            stdin, stdout, stderr = ssh_connection.exec_command(command, timeout=command_timeout)
 
             # Read output with timeout handling
             stdout_data = stdout.read().decode("utf-8", errors="replace").strip()
@@ -1678,9 +1628,7 @@ class UnifiedSSHService:
         self, fingerprint, key_type, key_bits, key_comment, created_date
     ) -> str:
         """Format SSH key information for user-friendly display"""
-        return format_key_display_info(
-            fingerprint, key_type, key_bits, key_comment, created_date
-        )
+        return format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date)
 
     def get_key_security_indicator(
         self, key_type: Optional[str], key_bits: Optional[str]
@@ -1755,9 +1703,7 @@ class UnifiedSSHService:
                     logger.debug(f"Command '{key}' result: {command_result.stdout}")
                 else:
                     results[key] = "unknown"
-                    logger.warning(
-                        f"Command '{key}' failed: {command_result.error_message}"
-                    )
+                    logger.warning(f"Command '{key}' failed: {command_result.error_message}")
 
             # Log successful minimal discovery
             logger.info(f"Minimal system discovery completed for {hostname}: {results}")
@@ -1815,9 +1761,7 @@ class UnifiedSSHService:
                         "ip_address": row.ip_address,
                         "key_type": row.key_type,
                         "fingerprint": row.fingerprint,
-                        "first_seen": (
-                            row.first_seen.isoformat() if row.first_seen else None
-                        ),
+                        "first_seen": (row.first_seen.isoformat() if row.first_seen else None),
                         "last_verified": (
                             row.last_verified.isoformat() if row.last_verified else None
                         ),
@@ -1864,7 +1808,9 @@ class UnifiedSSHService:
 
             key_data = base64.b64decode(public_key.split()[1])
             fingerprint = hashlib.sha256(key_data).hexdigest()
-            fingerprint = f"SHA256:{base64.b64encode(hashlib.sha256(key_data).digest()).decode().rstrip('=')}"
+            fingerprint = (
+                f"SHA256:{base64.b64encode(hashlib.sha256(key_data).digest()).decode().rstrip('=')}"
+            )
 
             self.db.execute(
                 text(
@@ -1946,9 +1892,7 @@ def get_ssh_config_service(db: Session = None) -> UnifiedSSHService:
     return UnifiedSSHService(db)
 
 
-def configure_ssh_client_with_policy(
-    ssh: paramiko.SSHClient, host_ip: str = None
-) -> None:
+def configure_ssh_client_with_policy(ssh: paramiko.SSHClient, host_ip: str = None) -> None:
     """Convenience function for SSH client configuration"""
     service = UnifiedSSHService()
     service.configure_ssh_client(ssh, host_ip)

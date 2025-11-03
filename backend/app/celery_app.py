@@ -28,9 +28,7 @@ def create_redis_ssl_context():
     context.maximum_version = ssl.TLSVersion.TLSv1_3
 
     # FIPS-approved cipher suites
-    context.set_ciphers(
-        "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
-    )
+    context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
     # Certificate verification
     if settings.redis_ssl_ca:
@@ -263,9 +261,7 @@ def worker_ready_handler(sender=None, **kwargs):
             fips_enabled = FIPSConfig.validate_fips_mode()
             logger.info(f"FIPS mode enabled: {fips_enabled}")
         except ImportError:
-            logger.warning(
-                "FIPS configuration module not found - using development mode"
-            )
+            logger.warning("FIPS configuration module not found - using development mode")
 
 
 @worker_shutdown.connect

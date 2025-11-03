@@ -67,9 +67,7 @@ def execute_scan_task(
                     "scanning",
                     scan_id,
                 )
-                logger.debug(
-                    f"Updated group scan progress for session {group_scan_session_id}"
-                )
+                logger.debug(f"Updated group scan progress for session {group_scan_session_id}")
             except Exception as e:
                 logger.error(f"Failed to update group scan progress: {e}")
                 # Don't fail the entire scan for group progress tracking errors
@@ -129,15 +127,11 @@ def execute_scan_task(
                 host_data["username"] = credential_data.username
                 host_data["auth_method"] = credential_data.auth_method.value
 
-                logger.info(
-                    f"Resolved {credential_data.source} credentials for scan {scan_id}"
-                )
+                logger.info(f"Resolved {credential_data.source} credentials for scan {scan_id}")
 
             except Exception as e:
                 logger.error(f"Failed to resolve credentials for scan {scan_id}: {e}")
-                _update_scan_error(
-                    db, scan_id, f"Credential resolution failed: {str(e)}", e
-                )
+                _update_scan_error(db, scan_id, f"Credential resolution failed: {str(e)}", e)
                 return
 
         # Update progress
@@ -180,9 +174,7 @@ def execute_scan_task(
             )
 
             if not ssh_test["success"]:
-                logger.error(
-                    f"SSH connection failed for scan {scan_id}: {ssh_test['message']}"
-                )
+                logger.error(f"SSH connection failed for scan {scan_id}: {ssh_test['message']}")
                 # Create a synthetic exception for SSH failure
                 ssh_error = Exception(f"SSH connection failed: {ssh_test['message']}")
                 _update_scan_error(
@@ -194,14 +186,10 @@ def execute_scan_task(
                 return
 
             if not ssh_test.get("oscap_available", False):
-                logger.warning(
-                    f"OpenSCAP not available on remote host for scan {scan_id}"
-                )
+                logger.warning(f"OpenSCAP not available on remote host for scan {scan_id}")
                 # Create a synthetic exception for missing dependency
                 dep_error = Exception("OpenSCAP not available on remote host")
-                _update_scan_error(
-                    db, scan_id, "OpenSCAP not available on remote host", dep_error
-                )
+                _update_scan_error(db, scan_id, "OpenSCAP not available on remote host", dep_error)
                 return
 
         # Update progress
@@ -268,16 +256,12 @@ def execute_scan_task(
 
             # Check for scan errors
             if "error" in scan_results:
-                logger.error(
-                    f"Scan execution failed for {scan_id}: {scan_results['error']}"
-                )
+                logger.error(f"Scan execution failed for {scan_id}: {scan_results['error']}")
                 scan_error = Exception(scan_results["error"])
                 _update_scan_error(db, scan_id, scan_results["error"], scan_error)
                 return
         except Exception as e:
-            logger.error(
-                f"Scan execution failed for {scan_id}: {str(e)}", exc_info=True
-            )
+            logger.error(f"Scan execution failed for {scan_id}: {str(e)}", exc_info=True)
             _update_scan_error(db, scan_id, f"Scan execution error: {str(e)}", e)
             return
 
@@ -334,9 +318,7 @@ def execute_scan_task(
 
         # Process scan with semantic intelligence
         try:
-            asyncio.run(
-                _process_semantic_intelligence(db, scan_id, scan_results, host_data)
-            )
+            asyncio.run(_process_semantic_intelligence(db, scan_id, scan_results, host_data))
         except Exception as e:
             logger.error(f"Semantic intelligence processing failed for {scan_id}: {e}")
             # Continue with normal flow - don't break existing functionality
@@ -359,9 +341,7 @@ def execute_scan_task(
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    send_scan_completed_webhook(scan_id, webhook_data)
-                )
+                loop.run_until_complete(send_scan_completed_webhook(scan_id, webhook_data))
                 loop.close()
                 logger.debug(f"Webhook notification sent for completed scan: {scan_id}")
             except Exception as loop_error:
@@ -370,9 +350,7 @@ def execute_scan_task(
                 )
 
         except Exception as webhook_error:
-            logger.error(
-                f"Failed to send completion webhook for scan {scan_id}: {webhook_error}"
-            )
+            logger.error(f"Failed to send completion webhook for scan {scan_id}: {webhook_error}")
 
         logger.info(f"Scan completed successfully: {scan_id}")
 
@@ -398,13 +376,13 @@ def _update_scan_error(
                 import asyncio
 
                 classified_error = asyncio.run(
-                    error_service.classify_error(
-                        original_exception, {"scan_id": scan_id}
-                    )
+                    error_service.classify_error(original_exception, {"scan_id": scan_id})
                 )
                 # Use classified error message if available
                 if classified_error:
-                    error_message = f"{classified_error.message} (Code: {classified_error.error_code})"
+                    error_message = (
+                        f"{classified_error.message} (Code: {classified_error.error_code})"
+                    )
                     logger.info(
                         f"Error classified for scan {scan_id}: {classified_error.category.value} - {classified_error.error_code}"
                     )
@@ -488,18 +466,14 @@ def _update_scan_error(
                         send_scan_failed_webhook(scan_id, webhook_data, error_message)
                     )
                     loop.close()
-                    logger.debug(
-                        f"Webhook notification sent for failed scan: {scan_id}"
-                    )
+                    logger.debug(f"Webhook notification sent for failed scan: {scan_id}")
                 except Exception as loop_error:
                     logger.warning(
                         f"Failed to send webhook notification for scan {scan_id}: {loop_error}"
                     )
 
             except Exception as webhook_error:
-                logger.error(
-                    f"Failed to send failure webhook for scan {scan_id}: {webhook_error}"
-                )
+                logger.error(f"Failed to send failure webhook for scan {scan_id}: {webhook_error}")
 
     except Exception as e:
         logger.error(f"Failed to update scan error status: {e}")
@@ -511,9 +485,7 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict):
         # Parse failed rules by severity
         failed_rules = scan_results.get("failed_rules", [])
         severity_high = len([r for r in failed_rules if r.get("severity") == "high"])
-        severity_medium = len(
-            [r for r in failed_rules if r.get("severity") == "medium"]
-        )
+        severity_medium = len([r for r in failed_rules if r.get("severity") == "medium"])
         severity_low = len([r for r in failed_rules if r.get("severity") == "low"])
 
         # Insert scan results
@@ -581,9 +553,7 @@ try:
             db.close()
 
             # Execute scan
-            execute_scan_task(
-                scan_id, host_data, content_path, profile_id, scan_options
-            )
+            execute_scan_task(scan_id, host_data, content_path, profile_id, scan_options)
 
         except Exception as e:
             logger.error(f"Celery task failed for scan {scan_id}: {e}")
@@ -625,9 +595,7 @@ async def _process_semantic_intelligence(
         )
 
         # Update scan record with semantic analysis information
-        frameworks_analyzed = list(
-            intelligent_result.framework_compliance_matrix.keys()
-        )
+        frameworks_analyzed = list(intelligent_result.framework_compliance_matrix.keys())
         semantic_rules_count = len(intelligent_result.semantic_rules)
 
         db.execute(
@@ -645,9 +613,7 @@ async def _process_semantic_intelligence(
                 "scan_id": scan_id,
                 "semantic_rules_count": semantic_rules_count,
                 "frameworks_analyzed": frameworks_analyzed,
-                "remediation_strategy": json.dumps(
-                    intelligent_result.remediation_strategy
-                ),
+                "remediation_strategy": json.dumps(intelligent_result.remediation_strategy),
             },
         )
         db.commit()
@@ -707,13 +673,9 @@ async def _send_enhanced_semantic_webhook(
                 "host_info": {
                     "host_id": host_data.get("host_id"),
                     "hostname": host_data.get("hostname"),
-                    "distribution_family": host_data.get(
-                        "distribution_family", "unknown"
-                    ),
+                    "distribution_family": host_data.get("distribution_family", "unknown"),
                     "distribution_name": host_data.get("distribution_name", "unknown"),
-                    "distribution_version": host_data.get(
-                        "distribution_version", "unknown"
-                    ),
+                    "distribution_version": host_data.get("distribution_version", "unknown"),
                     "package_manager": host_data.get("package_manager", "unknown"),
                     "service_manager": host_data.get("service_manager", "unknown"),
                 },
@@ -743,15 +705,9 @@ async def _send_enhanced_semantic_webhook(
                     ],
                 },
                 "original_scan_results": {
-                    "total_rules": intelligent_result.original_results.get(
-                        "rules_total", 0
-                    ),
-                    "passed_rules": intelligent_result.original_results.get(
-                        "rules_passed", 0
-                    ),
-                    "failed_rules": intelligent_result.original_results.get(
-                        "rules_failed", 0
-                    ),
+                    "total_rules": intelligent_result.original_results.get("rules_total", 0),
+                    "passed_rules": intelligent_result.original_results.get("rules_passed", 0),
+                    "failed_rules": intelligent_result.original_results.get("rules_failed", 0),
                     "score": intelligent_result.original_results.get("score", 0),
                 },
             },
@@ -764,9 +720,7 @@ async def _send_enhanced_semantic_webhook(
                     webhook.url, webhook.secret_hash, webhook_data, str(webhook.id)
                 )
             except Exception as e:
-                logger.error(
-                    f"Failed to deliver semantic webhook to {webhook.url}: {e}"
-                )
+                logger.error(f"Failed to deliver semantic webhook to {webhook.url}: {e}")
 
     except Exception as e:
         logger.error(f"Error sending enhanced semantic webhook: {e}")

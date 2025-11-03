@@ -186,9 +186,7 @@ class EncryptionService:
             aesgcm = AESGCM(key)
             plaintext = aesgcm.decrypt(nonce, ciphertext, None)
 
-            logger.debug(
-                f"Decrypted {len(encrypted_data)} bytes → {len(plaintext)} bytes"
-            )
+            logger.debug(f"Decrypted {len(encrypted_data)} bytes → {len(plaintext)} bytes")
 
             return plaintext
 

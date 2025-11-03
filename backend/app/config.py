@@ -43,9 +43,7 @@ class Settings(BaseSettings):
         default="mongodb://openwatch:secure_password@mongodb:27017/openwatch_rules?authSource=admin",
         description="MongoDB connection string for compliance rules",
     )
-    mongodb_database: str = Field(
-        default="openwatch_rules", description="MongoDB database name"
-    )
+    mongodb_database: str = Field(default="openwatch_rules", description="MongoDB database name")
     mongodb_min_pool_size: int = Field(default=10)
     mongodb_max_pool_size: int = Field(default=100)
     mongodb_ssl: bool = Field(default=False)  # Disable SSL for development

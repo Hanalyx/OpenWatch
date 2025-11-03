@@ -108,9 +108,7 @@ async def get_content(content_id: str, token: str = Depends(security)):
             profiles=["stig-rhel9-server", "stig-rhel9-workstation"],
         )
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail="SCAP content not found"
-    )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SCAP content not found")
 
 
 @router.get("/{content_id}/profiles")

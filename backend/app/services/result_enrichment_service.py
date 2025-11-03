@@ -88,14 +88,10 @@ class ResultEnrichmentService:
             intelligence_data = await self._gather_rule_intelligence(rule_results)
 
             # Generate compliance framework mapping
-            framework_mapping = await self._generate_framework_mapping(
-                rule_results, scan_metadata
-            )
+            framework_mapping = await self._generate_framework_mapping(rule_results, scan_metadata)
 
             # Create remediation guidance
-            remediation_guidance = await self._generate_remediation_guidance(
-                rule_results
-            )
+            remediation_guidance = await self._generate_remediation_guidance(rule_results)
 
             # Calculate compliance scores
             compliance_scores = await self._calculate_compliance_scores(
@@ -153,9 +149,7 @@ class ResultEnrichmentService:
         except Exception as e:
             raise ScanResultEnrichmentError(f"Error reading result file: {e}")
 
-    async def _extract_rule_results(
-        self, scan_results: ET.Element
-    ) -> List[Dict[str, Any]]:
+    async def _extract_rule_results(self, scan_results: ET.Element) -> List[Dict[str, Any]]:
         """Extract individual rule results from SCAP XML"""
         rule_results = []
 
@@ -168,9 +162,7 @@ class ResultEnrichmentService:
             }
 
             # Find rule results in XCCDF format
-            rule_result_elements = scan_results.findall(
-                ".//xccdf:rule-result", namespaces
-            )
+            rule_result_elements = scan_results.findall(".//xccdf:rule-result", namespaces)
 
             for rule_elem in rule_result_elements:
                 rule_id = rule_elem.get("idref", "unknown")
@@ -182,12 +174,8 @@ class ResultEnrichmentService:
                         "result": result_status.text,
                         "severity": rule_elem.get("severity", "unknown"),
                         "weight": rule_elem.get("weight", "1.0"),
-                        "check_content": await self._extract_check_content(
-                            rule_elem, namespaces
-                        ),
-                        "fix_content": await self._extract_fix_content(
-                            rule_elem, namespaces
-                        ),
+                        "check_content": await self._extract_check_content(rule_elem, namespaces),
+                        "fix_content": await self._extract_fix_content(rule_elem, namespaces),
                         "timestamp": datetime.utcnow().isoformat(),
                     }
 
@@ -216,9 +204,7 @@ class ResultEnrichmentService:
                 }
 
                 # Extract check content references
-                for ref_elem in check_elem.findall(
-                    "xccdf:check-content-ref", namespaces
-                ):
+                for ref_elem in check_elem.findall("xccdf:check-content-ref", namespaces):
                     check_content["content_ref"].append(
                         {
                             "name": ref_elem.get("name", ""),
@@ -253,9 +239,7 @@ class ResultEnrichmentService:
 
         return fix_content
 
-    async def _gather_rule_intelligence(
-        self, rule_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    async def _gather_rule_intelligence(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Gather MongoDB intelligence data for each rule"""
         intelligence_data = {}
 
@@ -264,9 +248,7 @@ class ResultEnrichmentService:
 
             try:
                 # Get MongoDB rule intelligence
-                intel_data = await self.mongo_service.get_rule_with_intelligence(
-                    rule_id
-                )
+                intel_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
 
                 if intel_data and "intelligence" in intel_data:
                     intelligence_info = intel_data["intelligence"]
@@ -274,35 +256,19 @@ class ResultEnrichmentService:
 
                     intelligence_data[rule_id] = {
                         "business_impact": intelligence_info.get("business_impact"),
-                        "compliance_importance": intelligence_info.get(
-                            "compliance_importance", 5
-                        ),
-                        "false_positive_rate": intelligence_info.get(
-                            "false_positive_rate", 0.0
-                        ),
-                        "common_exceptions": intelligence_info.get(
-                            "common_exceptions", []
-                        ),
-                        "implementation_notes": intelligence_info.get(
-                            "implementation_notes"
-                        ),
+                        "compliance_importance": intelligence_info.get("compliance_importance", 5),
+                        "false_positive_rate": intelligence_info.get("false_positive_rate", 0.0),
+                        "common_exceptions": intelligence_info.get("common_exceptions", []),
+                        "implementation_notes": intelligence_info.get("implementation_notes"),
                         "testing_guidance": intelligence_info.get("testing_guidance"),
-                        "rollback_procedure": intelligence_info.get(
-                            "rollback_procedure"
-                        ),
-                        "scan_duration_avg_ms": intelligence_info.get(
-                            "scan_duration_avg_ms", 0
-                        ),
+                        "rollback_procedure": intelligence_info.get("rollback_procedure"),
+                        "scan_duration_avg_ms": intelligence_info.get("scan_duration_avg_ms", 0),
                         "success_rate": intelligence_info.get("success_rate", 0.0),
                         "usage_count": intelligence_info.get("usage_count", 0),
                         "rule_metadata": rule_info.get("metadata", {}),
                         "frameworks": rule_info.get("frameworks", {}),
-                        "platform_implementations": rule_info.get(
-                            "platform_implementations", {}
-                        ),
-                        "remediation_scripts": intel_data.get(
-                            "remediation_scripts", []
-                        ),
+                        "platform_implementations": rule_info.get("platform_implementations", {}),
+                        "remediation_scripts": intel_data.get("remediation_scripts", []),
                     }
                 else:
                     # Create basic intelligence entry for rules without MongoDB data
@@ -340,9 +306,7 @@ class ResultEnrichmentService:
 
                 # Get MongoDB rule data to extract framework mappings
                 try:
-                    rule_data = await self.mongo_service.get_rule_with_intelligence(
-                        rule_id
-                    )
+                    rule_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
                     if rule_data and "rule" in rule_data:
                         frameworks = rule_data["rule"].get("frameworks", {})
 
@@ -360,29 +324,19 @@ class ResultEnrichmentService:
                                                 "status": "unknown",
                                             }
 
-                                        fw_mapping["controls"][control]["rules"].append(
-                                            rule_id
-                                        )
+                                        fw_mapping["controls"][control]["rules"].append(rule_id)
 
                                         if rule_status == "pass":
-                                            fw_mapping["controls"][control][
-                                                "passed"
-                                            ] += 1
-                                            fw_mapping["controls"][control][
-                                                "status"
-                                            ] = "compliant"
+                                            fw_mapping["controls"][control]["passed"] += 1
+                                            fw_mapping["controls"][control]["status"] = "compliant"
                                         elif rule_status == "fail":
-                                            fw_mapping["controls"][control][
-                                                "failed"
-                                            ] += 1
+                                            fw_mapping["controls"][control]["failed"] += 1
                                             fw_mapping["controls"][control][
                                                 "status"
                                             ] = "non_compliant"
 
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to get framework mapping for rule {rule_id}: {e}"
-                    )
+                    logger.warning(f"Failed to get framework mapping for rule {rule_id}: {e}")
                     continue
 
             # Calculate coverage and compliance rates
@@ -394,12 +348,8 @@ class ResultEnrichmentService:
                         for control in fw_data["controls"].values()
                         if control["status"] == "compliant"
                     )
-                    fw_data["coverage"] = (
-                        total_controls  # This would need baseline data
-                    )
-                    fw_data["compliance_rate"] = (
-                        compliant_controls / total_controls
-                    ) * 100
+                    fw_data["coverage"] = total_controls  # This would need baseline data
+                    fw_data["compliance_rate"] = (compliant_controls / total_controls) * 100
 
         except Exception as e:
             logger.error(f"Failed to generate framework mapping: {e}")
@@ -427,9 +377,7 @@ class ResultEnrichmentService:
 
                     # Get remediation scripts from MongoDB
                     try:
-                        rule_data = await self.mongo_service.get_rule_with_intelligence(
-                            rule_id
-                        )
+                        rule_data = await self.mongo_service.get_rule_with_intelligence(rule_id)
                         if rule_data and "remediation_scripts" in rule_data:
                             scripts = rule_data["remediation_scripts"]
 
@@ -438,9 +386,7 @@ class ResultEnrichmentService:
                                 "severity": severity,
                                 "remediation_scripts": scripts,
                                 "automated_available": len(scripts) > 0,
-                                "estimated_time": self._estimate_remediation_time(
-                                    scripts
-                                ),
+                                "estimated_time": self._estimate_remediation_time(scripts),
                                 "risk_level": rule_data.get("rule", {}).get(
                                     "remediation_risk", "medium"
                                 ),
@@ -448,27 +394,19 @@ class ResultEnrichmentService:
 
                             # Categorize by severity
                             if severity == "high":
-                                if any(
-                                    script.get("approved", False) for script in scripts
-                                ):
-                                    remediation_guidance[
-                                        "automated_fixes_available"
-                                    ].append(guidance_item)
+                                if any(script.get("approved", False) for script in scripts):
+                                    remediation_guidance["automated_fixes_available"].append(
+                                        guidance_item
+                                    )
                                 else:
-                                    remediation_guidance[
-                                        "manual_intervention_required"
-                                    ].append(guidance_item)
-                                remediation_guidance["high_priority"].append(
-                                    guidance_item
-                                )
+                                    remediation_guidance["manual_intervention_required"].append(
+                                        guidance_item
+                                    )
+                                remediation_guidance["high_priority"].append(guidance_item)
                             elif severity == "medium":
-                                remediation_guidance["medium_priority"].append(
-                                    guidance_item
-                                )
+                                remediation_guidance["medium_priority"].append(guidance_item)
                             else:
-                                remediation_guidance["low_priority"].append(
-                                    guidance_item
-                                )
+                                remediation_guidance["low_priority"].append(guidance_item)
 
                     except Exception as e:
                         logger.warning(
@@ -488,9 +426,7 @@ class ResultEnrichmentService:
 
         total_time = 0
         for script in scripts:
-            total_time += script.get(
-                "estimated_duration_seconds", 300
-            )  # Default 5 minutes
+            total_time += script.get("estimated_duration_seconds", 300)  # Default 5 minutes
 
         return total_time // 60  # Return minutes
 
@@ -545,9 +481,7 @@ class ResultEnrichmentService:
         else:
             return "F"
 
-    def _calculate_severity_scores(
-        self, rule_results: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _calculate_severity_scores(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate scores broken down by severity"""
         severity_stats = {
             "high": {"passed": 0, "total": 0},
@@ -584,9 +518,7 @@ class ResultEnrichmentService:
         """Generate executive summary of the scan"""
         total_rules = len(rule_results)
         failed_rules = [rule for rule in rule_results if rule["result"] == "fail"]
-        high_severity_failures = [
-            rule for rule in failed_rules if rule.get("severity") == "high"
-        ]
+        high_severity_failures = [rule for rule in failed_rules if rule.get("severity") == "high"]
 
         summary = {
             "scan_date": datetime.utcnow().isoformat(),
@@ -596,12 +528,8 @@ class ResultEnrichmentService:
             "rules_passed": compliance_scores["overall"]["passed"],
             "rules_failed": compliance_scores["overall"]["failed"],
             "critical_issues": len(high_severity_failures),
-            "recommendation": self._generate_recommendation(
-                compliance_scores["overall"]["score"]
-            ),
-            "top_priority_fixes": [
-                rule["rule_id"] for rule in high_severity_failures[:5]
-            ],
+            "recommendation": self._generate_recommendation(compliance_scores["overall"]["score"]),
+            "top_priority_fixes": [rule["rule_id"] for rule in high_severity_failures[:5]],
             "framework_compliance": {
                 name: data["compliance_rate"]
                 for name, data in compliance_scores["by_framework"].items()
@@ -617,13 +545,13 @@ class ResultEnrichmentService:
         elif overall_score >= 80:
             return "Good compliance posture. Address remaining medium and high severity issues."
         elif overall_score >= 70:
-            return (
-                "Acceptable compliance posture. Focus on high severity failures first."
-            )
+            return "Acceptable compliance posture. Focus on high severity failures first."
         elif overall_score >= 60:
             return "Below average compliance. Immediate attention required for high and medium severity issues."
         else:
-            return "Poor compliance posture. Urgent remediation required across all severity levels."
+            return (
+                "Poor compliance posture. Urgent remediation required across all severity levels."
+            )
 
     async def _calculate_enrichment_stats(
         self, rule_results: List[Dict[str, Any]], intelligence_data: Dict[str, Any]
@@ -633,19 +561,15 @@ class ResultEnrichmentService:
             "rules_processed": len(rule_results),
             "rules_enriched": len(intelligence_data),
             "enrichment_coverage": (
-                (len(intelligence_data) / len(rule_results) * 100)
-                if rule_results
-                else 0
+                (len(intelligence_data) / len(rule_results) * 100) if rule_results else 0
             ),
             "mongodb_data_available": sum(
                 1
                 for data in intelligence_data.values()
-                if data.get("business_impact")
-                != "Unknown impact - MongoDB rule data not available"
+                if data.get("business_impact") != "Unknown impact - MongoDB rule data not available"
             ),
             "remediation_scripts_found": sum(
-                len(data.get("remediation_scripts", []))
-                for data in intelligence_data.values()
+                len(data.get("remediation_scripts", [])) for data in intelligence_data.values()
             ),
         }
 

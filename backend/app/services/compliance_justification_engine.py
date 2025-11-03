@@ -223,9 +223,7 @@ class ComplianceJustificationEngine:
         """Generate comprehensive compliance justification"""
 
         # Determine justification type based on compliance status
-        justification_type = self._determine_justification_type(
-            rule_execution.compliance_status
-        )
+        justification_type = self._determine_justification_type(rule_execution.compliance_status)
 
         # Generate unique justification ID
         justification_id = f"JUST-{framework_id}-{control_id}-{host_id}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
@@ -264,36 +262,26 @@ class ComplianceJustificationEngine:
             implementation_description=implementation_description,
             # Evidence
             evidence=evidence,
-            technical_details=self._extract_technical_details(
-                rule_execution, unified_rule
-            ),
+            technical_details=self._extract_technical_details(rule_execution, unified_rule),
             # Risk and business context
-            risk_assessment=await self._generate_risk_assessment(
-                unified_rule, rule_execution
-            ),
+            risk_assessment=await self._generate_risk_assessment(unified_rule, rule_execution),
             business_justification=await self._generate_business_justification(
                 unified_rule, framework_id
             ),
-            impact_analysis=await self._generate_impact_analysis(
-                unified_rule, rule_execution
-            ),
+            impact_analysis=await self._generate_impact_analysis(unified_rule, rule_execution),
             # Enhancement details for exceeding compliance
             enhancement_details=(
                 enhancement_analysis.enhancement_level if enhancement_analysis else None
             ),
             baseline_comparison=(
-                enhancement_analysis.baseline_requirement
-                if enhancement_analysis
-                else None
+                enhancement_analysis.baseline_requirement if enhancement_analysis else None
             ),
             exceeding_rationale=(
                 enhancement_analysis.audit_advantage if enhancement_analysis else None
             ),
             # Regulatory context
             regulatory_citations=self.regulatory_mappings.get(framework_id, []),
-            standards_references=self._get_standards_references(
-                unified_rule, framework_id
-            ),
+            standards_references=self._get_standards_references(unified_rule, framework_id),
         )
 
         # Cache the justification
@@ -313,9 +301,7 @@ class ComplianceJustificationEngine:
             ComplianceStatus.NON_COMPLIANT: JustificationType.REMEDIATION_PLANNED,
             ComplianceStatus.ERROR: JustificationType.REMEDIATION_PLANNED,
         }
-        return status_mapping.get(
-            compliance_status, JustificationType.REMEDIATION_PLANNED
-        )
+        return status_mapping.get(compliance_status, JustificationType.REMEDIATION_PLANNED)
 
     async def _generate_technical_evidence(
         self,
@@ -339,9 +325,7 @@ class ComplianceJustificationEngine:
                     "execution_success": rule_execution.execution_success,
                 },
                 verification_method="Automated technical scanning",
-                confidence_level=(
-                    "high" if rule_execution.execution_success else "medium"
-                ),
+                confidence_level=("high" if rule_execution.execution_success else "medium"),
             )
             evidence.append(execution_evidence)
 
@@ -400,7 +384,9 @@ class ComplianceJustificationEngine:
                 **rule_execution.output_data if rule_execution.output_data else {},
             )
         else:
-            summary = f"{unified_rule.title} implemented on {platform_info.get('platform', 'system')}"
+            summary = (
+                f"{unified_rule.title} implemented on {platform_info.get('platform', 'system')}"
+            )
 
         # Generate detailed explanation
         detailed_explanation = f"""
@@ -457,17 +443,12 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
         # Find the framework mapping for this control
         framework_mapping = None
         for mapping in unified_rule.framework_mappings:
-            if (
-                mapping.framework_id == framework_id
-                and control_id in mapping.control_ids
-            ):
+            if mapping.framework_id == framework_id and control_id in mapping.control_ids:
                 framework_mapping = mapping
                 break
 
         # Extract enhancement details
-        enhancement_details = (
-            framework_mapping.enhancement_details if framework_mapping else ""
-        )
+        enhancement_details = framework_mapping.enhancement_details if framework_mapping else ""
         justification = framework_mapping.justification if framework_mapping else ""
 
         # Determine enhancement level
@@ -482,10 +463,7 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
             or "far exceeds" in enhancement_details.lower()
         ):
             enhancement_level = "exceptional"
-        elif (
-            "minimal" in enhancement_details.lower()
-            or "slightly" in enhancement_details.lower()
-        ):
+        elif "minimal" in enhancement_details.lower() or "slightly" in enhancement_details.lower():
             enhancement_level = "minimal"
 
         # Generate security benefits
@@ -516,10 +494,10 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
         # Additional frameworks that benefit
         additional_frameworks = []
         for mapping in unified_rule.framework_mappings:
-            if (
-                mapping.framework_id != framework_id
-                and mapping.implementation_status in ["compliant", "exceeds"]
-            ):
+            if mapping.framework_id != framework_id and mapping.implementation_status in [
+                "compliant",
+                "exceeds",
+            ]:
                 additional_frameworks.append(mapping.framework_id)
 
         return ExceedingComplianceAnalysis(
@@ -612,9 +590,7 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
             "execution_success": rule_execution.execution_success,
             "compliance_status": rule_execution.compliance_status.value,
             "output_summary": (
-                str(rule_execution.output_data)[:500]
-                if rule_execution.output_data
-                else None
+                str(rule_execution.output_data)[:500] if rule_execution.output_data else None
             ),
             "error_details": rule_execution.error_message,
             "platform_count": len(unified_rule.platform_implementations),
@@ -661,9 +637,7 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
             "protection": "protect assets and data from security threats",
             "monitoring": "continuously monitor security status and compliance",
         }
-        return purposes.get(
-            security_function.lower(), "maintain security and compliance"
-        )
+        return purposes.get(security_function.lower(), "maintain security and compliance")
 
     def _get_risk_description(self, risk_level: str) -> str:
         """Get description of risk level"""
@@ -705,9 +679,7 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
                         for mapping in unified_rule.framework_mappings:
                             if mapping.framework_id == framework_id:
                                 control_id = (
-                                    mapping.control_ids[0]
-                                    if mapping.control_ids
-                                    else "unknown"
+                                    mapping.control_ids[0] if mapping.control_ids else "unknown"
                                 )
                                 break
 
@@ -741,9 +713,7 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
                     "framework": framework_id,
                     "generated_at": datetime.utcnow().isoformat(),
                     "total_justifications": len(justifications),
-                    "regulatory_citations": self.regulatory_mappings.get(
-                        framework_id, []
-                    ),
+                    "regulatory_citations": self.regulatory_mappings.get(framework_id, []),
                 },
                 "compliance_summary": {
                     "compliant": len(

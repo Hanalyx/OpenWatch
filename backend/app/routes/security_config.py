@@ -35,17 +35,13 @@ router = APIRouter(prefix="/api/v1/security/config", tags=["Security Configurati
 class SecurityPolicyRequest(BaseModel):
     """Request model for security policy configuration"""
 
-    policy_level: SecurityPolicyLevel = Field(
-        ..., description="Security policy enforcement level"
-    )
+    policy_level: SecurityPolicyLevel = Field(..., description="Security policy enforcement level")
     enforce_fips: bool = Field(True, description="Enforce FIPS 140-2 compliance")
     minimum_rsa_bits: int = Field(3072, description="Minimum RSA key size in bits")
     minimum_ecdsa_bits: int = Field(256, description="Minimum ECDSA key size in bits")
     allow_dsa_keys: bool = Field(False, description="Allow DSA keys (not recommended)")
     minimum_password_length: int = Field(12, description="Minimum password length")
-    require_complex_passwords: bool = Field(
-        True, description="Require complex passwords"
-    )
+    require_complex_passwords: bool = Field(True, description="Require complex passwords")
 
 
 class SecurityConfigResponse(BaseModel):
@@ -114,9 +110,7 @@ async def get_security_config(
 
     except Exception as e:
         logger.error(f"Failed to get security config: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve security configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve security configuration")
 
 
 @router.put("/")
@@ -167,17 +161,13 @@ async def update_security_config(
             )
             return {"message": "Security configuration updated successfully"}
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to update security configuration"
-            )
+            raise HTTPException(status_code=500, detail="Failed to update security configuration")
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to update security config: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to update security configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to update security configuration")
 
 
 @router.post("/template/{template_name}")
@@ -240,9 +230,7 @@ async def list_security_templates(
 class SSHKeyValidationRequest(BaseModel):
     key_content: str = Field(..., description="SSH private key content")
     passphrase: Optional[str] = Field(None, description="SSH key passphrase")
-    target_id: Optional[str] = Field(
-        None, description="Target ID for policy resolution"
-    )
+    target_id: Optional[str] = Field(None, description="Target ID for policy resolution")
     target_type: Optional[str] = Field(None, description="Target type (host, group)")
 
 
@@ -270,9 +258,7 @@ async def validate_ssh_key(
         )
 
         # Perform strict validation
-        assessment = validator.validate_ssh_key_strict(
-            request.key_content, request.passphrase
-        )
+        assessment = validator.validate_ssh_key_strict(request.key_content, request.passphrase)
 
         return ValidationResponse(
             is_valid=assessment.is_valid,
@@ -327,9 +313,7 @@ async def audit_credential(
         )
 
         # Log audit activity
-        logger.info(
-            f"Credential audit performed by {current_user.get('username')} for {username}"
-        )
+        logger.info(f"Credential audit performed by {current_user.get('username')} for {username}")
 
         return audit_result
 
@@ -364,6 +348,4 @@ async def get_compliance_summary(
 
     except Exception as e:
         logger.error(f"Compliance summary error: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to generate compliance summary"
-        )
+        raise HTTPException(status_code=500, detail="Failed to generate compliance summary")

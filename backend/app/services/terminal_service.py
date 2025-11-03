@@ -38,9 +38,7 @@ class SSHTerminalSession:
         self.websocket = websocket
         self.host = host
         self.db = db  # Database session for centralized auth service
-        self.encryption_service = (
-            encryption_service  # Encryption service for credential decryption
-        )
+        self.encryption_service = encryption_service  # Encryption service for credential decryption
         self.ssh_client: Optional[paramiko.SSHClient] = None
         self.ssh_channel: Optional[paramiko.Channel] = None
         self.is_connected = False
@@ -97,9 +95,7 @@ class SSHTerminalSession:
                 # Validate SSH key first
                 validation_result = validate_ssh_key(credentials["private_key"])
                 if not validation_result.is_valid:
-                    await self._send_error(
-                        f"Invalid SSH key: {validation_result.error_message}"
-                    )
+                    await self._send_error(f"Invalid SSH key: {validation_result.error_message}")
                     return False
 
                 # Load private key
@@ -135,9 +131,7 @@ class SSHTerminalSession:
                     await self._send_error(f"SSH key loading failed: {str(e)}")
                     return False
             else:
-                await self._send_error(
-                    f"Unsupported authentication method: {auth_method}"
-                )
+                await self._send_error(f"Unsupported authentication method: {auth_method}")
                 return False
 
             # Attempt SSH connection
@@ -212,14 +206,10 @@ class SSHTerminalSession:
                         f"Successfully resolved {credential_data.source} credentials for terminal service"
                     )
                 else:
-                    logger.warning(
-                        "No credentials available via centralized auth service"
-                    )
+                    logger.warning("No credentials available via centralized auth service")
 
             except Exception as e:
-                logger.error(
-                    f"Failed to resolve credentials via centralized service: {e}"
-                )
+                logger.error(f"Failed to resolve credentials via centralized service: {e}")
                 # Fallback to system default if centralized service fails
                 if auth_method == "system_default":
                     try:
@@ -252,9 +242,7 @@ class SSHTerminalSession:
                     )
                     credentials = test_hosts[self.host.ip_address]
                 else:
-                    logger.warning(
-                        f"No credentials available for host {self.host.hostname}"
-                    )
+                    logger.warning(f"No credentials available for host {self.host.hostname}")
                     return None, {}
 
             # If we still don't have credentials, fail

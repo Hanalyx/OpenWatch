@@ -164,19 +164,13 @@ class ComplianceRulesListResponse(BaseModel):
 async def get_compliance_rules(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(25, ge=1, le=100, description="Number of rules to return"),
-    framework: Optional[str] = Query(
-        None, description="Filter by framework (nist, cis, stig)"
-    ),
+    framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
     severity: Optional[str] = Query(
         None, description="Filter by severity (high, medium, low, info)"
     ),
     category: Optional[str] = Query(None, description="Filter by category"),
-    platform: Optional[str] = Query(
-        None, description="Filter by platform (rhel, ubuntu)"
-    ),
-    search: Optional[str] = Query(
-        None, description="Search in rule name, description, or ID"
-    ),
+    platform: Optional[str] = Query(None, description="Filter by platform (rhel, ubuntu)"),
+    search: Optional[str] = Query(None, description="Search in rule name, description, or ID"),
     view_mode: Optional[str] = Query(
         None, description="Special view mode: 'platform_statistics' for platform stats"
     ),
@@ -261,9 +255,7 @@ async def get_compliance_rules(
 
             # OW-REFACTOR-002: Feature flag for Repository Pattern
             if settings.use_repository_pattern:
-                logger.info(
-                    f"Using ComplianceRuleRepository for get_compliance_rules endpoint"
-                )
+                logger.info(f"Using ComplianceRuleRepository for get_compliance_rules endpoint")
                 repo = ComplianceRuleRepository()
 
                 # Get total count using repository
@@ -273,9 +265,7 @@ async def get_compliance_rules(
                 rules = await repo.find_many(query, skip=offset, limit=limit)
             else:
                 # Original MongoDB queries (default)
-                logger.info(
-                    f"Using original MongoDB queries for get_compliance_rules endpoint"
-                )
+                logger.info(f"Using original MongoDB queries for get_compliance_rules endpoint")
                 total_count = await ComplianceRule.find(query).count()
 
                 # Get paginated results
@@ -462,20 +452,14 @@ async def get_compliance_rules(
                 ]
 
             if severity:
-                filtered_rules = [
-                    rule for rule in filtered_rules if rule["severity"] == severity
-                ]
+                filtered_rules = [rule for rule in filtered_rules if rule["severity"] == severity]
 
             if category:
-                filtered_rules = [
-                    rule for rule in filtered_rules if rule["category"] == category
-                ]
+                filtered_rules = [rule for rule in filtered_rules if rule["category"] == category]
 
             if framework:
                 filtered_rules = [
-                    rule
-                    for rule in filtered_rules
-                    if framework in rule.get("frameworks", {})
+                    rule for rule in filtered_rules if framework in rule.get("frameworks", {})
                 ]
 
             if platform:
@@ -670,16 +654,10 @@ async def get_compliance_rules(
 
 @router.get("/semantic-rules")
 async def get_semantic_rules_for_scan(
-    framework: Optional[str] = Query(
-        None, description="Filter by framework (nist, cis, stig)"
-    ),
-    business_impact: Optional[str] = Query(
-        None, description="Filter by business impact/severity"
-    ),
+    framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
+    business_impact: Optional[str] = Query(None, description="Filter by business impact/severity"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
-    limit: int = Query(
-        1000, ge=1, le=5000, description="Maximum number of rules to return"
-    ),
+    limit: int = Query(1000, ge=1, le=5000, description="Maximum number of rules to return"),
 ):
     """
     Get compliance rules for scan creation wizard (ComplianceScans.tsx)
@@ -714,9 +692,7 @@ async def get_semantic_rules_for_scan(
                 "medium": "medium",
                 "low": "low",
             }
-            mapped_severity = severity_map.get(
-                business_impact.lower(), business_impact.lower()
-            )
+            mapped_severity = severity_map.get(business_impact.lower(), business_impact.lower())
             query["severity"] = mapped_severity
 
         # Fetch rules from MongoDB
@@ -727,9 +703,7 @@ async def get_semantic_rules_for_scan(
         transformed_rules = []
         for rule in rules:
             # Get the first framework for display
-            first_framework = (
-                list(rule.frameworks.keys())[0] if rule.frameworks else "unknown"
-            )
+            first_framework = list(rule.frameworks.keys())[0] if rule.frameworks else "unknown"
 
             transformed_rule = {
                 "id": str(rule.id),
@@ -845,9 +819,7 @@ async def get_available_frameworks():
             for fw in frameworks_list
         ]
 
-        logger.info(
-            f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB"
-        )
+        logger.info(f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB")
 
         return {
             "frameworks": frameworks_with_display,

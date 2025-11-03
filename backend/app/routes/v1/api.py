@@ -40,9 +40,7 @@ router.include_router(
     v1_remediation.router, prefix="/remediation", tags=["Remediation Provider v1"]
 )
 router.include_router(v1_openapi.router, prefix="/docs", tags=["API Documentation v1"])
-router.include_router(
-    mongodb_test.router, prefix="/mongodb", tags=["MongoDB Integration Test"]
-)
+router.include_router(mongodb_test.router, prefix="/mongodb", tags=["MongoDB Integration Test"])
 router.include_router(scap_import.router, tags=["SCAP Import"])
 router.include_router(rule_management.router, tags=["Enhanced Rule Management"])
 router.include_router(compliance_rules_api.router, tags=["MongoDB Compliance Rules"])
@@ -50,15 +48,11 @@ router.include_router(mongodb_scan_api.router, tags=["MongoDB Scanning"])
 
 # Phase 1: XCCDF Variables + Hybrid Scanning Architecture
 router.include_router(xccdf_api.router, prefix="/xccdf", tags=["XCCDF Generator"])
-router.include_router(
-    scans_api.router, prefix="/scan-execution", tags=["Scan Execution"]
-)
+router.include_router(scans_api.router, prefix="/scan-execution", tags=["Scan Execution"])
 router.include_router(
     remediation_api.router, prefix="/remediation-engine", tags=["ORSA Remediation"]
 )
-router.include_router(
-    scan_config_api.router, prefix="/scan-config", tags=["Scan Configuration"]
-)
+router.include_router(scan_config_api.router, prefix="/scan-config", tags=["Scan Configuration"])
 
 router.include_router(
     health_monitoring.router, prefix="/health-monitoring", tags=["Health Monitoring"]

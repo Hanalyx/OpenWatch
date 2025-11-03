@@ -27,9 +27,7 @@ class MonitoringState(Enum):
     """
 
     ONLINE = "online"  # 30 min interval - fully operational (ping + ssh + privilege)
-    DEGRADED = (
-        "degraded"  # 5 min interval - permission issues (ping + ssh, no privilege)
-    )
+    DEGRADED = "degraded"  # 5 min interval - permission issues (ping + ssh, no privilege)
     CRITICAL = "critical"  # 2 min interval - partial connectivity (ping only, no ssh)
     DOWN = "down"  # 30 min interval - completely unavailable (no ping, no ssh)
     MAINTENANCE = "maintenance"  # No checks - user-defined maintenance window
@@ -484,9 +482,7 @@ class HostMonitoringStateMachine:
         """Enable or disable maintenance mode for a host"""
         try:
             new_state = (
-                MonitoringState.MAINTENANCE.value
-                if enabled
-                else MonitoringState.UNKNOWN.value
+                MonitoringState.MAINTENANCE.value if enabled else MonitoringState.UNKNOWN.value
             )
 
             self.db.execute(
@@ -508,9 +504,7 @@ class HostMonitoringStateMachine:
             )
 
             self.db.commit()
-            logger.info(
-                f"Host {host_id} maintenance mode: {'enabled' if enabled else 'disabled'}"
-            )
+            logger.info(f"Host {host_id} maintenance mode: {'enabled' if enabled else 'disabled'}")
 
         except Exception as e:
             logger.error(f"Failed to set maintenance mode for {host_id}: {e}")

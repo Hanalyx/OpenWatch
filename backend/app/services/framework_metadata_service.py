@@ -96,9 +96,7 @@ class FrameworkMetadataService:
         logger.info(f"Found {len(frameworks)} frameworks from nested structure")
         return frameworks
 
-    async def get_framework_details(
-        self, framework: str, version: str
-    ) -> FrameworkVersion:
+    async def get_framework_details(self, framework: str, version: str) -> FrameworkVersion:
         """
         Get detailed information about a specific framework version.
 
@@ -145,9 +143,7 @@ class FrameworkMetadataService:
 
         return framework_version
 
-    async def get_variables(
-        self, framework: str, version: str
-    ) -> List[VariableDefinition]:
+    async def get_variables(self, framework: str, version: str) -> List[VariableDefinition]:
         """
         Get all variable definitions for a framework/version.
 
@@ -185,9 +181,7 @@ class FrameworkMetadataService:
                     variables_dict[var_id] = var_definition
 
         # Convert to sorted list
-        variables = sorted(
-            variables_dict.values(), key=lambda v: (v.category or "", v.title)
-        )
+        variables = sorted(variables_dict.values(), key=lambda v: (v.category or "", v.title))
 
         logger.info(f"Found {len(variables)} variables for {framework}/{version}")
         return variables
@@ -274,9 +268,7 @@ class FrameworkMetadataService:
             "gdpr": "GDPR",
             "fedramp": "FedRAMP",
         }
-        return display_names.get(
-            framework, framework.upper() if framework else "Unknown"
-        )
+        return display_names.get(framework, framework.upper() if framework else "Unknown")
 
     def _get_description(self, framework: str) -> str:
         """Get framework description."""
@@ -314,9 +306,7 @@ class FrameworkMetadataService:
         )
         return sorted([c for c in categories if c])
 
-    async def _get_target_types(
-        self, framework: str, version: str
-    ) -> List[ScanTargetType]:
+    async def _get_target_types(self, framework: str, version: str) -> List[ScanTargetType]:
         """Get supported target types for framework."""
         # Query scanner_type field
         scanner_types = await self.collection.distinct(
@@ -363,9 +353,7 @@ class FrameworkMetadataService:
 
         # Extract constraints
         constraints = None
-        if any(
-            k in var_def for k in ["lower_bound", "upper_bound", "choices", "match"]
-        ):
+        if any(k in var_def for k in ["lower_bound", "upper_bound", "choices", "match"]):
             constraints = VariableConstraint(
                 lower_bound=var_def.get("lower_bound"),
                 upper_bound=var_def.get("upper_bound"),

@@ -95,9 +95,7 @@ class ScanOrchestrator:
             # 2. Group rules by scanner_type
             rules_by_scanner = self._group_by_scanner(rules)
 
-            logger.info(
-                f"Scan {scan_id}: Grouped into {len(rules_by_scanner)} scanner types"
-            )
+            logger.info(f"Scan {scan_id}: Grouped into {len(rules_by_scanner)} scanner types")
 
             # 3. Execute scanners in parallel
             scanner_tasks = []
@@ -108,9 +106,7 @@ class ScanOrchestrator:
                 scanner_tasks.append(task)
 
             # Wait for all scanners to complete
-            scanner_results = await asyncio.gather(
-                *scanner_tasks, return_exceptions=True
-            )
+            scanner_results = await asyncio.gather(*scanner_tasks, return_exceptions=True)
 
             # 4. Aggregate results
             all_rule_results = []
@@ -128,9 +124,7 @@ class ScanOrchestrator:
                     rule_results, summary, version = result
                     all_rule_results.extend(rule_results)
                     scanner_type = (
-                        rule_results[0].scanner_type
-                        if rule_results
-                        else f"scanner_{idx}"
+                        rule_results[0].scanner_type if rule_results else f"scanner_{idx}"
                     )
                     scanner_versions[scanner_type] = version
 
@@ -183,9 +177,7 @@ class ScanOrchestrator:
 
         # Filter by framework
         if config.framework and config.framework_version:
-            query[f"frameworks.{config.framework}.{config.framework_version}"] = {
-                "$exists": True
-            }
+            query[f"frameworks.{config.framework}.{config.framework_version}"] = {"$exists": True}
 
         # Apply additional filters
         if config.rule_filter:
@@ -237,9 +229,7 @@ class ScanOrchestrator:
 
         return rule_results, summary, scanner.version
 
-    def _calculate_overall_summary(
-        self, all_results: List[RuleResult]
-    ) -> ScanResultSummary:
+    def _calculate_overall_summary(self, all_results: List[RuleResult]) -> ScanResultSummary:
         """Calculate overall summary from all scanner results"""
         summary = ScanResultSummary(total_rules=len(all_results))
 
@@ -275,9 +265,7 @@ class ScanOrchestrator:
 
         return summary
 
-    def _group_by_severity(
-        self, results: List[RuleResult]
-    ) -> Dict[str, Dict[str, int]]:
+    def _group_by_severity(self, results: List[RuleResult]) -> Dict[str, Dict[str, int]]:
         """Group results by severity"""
         by_severity = {}
 
@@ -302,9 +290,7 @@ class ScanOrchestrator:
 
         return by_severity
 
-    def _group_by_scanner_summary(
-        self, results: List[RuleResult]
-    ) -> Dict[str, Dict[str, int]]:
+    def _group_by_scanner_summary(self, results: List[RuleResult]) -> Dict[str, Dict[str, int]]:
         """Group results by scanner type"""
         by_scanner = {}
 
@@ -342,10 +328,4 @@ class ScanOrchestrator:
         if started_by:
             query["started_by"] = started_by
 
-        return (
-            await ScanResult.find(query)
-            .skip(skip)
-            .limit(limit)
-            .sort("-started_at")
-            .to_list()
-        )
+        return await ScanResult.find(query).skip(skip).limit(limit).sort("-started_at").to_list()

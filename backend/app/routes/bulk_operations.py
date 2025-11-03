@@ -30,9 +30,7 @@ class BulkHostImport(BaseModel):
     operating_system: Optional[str] = Field(None, max_length=100)
     port: Optional[int] = Field(22, ge=1, le=65535)
     username: Optional[str] = Field(None, max_length=100)
-    auth_method: Optional[str] = Field(
-        "password", pattern="^(password|ssh_key|system_default)$"
-    )
+    auth_method: Optional[str] = Field("password", pattern="^(password|ssh_key|system_default)$")
     environment: Optional[str] = Field("production", max_length=50)
     tags: Optional[str] = Field(None, max_length=500)  # Comma-separated tags
     owner: Optional[str] = Field(None, max_length=100)
@@ -50,9 +48,7 @@ class BulkImportRequest(BaseModel):
     """Request body for JSON-based bulk import"""
 
     hosts: List[BulkHostImport]
-    update_existing: bool = Field(
-        False, description="Update existing hosts instead of skipping"
-    )
+    update_existing: bool = Field(False, description="Update existing hosts instead of skipping")
     dry_run: bool = Field(False, description="Validate without importing")
 
 
@@ -104,9 +100,7 @@ class EnhancedImportRequest(BaseModel):
 
     csv_data: str
     field_mappings: List[FieldMapping]
-    update_existing: bool = Field(
-        False, description="Update existing hosts instead of skipping"
-    )
+    update_existing: bool = Field(False, description="Update existing hosts instead of skipping")
     dry_run: bool = Field(False, description="Validate without importing")
     default_values: Optional[Dict[str, Any]] = None  # Default values for missing fields
 
@@ -219,9 +213,7 @@ async def bulk_import_hosts(
                 {
                     "row": idx + 1,
                     "hostname": (
-                        host_data.hostname
-                        if hasattr(host_data, "hostname")
-                        else "unknown"
+                        host_data.hostname if hasattr(host_data, "hostname") else "unknown"
                     ),
                     "error": str(e),
                 }
@@ -310,9 +302,7 @@ async def download_import_template():
     return Response(
         content=csv_content.getvalue(),
         media_type="text/csv",
-        headers={
-            "Content-Disposition": "attachment; filename=host_import_template.csv"
-        },
+        headers={"Content-Disposition": "attachment; filename=host_import_template.csv"},
     )
 
 
@@ -559,8 +549,7 @@ async def import_with_mapping(
                     new_host = Host(
                         hostname=mapped_data["hostname"],
                         ip_address=mapped_data["ip_address"],
-                        display_name=mapped_data.get("display_name")
-                        or mapped_data["hostname"],
+                        display_name=mapped_data.get("display_name") or mapped_data["hostname"],
                         operating_system=mapped_data.get("operating_system") or "RHEL",
                         port=mapped_data.get("port", 22),
                         username=mapped_data.get("username"),

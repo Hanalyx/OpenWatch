@@ -59,9 +59,7 @@ class ServiceComponent(BaseModel):
     status: HealthStatus = Field(description="Component health status")
     version: Optional[str] = Field(None, description="Component version")
     started_at: Optional[datetime] = Field(None, description="Component start time")
-    last_heartbeat: Optional[datetime] = Field(
-        None, description="Last heartbeat timestamp"
-    )
+    last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
     memory_usage_mb: Optional[float] = Field(None, description="Memory usage in MB")
     cpu_usage_percent: Optional[float] = Field(None, description="CPU usage percentage")
     errors_last_hour: int = Field(0, description="Error count in last hour")
@@ -132,13 +130,9 @@ class OperationalAlert(BaseModel):
     component: str = Field(description="Affected component")
     message: str = Field(description="Alert message")
     timestamp: datetime = Field(description="Alert timestamp")
-    auto_resolution_attempted: bool = Field(
-        False, description="Auto-resolution attempted flag"
-    )
+    auto_resolution_attempted: bool = Field(False, description="Auto-resolution attempted flag")
     resolved: bool = Field(False, description="Resolution status")
-    resolution_timestamp: Optional[datetime] = Field(
-        None, description="Resolution timestamp"
-    )
+    resolution_timestamp: Optional[datetime] = Field(None, description="Resolution timestamp")
 
 
 class ServiceHealthDocument(Document):
@@ -220,9 +214,7 @@ class BenchmarkHealth(BaseModel):
     satisfies_frameworks: List[str] = Field(
         default_factory=list, description="Satisfied frameworks"
     )
-    content_freshness: Dict[str, Any] = Field(
-        default_factory=dict, description="Freshness metrics"
-    )
+    content_freshness: Dict[str, Any] = Field(default_factory=dict, description="Freshness metrics")
 
 
 class RuleDistribution(BaseModel):
@@ -323,15 +315,11 @@ class HealthSummaryDocument(Document):
     overall_health_status: HealthStatus = Field(description="Overall health status")
 
     # Key metrics
-    key_metrics: Dict[str, Any] = Field(
-        default_factory=dict, description="Key health metrics"
-    )
+    key_metrics: Dict[str, Any] = Field(default_factory=dict, description="Key health metrics")
 
     # Active issues
     active_issues_count: int = Field(0, description="Active issue count")
-    critical_alerts: List[str] = Field(
-        default_factory=list, description="Critical alert messages"
-    )
+    critical_alerts: List[str] = Field(default_factory=list, description="Critical alert messages")
 
     class Settings:
         name = "health_summary"

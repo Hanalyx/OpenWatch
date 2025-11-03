@@ -145,14 +145,10 @@ async def discover_basic_system_bulk(
                 invalid_hosts.append({"host_id": host_id, "error": "Host not found"})
 
         except ValueError:
-            invalid_hosts.append(
-                {"host_id": host_id, "error": "Invalid host ID format"}
-            )
+            invalid_hosts.append({"host_id": host_id, "error": "Invalid host ID format"})
 
     if not valid_hosts:
-        raise HTTPException(
-            status_code=400, detail="No valid hosts found for discovery"
-        )
+        raise HTTPException(status_code=400, detail="No valid hosts found for discovery")
 
     # Schedule background discovery for valid hosts
     initiated_hosts = []
@@ -172,9 +168,7 @@ async def discover_basic_system_bulk(
     # Estimate completion time (assume 30 seconds per host)
     estimated_completion = datetime.utcnow()
     if valid_hosts:
-        estimated_completion = datetime.utcnow() + timedelta(
-            seconds=len(valid_hosts) * 30
-        )
+        estimated_completion = datetime.utcnow() + timedelta(seconds=len(valid_hosts) * 30)
 
     return BulkDiscoveryResponse(
         total_hosts=len(request.host_ids),

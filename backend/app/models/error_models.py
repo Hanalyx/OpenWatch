@@ -92,9 +92,7 @@ class ValidationResultResponse(BaseModel):
     errors: List[ScanErrorResponse] = Field(default_factory=list)
     warnings: List[ScanErrorResponse] = Field(default_factory=list)
     pre_flight_duration: float = 0.0
-    system_info: Dict[str, Any] = Field(
-        default_factory=dict
-    )  # Now sanitized via Security Fix 5
+    system_info: Dict[str, Any] = Field(default_factory=dict)  # Now sanitized via Security Fix 5
     validation_checks: Dict[str, bool] = Field(default_factory=dict)
 
 

@@ -56,8 +56,7 @@ class BSONParserService:
 
             if file_size > self.MAX_BSON_SIZE:
                 raise BSONParsingError(
-                    f"BSON file too large: {file_size:,} bytes "
-                    f"(max: {self.MAX_BSON_SIZE:,})"
+                    f"BSON file too large: {file_size:,} bytes " f"(max: {self.MAX_BSON_SIZE:,})"
                 )
 
             # Read BSON data
@@ -165,9 +164,7 @@ class BSONParserService:
         missing = [f for f in required_fields if f not in manifest]
 
         if missing:
-            raise BSONParsingError(
-                f"Manifest missing required fields: {', '.join(missing)}"
-            )
+            raise BSONParsingError(f"Manifest missing required fields: {', '.join(missing)}")
 
         # Validate field types
         if not isinstance(manifest["name"], str):
@@ -194,9 +191,7 @@ class BSONParserService:
             except ValueError as e:
                 raise BSONParsingError(f"Invalid created_at format: {str(e)}")
         elif not isinstance(manifest["created_at"], datetime):
-            raise BSONParsingError(
-                f"Manifest 'created_at' must be datetime or ISO string"
-            )
+            raise BSONParsingError(f"Manifest 'created_at' must be datetime or ISO string")
 
         logger.info(
             f"Parsed manifest: {manifest['name']} v{manifest['version']} ({manifest['rules_count']} rules)"
@@ -224,9 +219,7 @@ class BSONParserService:
         missing = [f for f in required_fields if f not in manifest]
 
         if missing:
-            raise BSONParsingError(
-                f"Manifest missing required fields: {', '.join(missing)}"
-            )
+            raise BSONParsingError(f"Manifest missing required fields: {', '.join(missing)}")
 
         # Convert created_at to datetime if string
         if isinstance(manifest["created_at"], str):
@@ -265,15 +258,11 @@ class BSONParserService:
 
         # Find all JSON files (backward compatibility)
         json_files = list(extracted_path.glob("**/*.json"))
-        json_files = [
-            f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]
-        ]
+        json_files = [f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]]
 
         all_files = bson_files + json_files
 
-        logger.info(
-            f"Found {len(bson_files)} BSON files and {len(json_files)} JSON files"
-        )
+        logger.info(f"Found {len(bson_files)} BSON files and {len(json_files)} JSON files")
 
         # Check rule count limit
         if len(all_files) > max_rules:
@@ -327,8 +316,7 @@ class BSONParserService:
 
         # Log summary
         logger.info(
-            f"Parsed {len(rules)} rules successfully, "
-            f"{len(self.parsing_errors)} errors"
+            f"Parsed {len(rules)} rules successfully, " f"{len(self.parsing_errors)} errors"
         )
 
         if self.parsing_errors:

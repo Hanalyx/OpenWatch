@@ -48,12 +48,8 @@ def log_audit_event(
 
         # ENHANCED DEFENSIVE FIX: Handle parameter conflicts gracefully
         if isinstance(user_id, dict):
-            logger.warning(
-                f"⚠️ AUDIT PARAMETER CONFLICT - attempting to fix automatically"
-            )
-            logger.warning(
-                f"Invalid user_id parameter type: dict {user_id}. Expected int or None."
-            )
+            logger.warning(f"⚠️ AUDIT PARAMETER CONFLICT - attempting to fix automatically")
+            logger.warning(f"Invalid user_id parameter type: dict {user_id}. Expected int or None.")
 
             # Special SSH-specific automatic fix
             if (
@@ -74,9 +70,7 @@ def log_audit_event(
             logger.warning(f"All parameters received (audit_db.log_audit_event):")
             logger.warning(f"  db: {type(db)}")
             logger.warning(f"  action: {action} (type: {type(action)})")
-            logger.warning(
-                f"  resource_type: {resource_type} (type: {type(resource_type)})"
-            )
+            logger.warning(f"  resource_type: {resource_type} (type: {type(resource_type)})")
             logger.warning(f"  resource_id: {resource_id} (type: {type(resource_id)})")
             logger.warning(f"  user_id: {user_id} (type: {type(user_id)})")
             logger.warning(f"  ip_address: {ip_address} (type: {type(ip_address)})")
@@ -90,9 +84,7 @@ def log_audit_event(
             logger.error(
                 f"Invalid ip_address parameter type: {type(ip_address)} {ip_address}. Expected str."
             )
-            logger.error(
-                f"Action: {action}, Resource: {resource_type}, User ID: {user_id}"
-            )
+            logger.error(f"Action: {action}, Resource: {resource_type}, User ID: {user_id}")
             import traceback
 
             logger.error(f"Call stack: {traceback.format_stack()}")
@@ -127,9 +119,7 @@ def log_audit_event(
             logger.error(f"🚨 CRITICAL: SSH audit conflict at DB execution level!")
             logger.error(f"user_id contains policy data: {user_id}")
             logger.error(f"action: {action}")
-            logger.error(
-                f"This will cause PostgreSQL adapter error - blocking execution"
-            )
+            logger.error(f"This will cause PostgreSQL adapter error - blocking execution")
             return True  # Block the database call to prevent crash
 
         db.execute(query, exec_params)

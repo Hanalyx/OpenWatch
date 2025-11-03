@@ -305,12 +305,7 @@ class ComplianceRulesSecurityService:
         Returns:
             True if path traversal detected
         """
-        return (
-            path.startswith("/")
-            or path.startswith("\\")
-            or ".." in path
-            or path.startswith("~")
-        )
+        return path.startswith("/") or path.startswith("\\") or ".." in path or path.startswith("~")
 
     def _is_forbidden_filename(self, filename: str) -> bool:
         """
@@ -375,9 +370,7 @@ class ComplianceRulesSecurityService:
 
         return False
 
-    async def _validate_archive_structure(
-        self, extracted_path: Path
-    ) -> SecurityCheckResult:
+    async def _validate_archive_structure(self, extracted_path: Path) -> SecurityCheckResult:
         """
         Validate archive has required structure
 
@@ -403,9 +396,7 @@ class ComplianceRulesSecurityService:
         bson_files = [f for f in bson_files if f.name != "manifest.bson"]
 
         json_files = list(extracted_path.glob("**/*.json"))
-        json_files = [
-            f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]
-        ]
+        json_files = [f for f in json_files if f.name not in ["manifest.json", "checksums.sha512"]]
 
         total_rule_files = len(bson_files) + len(json_files)
 
@@ -446,9 +437,7 @@ class ComplianceRulesSecurityService:
             },
         )
 
-    async def _validate_file_contents(
-        self, extracted_path: Path
-    ) -> List[SecurityCheckResult]:
+    async def _validate_file_contents(self, extracted_path: Path) -> List[SecurityCheckResult]:
         """
         Validate individual file contents
 
@@ -464,17 +453,14 @@ class ComplianceRulesSecurityService:
         all_files = [
             f
             for f in all_files
-            if f.is_file()
-            and f.name not in ["manifest.bson", "manifest.json", "checksums.sha512"]
+            if f.is_file() and f.name not in ["manifest.bson", "manifest.json", "checksums.sha512"]
         ]
 
         # Validate each file
         for file_path in all_files:
             # Allow XML files in oval/ directory (OVAL definitions for compliance checks)
             relative_path = str(file_path.relative_to(extracted_path))
-            is_oval_file = (
-                relative_path.startswith("oval/") and file_path.suffix == ".xml"
-            )
+            is_oval_file = relative_path.startswith("oval/") and file_path.suffix == ".xml"
 
             # Check extension is allowed
             if not is_oval_file and file_path.suffix not in self.ALLOWED_EXTENSIONS:
@@ -594,14 +580,11 @@ class ComplianceRulesSecurityService:
             "total_checks": total_checks,
             "passed_checks": passed_checks,
             "failed_checks": failed_checks,
-            "critical_failures": len(
-                [c for c in by_severity["critical"] if not c.passed]
-            ),
+            "critical_failures": len([c for c in by_severity["critical"] if not c.passed]),
             "high_failures": len([c for c in by_severity["high"] if not c.passed]),
             "medium_failures": len([c for c in by_severity["medium"] if not c.passed]),
             "checks_by_severity": {
-                severity: len(checks_list)
-                for severity, checks_list in by_severity.items()
+                severity: len(checks_list) for severity, checks_list in by_severity.items()
             },
             "validation_passed": failed_checks == 0
             or all(c.passed or c.severity in ["low", "info"] for c in checks),

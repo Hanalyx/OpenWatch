@@ -89,9 +89,7 @@ def decrypt_credentials(encrypted_data: Union[bytes, str, memoryview]) -> str:
         raise ValueError(f"Failed to decrypt credentials: {type(e).__name__}: {e}")
 
 
-def encrypt_credentials(
-    plaintext: str, return_base64: bool = True
-) -> Union[bytes, str]:
+def encrypt_credentials(plaintext: str, return_base64: bool = True) -> Union[bytes, str]:
     """
     Encrypt credentials using the new encryption format.
 
@@ -167,9 +165,7 @@ def verify_encryption() -> bool:
         decrypted = decrypt_credentials(encrypted)
 
         if decrypted != test_data:
-            logger.error(
-                f"Encryption verification mismatch: {decrypted} != {test_data}"
-            )
+            logger.error(f"Encryption verification mismatch: {decrypted} != {test_data}")
             return False
 
         logger.info("Encryption verification passed")

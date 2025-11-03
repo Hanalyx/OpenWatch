@@ -66,9 +66,7 @@ class RuleVersioningService:
         """
         # Filter out metadata fields
         content_dict = {
-            k: v
-            for k, v in rule_data.items()
-            if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS
+            k: v for k, v in rule_data.items() if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS
         }
 
         # Sort keys for deterministic hashing
@@ -140,18 +138,12 @@ class RuleVersioningService:
         if isinstance(val1, dict):
             if set(val1.keys()) != set(val2.keys()):
                 return False
-            return all(
-                RuleVersioningService._values_equal(val1[k], val2[k])
-                for k in val1.keys()
-            )
+            return all(RuleVersioningService._values_equal(val1[k], val2[k]) for k in val1.keys())
 
         if isinstance(val1, list):
             if len(val1) != len(val2):
                 return False
-            return all(
-                RuleVersioningService._values_equal(v1, v2)
-                for v1, v2 in zip(val1, val2)
-            )
+            return all(RuleVersioningService._values_equal(v1, v2) for v1, v2 in zip(val1, val2))
 
         return val1 == val2
 
@@ -311,9 +303,7 @@ class RuleVersioningService:
         return versioned_rule
 
     @staticmethod
-    def get_field_change_description(
-        field_name: str, old_value: Any, new_value: Any
-    ) -> str:
+    def get_field_change_description(field_name: str, old_value: Any, new_value: Any) -> str:
         """
         Generate human-readable description of a field change
 

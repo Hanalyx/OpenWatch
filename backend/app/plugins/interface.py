@@ -188,9 +188,7 @@ class RemediationPlugin(PluginInterface):
         pass
 
     @abstractmethod
-    async def get_remediation_plan(
-        self, failed_rules: List[str], host_config: Dict
-    ) -> Dict:
+    async def get_remediation_plan(self, failed_rules: List[str], host_config: Dict) -> Dict:
         """Get remediation plan for multiple failed rules"""
         pass
 
@@ -251,9 +249,7 @@ class AuthenticationPlugin(PluginInterface):
         pass
 
     @abstractmethod
-    async def authorize_action(
-        self, user_info: Dict, action: str, resource: str
-    ) -> bool:
+    async def authorize_action(self, user_info: Dict, action: str, resource: str) -> bool:
         """Check if user is authorized for specific action on resource"""
         pass
 

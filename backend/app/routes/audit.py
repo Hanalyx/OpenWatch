@@ -220,9 +220,7 @@ async def get_audit_stats(
         raise
     except Exception as e:
         logger.error(f"Error retrieving audit stats: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve audit statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve audit statistics")
 
 
 @router.post("/log")

@@ -60,16 +60,10 @@ class GroupComplianceScanRequest(BaseModel):
     scan_options: Optional[Dict[str, Any]] = Field(
         default_factory=dict, description="Additional scan options"
     )
-    email_notifications: bool = Field(
-        False, description="Send email notifications on completion"
-    )
+    email_notifications: bool = Field(False, description="Send email notifications on completion")
     generate_reports: bool = Field(True, description="Generate compliance reports")
-    concurrent_scans: int = Field(
-        5, ge=1, le=20, description="Maximum concurrent scans"
-    )
-    scan_timeout: int = Field(
-        3600, ge=300, le=7200, description="Scan timeout in seconds"
-    )
+    concurrent_scans: int = Field(5, ge=1, le=20, description="Maximum concurrent scans")
+    scan_timeout: int = Field(3600, ge=300, le=7200, description="Scan timeout in seconds")
 
 
 class GroupScanScheduleRequest(BaseModel):
@@ -83,9 +77,7 @@ class GroupScanScheduleRequest(BaseModel):
         ..., description="Target compliance framework"
     )
     scan_options: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    email_notifications: bool = Field(
-        True, description="Send notifications for scheduled scans"
-    )
+    email_notifications: bool = Field(True, description="Send notifications for scheduled scans")
 
     class Config:
         schema_extra = {
@@ -110,9 +102,7 @@ class GroupComplianceScanResponse(BaseModel):
     total_hosts: int = Field(..., description="Total number of hosts to scan")
     status: ScanStatus = Field(..., description="Current scan status")
     estimated_completion: datetime = Field(..., description="Estimated completion time")
-    compliance_framework: Optional[str] = Field(
-        ..., description="Target compliance framework"
-    )
+    compliance_framework: Optional[str] = Field(..., description="Target compliance framework")
     profile_id: Optional[str] = Field(..., description="Compliance profile being used")
     scan_started_at: datetime = Field(default_factory=datetime.utcnow)
 

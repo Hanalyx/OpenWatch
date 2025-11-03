@@ -44,9 +44,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
 
         self.max_parallel_scans = max_parallel_scans
 
-        logger.info(
-            f"CLI SCAP Scanner initialized with max {max_parallel_scans} parallel scans"
-        )
+        logger.info(f"CLI SCAP Scanner initialized with max {max_parallel_scans} parallel scans")
 
     async def scan_single_host(
         self, host_config: Dict, profile_id: str, content_path: str, rule_id: str = None
@@ -66,9 +64,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
         try:
             scan_id = str(uuid.uuid4())
 
-            logger.info(
-                f"Starting scan {scan_id} for {host_config.get('hostname', 'localhost')}"
-            )
+            logger.info(f"Starting scan {scan_id} for {host_config.get('hostname', 'localhost')}")
 
             # Determine if this is a local or remote scan
             hostname = host_config.get("hostname", "localhost")
@@ -93,9 +89,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
                 )
 
         except Exception as e:
-            logger.error(
-                f"Scan failed for {host_config.get('hostname', 'unknown')}: {e}"
-            )
+            logger.error(f"Scan failed for {host_config.get('hostname', 'unknown')}: {e}")
             return {
                 "scan_id": scan_id if "scan_id" in locals() else str(uuid.uuid4()),
                 "hostname": host_config.get("hostname", "unknown"),
@@ -302,11 +296,8 @@ class SCAPCLIScanner(BaseSCAPScanner):
                         [
                             r
                             for r in rule_results
-                            if r.find("{http://checklists.nist.gov/xccdf/1.2}result")
-                            is not None
-                            and r.find(
-                                "{http://checklists.nist.gov/xccdf/1.2}result"
-                            ).text
+                            if r.find("{http://checklists.nist.gov/xccdf/1.2}result") is not None
+                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text
                             == "pass"
                         ]
                     )
@@ -315,11 +306,8 @@ class SCAPCLIScanner(BaseSCAPScanner):
                         [
                             r
                             for r in rule_results
-                            if r.find("{http://checklists.nist.gov/xccdf/1.2}result")
-                            is not None
-                            and r.find(
-                                "{http://checklists.nist.gov/xccdf/1.2}result"
-                            ).text
+                            if r.find("{http://checklists.nist.gov/xccdf/1.2}result") is not None
+                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text
                             == "fail"
                         ]
                     )
@@ -367,9 +355,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
                 hostname, port, username, auth_method, credential
             )
             if not connection_test["success"]:
-                raise ScanExecutionError(
-                    f"SSH connection failed: {connection_test['message']}"
-                )
+                raise ScanExecutionError(f"SSH connection failed: {connection_test['message']}")
 
             # Create scan directory and get file paths using base class methods
             scan_dir = self.create_scan_directory(scan_id)
@@ -389,9 +375,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
                 )
             elif auth_method in ["ssh-key", "ssh_key"]:
                 key = self.connection_manager.validate_and_parse_key(credential)
-                ssh.connect(
-                    hostname, port=port, username=username, pkey=key, timeout=30
-                )
+                ssh.connect(hostname, port=port, username=username, pkey=key, timeout=30)
             else:
                 raise ScanExecutionError(f"Unsupported auth method: {auth_method}")
 
@@ -456,9 +440,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
         """Generate summary report from multiple scan results"""
         try:
             total_scans = len(scan_results)
-            successful_scans = len(
-                [r for r in scan_results if r.get("status") == "completed"]
-            )
+            successful_scans = len([r for r in scan_results if r.get("status") == "completed"])
             failed_scans = total_scans - successful_scans
 
             # Aggregate rule statistics
@@ -466,9 +448,7 @@ class SCAPCLIScanner(BaseSCAPScanner):
             total_passed = sum(r.get("rules_passed", 0) for r in scan_results)
             total_failed = sum(r.get("rules_failed", 0) for r in scan_results)
 
-            overall_score = (
-                (total_passed / max(total_rules, 1)) * 100 if total_rules > 0 else 0
-            )
+            overall_score = (total_passed / max(total_rules, 1)) * 100 if total_rules > 0 else 0
 
             report = {
                 "report_id": str(uuid.uuid4()),

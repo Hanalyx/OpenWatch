@@ -69,9 +69,7 @@ class ComplianceOverview(BaseModel):
 @router.get("/semantic-rules")
 async def get_semantic_rules(
     framework: Optional[str] = Query(None, description="Filter by framework"),
-    business_impact: Optional[str] = Query(
-        None, description="Filter by business impact"
-    ),
+    business_impact: Optional[str] = Query(None, description="Filter by business impact"),
     remediation_available: Optional[bool] = Query(
         None, description="Filter by remediation availability"
     ),
@@ -143,9 +141,7 @@ async def get_semantic_rules(
 
     except Exception as e:
         logger.error(f"Error retrieving semantic rules: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve semantic rules: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve semantic rules: {str(e)}")
 
 
 @router.get("/framework-intelligence")
@@ -193,9 +189,7 @@ async def get_framework_intelligence(
                 WHERE :framework = ANY(applicable_frameworks)
                 AND array_length(applicable_frameworks, 1) > 1
             """
-            cross_result = db.execute(
-                text(cross_framework_query), {"framework": framework_key}
-            )
+            cross_result = db.execute(text(cross_framework_query), {"framework": framework_key})
             cross_framework_count = cross_result.fetchone().cross_framework_count or 0
 
             remediation_coverage = 0
@@ -222,8 +216,7 @@ async def get_framework_intelligence(
                         "Ubuntu 22.04",
                         "Oracle Linux 8",
                     ],
-                    "compliance_score": 85
-                    + (framework_key == "stig" and 10 or 5),  # Mock data
+                    "compliance_score": 85 + (framework_key == "stig" and 10 or 5),  # Mock data
                 }
             )
 
@@ -314,34 +307,22 @@ async def get_semantic_analysis(
         analysis = result.fetchone()
 
         if not analysis:
-            raise HTTPException(
-                status_code=404, detail="Semantic analysis not found for this scan"
-            )
+            raise HTTPException(status_code=404, detail="Semantic analysis not found for this scan")
 
         return {
             "scan_id": str(analysis.scan_id),
             "host_id": str(analysis.host_id),
             "semantic_rules_count": analysis.semantic_rules_count,
             "frameworks_analyzed": (
-                json.loads(analysis.frameworks_analyzed)
-                if analysis.frameworks_analyzed
-                else []
+                json.loads(analysis.frameworks_analyzed) if analysis.frameworks_analyzed else []
             ),
             "remediation_available_count": analysis.remediation_available_count,
             "processing_metadata": (
-                json.loads(analysis.processing_metadata)
-                if analysis.processing_metadata
-                else {}
+                json.loads(analysis.processing_metadata) if analysis.processing_metadata else {}
             ),
-            "analysis_data": (
-                json.loads(analysis.analysis_data) if analysis.analysis_data else {}
-            ),
-            "created_at": (
-                analysis.created_at.isoformat() if analysis.created_at else None
-            ),
-            "updated_at": (
-                analysis.updated_at.isoformat() if analysis.updated_at else None
-            ),
+            "analysis_data": (json.loads(analysis.analysis_data) if analysis.analysis_data else {}),
+            "created_at": (analysis.created_at.isoformat() if analysis.created_at else None),
+            "updated_at": (analysis.updated_at.isoformat() if analysis.updated_at else None),
         }
 
     except HTTPException:
@@ -393,23 +374,15 @@ async def get_compliance_matrix(
                     "total_rules": row.total_rules,
                     "passed_rules": row.passed_rules,
                     "failed_rules": row.failed_rules,
-                    "previous_score": (
-                        float(row.previous_score) if row.previous_score else None
-                    ),
+                    "previous_score": (float(row.previous_score) if row.previous_score else None),
                     "trend": row.trend,
                     "last_scan_id": str(row.last_scan_id) if row.last_scan_id else None,
-                    "last_updated": (
-                        row.last_updated.isoformat() if row.last_updated else None
-                    ),
+                    "last_updated": (row.last_updated.isoformat() if row.last_updated else None),
                     "predicted_next_score": (
-                        float(row.predicted_next_score)
-                        if row.predicted_next_score
-                        else None
+                        float(row.predicted_next_score) if row.predicted_next_score else None
                     ),
                     "prediction_confidence": (
-                        float(row.prediction_confidence)
-                        if row.prediction_confidence
-                        else None
+                        float(row.prediction_confidence) if row.prediction_confidence else None
                     ),
                 }
             )
@@ -654,9 +627,7 @@ async def get_upload_history(
     """
     try:
         # Query MongoDB for upload history, sorted by most recent first
-        upload_records = (
-            await UploadHistory.find().sort("-uploaded_at").limit(limit).to_list()
-        )
+        upload_records = await UploadHistory.find().sort("-uploaded_at").limit(limit).to_list()
 
         # Convert Beanie documents to dictionaries
         uploads = []
@@ -687,15 +658,11 @@ async def get_upload_history(
 
     except Exception as e:
         logger.error(f"Error retrieving upload history: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve upload history: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve upload history: {str(e)}")
 
 
 @router.get("/upload-history/{upload_id}/export")
-async def export_upload_report(
-    upload_id: str, current_user: dict = Depends(get_current_user)
-):
+async def export_upload_report(upload_id: str, current_user: dict = Depends(get_current_user)):
     """
     Export upload report as JSON file
 
@@ -711,9 +678,7 @@ async def export_upload_report(
     """
     try:
         # Find upload record by upload_id
-        upload_record = await UploadHistory.find_one(
-            UploadHistory.upload_id == upload_id
-        )
+        upload_record = await UploadHistory.find_one(UploadHistory.upload_id == upload_id)
 
         if not upload_record:
             raise HTTPException(
@@ -752,9 +717,7 @@ async def export_upload_report(
         }
 
         # Generate filename
-        safe_filename = upload_record.filename.replace(".tar.gz", "").replace(
-            ".tgz", ""
-        )
+        safe_filename = upload_record.filename.replace(".tar.gz", "").replace(".tgz", "")
         export_filename = f"{safe_filename}_upload_report_{upload_id[:8]}.json"
 
         logger.info(f"Exporting upload report for upload_id={upload_id}")
@@ -763,9 +726,7 @@ async def export_upload_report(
         return JSONResponse(
             content=report,
             media_type="application/json",
-            headers={
-                "Content-Disposition": f'attachment; filename="{export_filename}"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="{export_filename}"'},
         )
 
     except HTTPException:
@@ -773,6 +734,4 @@ async def export_upload_report(
 
     except Exception as e:
         logger.error(f"Error exporting upload report: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to export upload report: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to export upload report: {str(e)}")

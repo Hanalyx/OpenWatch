@@ -59,9 +59,7 @@ class RemediationExecutionStatus(str, Enum):
 class RemediationSystemInfo(BaseModel):
     """Standard system information that all remediation systems must provide"""
 
-    system_id: str = Field(
-        ..., description="Unique identifier for the remediation system"
-    )
+    system_id: str = Field(..., description="Unique identifier for the remediation system")
     name: str = Field(..., description="Human-readable system name")
     version: str = Field(..., description="System version")
     api_version: str = Field(..., description="Supported ORSA API version")
@@ -83,23 +81,13 @@ class RemediationSystemInfo(BaseModel):
     authentication_type: str = Field(
         ..., description="Authentication method (apikey, oauth2, jwt, etc.)"
     )
-    webhook_support: bool = Field(
-        default=False, description="Supports webhook callbacks"
-    )
+    webhook_support: bool = Field(default=False, description="Supports webhook callbacks")
 
     # Operational info
-    max_concurrent_jobs: int = Field(
-        default=10, description="Maximum concurrent remediation jobs"
-    )
-    typical_job_timeout: int = Field(
-        default=1800, description="Typical job timeout in seconds"
-    )
-    supports_dry_run: bool = Field(
-        default=True, description="Supports dry-run/check mode"
-    )
-    supports_rollback: bool = Field(
-        default=False, description="Supports rollback operations"
-    )
+    max_concurrent_jobs: int = Field(default=10, description="Maximum concurrent remediation jobs")
+    typical_job_timeout: int = Field(default=1800, description="Typical job timeout in seconds")
+    supports_dry_run: bool = Field(default=True, description="Supports dry-run/check mode")
+    supports_rollback: bool = Field(default=False, description="Supports rollback operations")
 
 
 class RemediationRule(BaseModel):
@@ -111,12 +99,8 @@ class RemediationRule(BaseModel):
     description: str = Field(..., description="Detailed rule description")
 
     # Classification
-    category: str = Field(
-        ..., description="Rule category (auth, network, crypto, etc.)"
-    )
-    severity: str = Field(
-        ..., description="Rule severity (low, medium, high, critical)"
-    )
+    category: str = Field(..., description="Rule category (auth, network, crypto, etc.)")
+    severity: str = Field(..., description="Rule severity (low, medium, high, critical)")
     tags: List[str] = Field(default_factory=list, description="Searchable tags")
 
     # Framework mappings (key innovation from AEGIS)
@@ -133,12 +117,8 @@ class RemediationRule(BaseModel):
     # Operational metadata
     reversible: bool = Field(default=False, description="Can be rolled back")
     requires_reboot: bool = Field(default=False, description="Requires system reboot")
-    prerequisites: List[str] = Field(
-        default_factory=list, description="Required system state"
-    )
-    side_effects: List[str] = Field(
-        default_factory=list, description="Known side effects"
-    )
+    prerequisites: List[str] = Field(default_factory=list, description="Required system state")
+    side_effects: List[str] = Field(default_factory=list, description="Known side effects")
 
 
 class RemediationJob(BaseModel):
@@ -159,9 +139,7 @@ class RemediationJob(BaseModel):
     # Execution options
     dry_run: bool = Field(default=False, description="Perform dry-run only")
     timeout: int = Field(default=1800, description="Job timeout in seconds")
-    parallel_execution: bool = Field(
-        default=False, description="Enable parallel rule execution"
-    )
+    parallel_execution: bool = Field(default=False, description="Enable parallel rule execution")
 
     # Context from OpenWatch
     openwatch_context: Dict[str, Any] = Field(
@@ -170,9 +148,7 @@ class RemediationJob(BaseModel):
 
     # Integration
     callback_url: Optional[HttpUrl] = Field(None, description="Webhook callback URL")
-    callback_auth: Optional[Dict[str, str]] = Field(
-        None, description="Callback authentication"
-    )
+    callback_auth: Optional[Dict[str, str]] = Field(None, description="Callback authentication")
 
 
 class RemediationResult(BaseModel):
@@ -193,12 +169,8 @@ class RemediationResult(BaseModel):
     error_message: Optional[str] = None
 
     # State tracking (inspired by AEGIS forensics)
-    before_state: Optional[Dict[str, Any]] = Field(
-        None, description="System state before"
-    )
-    after_state: Optional[Dict[str, Any]] = Field(
-        None, description="System state after"
-    )
+    before_state: Optional[Dict[str, Any]] = Field(None, description="System state before")
+    after_state: Optional[Dict[str, Any]] = Field(None, description="System state after")
 
     # Execution forensics
     commands_executed: List[str] = Field(default_factory=list)
@@ -289,9 +261,7 @@ class RemediationSystemInterface(ABC):
 
     # Optional methods with default implementations
 
-    async def get_rule_details(
-        self, rule_name: str, platform: str
-    ) -> Optional[RemediationRule]:
+    async def get_rule_details(self, rule_name: str, platform: str) -> Optional[RemediationRule]:
         """Get detailed information about specific rule"""
         rules = await self.get_available_rules(platform=platform)
         return next((r for r in rules if r.semantic_name == rule_name), None)
@@ -367,9 +337,7 @@ class OpenWatchRemediationSystemAdapter:
             type=PluginType.REMEDIATION,
             openwatch_version=">=2.0.0",
             platforms=system_info.supported_platforms,
-            capabilities=self._map_capabilities_to_plugin_capabilities(
-                system_info.capabilities
-            ),
+            capabilities=self._map_capabilities_to_plugin_capabilities(system_info.capabilities),
             requirements={
                 "api_version": system_info.api_version,
                 "authentication": system_info.authentication_type,
@@ -429,9 +397,7 @@ class OpenWatchRemediationSystemAdapter:
             executors={"remediation_api": executor},
             files={
                 "system_info.json": json.dumps(system_info.dict(), indent=2),
-                "available_rules.json": json.dumps(
-                    [r.dict() for r in available_rules], indent=2
-                ),
+                "available_rules.json": json.dumps([r.dict() for r in available_rules], indent=2),
                 "client.py": self._generate_client_code(),
             },
             enabled_platforms=system_info.supported_platforms,
@@ -442,9 +408,7 @@ class OpenWatchRemediationSystemAdapter:
         )
 
         await plugin.save()
-        logger.info(
-            f"Registered {system_info.name} as OpenWatch plugin: {plugin.plugin_id}"
-        )
+        logger.info(f"Registered {system_info.name} as OpenWatch plugin: {plugin.plugin_id}")
 
         return plugin
 
@@ -479,8 +443,7 @@ class OpenWatchRemediationSystemAdapter:
                 rules=remediation_rules,
                 framework=request.config_overrides.get("framework"),
                 dry_run=request.dry_run,
-                timeout=request.timeout_override
-                or self._system_info.typical_job_timeout,
+                timeout=request.timeout_override or self._system_info.typical_job_timeout,
                 openwatch_context=request.execution_context,
                 callback_url=request.config_overrides.get("callback_url"),
             )
@@ -540,9 +503,7 @@ class OpenWatchRemediationSystemAdapter:
         from ..models.plugin_models import PluginCapability
 
         mapping = {
-            RemediationSystemCapability.CONFIGURATION_MANAGEMENT: [
-                PluginCapability.ANSIBLE
-            ],
+            RemediationSystemCapability.CONFIGURATION_MANAGEMENT: [PluginCapability.ANSIBLE],
             RemediationSystemCapability.PACKAGE_MANAGEMENT: [PluginCapability.SHELL],
             RemediationSystemCapability.SECURITY_HARDENING: [
                 PluginCapability.ANSIBLE,
@@ -628,9 +589,7 @@ if __name__ == "__main__":
         matching_rules = await self.get_rules_for_openwatch_rule(rule_id, platform)
         return [rule.semantic_name for rule in matching_rules]
 
-    async def _wait_for_job_completion(
-        self, job_id: str, timeout: int
-    ) -> RemediationJobResult:
+    async def _wait_for_job_completion(self, job_id: str, timeout: int) -> RemediationJobResult:
         """Wait for remediation job to complete"""
         start_time = datetime.utcnow()
 
@@ -667,9 +626,7 @@ if __name__ == "__main__":
             execution_id=execution_id,
             plugin_id=plugin_id,
             status=(
-                "success"
-                if job_result.status == RemediationExecutionStatus.SUCCESS
-                else "failure"
+                "success" if job_result.status == RemediationExecutionStatus.SUCCESS else "failure"
             ),
             started_at=started_at,
             completed_at=job_result.completed_at or datetime.utcnow(),
@@ -682,16 +639,12 @@ if __name__ == "__main__":
             ),
             changes_made=job_result.system_changes_made,
             validation_passed=job_result.successful_rules > 0,
-            rollback_available=any(
-                r.rollback_available for r in job_result.rule_results
-            ),
+            rollback_available=any(r.rollback_available for r in job_result.rule_results),
             rollback_data=(
                 {
                     "job_id": job_result.job_id,
                     "rule_results": [
-                        r.dict()
-                        for r in job_result.rule_results
-                        if r.rollback_available
+                        r.dict() for r in job_result.rule_results if r.rollback_available
                     ],
                 }
                 if any(r.rollback_available for r in job_result.rule_results)

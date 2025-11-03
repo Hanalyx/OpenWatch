@@ -41,16 +41,12 @@ class CredentialCreateRequest(BaseModel):
     name: str = Field(..., description="Human-readable name for the credential")
     description: Optional[str] = Field(None, description="Optional description")
     scope: CredentialScope = Field(..., description="Credential scope")
-    target_id: Optional[str] = Field(
-        None, description="Target ID (required for host/group scope)"
-    )
+    target_id: Optional[str] = Field(None, description="Target ID (required for host/group scope)")
     username: str = Field(..., description="SSH username")
     auth_method: AuthMethod = Field(..., description="Authentication method")
     private_key: Optional[str] = Field(None, description="SSH private key content")
     password: Optional[str] = Field(None, description="SSH password")
-    private_key_passphrase: Optional[str] = Field(
-        None, description="SSH key passphrase"
-    )
+    private_key_passphrase: Optional[str] = Field(None, description="SSH key passphrase")
     is_default: bool = Field(False, description="Set as default for this scope")
 
 
@@ -114,19 +110,14 @@ async def create_credential(
         auth_service = get_auth_service(db, encryption_service)
 
         # Validate scope and target_id relationship
-        if (
-            request.scope in [CredentialScope.HOST, CredentialScope.GROUP]
-            and not request.target_id
-        ):
+        if request.scope in [CredentialScope.HOST, CredentialScope.GROUP] and not request.target_id:
             raise HTTPException(
                 status_code=400,
                 detail=f"target_id is required for {request.scope.value} scope",
             )
 
         if request.scope == CredentialScope.SYSTEM and request.target_id:
-            raise HTTPException(
-                status_code=400, detail="target_id must be null for system scope"
-            )
+            raise HTTPException(status_code=400, detail="target_id must be null for system scope")
 
         # Create credential data
         credential_data = CredentialData(
@@ -158,14 +149,10 @@ async def create_credential(
 
         # Return credential metadata (no sensitive data)
         credentials_list = auth_service.list_credentials()
-        created_credential = next(
-            (c for c in credentials_list if c["id"] == credential_id), None
-        )
+        created_credential = next((c for c in credentials_list if c["id"] == credential_id), None)
 
         if not created_credential:
-            raise HTTPException(
-                status_code=500, detail="Failed to retrieve created credential"
-            )
+            raise HTTPException(status_code=500, detail="Failed to retrieve created credential")
 
         return CredentialResponse(**created_credential)
 
@@ -244,9 +231,7 @@ async def resolve_credential(
         encryption_service = get_encryption_service_from_request(http_request)
         auth_service = get_auth_service(db, encryption_service)
 
-        credential = auth_service.resolve_credential(
-            target_id=target_id, use_default=use_default
-        )
+        credential = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
         if not credential:
             raise HTTPException(
@@ -289,9 +274,7 @@ async def get_credential_data(
         encryption_service = get_encryption_service_from_request(http_request)
         auth_service = get_auth_service(db, encryption_service)
 
-        credential = auth_service.resolve_credential(
-            target_id=target_id, use_default=use_default
-        )
+        credential = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
         if not credential:
             raise HTTPException(
@@ -333,9 +316,7 @@ async def get_system_default_credential(
         credential = auth_service.resolve_credential(use_default=True)
 
         if not credential:
-            raise HTTPException(
-                status_code=404, detail="No system default credential configured"
-            )
+            raise HTTPException(status_code=404, detail="No system default credential configured")
 
         return CredentialDataResponse(
             username=credential.username,
@@ -350,9 +331,7 @@ async def get_system_default_credential(
         raise
     except Exception as e:
         logger.error(f"Failed to get system default credential: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to get system default credential"
-        )
+        raise HTTPException(status_code=500, detail="Failed to get system default credential")
 
 
 @router.post("/validate")
