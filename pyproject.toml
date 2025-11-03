@@ -27,7 +27,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*", "validate_*"]
 markers = [
     "unit: Unit tests for individual components",
-    "integration: Integration tests for component interactions", 
+    "integration: Integration tests for component interactions",
     "performance: Performance and load tests",
     "security: Security and compliance validation tests",
     "scap: SCAP scanning and processing tests",
@@ -50,7 +50,7 @@ filterwarnings = [
 source = ["app"]
 omit = [
     "*/tests/*",
-    "*/validation/*", 
+    "*/validation/*",
     "*/migrations/*",
     "*/venv/*",
     "*/node_modules/*",
@@ -63,14 +63,14 @@ exclude_lines = [
     "pragma: no cover",
     "def __repr__",
     "raise AssertionError",
-    "raise NotImplementedError", 
+    "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
 
 [tool.black]
-line-length = 100
+line-length = 120
 target-version = ['py39', 'py310', 'py311']
 include = '\.pyi?$'
 extend-exclude = '''
@@ -91,7 +91,7 @@ extend-exclude = '''
 
 [tool.isort]
 profile = "black"
-line_length = 100
+line_length = 120
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
