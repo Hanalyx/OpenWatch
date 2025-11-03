@@ -13,6 +13,10 @@ results/*
 uploads/*
 !uploads/.gitkeep
 
+# Converted compliance rules (generated, not source code)
+compliance_rules_converted/*.json
+!compliance_rules_converted/README.md
+
 # Temporary data
 *.tmp
 *.temp
