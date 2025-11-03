@@ -29,6 +29,11 @@ env:
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.11'
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   analyze-dependencies:
     name: Analyze Dependency Changes
