@@ -393,9 +393,11 @@ async def quick_scan(
 
             if credential_data:
                 # Queue async validation
-                validation_task = background_tasks.add_task(
-                    validate_scan_async, scan_id, host_result, credential_data
-                )
+                # FIXME: Disabled - validate_scan_async function not yet implemented
+                # validation_task = background_tasks.add_task(
+                #     validate_scan_async, scan_id, host_result, credential_data
+                # )
+                pass
         except Exception as e:
             logger.warning(f"Pre-flight validation setup failed: {e}")
 

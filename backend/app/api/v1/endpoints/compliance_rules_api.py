@@ -958,5 +958,3 @@ async def get_framework_statistics_from_files() -> Dict[str, Any]:
         "total_rules_analyzed": 0,
         "source": "mongodb_empty",
     }
-
-    return result
