@@ -449,8 +449,8 @@ jobs:
           echo "## Frontend Dependencies" >> audit-report.md
           cd frontend
           echo "### Outdated Packages" >> ../audit-report.md
-          ncu --format json > ../frontend-outdated.json
-          
+          ncu --jsonUpgraded > ../frontend-outdated.json || echo "{}" > ../frontend-outdated.json
+
           # Count outdated packages
           OUTDATED_COUNT=$(jq '. | length' ../frontend-outdated.json)
           echo "**$OUTDATED_COUNT packages have updates available**" >> ../audit-report.md
