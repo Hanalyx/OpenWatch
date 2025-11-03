@@ -470,8 +470,13 @@ jobs:
           # Security vulnerabilities
           echo "### Security Vulnerabilities" >> ../audit-report.md
           npm audit --audit-level=low --format=json > ../frontend-audit.json || true
-          
-          VULN_COUNT=$(jq '.metadata.vulnerabilities | to_entries | map(.value) | add // 0' ../frontend-audit.json)
+
+          # Validate and parse npm audit JSON
+          if [ -f "../frontend-audit.json" ] && jq empty ../frontend-audit.json 2>/dev/null; then
+            VULN_COUNT=$(jq '.metadata.vulnerabilities | to_entries | map(.value) | add // 0' ../frontend-audit.json 2>/dev/null || echo "0")
+          else
+            VULN_COUNT="0"
+          fi
           echo "**$VULN_COUNT total vulnerabilities found**" >> ../audit-report.md
           echo "" >> ../audit-report.md
           
