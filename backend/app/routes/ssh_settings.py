@@ -144,7 +144,7 @@ async def set_ssh_policy(
         logger.info(f"Current user: {current_user}")
         logger.info(f"Policy request: {policy_request.policy}")
         try:
-# FIXME:             await log_enhanced_ssh_event(
+            # await log_enhanced_ssh_event(
                 db=db,
                 action="POLICY_UPDATED",
                 policy_data={
@@ -232,7 +232,7 @@ async def add_known_host(
 
         # Enhanced audit logging
         try:
-# FIXME:             await log_enhanced_ssh_event(
+            # await log_enhanced_ssh_event(
                 db=db,
                 action="KNOWN_HOST_ADDED",
                 policy_data={
@@ -300,7 +300,7 @@ async def remove_known_host(
 
         # Enhanced audit logging
         try:
-# FIXME:             await log_enhanced_ssh_event(
+            # await log_enhanced_ssh_event(
                 db=db,
                 action="KNOWN_HOST_REMOVED",
                 policy_data={
@@ -356,7 +356,7 @@ async def test_ssh_connectivity(
 
         # Enhanced audit logging
         try:
-# FIXME:             await log_enhanced_ssh_event(
+            # await log_enhanced_ssh_event(
                 db=db,
                 action="CONNECTIVITY_TEST",
                 policy_data={

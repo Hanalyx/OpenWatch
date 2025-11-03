@@ -850,7 +850,8 @@ def restore_scheduler_state():
     """Restore scheduler state from database on startup"""
     logger.info("restore_scheduler_state() function called")
     try:
-        _scheduler = None; # global _scheduler, _scheduler_interval
+        _scheduler = None
+        # global _scheduler, _scheduler_interval
 
         # Get database session
         from ..database import get_db
