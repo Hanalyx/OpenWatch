@@ -13,14 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from ..models.mongo_models import ComplianceRule, RuleIntelligence, UploadHistory
 from .compliance_rules_bson_parser import BSONParserService
-from .compliance_rules_deduplication_service import (
-    DeduplicationStrategy,
-    SmartDeduplicationService,
-)
-from .compliance_rules_dependency_service import (
-    InheritanceResolver,
-    RuleDependencyGraph,
-)
+from .compliance_rules_deduplication_service import DeduplicationStrategy, SmartDeduplicationService
+from .compliance_rules_dependency_service import InheritanceResolver, RuleDependencyGraph
 from .compliance_rules_security_service import ComplianceRulesSecurityService
 from .compliance_rules_versioning_service import RuleVersioningService
 

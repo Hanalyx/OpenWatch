@@ -220,7 +220,7 @@ class BackgroundMetricsUpdater:
                     text(
                         """
                     SELECT status, COUNT(*) as count
-                    FROM hosts 
+                    FROM hosts
                     WHERE is_active = true
                     GROUP BY status
                 """
@@ -238,7 +238,7 @@ class BackgroundMetricsUpdater:
                     text(
                         """
                     SELECT COUNT(*) as active_scans
-                    FROM scans 
+                    FROM scans
                     WHERE status IN ('running', 'pending')
                 """
                     )

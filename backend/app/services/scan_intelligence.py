@@ -154,20 +154,20 @@ class ScanIntelligenceService:
             result = self.db.execute(
                 text(
                     """
-                SELECT 
-                    h.id, h.hostname, h.ip_address, h.operating_system, 
+                SELECT
+                    h.id, h.hostname, h.ip_address, h.operating_system,
                     h.environment, h.tags, h.owner, h.port,
                     s.started_at as last_scan,
                     sr.score as compliance_score
                 FROM hosts h
                 LEFT JOIN (
-                    SELECT DISTINCT ON (host_id) host_id, started_at 
-                    FROM scans 
+                    SELECT DISTINCT ON (host_id) host_id, started_at
+                    FROM scans
                     WHERE status = 'completed'
                     ORDER BY host_id, started_at DESC
                 ) s ON h.id = s.host_id
                 LEFT JOIN scan_results sr ON sr.scan_id = (
-                    SELECT id FROM scans 
+                    SELECT id FROM scans
                     WHERE host_id = h.id AND status = 'completed'
                     ORDER BY started_at DESC LIMIT 1
                 )

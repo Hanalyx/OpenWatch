@@ -209,7 +209,7 @@ async def get_rule_scan_history(
         # Get from database first
         query = """
             SELECT scan_id, host_id, result, severity, scan_timestamp, duration_ms
-            FROM rule_scan_history 
+            FROM rule_scan_history
             WHERE rule_id = :rule_id
         """
         params = {"rule_id": rule_id}
@@ -319,7 +319,7 @@ async def create_remediation_plan(
         history_results = db.execute(
             text(
                 """
-            SELECT rule_id, severity FROM rule_scan_history 
+            SELECT rule_id, severity FROM rule_scan_history
             WHERE scan_id = :scan_id AND result = 'fail'
         """
             ),
@@ -491,8 +491,8 @@ def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, veri
         db.execute(
             text(
                 """
-            UPDATE remediation_plans 
-            SET status = :status, 
+            UPDATE remediation_plans
+            SET status = :status,
                 remediated_rules = :remediated_rules,
                 completed_at = NOW()
             WHERE aegis_job_id = :aegis_job_id

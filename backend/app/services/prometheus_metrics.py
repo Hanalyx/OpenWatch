@@ -10,16 +10,7 @@ import time
 from typing import Dict, Optional
 
 import psutil
-from prometheus_client import (
-    CollectorRegistry,
-    Counter,
-    Gauge,
-    Histogram,
-    Info,
-    generate_latest,
-    multiprocess,
-    values,
-)
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Info, generate_latest, multiprocess, values
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 

@@ -388,9 +388,9 @@ async def create_host(
         db.execute(
             text(
                 """
-            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port, 
+            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port,
                              username, auth_method, encrypted_credentials, is_active, created_at, updated_at)
-            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port, 
+            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port,
                     :username, :auth_method, :encrypted_credentials, :is_active, :created_at, :updated_at)
         """
             ),
@@ -599,7 +599,7 @@ async def update_host(
         current_host_result = db.execute(
             text(
                 """
-            SELECT hostname, ip_address, display_name, operating_system, port, 
+            SELECT hostname, ip_address, display_name, operating_system, port,
                    username, auth_method, description
             FROM hosts WHERE id = :id
         """
@@ -738,7 +738,7 @@ async def update_host(
         # Build SQL query with optional encrypted_credentials
         if encrypted_creds is not None or (host_update.auth_method == "system_default"):
             update_query = """
-                UPDATE hosts 
+                UPDATE hosts
                 SET hostname = :hostname,
                     ip_address = :ip_address,
                     display_name = :display_name,
@@ -754,7 +754,7 @@ async def update_host(
             update_params["encrypted_credentials"] = encrypted_creds
         else:
             update_query = """
-                UPDATE hosts 
+                UPDATE hosts
                 SET hostname = :hostname,
                     ip_address = :ip_address,
                     display_name = :display_name,
@@ -775,7 +775,7 @@ async def update_host(
         result = db.execute(
             text(
                 """
-            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system, 
+            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
                    hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
             FROM hosts h
@@ -933,7 +933,7 @@ async def delete_host_ssh_key(
         result = db.execute(
             text(
                 """
-            SELECT id, auth_method, ssh_key_fingerprint FROM hosts 
+            SELECT id, auth_method, ssh_key_fingerprint FROM hosts
             WHERE id = :id
         """
             ),
@@ -954,7 +954,7 @@ async def delete_host_ssh_key(
         db.execute(
             text(
                 """
-            UPDATE hosts SET 
+            UPDATE hosts SET
                 ssh_key_fingerprint = NULL,
                 ssh_key_type = NULL,
                 ssh_key_bits = NULL,

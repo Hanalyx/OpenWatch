@@ -20,11 +20,7 @@ import croniter
 from beanie import Document
 from pydantic import BaseModel, Field, validator
 
-from .bulk_remediation_service import (
-    BulkExecutionStrategy,
-    BulkRemediationRequest,
-    BulkRemediationService,
-)
+from .bulk_remediation_service import BulkExecutionStrategy, BulkRemediationRequest, BulkRemediationService
 
 logger = logging.getLogger(__name__)
 

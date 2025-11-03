@@ -192,7 +192,7 @@ async def get_group_compliance_report(
         text(
             f"""
         WITH latest_scans AS (
-            SELECT DISTINCT ON (h.id) 
+            SELECT DISTINCT ON (h.id)
                 h.id as host_id,
                 h.hostname,
                 h.ip_address,
@@ -213,7 +213,7 @@ async def get_group_compliance_report(
             JOIN scans s ON h.id = s.host_id
             JOIN scan_results sr ON s.id = sr.scan_id
             JOIN scap_content sc ON s.content_id = sc.id
-            WHERE hgm.group_id = :group_id 
+            WHERE hgm.group_id = :group_id
                 AND s.status = 'completed'
                 AND h.active = true
                 {date_filter}
@@ -265,7 +265,7 @@ async def get_group_compliance_report(
     trend_data = db.execute(
         text(
             """
-        SELECT 
+        SELECT
             DATE(s.completed_at) as scan_date,
             AVG(CAST(sr.score AS FLOAT)) as avg_score,
             COUNT(*) as scan_count
@@ -287,7 +287,7 @@ async def get_group_compliance_report(
     failed_rules = db.execute(
         text(
             """
-        SELECT 
+        SELECT
             srd.rule_id,
             srd.rule_title,
             srd.severity,
@@ -377,7 +377,7 @@ async def get_group_compliance_metrics(
     metrics = db.execute(
         text(
             """
-        SELECT 
+        SELECT
             COUNT(DISTINCT h.id) as total_hosts,
             COUNT(DISTINCT s.id) as total_scans,
             AVG(CAST(sr.score AS FLOAT)) as avg_compliance_score,
@@ -401,7 +401,7 @@ async def get_group_compliance_metrics(
     trend_metrics = db.execute(
         text(
             """
-        SELECT 
+        SELECT
             DATE_TRUNC('week', s.completed_at) as week_start,
             AVG(CAST(sr.score AS FLOAT)) as avg_score,
             COUNT(*) as scan_count,
@@ -517,7 +517,7 @@ async def get_group_scan_history(
     history = db.execute(
         text(
             """
-        SELECT 
+        SELECT
             gss.session_id,
             gss.status,
             gss.total_hosts,

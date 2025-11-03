@@ -366,7 +366,7 @@ class AuthorizationService:
             # Build query to find applicable policies
             query = text(
                 """
-                SELECT 
+                SELECT
                     hp.id, hp.user_id, hp.group_id, hp.role_name, hp.host_id,
                     hp.actions, hp.effect, hp.conditions, hp.granted_by,
                     hp.granted_at, hp.expires_at, 'host_permission' as policy_type
@@ -375,7 +375,7 @@ class AuthorizationService:
                     AND (hp.expires_at IS NULL OR hp.expires_at > :now)
                     AND (
                         (hp.user_id = :user_id) OR
-                        (hp.group_id IN :user_groups) OR  
+                        (hp.group_id IN :user_groups) OR
                         (hp.role_name IN :user_roles)
                     )
                     AND (
@@ -395,10 +395,10 @@ class AuthorizationService:
                             )
                         ))
                     )
-                
+
                 UNION ALL
-                
-                SELECT 
+
+                SELECT
                     hgp.id, hgp.user_id, hgp.group_id, hgp.role_name, hgp.host_group_id as host_id,
                     hgp.actions, hgp.effect, hgp.conditions, hgp.granted_by,
                     hgp.granted_at, hgp.expires_at, 'host_group_permission' as policy_type
@@ -412,10 +412,10 @@ class AuthorizationService:
                         (hgp.role_name IN :user_roles)
                     )
                     AND hgp.host_group_id IN (
-                        SELECT hgm.group_id FROM host_group_memberships hgm 
+                        SELECT hgm.group_id FROM host_group_memberships hgm
                         WHERE hgm.host_id = :resource_id
                     )
-                
+
                 ORDER BY granted_at DESC
             """
             )
@@ -601,7 +601,7 @@ class AuthorizationService:
                     """
                 SELECT u.id, u.username, u.role,
                        COALESCE(
-                           JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL), 
+                           JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
                            '[]'::json
                        ) as user_groups
                 FROM users u
@@ -684,7 +684,7 @@ class AuthorizationService:
             self.db.execute(
                 text(
                     """
-                INSERT INTO authorization_audit_log 
+                INSERT INTO authorization_audit_log
                 (id, event_type, user_id, resource_type, resource_id, action, decision,
                  policies_evaluated, context, ip_address, user_agent, session_id,
                  evaluation_time_ms, reason, risk_score, timestamp)
@@ -757,7 +757,7 @@ class AuthorizationService:
             self.db.execute(
                 text(
                     """
-                INSERT INTO authorization_audit_log 
+                INSERT INTO authorization_audit_log
                 (id, event_type, user_id, resource_type, resource_id, action, decision,
                  policies_evaluated, context, ip_address, user_agent, session_id,
                  evaluation_time_ms, reason, risk_score, timestamp)
@@ -925,7 +925,7 @@ class AuthorizationService:
             self.db.execute(
                 text(
                     """
-                INSERT INTO host_permissions 
+                INSERT INTO host_permissions
                 (id, user_id, group_id, role_name, host_id, actions, effect, conditions,
                  granted_by, granted_at, expires_at, is_active)
                 VALUES (:id, :user_id, :group_id, :role_name, :host_id, :actions, :effect,
@@ -973,7 +973,7 @@ class AuthorizationService:
             result = self.db.execute(
                 text(
                     """
-                UPDATE host_permissions 
+                UPDATE host_permissions
                 SET is_active = false, updated_at = :now
                 WHERE id = :permission_id
             """
@@ -986,7 +986,7 @@ class AuthorizationService:
                 result = self.db.execute(
                     text(
                         """
-                    UPDATE host_group_permissions 
+                    UPDATE host_group_permissions
                     SET is_active = false, updated_at = :now
                     WHERE id = :permission_id
                 """

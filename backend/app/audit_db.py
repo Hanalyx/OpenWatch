@@ -87,7 +87,7 @@ def log_audit_event(
         query = text(
             """
             INSERT INTO audit_logs (
-                user_id, action, resource_type, resource_id, 
+                user_id, action, resource_type, resource_id,
                 ip_address, user_agent, details, timestamp
             ) VALUES (
                 :user_id, :action, :resource_type, :resource_id,

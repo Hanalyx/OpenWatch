@@ -31,10 +31,7 @@ from ..models.authorization_models import (
     ResourceType,
 )
 from ..rbac import Permission, require_admin, require_permission
-from ..services.authorization_service import (
-    AuthorizationService,
-    get_authorization_service,
-)
+from ..services.authorization_service import AuthorizationService, get_authorization_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/authorization", tags=["authorization"])
@@ -608,7 +605,7 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
         perm_stats = db.execute(
             text(
                 """
-            SELECT 
+            SELECT
                 COUNT(*) as total_permissions,
                 COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as user_permissions,
                 COUNT(CASE WHEN group_id IS NOT NULL THEN 1 END) as group_permissions,
@@ -625,7 +622,7 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
         audit_stats = db.execute(
             text(
                 """
-            SELECT 
+            SELECT
                 COUNT(*) as total_checks,
                 COUNT(CASE WHEN decision = 'allow' THEN 1 END) as allowed_checks,
                 COUNT(CASE WHEN decision = 'deny' THEN 1 END) as denied_checks,

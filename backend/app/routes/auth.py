@@ -69,9 +69,9 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
         result = db.execute(
             text(
                 """
-            SELECT id, username, email, hashed_password, role, is_active, 
+            SELECT id, username, email, hashed_password, role, is_active,
                    failed_login_attempts, locked_until, last_login
-            FROM users 
+            FROM users
             WHERE username = :username
         """
             ),
@@ -155,7 +155,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
             db.execute(
                 text(
                     """
-                UPDATE users 
+                UPDATE users
                 SET failed_login_attempts = :attempts, locked_until = :locked_until
                 WHERE id = :user_id
             """
@@ -194,7 +194,7 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
         db.execute(
             text(
                 """
-            UPDATE users 
+            UPDATE users
             SET failed_login_attempts = 0, locked_until = NULL, last_login = CURRENT_TIMESTAMP
             WHERE id = :user_id
         """
@@ -352,7 +352,7 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
             text(
                 """
             SELECT id, username, email, role, is_active, mfa_enabled
-            FROM users 
+            FROM users
             WHERE username = :username
         """
             ),

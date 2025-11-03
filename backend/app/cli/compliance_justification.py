@@ -11,11 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from backend.app.models.unified_rule_models import (
-    ComplianceStatus,
-    RuleExecution,
-    UnifiedComplianceRule,
-)
+from backend.app.models.unified_rule_models import ComplianceStatus, RuleExecution, UnifiedComplianceRule
 from backend.app.services.compliance_justification_engine import (
     AuditEvidence,
     ComplianceJustificationEngine,

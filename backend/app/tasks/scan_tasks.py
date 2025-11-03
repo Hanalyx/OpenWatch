@@ -46,7 +46,7 @@ def execute_scan_task(
         db.execute(
             text(
                 """
-            UPDATE scans SET status = 'running', progress = 5 
+            UPDATE scans SET status = 'running', progress = 5
             WHERE id = :scan_id
         """
             ),
@@ -265,7 +265,7 @@ def execute_scan_task(
         db.execute(
             text(
                 """
-            UPDATE scans 
+            UPDATE scans
             SET status = 'completed', progress = 100, completed_at = :completed_at,
                 result_file = :result_file, report_file = :report_file
             WHERE id = :scan_id
@@ -419,7 +419,7 @@ def _update_scan_error(db: Session, scan_id: str, error_message: str, original_e
         db.execute(
             text(
                 """
-            UPDATE scans 
+            UPDATE scans
             SET status = 'failed', progress = 100, completed_at = :completed_at, error_message = :error_message
             WHERE id = :scan_id
         """
@@ -472,9 +472,9 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict):
         db.execute(
             text(
                 """
-            INSERT INTO scan_results 
+            INSERT INTO scan_results
             (scan_id, total_rules, passed_rules, failed_rules, error_rules,
-             unknown_rules, not_applicable_rules, score, severity_high, 
+             unknown_rules, not_applicable_rules, score, severity_high,
              severity_medium, severity_low, created_at)
             VALUES (:scan_id, :total_rules, :passed_rules, :failed_rules, :error_rules,
                     :unknown_rules, :not_applicable_rules, :score, :severity_high,
@@ -625,7 +625,7 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: "Any
                 text(
                     """
                 SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true 
+                WHERE is_active = true
                 AND (
                     event_types::jsonb ? 'semantic.analysis.completed'
                     OR event_types::jsonb ? 'scan.completed'

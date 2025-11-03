@@ -20,12 +20,7 @@ import base64
 import logging
 from typing import Union
 
-from backend.app.encryption import (
-    DecryptionError,
-    EncryptionService,
-    InvalidDataError,
-    create_encryption_service,
-)
+from backend.app.encryption import DecryptionError, EncryptionService, InvalidDataError, create_encryption_service
 
 # Import new modular encryption only
 from backend.app.services.encryption import get_encryption_service

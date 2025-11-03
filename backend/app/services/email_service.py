@@ -40,11 +40,11 @@ class EmailService:
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
                     <h2 style="color: #d32f2f; margin-bottom: 20px;">🚨 Host Offline Alert</h2>
-                    
+
                     <div style="background-color: #ffebee; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; font-weight: bold;">A monitored host has gone offline and requires attention.</p>
                     </div>
-                    
+
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                         <tr style="background-color: #f5f5f5;">
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Host Name:</td>
@@ -63,7 +63,7 @@ class EmailService:
                             <td style="padding: 12px; border: 1px solid #ddd;">{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</td>
                         </tr>
                     </table>
-                    
+
                     <div style="background-color: #e3f2fd; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <h3 style="margin-top: 0; color: #1976d2;">Recommended Actions:</h3>
                         <ul style="margin-bottom: 0;">
@@ -73,11 +73,11 @@ class EmailService:
                             <li>Contact the system administrator if needed</li>
                         </ul>
                     </div>
-                    
+
                     <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-                    
+
                     <p style="font-size: 12px; color: #666; margin: 0;">
-                        This is an automated message from OpenWatch Security Scanner. 
+                        This is an automated message from OpenWatch Security Scanner.
                         Please do not reply to this email.
                     </p>
                 </div>
@@ -125,11 +125,11 @@ This is an automated message from OpenWatch Security Scanner.
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
                     <h2 style="color: #388e3c; margin-bottom: 20px;">✅ Host Back Online</h2>
-                    
+
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; font-weight: bold;">A previously offline host is now back online.</p>
                     </div>
-                    
+
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                         <tr style="background-color: #f5f5f5;">
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Host Name:</td>
@@ -144,17 +144,17 @@ This is an automated message from OpenWatch Security Scanner.
                             <td style="padding: 12px; border: 1px solid #ddd;">{check_time.strftime('%Y-%m-%d %H:%M:%S UTC')}</td>
                         </tr>
                     </table>
-                    
+
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; color: #388e3c;">
                             ✅ The host is now responding to connectivity checks and SSH authentication is working properly.
                         </p>
                     </div>
-                    
+
                     <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-                    
+
                     <p style="font-size: 12px; color: #666; margin: 0;">
-                        This is an automated message from OpenWatch Security Scanner. 
+                        This is an automated message from OpenWatch Security Scanner.
                         Please do not reply to this email.
                     </p>
                 </div>

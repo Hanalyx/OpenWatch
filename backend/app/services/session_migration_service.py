@@ -169,7 +169,7 @@ class SessionMigrationService:
             result = db.execute(
                 text(
                     """
-                SELECT column_name FROM information_schema.columns 
+                SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'users' AND column_name IN ('mfa_enabled', 'mfa_secret')
             """
                 )
@@ -181,7 +181,7 @@ class SessionMigrationService:
             result = db.execute(
                 text(
                     """
-                SELECT COUNT(*) FROM users 
+                SELECT COUNT(*) FROM users
                 WHERE hashed_password LIKE '$2b$%'  -- bcrypt format
             """
                 )
@@ -194,7 +194,7 @@ class SessionMigrationService:
             result = db.execute(
                 text(
                     """
-                SELECT COUNT(*) FROM users 
+                SELECT COUNT(*) FROM users
                 WHERE last_login > :threshold
             """
                 ),

@@ -13,20 +13,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ...models.scan_models import (
-    RuleResult,
-    RuleResultStatus,
-    ScanResultSummary,
-    ScanTarget,
-    ScanTargetType,
-)
+from ...models.scan_models import RuleResult, RuleResultStatus, ScanResultSummary, ScanTarget, ScanTargetType
 from ..xccdf_generator_service import XCCDFGeneratorService
-from .base_scanner import (
-    BaseScanner,
-    ScannerExecutionError,
-    ScannerNotAvailableError,
-    UnsupportedTargetError,
-)
+from .base_scanner import BaseScanner, ScannerExecutionError, ScannerNotAvailableError, UnsupportedTargetError
 
 logger = logging.getLogger(__name__)
 
@@ -167,9 +156,9 @@ class OSCAPScanner(BaseScanner):
   <xccdf:status>draft</xccdf:status>
   <xccdf:title>OpenWatch Compliance Benchmark</xccdf:title>
   <xccdf:version>1.0</xccdf:version>
-  
+
   <!-- Rules would be inserted here -->
-  
+
   <xccdf:Profile id="{profile_id}">
     <xccdf:title>Default Profile</xccdf:title>
   </xccdf:Profile>
@@ -194,7 +183,7 @@ class OSCAPScanner(BaseScanner):
                   id="openwatch_tailoring">
   <xccdf:version>1.0</xccdf:version>
   <xccdf:benchmark href="{benchmark_id}.xml"/>
-  
+
   <xccdf:Profile id="{profile_id}_customized" extends="{profile_id}">
     <xccdf:title>Customized Profile</xccdf:title>
 {set_values}

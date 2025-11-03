@@ -13,10 +13,7 @@ from typing import List, Optional
 
 from backend.app.models.unified_rule_models import ComplianceStatus
 from backend.app.services.multi_framework_scanner import ScanResult
-from backend.app.services.result_aggregation_service import (
-    AggregationLevel,
-    ResultAggregationService,
-)
+from backend.app.services.result_aggregation_service import AggregationLevel, ResultAggregationService
 
 
 async def load_scan_results(file_paths: List[str]) -> List[ScanResult]:

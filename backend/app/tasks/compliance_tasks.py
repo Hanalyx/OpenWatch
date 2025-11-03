@@ -127,7 +127,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
             db.execute(
                 text(
                     """
-                UPDATE group_scan_sessions 
+                UPDATE group_scan_sessions
                 SET status = 'in_progress', started_at = :started_at
                 WHERE session_id = :session_id
             """
@@ -146,7 +146,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                     db.execute(
                         text(
                             """
-                        UPDATE group_scan_host_progress 
+                        UPDATE group_scan_host_progress
                         SET status = 'in_progress', progress = 10
                         WHERE session_id = :session_id AND host_id = :host_id
                     """
@@ -170,7 +170,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                         db.execute(
                             text(
                                 """
-                            UPDATE group_scan_host_progress 
+                            UPDATE group_scan_host_progress
                             SET status = 'completed', progress = 100, scan_id = :scan_id
                             WHERE session_id = :session_id AND host_id = :host_id
                         """
@@ -192,7 +192,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
                     db.execute(
                         text(
                             """
-                        UPDATE group_scan_host_progress 
+                        UPDATE group_scan_host_progress
                         SET status = 'failed', error_message = :error
                         WHERE session_id = :session_id AND host_id = :host_id
                     """
@@ -213,7 +213,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
             db.execute(
                 text(
                     """
-                UPDATE group_scan_sessions 
+                UPDATE group_scan_sessions
                 SET status = :status, completed_at = :completed_at,
                     successful_hosts = :successful, failed_hosts = :failed
                 WHERE session_id = :session_id
@@ -251,7 +251,7 @@ def execute_compliance_scan_async(self, session_id: str, group_id: int, hosts: L
             db.execute(
                 text(
                     """
-                UPDATE group_scan_sessions 
+                UPDATE group_scan_sessions
                 SET status = 'failed', completed_at = :completed_at, error_message = :error
                 WHERE session_id = :session_id
             """
@@ -347,8 +347,8 @@ def compliance_report_generation(group_id: int, report_config: Dict[str, Any]):
             db.execute(
                 text(
                     """
-                UPDATE host_groups 
-                SET last_compliance_report = :report_path, 
+                UPDATE host_groups
+                SET last_compliance_report = :report_path,
                     last_report_generated = :timestamp
                 WHERE id = :group_id
             """
@@ -400,7 +400,7 @@ def compliance_alert_check(group_id: int):
             metrics = db.execute(
                 text(
                     """
-                SELECT 
+                SELECT
                     AVG(CAST(sr.score AS FLOAT)) as avg_score,
                     SUM(sr.severity_high) as critical_issues,
                     COUNT(DISTINCT h.id) as total_hosts
@@ -408,7 +408,7 @@ def compliance_alert_check(group_id: int):
                 JOIN host_group_memberships hgm ON h.id = hgm.host_id
                 JOIN scans s ON h.id = s.host_id
                 JOIN scan_results sr ON s.id = sr.scan_id
-                WHERE hgm.group_id = :group_id 
+                WHERE hgm.group_id = :group_id
                     AND s.completed_at >= :recent_threshold
                     AND s.status = 'completed'
             """
@@ -511,7 +511,7 @@ def compliance_monitoring_task():
             groups = db.execute(
                 text(
                     """
-                SELECT id FROM host_groups 
+                SELECT id FROM host_groups
                 WHERE auto_scan_enabled = true AND active = true
             """
                 )

@@ -275,7 +275,7 @@ class SCAPRepositoryManager:
                 text(
                     """
                 SELECT id, name, version, checksum, updated_at
-                FROM scap_content 
+                FROM scap_content
                 WHERE name = :name AND os_family = :os_family AND os_version = :os_version
             """
                 ),
@@ -345,7 +345,7 @@ class SCAPRepositoryManager:
             result = db.execute(
                 text(
                     """
-                INSERT INTO scap_content 
+                INSERT INTO scap_content
                 (name, filename, content_type, description, version, profiles,
                  os_family, os_version, compliance_framework, source, status,
                  checksum, file_size, file_path, uploaded_at, uploaded_by)
@@ -407,7 +407,7 @@ class SCAPRepositoryManager:
             db.execute(
                 text(
                     """
-                UPDATE scap_content 
+                UPDATE scap_content
                 SET version = :version, profiles = :profiles, checksum = :checksum,
                     file_size = :file_size, file_path = :file_path, updated_at = :updated_at,
                     status = 'current'

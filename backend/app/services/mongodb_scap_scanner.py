@@ -17,11 +17,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..config import get_settings
 from ..database import SessionLocal
-from ..models.mongo_models import (
-    ComplianceRule,
-    PlatformImplementation,
-    RuleIntelligence,
-)
+from ..models.mongo_models import ComplianceRule, PlatformImplementation, RuleIntelligence
 from .auth_service import get_auth_service
 from .mongo_integration_service import MongoIntegrationService, get_mongo_service
 from .platform_capability_service import PlatformCapabilityService

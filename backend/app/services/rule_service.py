@@ -10,12 +10,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from backend.app.models.mongo_models import (
-    ComplianceRule,
-    PlatformImplementation,
-    RemediationScript,
-    RuleIntelligence,
-)
+from backend.app.models.mongo_models import ComplianceRule, PlatformImplementation, RemediationScript, RuleIntelligence
 from backend.app.services.platform_capability_service import PlatformCapabilityService
 from backend.app.services.rule_cache_service import RuleCacheService
 

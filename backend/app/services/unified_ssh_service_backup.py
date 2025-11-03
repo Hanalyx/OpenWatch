@@ -18,13 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import paramiko
 from paramiko import SSHClient, SSHException
 
-from .ssh_utils import (
-    SSHKeyError,
-    SSHKeyValidationResult,
-    format_validation_message,
-    parse_ssh_key,
-    validate_ssh_key,
-)
+from .ssh_utils import SSHKeyError, SSHKeyValidationResult, format_validation_message, parse_ssh_key, validate_ssh_key
 
 logger = logging.getLogger(__name__)
 

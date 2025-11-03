@@ -109,7 +109,7 @@ async def list_host_groups(db: Session = Depends(get_db), current_user: dict = D
         result = db.execute(
             text(
                 """
-            SELECT 
+            SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture, hg.scap_content_id,
                 hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
@@ -119,7 +119,7 @@ async def list_host_groups(db: Session = Depends(get_db), current_user: dict = D
             FROM host_groups hg
             LEFT JOIN host_group_memberships hgm ON hg.id = hgm.group_id
             LEFT JOIN scap_content sc ON hg.scap_content_id = sc.id
-            GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, 
+            GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
                      hg.scap_content_id, hg.default_profile_id, hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules, sc.name
@@ -176,7 +176,7 @@ async def get_host_group(
         result = db.execute(
             text(
                 """
-            SELECT 
+            SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
                 hg.os_family, hg.os_version_pattern, hg.architecture, hg.scap_content_id,
                 hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
@@ -187,7 +187,7 @@ async def get_host_group(
             LEFT JOIN host_group_memberships hgm ON hg.id = hgm.group_id
             LEFT JOIN scap_content sc ON hg.scap_content_id = sc.id
             WHERE hg.id = :group_id
-            GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, 
+            GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
                      hg.scap_content_id, hg.default_profile_id, hg.compliance_framework,
                      hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules, sc.name
@@ -642,7 +642,7 @@ async def remove_host_from_group(
         result = db.execute(
             text(
                 """
-            DELETE FROM host_group_memberships 
+            DELETE FROM host_group_memberships
             WHERE group_id = :group_id AND host_id = :host_id
         """
             ),

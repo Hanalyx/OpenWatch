@@ -12,11 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from backend.app.models.remediation_models import (
-    RemediationExecutionResult,
-    RemediationTarget,
-    ScanTargetType,
-)
+from backend.app.models.remediation_models import RemediationExecutionResult, RemediationTarget, ScanTargetType
 from backend.app.services.remediators.base_executor import (
     BaseRemediationExecutor,
     ExecutorCapability,

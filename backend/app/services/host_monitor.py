@@ -581,7 +581,7 @@ class HostMonitor:
                 text(
                     """
                 SELECT id, hostname, ip_address, port, username, auth_method, status, last_check
-                FROM hosts 
+                FROM hosts
                 WHERE is_active = true
                 ORDER BY hostname
             """
@@ -634,10 +634,10 @@ class HostMonitor:
             result = db.execute(
                 text(
                     """
-                SELECT email_addresses 
-                FROM alert_settings 
-                WHERE alert_type = :alert_type 
-                AND enabled = true 
+                SELECT email_addresses
+                FROM alert_settings
+                WHERE alert_type = :alert_type
+                AND enabled = true
                 AND email_enabled = true
                 AND email_addresses IS NOT NULL
             """

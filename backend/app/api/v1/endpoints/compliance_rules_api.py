@@ -16,10 +16,7 @@ try:
     from ....config import get_settings
     from ....models.mongo_models import ComplianceRule
     from ....repositories import ComplianceRuleRepository
-    from ....services.mongo_integration_service import (
-        MongoIntegrationService,
-        get_mongo_service,
-    )
+    from ....services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 
     MONGO_AVAILABLE = True
 except ImportError:

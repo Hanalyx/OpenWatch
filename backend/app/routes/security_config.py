@@ -16,16 +16,8 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..rbac import Permission, require_permission
-from ..services.credential_validation import (
-    SecurityPolicyConfig,
-    SecurityPolicyLevel,
-    get_credential_validator,
-)
-from ..services.security_config import (
-    ConfigScope,
-    SecurityConfigManager,
-    get_security_config_manager,
-)
+from ..services.credential_validation import SecurityPolicyConfig, SecurityPolicyLevel, get_credential_validator
+from ..services.security_config import ConfigScope, SecurityConfigManager, get_security_config_manager
 
 logger = logging.getLogger(__name__)
 

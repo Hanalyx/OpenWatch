@@ -14,14 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, pwd_context
 from ..database import get_db
-from ..rbac import (
-    Permission,
-    RBACManager,
-    UserRole,
-    require_admin,
-    require_permission,
-    require_super_admin,
-)
+from ..rbac import Permission, RBACManager, UserRole, require_admin, require_permission, require_super_admin
 from ..utils.logging_security import sanitize_id_for_log
 
 logger = logging.getLogger(__name__)
@@ -91,9 +84,9 @@ async def list_roles(current_user: dict = Depends(get_current_user), db: Session
             text(
                 """
             SELECT name, display_name, description, permissions
-            FROM roles 
+            FROM roles
             WHERE is_active = true
-            ORDER BY 
+            ORDER BY
                 CASE name
                     WHEN 'super_admin' THEN 1
                     WHEN 'security_admin' THEN 2
@@ -177,9 +170,9 @@ async def list_users(
         result = db.execute(
             text(
                 f"""
-            SELECT id, username, email, role, is_active, created_at, 
+            SELECT id, username, email, role, is_active, created_at,
                    last_login, failed_login_attempts, locked_until
-            FROM users 
+            FROM users
             WHERE {where_clause}
             ORDER BY created_at DESC
             LIMIT :limit OFFSET :offset
@@ -291,7 +284,7 @@ async def get_user(
         result = db.execute(
             text(
                 """
-            SELECT id, username, email, role, is_active, created_at, 
+            SELECT id, username, email, role, is_active, created_at,
                    last_login, failed_login_attempts, locked_until
             FROM users WHERE id = :user_id
         """
@@ -425,8 +418,8 @@ async def delete_user(
         db.execute(
             text(
                 """
-            UPDATE users 
-            SET is_active = false, updated_at = CURRENT_TIMESTAMP 
+            UPDATE users
+            SET is_active = false, updated_at = CURRENT_TIMESTAMP
             WHERE id = :user_id
         """
             ),
@@ -476,8 +469,8 @@ async def change_password(
         db.execute(
             text(
                 """
-            UPDATE users 
-            SET hashed_password = :password, updated_at = CURRENT_TIMESTAMP 
+            UPDATE users
+            SET hashed_password = :password, updated_at = CURRENT_TIMESTAMP
             WHERE id = :user_id
         """
             ),

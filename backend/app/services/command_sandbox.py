@@ -15,7 +15,7 @@ with comprehensive security controls, audit logging, and rollback capabilities.
 
 Security Features:
 - Containerized execution environment
-- Cryptographic command signature verification  
+- Cryptographic command signature verification
 - Command allowlisting with parameter validation
 - Multi-factor approval workflow for privileged operations
 - Complete audit trail and rollback capabilities

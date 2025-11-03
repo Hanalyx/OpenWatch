@@ -20,17 +20,10 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import DatabaseManager, get_db
 from ..services.compliance_framework_mapper import ComplianceFrameworkMapper
-from ..services.scap_datastream_processor import (
-    DataStreamError,
-    SCAPDataStreamProcessor,
-)
+from ..services.scap_datastream_processor import DataStreamError, SCAPDataStreamProcessor
 from ..services.scap_repository import scap_repository_manager
 from ..services.scap_scanner import SCAPContentError, SCAPScanner
-from ..utils.file_security import (
-    sanitize_filename,
-    validate_file_extension,
-    validate_storage_path,
-)
+from ..utils.file_security import sanitize_filename, validate_file_extension, validate_storage_path
 from ..utils.logging_security import sanitize_path_for_log
 
 logger = logging.getLogger(__name__)
@@ -50,9 +43,9 @@ async def list_scap_content(db: Session = Depends(get_db), current_user: dict = 
         result = db.execute(
             text(
                 """
-            SELECT id, name, filename, content_type, description, version, 
+            SELECT id, name, filename, content_type, description, version,
                    profiles, uploaded_at, uploaded_by, file_path
-            FROM scap_content 
+            FROM scap_content
             ORDER BY uploaded_at DESC
         """
             )
@@ -313,7 +306,7 @@ async def get_scap_content(
         result = db.execute(
             text(
                 """
-            SELECT id, name, filename, content_type, description, version, 
+            SELECT id, name, filename, content_type, description, version,
                    profiles, uploaded_at, uploaded_by, file_path
             FROM scap_content WHERE id = :id
         """
@@ -429,9 +422,9 @@ async def delete_scap_content(
             scan_details = db.execute(
                 text(
                     """
-                SELECT status, COUNT(*) as count 
-                FROM scans 
-                WHERE content_id = :id 
+                SELECT status, COUNT(*) as count
+                FROM scans
+                WHERE content_id = :id
                 GROUP BY status
                 ORDER BY status
             """

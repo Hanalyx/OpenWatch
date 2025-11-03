@@ -15,11 +15,7 @@ from typing import Dict, List, Optional
 
 import yaml
 
-from backend.app.models.remediation_models import (
-    RemediationExecutionResult,
-    RemediationTarget,
-    ScanTargetType,
-)
+from backend.app.models.remediation_models import RemediationExecutionResult, RemediationTarget, ScanTargetType
 from backend.app.services.remediators.base_executor import (
     BaseRemediationExecutor,
     ExecutorCapability,

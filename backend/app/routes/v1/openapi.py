@@ -432,7 +432,7 @@ scan_request = {
     "profile_id": "stig-rhel8",
     "scan_type": "compliance"
 }
-response = requests.post("http://localhost:8000/api/v1/scans", 
+response = requests.post("http://localhost:8000/api/v1/scans",
                         json=scan_request, headers=headers)
 scan_id = response.json()["scan_id"]
 

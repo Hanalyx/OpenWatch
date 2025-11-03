@@ -68,8 +68,8 @@ def init_roles(db: Session):
                 db.execute(
                     text(
                         """
-                    UPDATE roles 
-                    SET permissions = :permissions, 
+                    UPDATE roles
+                    SET permissions = :permissions,
                         display_name = :display_name,
                         description = :description,
                         updated_at = CURRENT_TIMESTAMP

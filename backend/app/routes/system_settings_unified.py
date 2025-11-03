@@ -17,13 +17,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..rbac import Permission, require_permission
-from ..services.auth_service import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from ..services.auth_service import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 from ..services.unified_ssh_service import extract_ssh_key_metadata, format_validation_message, validate_ssh_key
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
@@ -86,7 +80,7 @@ def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
     result = db.execute(
         text(
             """
-        SELECT id FROM unified_credentials 
+        SELECT id FROM unified_credentials
         WHERE scope = 'system' AND is_active = true
     """
         )
@@ -766,7 +760,7 @@ async def update_scheduler(request: SchedulerUpdateRequest, current_user: dict =
             db.execute(
                 text(
                     """
-                UPDATE scheduler_config 
+                UPDATE scheduler_config
                 SET interval_minutes = :interval,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE service_name = 'host_monitoring'
@@ -832,8 +826,8 @@ def restore_scheduler_state():
             result = db.execute(
                 text(
                     """
-                SELECT enabled, interval_minutes, auto_start 
-                FROM scheduler_config 
+                SELECT enabled, interval_minutes, auto_start
+                FROM scheduler_config
                 WHERE service_name = 'host_monitoring'
             """
                 )

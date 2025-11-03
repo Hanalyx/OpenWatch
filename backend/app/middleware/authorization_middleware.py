@@ -38,10 +38,7 @@ from ..models.authorization_models import (
     ResourceIdentifier,
     ResourceType,
 )
-from ..services.authorization_service import (
-    AuthorizationService,
-    get_authorization_service,
-)
+from ..services.authorization_service import AuthorizationService, get_authorization_service
 from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log
 
 logger = logging.getLogger(__name__)
@@ -476,7 +473,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 result = db.execute(
                     text(
                         """
-                    SELECT hgm.host_id 
+                    SELECT hgm.host_id
                     FROM host_group_memberships hgm
                     WHERE hgm.group_id = :group_id
                 """
@@ -533,7 +530,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     text(
                         """
                     SELECT COALESCE(
-                        JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL), 
+                        JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
                         '[]'::json
                     ) as user_groups
                     FROM users u

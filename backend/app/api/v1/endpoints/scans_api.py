@@ -12,12 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from ....auth import get_current_user
-from ....models.scan_models import (
-    ScanConfiguration,
-    ScanResult,
-    ScanStatus,
-    ScanTargetType,
-)
+from ....models.scan_models import ScanConfiguration, ScanResult, ScanStatus, ScanTargetType
 from ....services.mongo_integration_service import get_mongo_service
 from ....services.scan_orchestrator_service import ScanOrchestrator
 

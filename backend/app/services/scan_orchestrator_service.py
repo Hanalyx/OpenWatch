@@ -14,13 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..models.scan_models import (
-    RuleResult,
-    ScanConfiguration,
-    ScanResult,
-    ScanResultSummary,
-    ScanStatus,
-)
+from ..models.scan_models import RuleResult, ScanConfiguration, ScanResult, ScanResultSummary, ScanStatus
 from .scanners import ScannerFactory
 
 logger = logging.getLogger(__name__)

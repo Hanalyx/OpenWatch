@@ -11,16 +11,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from backend.app.models.unified_rule_models import (
-    ComplianceStatus,
-    Platform,
-    RuleExecution,
-)
-from backend.app.services.multi_framework_scanner import (
-    FrameworkResult,
-    HostResult,
-    ScanResult,
-)
+from backend.app.models.unified_rule_models import ComplianceStatus, Platform, RuleExecution
+from backend.app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
 
 
 class AggregationLevel(str, Enum):

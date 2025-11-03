@@ -13,15 +13,9 @@ from .enhanced_mongo_models import (
     PlatformImplementation,
 )
 from .enhanced_mongo_models import RuleIntelligence as EnhancedRuleIntelligence
-from .enhanced_mongo_models import (
-    UnifiedComplianceRule,
-)
+from .enhanced_mongo_models import UnifiedComplianceRule
 from .error_models import *
-from .health_models import (
-    ContentHealthDocument,
-    HealthSummaryDocument,
-    ServiceHealthDocument,
-)
+from .health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument
 from .mongo_models import (
     ComplianceRule,
     MongoManager,

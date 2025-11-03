@@ -18,12 +18,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from ..database import Host
-from ..models.plugin_models import (
-    InstalledPlugin,
-    PluginExecutionRequest,
-    PluginExecutionResult,
-    PluginStatus,
-)
+from ..models.plugin_models import InstalledPlugin, PluginExecutionRequest, PluginExecutionResult, PluginStatus
 from .plugin_execution_service import PluginExecutionService
 from .plugin_registry_service import PluginRegistryService
 

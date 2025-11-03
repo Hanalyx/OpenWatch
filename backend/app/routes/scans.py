@@ -397,10 +397,10 @@ async def quick_scan(
         db.execute(
             text(
                 """
-            INSERT INTO scans 
-            (id, name, host_id, content_id, profile_id, status, progress, 
+            INSERT INTO scans
+            (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
-            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
             RETURNING id
         """
@@ -759,10 +759,10 @@ async def recover_scan(
         db.execute(
             text(
                 """
-            INSERT INTO scans 
-            (id, name, host_id, content_id, profile_id, status, progress, 
+            INSERT INTO scans
+            (id, name, host_id, content_id, profile_id, status, progress,
              started_by, started_at, scan_options)
-            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                     :progress, :started_by, :started_at, :scan_options)
         """
             ),
@@ -1040,10 +1040,10 @@ async def create_scan(
         db.execute(
             text(
                 """
-            INSERT INTO scans 
-            (id, name, host_id, content_id, profile_id, status, progress, 
+            INSERT INTO scans
+            (id, name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, remediation_requested, verification_scan)
-            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
             RETURNING id
         """
@@ -1368,7 +1368,7 @@ async def stop_scan(
         db.execute(
             text(
                 """
-            UPDATE scans 
+            UPDATE scans
             SET status = 'stopped', completed_at = :completed_at,
                 error_message = 'Scan stopped by user'
             WHERE id = :id
@@ -1765,10 +1765,10 @@ async def create_verification_scan(
         result = db.execute(
             text(
                 """
-            INSERT INTO scans 
-            (name, host_id, content_id, profile_id, status, progress, 
+            INSERT INTO scans
+            (name, host_id, content_id, profile_id, status, progress,
              scan_options, started_by, started_at, verification_scan)
-            VALUES (:name, :host_id, :content_id, :profile_id, :status, 
+            VALUES (:name, :host_id, :content_id, :profile_id, :status,
                     :progress, :scan_options, :started_by, :started_at, :verification_scan)
             RETURNING id
         """
@@ -1879,7 +1879,7 @@ async def rescan_rule(
         result = db.execute(
             text(
                 """
-            INSERT INTO scans (name, host_id, content_id, profile_id, status, progress, 
+            INSERT INTO scans (name, host_id, content_id, profile_id, status, progress,
                              started_by, started_at, scan_options)
             VALUES (:name, :host_id, :content_id, :profile_id, :status, :progress,
                     :started_by, :started_at, :scan_options)
@@ -1954,7 +1954,7 @@ async def start_remediation(
         scan_result = db.execute(
             text(
                 """
-            SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address, 
+            SELECT s.id, s.name, s.host_id, h.hostname, h.ip_address,
                    sr.failed_rules, sr.severity_high, sr.severity_medium, sr.severity_low
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
@@ -1975,8 +1975,8 @@ async def start_remediation(
         failed_rules = db.execute(
             text(
                 """
-            SELECT rule_id, title, severity, description 
-            FROM scan_rule_results 
+            SELECT rule_id, title, severity, description
+            FROM scan_rule_results
             WHERE scan_id = :scan_id AND status = 'failed'
             ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
         """
@@ -1993,8 +1993,8 @@ async def start_remediation(
         db.execute(
             text(
                 """
-            UPDATE scans 
-            SET remediation_requested = true, 
+            UPDATE scans
+            SET remediation_requested = true,
                 aegis_remediation_id = :job_id,
                 remediation_status = 'pending'
             WHERE id = :scan_id

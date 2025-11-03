@@ -215,11 +215,7 @@ async def get_import_statistics(
 
     try:
         # Get collection statistics from MongoDB
-        from ....models.mongo_models import (
-            ComplianceRule,
-            RemediationScript,
-            RuleIntelligence,
-        )
+        from ....models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
 
         stats = {
             "total_rules": await ComplianceRule.count(),

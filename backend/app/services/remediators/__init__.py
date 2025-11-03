@@ -8,11 +8,7 @@ available executor capabilities.
 from typing import Dict, List, Type
 
 from .ansible_executor import AnsibleExecutor
-from .base_executor import (
-    BaseRemediationExecutor,
-    ExecutorMetadata,
-    ExecutorNotAvailableError,
-)
+from .base_executor import BaseRemediationExecutor, ExecutorMetadata, ExecutorNotAvailableError
 from .bash_executor import BashExecutor
 
 

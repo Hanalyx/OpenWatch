@@ -1135,43 +1135,43 @@ logger = logging.getLogger(__name__)
 class {plugin_name.title().replace('_', '')}Plugin(PluginInterface):
     """
     {plugin_name} plugin implementation
-    
+
     This plugin provides {plugin_type} functionality for OpenWatch.
     """
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         self.name = "{plugin_name}"
         self.version = "1.0.0"
         self.plugin_type = PluginType.{plugin_type.upper()}
-    
+
     async def initialize(self) -> bool:
         """Initialize the plugin"""
         try:
             logger.info(f"Initializing {{self.name}} plugin")
-            
+
             # Plugin initialization logic here
-            
+
             logger.info(f"{{self.name}} plugin initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize {{self.name}} plugin: {{e}}")
             return False
-    
+
     async def execute(self, context: Dict[str, Any]) -> ExecutionResult:
         """Execute plugin functionality"""
         try:
             logger.info(f"Executing {{self.name}} plugin")
-            
+
             # Plugin execution logic here
-            
+
             return ExecutionResult(
                 success=True,
                 message="Plugin executed successfully",
                 data={{"timestamp": datetime.utcnow().isoformat()}}
             )
-            
+
         except Exception as e:
             logger.error(f"Plugin execution failed: {{e}}")
             return ExecutionResult(
@@ -1179,20 +1179,20 @@ class {plugin_name.title().replace('_', '')}Plugin(PluginInterface):
                 message=f"Execution failed: {{str(e)}}",
                 error=str(e)
             )
-    
+
     async def cleanup(self) -> bool:
         """Cleanup plugin resources"""
         try:
             logger.info(f"Cleaning up {{self.name}} plugin")
-            
+
             # Plugin cleanup logic here
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Plugin cleanup failed: {{e}}")
             return False
-    
+
     def get_health_status(self) -> Dict[str, Any]:
         """Get plugin health status"""
         return {{
@@ -1255,44 +1255,44 @@ from plugin import {class_name}Plugin
 
 class Test{class_name}Plugin:
     """Test cases for {plugin_name} plugin"""
-    
+
     @pytest.fixture
     def plugin(self):
         """Create plugin instance for testing"""
         return {class_name}Plugin({{"test_mode": True}})
-    
+
     @pytest.mark.asyncio
     async def test_plugin_initialization(self, plugin):
         """Test plugin initialization"""
         result = await plugin.initialize()
         assert result is True
         assert plugin.name == "{plugin_name}"
-    
+
     @pytest.mark.asyncio
     async def test_plugin_execution(self, plugin):
         """Test plugin execution"""
         await plugin.initialize()
-        
+
         context = {{"test_data": "test_value"}}
         result = await plugin.execute(context)
-        
+
         assert result.success is True
         assert result.message is not None
-    
+
     @pytest.mark.asyncio
     async def test_plugin_cleanup(self, plugin):
         """Test plugin cleanup"""
         await plugin.initialize()
         result = await plugin.cleanup()
         assert result is True
-    
+
     def test_plugin_health_status(self, plugin):
         """Test plugin health status"""
         health = plugin.get_health_status()
         assert "status" in health
         assert "timestamp" in health
         assert "version" in health
-    
+
     @pytest.mark.asyncio
     async def test_plugin_error_handling(self, plugin):
         """Test plugin error handling"""

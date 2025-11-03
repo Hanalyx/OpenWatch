@@ -181,11 +181,11 @@ class SecurityConfigManager:
             self.db.execute(
                 text(
                     """
-                INSERT INTO security_config 
+                INSERT INTO security_config
                 (scope, target_id, config_data, created_by, created_at, updated_at)
                 VALUES (:scope, :target_id, :config_data, :created_by, :created_at, :updated_at)
-                ON CONFLICT (scope, target_id) 
-                DO UPDATE SET 
+                ON CONFLICT (scope, target_id)
+                DO UPDATE SET
                     config_data = :config_data,
                     updated_at = :updated_at
             """
@@ -394,7 +394,7 @@ class SecurityConfigManager:
             result = self.db.execute(
                 text(
                     """
-                SELECT id FROM security_config 
+                SELECT id FROM security_config
                 WHERE scope = 'system' AND target_id IS NULL
             """
                 )
@@ -415,7 +415,7 @@ class SecurityConfigManager:
             result = self.db.execute(
                 text(
                     """
-                SELECT config_data FROM security_config 
+                SELECT config_data FROM security_config
                 WHERE scope = :scope AND target_id IS :target_id
             """
                 ),
@@ -438,7 +438,7 @@ class SecurityConfigManager:
             result = self.db.execute(
                 text(
                     """
-                SELECT hgm.host_group_id 
+                SELECT hgm.host_group_id
                 FROM host_group_memberships hgm
                 WHERE hgm.host_id = :host_id
                 LIMIT 1

@@ -528,12 +528,12 @@ class RemediationSystemClient:
     def __init__(self):
         self.api_endpoint = os.environ.get("REMEDIATION_SYSTEM_API")
         self.system_type = os.environ.get("REMEDIATION_SYSTEM_TYPE")
-    
+
     async def execute_remediation(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute remediation via standardized interface"""
         # Implementation would be specific to each remediation system
         # This is a template that gets customized per system
-        
+
         job_data = {{
             "target_host_id": context.get("host_id"),
             "platform": context.get("platform"),
@@ -541,10 +541,10 @@ class RemediationSystemClient:
             "dry_run": context.get("dry_run", False),
             "openwatch_context": context
         }}
-        
+
         # Submit job and wait for completion
         # Return standardized result format
-        
+
         return {{
             "success": True,
             "job_id": "example-job-id",
@@ -555,13 +555,13 @@ class RemediationSystemClient:
 if __name__ == "__main__":
     import sys
     context_file = sys.argv[1] if len(sys.argv) > 1 else "execution_context.json"
-    
+
     with open(context_file, 'r') as f:
         context = json.load(f)
-    
+
     client = RemediationSystemClient()
     result = asyncio.run(client.execute_remediation(context))
-    
+
     print(json.dumps(result))
 '''
 

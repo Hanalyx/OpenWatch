@@ -652,7 +652,7 @@ class SemanticSCAPEngine:
                 db.execute(
                     text(
                         """
-                    INSERT INTO semantic_scan_analysis 
+                    INSERT INTO semantic_scan_analysis
                     (scan_id, host_id, semantic_rules_count, frameworks_analyzed,
                      remediation_available_count, processing_metadata, analysis_data, created_at)
                     VALUES (:scan_id, :host_id, :semantic_rules_count, :frameworks_analyzed,
@@ -696,7 +696,7 @@ class SemanticSCAPEngine:
                 result = db.execute(
                     text(
                         """
-                    SELECT analysis_data FROM semantic_scan_analysis 
+                    SELECT analysis_data FROM semantic_scan_analysis
                     WHERE scan_id = :scan_id
                 """
                     ),

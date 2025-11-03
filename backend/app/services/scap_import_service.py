@@ -9,11 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from backend.app.models.mongo_models import (
-    ComplianceRule,
-    RemediationScript,
-    RuleIntelligence,
-)
+from backend.app.models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
 from backend.app.services.mongo_integration_service import MongoIntegrationService
 from backend.app.services.scap_parser_service import SCAPParserService
 from backend.app.services.scap_transformation_service import SCAPTransformationService

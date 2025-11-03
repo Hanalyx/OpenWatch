@@ -25,13 +25,13 @@ def create_openapi_schema(
         description = """
 ## OpenWatch SCAP Compliance Scanner API
 
-OpenWatch provides comprehensive SCAP-based compliance scanning and management capabilities 
+OpenWatch provides comprehensive SCAP-based compliance scanning and management capabilities
 for enterprise security and compliance requirements.
 
 ### Key Features
 
 * **Enhanced Rule Management**: Advanced rule querying with inheritance and parameter overrides
-* **Platform Capability Detection**: Multi-platform capability detection and baseline comparison  
+* **Platform Capability Detection**: Multi-platform capability detection and baseline comparison
 * **Full-Text Search**: Advanced rule search with relevance scoring and filtering
 * **Dependency Resolution**: Complete rule dependency graph building and conflict detection
 * **Caching & Performance**: Intelligent caching with priority-based TTL management
@@ -60,7 +60,7 @@ Obtain tokens via the `/api/auth/login` endpoint.
 
 API requests are rate-limited based on authentication status:
 
-* **Anonymous**: 100 requests/minute  
+* **Anonymous**: 100 requests/minute
 * **Authenticated**: 1000 requests/minute
 * **Admin**: 5000 requests/minute
 
@@ -96,7 +96,7 @@ All errors follow a standardized format:
 Enhanced rule endpoints support intelligent caching:
 
 * Cache headers indicate freshness and expiration
-* ETags support conditional requests  
+* ETags support conditional requests
 * Cache can be invalidated via management endpoints
 
 ### Webhook Support
@@ -386,11 +386,11 @@ def create_custom_swagger_ui(
     # Add custom CSS and branding
     custom_css = """
     <style>
-        .swagger-ui .topbar { 
-            background-color: #1e40af; 
+        .swagger-ui .topbar {
+            background-color: #1e40af;
         }
-        .swagger-ui .topbar .download-url-wrapper { 
-            display: none; 
+        .swagger-ui .topbar .download-url-wrapper {
+            display: none;
         }
         .swagger-ui .info .title {
             color: #1e40af;
@@ -436,7 +436,7 @@ def create_custom_swagger_ui(
                     </select>
                 `;
                 topbar.appendChild(versionSelector);
-                
+
                 document.getElementById('version-selector').addEventListener('change', function(e) {
                     window.location.href = `/docs?url=${e.target.value}`;
                 });

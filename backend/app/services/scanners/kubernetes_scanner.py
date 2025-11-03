@@ -10,19 +10,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from ...models.scan_models import (
-    RuleResult,
-    RuleResultStatus,
-    ScanResultSummary,
-    ScanTarget,
-    ScanTargetType,
-)
-from .base_scanner import (
-    BaseScanner,
-    ScannerExecutionError,
-    ScannerNotAvailableError,
-    UnsupportedTargetError,
-)
+from ...models.scan_models import RuleResult, RuleResultStatus, ScanResultSummary, ScanTarget, ScanTargetType
+from .base_scanner import BaseScanner, ScannerExecutionError, ScannerNotAvailableError, UnsupportedTargetError
 
 logger = logging.getLogger(__name__)
 

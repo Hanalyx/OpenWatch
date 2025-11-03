@@ -79,7 +79,7 @@ async def get_semantic_rules(
     try:
         # Build query with optional filters
         query = """
-            SELECT 
+            SELECT
                 id, scap_rule_id, semantic_name, title, compliance_intent,
                 business_impact, risk_level, applicable_frameworks as frameworks,
                 remediation_complexity, estimated_fix_time, remediation_available,
@@ -147,7 +147,7 @@ async def get_framework_intelligence(db: Session = Depends(get_db), current_user
     try:
         # Get all semantic rules grouped by framework
         query = """
-            SELECT 
+            SELECT
                 unnest(applicable_frameworks) as framework,
                 COUNT(*) as rule_count,
                 SUM(CASE WHEN remediation_available THEN 1 ELSE 0 END) as remediation_available_count,
@@ -229,7 +229,7 @@ async def get_compliance_overview(db: Session = Depends(get_db), current_user: d
     try:
         # Get total semantic rules count
         rules_query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_rules,
                 SUM(CASE WHEN remediation_available THEN 1 ELSE 0 END) as remediation_ready_count
             FROM rule_intelligence
@@ -284,7 +284,7 @@ async def get_semantic_analysis(
     """Get semantic analysis results for a specific scan"""
     try:
         query = """
-            SELECT 
+            SELECT
                 scan_id, host_id, semantic_rules_count, frameworks_analyzed,
                 remediation_available_count, processing_metadata, analysis_data,
                 created_at, updated_at
@@ -326,7 +326,7 @@ async def get_compliance_matrix(
     """Get framework compliance matrix data"""
     try:
         query = """
-            SELECT 
+            SELECT
                 host_id, framework, compliance_score, total_rules,
                 passed_rules, failed_rules, previous_score, trend,
                 last_scan_id, last_updated, predicted_next_score,

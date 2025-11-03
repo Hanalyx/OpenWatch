@@ -164,7 +164,7 @@ async def create_webhook_endpoint(
         result = db.execute(
             text(
                 """
-            INSERT INTO webhook_endpoints 
+            INSERT INTO webhook_endpoints
             (id, name, url, event_types, secret_hash, is_active, created_by, created_at, updated_at)
             VALUES (:id, :name, :url, :event_types, :secret_hash, :is_active, :created_by, :created_at, :updated_at)
             RETURNING id
@@ -404,7 +404,7 @@ async def get_webhook_deliveries(
         where_clause = "WHERE " + " AND ".join(where_conditions)
 
         query = f"""
-            SELECT id, event_type, event_data, delivery_status, http_status_code, 
+            SELECT id, event_type, event_data, delivery_status, http_status_code,
                    response_body, error_message, created_at, delivered_at
             FROM webhook_deliveries
             {where_clause}
@@ -464,7 +464,7 @@ async def test_webhook_endpoint(
         webhook_result = db.execute(
             text(
                 """
-            SELECT id, name, url, secret_hash FROM webhook_endpoints 
+            SELECT id, name, url, secret_hash FROM webhook_endpoints
             WHERE id = :id AND is_active = true
         """
             ),
@@ -486,9 +486,7 @@ async def test_webhook_endpoint(
         }
 
         # Queue webhook delivery as background task
-        from ..tasks.webhook_tasks import (  # Import here to avoid circular imports
-            deliver_webhook,
-        )
+        from ..tasks.webhook_tasks import deliver_webhook  # Import here to avoid circular imports
 
         background_tasks.add_task(
             deliver_webhook,

@@ -20,10 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..encryption import EncryptionService  # NEW: Modular encryption service
-from .credential_validation import (
-    SecurityPolicyLevel,
-    validate_credential_with_strict_policy,
-)
+from .credential_validation import SecurityPolicyLevel, validate_credential_with_strict_policy
 from .unified_ssh_service import extract_ssh_key_metadata, parse_ssh_key, validate_ssh_key
 
 logger = logging.getLogger(__name__)
@@ -155,7 +152,7 @@ class CentralizedAuthService:
             self.db.execute(
                 text(
                     """
-                INSERT INTO unified_credentials 
+                INSERT INTO unified_credentials
                 (id, name, description, scope, target_id, username, auth_method,
                  encrypted_password, encrypted_private_key, encrypted_passphrase,
                  ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment,
@@ -213,9 +210,9 @@ class CentralizedAuthService:
             result = self.db.execute(
                 text(
                     """
-                SELECT username, auth_method, encrypted_password, encrypted_private_key, 
+                SELECT username, auth_method, encrypted_password, encrypted_private_key,
                        encrypted_passphrase, scope, target_id
-                FROM unified_credentials 
+                FROM unified_credentials
                 WHERE id = :id AND is_active = true
             """
                 ),
@@ -456,9 +453,9 @@ class CentralizedAuthService:
             result = self.db.execute(
                 text(
                     """
-                SELECT id, username, auth_method, encrypted_password, encrypted_private_key, 
+                SELECT id, username, auth_method, encrypted_password, encrypted_private_key,
                        private_key_passphrase
-                FROM system_credentials 
+                FROM system_credentials
                 WHERE is_default = true AND is_active = true
                 LIMIT 1
             """
@@ -544,7 +541,7 @@ class CentralizedAuthService:
             result = self.db.execute(
                 text(
                     """
-                SELECT id FROM unified_credentials 
+                SELECT id FROM unified_credentials
                 WHERE scope = 'system' AND is_default = true AND is_active = true
                 LIMIT 1
             """
@@ -640,8 +637,8 @@ class CentralizedAuthService:
                 self.db.execute(
                     text(
                         """
-                    UPDATE unified_credentials 
-                    SET is_default = false 
+                    UPDATE unified_credentials
+                    SET is_default = false
                     WHERE scope = 'system' AND is_default = true
                 """
                     )
@@ -650,8 +647,8 @@ class CentralizedAuthService:
                 self.db.execute(
                     text(
                         """
-                    UPDATE unified_credentials 
-                    SET is_default = false 
+                    UPDATE unified_credentials
+                    SET is_default = false
                     WHERE scope = :scope AND target_id = :target_id AND is_default = true
                 """
                     ),

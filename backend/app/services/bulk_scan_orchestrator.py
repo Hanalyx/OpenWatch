@@ -463,10 +463,10 @@ class BulkScanOrchestrator:
                 self.db.execute(
                     text(
                         """
-                    INSERT INTO scans 
-                    (id, name, host_id, content_id, profile_id, status, progress, 
+                    INSERT INTO scans
+                    (id, name, host_id, content_id, profile_id, status, progress,
                      scan_options, started_by, started_at, remediation_requested, verification_scan)
-                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                             :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
                 """
                     ),
@@ -509,8 +509,8 @@ class BulkScanOrchestrator:
             self.db.execute(
                 text(
                     """
-                INSERT INTO scan_sessions 
-                (id, name, total_hosts, completed_hosts, failed_hosts, running_hosts, 
+                INSERT INTO scan_sessions
+                (id, name, total_hosts, completed_hosts, failed_hosts, running_hosts,
                  status, created_by, created_at, started_at, completed_at, estimated_completion, scan_ids, error_message)
                 VALUES (:id, :name, :total_hosts, :completed_hosts, :failed_hosts, :running_hosts,
                         :status, :created_by, :created_at, :started_at, :completed_at, :estimated_completion, :scan_ids, :error_message)
@@ -544,7 +544,7 @@ class BulkScanOrchestrator:
             self.db.execute(
                 text(
                     """
-                UPDATE scan_sessions SET 
+                UPDATE scan_sessions SET
                     completed_hosts = :completed_hosts,
                     failed_hosts = :failed_hosts,
                     running_hosts = :running_hosts,
@@ -809,7 +809,7 @@ class BulkScanOrchestrator:
                     """
                 SELECT u.id, u.username, u.role,
                        COALESCE(
-                           JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL), 
+                           JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
                            '[]'::json
                        ) as user_groups
                 FROM users u
@@ -854,7 +854,7 @@ class BulkScanOrchestrator:
                 text(
                     f"""
                 SELECT id, hostname, display_name, ip_address, status
-                FROM hosts 
+                FROM hosts
                 WHERE id IN ({placeholders})
             """
                 )
@@ -912,10 +912,10 @@ class BulkScanOrchestrator:
                 self.db.execute(
                     text(
                         """
-                    INSERT INTO scans 
-                    (id, name, host_id, content_id, profile_id, status, progress, 
+                    INSERT INTO scans
+                    (id, name, host_id, content_id, profile_id, status, progress,
                      scan_options, started_by, started_at, remediation_requested, verification_scan)
-                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status, 
+                    VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                             :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
                 """
                     ),

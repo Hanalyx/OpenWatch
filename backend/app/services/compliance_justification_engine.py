@@ -11,22 +11,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.unified_rule_models import (
-    ComplianceStatus,
-    Platform,
-    RuleExecution,
-    UnifiedComplianceRule,
-)
-from backend.app.services.framework_mapping_engine import (
-    ControlMapping,
-    MappingConfidence,
-    MappingType,
-)
-from backend.app.services.multi_framework_scanner import (
-    FrameworkResult,
-    HostResult,
-    ScanResult,
-)
+from backend.app.models.unified_rule_models import ComplianceStatus, Platform, RuleExecution, UnifiedComplianceRule
+from backend.app.services.framework_mapping_engine import ControlMapping, MappingConfidence, MappingType
+from backend.app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
 
 
 class JustificationType(str, Enum):
@@ -388,7 +375,7 @@ Compliance Status: {rule_execution.compliance_status.value.replace('_', ' ').tit
         # Generate implementation description
         if rule_execution.compliance_status == ComplianceStatus.COMPLIANT:
             implementation_description = f"""
-The control has been successfully implemented and validated on the target system. 
+The control has been successfully implemented and validated on the target system.
 Technical verification confirms that the implementation meets the required security objectives.
 
 Execution Time: {rule_execution.execution_time:.3f} seconds
@@ -523,7 +510,7 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
         return f"""
 Implementation of {unified_rule.title} supports {purpose}.
 This control contributes to the organization's overall security posture and regulatory compliance objectives.
-The {unified_rule.security_function} capability provided by this control is essential for maintaining 
+The {unified_rule.security_function} capability provided by this control is essential for maintaining
 security standards and meeting audit requirements.
         """.strip()
 
@@ -539,7 +526,7 @@ security standards and meeting audit requirements.
             return f"""
 Positive Impact: Successfully implemented {unified_rule.security_function} control.
 - Security posture improved through {unified_rule.category} measures
-- Compliance requirements met for audit purposes  
+- Compliance requirements met for audit purposes
 - Risk reduction achieved at {unified_rule.risk_level} level
 - No negative operational impact identified
             """.strip()

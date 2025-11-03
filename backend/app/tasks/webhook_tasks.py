@@ -17,10 +17,7 @@ from sqlalchemy import text
 
 from ..database import get_db
 from ..services.http_client import get_webhook_client
-from ..services.integration_metrics import (
-    record_webhook_delivery,
-    time_webhook_delivery,
-)
+from ..services.integration_metrics import record_webhook_delivery, time_webhook_delivery
 from ..services.webhook_security import (
     create_scan_completed_payload,
     create_scan_failed_payload,
@@ -59,7 +56,7 @@ async def deliver_webhook(
             db.execute(
                 text(
                     """
-                INSERT INTO webhook_deliveries 
+                INSERT INTO webhook_deliveries
                 (id, webhook_id, event_type, event_data, delivery_status, created_at)
                 VALUES (:id, :webhook_id, :event_type, :event_data, :delivery_status, :created_at)
             """
@@ -195,7 +192,7 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
                 text(
                     """
                 SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true 
+                WHERE is_active = true
                 AND event_types::jsonb ? 'scan.completed'
             """
                 )
@@ -237,7 +234,7 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
                 text(
                     """
                 SELECT id, url, secret_hash FROM webhook_endpoints
-                WHERE is_active = true 
+                WHERE is_active = true
                 AND event_types::jsonb ? 'scan.failed'
             """
                 )

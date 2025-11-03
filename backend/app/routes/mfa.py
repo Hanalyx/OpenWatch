@@ -14,11 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import audit_logger, get_current_user
 from ..database import MFAAuditLog, MFAUsedCodes, get_db
-from ..services.mfa_service import (
-    MFAEnrollmentResult,
-    MFAValidationResult,
-    get_mfa_service,
-)
+from ..services.mfa_service import MFAEnrollmentResult, MFAValidationResult, get_mfa_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -193,7 +189,7 @@ async def enroll_mfa(
         result = db.execute(
             text(
                 """
-            SELECT hashed_password, mfa_enabled 
+            SELECT hashed_password, mfa_enabled
             FROM users WHERE id = :user_id
         """
             ),
@@ -250,7 +246,7 @@ async def enroll_mfa(
         db.execute(
             text(
                 """
-            UPDATE users 
+            UPDATE users
             SET mfa_secret = :encrypted_secret,
                 backup_codes = :backup_codes,
                 mfa_enrolled_at = CURRENT_TIMESTAMP,
@@ -327,7 +323,7 @@ async def validate_mfa_code(
         recent_codes = db.execute(
             text(
                 """
-            SELECT code_hash FROM mfa_used_codes 
+            SELECT code_hash FROM mfa_used_codes
             WHERE user_id = :user_id AND used_at > NOW() - INTERVAL '5 minutes'
         """
             ),
@@ -481,7 +477,7 @@ async def enable_mfa(
         db.execute(
             text(
                 """
-            UPDATE users 
+            UPDATE users
             SET mfa_enabled = true, last_mfa_use = CURRENT_TIMESTAMP
             WHERE id = :user_id
         """
@@ -565,7 +561,7 @@ async def regenerate_backup_codes(
         db.execute(
             text(
                 """
-            UPDATE users 
+            UPDATE users
             SET backup_codes = :backup_codes,
                 mfa_recovery_codes_generated_at = CURRENT_TIMESTAMP
             WHERE id = :user_id
@@ -630,7 +626,7 @@ async def disable_mfa(
         result = db.execute(
             text(
                 """
-            SELECT hashed_password, mfa_enabled 
+            SELECT hashed_password, mfa_enabled
             FROM users WHERE id = :user_id
         """
             ),
@@ -660,7 +656,7 @@ async def disable_mfa(
         db.execute(
             text(
                 """
-            UPDATE users 
+            UPDATE users
             SET mfa_enabled = false,
                 mfa_secret = NULL,
                 backup_codes = NULL,

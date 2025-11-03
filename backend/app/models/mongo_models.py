@@ -828,11 +828,7 @@ class MongoManager:
         # Initialize Beanie with all document models
         import logging
 
-        from .health_models import (
-            ContentHealthDocument,
-            HealthSummaryDocument,
-            ServiceHealthDocument,
-        )
+        from .health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument
 
         logger = logging.getLogger(__name__)
         logger.info("About to initialize Beanie ODM...")

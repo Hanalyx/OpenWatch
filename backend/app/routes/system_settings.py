@@ -131,10 +131,10 @@ async def list_system_credentials(
         result = db.execute(
             text(
                 """
-            SELECT id, name, description, username, auth_method, is_default, 
+            SELECT id, name, description, username, auth_method, is_default,
                    is_active, created_at, updated_at, ssh_key_fingerprint,
                    ssh_key_type, ssh_key_bits, ssh_key_comment
-            FROM system_credentials 
+            FROM system_credentials
             WHERE is_active = true
             ORDER BY is_default DESC, name ASC
         """
@@ -259,10 +259,10 @@ async def create_system_credentials(
         result = db.execute(
             text(
                 """
-            INSERT INTO system_credentials 
-            (name, description, username, auth_method, encrypted_password, 
+            INSERT INTO system_credentials
+            (name, description, username, auth_method, encrypted_password,
              encrypted_private_key, private_key_passphrase, ssh_key_fingerprint,
-             ssh_key_type, ssh_key_bits, ssh_key_comment, is_default, is_active, 
+             ssh_key_type, ssh_key_bits, ssh_key_comment, is_default, is_active,
              created_by, created_at, updated_at)
             VALUES (:name, :description, :username, :auth_method, :encrypted_password,
                     :encrypted_private_key, :private_key_passphrase, :ssh_key_fingerprint,
@@ -344,9 +344,9 @@ async def get_default_credentials(
         result = db.execute(
             text(
                 """
-            SELECT id, name, username, auth_method, encrypted_password, 
+            SELECT id, name, username, auth_method, encrypted_password,
                    encrypted_private_key, private_key_passphrase
-            FROM system_credentials 
+            FROM system_credentials
             WHERE is_default = true AND is_active = true
             LIMIT 1
         """
@@ -544,7 +544,7 @@ async def update_system_credentials(
         result = db.execute(
             text(
                 """
-            SELECT id, name, description, username, auth_method, is_default, 
+            SELECT id, name, description, username, auth_method, is_default,
                    is_active, created_at, updated_at, ssh_key_fingerprint,
                    ssh_key_type, ssh_key_bits, ssh_key_comment
             FROM system_credentials WHERE id = :id
@@ -635,7 +635,7 @@ async def delete_system_credentials(
         db.execute(
             text(
                 """
-            UPDATE system_credentials SET is_active = false, updated_at = :updated_at 
+            UPDATE system_credentials SET is_active = false, updated_at = :updated_at
             WHERE id = :id
         """
             ),
@@ -683,7 +683,7 @@ async def delete_ssh_key_from_credentials(
         result = db.execute(
             text(
                 """
-            SELECT id, auth_method, ssh_key_fingerprint FROM system_credentials 
+            SELECT id, auth_method, ssh_key_fingerprint FROM system_credentials
             WHERE id = :id AND is_active = true
         """
             ),
@@ -710,7 +710,7 @@ async def delete_ssh_key_from_credentials(
         db.execute(
             text(
                 """
-            UPDATE system_credentials SET 
+            UPDATE system_credentials SET
                 encrypted_private_key = NULL,
                 private_key_passphrase = NULL,
                 ssh_key_fingerprint = NULL,
@@ -767,7 +767,7 @@ async def restore_scheduler_state():
             result = db.execute(
                 text(
                     """
-                SELECT setting_value FROM system_settings 
+                SELECT setting_value FROM system_settings
                 WHERE setting_key = 'scheduler_enabled' AND setting_value = 'true'
             """
                 )
@@ -780,7 +780,7 @@ async def restore_scheduler_state():
                 result = db.execute(
                     text(
                         """
-                    SELECT setting_value FROM system_settings 
+                    SELECT setting_value FROM system_settings
                     WHERE setting_key = 'scheduler_interval_minutes'
                 """
                     )
@@ -879,7 +879,7 @@ async def get_scheduler_settings(db: Session = Depends(get_db), current_user: di
             result = db.execute(
                 text(
                     """
-                SELECT setting_value FROM system_settings 
+                SELECT setting_value FROM system_settings
                 WHERE setting_key = 'scheduler_enabled'
             """
                 )
@@ -897,7 +897,7 @@ async def get_scheduler_settings(db: Session = Depends(get_db), current_user: di
             result = db.execute(
                 text(
                     """
-                SELECT setting_value FROM system_settings 
+                SELECT setting_value FROM system_settings
                 WHERE setting_key = 'scheduler_interval_minutes'
             """
                 )
@@ -957,7 +957,7 @@ async def start_scheduler(
                     """
                 INSERT INTO system_settings (setting_key, setting_value, updated_at)
                 VALUES ('scheduler_interval_minutes', :interval, :updated_at)
-                ON CONFLICT (setting_key) 
+                ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = :interval, updated_at = :updated_at
             """
                 ),
@@ -973,7 +973,7 @@ async def start_scheduler(
                     """
                 INSERT INTO system_settings (setting_key, setting_value, updated_at)
                 VALUES ('scheduler_enabled', 'true', :updated_at)
-                ON CONFLICT (setting_key) 
+                ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = 'true', updated_at = :updated_at
             """
                 ),
@@ -1025,7 +1025,7 @@ async def stop_scheduler(db: Session = Depends(get_db), current_user: dict = Dep
                     """
                 INSERT INTO system_settings (setting_key, setting_value, updated_at)
                 VALUES ('scheduler_enabled', 'false', :updated_at)
-                ON CONFLICT (setting_key) 
+                ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = 'false', updated_at = :updated_at
             """
                 ),
@@ -1066,7 +1066,7 @@ async def update_scheduler_settings(
                     """
                 INSERT INTO system_settings (setting_key, setting_value, updated_at)
                 VALUES ('scheduler_interval_minutes', :interval, :updated_at)
-                ON CONFLICT (setting_key) 
+                ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = :interval, updated_at = :updated_at
             """
                 ),
@@ -1130,7 +1130,7 @@ async def list_alert_settings(db: Session = Depends(get_db), current_user: dict 
                 """
             SELECT id, user_id, alert_type, enabled, email_enabled, email_addresses,
                    webhook_url, webhook_enabled, created_at, updated_at
-            FROM alert_settings 
+            FROM alert_settings
             WHERE user_id = :user_id
             ORDER BY alert_type
         """
@@ -1178,13 +1178,13 @@ async def create_alert_settings(
         result = db.execute(
             text(
                 """
-            INSERT INTO alert_settings 
-            (user_id, alert_type, enabled, email_enabled, email_addresses, 
+            INSERT INTO alert_settings
+            (user_id, alert_type, enabled, email_enabled, email_addresses,
              webhook_url, webhook_enabled, created_at, updated_at)
             VALUES (:user_id, :alert_type, :enabled, :email_enabled, :email_addresses,
                     :webhook_url, :webhook_enabled, :created_at, :updated_at)
-            ON CONFLICT (user_id, alert_type) 
-            DO UPDATE SET 
+            ON CONFLICT (user_id, alert_type)
+            DO UPDATE SET
                 enabled = :enabled,
                 email_enabled = :email_enabled,
                 email_addresses = :email_addresses,
@@ -1247,7 +1247,7 @@ async def update_alert_settings(
         result = db.execute(
             text(
                 """
-            SELECT id FROM alert_settings 
+            SELECT id FROM alert_settings
             WHERE id = :id AND user_id = :user_id
         """
             ),

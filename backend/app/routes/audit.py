@@ -78,7 +78,7 @@ async def get_audit_events(
 
         # Build base query
         query = """
-            SELECT al.*, u.username 
+            SELECT al.*, u.username
             FROM audit_logs al
             LEFT JOIN users u ON al.user_id = u.id
             WHERE 1=1
@@ -185,7 +185,7 @@ async def get_audit_stats(
         # Get statistics
         stats_query = text(
             """
-            SELECT 
+            SELECT
                 COUNT(*) as total_events,
                 COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,
                 COUNT(CASE WHEN action LIKE '%LOGIN_FAILED%' OR action LIKE '%AUTH_FAILURE%' THEN 1 END) as failed_logins,
@@ -194,7 +194,7 @@ async def get_audit_stats(
                 COUNT(CASE WHEN action LIKE '%SECURITY%' OR action LIKE '%UNAUTHORIZED%' OR action LIKE '%ERROR%' THEN 1 END) as security_events,
                 COUNT(DISTINCT user_id) as unique_users,
                 COUNT(DISTINCT ip_address) as unique_ips
-            FROM audit_logs 
+            FROM audit_logs
             WHERE timestamp >= :date_from
         """
         )

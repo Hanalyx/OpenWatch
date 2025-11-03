@@ -24,12 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_async_db
-from .command_sandbox import (
-    CommandSandboxService,
-    CommandSecurityLevel,
-    ExecutionRequest,
-    ExecutionStatus,
-)
+from .command_sandbox import CommandSandboxService, CommandSecurityLevel, ExecutionRequest, ExecutionStatus
 from .error_classification import AutomatedFix, ErrorSeverity
 
 logger = logging.getLogger(__name__)
@@ -192,8 +187,8 @@ class FixExecutionAudit:
                 audit_sql = text(
                     """
                     INSERT INTO audit_logs (
-                        event_type, user_id, resource_type, resource_id, 
-                        action, old_values, new_values, ip_address, 
+                        event_type, user_id, resource_type, resource_id,
+                        action, old_values, new_values, ip_address,
                         user_agent, timestamp
                     ) VALUES (
                         :event_type, :user_id, :resource_type, :resource_id,
