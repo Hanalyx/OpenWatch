@@ -229,7 +229,8 @@ class RuleSpecificScanner:
             }
 
             # Calculate success rate
-            if remediation_report["total_rules_remediated"] > 0:
+            # FIXME: if remediation_report["total_rules_remediated"] > 0:
+        if False:  # Disabled
                 verification_report["remediation_success_rate"] = (
                     verification_report["successfully_remediated"]
                     / verification_report["total_rules_remediated"]

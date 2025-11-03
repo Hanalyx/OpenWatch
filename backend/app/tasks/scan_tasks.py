@@ -633,7 +633,7 @@ async def _process_semantic_intelligence(
 
 
 async def _send_enhanced_semantic_webhook(
-    scan_id: str, intelligent_result: "IntelligentScanResult", host_data: Dict[str, Any]
+    scan_id: str, intelligent_result: "Any", host_data: Dict[str, Any]
 ):
     """Send enhanced webhook with semantic intelligence data"""
 

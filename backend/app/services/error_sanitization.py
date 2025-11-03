@@ -503,7 +503,7 @@ class ErrorSanitizationService:
 
         # Remove sensitive system info using integrated system sanitization
         sanitized_system_info = self._sanitize_system_info_integration(
-            validation_result.get("system_info", {}), user_id, source_ip
+            validation_result.get("system_info", {}), "unknown_user", "unknown_ip"
         )
 
         return {

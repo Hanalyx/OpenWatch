@@ -882,7 +882,7 @@ async def get_scheduler_settings(
 ):
     """Get current scheduler settings"""
     try:
-        global scheduler_instance
+        # global scheduler_instance  # Unused
 
         # Check if scheduler is running
         is_running = scheduler_instance is not None and scheduler_instance.running

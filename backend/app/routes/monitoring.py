@@ -257,7 +257,7 @@ async def ping_host(
             "host_id": host_id,
             "ip_address": ip_address,
             "ping_success": ping_success,
-            "timestamp": host_monitor.__class__.__module__,
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except HTTPException:

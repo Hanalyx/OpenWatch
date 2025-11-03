@@ -1,3 +1,4 @@
+import io
 """
 Plugin Marketplace Integration Service
 Provides integration with external plugin marketplaces, repositories, and distribution channels.
