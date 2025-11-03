@@ -4,7 +4,7 @@ This directory contains OpenWatch compliance rules converted from ComplianceAsCo
 
 ## Summary
 
-- **Total Rules**: 1,387 
+- **Total Rules**: 1,387
 - **Platforms**: RHEL (709 rules), Ubuntu (96 rules)
 - **Frameworks**: NIST 800-53, CIS Controls, DISA STIG, PCI-DSS, ISO 27001, HIPAA
 - **Source**: ComplianceAsCode v0.1.73
