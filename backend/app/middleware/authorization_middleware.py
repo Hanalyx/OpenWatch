@@ -302,7 +302,9 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
         return True
 
-    def _extract_current_user(self, request: Request) -> Optional[Dict[str, Any]]:
+    async def _extract_current_user(
+        self, request: Request
+    ) -> Optional[Dict[str, Any]]:
         """
         Extract current user from request authentication
         """
@@ -457,7 +459,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
         return None
 
-    def _get_host_id_from_scan_id(self, scan_id: str) -> Optional[str]:
+    async def _get_host_id_from_scan_id(self, scan_id: str) -> Optional[str]:
         """
         Get host_id associated with a scan_id
         """
@@ -483,7 +485,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error getting host_id from scan_id {scan_id}: {e}")
             return None
 
-    def _get_host_ids_from_group_id(self, group_id: str) -> List[str]:
+    async def _get_host_ids_from_group_id(self, group_id: str) -> List[str]:
         """
         Get all host_ids in a host group
         """
@@ -538,7 +540,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
         return []
 
-    def _build_authorization_context(
+    async def _build_authorization_context(
         self, request: Request, current_user: Dict[str, Any]
     ) -> AuthorizationContext:
         """
