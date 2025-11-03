@@ -414,7 +414,7 @@ jobs:
   weekly-audit:
     name: Weekly Dependency Audit
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout code
