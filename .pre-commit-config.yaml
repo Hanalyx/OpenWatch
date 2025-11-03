@@ -55,7 +55,13 @@ repos:
     hooks:
       - id: mypy
         files: ^backend/
-        args: ['--ignore-missing-imports', '--no-strict-optional']
+        args:
+          - '--ignore-missing-imports'
+          - '--warn-redundant-casts'
+          - '--warn-unused-ignores'
+          - '--warn-unreachable'
+          - '--warn-return-any'
+          - '--check-untyped-defs'
         additional_dependencies:
           - 'types-redis'
           - 'types-requests'
@@ -87,6 +93,12 @@ repos:
         files: ^frontend/src/.*\.(ts|tsx)$
         pass_filenames: false
 
+      - id: commitlint
+        name: Commit Message Linting
+        entry: .git/hooks/commit-msg-lint.sh
+        language: script
+        stages: [commit-msg]
+
       # Don't run tests in pre-commit (too slow)
       # Tests run in CI instead
 
@@ -99,17 +111,24 @@ repos:
 
   # Secret scanning
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
         exclude: ^(package-lock\.json|.*\.lock)$
 
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ['-x']  # Follow source includes
+
 # Configuration
 default_language_version:
-  python: python3.9
+  python: python3
   node: 18.x
 
 # Performance optimization
-default_stages: [commit]
+default_stages: [pre-commit]
 fail_fast: false  # Run all hooks even if one fails
