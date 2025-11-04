@@ -95,12 +95,16 @@ jobs:
                 --add-label "medium-risk" \
                 --add-reviewer "${{ github.repository_owner }}"
 
+              # Get risk assessment details
+              RISK_DETAILS=$(jq -r --arg num "$alert_num" '.[] | select(.number == ($num | tonumber)) | .risk_assessment | to_entries | map("\(.key): \(.value)") | join("\n")' medium_risk_alerts.json)
+
+              # Create PR comment with proper escaping
               gh pr comment $PR_NUM --body "⚠️ **Medium Risk Update**
 
 This dependency update has been classified as MEDIUM risk and requires human review.
 
 **Risk Assessment:**
-$(jq -r --arg num "$alert_num" '.[] | select(.number == ($num | tonumber)) | .risk_assessment | to_entries | map("\(.key): \(.value)") | join("\n")' medium_risk_alerts.json)
+${RISK_DETAILS}
 
 Please review the changes carefully before merging."
             fi
@@ -119,6 +123,11 @@ Please review the changes carefully before merging."
             PACKAGE=$(echo "$ALERT" | jq -r '.dependency.package.name')
             SEVERITY=$(echo "$ALERT" | jq -r '.security_vulnerability.severity')
 
+            # Get risk assessment and alert details
+            RISK_ASSESSMENT=$(echo "$ALERT" | jq -r '.risk_assessment | to_entries | map("- **\(.key)**: \(.value)") | join("\n")')
+            ALERT_JSON=$(echo "$ALERT" | jq '.')
+
+            # Create issue with proper escaping
             gh issue create \
               --title "🚨 High Risk Security Alert: $PACKAGE ($SEVERITY)" \
               --label "security" \
@@ -130,14 +139,14 @@ Please review the changes carefully before merging."
 **Severity:** $SEVERITY
 
 **Risk Assessment:**
-$(echo "$ALERT" | jq -r '.risk_assessment | to_entries | map("- **\(.key)**: \(.value)") | join("\n")')
+${RISK_ASSESSMENT}
 
 **Action Required:**
 This alert has been classified as HIGH risk and requires immediate attention and careful review before implementing any fixes.
 
 **Alert Details:**
 \`\`\`json
-$(echo "$ALERT" | jq '.')
+${ALERT_JSON}
 \`\`\`
 
 **Next Steps:**

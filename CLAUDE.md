@@ -2,7 +2,7 @@
 
 > **Purpose**: This file provides comprehensive guidance to AI assistants (Claude Code, GitHub Copilot, etc.) when working with the OpenWatch compliance scanning platform.
 
-**Last Updated**: 2025-11-02
+**Last Updated**: 2025-11-04
 **Working Directory**: `/home/rracine/hanalyx/openwatch/`
 
 ---
@@ -1538,6 +1538,70 @@ async def test_compliance_rule():
 ---
 
 ## ✅ Code Quality Standards
+
+### **CRITICAL: NO EMOJIS IN CODE**
+
+**Policy**: Emojis are **STRICTLY PROHIBITED** in all OpenWatch codebase files.
+
+**Why**:
+1. **YAML Parsing**: Emojis in YAML files (especially GitHub Actions workflows) cause parsing errors
+2. **Encoding Issues**: Emojis can cause UTF-8 encoding problems in logs, terminals, and CI/CD pipelines
+3. **Professional Standards**: Enterprise-grade software should use clear, professional language
+4. **Accessibility**: Screen readers and accessibility tools may misinterpret emojis
+5. **Git Diffs**: Emojis make code reviews and diffs harder to read
+6. **Database Compatibility**: Some database encodings don't support emoji characters
+
+**Enforcement**:
+- ❌ NEVER use emojis in: Python code, TypeScript/JavaScript code, YAML files, shell scripts, documentation
+- ✅ ALWAYS use: Clear text descriptions, standard ASCII characters, professional language
+- ✅ PRE-COMMIT HOOK: Blocks commits containing emojis (except in this policy document)
+
+**Examples**:
+
+```python
+# ❌ WRONG - Using emojis
+logger.info("✅ Database connection successful")
+logger.error("❌ Failed to connect")
+raise HTTPException(status_code=500, detail="🚨 Critical error")
+
+# ✅ CORRECT - Clear text
+logger.info("Database connection successful")
+logger.error("Failed to connect to database")
+raise HTTPException(status_code=500, detail="Critical error occurred")
+```
+
+```yaml
+# ❌ WRONG - Emojis in YAML
+name: 🚀 Deploy Production
+run: echo "✅ Build successful"
+
+# ✅ CORRECT - Plain text
+name: Deploy Production
+run: echo "Build successful"
+```
+
+```bash
+# ❌ WRONG - Emojis in shell scripts
+echo "🔍 Scanning for vulnerabilities..."
+echo "✅ All tests passed!"
+
+# ✅ CORRECT - Plain text
+echo "Scanning for vulnerabilities..."
+echo "All tests passed"
+```
+
+**Exceptions**:
+- This policy document (CLAUDE.md) - for illustration purposes only
+- User-facing UI text files (frontend/src/locales/) - if explicitly required for UX
+
+**Pre-commit Hook** (`scripts/pre-commit-quality-check.sh`):
+```bash
+# Check for emojis in staged files
+if git diff --cached --name-only | xargs grep -P "[\x{1F300}-\x{1F9FF}]" 2>/dev/null | grep -v "CLAUDE.md"; then
+    echo "ERROR: Emojis detected in code. Use plain text instead."
+    exit 1
+fi
+```
 
 ### Python Backend Standards
 
