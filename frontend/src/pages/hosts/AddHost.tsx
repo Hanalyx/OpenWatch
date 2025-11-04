@@ -307,8 +307,8 @@ const AddHost: React.FC = () => {
   // Fetch system default credentials for display
   const fetchSystemCredentials = async () => {
     try {
-      // WEEK 2 MIGRATION: Use v2 API with scope filter (trailing slash required)
-      const response = await fetch('/api/v2/credentials/?scope=system', {
+      // Use unified credentials API with scope filter
+      const response = await fetch('/api/system/credentials?scope=system', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }

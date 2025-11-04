@@ -742,8 +742,8 @@ const HostsEnhanced: React.FC = () => {
 
   const fetchSystemCredentialsForEdit = async () => {
     try {
-      // WEEK 2 MIGRATION: Use v2 API with scope filter (trailing slash required)
-      const response = await api.get('/api/v2/credentials/?scope=system');
+      // Use unified credentials API with scope filter
+      const response = await api.get('/api/system/credentials?scope=system');
       const defaultCredential = response.find((cred: any) => cred.is_default);
 
       if (defaultCredential) {

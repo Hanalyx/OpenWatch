@@ -178,12 +178,12 @@ const Settings: React.FC = () => {
     
     try {
       setLoading(true);
-      // WEEK 2 MIGRATION: Use v2 API with scope filter and inactive toggle
+      // Use unified credentials API with scope filter and inactive toggle
       const params = new URLSearchParams({
         scope: 'system',
         include_inactive: showInactive.toString()
       });
-      const response = await api.get(`/api/v2/credentials/?${params}`);
+      const response = await api.get(`/api/system/credentials?${params}`);
       setCredentials(response); // API directly returns array
     } catch (err: any) {
       setError('Failed to load system credentials');
@@ -343,8 +343,8 @@ const Settings: React.FC = () => {
     }
 
     try {
-      // WEEK 2 MIGRATION: Use v2 DELETE endpoint (trailing slash required)
-      await api.delete(`/api/v2/credentials/${id}/`);
+      // Use unified credentials API DELETE endpoint
+      await api.delete(`/api/system/credentials/${id}`);
       setSuccess('Credential set deleted successfully');
       loadCredentials();
     } catch (err: any) {
@@ -359,17 +359,17 @@ const Settings: React.FC = () => {
       setLoading(true);
 
       if (editingCredential) {
-        // Update existing credential (keep using v1 PUT - already on unified_credentials)
+        // Update existing credential using unified credentials API
         await api.put(`/api/system/credentials/${editingCredential.id}`, formData);
         setSuccess('Credential set updated successfully');
       } else {
-        // WEEK 2 MIGRATION: Create new credential using v2 API (trailing slash required)
-        const v2FormData = {
+        // Create new credential using unified credentials API
+        const createFormData = {
           ...formData,
           scope: 'system',
           target_id: null
         };
-        await api.post('/api/v2/credentials/', v2FormData);
+        await api.post('/api/system/credentials', createFormData);
         setSuccess('Credential set created successfully');
       }
 
