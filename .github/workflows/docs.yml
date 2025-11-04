@@ -9,6 +9,7 @@ on:
       - 'frontend/**/*.tsx'
       - 'frontend/**/*.ts'
       - 'README.md'
+      - '.github/workflows/docs.yml'
   pull_request:
     paths:
       - 'docs/**'
@@ -16,6 +17,7 @@ on:
       - 'frontend/**/*.tsx'
       - 'frontend/**/*.ts'
       - 'README.md'
+      - '.github/workflows/docs.yml'
 
 jobs:
   generate-api-docs:
