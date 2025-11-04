@@ -72,7 +72,7 @@ jobs:
 
             if [ -n "$PR_NUM" ]; then
               echo "Approving PR #$PR_NUM (Alert #$alert_num)"
-              gh pr review $PR_NUM --approve --body "✅ Auto-approved: LOW risk update"
+              gh pr review $PR_NUM --approve --body "[APPROVED] Auto-approved: LOW risk update"
               gh pr merge $PR_NUM --auto --squash || echo "Could not enable auto-merge for PR #$PR_NUM"
             fi
           done
@@ -82,7 +82,7 @@ jobs:
       - name: Request Review for Medium Risk
         if: steps.risk.outputs.has_medium_risk == 'true'
         run: |
-          echo "⚠️ Requesting review for medium-risk alerts..."
+          echo "[WARNING] Requesting review for medium-risk alerts..."
 
           jq -r '.[] | .number' medium_risk_alerts.json | while read alert_num; do
             # Find associated PR
@@ -98,15 +98,8 @@ jobs:
               # Get risk assessment details
               RISK_DETAILS=$(jq -r --arg num "$alert_num" '.[] | select(.number == ($num | tonumber)) | .risk_assessment | to_entries | map("\(.key): \(.value)") | join("\n")' medium_risk_alerts.json)
 
-              # Create PR comment with proper escaping
-              gh pr comment $PR_NUM --body "⚠️ **Medium Risk Update**
-
-This dependency update has been classified as MEDIUM risk and requires human review.
-
-**Risk Assessment:**
-${RISK_DETAILS}
-
-Please review the changes carefully before merging."
+              # Create PR comment - using simple text to avoid YAML parsing issues
+              gh pr comment $PR_NUM --body "WARNING - Medium Risk Update: This dependency update has been classified as MEDIUM risk and requires human review. Risk Assessment: ${RISK_DETAILS}. Please review the changes carefully before merging."
             fi
           done
         env:
@@ -127,36 +120,13 @@ Please review the changes carefully before merging."
             RISK_ASSESSMENT=$(echo "$ALERT" | jq -r '.risk_assessment | to_entries | map("- **\(.key)**: \(.value)") | join("\n")')
             ALERT_JSON=$(echo "$ALERT" | jq '.')
 
-            # Create issue with proper escaping
+            # Create issue - simplified to avoid YAML parsing issues
             gh issue create \
-              --title "🚨 High Risk Security Alert: $PACKAGE ($SEVERITY)" \
+              --title "[HIGH RISK] Security Alert: $PACKAGE ($SEVERITY)" \
               --label "security" \
               --label "high-risk" \
               --label "dependabot" \
-              --body "## High Risk Dependabot Alert #$ALERT_NUM
-
-**Package:** $PACKAGE
-**Severity:** $SEVERITY
-
-**Risk Assessment:**
-${RISK_ASSESSMENT}
-
-**Action Required:**
-This alert has been classified as HIGH risk and requires immediate attention and careful review before implementing any fixes.
-
-**Alert Details:**
-\`\`\`json
-${ALERT_JSON}
-\`\`\`
-
-**Next Steps:**
-1. Review the vulnerability details
-2. Assess impact on production
-3. Plan remediation strategy
-4. Test thoroughly before deployment
-
----
-*This issue was automatically created by the Automated Triage System*"
+              --body "High Risk Dependabot Alert #$ALERT_NUM - Package: $PACKAGE - Severity: $SEVERITY - Risk Assessment: ${RISK_ASSESSMENT} - Action Required: This alert has been classified as HIGH risk and requires immediate attention and careful review before implementing any fixes. Next Steps: 1. Review the vulnerability details 2. Assess impact on production 3. Plan remediation strategy 4. Test thoroughly before deployment - This issue was automatically created by the Automated Triage System"
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
