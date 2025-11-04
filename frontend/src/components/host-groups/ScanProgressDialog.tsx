@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import {
   CheckCircle,
-  Error,
+  Error as ErrorIcon,
   Schedule,
   PlayArrow,
   Pause,
@@ -109,8 +109,9 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
           setAutoRefresh(false);
         }
       } else {
-        const errorData = await response.json();
-        throw new (Error as any)(errorData.detail || 'Failed to fetch progress');
+        const errorData: { detail?: string } = await response.json();
+        const errorMessage = String(errorData.detail || 'Failed to fetch progress');
+        throw new Error(errorMessage);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch progress');
@@ -166,7 +167,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed': return <CheckCircle color="success" />;
-      case 'failed': return <Error color="error" />;
+      case 'failed': return <ErrorIcon color="error" />;
       case 'running': return <PlayArrow color="primary" />;
       case 'cancelled': return <Stop color="disabled" />;
       default: return <Schedule color="disabled" />;
