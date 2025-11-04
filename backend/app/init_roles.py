@@ -151,13 +151,19 @@ def create_default_super_admin(db: Session):
 
 
 def init_default_system_credentials(db: Session):
-    """Initialize default system SSH credentials for frictionless onboarding"""
+    """
+    Initialize default system SSH credentials for frictionless onboarding
+
+    Uses unified_credentials table (system_credentials removed 2025-11-03)
+    """
     try:
-        # Check if any system credentials already exist
+        # Check if system-level credentials exist in unified_credentials
         result = db.execute(
             text(
                 """
-            SELECT COUNT(*) as count FROM system_credentials WHERE is_active = true
+            SELECT COUNT(*) as count
+            FROM unified_credentials
+            WHERE scope = 'system' AND is_active = true
         """
             )
         )
@@ -168,7 +174,7 @@ def init_default_system_credentials(db: Session):
             logger.info(f"Found {existing_count} existing system credentials, skipping initialization")
             return
 
-        logger.info("No system credentials found - creating placeholder credentials for easy setup")
+        logger.info("No system credentials found - creating placeholder in unified_credentials")
 
         # Create placeholder credentials that guide users to configure actual credentials
         placeholder_description = (
@@ -185,17 +191,17 @@ def init_default_system_credentials(db: Session):
         encrypted_bytes = encryption_service.encrypt(b"CHANGE_ME_PLEASE")
         encrypted_password = base64.b64encode(encrypted_bytes).decode("ascii")
 
-        # Insert placeholder credentials (no actual sensitive data)
+        # Insert into unified_credentials (NOT system_credentials)
         db.execute(
             text(
                 """
-            INSERT INTO system_credentials
-            (name, description, username, auth_method, encrypted_password,
-             encrypted_private_key, private_key_passphrase, is_default, is_active,
-             created_by, created_at, updated_at)
-            VALUES (:name, :description, :username, :auth_method, :encrypted_password,
-                    :encrypted_private_key, :private_key_passphrase, :is_default, :is_active,
-                    :created_by, :created_at, :updated_at)
+            INSERT INTO unified_credentials
+            (name, description, username, auth_method,
+             encrypted_password, encrypted_private_key, private_key_passphrase,
+             scope, target_id, is_default, is_active, created_at, updated_at)
+            VALUES (:name, :description, :username, :auth_method,
+                    :encrypted_password, :encrypted_private_key, :private_key_passphrase,
+                    'system', NULL, true, true, :created_at, :updated_at)
         """
             ),
             {
@@ -203,12 +209,9 @@ def init_default_system_credentials(db: Session):
                 "description": placeholder_description,
                 "username": "root",
                 "auth_method": "password",
-                "encrypted_password": encrypted_password,  # Obvious placeholder
+                "encrypted_password": encrypted_password,
                 "encrypted_private_key": None,
                 "private_key_passphrase": None,
-                "is_default": True,
-                "is_active": True,
-                "created_by": 1,  # Created by default admin user
                 "created_at": current_time,
                 "updated_at": current_time,
             },
@@ -216,7 +219,7 @@ def init_default_system_credentials(db: Session):
 
         db.commit()
 
-        logger.info("Created placeholder system credentials - users should update these in Settings")
+        logger.info("Created placeholder system credentials in unified_credentials - users should update these in Settings")
         logger.warning(
             "SECURITY NOTICE: Default SSH credentials created with placeholder password. Users must update these credentials in Settings before performing SSH operations."
         )

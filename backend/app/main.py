@@ -51,7 +51,6 @@ from .routes import (
     webhooks,
 )
 from .routes.system_settings_unified import router as system_settings_router
-from .routes.v2 import credentials as v2_credentials  # WEEK 2: v2 credentials API
 
 # Import security routes only if available
 try:
@@ -532,9 +531,6 @@ app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
 app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
 app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
 app.include_router(credentials.router, tags=["Credential Sharing"])
-app.include_router(
-    v2_credentials.router, prefix="/api", tags=["Credentials v2"]
-)  # WEEK 2: v2 credentials API (adds /api prefix to router's /v2/credentials)
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
 app.include_router(
