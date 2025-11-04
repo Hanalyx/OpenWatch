@@ -16,6 +16,7 @@ from ..auth import get_current_user, pwd_context
 from ..database import get_db
 from ..rbac import Permission, RBACManager, UserRole, require_admin, require_permission, require_super_admin
 from ..utils.logging_security import sanitize_id_for_log
+from ..utils.user_helpers import format_user_not_found_error, serialize_user_row
 
 logger = logging.getLogger(__name__)
 
@@ -181,21 +182,11 @@ async def list_users(
             params,
         )
 
+        # Phase 3: Use centralized serialization helper
         users = []
         for row in result:
-            users.append(
-                UserResponse(
-                    id=row.id,
-                    username=row.username,
-                    email=row.email,
-                    role=UserRole(row.role),
-                    is_active=row.is_active,
-                    created_at=row.created_at.isoformat(),
-                    last_login=row.last_login.isoformat() if row.last_login else None,
-                    failed_login_attempts=row.failed_login_attempts,
-                    locked_until=(row.locked_until.isoformat() if row.locked_until else None),
-                )
-            )
+            user_data = serialize_user_row(row)
+            users.append(UserResponse(**user_data))
 
         return UserListResponse(users=users, total=total, page=page, page_size=page_size)
 
@@ -252,17 +243,22 @@ async def create_user(
 
         logger.info(f"User {user_data.username} created by {current_user.get('username')}")
 
-        return UserResponse(
+        # Phase 3: Create synthetic row object for serialization helper
+        # Since we're combining request data with database result, we create a simple namespace
+        from types import SimpleNamespace
+        synthetic_row = SimpleNamespace(
             id=row.id,
             username=user_data.username,
             email=user_data.email,
-            role=user_data.role,
+            role=user_data.role.value,
             is_active=user_data.is_active,
-            created_at=row.created_at.isoformat(),
+            created_at=row.created_at,
             last_login=None,
             failed_login_attempts=0,
             locked_until=None,
         )
+        serialized_data = serialize_user_row(synthetic_row)
+        return UserResponse(**serialized_data)
 
     except HTTPException:
         raise
@@ -294,19 +290,11 @@ async def get_user(
 
         row = result.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise format_user_not_found_error(user_id)
 
-        return UserResponse(
-            id=row.id,
-            username=row.username,
-            email=row.email,
-            role=UserRole(row.role),
-            is_active=row.is_active,
-            created_at=row.created_at.isoformat(),
-            last_login=row.last_login.isoformat() if row.last_login else None,
-            failed_login_attempts=row.failed_login_attempts,
-            locked_until=row.locked_until.isoformat() if row.locked_until else None,
-        )
+        # Phase 3: Use centralized serialization helper
+        user_data = serialize_user_row(row)
+        return UserResponse(**user_data)
 
     except HTTPException:
         raise
