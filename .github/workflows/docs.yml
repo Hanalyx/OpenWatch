@@ -114,12 +114,13 @@ jobs:
 
       - name: Build MkDocs documentation
         run: |
-          # Create mkdocs.yml configuration
+          # Create minimal mkdocs.yml configuration with only existing files
           cat > mkdocs.yml << EOF
           site_name: OpenWatch Documentation
           site_url: https://docs.openwatch.hanalyx.com
           repo_url: https://github.com/Hanalyx/OpenWatch
           repo_name: Hanalyx/OpenWatch
+          docs_dir: .
 
           theme:
             name: material
@@ -147,52 +148,26 @@ jobs:
 
           nav:
             - Home: README.md
-            - Getting Started:
-              - Installation: docs/installation.md
-              - Quick Start: docs/quickstart.md
-              - Configuration: docs/configuration.md
-            - User Guide:
-              - Dashboard: docs/user-guide/dashboard.md
-              - Host Management: docs/user-guide/hosts.md
-              - Scanning: docs/user-guide/scanning.md
-              - Reports: docs/user-guide/reports.md
-            - API Reference:
-              - Overview: docs/api/README.md
-              - Authentication: docs/api/authentication.md
-              - Endpoints: docs/api/endpoints.md
-            - Security:
-              - Overview: docs/security/SECURITY.md
-              - Best Practices: docs/security/best-practices.md
-            - Deployment:
-              - Docker: docs/deployment/docker-deployment.md
-              - Kubernetes: docs/deployment/kubernetes.md
-              - AWS: docs/deployment/aws.md
+            - Documentation: docs/
 
           plugins:
             - search
-            - mermaid2
 
           markdown_extensions:
             - pymdownx.highlight:
                 anchor_linenums: true
             - pymdownx.inlinehilite
             - pymdownx.snippets
-            - pymdownx.superfences:
-                custom_fences:
-                  - name: mermaid
-                    class: mermaid
-                    format: !!python/name:pymdownx.superfences.fence_code_format
+            - pymdownx.superfences
             - admonition
             - pymdownx.details
-            - pymdownx.tabbed:
-                alternate_style: true
             - tables
             - toc:
                 permalink: true
           EOF
 
           # Build documentation
-          mkdocs build
+          mkdocs build --strict
 
       - name: Upload user documentation
         uses: actions/upload-artifact@v4
