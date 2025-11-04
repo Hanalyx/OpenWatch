@@ -12,11 +12,7 @@ import {
   InputAdornment,
   CircularProgress,
 } from '@mui/material';
-import {
-  Visibility,
-  VisibilityOff,
-  LockOutlined,
-} from '@mui/icons-material';
+import { Visibility, VisibilityOff, LockOutlined } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { loginSuccess, loginFailure, clearError, setLoading } from '../../store/slices/authSlice';
@@ -65,14 +61,14 @@ const Login: React.FC = () => {
       }
 
       const loginData = await response.json();
-      
+
       const authData = {
         user: loginData.user,
         token: loginData.access_token,
         refreshToken: loginData.refresh_token,
         expiresIn: loginData.expires_in,
       };
-      
+
       dispatch(loginSuccess(authData));
       navigate('/');
     } catch (err: any) {
@@ -108,21 +104,16 @@ const Login: React.FC = () => {
               justifyContent: 'center',
             }}
           >
-            <img 
-              src="/hanalyx-logo.svg" 
-              alt="Hanalyx Logo" 
-              style={{ width: 64, height: 64 }} 
-            />
+            <img src="/hanalyx-logo.svg" alt="Hanalyx Logo" style={{ width: 64, height: 64 }} />
           </Box>
-          
+
           <Typography component="h1" variant="h5" gutterBottom>
             Hanalyx OpenWatch
           </Typography>
-          
+
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
             Intelligent Compliance Automation
           </Typography>
-          
 
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
@@ -143,7 +134,7 @@ const Login: React.FC = () => {
               error={!!errors.username}
               helperText={errors.username?.message}
             />
-            
+
             <TextField
               margin="normal"
               required

@@ -105,17 +105,12 @@ interface SmartGroupCreationWizardProps {
   onGroupCreated: () => void;
 }
 
-const steps = [
-  'Select Hosts',
-  'Configure Group',
-  'Validation & Review',
-  'Create Group'
-];
+const steps = ['Select Hosts', 'Configure Group', 'Validation & Review', 'Create Group'];
 
 const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
   open,
   onClose,
-  onGroupCreated
+  onGroupCreated,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -182,8 +177,8 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       setLoading(true);
       const response = await fetch('/api/hosts/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (!response.ok) {
@@ -205,11 +200,11 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
     try {
       setScapContentLoading(true);
       setScapContentError(null);
-      
+
       const response = await fetch('/api/scap-content/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (!response.ok) {
@@ -218,7 +213,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
       const data = await response.json();
       console.log('SCAP Content API Response:', data);
-      
+
       // Handle different possible response structures
       let contentList: SCAPContent[] = [];
       if (Array.isArray(data)) {
@@ -230,7 +225,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       } else if (data.data && Array.isArray(data.data)) {
         contentList = data.data;
       }
-      
+
       console.log('Parsed SCAP Content List:', contentList);
       setAvailableScapContent(contentList);
     } catch (err) {
@@ -247,7 +242,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
     if (selected) {
       setSelectedHosts([...selectedHosts, host]);
     } else {
-      setSelectedHosts(selectedHosts.filter(h => h.id !== host.id));
+      setSelectedHosts(selectedHosts.filter((h) => h.id !== host.id));
     }
   };
 
@@ -256,18 +251,18 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
     try {
       setLoading(true);
-      
+
       const response = await fetch('/api/host-groups/smart-create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: selectedHosts.map(h => h.id),
+          host_ids: selectedHosts.map((h) => h.id),
           group_name: groupName || 'Smart Group',
-          auto_configure: false // Just get analysis
-        })
+          auto_configure: false, // Just get analysis
+        }),
       });
 
       if (!response.ok) {
@@ -275,44 +270,47 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       }
 
       const analysis = await response.json();
-      
+
       // Apply smart configuration
       if (analysis.analysis?.recommendations) {
         const rec = analysis.analysis.recommendations;
-        
+
         // Set OS family if it matches one of our predefined options
         if (rec.os_family) {
-          const osOption = OS_FAMILY_OPTIONS.find(opt => 
-            opt.value === rec.os_family.toLowerCase() || 
-            opt.label.toLowerCase().includes(rec.os_family.toLowerCase())
+          const osOption = OS_FAMILY_OPTIONS.find(
+            (opt) =>
+              opt.value === rec.os_family.toLowerCase() ||
+              opt.label.toLowerCase().includes(rec.os_family.toLowerCase())
           );
           if (osOption) {
             setOsFamily(osOption.value);
           }
         }
-        
+
         if (rec.os_version_pattern) setOsVersionPattern(rec.os_version_pattern);
-        
+
         // Set architecture if it matches one of our predefined options
         if (rec.architecture) {
-          const archOption = ARCHITECTURE_OPTIONS.find(opt => 
-            opt.value === rec.architecture.toLowerCase()
+          const archOption = ARCHITECTURE_OPTIONS.find(
+            (opt) => opt.value === rec.architecture.toLowerCase()
           );
           if (archOption) {
             setArchitecture(archOption.value);
           }
         }
-        
+
         if (rec.scap_content) {
-          const content = availableScapContent.find(c => c.id === rec.scap_content.id);
+          const content = availableScapContent.find((c) => c.id === rec.scap_content.id);
           if (content) {
             setScapContent(content);
-            
+
             // Set compliance framework from content or recommendation
             const framework = rec.scap_content.compliance_framework || content.compliance_framework;
             if (framework) {
-              const frameworkOption = COMPLIANCE_FRAMEWORK_OPTIONS.find(opt =>
-                opt.value === framework || opt.label.toLowerCase().includes(framework.toLowerCase())
+              const frameworkOption = COMPLIANCE_FRAMEWORK_OPTIONS.find(
+                (opt) =>
+                  opt.value === framework ||
+                  opt.label.toLowerCase().includes(framework.toLowerCase())
               );
               if (frameworkOption) {
                 setComplianceFramework(frameworkOption.value);
@@ -321,7 +319,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           }
         }
       }
-
     } catch (err) {
       console.error('Error analyzing hosts:', err);
     } finally {
@@ -347,7 +344,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         default_profile_id: defaultProfile,
         compliance_framework: complianceFramework,
         auto_scan_enabled: autoScanEnabled,
-        scan_schedule: scanSchedule
+        scan_schedule: scanSchedule,
       };
 
       // First create the group
@@ -355,9 +352,9 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(groupConfig)
+        body: JSON.stringify(groupConfig),
       });
 
       if (!createResponse.ok) {
@@ -371,11 +368,11 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: selectedHosts.map(h => h.id)
-        })
+          host_ids: selectedHosts.map((h) => h.id),
+        }),
       });
 
       if (validateResponse.ok) {
@@ -387,10 +384,9 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       await fetch(`/api/host-groups/${tempGroup.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
-
     } catch (err) {
       console.error('Error validating group:', err);
       setError(err instanceof Error ? err.message : 'Failed to validate group configuration');
@@ -414,7 +410,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         default_profile_id: defaultProfile,
         compliance_framework: complianceFramework,
         auto_scan_enabled: autoScanEnabled,
-        scan_schedule: scanSchedule
+        scan_schedule: scanSchedule,
       };
 
       console.log('Creating group with data:', groupConfig);
@@ -423,14 +419,15 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(groupConfig)
+        body: JSON.stringify(groupConfig),
       });
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json().catch(() => null);
-        const errorMessage = errorData?.detail || `Failed to create group (${createResponse.status})`;
+        const errorMessage =
+          errorData?.detail || `Failed to create group (${createResponse.status})`;
         throw new Error(errorMessage);
       }
 
@@ -444,7 +441,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
       // Assign hosts to the group
       await assignHostsToGroup(group.id);
-
     } catch (err) {
       console.error('Error creating group:', err);
       setError(err instanceof Error ? err.message : 'Failed to create group');
@@ -456,25 +452,26 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
   const assignHostsToGroup = async (groupId: string) => {
     try {
-      const hostIds = selectedHosts.map(h => h.id);
+      const hostIds = selectedHosts.map((h) => h.id);
       console.log('Assigning hosts to group:', hostIds);
 
       const assignResponse = await fetch(`/api/host-groups/${groupId}/hosts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: hostIds
-        })
+          host_ids: hostIds,
+        }),
       });
 
       if (!assignResponse.ok) {
         const errorData = await assignResponse.json().catch(() => null);
-        const errorMessage = errorData?.detail || `Failed to assign hosts to group (${assignResponse.status})`;
+        const errorMessage =
+          errorData?.detail || `Failed to assign hosts to group (${assignResponse.status})`;
         console.log('Host assignment error:', errorMessage);
-        
+
         // If group was created but host assignment failed, provide recovery options
         setError(`Group was created successfully, but failed to assign hosts: ${errorMessage}`);
         return;
@@ -483,7 +480,6 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       console.log('Hosts assigned successfully');
       onGroupCreated();
       onClose();
-
     } catch (err) {
       console.error('Error assigning hosts:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to assign hosts';
@@ -493,10 +489,10 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
   const retryHostAssignment = async () => {
     if (!createdGroupId) return;
-    
+
     setError(null);
     setHostAssignmentLoading(true);
-    
+
     try {
       await assignHostsToGroup(createdGroupId);
     } finally {
@@ -511,10 +507,10 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       setError(validation.message);
       return;
     }
-    
+
     // Clear any previous errors
     setError(null);
-    
+
     if (activeStep === 1) {
       await analyzeSelectedHosts();
     } else if (activeStep === 2) {
@@ -523,7 +519,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       await createGroup();
       return;
     }
-    
+
     setActiveStep(activeStep + 1);
   };
 
@@ -533,26 +529,27 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
   const validateCurrentStep = () => {
     switch (activeStep) {
-      case 0: 
+      case 0:
         return {
           valid: selectedHosts.length > 0,
-          message: selectedHosts.length === 0 ? 'Please select at least one host' : null
+          message: selectedHosts.length === 0 ? 'Please select at least one host' : null,
         };
       case 1:
         const errors = [];
         if (!groupName.trim()) errors.push('Group name is required');
         if (groupName.trim().length < 3) errors.push('Group name must be at least 3 characters');
-        if (scapContent && !defaultProfile) errors.push('Default profile is required when SCAP content is selected');
-        
+        if (scapContent && !defaultProfile)
+          errors.push('Default profile is required when SCAP content is selected');
+
         return {
           valid: errors.length === 0,
-          message: errors.length > 0 ? errors[0] : null
+          message: errors.length > 0 ? errors[0] : null,
         };
-      case 2: 
+      case 2:
         return { valid: true, message: null }; // Can always review
-      case 3: 
+      case 3:
         return { valid: true, message: null };
-      default: 
+      default:
         return { valid: false, message: 'Invalid step' };
     }
   };
@@ -577,8 +574,8 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       ) : (
         <List sx={{ maxHeight: 400, overflow: 'auto' }}>
           {hosts.map((host) => {
-            const isSelected = selectedHosts.some(h => h.id === host.id);
-            
+            const isSelected = selectedHosts.some((h) => h.id === host.id);
+
             return (
               <ListItem key={host.id}>
                 <ListItemIcon>
@@ -595,9 +592,9 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                         {host.ip_address}
                       </Typography>
                       {host.operating_system && (
-                        <Chip 
-                          label={host.operating_system} 
-                          size="small" 
+                        <Chip
+                          label={host.operating_system}
+                          size="small"
                           sx={{ mt: 0.5, display: 'inline-block' }}
                         />
                       )}
@@ -647,7 +644,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             helperText="A descriptive name for this compliance group"
           />
         </Grid>
-        
+
         <Grid item xs={12} sm={6}>
           <TextField
             label="Description"
@@ -728,10 +725,15 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               <TextField
                 {...params}
                 label="SCAP Content"
-                helperText={scapContentError ? `Error: ${scapContentError}` : 
-                  scapContentLoading ? "Loading content..." : 
-                  availableScapContent.length === 0 ? "No content available - upload content first" :
-                  "Choose compliance content for scanning"}
+                helperText={
+                  scapContentError
+                    ? `Error: ${scapContentError}`
+                    : scapContentLoading
+                      ? 'Loading content...'
+                      : availableScapContent.length === 0
+                        ? 'No content available - upload content first'
+                        : 'Choose compliance content for scanning'
+                }
                 error={!!scapContentError}
                 InputProps={{
                   ...params.InputProps,
@@ -751,14 +753,19 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                     {option.name}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {option.os_family?.toUpperCase()} {option.os_version} • {option.compliance_framework}
+                    {option.os_family?.toUpperCase()} {option.os_version} •{' '}
+                    {option.compliance_framework}
                   </Typography>
                 </Box>
               </Box>
             )}
-            noOptionsText={scapContentLoading ? "Loading..." : 
-              scapContentError ? "Failed to load content" : 
-              "No SCAP content available - upload content first"}
+            noOptionsText={
+              scapContentLoading
+                ? 'Loading...'
+                : scapContentError
+                  ? 'Failed to load content'
+                  : 'No SCAP content available - upload content first'
+            }
           />
         </Grid>
 
@@ -779,7 +786,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                   const profileId = typeof profile === 'object' ? profile.id : profile;
                   const profileTitle = typeof profile === 'object' ? profile.title : profile;
                   const profileDescription = typeof profile === 'object' ? profile.description : '';
-                  
+
                   return (
                     <MenuItem key={profileId || index} value={profileId}>
                       <Box>
@@ -803,7 +810,11 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
               onChange={(e) => setDefaultProfile(e.target.value)}
               fullWidth
               disabled={!scapContent}
-              helperText={scapContent ? "No profiles available in selected content" : "Select SCAP content first"}
+              helperText={
+                scapContent
+                  ? 'No profiles available in selected content'
+                  : 'Select SCAP content first'
+              }
               placeholder="Enter profile ID"
             />
           )}
@@ -845,7 +856,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             }
             label="Enable automatic scanning"
           />
-          
+
           {autoScanEnabled && (
             <FormControl fullWidth size="small" sx={{ mt: 1 }}>
               <InputLabel>Scan Schedule</InputLabel>
@@ -866,14 +877,13 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                 ))}
               </Select>
               <FormHelperText>
-                {scanSchedule === 'custom' 
+                {scanSchedule === 'custom'
                   ? 'Enter custom cron expression below'
-                  : 'Choose when to run automatic scans'
-                }
+                  : 'Choose when to run automatic scans'}
               </FormHelperText>
             </FormControl>
           )}
-          
+
           {autoScanEnabled && scanSchedule === 'custom' && (
             <TextField
               label="Custom Cron Expression"
@@ -1028,11 +1038,11 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             Group "{groupName}" will be created with {selectedHosts.length} hosts
           </Typography>
-          
+
           {validation && validation.summary.incompatible_count > 0 && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              {validation.summary.compatible_count} compatible hosts will be assigned. 
-              Incompatible hosts will be skipped.
+              {validation.summary.compatible_count} compatible hosts will be assigned. Incompatible
+              hosts will be skipped.
             </Alert>
           )}
         </>
@@ -1045,7 +1055,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
             Group "{groupName}" has been created.
           </Typography>
-          
+
           {hostAssignmentLoading ? (
             <Box sx={{ mb: 2 }}>
               <CircularProgress size={24} sx={{ mr: 1 }} />
@@ -1085,11 +1095,16 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
 
   const getStepContent = () => {
     switch (activeStep) {
-      case 0: return renderHostSelection();
-      case 1: return renderGroupConfiguration();
-      case 2: return renderValidationResults();
-      case 3: return renderCreateGroup();
-      default: return null;
+      case 0:
+        return renderHostSelection();
+      case 1:
+        return renderGroupConfiguration();
+      case 2:
+        return renderValidationResults();
+      case 3:
+        return renderCreateGroup();
+      default:
+        return null;
     }
   };
 
@@ -1104,9 +1119,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SmartIcon color="primary" />
-          <Typography variant="h6">
-            Smart Group Creation Wizard
-          </Typography>
+          <Typography variant="h6">Smart Group Creation Wizard</Typography>
         </Box>
       </DialogTitle>
 
@@ -1121,56 +1134,36 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           {steps.map((label, index) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
-              <StepContent>
-                {index === activeStep && getStepContent()}
-              </StepContent>
+              <StepContent>{index === activeStep && getStepContent()}</StepContent>
             </Step>
           ))}
         </Stepper>
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>
-          Cancel
-        </Button>
-        
+        <Button onClick={onClose}>Cancel</Button>
+
         <Button
           onClick={handleBack}
           disabled={activeStep === 0 || loading || hostAssignmentLoading}
         >
           Back
         </Button>
-        
+
         {/* Show Create Group button only if group hasn't been created yet */}
         {activeStep === steps.length - 1 && !createdGroupId && (
-          <Button
-            variant="contained"
-            onClick={handleNext}
-            disabled={!canProceed() || loading}
-          >
-            {loading ? (
-              <CircularProgress size={20} />
-            ) : (
-              'Create Group'
-            )}
+          <Button variant="contained" onClick={handleNext} disabled={!canProceed() || loading}>
+            {loading ? <CircularProgress size={20} /> : 'Create Group'}
           </Button>
         )}
-        
+
         {/* Show Next button for other steps */}
         {activeStep < steps.length - 1 && (
-          <Button
-            variant="contained"
-            onClick={handleNext}
-            disabled={!canProceed() || loading}
-          >
-            {loading ? (
-              <CircularProgress size={20} />
-            ) : (
-              'Next'
-            )}
+          <Button variant="contained" onClick={handleNext} disabled={!canProceed() || loading}>
+            {loading ? <CircularProgress size={20} /> : 'Next'}
           </Button>
         )}
-        
+
         {/* Show Done button when group is created and assignment is complete */}
         {createdGroupId && !hostAssignmentLoading && !error && (
           <Button

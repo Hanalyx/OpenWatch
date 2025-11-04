@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  useTheme,
-  alpha,
-  Tooltip,
-} from '@mui/material';
+import { Box, Typography, useTheme, alpha, Tooltip } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 interface ComplianceRingProps {
@@ -79,7 +73,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
 
   const getTrendIndicator = () => {
     if (!trend) return null;
-    
+
     const trendConfig = {
       up: { symbol: '↗', color: theme.palette.success.main },
       down: { symbol: '↘', color: theme.palette.error.main },
@@ -87,7 +81,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
     };
 
     const trendInfo = trendConfig[trend];
-    
+
     return (
       <Typography
         variant="caption"
@@ -110,9 +104,11 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
         height: config.diameter,
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.3s ease',
-        '&:hover': onClick ? {
-          transform: 'scale(1.05)',
-        } : undefined,
+        '&:hover': onClick
+          ? {
+              transform: 'scale(1.05)',
+            }
+          : undefined,
       }}
       onClick={onClick}
     >
@@ -133,7 +129,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
           </Pie>
         </PieChart>
       </ResponsiveContainer>
-      
+
       {/* Center Content */}
       <Box
         sx={{

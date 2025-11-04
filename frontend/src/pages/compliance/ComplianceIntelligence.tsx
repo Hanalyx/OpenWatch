@@ -24,7 +24,7 @@ import {
   ListItemIcon,
   ListItemText,
   Tab,
-  Tabs
+  Tabs,
 } from '@mui/material';
 import {
   Psychology,
@@ -47,7 +47,7 @@ import {
   Error,
   Info,
   TaskAlt,
-  AccountTree
+  AccountTree,
 } from '@mui/icons-material';
 
 // Types for the Universal Compliance Intelligence Platform
@@ -96,23 +96,23 @@ const frameworkConfig = {
   stig: {
     displayName: 'DISA STIG',
     color: '#D32F2F',
-    icon: Security
+    icon: Security,
   },
   cis: {
     displayName: 'CIS Controls',
     color: '#388E3C',
-    icon: Shield
+    icon: Shield,
   },
   nist: {
     displayName: 'NIST Cybersecurity',
     color: '#7B1FA2',
-    icon: Assessment
+    icon: Assessment,
   },
   pci_dss: {
     displayName: 'PCI DSS',
     color: '#F57C00',
-    icon: Policy
-  }
+    icon: Policy,
+  },
 };
 
 const ComplianceIntelligence: React.FC = () => {
@@ -132,7 +132,7 @@ const ComplianceIntelligence: React.FC = () => {
     semanticRulesCount: 14,
     universalCoverage: 94,
     remediationReadiness: 87,
-    lastIntelligenceUpdate: new Date().toLocaleTimeString()
+    lastIntelligenceUpdate: new Date().toLocaleTimeString(),
   });
 
   // State for framework intelligence
@@ -159,16 +159,15 @@ const ComplianceIntelligence: React.FC = () => {
         businessImpactBreakdown: {
           high: Math.floor(Math.random() * 3) + 1,
           medium: Math.floor(Math.random() * 5) + 2,
-          low: Math.floor(Math.random() * 4) + 1
+          low: Math.floor(Math.random() * 4) + 1,
         },
         topSemanticRules: [],
         estimatedRemediationTime: Math.floor(Math.random() * 60) + 30,
         compatibleDistributions: ['RHEL 9', 'Ubuntu 22.04', 'Oracle Linux 8'],
-        complianceScore: Math.floor(Math.random() * 20) + 80
+        complianceScore: Math.floor(Math.random() * 20) + 80,
       }));
 
       setFrameworkData(mockFrameworkData);
-
     } catch (err: any) {
       console.error('Failed to load compliance intelligence:', err);
       setError('Failed to load compliance intelligence data');
@@ -181,12 +180,12 @@ const ComplianceIntelligence: React.FC = () => {
     setSnackbar({
       open: true,
       message: `Exploring ${framework.displayName} intelligence - full implementation coming soon!`,
-      severity: 'info'
+      severity: 'info',
     });
   };
 
   const formatRuleName = (name: string) => {
-    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return name.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   if (loading) {
@@ -236,7 +235,13 @@ const ComplianceIntelligence: React.FC = () => {
             <CardContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Paper sx={{ p: 3, textAlign: 'center', background: alpha(theme.palette.primary.main, 0.1) }}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: 'center',
+                      background: alpha(theme.palette.primary.main, 0.1),
+                    }}
+                  >
                     <Psychology sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" color="primary">
                       {overview.semanticRulesCount.toLocaleString()}
@@ -250,7 +255,13 @@ const ComplianceIntelligence: React.FC = () => {
                   </Paper>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Paper sx={{ p: 3, textAlign: 'center', background: alpha(theme.palette.success.main, 0.1) }}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: 'center',
+                      background: alpha(theme.palette.success.main, 0.1),
+                    }}
+                  >
                     <AccountTree sx={{ fontSize: 40, color: theme.palette.success.main, mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" color="success.main">
                       {overview.universalCoverage}%
@@ -264,7 +275,13 @@ const ComplianceIntelligence: React.FC = () => {
                   </Paper>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Paper sx={{ p: 3, textAlign: 'center', background: alpha(theme.palette.warning.main, 0.1) }}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: 'center',
+                      background: alpha(theme.palette.warning.main, 0.1),
+                    }}
+                  >
                     <AutoFixHigh sx={{ fontSize: 40, color: theme.palette.warning.main, mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" color="warning.main">
                       {overview.remediationReadiness}%
@@ -278,7 +295,13 @@ const ComplianceIntelligence: React.FC = () => {
                   </Paper>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <Paper sx={{ p: 3, textAlign: 'center', background: alpha(theme.palette.info.main, 0.1) }}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: 'center',
+                      background: alpha(theme.palette.info.main, 0.1),
+                    }}
+                  >
                     <TrendingUp sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" color="info.main">
                       {overview.totalFrameworks}
@@ -305,29 +328,29 @@ const ComplianceIntelligence: React.FC = () => {
           variant="fullWidth"
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
-          <Tab 
+          <Tab
             label={
               <Box display="flex" alignItems="center" gap={1}>
                 <AccountTree />
                 Framework Intelligence
               </Box>
-            } 
+            }
           />
-          <Tab 
+          <Tab
             label={
               <Box display="flex" alignItems="center" gap={1}>
                 <Psychology />
                 Semantic Rule Explorer
               </Box>
-            } 
+            }
           />
-          <Tab 
+          <Tab
             label={
               <Box display="flex" alignItems="center" gap={1}>
                 <Speed />
                 Compliance Analytics
               </Box>
-            } 
+            }
           />
         </Tabs>
       </Card>
@@ -338,7 +361,7 @@ const ComplianceIntelligence: React.FC = () => {
           {frameworkData.map((framework) => {
             const config = frameworkConfig[framework.framework as keyof typeof frameworkConfig];
             const IconComponent = config.icon;
-            
+
             return (
               <Grid item xs={12} md={6} key={framework.framework}>
                 <Card elevation={3} sx={{ height: '100%' }}>
@@ -347,7 +370,7 @@ const ComplianceIntelligence: React.FC = () => {
                       <Box display="flex" alignItems="center" gap={1}>
                         <IconComponent sx={{ color: config.color }} />
                         <Typography variant="h6">{framework.displayName}</Typography>
-                        <Chip 
+                        <Chip
                           label={`${framework.remediationCoverage}% Remediation Ready`}
                           color={framework.remediationCoverage > 80 ? 'success' : 'warning'}
                           size="small"
@@ -360,12 +383,17 @@ const ComplianceIntelligence: React.FC = () => {
                       </IconButton>
                     }
                   />
-                  
+
                   <CardContent>
                     {/* Intelligence Metrics */}
                     <Grid container spacing={2} sx={{ mb: 3 }}>
                       <Grid item xs={6}>
-                        <Box textAlign="center" p={2} bgcolor={alpha(config.color, 0.1)} borderRadius={1}>
+                        <Box
+                          textAlign="center"
+                          p={2}
+                          bgcolor={alpha(config.color, 0.1)}
+                          borderRadius={1}
+                        >
                           <Psychology sx={{ color: config.color, mb: 1 }} />
                           <Typography variant="h6" fontWeight="bold">
                             {framework.semanticRulesCount}
@@ -374,7 +402,12 @@ const ComplianceIntelligence: React.FC = () => {
                         </Box>
                       </Grid>
                       <Grid item xs={6}>
-                        <Box textAlign="center" p={2} bgcolor={alpha(config.color, 0.1)} borderRadius={1}>
+                        <Box
+                          textAlign="center"
+                          p={2}
+                          bgcolor={alpha(config.color, 0.1)}
+                          borderRadius={1}
+                        >
                           <Hub sx={{ color: config.color, mb: 1 }} />
                           <Typography variant="h6" fontWeight="bold">
                             {framework.crossFrameworkMappings}
@@ -383,53 +416,56 @@ const ComplianceIntelligence: React.FC = () => {
                         </Box>
                       </Grid>
                     </Grid>
-                    
+
                     {/* Business Impact Visualization */}
                     <Box sx={{ mb: 3 }}>
                       <Typography variant="subtitle2" gutterBottom>
                         Business Impact Distribution
                       </Typography>
-                      <LinearProgress 
+                      <LinearProgress
                         variant="determinate"
                         value={framework.businessImpactBreakdown.high * 10}
-                        sx={{ 
-                          height: 8, 
+                        sx={{
+                          height: 8,
                           borderRadius: 4,
                           backgroundColor: alpha(theme.palette.success.main, 0.3),
                           '& .MuiLinearProgress-bar': {
-                            backgroundColor: theme.palette.error.main
-                          }
+                            backgroundColor: theme.palette.error.main,
+                          },
                         }}
                       />
                       <Box display="flex" justifyContent="space-between" mt={1}>
-                        <Chip 
-                          size="small" 
-                          label={`${framework.businessImpactBreakdown.high} High`} 
-                          color="error" 
-                          variant="outlined" 
+                        <Chip
+                          size="small"
+                          label={`${framework.businessImpactBreakdown.high} High`}
+                          color="error"
+                          variant="outlined"
                         />
-                        <Chip 
-                          size="small" 
-                          label={`${framework.businessImpactBreakdown.medium} Medium`} 
-                          color="warning" 
-                          variant="outlined" 
+                        <Chip
+                          size="small"
+                          label={`${framework.businessImpactBreakdown.medium} Medium`}
+                          color="warning"
+                          variant="outlined"
                         />
-                        <Chip 
-                          size="small" 
-                          label={`${framework.businessImpactBreakdown.low} Low`} 
-                          color="success" 
-                          variant="outlined" 
+                        <Chip
+                          size="small"
+                          label={`${framework.businessImpactBreakdown.low} Low`}
+                          color="success"
+                          variant="outlined"
                         />
                       </Box>
                     </Box>
-                    
+
                     {/* Quick Actions */}
-                    <Button 
-                      variant="contained" 
+                    <Button
+                      variant="contained"
                       startIcon={<Visibility />}
                       onClick={() => handleExploreFramework(framework)}
                       fullWidth
-                      sx={{ backgroundColor: config.color, '&:hover': { backgroundColor: alpha(config.color, 0.8) } }}
+                      sx={{
+                        backgroundColor: config.color,
+                        '&:hover': { backgroundColor: alpha(config.color, 0.8) },
+                      }}
                     >
                       Explore {framework.displayName} Intelligence
                     </Button>
@@ -490,7 +526,10 @@ const ComplianceIntelligence: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>

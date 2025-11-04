@@ -13,16 +13,9 @@ import {
   FormControlLabel,
   Alert,
   LinearProgress,
-  Grid
+  Grid,
 } from '@mui/material';
-import {
-  PlayArrow,
-  Security,
-  Warning,
-  CheckCircle,
-  Error,
-  Info
-} from '@mui/icons-material';
+import { PlayArrow, Security, Warning, CheckCircle, Error, Info } from '@mui/icons-material';
 // Remove notistack import - using state-based alerts instead
 
 interface ComplianceScanRequest {
@@ -44,40 +37,42 @@ interface GroupComplianceProps {
 
 const ComplianceFrameworks = {
   'disa-stig': 'DISA STIG',
-  'cis': 'CIS Benchmarks',
+  cis: 'CIS Benchmarks',
   'nist-800-53': 'NIST 800-53',
   'pci-dss': 'PCI DSS',
-  'hipaa': 'HIPAA',
-  'soc2': 'SOC 2',
+  hipaa: 'HIPAA',
+  soc2: 'SOC 2',
   'iso-27001': 'ISO 27001',
-  'cmmc': 'CMMC'
+  cmmc: 'CMMC',
 };
 
 const RemediationModes = {
-  'none': 'No Remediation',
-  'report_only': 'Report Only',
-  'auto_apply': 'Auto Apply (Caution)',
-  'manual_review': 'Manual Review Required'
+  none: 'No Remediation',
+  report_only: 'Report Only',
+  auto_apply: 'Auto Apply (Caution)',
+  manual_review: 'Manual Review Required',
 };
 
 export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
   groupId,
   groupName,
-  onScanStarted
+  onScanStarted,
 }) => {
   const [loading, setLoading] = useState(false);
   const [scapContents, setScapContents] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [currentScan, setCurrentScan] = useState<any>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'warning' | 'info'>('info');
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'warning' | 'info'>(
+    'info'
+  );
 
   const [scanRequest, setScanRequest] = useState<ComplianceScanRequest>({
     remediationMode: 'report_only',
     emailNotifications: true,
     generateReports: true,
     concurrentScans: 5,
-    scanTimeout: 3600
+    scanTimeout: 3600,
   });
 
   const showAlert = (message: string, severity: 'success' | 'error' | 'warning' | 'info') => {
@@ -95,8 +90,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     try {
       const response = await fetch('/api/scap-content/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
       if (response.ok) {
         const data = await response.json();
@@ -116,8 +111,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     try {
       const response = await fetch(`/api/scap-content/${contentId}/profiles`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
       if (response.ok) {
         const data = await response.json();
@@ -133,13 +128,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     }
   };
 
-
   const checkActiveScan = async () => {
     try {
       const response = await fetch(`/api/group-compliance/${groupId}/active-scan`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
       if (response.ok) {
         const data = await response.json();
@@ -165,7 +159,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           scap_content_id: scanRequest.scapContentId,
@@ -175,19 +169,19 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
           email_notifications: scanRequest.emailNotifications,
           generate_reports: scanRequest.generateReports,
           concurrent_scans: scanRequest.concurrentScans,
-          scan_timeout: scanRequest.scanTimeout
-        })
+          scan_timeout: scanRequest.scanTimeout,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         setCurrentScan(data);
         showAlert('Compliance scan started successfully', 'success');
-        
+
         if (onScanStarted) {
           onScanStarted(data.session_id);
         }
-        
+
         // Start monitoring progress
         monitorScanProgress(data.session_id);
       } else {
@@ -206,14 +200,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
       try {
         const response = await fetch(`/api/group-compliance/sessions/${sessionId}/progress`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          },
         });
-        
+
         if (response.ok) {
           const progress = await response.json();
           setCurrentScan((prev: any) => ({ ...prev, ...progress }));
-          
+
           if (progress.status === 'completed' || progress.status === 'failed') {
             if (progress.status === 'completed') {
               showAlert('Compliance scan completed', 'success');
@@ -222,7 +216,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
             }
             return; // Stop polling
           }
-          
+
           // Continue polling if still in progress
           setTimeout(pollProgress, 5000);
         }
@@ -230,21 +224,24 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         console.error('Failed to poll scan progress:', error);
       }
     };
-    
+
     pollProgress();
   };
 
   const cancelScan = async () => {
     if (!currentScan?.session_id) return;
-    
+
     try {
-      const response = await fetch(`/api/group-compliance/sessions/${currentScan.session_id}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      const response = await fetch(
+        `/api/group-compliance/sessions/${currentScan.session_id}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          },
         }
-      });
-      
+      );
+
       if (response.ok) {
         showAlert('Scan cancelled', 'info');
         setCurrentScan(null);
@@ -256,21 +253,31 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle color="success" />;
-      case 'failed': return <Error color="error" />;
-      case 'in_progress': return <Info color="info" />;
-      case 'cancelled': return <Warning color="warning" />;
-      default: return <Info color="disabled" />;
+      case 'completed':
+        return <CheckCircle color="success" />;
+      case 'failed':
+        return <Error color="error" />;
+      case 'in_progress':
+        return <Info color="info" />;
+      case 'cancelled':
+        return <Warning color="warning" />;
+      default:
+        return <Info color="disabled" />;
     }
   };
 
   const getStatusColor = (status: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
     switch (status) {
-      case 'completed': return 'success';
-      case 'failed': return 'error';
-      case 'cancelled': return 'warning';
-      case 'in_progress': return 'info';
-      default: return 'default';
+      case 'completed':
+        return 'success';
+      case 'failed':
+        return 'error';
+      case 'cancelled':
+        return 'warning';
+      case 'in_progress':
+        return 'info';
+      default:
+        return 'default';
     }
   };
 
@@ -278,15 +285,11 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     <Box>
       {/* Alert Messages */}
       {alertMessage && (
-        <Alert 
-          severity={alertSeverity} 
-          sx={{ mb: 2 }} 
-          onClose={() => setAlertMessage(null)}
-        >
+        <Alert severity={alertSeverity} sx={{ mb: 2 }} onClose={() => setAlertMessage(null)}>
           {alertMessage}
         </Alert>
       )}
-      
+
       <Card>
         <CardContent>
           <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
@@ -302,9 +305,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
           {/* Current Scan Status */}
           {currentScan && (
-            <Alert 
-              severity={currentScan.status === 'in_progress' ? 'info' : 
-                       currentScan.status === 'completed' ? 'success' : 'error'}
+            <Alert
+              severity={
+                currentScan.status === 'in_progress'
+                  ? 'info'
+                  : currentScan.status === 'completed'
+                    ? 'success'
+                    : 'error'
+              }
               sx={{ mb: 2 }}
               action={
                 currentScan.status === 'in_progress' && (
@@ -315,13 +323,15 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
               }
             >
               <Typography variant="body2">
-                Scan Status: <strong>{currentScan.status}</strong> • 
-                Progress: {currentScan.completed_hosts || 0}/{currentScan.total_hosts || 0} hosts
+                Scan Status: <strong>{currentScan.status}</strong> • Progress:{' '}
+                {currentScan.completed_hosts || 0}/{currentScan.total_hosts || 0} hosts
               </Typography>
               {currentScan.status === 'in_progress' && (
-                <LinearProgress 
-                  variant="determinate" 
-                  value={(currentScan.completed_hosts || 0) / (currentScan.total_hosts || 1) * 100}
+                <LinearProgress
+                  variant="determinate"
+                  value={
+                    ((currentScan.completed_hosts || 0) / (currentScan.total_hosts || 1)) * 100
+                  }
                   sx={{ mt: 1 }}
                 />
               )}
@@ -336,7 +346,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   value={scanRequest.scapContentId || ''}
                   onChange={(e) => {
                     const contentId = e.target.value as number;
-                    setScanRequest(prev => ({ ...prev, scapContentId: contentId }));
+                    setScanRequest((prev) => ({ ...prev, scapContentId: contentId }));
                     if (contentId) {
                       loadProfiles(contentId);
                     }
@@ -357,10 +367,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                 <InputLabel>Compliance Profile</InputLabel>
                 <Select
                   value={scanRequest.profileId || ''}
-                  onChange={(e) => setScanRequest(prev => ({ 
-                    ...prev, 
-                    profileId: e.target.value as string 
-                  }))}
+                  onChange={(e) =>
+                    setScanRequest((prev) => ({
+                      ...prev,
+                      profileId: e.target.value as string,
+                    }))
+                  }
                   label="Compliance Profile"
                   disabled={!profiles.length}
                 >
@@ -378,14 +390,18 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                 <InputLabel>Compliance Framework</InputLabel>
                 <Select
                   value={scanRequest.complianceFramework || ''}
-                  onChange={(e) => setScanRequest(prev => ({ 
-                    ...prev, 
-                    complianceFramework: e.target.value as string 
-                  }))}
+                  onChange={(e) =>
+                    setScanRequest((prev) => ({
+                      ...prev,
+                      complianceFramework: e.target.value as string,
+                    }))
+                  }
                   label="Compliance Framework"
                 >
                   {Object.entries(ComplianceFrameworks).map(([key, label]) => (
-                    <MenuItem key={key} value={key}>{label}</MenuItem>
+                    <MenuItem key={key} value={key}>
+                      {label}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -396,14 +412,18 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                 <InputLabel>Remediation Mode</InputLabel>
                 <Select
                   value={scanRequest.remediationMode}
-                  onChange={(e) => setScanRequest(prev => ({ 
-                    ...prev, 
-                    remediationMode: e.target.value as string 
-                  }))}
+                  onChange={(e) =>
+                    setScanRequest((prev) => ({
+                      ...prev,
+                      remediationMode: e.target.value as string,
+                    }))
+                  }
                   label="Remediation Mode"
                 >
                   {Object.entries(RemediationModes).map(([key, label]) => (
-                    <MenuItem key={key} value={key}>{label}</MenuItem>
+                    <MenuItem key={key} value={key}>
+                      {label}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -417,10 +437,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   control={
                     <Switch
                       checked={scanRequest.emailNotifications}
-                      onChange={(e) => setScanRequest(prev => ({ 
-                        ...prev, 
-                        emailNotifications: e.target.checked 
-                      }))}
+                      onChange={(e) =>
+                        setScanRequest((prev) => ({
+                          ...prev,
+                          emailNotifications: e.target.checked,
+                        }))
+                      }
                     />
                   }
                   label="Email Notifications"
@@ -431,10 +453,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   control={
                     <Switch
                       checked={scanRequest.generateReports}
-                      onChange={(e) => setScanRequest(prev => ({ 
-                        ...prev, 
-                        generateReports: e.target.checked 
-                      }))}
+                      onChange={(e) =>
+                        setScanRequest((prev) => ({
+                          ...prev,
+                          generateReports: e.target.checked,
+                        }))
+                      }
                     />
                   }
                   label="Generate Reports"
@@ -449,7 +473,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
               color="primary"
               startIcon={<PlayArrow />}
               onClick={startComplianceScan}
-              disabled={loading || (currentScan?.status === 'in_progress')}
+              disabled={loading || currentScan?.status === 'in_progress'}
               size="large"
             >
               {loading ? 'Starting...' : 'Start Compliance Scan'}
@@ -457,7 +481,6 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
           </Box>
         </CardContent>
       </Card>
-
     </Box>
   );
 };

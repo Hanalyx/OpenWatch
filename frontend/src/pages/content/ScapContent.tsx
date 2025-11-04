@@ -27,7 +27,7 @@ import {
   Tooltip,
   FormControl,
   InputLabel,
-  Select
+  Select,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -38,10 +38,12 @@ import {
   Security as SecurityIcon,
   CloudUpload as CloudUploadIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon
+  Error as ErrorIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import ErrorClassificationDisplay, { ClassifiedError } from '../../components/errors/ErrorClassificationDisplay';
+import ErrorClassificationDisplay, {
+  ClassifiedError,
+} from '../../components/errors/ErrorClassificationDisplay';
 import { errorService } from '../../services/errorService';
 
 interface ScapContent {
@@ -82,10 +84,13 @@ const ScapContent: React.FC = () => {
   }>({
     open: false,
     message: '',
-    severity: 'info'
+    severity: 'info',
   });
 
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+  const showSnackbar = (
+    message: string,
+    severity: 'success' | 'error' | 'warning' | 'info' = 'info'
+  ) => {
     setSnackbar({ open: true, message, severity });
   };
 
@@ -112,21 +117,21 @@ const ScapContent: React.FC = () => {
       // Validate file type
       const allowedTypes = ['.xml', '.zip'];
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-      
+
       if (!allowedTypes.includes(fileExtension)) {
         showSnackbar('Invalid file type. Please upload XML or ZIP files only.', 'error');
         return;
       }
-      
+
       // Validate file size (max 50MB)
       const maxSize = 50 * 1024 * 1024;
       if (file.size > maxSize) {
         showSnackbar('File size too large. Maximum size is 50MB.', 'error');
         return;
       }
-      
+
       setUploadFile(file);
-      setUploadName(file.name.replace(/\.[^/.]+$/, ""));
+      setUploadName(file.name.replace(/\.[^/.]+$/, ''));
     }
   };
 
@@ -154,8 +159,11 @@ const ScapContent: React.FC = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
-      showSnackbar(`SCAP content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
+
+      showSnackbar(
+        `SCAP content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`,
+        'success'
+      );
       setUploadDialogOpen(false);
       setUploadFile(null);
       setUploadName('');
@@ -164,7 +172,7 @@ const ScapContent: React.FC = () => {
       fetchScapContent();
     } catch (error: any) {
       console.error('SCAP upload failed:', error);
-      
+
       // Classify the upload error for better user guidance
       const classification = errorService.getErrorClassification(error);
       if (classification) {
@@ -180,7 +188,7 @@ const ScapContent: React.FC = () => {
           technical_details: {
             filename: uploadFile.name,
             filesize: uploadFile.size,
-            error: error.message
+            error: error.message,
           },
           automated_fixes: [
             {
@@ -188,11 +196,11 @@ const ScapContent: React.FC = () => {
               description: 'Retry upload',
               requires_sudo: false,
               estimated_time: 30,
-              is_safe: true
-            }
+              is_safe: true,
+            },
           ],
           can_retry: true,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     } finally {
@@ -225,12 +233,12 @@ const ScapContent: React.FC = () => {
 
   const handleDownload = async () => {
     if (!selectedContent) return;
-    
+
     try {
       const response = await api.get(`/api/scap-content/${selectedContent.id}/download`, {
-        responseType: 'blob'
+        responseType: 'blob',
       });
-      
+
       const blob = response;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -249,12 +257,16 @@ const ScapContent: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedContent) return;
-    
-    if (!window.confirm(`Are you sure you want to delete "${selectedContent.name}"? This action cannot be undone.`)) {
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${selectedContent.name}"? This action cannot be undone.`
+      )
+    ) {
       handleMenuClose();
       return;
     }
-    
+
     try {
       await api.delete(`/api/scap-content/${selectedContent.id}`);
       showSnackbar('SCAP content deleted successfully', 'success');
@@ -284,7 +296,7 @@ const ScapContent: React.FC = () => {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -308,9 +320,9 @@ const ScapContent: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Available SCAP Content
           </Typography>
-          
+
           {loading && <LinearProgress sx={{ mb: 2 }} />}
-          
+
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
@@ -361,9 +373,7 @@ const ScapContent: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {content.version || 'N/A'}
-                        </Typography>
+                        <Typography variant="body2">{content.version || 'N/A'}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -373,15 +383,10 @@ const ScapContent: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {formatDate(content.uploaded_at)}
-                        </Typography>
+                        <Typography variant="body2">{formatDate(content.uploaded_at)}</Typography>
                       </TableCell>
                       <TableCell>
-                        <IconButton
-                          onClick={(e) => handleMenuClick(e, content)}
-                          size="small"
-                        >
+                        <IconButton onClick={(e) => handleMenuClick(e, content)} size="small">
                           <MoreVertIcon />
                         </IconButton>
                       </TableCell>
@@ -395,7 +400,12 @@ const ScapContent: React.FC = () => {
       </Card>
 
       {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onClose={() => setUploadDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Upload SCAP Content</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1 }}>
@@ -417,7 +427,7 @@ const ScapContent: React.FC = () => {
                 {uploadFile ? uploadFile.name : 'Select SCAP File (XML or ZIP)'}
               </Button>
             </label>
-            
+
             <TextField
               fullWidth
               label="Content Name"
@@ -427,7 +437,7 @@ const ScapContent: React.FC = () => {
               required
               helperText="A descriptive name for this SCAP content"
             />
-            
+
             <TextField
               fullWidth
               label="Description"
@@ -438,7 +448,7 @@ const ScapContent: React.FC = () => {
               rows={3}
               helperText="Optional description of the content"
             />
-            
+
             {uploading && (
               <Box sx={{ mt: 2 }}>
                 <LinearProgress variant="indeterminate" />
@@ -473,11 +483,7 @@ const ScapContent: React.FC = () => {
       </Dialog>
 
       {/* Context Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
         <MenuItem onClick={handleDownload}>
           <DownloadIcon sx={{ mr: 2 }} />
           Download
@@ -494,8 +500,8 @@ const ScapContent: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

@@ -18,12 +18,9 @@ import {
   Checkbox,
   CircularProgress,
   Alert,
-  Divider
+  Divider,
 } from '@mui/material';
-import {
-  Warning as WarningIcon,
-  Group as GroupIcon
-} from '@mui/icons-material';
+import { Warning as WarningIcon, Group as GroupIcon } from '@mui/icons-material';
 
 interface HostGroup {
   id: number;
@@ -55,32 +52,34 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
   open,
   onClose,
   groups,
-  onConfigurationComplete
+  onConfigurationComplete,
 }) => {
   const [selectedGroups, setSelectedGroups] = useState<number[]>([]);
   const [scapContent, setScapContent] = useState<number | ''>('');
   const [profile, setProfile] = useState<string>('');
   const [availableScapContent, setAvailableScapContent] = useState<SCAPContent[]>([]);
-  const [availableProfiles, setAvailableProfiles] = useState<Array<{id: string, title: string}>>([]);
+  const [availableProfiles, setAvailableProfiles] = useState<Array<{ id: string; title: string }>>(
+    []
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Filter unconfigured groups
-  const unconfiguredGroups = groups.filter(group => 
-    !group.scap_content_id || !group.default_profile_id
+  const unconfiguredGroups = groups.filter(
+    (group) => !group.scap_content_id || !group.default_profile_id
   );
 
   useEffect(() => {
     if (open) {
       fetchScapContent();
       // Select all unconfigured groups by default
-      setSelectedGroups(unconfiguredGroups.map(g => g.id));
+      setSelectedGroups(unconfiguredGroups.map((g) => g.id));
     }
   }, [open]);
 
   useEffect(() => {
     if (scapContent) {
-      const content = availableScapContent.find(c => c.id === scapContent);
+      const content = availableScapContent.find((c) => c.id === scapContent);
       setAvailableProfiles(content?.profiles || []);
       setProfile(''); // Reset profile selection
     }
@@ -90,8 +89,8 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
     try {
       const response = await fetch('/api/scap-content/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -106,10 +105,8 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
   };
 
   const handleGroupToggle = (groupId: number) => {
-    setSelectedGroups(prev => 
-      prev.includes(groupId)
-        ? prev.filter(id => id !== groupId)
-        : [...prev, groupId]
+    setSelectedGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
     );
   };
 
@@ -129,22 +126,22 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
       setError(null);
 
       // Update each selected group
-      const updatePromises = selectedGroups.map(groupId =>
+      const updatePromises = selectedGroups.map((groupId) =>
         fetch(`/api/host-groups/${groupId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
           },
           body: JSON.stringify({
             scap_content_id: scapContent,
-            default_profile_id: profile
-          })
+            default_profile_id: profile,
+          }),
         })
       );
 
       await Promise.all(updatePromises);
-      
+
       onConfigurationComplete();
       onClose();
     } catch (err) {
@@ -163,7 +160,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
           Bulk SCAP Configuration
         </Box>
       </DialogTitle>
-      
+
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -172,7 +169,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
         )}
 
         <Typography variant="body1" gutterBottom>
-          Configure SCAP compliance settings for multiple groups at once. 
+          Configure SCAP compliance settings for multiple groups at once.
           {unconfiguredGroups.length} groups need SCAP configuration.
         </Typography>
 
@@ -182,24 +179,25 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
         <Typography variant="h6" gutterBottom>
           Select Groups to Configure
         </Typography>
-        
-        <List sx={{ maxHeight: 200, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+
+        <List
+          sx={{
+            maxHeight: 200,
+            overflow: 'auto',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+          }}
+        >
           {unconfiguredGroups.map((group) => (
             <ListItem key={group.id} dense button onClick={() => handleGroupToggle(group.id)}>
               <ListItemIcon>
-                <Checkbox
-                  checked={selectedGroups.includes(group.id)}
-                  tabIndex={-1}
-                  disableRipple
-                />
+                <Checkbox checked={selectedGroups.includes(group.id)} tabIndex={-1} disableRipple />
               </ListItemIcon>
               <ListItemIcon>
                 <GroupIcon />
               </ListItemIcon>
-              <ListItemText
-                primary={group.name}
-                secondary={`${group.host_count} hosts`}
-              />
+              <ListItemText primary={group.name} secondary={`${group.host_count} hosts`} />
             </ListItem>
           ))}
         </List>

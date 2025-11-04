@@ -50,9 +50,7 @@ export const FrameworksPage: React.FC = () => {
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">
-          Failed to load frameworks. Please try again later.
-        </Alert>
+        <Alert severity="error">Failed to load frameworks. Please try again later.</Alert>
       </Container>
     );
   }

@@ -32,7 +32,8 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
 
   // Group templates
   const myTemplates = templates?.filter((t) => t.created_by === currentUser.username) || [];
-  const publicTemplates = templates?.filter((t) => t.is_public && t.created_by !== currentUser.username) || [];
+  const publicTemplates =
+    templates?.filter((t) => t.is_public && t.created_by !== currentUser.username) || [];
 
   const groupedOptions: GroupedTemplate[] = [
     ...(myTemplates.length > 0
@@ -70,9 +71,7 @@ export const TemplateSelector: React.FC<TemplateSelectorProps> = ({
         <li {...props}>
           <Box>
             <Box display="flex" alignItems="center" gap={0.5}>
-              <Typography variant="body2">
-                {template.name}
-              </Typography>
+              <Typography variant="body2">{template.name}</Typography>
               {template.is_default && <StarIcon fontSize="small" color="primary" />}
             </Box>
             <Typography variant="caption" color="text.secondary">

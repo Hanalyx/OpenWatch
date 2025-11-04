@@ -49,7 +49,7 @@ function App() {
   useEffect(() => {
     // Check session expiry on app load
     dispatch(checkSessionExpiry());
-    
+
     // Start token refresh timer if authenticated
     if (isAuthenticated) {
       tokenService.startTokenRefreshTimer();
@@ -69,7 +69,7 @@ function App() {
         <Router
           future={{
             v7_startTransition: true,
-            v7_relativeSplatPath: true
+            v7_relativeSplatPath: true,
           }}
         >
           <Routes>
@@ -90,7 +90,10 @@ function App() {
                 <Route path="/host-groups" element={<ComplianceGroups />} />
                 <Route path="/content" element={<Content />} />
                 <Route path="/content/frameworks" element={<FrameworksPage />} />
-                <Route path="/content/frameworks/:framework/:version" element={<FrameworkDetailPage />} />
+                <Route
+                  path="/content/frameworks/:framework/:version"
+                  element={<FrameworkDetailPage />}
+                />
                 <Route path="/content/templates" element={<TemplatesPage />} />
                 <Route path="/content/templates/new" element={<TemplateEditorPage />} />
                 <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
@@ -106,13 +109,11 @@ function App() {
             </Route>
 
             {/* Redirect to login if not authenticated */}
-            <Route 
-              path="*" 
+            <Route
+              path="*"
               element={
-                isAuthenticated ? 
-                  <Navigate to="/" replace /> : 
-                  <Navigate to="/login" replace />
-              } 
+                isAuthenticated ? <Navigate to="/" replace /> : <Navigate to="/login" replace />
+              }
             />
           </Routes>
           <SessionManager />

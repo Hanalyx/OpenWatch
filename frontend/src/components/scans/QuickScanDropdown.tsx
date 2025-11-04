@@ -11,7 +11,7 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  Tooltip
+  Tooltip,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -21,7 +21,7 @@ import {
   Settings,
   Schedule,
   AutoAwesome,
-  Speed
+  Speed,
 } from '@mui/icons-material';
 
 interface ScanTemplate {
@@ -48,7 +48,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
   hostName,
   disabled = false,
   onScanStarted,
-  onError
+  onError,
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
       icon: <AutoAwesome />,
       color: 'primary',
       estimatedDuration: '8-15 min',
-      isRecommended: true
+      isRecommended: true,
     },
     {
       id: 'essential',
@@ -76,7 +76,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
       icon: <Speed />,
       color: 'success',
       estimatedDuration: '5-8 min',
-      ruleCount: 120
+      ruleCount: 120,
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_cui',
@@ -85,7 +85,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
       icon: <CheckCircle />,
       color: 'primary',
       estimatedDuration: '10-15 min',
-      ruleCount: 180
+      ruleCount: 180,
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_stig',
@@ -94,7 +94,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
       icon: <Security />,
       color: 'error',
       estimatedDuration: '15-25 min',
-      ruleCount: 340
+      ruleCount: 340,
     },
     {
       id: 'xccdf_org.ssgproject.content_profile_cis',
@@ -103,8 +103,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
       icon: <BugReport />,
       color: 'warning',
       estimatedDuration: '12-18 min',
-      ruleCount: 200
-    }
+      ruleCount: 200,
+    },
   ];
 
   useEffect(() => {
@@ -124,13 +124,13 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
     try {
       // This would call the intelligence service to get recommendations
       // For now, using mock data based on host characteristics
-      
+
       // In a real implementation:
       // const response = await fetch(`/api/scans/hosts/${hostId}/profile-suggestion`, {
       //   headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
       // });
       // const recommendation = await response.json();
-      
+
       // Mock recommendation for demo
       const mockRecommendation = {
         profile_id: 'xccdf_org.ssgproject.content_profile_cui',
@@ -138,19 +138,18 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
         confidence: 0.85,
         reasoning: ['Production environment detected', 'RHEL 8 system'],
         estimated_duration: '10-15 min',
-        rule_count: 180
+        rule_count: 180,
       };
-      
+
       setRecommendedProfile(mockRecommendation);
-      
+
       // Update templates with recommendation
-      const updatedTemplates = defaultTemplates.map(template => ({
+      const updatedTemplates = defaultTemplates.map((template) => ({
         ...template,
-        isRecommended: template.id === mockRecommendation.profile_id || template.id === 'auto'
+        isRecommended: template.id === mockRecommendation.profile_id || template.id === 'auto',
       }));
-      
+
       setTemplates(updatedTemplates);
-      
     } catch (error) {
       console.error('Failed to load profile recommendation:', error);
       setTemplates(defaultTemplates);
@@ -166,31 +165,32 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           template_id: templateId,
           priority: 'normal',
           name: `${templateName} - ${hostName}`,
-          email_notify: false
-        })
+          email_notify: false,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // Show success feedback
         if (onScanStarted) {
           onScanStarted(data.id, data.suggested_profile?.name || templateName);
         }
-        
+
         handleClose();
       } else {
         const errorData = await response.json();
-        const errorMessage = typeof errorData.detail === 'string' 
-          ? errorData.detail 
-          : errorData.detail?.message || 'Failed to start scan';
-        
+        const errorMessage =
+          typeof errorData.detail === 'string'
+            ? errorData.detail
+            : errorData.detail?.message || 'Failed to start scan';
+
         if (onError) {
           onError(errorMessage);
         }
@@ -209,11 +209,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
   const getMenuItemContent = (template: ScanTemplate) => (
     <>
       <ListItemIcon sx={{ color: `${template.color}.main` }}>
-        {loadingScan === template.id ? (
-          <CircularProgress size={20} />
-        ) : (
-          template.icon
-        )}
+        {loadingScan === template.id ? <CircularProgress size={20} /> : template.icon}
       </ListItemIcon>
       <ListItemText
         primary={
@@ -284,17 +280,17 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
             minWidth: 320,
             maxWidth: 400,
             '& .MuiMenuItem-root': {
-              py: 1.5
-            }
-          }
+              py: 1.5,
+            },
+          },
         }}
         transformOrigin={{
           vertical: 'top',
-          horizontal: 'left'
+          horizontal: 'left',
         }}
         anchorOrigin={{
           vertical: 'bottom',
-          horizontal: 'left'
+          horizontal: 'left',
         }}
       >
         <Box sx={{ px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
@@ -303,7 +299,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           </Typography>
           {recommendedProfile && (
             <Typography variant="caption" color="text.secondary">
-              Recommended: {recommendedProfile.name} ({Math.round(recommendedProfile.confidence * 100)}% confidence)
+              Recommended: {recommendedProfile.name} (
+              {Math.round(recommendedProfile.confidence * 100)}% confidence)
             </Typography>
           )}
         </Box>
@@ -316,8 +313,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
             sx={{
               backgroundColor: template.isRecommended ? 'action.hover' : 'inherit',
               '&:hover': {
-                backgroundColor: template.isRecommended ? 'action.selected' : 'action.hover'
-              }
+                backgroundColor: template.isRecommended ? 'action.selected' : 'action.hover',
+              },
             }}
           >
             {getMenuItemContent(template)}
@@ -325,11 +322,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
         ))}
 
         <Divider />
-        
-        <MenuItem
-          onClick={handleClose}
-          sx={{ justifyContent: 'center', py: 1 }}
-        >
+
+        <MenuItem onClick={handleClose} sx={{ justifyContent: 'center', py: 1 }}>
           <ListItemIcon sx={{ minWidth: 'auto', mr: 1 }}>
             <Settings fontSize="small" />
           </ListItemIcon>

@@ -54,10 +54,11 @@ export const FrameworkDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
 
-  const { data: details, isLoading: loadingDetails, error: detailsError } = useFrameworkDetails(
-    framework || '',
-    version || ''
-  );
+  const {
+    data: details,
+    isLoading: loadingDetails,
+    error: detailsError,
+  } = useFrameworkDetails(framework || '', version || '');
   const { data: variables, isLoading: loadingVariables } = useFrameworkVariables(
     framework || '',
     version || ''
@@ -80,9 +81,7 @@ export const FrameworkDetailPage: React.FC = () => {
   if (detailsError || !details) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="error">
-          Failed to load framework details. Please try again later.
-        </Alert>
+        <Alert severity="error">Failed to load framework details. Please try again later.</Alert>
       </Container>
     );
   }
@@ -167,11 +166,7 @@ export const FrameworkDetailPage: React.FC = () => {
             label={`Variables (${variables?.length || 0})`}
             iconPosition="start"
           />
-          <Tab
-            icon={<RuleIcon />}
-            label={`Rules (${details.rule_count})`}
-            iconPosition="start"
-          />
+          <Tab icon={<RuleIcon />} label={`Rules (${details.rule_count})`} iconPosition="start" />
         </Tabs>
 
         <TabPanel value={activeTab} index={0}>
@@ -261,15 +256,13 @@ export const FrameworkDetailPage: React.FC = () => {
         <TabPanel value={activeTab} index={2}>
           <Box px={3}>
             <Typography variant="body1" color="text.secondary">
-              {details.rule_count} compliance rules available. Use the Compliance Rules page to
-              view detailed rule information.
+              {details.rule_count} compliance rules available. Use the Compliance Rules page to view
+              detailed rule information.
             </Typography>
             <Box mt={2}>
               <Button
                 variant="outlined"
-                onClick={() =>
-                  navigate(`/content/rules?framework=${framework}&version=${version}`)
-                }
+                onClick={() => navigate(`/content/rules?framework=${framework}&version=${version}`)}
               >
                 View All Rules
               </Button>

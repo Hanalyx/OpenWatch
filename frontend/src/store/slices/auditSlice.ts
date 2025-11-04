@@ -49,11 +49,7 @@ export const fetchAuditLogs = createAsyncThunk(
 
 export const exportAuditLogs = createAsyncThunk(
   'audit/exportLogs',
-  async (params: {
-    format: 'csv' | 'json';
-    startDate?: string;
-    endDate?: string;
-  }) => {
+  async (params: { format: 'csv' | 'json'; startDate?: string; endDate?: string }) => {
     const response = await api.get('/audit/export', {
       params,
       responseType: 'blob',

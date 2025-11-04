@@ -24,7 +24,7 @@ const SafeHTMLRenderer: React.FC<SafeHTMLRendererProps> = ({
   html,
   variant = 'body2',
   component = 'div',
-  sx = {}
+  sx = {},
 }) => {
   const theme = useTheme();
 
@@ -32,7 +32,7 @@ const SafeHTMLRenderer: React.FC<SafeHTMLRendererProps> = ({
   const sanitizeHTML = (dirtyHTML: string): string => {
     return DOMPurify.sanitize(dirtyHTML, {
       ALLOWED_TAGS: ['tt', 'code', 'pre', 'b', 'strong', 'i', 'em', 'br', 'p', 'ul', 'ol', 'li'],
-      ALLOWED_ATTR: []
+      ALLOWED_ATTR: [],
     });
   };
 
@@ -100,7 +100,7 @@ const SafeHTMLRenderer: React.FC<SafeHTMLRendererProps> = ({
             lineHeight: 1.6,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            ...sx
+            ...sx,
           }}
           dangerouslySetInnerHTML={{ __html: cleanHTML }}
         />

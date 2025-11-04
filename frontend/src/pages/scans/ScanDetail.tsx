@@ -48,7 +48,7 @@ import {
   Stepper,
   Step,
   StepLabel,
-  StepContent
+  StepContent,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -77,9 +77,21 @@ import {
   Code as CodeIcon,
   OpenInNew as OpenInNewIcon,
   BookmarkBorder as BookmarkBorderIcon,
-  Bookmark as BookmarkIcon
+  Bookmark as BookmarkIcon,
 } from '@mui/icons-material';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 import RemediationPanel from '../../components/remediation/RemediationPanel';
 import { api } from '../../services/api';
 
@@ -160,7 +172,7 @@ function TabPanel(props: TabPanelProps) {
 const ScanDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const [scan, setScan] = useState<ScanDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -173,11 +185,21 @@ const ScanDetail: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'warning' | 'info' });
-  
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info' as 'success' | 'error' | 'warning' | 'info',
+  });
+
   // New state for enhanced functionality
-  const [remediationDialog, setRemediationDialog] = useState({ open: false, rule: null as RuleResult | null });
-  const [exportRuleDialog, setExportRuleDialog] = useState({ open: false, rule: null as RuleResult | null });
+  const [remediationDialog, setRemediationDialog] = useState({
+    open: false,
+    rule: null as RuleResult | null,
+  });
+  const [exportRuleDialog, setExportRuleDialog] = useState({
+    open: false,
+    rule: null as RuleResult | null,
+  });
   const [reviewedRules, setReviewedRules] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
 
@@ -188,14 +210,14 @@ const ScanDetail: React.FC = () => {
   // Auto-polling for running scans with optimized refresh
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    
+
     if (scan && (scan.status === 'pending' || scan.status === 'running')) {
       // Poll every 5 seconds for running scans (reduced from 3 seconds)
       interval = setInterval(() => {
         fetchScanDetailsQuiet(); // Use quiet fetch to avoid loading spinner
       }, 5000);
     }
-    
+
     return () => {
       if (interval) {
         clearInterval(interval);
@@ -212,7 +234,7 @@ const ScanDetail: React.FC = () => {
       if (!quiet) setLoading(true);
       const data = await api.get(`/api/scans/${id}`);
       setScan(data);
-      
+
       // Fetch actual rule results if scan is completed
       if (data.status === 'completed' && data.results) {
         await fetchActualRuleResults(quiet);
@@ -232,7 +254,7 @@ const ScanDetail: React.FC = () => {
     try {
       // Fetch actual rule results from JSON report endpoint
       const data = await api.get(`/api/scans/${id}/report/json`);
-      
+
       // Check if we have actual rule results from XML parsing
       if (data.rule_results && Array.isArray(data.rule_results)) {
         const actualRules: RuleResult[] = data.rule_results.map((rule: any) => ({
@@ -240,12 +262,15 @@ const ScanDetail: React.FC = () => {
           title: rule.title || extractRuleTitle(rule.rule_id) || 'Unknown Rule',
           severity: mapSeverity(rule.severity || 'unknown'),
           result: mapResult(rule.result || 'unknown'),
-          description: rule.description || extractRuleDescription(rule.rule_id) || 'No description available',
+          description:
+            rule.description || extractRuleDescription(rule.rule_id) || 'No description available',
           rationale: rule.rationale || '',
-          remediation: rule.remediation || extractRuleDescription(rule.rule_id) || ''
+          remediation: rule.remediation || extractRuleDescription(rule.rule_id) || '',
         }));
-        
-        console.log(`Using ${actualRules.length} real SCAP rules with${actualRules.some(r => r.remediation) ? '' : 'out'} remediation data`);
+
+        console.log(
+          `Using ${actualRules.length} real SCAP rules with${actualRules.some((r) => r.remediation) ? '' : 'out'} remediation data`
+        );
         setRuleResults(actualRules);
       } else {
         // Fallback to generating placeholder rules if XML parsing failed
@@ -260,46 +285,48 @@ const ScanDetail: React.FC = () => {
   const extractRuleTitle = (ruleId: string): string => {
     // Extract meaningful title from SCAP rule ID
     if (!ruleId) return 'Unknown Rule';
-    
+
     // Remove common prefixes to get the actual rule name
     const cleanId = ruleId
       .replace('xccdf_org.ssgproject.content_rule_', '')
       .replace('xccdf_', '')
       .replace(/_/g, ' ');
-    
+
     // Common SCAP rule mappings
     const ruleMappings: { [key: string]: string } = {
-      'package_aide_installed': 'Install AIDE',
-      'service_auditd_enabled': 'Enable Audit Daemon',
-      'accounts_password_minlen_login_defs': 'Set Minimum Password Length',
-      'sshd_disable_root_login': 'Disable SSH Root Login',
-      'kernel_module_usb_storage_disabled': 'Disable USB Storage',
-      'service_firewalld_enabled': 'Enable Firewall Service',
-      'file_permissions_etc_passwd': 'Set Correct Permissions on /etc/passwd',
-      'accounts_max_concurrent_login_sessions': 'Limit Concurrent Login Sessions',
-      'sysctl_kernel_randomize_va_space': 'Enable Address Space Randomization',
-      'mount_option_tmp_noexec': 'Mount /tmp with noexec Option'
+      package_aide_installed: 'Install AIDE',
+      service_auditd_enabled: 'Enable Audit Daemon',
+      accounts_password_minlen_login_defs: 'Set Minimum Password Length',
+      sshd_disable_root_login: 'Disable SSH Root Login',
+      kernel_module_usb_storage_disabled: 'Disable USB Storage',
+      service_firewalld_enabled: 'Enable Firewall Service',
+      file_permissions_etc_passwd: 'Set Correct Permissions on /etc/passwd',
+      accounts_max_concurrent_login_sessions: 'Limit Concurrent Login Sessions',
+      sysctl_kernel_randomize_va_space: 'Enable Address Space Randomization',
+      mount_option_tmp_noexec: 'Mount /tmp with noexec Option',
     };
-    
+
     // Check for exact matches first
     const lastPart = ruleId.split('_').slice(-3).join('_');
     if (ruleMappings[lastPart]) {
       return ruleMappings[lastPart];
     }
-    
+
     // Generate title from rule ID
-    return cleanId
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim() || 'Security Configuration Rule';
+    return (
+      cleanId
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim() || 'Security Configuration Rule'
+    );
   };
 
   const extractRuleDescription = (ruleId: string): string => {
     // Generate description based on rule ID patterns
     if (!ruleId) return 'No description available';
-    
+
     if (ruleId.includes('package') && ruleId.includes('installed')) {
       return 'Ensures that the required security package is installed on the system.';
     }
@@ -324,7 +351,7 @@ const ScanDetail: React.FC = () => {
     if (ruleId.includes('firewall')) {
       return 'Configures firewall settings to protect network services.';
     }
-    
+
     return 'Implements security configuration requirements as defined by the compliance profile.';
   };
 
@@ -347,55 +374,60 @@ const ScanDetail: React.FC = () => {
 
   const generateFallbackRuleResults = () => {
     if (!scan?.results) return;
-    
+
     const fallbackRules: RuleResult[] = [];
-    
+
     // Generate a reasonable number of placeholder rules based on actual counts
     const totalToGenerate = Math.min(100, scan.results.total_rules || 50);
-    
+
     for (let i = 0; i < totalToGenerate; i++) {
       const isFailedRule = i < (scan.results.failed_rules || 0);
-      const severity = isFailedRule ? 
-        (i < (scan.results.severity_high || 0) ? 'high' : 
-         i < ((scan.results.severity_high || 0) + (scan.results.severity_medium || 0)) ? 'medium' : 'low') : 
-        (['high', 'medium', 'low'] as const)[i % 3];
-      
+      const severity = isFailedRule
+        ? i < (scan.results.severity_high || 0)
+          ? 'high'
+          : i < (scan.results.severity_high || 0) + (scan.results.severity_medium || 0)
+            ? 'medium'
+            : 'low'
+        : (['high', 'medium', 'low'] as const)[i % 3];
+
       fallbackRules.push({
         rule_id: `xccdf_org.ssgproject.content_rule_security_check_${i + 1}`,
         title: `Security Configuration Rule ${i + 1}`,
         severity,
         result: isFailedRule ? 'fail' : 'pass',
-        description: 'Security configuration rule - detailed information not available from scan results.',
+        description:
+          'Security configuration rule - detailed information not available from scan results.',
         rationale: '',
-        remediation: ''
+        remediation: '',
       });
     }
-    
+
     setRuleResults(fallbackRules);
   };
 
   const filterRules = () => {
     let filtered = [...ruleResults];
-    
+
     // Apply search filter
     if (searchQuery) {
-      filtered = filtered.filter(rule => 
-        rule.rule_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rule.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rule.description.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        (rule) =>
+          rule.rule_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          rule.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          rule.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    
+
     // Apply severity filter
     if (severityFilter !== 'all') {
-      filtered = filtered.filter(rule => rule.severity === severityFilter);
+      filtered = filtered.filter((rule) => rule.severity === severityFilter);
     }
-    
+
     // Apply result filter
     if (resultFilter !== 'all') {
-      filtered = filtered.filter(rule => rule.result === resultFilter);
+      filtered = filtered.filter((rule) => rule.result === resultFilter);
     }
-    
+
     setFilteredRules(filtered);
     setPage(0); // Reset to first page when filtering
   };
@@ -432,11 +464,11 @@ const ScanDetail: React.FC = () => {
   const handleExportReport = async (format: 'html' | 'json' | 'csv') => {
     try {
       showSnackbar(`Exporting report as ${format.toUpperCase()}...`, 'info');
-      
+
       // Handle different formats
       if (format === 'html') {
         const blob = await api.get(`/api/scans/${id}/report/${format}`, {
-          responseType: 'blob'
+          responseType: 'blob',
         });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -459,7 +491,7 @@ const ScanDetail: React.FC = () => {
         document.body.removeChild(a);
       } else if (format === 'csv') {
         const blob = await api.get(`/api/scans/${id}/report/${format}`, {
-          responseType: 'blob'
+          responseType: 'blob',
         });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -470,7 +502,7 @@ const ScanDetail: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       }
-      
+
       showSnackbar(`Report exported successfully as ${format.toUpperCase()}`, 'success');
     } catch (error) {
       showSnackbar(`Failed to export report as ${format.toUpperCase()}`, 'error');
@@ -481,20 +513,20 @@ const ScanDetail: React.FC = () => {
 
   const handleRescan = async () => {
     if (!scan) return;
-    
+
     try {
       showSnackbar('Initiating new scan with same configuration...', 'info');
-      
+
       const result = await api.post('/api/scans/', {
         name: `${scan.name} - Rescan ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
         host_id: scan.host_id,
         content_id: scan.content_id,
         profile_id: scan.profile_id,
-        scan_options: scan.scan_options || {}
+        scan_options: scan.scan_options || {},
       });
-      
+
       showSnackbar('New scan started successfully!', 'success');
-      
+
       // Navigate to new scan after a short delay
       setTimeout(() => {
         navigate(`/scans/${result.id}`);
@@ -512,30 +544,44 @@ const ScanDetail: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'success';
-      case 'running': return 'primary';
-      case 'failed': return 'error';
-      case 'pending': return 'warning';
-      default: return 'default';
+      case 'completed':
+        return 'success';
+      case 'running':
+        return 'primary';
+      case 'failed':
+        return 'error';
+      case 'pending':
+        return 'warning';
+      default:
+        return 'default';
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'high': return '#f44336';
-      case 'medium': return '#ff9800';
-      case 'low': return '#ffeb3b';
-      default: return '#9e9e9e';
+      case 'high':
+        return '#f44336';
+      case 'medium':
+        return '#ff9800';
+      case 'low':
+        return '#ffeb3b';
+      default:
+        return '#9e9e9e';
     }
   };
 
   const getResultIcon = (result: string) => {
     switch (result) {
-      case 'pass': return <CheckCircleIcon color="success" />;
-      case 'fail': return <CancelIcon color="error" />;
-      case 'error': return <ErrorIcon color="error" />;
-      case 'notapplicable': return <InfoIcon color="disabled" />;
-      default: return <WarningIcon color="warning" />;
+      case 'pass':
+        return <CheckCircleIcon color="success" />;
+      case 'fail':
+        return <CancelIcon color="error" />;
+      case 'error':
+        return <ErrorIcon color="error" />;
+      case 'notapplicable':
+        return <InfoIcon color="disabled" />;
+      default:
+        return <WarningIcon color="warning" />;
     }
   };
 
@@ -567,29 +613,30 @@ const ScanDetail: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           rule_id: rule.rule_id,
-          name: `Rule Rescan: ${rule.rule_id}`
-        })
+          name: `Rule Rescan: ${rule.rule_id}`,
+        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.detail || `Failed to initiate rule rescan (${response.status})`;
+        const errorMessage =
+          errorData.detail || `Failed to initiate rule rescan (${response.status})`;
         throw new Error(errorMessage);
       }
 
       const result = await response.json();
       showSnackbar(`Rule rescan initiated successfully. New scan ID: ${result.scan_id}`, 'success');
-      
+
       // Navigate to the new scan to show progress
       navigate(`/scans/${result.scan_id}`);
-      
     } catch (error) {
       console.error('Error initiating rule rescan:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to initiate rule rescan';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to initiate rule rescan';
       showSnackbar(errorMessage, 'error');
     } finally {
       setIsLoading(false);
@@ -606,18 +653,18 @@ const ScanDetail: React.FC = () => {
 
   const generateRemediationSteps = (rule: RuleResult): RemediationStep[] => {
     const steps: RemediationStep[] = [];
-    
+
     // First, try to use real SCAP remediation data if available
     if (rule.remediation && typeof rule.remediation === 'object') {
       const scapRemediation = rule.remediation as any;
-      
+
       // Priority 1: Use Fix Text from SCAP compliance checker
       if (scapRemediation.fix_text) {
         steps.push({
           title: 'SCAP Compliance Fix Text',
           description: scapRemediation.fix_text,
           type: 'manual',
-          documentation: 'Official SCAP compliance checker remediation'
+          documentation: 'Official SCAP compliance checker remediation',
         });
         console.log(`Using SCAP Fix Text for rule: ${rule.rule_id}`);
       }
@@ -627,22 +674,24 @@ const ScanDetail: React.FC = () => {
           title: 'OpenSCAP Evaluation Remediation',
           description: scapRemediation.description,
           type: 'manual',
-          documentation: 'OpenSCAP evaluation report guidance'
+          documentation: 'OpenSCAP evaluation report guidance',
         });
         console.log(`Using OpenSCAP remediation for rule: ${rule.rule_id}`);
       }
-      
+
       // Add detailed description as separate step if available and different
-      if (scapRemediation.detailed_description && 
-          scapRemediation.detailed_description !== scapRemediation.description &&
-          scapRemediation.detailed_description !== scapRemediation.fix_text) {
+      if (
+        scapRemediation.detailed_description &&
+        scapRemediation.detailed_description !== scapRemediation.description &&
+        scapRemediation.detailed_description !== scapRemediation.fix_text
+      ) {
         steps.push({
           title: 'Detailed Description',
           description: scapRemediation.detailed_description,
-          type: 'manual'
+          type: 'manual',
         });
       }
-      
+
       // Add SCAP remediation commands if available
       if (scapRemediation.commands && Array.isArray(scapRemediation.commands)) {
         scapRemediation.commands.forEach((cmd: any, index: number) => {
@@ -650,11 +699,11 @@ const ScanDetail: React.FC = () => {
             title: cmd.description || `Command ${index + 1}`,
             description: cmd.description || 'Execute the following command:',
             command: cmd.command,
-            type: cmd.type === 'shell' ? 'command' : 'config'
+            type: cmd.type === 'shell' ? 'command' : 'config',
           });
         });
       }
-      
+
       // Add SCAP configuration steps if available
       if (scapRemediation.configuration && Array.isArray(scapRemediation.configuration)) {
         scapRemediation.configuration.forEach((config: any, index: number) => {
@@ -662,38 +711,38 @@ const ScanDetail: React.FC = () => {
             title: config.description || `Configuration ${index + 1}`,
             description: config.description || 'Apply the following configuration:',
             command: config.setting,
-            type: 'config'
+            type: 'config',
           });
         });
       }
-      
+
       // Add SCAP remediation steps if available
       if (scapRemediation.steps && Array.isArray(scapRemediation.steps)) {
         scapRemediation.steps.forEach((step: string, index: number) => {
           steps.push({
             title: `Remediation Step ${index + 1}`,
             description: step,
-            type: 'manual'
+            type: 'manual',
           });
         });
       }
-      
+
       // Add complexity and disruption warnings if available
       if (scapRemediation.complexity && scapRemediation.complexity !== 'unknown') {
         steps.push({
           title: 'Implementation Complexity',
           description: `This remediation has ${scapRemediation.complexity} complexity${scapRemediation.disruption && scapRemediation.disruption !== 'unknown' ? ` and ${scapRemediation.disruption} disruption` : ''}.`,
-          type: 'manual'
+          type: 'manual',
         });
       }
-      
+
       // If we found real SCAP remediation data, return it
       if (steps.length > 0) {
         console.log(`Using ${steps.length} real SCAP remediation steps for rule: ${rule.rule_id}`);
         return steps;
       }
     }
-    
+
     // Fallback to pattern-based remediation if no real SCAP data
     console.log(`Using fallback remediation for rule: ${rule.rule_id}`);
     const ruleId = rule.rule_id.toLowerCase();
@@ -705,13 +754,13 @@ const ScanDetail: React.FC = () => {
         description: `Install the required security package using the system package manager.`,
         command: `sudo yum install -y ${packageName} || sudo apt-get install -y ${packageName}`,
         type: 'command',
-        documentation: 'https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/'
+        documentation: 'https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/',
       });
       steps.push({
         title: 'Enable and Start Service',
         description: 'Enable the service to start automatically on boot and start it now.',
         command: `sudo systemctl enable ${packageName} && sudo systemctl start ${packageName}`,
-        type: 'command'
+        type: 'command',
       });
     } else if (ruleId.includes('service') && ruleId.includes('enabled')) {
       const serviceName = extractServiceName(rule.rule_id);
@@ -719,48 +768,48 @@ const ScanDetail: React.FC = () => {
         title: `Enable ${serviceName} Service`,
         description: 'Enable the service to start automatically on system boot.',
         command: `sudo systemctl enable ${serviceName}`,
-        type: 'command'
+        type: 'command',
       });
       steps.push({
         title: `Start ${serviceName} Service`,
         description: 'Start the service immediately.',
         command: `sudo systemctl start ${serviceName}`,
-        type: 'command'
+        type: 'command',
       });
     } else if (ruleId.includes('sshd')) {
       steps.push({
         title: 'Edit SSH Configuration',
         description: 'Modify the SSH daemon configuration file.',
         command: 'sudo nano /etc/ssh/sshd_config',
-        type: 'config'
+        type: 'config',
       });
       if (ruleId.includes('root_login')) {
         steps.push({
           title: 'Disable Root Login',
           description: 'Add or modify the following line in /etc/ssh/sshd_config:',
           command: 'PermitRootLogin no',
-          type: 'config'
+          type: 'config',
         });
       }
       steps.push({
         title: 'Restart SSH Service',
         description: 'Restart the SSH service to apply changes.',
         command: 'sudo systemctl restart sshd',
-        type: 'command'
+        type: 'command',
       });
     } else if (ruleId.includes('password')) {
       steps.push({
         title: 'Edit Password Configuration',
         description: 'Modify the password policy configuration.',
         command: 'sudo nano /etc/login.defs',
-        type: 'config'
+        type: 'config',
       });
       if (ruleId.includes('minlen')) {
         steps.push({
           title: 'Set Minimum Password Length',
           description: 'Add or modify the following line in /etc/login.defs:',
           command: 'PASS_MIN_LEN 14',
-          type: 'config'
+          type: 'config',
         });
       }
     } else if (ruleId.includes('file_permissions')) {
@@ -769,13 +818,13 @@ const ScanDetail: React.FC = () => {
         title: `Set File Permissions for ${filePath}`,
         description: 'Set the correct permissions on the system file.',
         command: `sudo chmod 644 ${filePath}`,
-        type: 'command'
+        type: 'command',
       });
       steps.push({
         title: 'Verify Permissions',
         description: 'Verify the file permissions are set correctly.',
         command: `ls -la ${filePath}`,
-        type: 'command'
+        type: 'command',
       });
     } else if (ruleId.includes('kernel') || ruleId.includes('sysctl')) {
       const paramName = extractKernelParam(rule.rule_id);
@@ -783,13 +832,13 @@ const ScanDetail: React.FC = () => {
         title: 'Set Kernel Parameter',
         description: 'Add the kernel parameter to the sysctl configuration.',
         command: `echo "${paramName} = 2" | sudo tee -a /etc/sysctl.conf`,
-        type: 'command'
+        type: 'command',
       });
       steps.push({
         title: 'Apply Changes',
         description: 'Apply the sysctl changes immediately.',
         command: 'sudo sysctl -p',
-        type: 'command'
+        type: 'command',
       });
     } else {
       // Generic remediation steps
@@ -797,12 +846,13 @@ const ScanDetail: React.FC = () => {
         title: 'Review Security Configuration',
         description: 'This rule requires manual review and configuration.',
         type: 'manual',
-        documentation: 'https://www.nist.gov/cyberframework/framework'
+        documentation: 'https://www.nist.gov/cyberframework/framework',
       });
       steps.push({
         title: 'Consult Documentation',
-        description: 'Refer to your organization\'s security policies and SCAP content documentation.',
-        type: 'manual'
+        description:
+          "Refer to your organization's security policies and SCAP content documentation.",
+        type: 'manual',
       });
     }
 
@@ -852,7 +902,7 @@ const ScanDetail: React.FC = () => {
           scan_id: id,
           scan_name: scan?.name,
           host_name: scan?.host_name,
-          export_timestamp: new Date().toISOString()
+          export_timestamp: new Date().toISOString(),
         };
         content = JSON.stringify(exportData, null, 2);
         filename = `rule_${rule.rule_id}_details.json`;
@@ -873,9 +923,12 @@ const ScanDetail: React.FC = () => {
           ['Export Timestamp', new Date().toISOString()],
           ['', ''],
           ['Remediation Steps', ''],
-          ...steps.map((step, index) => [`Step ${index + 1}`, `${step.title}: ${step.description}${step.command ? ` Command: ${step.command}` : ''}`])
+          ...steps.map((step, index) => [
+            `Step ${index + 1}`,
+            `${step.title}: ${step.description}${step.command ? ` Command: ${step.command}` : ''}`,
+          ]),
         ];
-        content = csvRows.map(row => `"${row[0]}","${row[1]}"`).join('\n');
+        content = csvRows.map((row) => `"${row[0]}","${row[1]}"`).join('\n');
         filename = `rule_${rule.rule_id}_details.csv`;
         mimeType = 'text/csv';
       }
@@ -916,18 +969,22 @@ const ScanDetail: React.FC = () => {
     );
   }
 
-  const pieData = scan.results ? [
-    { name: 'Passed', value: scan.results.passed_rules, color: '#4caf50' },
-    { name: 'Failed', value: scan.results.failed_rules, color: '#f44336' },
-    { name: 'Error', value: scan.results.error_rules, color: '#ff9800' },
-    { name: 'N/A', value: scan.results.not_applicable_rules, color: '#9e9e9e' }
-  ].filter(item => item.value > 0) : [];
+  const pieData = scan.results
+    ? [
+        { name: 'Passed', value: scan.results.passed_rules, color: '#4caf50' },
+        { name: 'Failed', value: scan.results.failed_rules, color: '#f44336' },
+        { name: 'Error', value: scan.results.error_rules, color: '#ff9800' },
+        { name: 'N/A', value: scan.results.not_applicable_rules, color: '#9e9e9e' },
+      ].filter((item) => item.value > 0)
+    : [];
 
-  const severityData = scan.results ? [
-    { name: 'High', value: scan.results.severity_high, color: '#f44336' },
-    { name: 'Medium', value: scan.results.severity_medium, color: '#ff9800' },
-    { name: 'Low', value: scan.results.severity_low, color: '#ffeb3b' }
-  ] : [];
+  const severityData = scan.results
+    ? [
+        { name: 'High', value: scan.results.severity_high, color: '#f44336' },
+        { name: 'Medium', value: scan.results.severity_medium, color: '#ff9800' },
+        { name: 'Low', value: scan.results.severity_low, color: '#ffeb3b' },
+      ]
+    : [];
 
   return (
     <Box sx={{ p: 3 }}>
@@ -940,13 +997,13 @@ const ScanDetail: React.FC = () => {
           <Typography variant="h4" component="h1">
             Scan Details
           </Typography>
-          <Chip 
-            label={scan.status.toUpperCase()} 
-            color={getStatusColor(scan.status)} 
+          <Chip
+            label={scan.status.toUpperCase()}
+            color={getStatusColor(scan.status)}
             size="small"
           />
         </Box>
-        
+
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -956,11 +1013,7 @@ const ScanDetail: React.FC = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleMenuOpen}
-          >
+          <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleMenuOpen}>
             Export
           </Button>
           <IconButton onClick={handleMenuOpen}>
@@ -1021,12 +1074,17 @@ const ScanDetail: React.FC = () => {
               <Typography variant="h6" fontWeight="bold">
                 {scan.results?.score || 'N/A'}
               </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={parseFloat(scan.results?.score || '0')} 
+              <LinearProgress
+                variant="determinate"
+                value={parseFloat(scan.results?.score || '0')}
                 sx={{ mt: 1 }}
-                color={parseFloat(scan.results?.score || '0') > 80 ? 'success' : 
-                       parseFloat(scan.results?.score || '0') > 60 ? 'warning' : 'error'}
+                color={
+                  parseFloat(scan.results?.score || '0') > 80
+                    ? 'success'
+                    : parseFloat(scan.results?.score || '0') > 60
+                      ? 'warning'
+                      : 'error'
+                }
               />
             </CardContent>
           </Card>
@@ -1054,7 +1112,11 @@ const ScanDetail: React.FC = () => {
 
       {/* Main Content */}
       <Paper sx={{ width: '100%' }}>
-        <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
           <Tab label="Overview" />
           <Tab label="Failed Rules" />
           <Tab label="All Rules" />
@@ -1188,15 +1250,19 @@ const ScanDetail: React.FC = () => {
               <Typography variant="h6" sx={{ mt: 2 }}>
                 {scan.status === 'pending' ? 'Scan Initializing...' : 'Scan in Progress...'}
               </Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={scan.progress || 0} 
+              <LinearProgress
+                variant="determinate"
+                value={scan.progress || 0}
                 sx={{ mt: 2, maxWidth: 400, mx: 'auto' }}
               />
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 {scan.progress || 0}% Complete
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.875rem' }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, fontSize: '0.875rem' }}
+              >
                 {scan.progress === 0 && 'Initializing scan task...'}
                 {scan.progress === 5 && 'Setting up scan environment...'}
                 {scan.progress === 10 && 'Processing credentials...'}
@@ -1206,11 +1272,23 @@ const ScanDetail: React.FC = () => {
                 {scan.progress > 30 && scan.progress < 90 && 'Running compliance checks...'}
               </Typography>
               {scan.started_at && (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 1, fontSize: '0.75rem' }}
+                >
                   Started: {new Date(scan.started_at).toLocaleString()}
                 </Typography>
               )}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 2, gap: 1 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mt: 2,
+                  gap: 1,
+                }}
+              >
                 <RefreshIcon sx={{ fontSize: '1rem', animation: 'spin 2s linear infinite' }} />
                 <Typography variant="caption" color="text.secondary">
                   Auto-refreshing every 3 seconds...
@@ -1235,7 +1313,11 @@ const ScanDetail: React.FC = () => {
                 </Typography>
               )}
               {scan.completed_at && (
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', mt: 1 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: '0.75rem', mt: 1 }}
+                >
                   Failed at: {new Date(scan.completed_at).toLocaleString()}
                 </Typography>
               )}
@@ -1279,7 +1361,7 @@ const ScanDetail: React.FC = () => {
               </Grid>
               <Grid item xs={12} md={3}>
                 <Typography variant="body2" color="text.secondary">
-                  Showing {filteredRules.filter(r => r.result === 'fail').length} failed rules
+                  Showing {filteredRules.filter((r) => r.result === 'fail').length} failed rules
                 </Typography>
               </Grid>
             </Grid>
@@ -1297,7 +1379,7 @@ const ScanDetail: React.FC = () => {
               </TableHead>
               <TableBody>
                 {filteredRules
-                  .filter(rule => rule.result === 'fail')
+                  .filter((rule) => rule.result === 'fail')
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((rule) => (
                     <TableRow key={rule.rule_id}>
@@ -1312,20 +1394,20 @@ const ScanDetail: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={rule.severity.toUpperCase()} 
+                        <Chip
+                          label={rule.severity.toUpperCase()}
                           size="small"
-                          sx={{ 
+                          sx={{
                             bgcolor: getSeverityColor(rule.severity),
-                            color: 'white'
+                            color: 'white',
                           }}
                         />
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <Tooltip title="View remediation">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleViewRemediation(rule)}
                               color="primary"
                             >
@@ -1333,26 +1415,36 @@ const ScanDetail: React.FC = () => {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Export rule details">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleExportRule(rule)}
                               color="info"
                             >
                               <FileCopyIcon />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title={reviewedRules.has(rule.rule_id) ? "Remove from review queue" : "Mark for review"}>
-                            <IconButton 
-                              size="small" 
+                          <Tooltip
+                            title={
+                              reviewedRules.has(rule.rule_id)
+                                ? 'Remove from review queue'
+                                : 'Mark for review'
+                            }
+                          >
+                            <IconButton
+                              size="small"
                               onClick={() => handleToggleReview(rule.rule_id)}
-                              color={reviewedRules.has(rule.rule_id) ? "warning" : "default"}
+                              color={reviewedRules.has(rule.rule_id) ? 'warning' : 'default'}
                             >
-                              {reviewedRules.has(rule.rule_id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                              {reviewedRules.has(rule.rule_id) ? (
+                                <BookmarkIcon />
+                              ) : (
+                                <BookmarkBorderIcon />
+                              )}
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Rescan this rule">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleRescanRule(rule)}
                               color="secondary"
                               disabled={isLoading}
@@ -1367,11 +1459,11 @@ const ScanDetail: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           <TablePagination
             rowsPerPageOptions={[10, 25, 50, 100]}
             component="div"
-            count={filteredRules.filter(r => r.result === 'fail').length}
+            count={filteredRules.filter((r) => r.result === 'fail').length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
@@ -1452,34 +1544,30 @@ const ScanDetail: React.FC = () => {
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((rule) => (
                     <TableRow key={rule.rule_id}>
-                      <TableCell>
-                        {getResultIcon(rule.result)}
-                      </TableCell>
+                      <TableCell>{getResultIcon(rule.result)}</TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                           {rule.rule_id}
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {rule.title}
-                        </Typography>
+                        <Typography variant="body2">{rule.title}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip 
-                          label={rule.severity.toUpperCase()} 
+                        <Chip
+                          label={rule.severity.toUpperCase()}
                           size="small"
-                          sx={{ 
+                          sx={{
                             bgcolor: getSeverityColor(rule.severity),
-                            color: rule.severity === 'low' ? 'black' : 'white'
+                            color: rule.severity === 'low' ? 'black' : 'white',
                           }}
                         />
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 0.5 }}>
                           <Tooltip title="View remediation">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleViewRemediation(rule)}
                               color="primary"
                             >
@@ -1487,26 +1575,36 @@ const ScanDetail: React.FC = () => {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Export rule details">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleExportRule(rule)}
                               color="info"
                             >
                               <FileCopyIcon />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title={reviewedRules.has(rule.rule_id) ? "Remove from review queue" : "Mark for review"}>
-                            <IconButton 
-                              size="small" 
+                          <Tooltip
+                            title={
+                              reviewedRules.has(rule.rule_id)
+                                ? 'Remove from review queue'
+                                : 'Mark for review'
+                            }
+                          >
+                            <IconButton
+                              size="small"
                               onClick={() => handleToggleReview(rule.rule_id)}
-                              color={reviewedRules.has(rule.rule_id) ? "warning" : "default"}
+                              color={reviewedRules.has(rule.rule_id) ? 'warning' : 'default'}
                             >
-                              {reviewedRules.has(rule.rule_id) ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                              {reviewedRules.has(rule.rule_id) ? (
+                                <BookmarkIcon />
+                              ) : (
+                                <BookmarkBorderIcon />
+                              )}
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Rescan this rule">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleRescanRule(rule)}
                               color="secondary"
                               disabled={isLoading}
@@ -1521,7 +1619,7 @@ const ScanDetail: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           <TablePagination
             rowsPerPageOptions={[10, 25, 50, 100]}
             component="div"
@@ -1555,42 +1653,33 @@ const ScanDetail: React.FC = () => {
               </Typography>
               <List>
                 <ListItem>
-                  <ListItemText 
-                    primary="Scan Name" 
-                    secondary={scan.name}
-                  />
+                  <ListItemText primary="Scan Name" secondary={scan.name} />
                 </ListItem>
                 <ListItem>
-                  <ListItemText 
-                    primary="Scan ID" 
-                    secondary={scan.id}
-                  />
+                  <ListItemText primary="Scan ID" secondary={scan.id} />
                 </ListItem>
                 <ListItem>
-                  <ListItemText 
-                    primary="Profile ID" 
-                    secondary={scan.profile_id}
-                  />
+                  <ListItemText primary="Profile ID" secondary={scan.profile_id} />
                 </ListItem>
                 <ListItem>
-                  <ListItemText 
-                    primary="Started At" 
+                  <ListItemText
+                    primary="Started At"
                     secondary={new Date(scan.started_at).toLocaleString()}
                   />
                 </ListItem>
                 {scan.completed_at && (
                   <ListItem>
-                    <ListItemText 
-                      primary="Completed At" 
+                    <ListItemText
+                      primary="Completed At"
                       secondary={new Date(scan.completed_at).toLocaleString()}
                     />
                   </ListItem>
                 )}
                 <ListItem>
-                  <ListItemText 
-                    primary="Duration" 
+                  <ListItemText
+                    primary="Duration"
                     secondary={
-                      scan.completed_at 
+                      scan.completed_at
                         ? `${Math.round((new Date(scan.completed_at).getTime() - new Date(scan.started_at).getTime()) / 1000)} seconds`
                         : 'In progress...'
                     }
@@ -1598,35 +1687,35 @@ const ScanDetail: React.FC = () => {
                 </ListItem>
               </List>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Typography variant="h6" gutterBottom>
                 Technical Details
               </Typography>
               <List>
                 <ListItem>
-                  <ListItemText 
-                    primary="Result File" 
+                  <ListItemText
+                    primary="Result File"
                     secondary={scan.result_file || 'Not available'}
                   />
                 </ListItem>
                 <ListItem>
-                  <ListItemText 
-                    primary="Report File" 
+                  <ListItemText
+                    primary="Report File"
                     secondary={scan.report_file || 'Not available'}
                   />
                 </ListItem>
                 {scan.error_message && (
                   <ListItem>
-                    <ListItemText 
-                      primary="Error Message" 
+                    <ListItemText
+                      primary="Error Message"
                       secondary={scan.error_message}
                       secondaryTypographyProps={{ color: 'error' }}
                     />
                   </ListItem>
                 )}
               </List>
-              
+
               {scan.scan_options && Object.keys(scan.scan_options).length > 0 && (
                 <>
                   <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -1645,11 +1734,7 @@ const ScanDetail: React.FC = () => {
       </Paper>
 
       {/* Action Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
         <MenuItem onClick={() => handleExportReport('html')}>
           <ListItemIcon>
             <DownloadIcon fontSize="small" />
@@ -1684,8 +1769,8 @@ const ScanDetail: React.FC = () => {
       </Menu>
 
       {/* Remediation Dialog */}
-      <Dialog 
-        open={remediationDialog.open} 
+      <Dialog
+        open={remediationDialog.open}
         onClose={closeRemediationDialog}
         maxWidth="md"
         fullWidth
@@ -1703,19 +1788,26 @@ const ScanDetail: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   {remediationDialog.rule.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontFamily: 'monospace', mb: 1 }}
+                >
                   {remediationDialog.rule.rule_id}
                 </Typography>
-                <Chip 
-                  label={remediationDialog.rule.severity.toUpperCase()} 
+                <Chip
+                  label={remediationDialog.rule.severity.toUpperCase()}
                   size="small"
-                  color={remediationDialog.rule.severity === 'high' ? 'error' : 
-                         remediationDialog.rule.severity === 'medium' ? 'warning' : 'info'}
+                  color={
+                    remediationDialog.rule.severity === 'high'
+                      ? 'error'
+                      : remediationDialog.rule.severity === 'medium'
+                        ? 'warning'
+                        : 'info'
+                  }
                   sx={{ mb: 2 }}
                 />
-                <Typography variant="body2">
-                  {remediationDialog.rule.description}
-                </Typography>
+                <Typography variant="body2">{remediationDialog.rule.description}</Typography>
               </Box>
 
               <Stepper orientation="vertical">
@@ -1731,45 +1823,59 @@ const ScanDetail: React.FC = () => {
                         <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap' }}>
                           {step.description}
                         </Typography>
-                        
+
                         {/* Show source type for SCAP remediation */}
-                        {(step.title.includes('SCAP Compliance Fix Text') || 
+                        {(step.title.includes('SCAP Compliance Fix Text') ||
                           step.title.includes('OpenSCAP Evaluation Remediation')) && (
-                          <Chip 
-                            size="small" 
-                            color="success" 
-                            label={step.title.includes('Fix Text') ? 'SCAP Compliance Checker' : 'OpenSCAP Evaluation Report'}
+                          <Chip
+                            size="small"
+                            color="success"
+                            label={
+                              step.title.includes('Fix Text')
+                                ? 'SCAP Compliance Checker'
+                                : 'OpenSCAP Evaluation Report'
+                            }
                             sx={{ mb: 2 }}
                           />
                         )}
                       </Box>
-                      
+
                       {step.command && (
-                        <Paper 
-                          variant="outlined" 
-                          sx={{ 
-                            p: 0, 
-                            mb: 2, 
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 0,
+                            mb: 2,
                             bgcolor: '#f8f9fa',
                             border: '1px solid #e9ecef',
                             borderRadius: 2,
-                            overflow: 'hidden'
+                            overflow: 'hidden',
                           }}
                         >
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 1, 
-                            p: 1.5,
-                            bgcolor: '#e9ecef', 
-                            borderBottom: '1px solid #dee2e6' 
-                          }}>
-                            {step.type === 'command' ? <TerminalIcon color="primary" /> : <CodeIcon color="info" />}
-                            <Typography variant="caption" fontWeight="bold" sx={{ color: '#495057' }}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              p: 1.5,
+                              bgcolor: '#e9ecef',
+                              borderBottom: '1px solid #dee2e6',
+                            }}
+                          >
+                            {step.type === 'command' ? (
+                              <TerminalIcon color="primary" />
+                            ) : (
+                              <CodeIcon color="info" />
+                            )}
+                            <Typography
+                              variant="caption"
+                              fontWeight="bold"
+                              sx={{ color: '#495057' }}
+                            >
                               {step.type === 'command' ? 'Command:' : 'Configuration:'}
                             </Typography>
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => {
                                 navigator.clipboard.writeText(step.command || '');
                                 showSnackbar('Command copied to clipboard', 'success');
@@ -1779,9 +1885,9 @@ const ScanDetail: React.FC = () => {
                               <FileCopyIcon fontSize="small" />
                             </IconButton>
                           </Box>
-                          <Box 
-                            component="pre" 
-                            sx={{ 
+                          <Box
+                            component="pre"
+                            sx={{
                               p: 2,
                               m: 0,
                               fontFamily: '"Monaco", "Menlo", "Ubuntu Mono", monospace',
@@ -1806,23 +1912,25 @@ const ScanDetail: React.FC = () => {
                           </Box>
                         </Paper>
                       )}
-                      
+
                       {step.documentation && (
                         <Box sx={{ mt: 2 }}>
                           {step.documentation.startsWith('http') ? (
-                            <Link 
-                              href={step.documentation} 
-                              target="_blank" 
+                            <Link
+                              href={step.documentation}
+                              target="_blank"
                               rel="noopener noreferrer"
                               sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                             >
                               <OpenInNewIcon fontSize="small" />
-                              <Typography variant="caption">
-                                View Documentation
-                              </Typography>
+                              <Typography variant="caption">View Documentation</Typography>
                             </Link>
                           ) : (
-                            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ fontStyle: 'italic' }}
+                            >
                               Source: {step.documentation}
                             </Typography>
                           )}
@@ -1836,18 +1944,19 @@ const ScanDetail: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeRemediationDialog}>
-            Close
-          </Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={closeRemediationDialog}>Close</Button>
+          <Button
+            variant="contained"
             startIcon={<FileCopyIcon />}
             onClick={() => {
               if (remediationDialog.rule) {
                 const steps = generateRemediationSteps(remediationDialog.rule);
-                const text = steps.map((step, i) => 
-                  `${i + 1}. ${step.title}\n${step.description}${step.command ? `\n\nCommand: ${step.command}` : ''}`
-                ).join('\n\n---\n\n');
+                const text = steps
+                  .map(
+                    (step, i) =>
+                      `${i + 1}. ${step.title}\n${step.description}${step.command ? `\n\nCommand: ${step.command}` : ''}`
+                  )
+                  .join('\n\n---\n\n');
                 navigator.clipboard.writeText(text);
                 showSnackbar('Remediation steps copied to clipboard', 'success');
               }
@@ -1859,12 +1968,7 @@ const ScanDetail: React.FC = () => {
       </Dialog>
 
       {/* Export Rule Dialog */}
-      <Dialog 
-        open={exportRuleDialog.open} 
-        onClose={closeExportRuleDialog}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={exportRuleDialog.open} onClose={closeExportRuleDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <FileCopyIcon color="info" />
@@ -1892,18 +1996,16 @@ const ScanDetail: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeExportRuleDialog}>
-            Cancel
-          </Button>
-          <Button 
-            variant="outlined" 
+          <Button onClick={closeExportRuleDialog}>Cancel</Button>
+          <Button
+            variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={() => handleExportRuleDetails('csv')}
           >
             Export CSV
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             startIcon={<DownloadIcon />}
             onClick={() => handleExportRuleDetails('json')}
           >
@@ -1918,8 +2020,8 @@ const ScanDetail: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

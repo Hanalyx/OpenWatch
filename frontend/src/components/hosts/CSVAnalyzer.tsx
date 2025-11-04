@@ -54,66 +54,66 @@ interface FieldAnalysis {
   suggestions: string[];
 }
 
-const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
-  onAnalysisComplete,
-  onError
-}) => {
+const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({ onAnalysisComplete, onError }) => {
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<CSVAnalysis | null>(null);
   const [csvContent, setCsvContent] = useState<string>('');
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      if (acceptedFiles.length === 0) return;
 
-    const uploadedFile = acceptedFiles[0];
-    setFile(uploadedFile);
-    setAnalyzing(true);
-    onError('');
+      const uploadedFile = acceptedFiles[0];
+      setFile(uploadedFile);
+      setAnalyzing(true);
+      onError('');
 
-    try {
-      // Read file content
-      const content = await uploadedFile.text();
-      setCsvContent(content);
+      try {
+        // Read file content
+        const content = await uploadedFile.text();
+        setCsvContent(content);
 
-      // Send to backend for analysis
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        throw new Error('Authentication required');
+        // Send to backend for analysis
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('Authentication required');
+        }
+
+        const formData = new FormData();
+        formData.append('file', uploadedFile);
+
+        const response = await fetch('/api/bulk/hosts/analyze-csv', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ detail: 'Analysis failed' }));
+          throw new Error(errorData.detail || 'Failed to analyze CSV');
+        }
+
+        const analysisResult = await response.json();
+        setAnalysis(analysisResult);
+      } catch (error) {
+        onError(error instanceof Error ? error.message : 'Failed to analyze CSV');
+      } finally {
+        setAnalyzing(false);
       }
-
-      const formData = new FormData();
-      formData.append('file', uploadedFile);
-
-      const response = await fetch('/api/bulk/hosts/analyze-csv', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Analysis failed' }));
-        throw new Error(errorData.detail || 'Failed to analyze CSV');
-      }
-
-      const analysisResult = await response.json();
-      setAnalysis(analysisResult);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to analyze CSV');
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [onError]);
+    },
+    [onError]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'text/csv': ['.csv']
+      'text/csv': ['.csv'],
     },
     maxFiles: 1,
-    disabled: analyzing
+    disabled: analyzing,
   });
 
   const handleContinue = () => {
@@ -156,16 +156,17 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
       >
         <input {...getInputProps()} />
         <UploadIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
-        
+
         <Typography variant="h5" gutterBottom>
           {isDragActive ? 'Drop your CSV file here' : 'Upload Any CSV File'}
         </Typography>
-        
+
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 600 }}>
-          Upload CSV files from any source - VMware vCenter, Red Hat Satellite, AWS, Azure, or custom exports. 
-          Our intelligent analysis will automatically detect and suggest field mappings.
+          Upload CSV files from any source - VMware vCenter, Red Hat Satellite, AWS, Azure, or
+          custom exports. Our intelligent analysis will automatically detect and suggest field
+          mappings.
         </Typography>
-        
+
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
           <Chip label="VMware vCenter" size="small" variant="outlined" />
           <Chip label="Red Hat Satellite" size="small" variant="outlined" />
@@ -173,13 +174,8 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
           <Chip label="Azure VMs" size="small" variant="outlined" />
           <Chip label="Custom Exports" size="small" variant="outlined" />
         </Box>
-        
-        <Button
-          variant="outlined"
-          startIcon={<UploadIcon />}
-          sx={{ mt: 3 }}
-          disabled={analyzing}
-        >
+
+        <Button variant="outlined" startIcon={<UploadIcon />} sx={{ mt: 3 }} disabled={analyzing}>
           Choose CSV File
         </Button>
       </Box>
@@ -204,10 +200,12 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
               <AnalyticsIcon color="primary" />
               <Typography variant="h6">File Analysis Complete</Typography>
             </Box>
-            
+
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" gutterBottom>File Information</Typography>
+                <Typography variant="subtitle2" gutterBottom>
+                  File Information
+                </Typography>
                 <Typography variant="body2">Name: {file.name}</Typography>
                 <Typography variant="body2">Size: {(file.size / 1024).toFixed(2)} KB</Typography>
                 {analysis && (
@@ -217,10 +215,12 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
                   </>
                 )}
               </Grid>
-              
+
               {analysis && analysis.template_matches.length > 0 && (
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" gutterBottom>Detected Templates</Typography>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Detected Templates
+                  </Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                     {analysis.template_matches.map((template, index) => (
                       <Chip
@@ -279,7 +279,10 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                          >
                             {field.sample_values.slice(0, 2).join(', ')}
                             {field.sample_values.length > 2 && '...'}
                           </Typography>
@@ -307,15 +310,18 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
               {Object.keys(analysis.auto_mappings).length > 0 && (
                 <Alert severity="success" sx={{ mt: 2 }}>
                   <Typography variant="body2">
-                    <strong>Great!</strong> We automatically mapped {Object.keys(analysis.auto_mappings).length} out of {analysis.total_columns} fields. 
-                    You can review and adjust these mappings in the next step.
+                    <strong>Great!</strong> We automatically mapped{' '}
+                    {Object.keys(analysis.auto_mappings).length} out of {analysis.total_columns}{' '}
+                    fields. You can review and adjust these mappings in the next step.
                   </Typography>
                 </Alert>
               )}
             </AccordionDetails>
           </Accordion>
 
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box
+            sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Button
               variant="outlined"
               onClick={() => {
@@ -326,7 +332,7 @@ const CSVAnalyzer: React.FC<CSVAnalyzerProps> = ({
             >
               Choose Different File
             </Button>
-            
+
             <Button
               variant="contained"
               onClick={handleContinue}

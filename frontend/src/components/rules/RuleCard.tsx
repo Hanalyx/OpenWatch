@@ -97,21 +97,21 @@ const RuleCard: React.FC<RuleCardProps> = ({
     },
   };
 
-  const listStyles = viewMode === 'list' ? {
-    borderRadius: 0,
-    borderLeft: 'none',
-    borderRight: 'none',
-    borderTop: 'none',
-    '&:first-of-type': {
-      borderTop: `1px solid ${theme.palette.divider}`,
-    },
-  } : {};
+  const listStyles =
+    viewMode === 'list'
+      ? {
+          borderRadius: 0,
+          borderLeft: 'none',
+          borderRight: 'none',
+          borderTop: 'none',
+          '&:first-of-type': {
+            borderTop: `1px solid ${theme.palette.divider}`,
+          },
+        }
+      : {};
 
   return (
-    <Card
-      sx={{ ...cardStyles, ...listStyles }}
-      onClick={() => onSelect(rule)}
-    >
+    <Card sx={{ ...cardStyles, ...listStyles }} onClick={() => onSelect(rule)}>
       <CardContent>
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
@@ -119,7 +119,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
             <Typography variant={viewMode === 'list' ? 'body1' : 'h6'} gutterBottom>
               {rule.metadata.name}
             </Typography>
-            
+
             <Box display="flex" alignItems="center" gap={1} mb={1}>
               <Tooltip title="Rule ID - Click to copy">
                 <Chip
@@ -130,16 +130,11 @@ const RuleCard: React.FC<RuleCardProps> = ({
                   onClick={handleCopyRuleId}
                 />
               </Tooltip>
-              
+
               {rule.abstract && (
-                <Chip
-                  label="Abstract"
-                  size="small"
-                  color="secondary"
-                  variant="outlined"
-                />
+                <Chip label="Abstract" size="small" color="secondary" variant="outlined" />
               )}
-              
+
               {rule.inheritance?.parent_rule && (
                 <Chip
                   label="Inherited"
@@ -162,7 +157,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
                 fontWeight: 'medium',
               }}
             />
-            
+
             {showRelevance && rule.relevance_score && (
               <Tooltip title="Search relevance score">
                 <Chip
@@ -199,18 +194,20 @@ const RuleCard: React.FC<RuleCardProps> = ({
                 {rule.category}
               </Typography>
             </Box>
-            
+
             {Object.keys(rule.platform_implementations || {}).length > 0 && (
               <Box display="flex" gap={0.5}>
-                {Object.keys(rule.platform_implementations).slice(0, 3).map(platform => (
-                  <Chip
-                    key={platform}
-                    label={platform}
-                    size="small"
-                    variant="outlined"
-                    sx={{ height: 20 }}
-                  />
-                ))}
+                {Object.keys(rule.platform_implementations)
+                  .slice(0, 3)
+                  .map((platform) => (
+                    <Chip
+                      key={platform}
+                      label={platform}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 20 }}
+                    />
+                  ))}
                 {Object.keys(rule.platform_implementations).length > 3 && (
                   <Typography variant="caption" color="text.secondary">
                     +{Object.keys(rule.platform_implementations).length - 3}
@@ -218,17 +215,20 @@ const RuleCard: React.FC<RuleCardProps> = ({
                 )}
               </Box>
             )}
-            
-            {rule.dependencies && (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
-              <Tooltip title={`${rule.dependencies.requires.length} dependencies, ${rule.dependencies.conflicts.length} conflicts`}>
-                <Box display="flex" alignItems="center" gap={0.5}>
-                  <DependencyIcon fontSize="small" color="action" />
-                  <Typography variant="caption" color="text.secondary">
-                    {rule.dependencies.requires.length + rule.dependencies.conflicts.length}
-                  </Typography>
-                </Box>
-              </Tooltip>
-            )}
+
+            {rule.dependencies &&
+              (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
+                <Tooltip
+                  title={`${rule.dependencies.requires.length} dependencies, ${rule.dependencies.conflicts.length} conflicts`}
+                >
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <DependencyIcon fontSize="small" color="action" />
+                    <Typography variant="caption" color="text.secondary">
+                      {rule.dependencies.requires.length + rule.dependencies.conflicts.length}
+                    </Typography>
+                  </Box>
+                </Tooltip>
+              )}
           </Box>
         )}
 
@@ -236,7 +236,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
         <Collapse in={expanded}>
           <Box mt={2}>
             <Divider sx={{ my: 1 }} />
-            
+
             {/* Rationale */}
             {rule.metadata.rationale && (
               <Box mb={2}>
@@ -277,7 +277,10 @@ const RuleCard: React.FC<RuleCardProps> = ({
                     <Box key={framework}>
                       {Object.entries(versions).map(([version, controls]) => (
                         <Typography key={version} variant="body2" color="text.secondary">
-                          <strong>{framework.toUpperCase()} {version}:</strong> {controls.join(', ')}
+                          <strong>
+                            {framework.toUpperCase()} {version}:
+                          </strong>{' '}
+                          {controls.join(', ')}
                         </Typography>
                       ))}
                     </Box>
@@ -293,7 +296,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
                   Tags
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  {rule.tags.map(tag => (
+                  {rule.tags.map((tag) => (
                     <Chip
                       key={tag}
                       label={tag}
@@ -307,25 +310,26 @@ const RuleCard: React.FC<RuleCardProps> = ({
             )}
 
             {/* Dependencies Summary */}
-            {rule.dependencies && (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
-                  Dependencies & Conflicts
-                </Typography>
-                <Stack spacing={1}>
-                  {rule.dependencies.requires.length > 0 && (
-                    <Typography variant="body2" color="text.secondary">
-                      <strong>Requires:</strong> {rule.dependencies.requires.join(', ')}
-                    </Typography>
-                  )}
-                  {rule.dependencies.conflicts.length > 0 && (
-                    <Typography variant="body2" color="error">
-                      <strong>Conflicts:</strong> {rule.dependencies.conflicts.join(', ')}
-                    </Typography>
-                  )}
-                </Stack>
-              </Box>
-            )}
+            {rule.dependencies &&
+              (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Dependencies & Conflicts
+                  </Typography>
+                  <Stack spacing={1}>
+                    {rule.dependencies.requires.length > 0 && (
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Requires:</strong> {rule.dependencies.requires.join(', ')}
+                      </Typography>
+                    )}
+                    {rule.dependencies.conflicts.length > 0 && (
+                      <Typography variant="body2" color="error">
+                        <strong>Conflicts:</strong> {rule.dependencies.conflicts.join(', ')}
+                      </Typography>
+                    )}
+                  </Stack>
+                </Box>
+              )}
           </Box>
         </Collapse>
       </CardContent>
@@ -338,20 +342,22 @@ const RuleCard: React.FC<RuleCardProps> = ({
         >
           {expanded ? 'Less' : 'More'}
         </Button>
-        
-        {onViewDependencies && rule.dependencies && (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
-          <Button
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewDependencies(rule.rule_id);
-            }}
-            startIcon={<DependencyIcon />}
-          >
-            Dependencies
-          </Button>
-        )}
-        
+
+        {onViewDependencies &&
+          rule.dependencies &&
+          (rule.dependencies.requires.length > 0 || rule.dependencies.conflicts.length > 0) && (
+            <Button
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDependencies(rule.rule_id);
+              }}
+              startIcon={<DependencyIcon />}
+            >
+              Dependencies
+            </Button>
+          )}
+
         <Button
           size="small"
           onClick={(e) => {

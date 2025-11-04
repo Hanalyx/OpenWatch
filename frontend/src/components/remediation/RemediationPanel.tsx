@@ -31,7 +31,7 @@ import {
   TableHead,
   TableRow,
   LinearProgress,
-  Tooltip
+  Tooltip,
 } from '@mui/material';
 import {
   PlayArrow as PlayArrowIcon,
@@ -42,7 +42,7 @@ import {
   Refresh as RefreshIcon,
   OpenInNew as OpenInNewIcon,
   Schedule as ScheduleIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { tokenService } from '../../services/tokenService';
 
@@ -77,7 +77,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   scanId,
   hostId,
   scanStatus,
-  onRemediationStarted
+  onRemediationStarted,
 }) => {
   const [failedRules, setFailedRules] = useState<FailedRule[]>([]);
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
@@ -98,20 +98,19 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
     try {
       setLoading(true);
       const response = await tokenService.authenticatedFetch(`/api/scans/${scanId}/failed-rules`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to load failed rules');
       }
-      
+
       const data = await response.json();
       setFailedRules(data.failed_rules || []);
-      
+
       // Auto-select remediable rules
       const remediableRules = data.failed_rules
         .filter((rule: FailedRule) => rule.can_remediate)
         .map((rule: FailedRule) => rule.rule_id);
       setSelectedRules(remediableRules);
-      
     } catch (err) {
       console.error('Error loading failed rules:', err);
       setError('Failed to load failed rules');
@@ -129,20 +128,20 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
     try {
       setLoading(true);
       setActiveStep(1);
-      
+
       // Send remediation request to AEGIS
       const response = await fetch('http://localhost:8001/api/v1/remediation/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${tokenService.getToken()}`
+          Authorization: `Bearer ${tokenService.getToken()}`,
         },
         body: JSON.stringify({
           host_id: hostId,
           rule_ids: selectedRules,
           source_scan_id: scanId,
-          auto_verify: true
-        })
+          auto_verify: true,
+        }),
       });
 
       if (!response.ok) {
@@ -152,14 +151,13 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
       const jobData = await response.json();
       setRemediationJob(jobData);
       setActiveStep(2);
-      
+
       // Start polling for job status
       pollRemediationStatus(jobData.job_id);
-      
+
       if (onRemediationStarted) {
         onRemediationStarted();
       }
-      
     } catch (err) {
       console.error('Error starting remediation:', err);
       setError('Failed to start remediation');
@@ -175,14 +173,14 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
       try {
         const response = await fetch(`http://localhost:8001/api/v1/remediation/jobs/${jobId}`, {
           headers: {
-            'Authorization': `Bearer ${tokenService.getToken()}`
-          }
+            Authorization: `Bearer ${tokenService.getToken()}`,
+          },
         });
 
         if (response.ok) {
           const jobData = await response.json();
           setRemediationJob(jobData);
-          
+
           if (jobData.status === 'completed' || jobData.status === 'failed') {
             setActiveStep(3);
             return; // Stop polling
@@ -229,14 +227,9 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   if (scanStatus !== 'completed') {
     return (
       <Card>
-        <CardHeader 
-          title="Remediation" 
-          avatar={<BuildIcon />}
-        />
+        <CardHeader title="Remediation" avatar={<BuildIcon />} />
         <CardContent>
-          <Alert severity="info">
-            Remediation will be available after the scan completes.
-          </Alert>
+          <Alert severity="info">Remediation will be available after the scan completes.</Alert>
         </CardContent>
       </Card>
     );
@@ -245,15 +238,11 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   return (
     <Box>
       <Card>
-        <CardHeader 
-          title="Automated Remediation" 
+        <CardHeader
+          title="Automated Remediation"
           avatar={<BuildIcon />}
           action={
-            <Button
-              startIcon={<RefreshIcon />}
-              onClick={loadFailedRules}
-              disabled={loading}
-            >
+            <Button startIcon={<RefreshIcon />} onClick={loadFailedRules} disabled={loading}>
               Refresh
             </Button>
           }
@@ -297,9 +286,9 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
           {failedRules.length > 0 && activeStep === 0 && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Failed Rules ({failedRules.filter(r => r.can_remediate).length} can be remediated)
+                Failed Rules ({failedRules.filter((r) => r.can_remediate).length} can be remediated)
               </Typography>
-              
+
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -354,7 +343,9 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
                                 size="small"
                                 onClick={() => {
                                   if (selectedRules.includes(rule.rule_id)) {
-                                    setSelectedRules(selectedRules.filter(id => id !== rule.rule_id));
+                                    setSelectedRules(
+                                      selectedRules.filter((id) => id !== rule.rule_id)
+                                    );
                                   } else {
                                     setSelectedRules([...selectedRules, rule.rule_id]);
                                   }
@@ -376,7 +367,14 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
               </TableContainer>
 
               {selectedRules.length > 0 && (
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box
+                  sx={{
+                    mt: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
                   <Typography variant="body2" color="text.secondary">
                     {selectedRules.length} rules selected for remediation
                   </Typography>
@@ -399,7 +397,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Remediation Job Status
               </Typography>
-              
+
               <Paper sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Chip
@@ -407,16 +405,14 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
                     color={getStatusColor(remediationJob.status)}
                     sx={{ mr: 2 }}
                   />
-                  <Typography variant="body2">
-                    Job ID: {remediationJob.id}
-                  </Typography>
+                  <Typography variant="body2">Job ID: {remediationJob.id}</Typography>
                 </Box>
 
                 {remediationJob.status === 'running' && (
                   <Box sx={{ mb: 2 }}>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={remediationJob.progress} 
+                    <LinearProgress
+                      variant="determinate"
+                      value={remediationJob.progress}
                       sx={{ mb: 1 }}
                     />
                     <Typography variant="body2" color="text.secondary">
@@ -427,23 +423,31 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
 
                 <Box sx={{ display: 'flex', gap: 3 }}>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Total Rules</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Total Rules
+                    </Typography>
                     <Typography variant="h6">{remediationJob.total_rules}</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Successful</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Successful
+                    </Typography>
                     <Typography variant="h6" color="success.main">
                       {remediationJob.successful_rules}
                     </Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Failed</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Failed
+                    </Typography>
                     <Typography variant="h6" color="error.main">
                       {remediationJob.failed_rules}
                     </Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Skipped</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Skipped
+                    </Typography>
                     <Typography variant="h6" color="warning.main">
                       {remediationJob.skipped_rules}
                     </Typography>
@@ -472,17 +476,19 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
         <DialogTitle>Confirm Remediation</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to start automated remediation for {selectedRules.length} selected rules?
+            Are you sure you want to start automated remediation for {selectedRules.length} selected
+            rules?
           </Typography>
           <Alert severity="warning" sx={{ mt: 2 }}>
-            This will make changes to the target host. Ensure you have appropriate backups and approvals.
+            This will make changes to the target host. Ensure you have appropriate backups and
+            approvals.
           </Alert>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={startRemediation} 
-            variant="contained" 
+          <Button
+            onClick={startRemediation}
+            variant="contained"
             disabled={loading}
             startIcon={loading ? <CircularProgress size={16} /> : <BuildIcon />}
           >

@@ -1,18 +1,11 @@
 import React from 'react';
-import {
-  Box,
-  Chip,
-  Typography,
-  useTheme,
-  alpha,
-  LinearProgress
-} from '@mui/material';
+import { Box, Chip, Typography, useTheme, alpha, LinearProgress } from '@mui/material';
 import {
   Error as ErrorIcon,
   Warning,
   CheckCircle,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
 } from '@mui/icons-material';
 
 interface AlertStats {
@@ -32,11 +25,7 @@ interface SmartAlertBarProps {
   loading?: boolean;
 }
 
-const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
-  stats,
-  onFilterClick,
-  loading = false
-}) => {
+const SmartAlertBar: React.FC<SmartAlertBarProps> = ({ stats, onFilterClick, loading = false }) => {
   const theme = useTheme();
 
   const getComplianceColor = (score: number) => {
@@ -47,21 +36,41 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
 
   const getTrendIcon = () => {
     if (!stats.trend) return null;
-    
+
     const icons = {
       up: <TrendingUp sx={{ fontSize: 16 }} />,
       down: <TrendingDown sx={{ fontSize: 16 }} />,
-      stable: null
+      stable: null,
     };
-    
+
     return icons[stats.trend];
   };
 
   const alerts = [
-    { severity: 'critical' as const, count: stats.critical, icon: <ErrorIcon fontSize="small" />, color: theme.palette.error.main },
-    { severity: 'high' as const, count: stats.high, icon: <Warning fontSize="small" />, color: theme.palette.warning.dark },
-    { severity: 'medium' as const, count: stats.medium, icon: <Warning fontSize="small" />, color: theme.palette.warning.main },
-    { severity: 'low' as const, count: stats.low, icon: <Warning fontSize="small" />, color: theme.palette.info.main }
+    {
+      severity: 'critical' as const,
+      count: stats.critical,
+      icon: <ErrorIcon fontSize="small" />,
+      color: theme.palette.error.main,
+    },
+    {
+      severity: 'high' as const,
+      count: stats.high,
+      icon: <Warning fontSize="small" />,
+      color: theme.palette.warning.dark,
+    },
+    {
+      severity: 'medium' as const,
+      count: stats.medium,
+      icon: <Warning fontSize="small" />,
+      color: theme.palette.warning.main,
+    },
+    {
+      severity: 'low' as const,
+      count: stats.low,
+      icon: <Warning fontSize="small" />,
+      color: theme.palette.info.main,
+    },
   ];
 
   const totalIssues = stats.critical + stats.high + stats.medium + stats.low;
@@ -74,23 +83,41 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
         p: 2,
         mb: 3,
         boxShadow: theme.shadows[1],
-        position: 'relative'
+        position: 'relative',
       }}
     >
       {loading && (
-        <LinearProgress 
-          sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
+        <LinearProgress
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
             right: 0,
-            height: 2
-          }} 
+            height: 2,
+          }}
         />
       )}
-      
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', minWidth: 0, flex: 1 }}>
+
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2,
+          width: '100%',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
           {alerts.map((alert) => (
             <Chip
               key={alert.severity}
@@ -102,17 +129,17 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
                 color: alert.color,
                 border: `1px solid ${alpha(alert.color, 0.2)}`,
                 '& .MuiChip-icon': {
-                  color: alert.color
+                  color: alert.color,
                 },
                 '&:hover': {
                   bgcolor: alpha(alert.color, 0.2),
-                  cursor: onFilterClick ? 'pointer' : 'default'
+                  cursor: onFilterClick ? 'pointer' : 'default',
                 },
-                fontWeight: alert.count > 0 ? 'bold' : 'normal'
+                fontWeight: alert.count > 0 ? 'bold' : 'normal',
               }}
             />
           ))}
-          
+
           {stats.passed > 0 && (
             <Chip
               icon={<CheckCircle fontSize="small" />}
@@ -122,8 +149,8 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
                 color: theme.palette.success.main,
                 border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
                 '& .MuiChip-icon': {
-                  color: theme.palette.success.main
-                }
+                  color: theme.palette.success.main,
+                },
               }}
             />
           )}
@@ -135,32 +162,36 @@ const SmartAlertBar: React.FC<SmartAlertBarProps> = ({
               {totalIssues} total issues
             </Typography>
           )}
-          
+
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography
               variant="h6"
               sx={{
                 color: getComplianceColor(stats.overallCompliance),
-                fontWeight: 'bold'
+                fontWeight: 'bold',
               }}
             >
               {stats.overallCompliance}% Compliant
             </Typography>
-            
+
             {stats.trend && stats.trendValue !== undefined && (
               <Box
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  color: stats.trend === 'up' ? theme.palette.success.main : 
-                         stats.trend === 'down' ? theme.palette.error.main : 
-                         theme.palette.text.secondary
+                  color:
+                    stats.trend === 'up'
+                      ? theme.palette.success.main
+                      : stats.trend === 'down'
+                        ? theme.palette.error.main
+                        : theme.palette.text.secondary,
                 }}
               >
                 {getTrendIcon()}
                 <Typography variant="caption" fontWeight="medium">
-                  {stats.trend === 'up' ? '+' : stats.trend === 'down' ? '-' : ''}{stats.trendValue}%
+                  {stats.trend === 'up' ? '+' : stats.trend === 'down' ? '-' : ''}
+                  {stats.trendValue}%
                 </Typography>
               </Box>
             )}

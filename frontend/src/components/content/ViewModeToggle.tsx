@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  ToggleButton,
-  ToggleButtonGroup,
-  Box,
-  Tooltip,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { ToggleButton, ToggleButtonGroup, Box, Tooltip, useTheme, alpha } from '@mui/material';
 import {
   Computer as PlatformIcon,
   AccountTree as FrameworkIcon,
@@ -29,10 +22,7 @@ export const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
 }) => {
   const theme = useTheme();
 
-  const handleChange = (
-    event: React.MouseEvent<HTMLElement>,
-    newMode: ViewMode | null,
-  ) => {
+  const handleChange = (event: React.MouseEvent<HTMLElement>, newMode: ViewMode | null) => {
     if (newMode !== null) {
       onChange(newMode);
     }

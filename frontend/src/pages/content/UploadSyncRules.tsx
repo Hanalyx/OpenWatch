@@ -54,7 +54,7 @@ interface UploadSyncRulesProps {}
 
 const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
   const theme = useTheme();
-  
+
   // State management
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [uploadEnabled, setUploadEnabled] = useState(false);
@@ -119,14 +119,14 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
     setSyncing(true);
     setSyncProgress(0);
     setError(null);
-    
+
     try {
       // Simulate sync process
       for (let i = 0; i <= 100; i += 10) {
         setSyncProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
-      
+
       setLastSyncTime(new Date().toLocaleString());
       setSuccess('Successfully synchronized compliance rules from Hanalyx repository');
     } catch (err: any) {
@@ -162,13 +162,16 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       // Call upload API
       setUploadProgress(10);
-      const response = await fetch('/api/v1/compliance/upload-rules?deduplication_strategy=skip_unchanged_update_changed', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
+      const response = await fetch(
+        '/api/v1/compliance/upload-rules?deduplication_strategy=skip_unchanged_update_changed',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
 
       setUploadProgress(90);
 
@@ -184,21 +187,24 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
         // Extract validation results
         setValidationResults({
           fileHash: result.file_hash,
-          rulesCount: result.manifest?.rules_count || result.statistics?.imported + result.statistics?.updated + result.statistics?.skipped || 0,
+          rulesCount:
+            result.manifest?.rules_count ||
+            result.statistics?.imported + result.statistics?.updated + result.statistics?.skipped ||
+            0,
           validationPassed: true,
           imported: result.statistics?.imported || 0,
           updated: result.statistics?.updated || 0,
           skipped: result.statistics?.skipped || 0,
           processingTime: result.processing_time_seconds,
           inheritanceImpact: result.inheritance_impact,
-          issues: result.warnings || []
+          issues: result.warnings || [],
         });
 
         setSuccess(
           `Successfully uploaded ${selectedFile.name}: ` +
-          `${result.statistics?.imported || 0} imported, ` +
-          `${result.statistics?.updated || 0} updated, ` +
-          `${result.statistics?.skipped || 0} skipped`
+            `${result.statistics?.imported || 0} imported, ` +
+            `${result.statistics?.updated || 0} updated, ` +
+            `${result.statistics?.skipped || 0} skipped`
         );
 
         // Reload upload history to show the new upload
@@ -209,12 +215,10 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
           fileHash: result.file_hash || '',
           rulesCount: 0,
           validationPassed: false,
-          issues: result.errors || []
+          issues: result.errors || [],
         });
 
-        throw new Error(
-          result.errors?.[0]?.message || 'Upload validation failed'
-        );
+        throw new Error(result.errors?.[0]?.message || 'Upload validation failed');
       }
     } catch (err: any) {
       setError(`Upload failed: ${err.message}`);
@@ -246,8 +250,8 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       const response = await fetch('/api/v1/compliance/upload-history?limit=100', {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -286,8 +290,8 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       const response = await fetch(`/api/v1/compliance/upload-history/${uploadId}/export`, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -330,12 +334,17 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       {/* Header */}
       <Box mb={3}>
-        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Typography
+          variant="h4"
+          gutterBottom
+          sx={{ display: 'flex', alignItems: 'center', gap: 2 }}
+        >
           <SecurityIcon color="primary" />
           Upload & Synchronize Rules
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Keep your compliance rules up-to-date from trusted Hanalyx repository or upload manual updates
+          Keep your compliance rules up-to-date from trusted Hanalyx repository or upload manual
+          updates
         </Typography>
       </Box>
 
@@ -346,7 +355,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
           {error}
         </Alert>
       )}
-      
+
       {success && (
         <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
           <AlertTitle>Success</AlertTitle>
@@ -380,9 +389,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                 }
                 label={
                   <Box>
-                    <Typography variant="body1">
-                      Enable Automatic Sync
-                    </Typography>
+                    <Typography variant="body1">Enable Automatic Sync</Typography>
                     <Typography variant="caption" color="text.secondary">
                       Check for updates daily at 11:00 PM system time
                     </Typography>
@@ -436,9 +443,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
               {syncEnabled && (
                 <Alert severity="success" icon={<ScheduleIcon />}>
-                  <Typography variant="body2">
-                    Automatic synchronization is active
-                  </Typography>
+                  <Typography variant="body2">Automatic synchronization is active</Typography>
                 </Alert>
               )}
             </CardContent>
@@ -470,9 +475,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                 }
                 label={
                   <Box>
-                    <Typography variant="body1">
-                      Enable Manual Upload
-                    </Typography>
+                    <Typography variant="body1">Enable Manual Upload</Typography>
                     <Typography variant="caption" color="text.secondary">
                       Upload tar.gz files from Hanalyx repository
                     </Typography>
@@ -511,7 +514,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                     helperText="Select a .tar.gz file from Hanalyx repository"
                     sx={{ mb: 2 }}
                   />
-                  
+
                   {selectedFile && (
                     <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.success.main, 0.05) }}>
                       <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -543,9 +546,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                   <Typography variant="body2">
                     Hash: {validationResults.fileHash?.substring(0, 20)}...
                   </Typography>
-                  <Typography variant="body2">
-                    Rules: {validationResults.rulesCount}
-                  </Typography>
+                  <Typography variant="body2">Rules: {validationResults.rulesCount}</Typography>
                   <Typography variant="body2">
                     Status: {validationResults.validationPassed ? 'Valid' : 'Invalid'}
                   </Typography>
@@ -568,9 +569,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
               {uploadEnabled && !selectedFile && (
                 <Alert severity="info">
-                  <Typography variant="body2">
-                    Select a tar.gz file to continue
-                  </Typography>
+                  <Typography variant="body2">Select a tar.gz file to continue</Typography>
                 </Alert>
               )}
             </CardContent>
@@ -585,7 +584,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                 Current Configuration
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
+
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
@@ -594,22 +593,26 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                     </Typography>
                     <Chip
                       label={
-                        syncEnabled ? 'Automatic Sync' : 
-                        uploadEnabled ? 'Manual Upload' : 
-                        'None Selected'
+                        syncEnabled
+                          ? 'Automatic Sync'
+                          : uploadEnabled
+                            ? 'Manual Upload'
+                            : 'None Selected'
                       }
-                      color={
-                        syncEnabled || uploadEnabled ? 'success' : 'default'
-                      }
+                      color={syncEnabled || uploadEnabled ? 'success' : 'default'}
                       icon={
-                        syncEnabled ? <SyncIcon /> : 
-                        uploadEnabled ? <UploadIcon /> : 
-                        <WarningIcon />
+                        syncEnabled ? (
+                          <SyncIcon />
+                        ) : uploadEnabled ? (
+                          <UploadIcon />
+                        ) : (
+                          <WarningIcon />
+                        )
                       }
                     />
                   </Box>
                 </Grid>
-                
+
                 <Grid item xs={12} sm={6}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
                     <Typography variant="body1" fontWeight="medium">
@@ -617,13 +620,20 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                     </Typography>
                     <Chip
                       label={
-                        syncing ? 'Syncing...' :
-                        uploading ? 'Uploading...' :
-                        syncEnabled || uploadEnabled ? 'Active' : 'Inactive'
+                        syncing
+                          ? 'Syncing...'
+                          : uploading
+                            ? 'Uploading...'
+                            : syncEnabled || uploadEnabled
+                              ? 'Active'
+                              : 'Inactive'
                       }
                       color={
-                        syncing || uploading ? 'warning' :
-                        syncEnabled || uploadEnabled ? 'success' : 'default'
+                        syncing || uploading
+                          ? 'warning'
+                          : syncEnabled || uploadEnabled
+                            ? 'success'
+                            : 'default'
                       }
                     />
                   </Box>
@@ -640,9 +650,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                 <Box display="flex" alignItems="center" gap={2}>
                   <HistoryIcon color="primary" />
-                  <Typography variant="h6">
-                    Upload History
-                  </Typography>
+                  <Typography variant="h6">Upload History</Typography>
                 </Box>
                 <Button
                   startIcon={<SyncIcon />}
@@ -710,9 +718,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2">
-                                {upload.uploaded_by}
-                              </Typography>
+                              <Typography variant="body2">{upload.uploaded_by}</Typography>
                             </TableCell>
                             <TableCell>
                               <Chip
@@ -768,8 +774,14 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                   <Grid container spacing={3}>
                                     {/* Manifest Info */}
                                     <Grid item xs={12} md={6}>
-                                      <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05) }}>
-                                        <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                                      <Paper
+                                        sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05) }}
+                                      >
+                                        <Typography
+                                          variant="subtitle2"
+                                          fontWeight="bold"
+                                          gutterBottom
+                                        >
                                           Manifest Information
                                         </Typography>
                                         <Divider sx={{ mb: 2 }} />
@@ -782,7 +794,8 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                               <strong>Version:</strong> {upload.manifest.version}
                                             </Typography>
                                             <Typography variant="body2">
-                                              <strong>Rules Count:</strong> {upload.manifest.rules_count}
+                                              <strong>Rules Count:</strong>{' '}
+                                              {upload.manifest.rules_count}
                                             </Typography>
                                             <Typography variant="body2">
                                               <strong>Processing Time:</strong>{' '}
@@ -799,8 +812,17 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
                                     {/* Processing Details */}
                                     <Grid item xs={12} md={6}>
-                                      <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.success.main, 0.05) }}>
-                                        <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                                      <Paper
+                                        sx={{
+                                          p: 2,
+                                          bgcolor: alpha(theme.palette.success.main, 0.05),
+                                        }}
+                                      >
+                                        <Typography
+                                          variant="subtitle2"
+                                          fontWeight="bold"
+                                          gutterBottom
+                                        >
                                           Processing Details
                                         </Typography>
                                         <Divider sx={{ mb: 2 }} />
@@ -833,19 +855,31 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                     {/* Errors */}
                                     {upload.errors && upload.errors.length > 0 && (
                                       <Grid item xs={12}>
-                                        <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
-                                          <Typography variant="subtitle2" fontWeight="bold" gutterBottom color="error">
+                                        <Paper
+                                          sx={{
+                                            p: 2,
+                                            bgcolor: alpha(theme.palette.error.main, 0.05),
+                                          }}
+                                        >
+                                          <Typography
+                                            variant="subtitle2"
+                                            fontWeight="bold"
+                                            gutterBottom
+                                            color="error"
+                                          >
                                             Errors
                                           </Typography>
                                           <Divider sx={{ mb: 2 }} />
                                           <Stack spacing={1}>
-                                            {upload.errors.slice(0, 5).map((error: any, idx: number) => (
-                                              <Alert key={idx} severity="error" sx={{ py: 0 }}>
-                                                <Typography variant="body2">
-                                                  {error.message || error}
-                                                </Typography>
-                                              </Alert>
-                                            ))}
+                                            {upload.errors
+                                              .slice(0, 5)
+                                              .map((error: any, idx: number) => (
+                                                <Alert key={idx} severity="error" sx={{ py: 0 }}>
+                                                  <Typography variant="body2">
+                                                    {error.message || error}
+                                                  </Typography>
+                                                </Alert>
+                                              ))}
                                             {upload.errors.length > 5 && (
                                               <Typography variant="caption" color="text.secondary">
                                                 ... and {upload.errors.length - 5} more errors
@@ -859,19 +893,31 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                     {/* Warnings */}
                                     {upload.warnings && upload.warnings.length > 0 && (
                                       <Grid item xs={12}>
-                                        <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.warning.main, 0.05) }}>
-                                          <Typography variant="subtitle2" fontWeight="bold" gutterBottom color="warning.main">
+                                        <Paper
+                                          sx={{
+                                            p: 2,
+                                            bgcolor: alpha(theme.palette.warning.main, 0.05),
+                                          }}
+                                        >
+                                          <Typography
+                                            variant="subtitle2"
+                                            fontWeight="bold"
+                                            gutterBottom
+                                            color="warning.main"
+                                          >
                                             Warnings
                                           </Typography>
                                           <Divider sx={{ mb: 2 }} />
                                           <Stack spacing={1}>
-                                            {upload.warnings.slice(0, 3).map((warning: any, idx: number) => (
-                                              <Alert key={idx} severity="warning" sx={{ py: 0 }}>
-                                                <Typography variant="body2">
-                                                  {warning.message || warning}
-                                                </Typography>
-                                              </Alert>
-                                            ))}
+                                            {upload.warnings
+                                              .slice(0, 3)
+                                              .map((warning: any, idx: number) => (
+                                                <Alert key={idx} severity="warning" sx={{ py: 0 }}>
+                                                  <Typography variant="body2">
+                                                    {warning.message || warning}
+                                                  </Typography>
+                                                </Alert>
+                                              ))}
                                             {upload.warnings.length > 3 && (
                                               <Typography variant="caption" color="text.secondary">
                                                 ... and {upload.warnings.length - 3} more warnings
@@ -899,15 +945,12 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog} onClose={() => setConfirmDialog(false)}>
-        <DialogTitle>
-          Confirm {operationType === 'sync' ? 'Synchronization' : 'Upload'}
-        </DialogTitle>
+        <DialogTitle>Confirm {operationType === 'sync' ? 'Synchronization' : 'Upload'}</DialogTitle>
         <DialogContent>
           <Typography>
-            {operationType === 'sync' 
+            {operationType === 'sync'
               ? 'This will synchronize compliance rules from the Hanalyx repository. This process may take a few minutes.'
-              : 'This will upload and validate the selected tar.gz file. The file will be thoroughly checked before updating the database.'
-            }
+              : 'This will upload and validate the selected tar.gz file. The file will be thoroughly checked before updating the database.'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Are you sure you want to continue?
@@ -915,11 +958,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleConfirmAction} 
-            variant="contained"
-            color="primary"
-          >
+          <Button onClick={handleConfirmAction} variant="contained" color="primary">
             Continue
           </Button>
         </DialogActions>

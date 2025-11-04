@@ -45,10 +45,10 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
   // Get platform-specific icon and color
   const getPlatformAvatar = () => {
     const platformLower = platform.name.toLowerCase();
-    
+
     let bgColor = theme.palette.primary.main;
     let icon = '🖥️';
-    
+
     if (platformLower.includes('rhel') || platformLower.includes('red')) {
       bgColor = '#EE0000'; // Red Hat color
       icon = '🔴';
@@ -65,7 +65,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
       bgColor = '#262577'; // CentOS purple
       icon = '🟣';
     }
-    
+
     return (
       <Avatar sx={{ bgcolor: bgColor, width: 48, height: 48 }}>
         <Typography fontSize="1.5rem">{icon}</Typography>
@@ -103,9 +103,9 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
             <Typography variant="h6" component="div">
               {platform.name}
             </Typography>
-            <Chip 
-              label={`v${platform.version}`} 
-              size="small" 
+            <Chip
+              label={`v${platform.version}`}
+              size="small"
               variant="outlined"
               sx={{ fontSize: '0.75rem' }}
             />
@@ -131,11 +131,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
         action={
           <Tooltip title="View detailed metrics">
             <span>
-              <IconButton 
-                size="small" 
-                onClick={() => onViewMetrics?.(platform)}
-                disabled={loading}
-              >
+              <IconButton size="small" onClick={() => onViewMetrics?.(platform)} disabled={loading}>
                 <MetricsIcon />
               </IconButton>
             </span>
@@ -156,7 +152,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
                 label={framework.toUpperCase()}
                 size="small"
                 variant="outlined"
-                sx={{ 
+                sx={{
                   fontSize: '0.75rem',
                   textTransform: 'uppercase',
                   fontWeight: 'bold',
@@ -167,11 +163,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
         </Box>
 
         {/* Category Breakdown */}
-        <CategoryBreakdown
-          categories={platform.categories}
-          maxCategories={4}
-          compact={false}
-        />
+        <CategoryBreakdown categories={platform.categories} maxCategories={4} compact={false} />
       </CardContent>
 
       <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
@@ -184,7 +176,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({
         >
           Browse Rules
         </Button>
-        
+
         <Tooltip title="Export rule list">
           <span>
             <IconButton

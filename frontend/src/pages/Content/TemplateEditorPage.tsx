@@ -215,12 +215,7 @@ export const TemplateEditorPage: React.FC = () => {
             </Typography>
             <Box display="flex" gap={1} mb={1} flexWrap="wrap">
               {tags.map((tag) => (
-                <Chip
-                  key={tag}
-                  label={tag}
-                  onDelete={() => handleDeleteTag(tag)}
-                  size="small"
-                />
+                <Chip key={tag} label={tag} onDelete={() => handleDeleteTag(tag)} size="small" />
               ))}
             </Box>
             <Box display="flex" gap={1}>
@@ -270,11 +265,7 @@ export const TemplateEditorPage: React.FC = () => {
 
           {/* Actions */}
           <Box display="flex" gap={2} justifyContent="flex-end">
-            <Button
-              variant="outlined"
-              startIcon={<CancelIcon />}
-              onClick={handleCancel}
-            >
+            <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
               Cancel
             </Button>
             <Button

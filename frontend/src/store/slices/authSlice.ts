@@ -30,7 +30,7 @@ const loadPersistedAuthState = (): Partial<AuthState> => {
     if (token && userStr) {
       const user = JSON.parse(userStr);
       const sessionExpiry = sessionExpiryStr ? parseInt(sessionExpiryStr) : null;
-      
+
       // Check if session is still valid
       if (!sessionExpiry || sessionExpiry > Date.now()) {
         return {
@@ -51,7 +51,7 @@ const loadPersistedAuthState = (): Partial<AuthState> => {
   } catch (error) {
     console.warn('Failed to load persisted auth state:', error);
   }
-  
+
   return {};
 };
 
@@ -141,7 +141,7 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.sessionExpiry = Date.now() + action.payload.expiresIn * 1000;
       state.error = null; // Clear any existing errors on successful refresh
-      
+
       // Update localStorage
       try {
         localStorage.setItem('auth_token', action.payload.token);
@@ -159,7 +159,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.sessionExpiry = null;
         state.error = 'Session expired. Please login again.';
-        
+
         // Clear localStorage
         try {
           localStorage.removeItem('auth_token');
@@ -174,5 +174,14 @@ const authSlice = createSlice({
   },
 });
 
-export const { loginSuccess, loginFailure, logout, clearError, setMfaRequired, setLoading, refreshTokenSuccess, checkSessionExpiry } = authSlice.actions;
+export const {
+  loginSuccess,
+  loginFailure,
+  logout,
+  clearError,
+  setMfaRequired,
+  setLoading,
+  refreshTokenSuccess,
+  checkSessionExpiry,
+} = authSlice.actions;
 export default authSlice.reducer;

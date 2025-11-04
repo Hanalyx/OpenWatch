@@ -57,65 +57,100 @@ const drawerWidth = 240;
 const collapsedDrawerWidth = 64;
 
 const menuItems = [
-  { 
-    text: 'Dashboard', 
-    icon: <Dashboard />, 
-    path: '/', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest'] 
+  {
+    text: 'Dashboard',
+    icon: <Dashboard />,
+    path: '/',
+    roles: [
+      'super_admin',
+      'security_admin',
+      'security_analyst',
+      'compliance_officer',
+      'auditor',
+      'guest',
+    ],
   },
-  { 
-    text: 'Hosts', 
-    icon: <Computer />, 
-    path: '/hosts', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest'] 
+  {
+    text: 'Hosts',
+    icon: <Computer />,
+    path: '/hosts',
+    roles: [
+      'super_admin',
+      'security_admin',
+      'security_analyst',
+      'compliance_officer',
+      'auditor',
+      'guest',
+    ],
   },
-  { 
-    text: 'Host Groups', 
-    icon: <Group />, 
-    path: '/host-groups', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'] 
+  {
+    text: 'Host Groups',
+    icon: <Group />,
+    path: '/host-groups',
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
   {
     text: 'Content',
     icon: <FolderOpen />,
     path: '/content',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest']
+    roles: [
+      'super_admin',
+      'security_admin',
+      'security_analyst',
+      'compliance_officer',
+      'auditor',
+      'guest',
+    ],
   },
   {
     text: 'Frameworks',
     icon: <AccountTree />,
     path: '/content/frameworks',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest']
+    roles: [
+      'super_admin',
+      'security_admin',
+      'security_analyst',
+      'compliance_officer',
+      'auditor',
+      'guest',
+    ],
   },
   {
     text: 'Templates',
     icon: <Bookmark />,
     path: '/content/templates',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor']
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
   {
     text: 'Scans',
     icon: <Scanner />,
     path: '/scans',
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor']
+    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor'],
   },
-  { 
-    text: 'Users', 
-    icon: <People />, 
-    path: '/users', 
-    roles: ['super_admin'] 
+  {
+    text: 'Users',
+    icon: <People />,
+    path: '/users',
+    roles: ['super_admin'],
   },
-  { 
-    text: 'OView', 
-    icon: <Security />, 
-    path: '/oview', 
-    roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'] 
+  {
+    text: 'OView',
+    icon: <Security />,
+    path: '/oview',
+    roles: ['super_admin', 'security_admin', 'compliance_officer', 'auditor'],
   },
-  { 
-    text: 'Settings', 
-    icon: <Settings />, 
-    path: '/settings', 
-    roles: ['super_admin', 'security_admin', 'security_analyst', 'compliance_officer', 'auditor', 'guest'] 
+  {
+    text: 'Settings',
+    icon: <Settings />,
+    path: '/settings',
+    roles: [
+      'super_admin',
+      'security_admin',
+      'security_analyst',
+      'compliance_officer',
+      'auditor',
+      'guest',
+    ],
   },
 ];
 
@@ -132,10 +167,13 @@ const Layout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false); // Desktop drawer state - collapsed by default
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  
+
   // Context menu state
-  const [contextMenuAnchor, setContextMenuAnchor] = useState<{ mouseX: number; mouseY: number } | null>(null);
-  const [contextMenuItem, setContextMenuItem] = useState<typeof menuItems[0] | null>(null);
+  const [contextMenuAnchor, setContextMenuAnchor] = useState<{
+    mouseX: number;
+    mouseY: number;
+  } | null>(null);
+  const [contextMenuItem, setContextMenuItem] = useState<(typeof menuItems)[0] | null>(null);
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -166,7 +204,7 @@ const Layout: React.FC = () => {
   };
 
   // Context menu handlers
-  const handleContextMenu = (event: React.MouseEvent, item: typeof menuItems[0]) => {
+  const handleContextMenu = (event: React.MouseEvent, item: (typeof menuItems)[0]) => {
     event.preventDefault();
     setContextMenuItem(item);
     setContextMenuAnchor({
@@ -202,7 +240,7 @@ const Layout: React.FC = () => {
     if (contextMenuItem) {
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${contextMenuItem.path}`;
-      
+
       try {
         await navigator.clipboard.writeText(fullUrl);
         // You could add a toast notification here for feedback
@@ -225,7 +263,7 @@ const Layout: React.FC = () => {
     if (contextMenuItem) {
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${contextMenuItem.path}`;
-      
+
       // Create a temporary anchor element to trigger download
       const link = document.createElement('a');
       link.href = fullUrl;
@@ -241,18 +279,22 @@ const Layout: React.FC = () => {
     if (contextMenuItem) {
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${contextMenuItem.path}`;
-      
+
       // For modern browsers that support the Bookmarks API
       if ('external' in window && 'AddSearchProvider' in (window as any).external) {
         try {
           (window as any).external.AddFavorite(fullUrl, contextMenuItem.text);
         } catch (err) {
           // Fallback: show instruction to user
-          alert(`To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`);
+          alert(
+            `To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`
+          );
         }
       } else {
         // Show instruction for manual bookmarking
-        alert(`To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`);
+        alert(
+          `To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`
+        );
       }
     }
     handleContextMenuClose();
@@ -260,12 +302,14 @@ const Layout: React.FC = () => {
 
   const drawer = (
     <div>
-      <Toolbar sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: drawerOpen ? 'space-between' : 'center',
-        px: drawerOpen ? 3 : 1 
-      }}>
+      <Toolbar
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: drawerOpen ? 'space-between' : 'center',
+          px: drawerOpen ? 3 : 1,
+        }}
+      >
         {drawerOpen ? (
           <>
             <Typography variant="h6" noWrap sx={{ fontWeight: 'bold' }}>
@@ -290,7 +334,7 @@ const Layout: React.FC = () => {
         {menuItems.map((item) => {
           const isSelected = location.pathname === item.path;
           const userRole = user?.role || 'guest';
-          
+
           // Check if user has access to this menu item
           if (!item.roles.includes(userRole)) {
             return null;
@@ -350,10 +394,12 @@ const Layout: React.FC = () => {
         elevation={0}
         sx={{
           width: {
-            sm: isMobile ? '100%' : `calc(100% - ${drawerOpen ? drawerWidth : collapsedDrawerWidth}px)`
+            sm: isMobile
+              ? '100%'
+              : `calc(100% - ${drawerOpen ? drawerWidth : collapsedDrawerWidth}px)`,
           },
           ml: {
-            sm: isMobile ? 0 : `${drawerOpen ? drawerWidth : collapsedDrawerWidth}px`
+            sm: isMobile ? 0 : `${drawerOpen ? drawerWidth : collapsedDrawerWidth}px`,
           },
           bgcolor: 'background.paper',
           color: 'text.primary',
@@ -374,10 +420,15 @@ const Layout: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, color: 'text.primary' }}>
+          <Typography
+            variant="h6"
+            noWrap
+            component="div"
+            sx={{ flexGrow: 1, color: 'text.primary' }}
+          >
             {menuItems.find((item) => item.path === location.pathname)?.text || 'OpenWatch'}
           </Typography>
-          
+
           <Tooltip title={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} mode`}>
             <IconButton onClick={toggleTheme} sx={{ mr: 1, color: 'text.primary' }}>
               {themeMode === 'light' ? <DarkMode /> : <LightMode />}
@@ -391,16 +442,14 @@ const Layout: React.FC = () => {
           </IconButton>
 
           <IconButton onClick={handleProfileMenuOpen} sx={{ color: 'text.primary' }}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+            <Avatar
+              sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText' }}
+            >
               {user?.username.charAt(0).toUpperCase()}
             </Avatar>
           </IconButton>
-          
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleProfileMenuClose}
-          >
+
+          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleProfileMenuClose}>
             <MenuItem disabled>
               <AccountCircle sx={{ mr: 1 }} />
               {user?.username}
@@ -458,12 +507,12 @@ const Layout: React.FC = () => {
           Bookmark link
         </MenuItem>
       </Menu>
-      
+
       <Box
         component="nav"
-        sx={{ 
-          width: { sm: isMobile ? 0 : (drawerOpen ? drawerWidth : collapsedDrawerWidth) }, 
-          flexShrink: { sm: 0 } 
+        sx={{
+          width: { sm: isMobile ? 0 : drawerOpen ? drawerWidth : collapsedDrawerWidth },
+          flexShrink: { sm: 0 },
         }}
       >
         <Drawer
@@ -476,7 +525,7 @@ const Layout: React.FC = () => {
           sx={{
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
-              width: isMobile ? drawerWidth : (drawerOpen ? drawerWidth : collapsedDrawerWidth),
+              width: isMobile ? drawerWidth : drawerOpen ? drawerWidth : collapsedDrawerWidth,
               transition: theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,
                 duration: theme.transitions.duration.enteringScreen,
@@ -491,7 +540,7 @@ const Layout: React.FC = () => {
           {drawer}
         </Drawer>
       </Box>
-      
+
       <Box
         component="main"
         sx={{

@@ -42,19 +42,19 @@ interface FrameworkCardProps {
 }
 
 const frameworkIcons: Record<string, React.ElementType> = {
-  'NIST': Security,
-  'CIS': Shield,
-  'STIG': Assignment,
-  'HIPAA': HealthAndSafety,
+  NIST: Security,
+  CIS: Shield,
+  STIG: Assignment,
+  HIPAA: HealthAndSafety,
   'ISO 27001': CorporateFare,
   'PCI-DSS': Payment,
 };
 
 const frameworkColors: Record<string, string> = {
-  'NIST': '#1976d2',
-  'CIS': '#388e3c',
-  'STIG': '#f57c00',
-  'HIPAA': '#7b1fa2',
+  NIST: '#1976d2',
+  CIS: '#388e3c',
+  STIG: '#f57c00',
+  HIPAA: '#7b1fa2',
   'ISO 27001': '#5d4037',
   'PCI-DSS': '#c62828',
 };
@@ -86,26 +86,32 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
 
   const formatDescription = (framework: string) => {
     const descriptions: Record<string, string> = {
-      'NIST': 'National Institute of Standards and Technology cybersecurity framework providing comprehensive security controls.',
-      'CIS': 'Center for Internet Security controls offering prioritized cybersecurity best practices.',
-      'STIG': 'Security Technical Implementation Guides providing detailed security configuration standards.',
-      'HIPAA': 'Health Insurance Portability and Accountability Act security and privacy requirements.',
+      NIST: 'National Institute of Standards and Technology cybersecurity framework providing comprehensive security controls.',
+      CIS: 'Center for Internet Security controls offering prioritized cybersecurity best practices.',
+      STIG: 'Security Technical Implementation Guides providing detailed security configuration standards.',
+      HIPAA:
+        'Health Insurance Portability and Accountability Act security and privacy requirements.',
       'ISO 27001': 'International standard for information security management systems.',
-      'PCI-DSS': 'Payment Card Industry Data Security Standard for organizations handling card payments.',
+      'PCI-DSS':
+        'Payment Card Industry Data Security Standard for organizations handling card payments.',
     };
-    return descriptions[framework] || 'Compliance framework with security controls and requirements.';
+    return (
+      descriptions[framework] || 'Compliance framework with security controls and requirements.'
+    );
   };
 
   return (
-    <Card 
-      sx={{ 
+    <Card
+      sx={{
         height: '100%',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.2s ease-in-out',
-        '&:hover': onClick ? {
-          transform: 'translateY(-2px)',
-          boxShadow: 3,
-        } : {},
+        '&:hover': onClick
+          ? {
+              transform: 'translateY(-2px)',
+              boxShadow: 3,
+            }
+          : {},
         border: `2px solid ${frameworkColor}20`,
       }}
       onClick={onClick}
@@ -116,7 +122,11 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
           <Box display="flex" alignItems="center" gap={1}>
             <IconComponent sx={{ color: frameworkColor, fontSize: 28 }} />
             <Box>
-              <Typography variant="h6" component="div" sx={{ color: frameworkColor, fontWeight: 600 }}>
+              <Typography
+                variant="h6"
+                component="div"
+                sx={{ color: frameworkColor, fontWeight: 600 }}
+              >
                 {name}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -124,7 +134,7 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
               </Typography>
             </Box>
           </Box>
-          <Tooltip title={expanded ? "Show less" : "Show more details"}>
+          <Tooltip title={expanded ? 'Show less' : 'Show more details'}>
             <IconButton size="small" onClick={handleExpandClick}>
               {expanded ? <ExpandLess /> : <ExpandMore />}
             </IconButton>
@@ -141,11 +151,11 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
           <Typography variant="body2" color="text.secondary">
             Total Rules
           </Typography>
-          <Chip 
-            label={ruleCount.toLocaleString()} 
-            variant="outlined" 
+          <Chip
+            label={ruleCount.toLocaleString()}
+            variant="outlined"
             size="small"
-            sx={{ 
+            sx={{
               borderColor: frameworkColor,
               color: frameworkColor,
               fontWeight: 600,
@@ -163,9 +173,9 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
               {coverage}%
             </Typography>
           </Box>
-          <LinearProgress 
-            variant="determinate" 
-            value={coverage} 
+          <LinearProgress
+            variant="determinate"
+            value={coverage}
             color={getCoverageColor(coverage)}
             sx={{ height: 6, borderRadius: 3 }}
           />
@@ -217,7 +227,11 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
                           <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 35 }}>
                             {category.count}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', minWidth: 40 }}>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ fontSize: '0.75rem', minWidth: 40 }}
+                          >
                             ({category.percentage}%)
                           </Typography>
                         </Box>
@@ -230,7 +244,11 @@ export const FrameworkCard: React.FC<FrameworkCardProps> = ({
                 <ListItem sx={{ px: 0, py: 0.5 }}>
                   <ListItemText
                     primary={
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem', fontStyle: 'italic' }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ fontSize: '0.8rem', fontStyle: 'italic' }}
+                      >
                         +{categories.length - 5} more categories
                       </Typography>
                     }

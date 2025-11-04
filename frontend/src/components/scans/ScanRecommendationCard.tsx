@@ -14,7 +14,7 @@ import {
   Alert,
   Skeleton,
   LinearProgress,
-  Tooltip
+  Tooltip,
 } from '@mui/material';
 import {
   AutoAwesome,
@@ -26,7 +26,7 @@ import {
   PlayArrow,
   Info,
   Warning,
-  Psychology
+  Psychology,
 } from '@mui/icons-material';
 
 interface ScanRecommendation {
@@ -57,10 +57,7 @@ interface ScanRecommendationCardProps {
   onScanStart?: (hostId: string, recommendation: ScanRecommendation) => void;
 }
 
-const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
-  hostId,
-  onScanStart
-}) => {
+const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId, onScanStart }) => {
   const [recommendation, setRecommendation] = useState<HostRecommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +77,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
       // });
 
       // Mock recommendation for demo
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API call
 
       const mockRecommendation: HostRecommendation = {
         host_id: hostId,
@@ -99,17 +96,17 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
             'Production environment detected',
             'Previous compliance score below 80%',
             'RHEL 8 system optimized for CUI profile',
-            'Web server tag indicates public-facing service'
+            'Web server tag indicates public-facing service',
           ],
           estimated_duration: '12-15 min',
           rule_count: 185,
-          priority: 'high'
+          priority: 'high',
         },
         risk_factors: [
           'Compliance score below target (78% < 85%)',
           'Last scan over 7 days ago',
-          'Public-facing web server'
-        ]
+          'Public-facing web server',
+        ],
       };
 
       setRecommendation(mockRecommendation);
@@ -128,19 +125,22 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'error';
-      case 'medium': return 'warning';
-      default: return 'info';
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warning';
+      default:
+        return 'info';
     }
   };
 
   const formatLastScan = (lastScan?: string) => {
     if (!lastScan) return 'Never scanned';
-    
+
     const date = new Date(lastScan);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -246,11 +246,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
               size="small"
               variant="outlined"
             />
-            <Chip
-              label={`${scanRec.rule_count} rules`}
-              size="small"
-              variant="outlined"
-            />
+            <Chip label={`${scanRec.rule_count} rules`} size="small" variant="outlined" />
             <Chip
               label={scanRec.priority.toUpperCase()}
               size="small"
@@ -270,9 +266,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
               <Typography variant="body2" color="text.secondary">
                 Last Scan:
               </Typography>
-              <Typography variant="body2">
-                {formatLastScan(recommendation.last_scan)}
-              </Typography>
+              <Typography variant="body2">{formatLastScan(recommendation.last_scan)}</Typography>
             </Box>
             {recommendation.compliance_score !== undefined && (
               <>
@@ -281,8 +275,8 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
                   <Typography variant="body2" color="text.secondary">
                     Score:
                   </Typography>
-                  <Typography 
-                    variant="body2" 
+                  <Typography
+                    variant="body2"
                     color={recommendation.compliance_score >= 85 ? 'success.main' : 'warning.main'}
                     fontWeight="medium"
                   >
@@ -292,7 +286,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
               </>
             )}
           </Box>
-          
+
           {recommendation.compliance_score !== undefined && (
             <Box sx={{ mt: 1 }}>
               <LinearProgress
@@ -308,7 +302,11 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
         {/* Risk Factors */}
         {risk_factors && risk_factors.length > 0 && (
           <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography
+              variant="subtitle2"
+              gutterBottom
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+            >
               <Warning color="warning" fontSize="small" />
               Risk Factors
             </Typography>
@@ -333,7 +331,11 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
 
         {/* AI Reasoning */}
         <Box>
-          <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography
+            variant="subtitle2"
+            gutterBottom
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+          >
             <Psychology color="primary" fontSize="small" />
             AI Analysis
           </Typography>
@@ -343,13 +345,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
                 <ListItemIcon sx={{ minWidth: 28 }}>
                   <CheckCircle fontSize="small" color="success" />
                 </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Typography variant="body2">
-                      {reason}
-                    </Typography>
-                  }
-                />
+                <ListItemText primary={<Typography variant="body2">{reason}</Typography>} />
               </ListItem>
             ))}
           </List>
@@ -358,11 +354,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({
         {/* Action Buttons */}
         <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
           <Tooltip title="Learn more about this recommendation">
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Info />}
-            >
+            <Button variant="outlined" size="small" startIcon={<Info />}>
               Details
             </Button>
           </Tooltip>

@@ -71,7 +71,7 @@ export const focusManagement = {
     const focusableElements = container.querySelectorAll(
       'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
-    
+
     const firstElement = focusableElements[0] as HTMLElement;
     const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
@@ -106,7 +106,7 @@ export const focusManagement = {
     const focusableElements = container.querySelectorAll(
       'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
-    return focusableElements[0] as HTMLElement || null;
+    return (focusableElements[0] as HTMLElement) || null;
   },
 
   /**
@@ -114,7 +114,7 @@ export const focusManagement = {
    */
   createFocusStore() {
     let storedElement: HTMLElement | null = null;
-    
+
     return {
       store() {
         storedElement = document.activeElement as HTMLElement;
@@ -123,9 +123,9 @@ export const focusManagement = {
         if (storedElement && typeof storedElement.focus === 'function') {
           storedElement.focus();
         }
-      }
+      },
     };
-  }
+  },
 };
 
 /**
@@ -139,7 +139,7 @@ export const colorContrast = {
     const rgb = this.hexToRgb(hex);
     if (!rgb) return 0;
 
-    const [r, g, b] = rgb.map(c => {
+    const [r, g, b] = rgb.map((c) => {
       c = c / 255;
       return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     });
@@ -153,10 +153,10 @@ export const colorContrast = {
   getContrastRatio(color1: string, color2: string): number {
     const l1 = this.getLuminance(color1);
     const l2 = this.getLuminance(color2);
-    
+
     const lighter = Math.max(l1, l2);
     const darker = Math.min(l1, l2);
-    
+
     return (lighter + 0.05) / (darker + 0.05);
   },
 
@@ -179,12 +179,10 @@ export const colorContrast = {
    */
   hexToRgb(hex: string): [number, number, number] | null {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? [
-      parseInt(result[1], 16),
-      parseInt(result[2], 16),
-      parseInt(result[3], 16)
-    ] : null;
-  }
+    return result
+      ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+      : null;
+  },
 };
 
 /**
@@ -207,7 +205,7 @@ export const screenReader = {
     };
 
     let baseDescription = descriptions[type] || '';
-    
+
     if (state) {
       if (state.count !== undefined) {
         baseDescription += `, ${state.count} items`;
@@ -243,17 +241,17 @@ export const screenReader = {
       border-radius: 4px;
       transition: top 0.3s;
     `;
-    
+
     skipLink.addEventListener('focus', () => {
       skipLink.style.top = '6px';
     });
-    
+
     skipLink.addEventListener('blur', () => {
       skipLink.style.top = '-40px';
     });
 
     return skipLink;
-  }
+  },
 };
 
 /**
@@ -263,7 +261,10 @@ export const keyboardNavigation = {
   /**
    * Handle roving tabindex pattern for lists and grids
    */
-  createRovingTabindex(container: HTMLElement, selector: string = '[role="option"], [role="gridcell"], button, a') {
+  createRovingTabindex(
+    container: HTMLElement,
+    selector: string = '[role="option"], [role="gridcell"], button, a'
+  ) {
     const items = Array.from(container.querySelectorAll(selector)) as HTMLElement[];
     let currentIndex = 0;
 
@@ -324,11 +325,11 @@ export const keyboardNavigation = {
     };
 
     document.addEventListener('keydown', handleEscape);
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }
+  },
 };
 
 /**
@@ -345,7 +346,7 @@ export const accessibleValidation = {
     errorElement.setAttribute('aria-live', 'polite');
     errorElement.className = 'error-message';
     errorElement.textContent = message;
-    
+
     return errorElement;
   },
 
@@ -355,14 +356,14 @@ export const accessibleValidation = {
   associateError(fieldElement: HTMLElement, errorElement: HTMLElement): void {
     const existingDescribedBy = fieldElement.getAttribute('aria-describedby') || '';
     const errorId = errorElement.id;
-    
+
     if (!existingDescribedBy.includes(errorId)) {
       fieldElement.setAttribute(
         'aria-describedby',
         existingDescribedBy ? `${existingDescribedBy} ${errorId}` : errorId
       );
     }
-    
+
     fieldElement.setAttribute('aria-invalid', 'true');
   },
 
@@ -373,17 +374,17 @@ export const accessibleValidation = {
     const describedBy = fieldElement.getAttribute('aria-describedby') || '';
     const updatedDescribedBy = describedBy
       .split(' ')
-      .filter(id => id !== errorElementId)
+      .filter((id) => id !== errorElementId)
       .join(' ');
-    
+
     if (updatedDescribedBy) {
       fieldElement.setAttribute('aria-describedby', updatedDescribedBy);
     } else {
       fieldElement.removeAttribute('aria-describedby');
     }
-    
+
     fieldElement.setAttribute('aria-invalid', 'false');
-  }
+  },
 };
 
 /**
@@ -398,26 +399,26 @@ export const accessibilityChecker = {
 
     // Check for missing alt text on images
     const images = element.querySelectorAll('img');
-    images.forEach(img => {
+    images.forEach((img) => {
       if (!img.alt && !img.getAttribute('aria-label')) {
         issues.push({
           type: 'error',
-          message: 'Image missing alt text or aria-label'
+          message: 'Image missing alt text or aria-label',
         });
       }
     });
 
     // Check for buttons without accessible names
     const buttons = element.querySelectorAll('button');
-    buttons.forEach(button => {
+    buttons.forEach((button) => {
       const hasText = button.textContent?.trim();
       const hasAriaLabel = button.getAttribute('aria-label');
       const hasAriaLabelledBy = button.getAttribute('aria-labelledby');
-      
+
       if (!hasText && !hasAriaLabel && !hasAriaLabelledBy) {
         issues.push({
           type: 'error',
-          message: 'Button missing accessible name'
+          message: 'Button missing accessible name',
         });
       }
     });
@@ -425,19 +426,19 @@ export const accessibilityChecker = {
     // Check for proper heading hierarchy
     const headings = element.querySelectorAll('h1, h2, h3, h4, h5, h6');
     let previousLevel = 0;
-    headings.forEach(heading => {
+    headings.forEach((heading) => {
       const level = parseInt(heading.tagName.charAt(1));
       if (level > previousLevel + 1) {
         issues.push({
           type: 'warning',
-          message: `Heading level skipped from h${previousLevel} to h${level}`
+          message: `Heading level skipped from h${previousLevel} to h${level}`,
         });
       }
       previousLevel = level;
     });
 
     return issues;
-  }
+  },
 };
 
 export default {

@@ -69,18 +69,16 @@ interface CapabilityFilter {
   category: string;
 }
 
-const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
-  onRuleFilterChange,
-}) => {
+const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleFilterChange }) => {
   const theme = useTheme();
-  
+
   // Detection state
   const [targetHost, setTargetHost] = useState('localhost');
   const [selectedPlatform, setSelectedPlatform] = useState('rhel');
   const [selectedVersion, setSelectedVersion] = useState('8');
   const [detectionResults, setDetectionResults] = useState<DetectionResult[]>([]);
   const [isDetecting, setIsDetecting] = useState(false);
-  
+
   // UI state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview']));
   const [filter, setFilter] = useState<CapabilityFilter>({
@@ -97,12 +95,12 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
     { id: 'debian', name: 'Debian', versions: ['10', '11', '12'] },
   ];
 
-  const currentPlatform = platforms.find(p => p.id === selectedPlatform);
+  const currentPlatform = platforms.find((p) => p.id === selectedPlatform);
 
   // Run platform capability detection
   const handleDetection = useCallback(async () => {
     setIsDetecting(true);
-    
+
     const newResult: DetectionResult = {
       platform: selectedPlatform,
       version: selectedVersion,
@@ -111,9 +109,9 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
       isLoading: true,
       error: null,
     };
-    
-    setDetectionResults(prev => [newResult, ...prev.slice(0, 9)]); // Keep last 10 results
-    
+
+    setDetectionResults((prev) => [newResult, ...prev.slice(0, 9)]); // Keep last 10 results
+
     try {
       const response = await ruleService.detectPlatformCapabilities({
         platform: selectedPlatform,
@@ -122,26 +120,34 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
         compareBaseline: true,
         capabilityTypes: ['package', 'service', 'security', 'configuration'],
       });
-      
+
       if (response.success) {
-        setDetectionResults(prev => prev.map((result, index) => 
-          index === 0 ? {
-            ...result,
-            capabilities: response.data,
-            isLoading: false,
-          } : result
-        ));
+        setDetectionResults((prev) =>
+          prev.map((result, index) =>
+            index === 0
+              ? {
+                  ...result,
+                  capabilities: response.data,
+                  isLoading: false,
+                }
+              : result
+          )
+        );
       } else {
         throw new Error('Detection failed');
       }
     } catch (error) {
-      setDetectionResults(prev => prev.map((result, index) => 
-        index === 0 ? {
-          ...result,
-          isLoading: false,
-          error: 'Failed to detect platform capabilities',
-        } : result
-      ));
+      setDetectionResults((prev) =>
+        prev.map((result, index) =>
+          index === 0
+            ? {
+                ...result,
+                isLoading: false,
+                error: 'Failed to detect platform capabilities',
+              }
+            : result
+        )
+      );
     } finally {
       setIsDetecting(false);
     }
@@ -161,7 +167,11 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
   // Get status icon and color
   const getStatusInfo = (detected: boolean, matched?: boolean) => {
     if (detected && matched) {
-      return { icon: <CheckIcon />, color: theme.palette.success.main, label: 'Detected & Matched' };
+      return {
+        icon: <CheckIcon />,
+        color: theme.palette.success.main,
+        label: 'Detected & Matched',
+      };
     } else if (detected) {
       return { icon: <CheckIcon />, color: theme.palette.info.main, label: 'Detected' };
     } else if (matched === false) {
@@ -175,25 +185,25 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
   const filterCapabilities = (capabilities: PlatformCapability) => {
     const { search, status, category } = filter;
     const filtered: any = {};
-    
+
     Object.entries(capabilities.capabilities).forEach(([categoryName, categoryData]) => {
       if (category !== 'all' && category !== categoryName) return;
-      
+
       const categoryResults: any = {};
       Object.entries(categoryData.results as any).forEach(([itemName, itemData]: [string, any]) => {
-        const matchesSearch = !search || 
-          itemName.toLowerCase().includes(search.toLowerCase());
-        
-        const matchesStatus = status === 'all' || 
+        const matchesSearch = !search || itemName.toLowerCase().includes(search.toLowerCase());
+
+        const matchesStatus =
+          status === 'all' ||
           (status === 'detected' && itemData.installed) ||
           (status === 'missing' && !itemData.installed) ||
           (status === 'matched' && capabilities.baseline_comparison?.matched?.includes(itemName));
-        
+
         if (matchesSearch && matchesStatus) {
           categoryResults[itemName] = itemData;
         }
       });
-      
+
       if (Object.keys(categoryResults).length > 0) {
         filtered[categoryName] = {
           ...categoryData,
@@ -201,19 +211,25 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
         };
       }
     });
-    
+
     return filtered;
   };
 
   // Render capability category
-  const renderCapabilityCategory = (categoryName: string, categoryData: any, capabilities: PlatformCapability) => {
+  const renderCapabilityCategory = (
+    categoryName: string,
+    categoryData: any,
+    capabilities: PlatformCapability
+  ) => {
     const items = Object.entries(categoryData.results as any);
-    const detectedCount = items.filter(([_, data]: [string, any]) => data.installed || data.enabled).length;
+    const detectedCount = items.filter(
+      ([_, data]: [string, any]) => data.installed || data.enabled
+    ).length;
     const matchedItems = capabilities.baseline_comparison?.matched || [];
     const missingItems = capabilities.baseline_comparison?.missing || [];
-    
+
     return (
-      <Accordion 
+      <Accordion
         key={categoryName}
         expanded={expandedSections.has(categoryName)}
         onChange={() => toggleSection(categoryName)}
@@ -231,18 +247,16 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                 {categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}
               </Typography>
             </Box>
-            
+
             <Box display="flex" alignItems="center" gap={1} onClick={(e) => e.stopPropagation()}>
               <Badge badgeContent={detectedCount} color="success">
                 <Chip label={`${items.length} items`} size="small" />
               </Badge>
-              {categoryData.detected && (
-                <CheckIcon fontSize="small" color="success" />
-              )}
+              {categoryData.detected && <CheckIcon fontSize="small" color="success" />}
             </Box>
           </Box>
         </AccordionSummary>
-        
+
         <AccordionDetails>
           <List dense>
             {items.map(([itemName, itemData]: [string, any]) => {
@@ -252,24 +266,22 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                 itemData.installed || itemData.enabled || itemData.state === 'enabled',
                 isMatched ? true : isMissing ? false : undefined
               );
-              
+
               return (
                 <ListItem
                   key={itemName}
                   sx={{
                     borderRadius: 1,
                     mb: 0.5,
-                    backgroundColor: isMatched 
+                    backgroundColor: isMatched
                       ? alpha(theme.palette.success.main, 0.05)
-                      : isMissing 
-                      ? alpha(theme.palette.error.main, 0.05)
-                      : 'transparent',
+                      : isMissing
+                        ? alpha(theme.palette.error.main, 0.05)
+                        : 'transparent',
                   }}
                 >
                   <ListItemIcon>
-                    <Box sx={{ color: statusInfo.color }}>
-                      {statusInfo.icon}
-                    </Box>
+                    <Box sx={{ color: statusInfo.color }}>{statusInfo.icon}</Box>
                   </ListItemIcon>
                   <ListItemText
                     primary={
@@ -302,7 +314,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                       </Box>
                     }
                   />
-                  
+
                   {onRuleFilterChange && (
                     <Tooltip title="Filter rules for this capability">
                       <IconButton
@@ -325,10 +337,10 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
   // Render detection results overview
   const renderOverview = (result: DetectionResult) => {
     if (!result.capabilities) return null;
-    
+
     const capabilities = result.capabilities;
     const baseline = capabilities.baseline_comparison;
-    
+
     return (
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
@@ -343,7 +355,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} md={4}>
           <Card sx={{ textAlign: 'center' }}>
             <CardContent>
@@ -356,7 +368,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} md={4}>
           <Card sx={{ textAlign: 'center' }}>
             <CardContent>
@@ -369,7 +381,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12}>
           <Card>
             <CardContent>
@@ -382,15 +394,21 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                   value={(baseline?.analysis?.baseline_coverage || 0) * 100}
                   sx={{ flex: 1, height: 8, borderRadius: 4 }}
                   color={
-                    (baseline?.analysis?.baseline_coverage || 0) > 0.8 ? 'success' :
-                    (baseline?.analysis?.baseline_coverage || 0) > 0.6 ? 'warning' : 'error'
+                    (baseline?.analysis?.baseline_coverage || 0) > 0.8
+                      ? 'success'
+                      : (baseline?.analysis?.baseline_coverage || 0) > 0.6
+                        ? 'warning'
+                        : 'error'
                   }
                 />
                 <Chip
                   label={baseline?.analysis?.platform_health || 'unknown'}
                   color={
-                    baseline?.analysis?.platform_health === 'good' ? 'success' :
-                    baseline?.analysis?.platform_health === 'fair' ? 'warning' : 'error'
+                    baseline?.analysis?.platform_health === 'good'
+                      ? 'success'
+                      : baseline?.analysis?.platform_health === 'fair'
+                        ? 'warning'
+                        : 'error'
                   }
                 />
               </Box>
@@ -402,8 +420,9 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
   };
 
   const latestResult = detectionResults[0];
-  const filteredCapabilities = latestResult?.capabilities ? 
-    filterCapabilities(latestResult.capabilities) : {};
+  const filteredCapabilities = latestResult?.capabilities
+    ? filterCapabilities(latestResult.capabilities)
+    : {};
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -416,7 +435,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
         <Typography variant="body2" color="text.secondary" paragraph>
           Detect platform-specific capabilities and compare against security baselines
         </Typography>
-        
+
         <Grid container spacing={2} alignItems="end">
           <Grid item xs={12} sm={6} md={3}>
             <TextField
@@ -427,7 +446,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
               size="small"
             />
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Platform</InputLabel>
@@ -436,7 +455,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                 label="Platform"
                 onChange={(e) => setSelectedPlatform(e.target.value)}
               >
-                {platforms.map(platform => (
+                {platforms.map((platform) => (
                   <MenuItem key={platform.id} value={platform.id}>
                     {platform.name}
                   </MenuItem>
@@ -444,7 +463,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel>Version</InputLabel>
@@ -453,7 +472,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                 label="Version"
                 onChange={(e) => setSelectedVersion(e.target.value)}
               >
-                {currentPlatform?.versions.map(version => (
+                {currentPlatform?.versions.map((version) => (
                   <MenuItem key={version} value={version}>
                     {version}
                   </MenuItem>
@@ -461,7 +480,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={12} sm={6} md={3}>
             <Button
               variant="contained"
@@ -493,84 +512,92 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
                 Detecting platform capabilities...
               </Typography>
             </Box>
-          ) : latestResult.capabilities && (
-            <Stack spacing={3}>
-              {/* Overview */}
-              <Card>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h6">
-                      Detection Results - {currentPlatform?.name} {selectedVersion}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(latestResult.timestamp).toLocaleString()}
-                    </Typography>
-                  </Box>
-                  {renderOverview(latestResult)}
-                </CardContent>
-              </Card>
+          ) : (
+            latestResult.capabilities && (
+              <Stack spacing={3}>
+                {/* Overview */}
+                <Card>
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="h6">
+                        Detection Results - {currentPlatform?.name} {selectedVersion}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(latestResult.timestamp).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    {renderOverview(latestResult)}
+                  </CardContent>
+                </Card>
 
-              {/* Filters */}
-              <Paper sx={{ p: 2 }}>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} sm={6} md={4}>
-                    <TextField
-                      label="Search capabilities"
-                      value={filter.search}
-                      onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
-                      size="small"
-                      fullWidth
-                    />
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={3} md={2}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Status</InputLabel>
-                      <Select
-                        value={filter.status}
-                        label="Status"
-                        onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value as any }))}
-                      >
-                        <MenuItem value="all">All</MenuItem>
-                        <MenuItem value="detected">Detected</MenuItem>
-                        <MenuItem value="missing">Missing</MenuItem>
-                        <MenuItem value="matched">Matched</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={3} md={2}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Category</InputLabel>
-                      <Select
-                        value={filter.category}
-                        label="Category"
-                        onChange={(e) => setFilter(prev => ({ ...prev, category: e.target.value }))}
-                      >
-                        <MenuItem value="all">All</MenuItem>
-                        <MenuItem value="package">Packages</MenuItem>
-                        <MenuItem value="service">Services</MenuItem>
-                        <MenuItem value="security">Security</MenuItem>
-                        <MenuItem value="configuration">Config</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </Grid>
-              </Paper>
+                {/* Filters */}
+                <Paper sx={{ p: 2 }}>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TextField
+                        label="Search capabilities"
+                        value={filter.search}
+                        onChange={(e) => setFilter((prev) => ({ ...prev, search: e.target.value }))}
+                        size="small"
+                        fullWidth
+                      />
+                    </Grid>
 
-              {/* Capability Details */}
-              <Box>
-                {Object.keys(filteredCapabilities).length > 0 ? (
-                  Object.entries(filteredCapabilities).map(([categoryName, categoryData]) =>
-                    renderCapabilityCategory(categoryName, categoryData, latestResult.capabilities!)
-                  )
-                ) : (
-                  <Alert severity="info">
-                    No capabilities match the current filters.
-                  </Alert>
-                )}
-              </Box>
-            </Stack>
+                    <Grid item xs={12} sm={3} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                          value={filter.status}
+                          label="Status"
+                          onChange={(e) =>
+                            setFilter((prev) => ({ ...prev, status: e.target.value as any }))
+                          }
+                        >
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="detected">Detected</MenuItem>
+                          <MenuItem value="missing">Missing</MenuItem>
+                          <MenuItem value="matched">Matched</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12} sm={3} md={2}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                          value={filter.category}
+                          label="Category"
+                          onChange={(e) =>
+                            setFilter((prev) => ({ ...prev, category: e.target.value }))
+                          }
+                        >
+                          <MenuItem value="all">All</MenuItem>
+                          <MenuItem value="package">Packages</MenuItem>
+                          <MenuItem value="service">Services</MenuItem>
+                          <MenuItem value="security">Security</MenuItem>
+                          <MenuItem value="configuration">Config</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                </Paper>
+
+                {/* Capability Details */}
+                <Box>
+                  {Object.keys(filteredCapabilities).length > 0 ? (
+                    Object.entries(filteredCapabilities).map(([categoryName, categoryData]) =>
+                      renderCapabilityCategory(
+                        categoryName,
+                        categoryData,
+                        latestResult.capabilities!
+                      )
+                    )
+                  ) : (
+                    <Alert severity="info">No capabilities match the current filters.</Alert>
+                  )}
+                </Box>
+              </Stack>
+            )
           )}
         </Box>
       )}
@@ -589,8 +616,8 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({
             Platform Capability Detection
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            Detect and analyze platform-specific capabilities to optimize rule selection
-            and ensure security baseline compliance.
+            Detect and analyze platform-specific capabilities to optimize rule selection and ensure
+            security baseline compliance.
           </Typography>
           <Button
             variant="contained"

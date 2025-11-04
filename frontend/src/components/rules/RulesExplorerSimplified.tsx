@@ -45,12 +45,9 @@ interface RulesExplorerProps {
   onRuleSelect?: (rule: Rule) => void;
 }
 
-const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
-  contentId,
-  onRuleSelect,
-}) => {
+const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }) => {
   const theme = useTheme();
-  
+
   // Local state
   const [rules, setRules] = useState<Rule[]>([]);
   const [filteredRules, setFilteredRules] = useState<Rule[]>([]);
@@ -76,19 +73,19 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
     hasNext: false,
     hasPrev: false,
   });
-  
+
   // Scanner integration state
   const [selectedRulesForScan, setSelectedRulesForScan] = useState<Rule[]>([]);
   const [scannerDialogOpen, setScannerDialogOpen] = useState(false);
-  
+
   // Intelligence panel state
   const [intelligencePanelCollapsed, setIntelligencePanelCollapsed] = useState(false);
-  
+
   // Available options
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [availableFrameworks, setAvailableFrameworks] = useState<string[]>([]);
-  
+
   // Dialog states
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [dependencyDialogOpen, setDependencyDialogOpen] = useState(false);
@@ -98,53 +95,56 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
   const [exportLoading, setExportLoading] = useState(false);
 
   // Load rules
-  const loadRules = useCallback(async (params: any = {}) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await ruleService.getRules({
-        offset: pagination.offset,
-        limit: pagination.limit,
-        ...activeFilters,
-        ...params,
-      });
-      
-      if (response.success) {
-        setRules(response.data.rules);
-        setFilteredRules(response.data.rules);
-        setPaginationState({
-          offset: response.data.offset,
-          limit: response.data.limit,
-          totalCount: response.data.total_count,
-          hasNext: response.data.has_next,
-          hasPrev: response.data.has_prev,
+  const loadRules = useCallback(
+    async (params: any = {}) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await ruleService.getRules({
+          offset: pagination.offset,
+          limit: pagination.limit,
+          ...activeFilters,
+          ...params,
         });
-        
-        // Extract filter options
-        const platforms = new Set<string>();
-        const categories = new Set<string>();
-        const frameworks = new Set<string>();
-        
-        response.data.rules.forEach(rule => {
-          Object.keys(rule.platform_implementations || {}).forEach(p => platforms.add(p));
-          if (rule.category) categories.add(rule.category);
-          Object.keys(rule.frameworks || {}).forEach(f => frameworks.add(f));
-        });
-        
-        setAvailablePlatforms(Array.from(platforms).sort());
-        setAvailableCategories(Array.from(categories).sort());
-        setAvailableFrameworks(Array.from(frameworks).sort());
-      } else {
+
+        if (response.success) {
+          setRules(response.data.rules);
+          setFilteredRules(response.data.rules);
+          setPaginationState({
+            offset: response.data.offset,
+            limit: response.data.limit,
+            totalCount: response.data.total_count,
+            hasNext: response.data.has_next,
+            hasPrev: response.data.has_prev,
+          });
+
+          // Extract filter options
+          const platforms = new Set<string>();
+          const categories = new Set<string>();
+          const frameworks = new Set<string>();
+
+          response.data.rules.forEach((rule) => {
+            Object.keys(rule.platform_implementations || {}).forEach((p) => platforms.add(p));
+            if (rule.category) categories.add(rule.category);
+            Object.keys(rule.frameworks || {}).forEach((f) => frameworks.add(f));
+          });
+
+          setAvailablePlatforms(Array.from(platforms).sort());
+          setAvailableCategories(Array.from(categories).sort());
+          setAvailableFrameworks(Array.from(frameworks).sort());
+        } else {
+          setError('Failed to load rules');
+        }
+      } catch (err) {
         setError('Failed to load rules');
+        console.error('Error loading rules:', err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      setError('Failed to load rules');
-      console.error('Error loading rules:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pagination.offset, pagination.limit, activeFilters]);
+    },
+    [pagination.offset, pagination.limit, activeFilters]
+  );
 
   // Initial load
   useEffect(() => {
@@ -152,120 +152,136 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
   }, []);
 
   // Handle search
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQueryState(query);
-    
-    if (query.trim()) {
-      setIsSearching(true);
-      try {
-        const response = await ruleService.searchRules({
-          query,
-          filters: {
-            platform: activeFilters.platforms.length > 0 ? activeFilters.platforms : undefined,
-            severity: activeFilters.severities.length > 0 ? activeFilters.severities : undefined,
-            category: activeFilters.categories.length > 0 ? activeFilters.categories : undefined,
-            framework: activeFilters.frameworks.length > 0 ? activeFilters.frameworks : undefined,
-          },
-          limit: 50,
-        });
-        
-        if (response.success) {
-          setSearchResults(response.data.results);
+  const handleSearch = useCallback(
+    async (query: string) => {
+      setSearchQueryState(query);
+
+      if (query.trim()) {
+        setIsSearching(true);
+        try {
+          const response = await ruleService.searchRules({
+            query,
+            filters: {
+              platform: activeFilters.platforms.length > 0 ? activeFilters.platforms : undefined,
+              severity: activeFilters.severities.length > 0 ? activeFilters.severities : undefined,
+              category: activeFilters.categories.length > 0 ? activeFilters.categories : undefined,
+              framework: activeFilters.frameworks.length > 0 ? activeFilters.frameworks : undefined,
+            },
+            limit: 50,
+          });
+
+          if (response.success) {
+            setSearchResults(response.data.results);
+          }
+        } catch (err) {
+          console.error('Search error:', err);
+        } finally {
+          setIsSearching(false);
         }
-      } catch (err) {
-        console.error('Search error:', err);
-      } finally {
-        setIsSearching(false);
+      } else {
+        setSearchResults([]);
       }
-    } else {
-      setSearchResults([]);
-    }
-  }, [activeFilters]);
+    },
+    [activeFilters]
+  );
 
   // Handle filter changes
-  const handleFilterChange = useCallback((filters: Partial<FilterState>) => {
-    const newFilters = { ...activeFilters, ...filters };
-    setActiveFilters(newFilters);
-    
-    // Reset pagination
-    setPaginationState(prev => ({ ...prev, offset: 0 }));
-    
-    // Reload rules with new filters
-    loadRules({ ...newFilters, offset: 0 });
-  }, [activeFilters, loadRules]);
+  const handleFilterChange = useCallback(
+    (filters: Partial<FilterState>) => {
+      const newFilters = { ...activeFilters, ...filters };
+      setActiveFilters(newFilters);
+
+      // Reset pagination
+      setPaginationState((prev) => ({ ...prev, offset: 0 }));
+
+      // Reload rules with new filters
+      loadRules({ ...newFilters, offset: 0 });
+    },
+    [activeFilters, loadRules]
+  );
 
   // Handle rule selection
-  const handleRuleSelect = useCallback(async (rule: Rule) => {
-    setSelectedRule(rule);
-    setSelectedRuleId(rule.rule_id);
-    
-    try {
-      const response = await ruleService.getRuleDetails(rule.rule_id, true);
-      if (response.success) {
-        setSelectedRule(response.data);
+  const handleRuleSelect = useCallback(
+    async (rule: Rule) => {
+      setSelectedRule(rule);
+      setSelectedRuleId(rule.rule_id);
+
+      try {
+        const response = await ruleService.getRuleDetails(rule.rule_id, true);
+        if (response.success) {
+          setSelectedRule(response.data);
+        }
+      } catch (err) {
+        console.error('Error loading rule details:', err);
       }
-    } catch (err) {
-      console.error('Error loading rule details:', err);
-    }
-    
-    setDetailDialogOpen(true);
-    
-    if (onRuleSelect) {
-      onRuleSelect(rule);
-    }
-  }, [onRuleSelect]);
+
+      setDetailDialogOpen(true);
+
+      if (onRuleSelect) {
+        onRuleSelect(rule);
+      }
+    },
+    [onRuleSelect]
+  );
 
   // Handle search suggestion selection
-  const handleSearchSuggestionSelect = useCallback(async (suggestion: SearchSuggestion) => {
-    // Handle different types of search suggestions
-    switch (suggestion.type) {
-      case 'rule':
-        // If it's a specific rule, find and select it
-        const rule = rules.find(r => 
-          r.metadata.name.toLowerCase().includes(suggestion.value.toLowerCase()) ||
-          r.rule_id === suggestion.value
-        );
-        if (rule) {
-          await handleRuleSelect(rule);
-        }
-        break;
-        
-      case 'tag':
-        // Filter by tag
-        handleFilterChange({ tags: [...activeFilters.tags, suggestion.value] });
-        break;
-        
-      case 'category':
-        // Filter by category
-        handleFilterChange({ categories: [...activeFilters.categories, suggestion.value] });
-        break;
-        
-      case 'framework':
-        // Filter by framework
-        handleFilterChange({ frameworks: [...activeFilters.frameworks, suggestion.value] });
-        break;
-        
-      case 'history':
-      case 'saved':
-      default:
-        // For history and saved searches, just set the search query
-        handleSearch(suggestion.value);
-        break;
-    }
-  }, [activeFilters, rules, handleRuleSelect, handleFilterChange, handleSearch]);
+  const handleSearchSuggestionSelect = useCallback(
+    async (suggestion: SearchSuggestion) => {
+      // Handle different types of search suggestions
+      switch (suggestion.type) {
+        case 'rule':
+          // If it's a specific rule, find and select it
+          const rule = rules.find(
+            (r) =>
+              r.metadata.name.toLowerCase().includes(suggestion.value.toLowerCase()) ||
+              r.rule_id === suggestion.value
+          );
+          if (rule) {
+            await handleRuleSelect(rule);
+          }
+          break;
+
+        case 'tag':
+          // Filter by tag
+          handleFilterChange({ tags: [...activeFilters.tags, suggestion.value] });
+          break;
+
+        case 'category':
+          // Filter by category
+          handleFilterChange({ categories: [...activeFilters.categories, suggestion.value] });
+          break;
+
+        case 'framework':
+          // Filter by framework
+          handleFilterChange({ frameworks: [...activeFilters.frameworks, suggestion.value] });
+          break;
+
+        case 'history':
+        case 'saved':
+        default:
+          // For history and saved searches, just set the search query
+          handleSearch(suggestion.value);
+          break;
+      }
+    },
+    [activeFilters, rules, handleRuleSelect, handleFilterChange, handleSearch]
+  );
 
   // Handle dependency view
-  const handleViewDependencies = useCallback(async (ruleId: string) => {
-    const rule = rules.find(r => r.rule_id === ruleId);
-    setSelectedRuleId(ruleId);
-    setSelectedRuleName(rule?.metadata.name || null);
-    setDependencyDialogOpen(true);
-  }, [rules]);
+  const handleViewDependencies = useCallback(
+    async (ruleId: string) => {
+      const rule = rules.find((r) => r.rule_id === ruleId);
+      setSelectedRuleId(ruleId);
+      setSelectedRuleName(rule?.metadata.name || null);
+      setDependencyDialogOpen(true);
+    },
+    [rules]
+  );
 
   // Handle pagination
   const handlePageChange = (event: React.ChangeEvent<unknown>, page: number) => {
     const newOffset = (page - 1) * pagination.limit;
-    setPaginationState(prev => ({ ...prev, offset: newOffset }));
+    setPaginationState((prev) => ({ ...prev, offset: newOffset }));
     loadRules({ offset: newOffset });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -274,26 +290,32 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
   const handleExport = async (format: 'json' | 'csv' | 'xml') => {
     setExportLoading(true);
     try {
-      const ruleIds = searchQuery ? searchResults.map(r => r.rule_id) : filteredRules.map(r => r.rule_id);
-      
+      const ruleIds = searchQuery
+        ? searchResults.map((r) => r.rule_id)
+        : filteredRules.map((r) => r.rule_id);
+
       if (ruleIds.length === 0) {
         setSnackbarMessage('No rules to export');
         return;
       }
-      
+
       const response = await ruleService.exportRules({
         ruleIds: ruleIds.slice(0, 1000),
         format,
         includeMetadata: true,
       });
-      
+
       // Create download link
       const dataStr = format === 'json' ? JSON.stringify(response, null, 2) : response;
       const blob = new Blob([dataStr], {
-        type: format === 'json' ? 'application/json' : 
-             format === 'csv' ? 'text/csv' : 'application/xml'
+        type:
+          format === 'json'
+            ? 'application/json'
+            : format === 'csv'
+              ? 'text/csv'
+              : 'application/xml',
       });
-      
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -302,7 +324,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       setSnackbarMessage(`Successfully exported ${ruleIds.length} rules`);
     } catch (error) {
       setSnackbarMessage('Failed to export rules');
@@ -313,10 +335,10 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
 
   // Handle rule selection for scanning
   const handleRuleToggleForScan = useCallback((rule: Rule) => {
-    setSelectedRulesForScan(prev => {
-      const isSelected = prev.some(r => r.rule_id === rule.rule_id);
+    setSelectedRulesForScan((prev) => {
+      const isSelected = prev.some((r) => r.rule_id === rule.rule_id);
       if (isSelected) {
-        return prev.filter(r => r.rule_id !== rule.rule_id);
+        return prev.filter((r) => r.rule_id !== rule.rule_id);
       } else {
         return [...prev, rule];
       }
@@ -334,27 +356,29 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
   }, []);
 
   // Handle starting scan
-  const handleStartScan = useCallback(async (config: any) => {
-    try {
-      setSnackbarMessage(`Starting scan with ${selectedRulesForScan.length} rules...`);
-      
-      // In a real implementation, this would call the scan API
-      console.log('Starting scan with config:', config);
-      console.log('Selected rules:', selectedRulesForScan);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setSnackbarMessage('Scan started successfully!');
-      
-      // Keep the scanner dialog open to show progress
-      // setScannerDialogOpen(false);
-      
-    } catch (error) {
-      setSnackbarMessage('Failed to start scan');
-      console.error('Scan start error:', error);
-    }
-  }, [selectedRulesForScan]);
+  const handleStartScan = useCallback(
+    async (config: any) => {
+      try {
+        setSnackbarMessage(`Starting scan with ${selectedRulesForScan.length} rules...`);
+
+        // In a real implementation, this would call the scan API
+        console.log('Starting scan with config:', config);
+        console.log('Selected rules:', selectedRulesForScan);
+
+        // Simulate API call
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        setSnackbarMessage('Scan started successfully!');
+
+        // Keep the scanner dialog open to show progress
+        // setScannerDialogOpen(false);
+      } catch (error) {
+        setSnackbarMessage('Failed to start scan');
+        console.error('Scan start error:', error);
+      }
+    },
+    [selectedRulesForScan]
+  );
 
   // Determine display rules
   const displayRules = searchQuery && searchResults.length > 0 ? searchResults : filteredRules;
@@ -403,8 +427,8 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
         onRuleSelect={handleRuleSelect}
         onRuleAdd={(rule) => {
           // Add rule to scan selection
-          if (!selectedRulesForScan.some(r => r.rule_id === rule.rule_id)) {
-            setSelectedRulesForScan(prev => [...prev, rule]);
+          if (!selectedRulesForScan.some((r) => r.rule_id === rule.rule_id)) {
+            setSelectedRulesForScan((prev) => [...prev, rule]);
             setSnackbarMessage(`Added ${rule.metadata.name} to scan selection`);
           } else {
             setSnackbarMessage('Rule already in scan selection');
@@ -447,37 +471,46 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
         {!isLoading && displayRules.length === 0 ? (
           <EmptyState
             type={searchQuery ? 'no-results' : 'no-data'}
-            icon={searchQuery ? <SearchIcon sx={{ fontSize: 64 }} /> : <FilterIcon sx={{ fontSize: 64 }} />}
+            icon={
+              searchQuery ? (
+                <SearchIcon sx={{ fontSize: 64 }} />
+              ) : (
+                <FilterIcon sx={{ fontSize: 64 }} />
+              )
+            }
             title={searchQuery ? 'No rules found' : 'No rules available'}
             description={
               searchQuery
                 ? `No rules match your search for "${searchQuery}"`
-                : Object.values(activeFilters).some(f => 
-                    Array.isArray(f) ? f.length > 0 : f !== null
-                  )
-                ? 'No rules match the selected filters'
-                : 'No rules have been imported yet'
+                : Object.values(activeFilters).some((f) =>
+                      Array.isArray(f) ? f.length > 0 : f !== null
+                    )
+                  ? 'No rules match the selected filters'
+                  : 'No rules have been imported yet'
             }
             action={
-              searchQuery || Object.values(activeFilters).some(f => 
+              searchQuery ||
+              Object.values(activeFilters).some((f) =>
                 Array.isArray(f) ? f.length > 0 : f !== null
-              ) ? {
-                label: 'Clear Filters',
-                onClick: () => {
-                  setActiveFilters({
-                    platforms: [],
-                    severities: [],
-                    categories: [],
-                    frameworks: [],
-                    tags: [],
-                    abstract: null,
-                  });
-                  setSearchQueryState('');
-                  setSearchResults([]);
-                  loadRules();
-                },
-                variant: 'contained' as const
-              } : undefined
+              )
+                ? {
+                    label: 'Clear Filters',
+                    onClick: () => {
+                      setActiveFilters({
+                        platforms: [],
+                        severities: [],
+                        categories: [],
+                        frameworks: [],
+                        tags: [],
+                        abstract: null,
+                      });
+                      setSearchQueryState('');
+                      setSearchResults([]);
+                      loadRules();
+                    },
+                    variant: 'contained' as const,
+                  }
+                : undefined
             }
           />
         ) : (
@@ -530,18 +563,20 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
 
             {/* Pagination */}
             {!searchQuery && totalPages > 1 && (
-              <Box sx={{ 
-                display: "flex", 
-                justifyContent: "center", 
-                mt: 4, 
-                mb: 2,
-                p: 2,
-                bgcolor: "background.paper",
-                position: "sticky",
-                bottom: 0,
-                zIndex: 10,
-                boxShadow: theme.shadows[8]
-              }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  mt: 4,
+                  mb: 2,
+                  p: 2,
+                  bgcolor: 'background.paper',
+                  position: 'sticky',
+                  bottom: 0,
+                  zIndex: 10,
+                  boxShadow: theme.shadows[8],
+                }}
+              >
                 <Pagination
                   count={totalPages}
                   page={currentPage}
@@ -580,7 +615,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
           >
             <ScanIcon />
           </Fab>
-          
+
           {/* Export Button */}
           <Fab
             color="primary"
@@ -610,7 +645,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({
         onRuleSelect={(ruleId) => {
           // Close dependency dialog and open rule detail
           setDependencyDialogOpen(false);
-          const rule = rules.find(r => r.rule_id === ruleId);
+          const rule = rules.find((r) => r.rule_id === ruleId);
           if (rule) {
             handleRuleSelect(rule);
           }

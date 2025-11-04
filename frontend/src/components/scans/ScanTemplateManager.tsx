@@ -22,7 +22,7 @@ import {
   Alert,
   Tabs,
   Tab,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,7 +33,7 @@ import {
   BugReport,
   Settings,
   Save,
-  Cancel
+  Cancel,
 } from '@mui/icons-material';
 
 interface ScanTemplate {
@@ -61,7 +61,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
   open,
   onClose,
   hostId,
-  groupId
+  groupId,
 }) => {
   const [templates, setTemplates] = useState<ScanTemplate[]>([]);
   const [selectedTab, setSelectedTab] = useState(0);
@@ -76,7 +76,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     contentId: 1,
     profileId: '',
     scope: 'system' as 'system' | 'group' | 'host',
-    isDefault: false
+    isDefault: false,
   });
 
   useEffect(() => {
@@ -88,16 +88,16 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const endpoint = hostId 
-        ? `/api/scan-templates/host/${hostId}` 
-        : groupId 
-        ? `/api/scan-templates/group/${groupId}`
-        : '/api/scan-templates/';
+      const endpoint = hostId
+        ? `/api/scan-templates/host/${hostId}`
+        : groupId
+          ? `/api/scan-templates/group/${groupId}`
+          : '/api/scan-templates/';
 
       const response = await fetch(endpoint, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -117,16 +117,18 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
       setLoading(true);
       const templateData = {
         ...formData,
-        scopeId: formData.scope === 'host' ? hostId : formData.scope === 'group' ? groupId : null
+        scopeId: formData.scope === 'host' ? hostId : formData.scope === 'group' ? groupId : null,
       };
 
       const response = await fetch('/api/scan-templates/', {
         method: editingTemplate ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(editingTemplate ? { ...templateData, id: editingTemplate.id } : templateData)
+        body: JSON.stringify(
+          editingTemplate ? { ...templateData, id: editingTemplate.id } : templateData
+        ),
       });
 
       if (response.ok) {
@@ -154,8 +156,8 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
       const response = await fetch(`/api/scan-templates/${templateId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -177,7 +179,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
       contentId: template.contentId,
       profileId: template.profileId,
       scope: template.scope,
-      isDefault: template.isDefault
+      isDefault: template.isDefault,
     });
     setShowCreateForm(true);
   };
@@ -189,7 +191,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
       contentId: 1,
       profileId: '',
       scope: hostId ? 'host' : groupId ? 'group' : 'system',
-      isDefault: false
+      isDefault: false,
     });
   };
 
@@ -201,24 +203,19 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
   };
 
   const templatesByScope = {
-    system: templates.filter(t => t.scope === 'system'),
-    group: templates.filter(t => t.scope === 'group'),
-    host: templates.filter(t => t.scope === 'host')
+    system: templates.filter((t) => t.scope === 'system'),
+    group: templates.filter((t) => t.scope === 'group'),
+    host: templates.filter((t) => t.scope === 'host'),
   };
 
   const tabLabels = [
     { label: 'System Templates', count: templatesByScope.system.length },
     ...(groupId ? [{ label: 'Group Templates', count: templatesByScope.group.length }] : []),
-    ...(hostId ? [{ label: 'Host Templates', count: templatesByScope.host.length }] : [])
+    ...(hostId ? [{ label: 'Host Templates', count: templatesByScope.host.length }] : []),
   ];
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6">Scan Template Manager</Typography>
@@ -317,10 +314,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
 
         <Tabs value={selectedTab} onChange={(_, newValue) => setSelectedTab(newValue)}>
           {tabLabels.map((tab, index) => (
-            <Tab
-              key={index}
-              label={`${tab.label} (${tab.count})`}
-            />
+            <Tab key={index} label={`${tab.label} (${tab.count})`} />
           ))}
         </Tabs>
 
@@ -341,7 +335,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
               loading={loading}
             />
           )}
-          {((selectedTab === 1 && !groupId) || (selectedTab === 2)) && hostId && (
+          {((selectedTab === 1 && !groupId) || selectedTab === 2) && hostId && (
             <TemplateList
               templates={templatesByScope.host}
               onEdit={handleEditTemplate}
@@ -366,12 +360,7 @@ interface TemplateListProps {
   loading: boolean;
 }
 
-const TemplateList: React.FC<TemplateListProps> = ({
-  templates,
-  onEdit,
-  onDelete,
-  loading
-}) => {
+const TemplateList: React.FC<TemplateListProps> = ({ templates, onEdit, onDelete, loading }) => {
   const getTemplateIcon = (template: ScanTemplate) => {
     if (template.name.toLowerCase().includes('security')) return <Security />;
     if (template.name.toLowerCase().includes('compliance')) return <CheckCircle />;
@@ -395,18 +384,12 @@ const TemplateList: React.FC<TemplateListProps> = ({
         <React.Fragment key={template.id}>
           {index > 0 && <Divider />}
           <ListItem sx={{ py: 2 }}>
-            <ListItemIcon>
-              {getTemplateIcon(template)}
-            </ListItemIcon>
+            <ListItemIcon>{getTemplateIcon(template)}</ListItemIcon>
             <ListItemText
               primary={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="subtitle1">
-                    {template.name}
-                  </Typography>
-                  {template.isDefault && (
-                    <Chip label="Default" size="small" color="primary" />
-                  )}
+                  <Typography variant="subtitle1">{template.name}</Typography>
+                  {template.isDefault && <Chip label="Default" size="small" color="primary" />}
                 </Box>
               }
               secondary={

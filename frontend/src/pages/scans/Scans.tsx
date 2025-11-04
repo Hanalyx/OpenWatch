@@ -22,7 +22,7 @@ import {
   Badge,
   Menu,
   MenuItem,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -32,7 +32,7 @@ import {
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
   GetApp as ExportIcon,
-  PlayArrow as PlayIcon
+  PlayArrow as PlayIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -74,7 +74,15 @@ interface HostWithScans {
   host_name: string;
   host_id: string; // Required - all scans must have valid host association
   ip_address?: string;
-  status: 'online' | 'offline' | 'reachable' | 'ping_only' | 'scanning' | 'error' | 'maintenance' | 'pending';
+  status:
+    | 'online'
+    | 'offline'
+    | 'reachable'
+    | 'ping_only'
+    | 'scanning'
+    | 'error'
+    | 'maintenance'
+    | 'pending';
   scans: Scan[];
   completedCount: number;
   totalCount: number;
@@ -94,9 +102,11 @@ const Scans: React.FC = () => {
   const scansRef = useRef<Scan[]>([]);
 
   // Transform backend scan data to frontend format
-  const transformScanData = (backendScans: BackendScan[]): { scans: Scan[], hostStatusMap: Map<string, { status: string, ip_address?: string }> } => {
-    const hostStatusMap = new Map<string, { status: string, ip_address?: string }>();
-    
+  const transformScanData = (
+    backendScans: BackendScan[]
+  ): { scans: Scan[]; hostStatusMap: Map<string, { status: string; ip_address?: string }> } => {
+    const hostStatusMap = new Map<string, { status: string; ip_address?: string }>();
+
     const scans = backendScans
       .filter((scan): scan is BackendScan & { host: NonNullable<BackendScan['host']> } => {
         if (!scan.host || !scan.host_id) {
@@ -114,7 +124,7 @@ const Scans: React.FC = () => {
         if (!hostStatusMap.has(hostKey)) {
           hostStatusMap.set(hostKey, {
             status: scan.host.status || 'offline',
-            ip_address: scan.host.ip_address
+            ip_address: scan.host.ip_address,
           });
         }
 
@@ -128,7 +138,7 @@ const Scans: React.FC = () => {
           status: scan.status,
           progress: scan.progress,
           started_at: scan.started_at,
-          completed_at: scan.completed_at
+          completed_at: scan.completed_at,
         };
       });
 
@@ -139,17 +149,20 @@ const Scans: React.FC = () => {
   const filterLast30Days = (scans: Scan[]): Scan[] => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    return scans.filter(scan => {
+
+    return scans.filter((scan) => {
       const scanDate = new Date(scan.started_at);
       return scanDate >= thirtyDaysAgo;
     });
   };
 
   // Utility function to group scans by host with validation
-  const groupScansByHost = (scans: Scan[], hostStatusMap?: Map<string, { status: string, ip_address?: string }>): HostWithScans[] => {
+  const groupScansByHost = (
+    scans: Scan[],
+    hostStatusMap?: Map<string, { status: string; ip_address?: string }>
+  ): HostWithScans[] => {
     // Filter out any scans that somehow lack host association
-    const validScans = scans.filter(scan => {
+    const validScans = scans.filter((scan) => {
       if (!scan.host_name || !scan.host_id) {
         console.error(`Invalid scan found: ${scan.id} missing host_name or host_id`, scan);
         return false;
@@ -158,53 +171,60 @@ const Scans: React.FC = () => {
     });
 
     if (validScans.length !== scans.length) {
-      console.warn(`Filtered out ${scans.length - validScans.length} scans with missing host associations`);
+      console.warn(
+        `Filtered out ${scans.length - validScans.length} scans with missing host associations`
+      );
     }
 
-    const grouped = validScans.reduce((acc, scan) => {
-      const hostName = scan.host_name;
-      const hostId = scan.host_id;
+    const grouped = validScans.reduce(
+      (acc, scan) => {
+        const hostName = scan.host_name;
+        const hostId = scan.host_id;
 
-      if (!acc[hostName]) {
-        // Get host status and IP from the status map
-        const hostInfo = hostStatusMap?.get(hostName);
-        acc[hostName] = {
-          host_name: hostName,
-          host_id: hostId,
-          ip_address: hostInfo?.ip_address,
-          status: (hostInfo?.status as any) || 'offline', // Cast to satisfy TypeScript
-          scans: [],
-          completedCount: 0,
-          totalCount: 0,
-          mostRecentScan: scan,
-          mostRecentDate: scan.started_at
-        };
-      } else {
-        // Validate that all scans for the same host_name have the same host_id
-        if (acc[hostName].host_id !== hostId) {
-          console.warn(`Host name collision: "${hostName}" has multiple host_ids: ${acc[hostName].host_id} and ${hostId}`);
+        if (!acc[hostName]) {
+          // Get host status and IP from the status map
+          const hostInfo = hostStatusMap?.get(hostName);
+          acc[hostName] = {
+            host_name: hostName,
+            host_id: hostId,
+            ip_address: hostInfo?.ip_address,
+            status: (hostInfo?.status as any) || 'offline', // Cast to satisfy TypeScript
+            scans: [],
+            completedCount: 0,
+            totalCount: 0,
+            mostRecentScan: scan,
+            mostRecentDate: scan.started_at,
+          };
+        } else {
+          // Validate that all scans for the same host_name have the same host_id
+          if (acc[hostName].host_id !== hostId) {
+            console.warn(
+              `Host name collision: "${hostName}" has multiple host_ids: ${acc[hostName].host_id} and ${hostId}`
+            );
+          }
         }
-      }
-      
-      acc[hostName].scans.push(scan);
-      acc[hostName].totalCount++;
-      
-      if (scan.status === 'completed') {
-        acc[hostName].completedCount++;
-      }
-      
-      // Update most recent scan
-      if (new Date(scan.started_at) > new Date(acc[hostName].mostRecentDate)) {
-        acc[hostName].mostRecentScan = scan;
-        acc[hostName].mostRecentDate = scan.started_at;
-      }
-      
-      return acc;
-    }, {} as Record<string, HostWithScans>);
+
+        acc[hostName].scans.push(scan);
+        acc[hostName].totalCount++;
+
+        if (scan.status === 'completed') {
+          acc[hostName].completedCount++;
+        }
+
+        // Update most recent scan
+        if (new Date(scan.started_at) > new Date(acc[hostName].mostRecentDate)) {
+          acc[hostName].mostRecentScan = scan;
+          acc[hostName].mostRecentDate = scan.started_at;
+        }
+
+        return acc;
+      },
+      {} as Record<string, HostWithScans>
+    );
 
     // Convert to array and sort by most recent scan date
-    return Object.values(grouped).sort((a, b) => 
-      new Date(b.mostRecentDate).getTime() - new Date(a.mostRecentDate).getTime()
+    return Object.values(grouped).sort(
+      (a, b) => new Date(b.mostRecentDate).getTime() - new Date(a.mostRecentDate).getTime()
     );
   };
 
@@ -212,28 +232,30 @@ const Scans: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get<{scans: BackendScan[]}>('/api/scans/');
+      const data = await api.get<{ scans: BackendScan[] }>('/api/scans/');
       const backendScans = data.scans || [];
-      
+
       // Transform backend data to frontend format with validation
       const { scans: transformedScans, hostStatusMap } = transformScanData(backendScans);
-      
+
       // Filter to last 30 days and group by host
       const filteredScans = filterLast30Days(transformedScans);
       const groupedHosts = groupScansByHost(filteredScans, hostStatusMap);
-      
+
       if (transformedScans.length !== backendScans.length) {
         const skippedCount = backendScans.length - transformedScans.length;
         console.warn(`Data transformation filtered out ${skippedCount} invalid scans`);
-        setError(`Warning: ${skippedCount} scans without proper host associations were excluded from the view.`);
+        setError(
+          `Warning: ${skippedCount} scans without proper host associations were excluded from the view.`
+        );
       }
-      
+
       setScans(transformedScans); // Keep all transformed scans for periodic refresh logic
       setHostGroups(groupedHosts);
       scansRef.current = transformedScans;
     } catch (error: any) {
       console.error('Failed to load scans:', error);
-      
+
       // Show user-friendly error message
       if (error.isNetworkError) {
         setError('Network error: Unable to connect to server');
@@ -249,14 +271,14 @@ const Scans: React.FC = () => {
 
   useEffect(() => {
     fetchScans();
-    
+
     // Set up periodic refresh for running scans using ref to avoid infinite loop
     const interval = setInterval(() => {
-      if (scansRef.current.some(scan => scan.status === 'running')) {
+      if (scansRef.current.some((scan) => scan.status === 'running')) {
         fetchScans();
       }
     }, 10000); // Refresh every 10 seconds if there are running scans
-    
+
     return () => clearInterval(interval);
   }, []); // Empty dependency array - only run once
 
@@ -285,11 +307,11 @@ const Scans: React.FC = () => {
         host_id: hostGroup.host_id, // Now guaranteed to exist
         content_id: mostRecentScan.profile_id, // Assuming this maps to content
         profile_id: mostRecentScan.profile_id,
-        name: `Rescan - ${hostGroup.host_name} - ${new Date().toISOString()}`
+        name: `Rescan - ${hostGroup.host_name} - ${new Date().toISOString()}`,
       };
-      
+
       await api.post('/api/scans/', payload);
-      
+
       // Refresh scans list to show new scan
       fetchScans();
     } catch (error) {
@@ -315,31 +337,31 @@ const Scans: React.FC = () => {
 
   const handleExportScans = async (filter: 'all' | 'completed' | 'failed') => {
     try {
-      const hostGroup = hostGroups.find(h => h.host_name === selectedHostForExport);
+      const hostGroup = hostGroups.find((h) => h.host_name === selectedHostForExport);
       if (!hostGroup) return;
 
       let scansToExport = hostGroup.scans;
       if (filter === 'completed') {
-        scansToExport = hostGroup.scans.filter(scan => scan.status === 'completed');
+        scansToExport = hostGroup.scans.filter((scan) => scan.status === 'completed');
       } else if (filter === 'failed') {
-        scansToExport = hostGroup.scans.filter(scan => scan.status === 'failed');
+        scansToExport = hostGroup.scans.filter((scan) => scan.status === 'failed');
       }
 
       // Export functionality - could implement CSV/PDF export here
-      const exportData = scansToExport.map(scan => ({
+      const exportData = scansToExport.map((scan) => ({
         host: scan.host_name,
         scan_name: scan.name,
         status: scan.status,
         started: scan.started_at,
-        completed: scan.completed_at || 'N/A'
+        completed: scan.completed_at || 'N/A',
       }));
 
       // Create and download CSV
       const csvContent = [
         'Host,Scan Name,Status,Started,Completed',
-        ...exportData.map(row => 
-          `${row.host},${row.scan_name},${row.status},${row.started},${row.completed}`
-        )
+        ...exportData.map(
+          (row) => `${row.host},${row.scan_name},${row.status},${row.started},${row.completed}`
+        ),
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -378,7 +400,7 @@ const Scans: React.FC = () => {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -404,19 +426,15 @@ const Scans: React.FC = () => {
         >
           New Scan
         </Button>
-        <Button
-          variant="text"
-          disabled
-          sx={{ color: 'text.secondary' }}
-        >
+        <Button variant="text" disabled sx={{ color: 'text.secondary' }}>
           Start All Pending
         </Button>
       </Box>
 
       {/* Error Display */}
       {error && (
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           sx={{ mb: 3 }}
           action={
             <Button
@@ -461,7 +479,7 @@ const Scans: React.FC = () => {
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {hostGroups.map((hostGroup) => (
-              <Accordion 
+              <Accordion
                 key={hostGroup.host_name}
                 expanded={expandedHosts.has(hostGroup.host_name)}
                 onChange={() => handleToggleHost(hostGroup.host_name)}
@@ -476,7 +494,7 @@ const Scans: React.FC = () => {
                   },
                 }}
               >
-                <AccordionSummary 
+                <AccordionSummary
                   expandIcon={<ExpandMoreIcon />}
                   sx={{
                     borderRadius: '8px',
@@ -486,13 +504,15 @@ const Scans: React.FC = () => {
                     },
                   }}
                 >
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    pr: 2 
-                  }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      pr: 2,
+                    }}
+                  >
                     {/* Host Icon and Name */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <ComputerIcon color="primary" />
@@ -541,11 +561,7 @@ const Scans: React.FC = () => {
                           },
                         }}
                       >
-                        <StatusChip
-                          status={hostGroup.status}
-                          size="small"
-                          showIcon={true}
-                        />
+                        <StatusChip status={hostGroup.status} size="small" showIcon={true} />
                       </Badge>
 
                       {/* Host Actions Menu */}
@@ -564,14 +580,16 @@ const Scans: React.FC = () => {
 
                 <AccordionDetails sx={{ pt: 0 }}>
                   <Divider sx={{ mb: 2 }} />
-                  
+
                   {/* Host Actions Bar */}
-                  <Box sx={{ 
-                    display: 'flex', 
-                    gap: 1, 
-                    mb: 3,
-                    justifyContent: 'flex-start'
-                  }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      gap: 1,
+                      mb: 3,
+                      justifyContent: 'flex-start',
+                    }}
+                  >
                     <Button
                       size="small"
                       variant="contained"
@@ -626,9 +644,7 @@ const Scans: React.FC = () => {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2">
-                                {scan.content_name}
-                              </Typography>
+                              <Typography variant="body2">{scan.content_name}</Typography>
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -639,7 +655,9 @@ const Scans: React.FC = () => {
                                   variant="filled"
                                 />
                                 {scan.status === 'running' && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
+                                  <Box
+                                    sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}
+                                  >
                                     <LinearProgress
                                       variant="determinate"
                                       value={scan.progress}
@@ -653,9 +671,7 @@ const Scans: React.FC = () => {
                               </Box>
                             </TableCell>
                             <TableCell>
-                              <Typography variant="body2">
-                                {formatDate(scan.started_at)}
-                              </Typography>
+                              <Typography variant="body2">{formatDate(scan.started_at)}</Typography>
                             </TableCell>
                             <TableCell>
                               <Typography variant="body2">
@@ -664,16 +680,16 @@ const Scans: React.FC = () => {
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <IconButton 
-                                  size="small" 
+                                <IconButton
+                                  size="small"
                                   title="View Results"
                                   onClick={() => navigate(`/scans/${scan.id}`)}
                                 >
                                   <VisibilityIcon fontSize="small" />
                                 </IconButton>
                                 {scan.status === 'completed' && (
-                                  <IconButton 
-                                    size="small" 
+                                  <IconButton
+                                    size="small"
                                     title="Download Report"
                                     onClick={() => {
                                       // Implement download functionality
@@ -683,10 +699,7 @@ const Scans: React.FC = () => {
                                     <ExportIcon fontSize="small" />
                                   </IconButton>
                                 )}
-                                <IconButton 
-                                  size="small" 
-                                  title="More Actions"
-                                >
+                                <IconButton size="small" title="More Actions">
                                   <MoreVertIcon fontSize="small" />
                                 </IconButton>
                               </Box>
@@ -708,15 +721,9 @@ const Scans: React.FC = () => {
           open={Boolean(exportMenuAnchor)}
           onClose={handleCloseExportMenu}
         >
-          <MenuItem onClick={() => handleExportScans('all')}>
-            Export All Scans
-          </MenuItem>
-          <MenuItem onClick={() => handleExportScans('completed')}>
-            Export Completed Scans
-          </MenuItem>
-          <MenuItem onClick={() => handleExportScans('failed')}>
-            Export Failed Scans
-          </MenuItem>
+          <MenuItem onClick={() => handleExportScans('all')}>Export All Scans</MenuItem>
+          <MenuItem onClick={() => handleExportScans('completed')}>Export Completed Scans</MenuItem>
+          <MenuItem onClick={() => handleExportScans('failed')}>Export Failed Scans</MenuItem>
         </Menu>
       </Box>
     </Container>

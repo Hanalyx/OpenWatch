@@ -4,7 +4,12 @@
  */
 
 import { api } from './api';
-import type { Framework, FrameworkDetails, VariableDefinition, ValidationResult } from '@/types/scanConfig';
+import type {
+  Framework,
+  FrameworkDetails,
+  VariableDefinition,
+  ValidationResult,
+} from '@/types/scanConfig';
 
 export const frameworkService = {
   /**
@@ -27,7 +32,9 @@ export const frameworkService = {
    * Get variable definitions for a framework version
    */
   getVariables: async (framework: string, version: string): Promise<VariableDefinition[]> => {
-    const response = await api.get(`/api/v1/scan-config/frameworks/${framework}/${version}/variables`);
+    const response = await api.get(
+      `/api/v1/scan-config/frameworks/${framework}/${version}/variables`
+    );
     return response.data || [];
   },
 

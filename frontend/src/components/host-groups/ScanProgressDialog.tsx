@@ -19,7 +19,7 @@ import {
   Collapse,
   Alert,
   Grid,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -33,7 +33,7 @@ import {
   ExpandLess,
   Computer,
   Timer,
-  Assessment
+  Assessment,
 } from '@mui/icons-material';
 
 interface ScanProgress {
@@ -81,7 +81,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
   groupId,
   groupName,
   onCancel,
-  onViewResults
+  onViewResults,
 }) => {
   const [session, setSession] = useState<GroupScanSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,19 +93,26 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
   const fetchProgress = useCallback(async () => {
     try {
       setError(null);
-      
-      const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+
+      const response = await fetch(
+        `/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          },
         }
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();
         setSession(data);
-        
+
         // Stop auto-refresh if session is completed or failed
-        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        if (
+          data.status === 'completed' ||
+          data.status === 'failed' ||
+          data.status === 'cancelled'
+        ) {
           setAutoRefresh(false);
         }
       } else {
@@ -124,7 +131,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
   useEffect(() => {
     if (open && sessionId) {
       fetchProgress();
-      
+
       if (autoRefresh) {
         const interval = setInterval(fetchProgress, 3000); // Refresh every 3 seconds
         return () => clearInterval(interval);
@@ -137,12 +144,15 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
       onCancel(sessionId);
     } else {
       try {
-        const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/cancel`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        const response = await fetch(
+          `/api/host-groups/${groupId}/scan-sessions/${sessionId}/cancel`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            },
           }
-        });
+        );
 
         if (response.ok) {
           setAutoRefresh(false);
@@ -156,41 +166,53 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'success';
-      case 'failed': return 'error';
-      case 'running': return 'primary';
-      case 'cancelled': return 'default';
-      default: return 'default';
+      case 'completed':
+        return 'success';
+      case 'failed':
+        return 'error';
+      case 'running':
+        return 'primary';
+      case 'cancelled':
+        return 'default';
+      default:
+        return 'default';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle color="success" />;
-      case 'failed': return <ErrorIcon color="error" />;
-      case 'running': return <PlayArrow color="primary" />;
-      case 'cancelled': return <Stop color="disabled" />;
-      default: return <Schedule color="disabled" />;
+      case 'completed':
+        return <CheckCircle color="success" />;
+      case 'failed':
+        return <ErrorIcon color="error" />;
+      case 'running':
+        return <PlayArrow color="primary" />;
+      case 'cancelled':
+        return <Stop color="disabled" />;
+      default:
+        return <Schedule color="disabled" />;
     }
   };
 
   const formatDuration = (startTime?: string, endTime?: string) => {
     if (!startTime) return 'Not started';
-    
+
     const start = new Date(startTime);
     const end = endTime ? new Date(endTime) : new Date();
     const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
-    
+
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
-    
+
     return `${minutes}m ${seconds}s`;
   };
 
   const calculateAverageScore = (scans: ScanProgress[]) => {
-    const completedScans = scans.filter(scan => scan.status === 'completed' && scan.compliance_score !== undefined);
+    const completedScans = scans.filter(
+      (scan) => scan.status === 'completed' && scan.compliance_score !== undefined
+    );
     if (completedScans.length === 0) return null;
-    
+
     const totalScore = completedScans.reduce((sum, scan) => sum + (scan.compliance_score || 0), 0);
     return Math.round(totalScore / completedScans.length);
   };
@@ -211,9 +233,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography variant="h6">
-              Group Scan Progress
-            </Typography>
+            <Typography variant="h6">Group Scan Progress</Typography>
             <Typography variant="body2" color="text.secondary">
               {groupName} - {session?.session_name || 'Group Scan'}
             </Typography>
@@ -236,10 +256,15 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
             {/* Overall Progress */}
             <Card sx={{ mb: 2 }}>
               <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h6">
-                    Overall Progress
-                  </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="h6">Overall Progress</Typography>
                   <Chip
                     label={session.status.toUpperCase()}
                     color={getStatusColor(session.status) as any}
@@ -300,8 +325,10 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
                   <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <Chip
                       icon={<Timer />}
-                      label={`Duration: ${formatDuration(session.started_at, 
-                        session.status === 'completed' ? session.estimated_completion : undefined)}`}
+                      label={`Duration: ${formatDuration(
+                        session.started_at,
+                        session.status === 'completed' ? session.estimated_completion : undefined
+                      )}`}
                       variant="outlined"
                       size="small"
                     />
@@ -329,21 +356,17 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
             {/* Individual Scans */}
             <Card>
               <CardContent sx={{ pb: 1 }}>
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                   onClick={() => setExpanded(!expanded)}
                 >
-                  <Typography variant="h6">
-                    Individual Scans ({session.total_hosts})
-                  </Typography>
-                  <IconButton size="small">
-                    {expanded ? <ExpandLess /> : <ExpandMore />}
-                  </IconButton>
+                  <Typography variant="h6">Individual Scans ({session.total_hosts})</Typography>
+                  <IconButton size="small">{expanded ? <ExpandLess /> : <ExpandMore />}</IconButton>
                 </Box>
               </CardContent>
 
@@ -352,9 +375,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
                   {session.individual_scans.map((scan, index) => (
                     <React.Fragment key={scan.scan_id}>
                       <ListItem>
-                        <ListItemIcon>
-                          {getStatusIcon(scan.status)}
-                        </ListItemIcon>
+                        <ListItemIcon>{getStatusIcon(scan.status)}</ListItemIcon>
                         <ListItemText
                           primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -389,11 +410,13 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
                                     • Score: {scan.compliance_score}%
                                   </Typography>
                                 )}
-                                {scan.failed_rules !== undefined && scan.total_rules !== undefined && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    • {scan.total_rules - scan.failed_rules}/{scan.total_rules} passed
-                                  </Typography>
-                                )}
+                                {scan.failed_rules !== undefined &&
+                                  scan.total_rules !== undefined && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      • {scan.total_rules - scan.failed_rules}/{scan.total_rules}{' '}
+                                      passed
+                                    </Typography>
+                                  )}
                               </Box>
                             </Box>
                           }
@@ -427,7 +450,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
         >
           {autoRefresh ? 'Pause Updates' : 'Resume Updates'}
         </Button>
-        
+
         {session?.status === 'running' && (
           <Button
             onClick={handleCancel}
@@ -439,7 +462,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
             Cancel Session
           </Button>
         )}
-        
+
         <Button onClick={onClose} variant="contained">
           Close
         </Button>

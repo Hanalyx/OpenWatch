@@ -18,7 +18,7 @@ import {
   Switch,
   Alert,
   LinearProgress,
-  IconButton
+  IconButton,
 } from '@mui/material';
 import {
   Security,
@@ -28,7 +28,7 @@ import {
   Schedule,
   PlayArrow,
   Close,
-  Info
+  Info,
 } from '@mui/icons-material';
 
 interface ScanTemplate {
@@ -56,7 +56,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
   onClose,
   hostId,
   hostName,
-  onScanStarted
+  onScanStarted,
 }) => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customName, setCustomName] = useState('');
@@ -73,7 +73,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_cui',
       estimatedDuration: '5-10 min',
-      ruleCount: 120
+      ruleCount: 120,
     },
     {
       id: 'security-audit',
@@ -84,7 +84,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_stig',
       estimatedDuration: '15-25 min',
-      ruleCount: 340
+      ruleCount: 340,
     },
     {
       id: 'vulnerability-scan',
@@ -95,8 +95,8 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_cis',
       estimatedDuration: '10-15 min',
-      ruleCount: 200
-    }
+      ruleCount: 200,
+    },
   ]);
 
   useEffect(() => {
@@ -114,7 +114,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       return;
     }
 
-    const template = templates.find(t => t.id === selectedTemplate);
+    const template = templates.find((t) => t.id === selectedTemplate);
     if (!template) {
       setError('Invalid template selected');
       return;
@@ -128,7 +128,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           name: customName || `${template.name} - ${hostName}`,
@@ -138,9 +138,9 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
           scan_options: {
             template_id: template.id,
             quick_scan: true,
-            email_notify: emailNotify
-          }
-        })
+            email_notify: emailNotify,
+          },
+        }),
       });
 
       if (response.ok) {
@@ -158,15 +158,10 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
     }
   };
 
-  const selectedTemplateData = templates.find(t => t.id === selectedTemplate);
+  const selectedTemplateData = templates.find((t) => t.id === selectedTemplate);
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
@@ -199,7 +194,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
           value={selectedTemplate}
           onChange={(e) => {
             setSelectedTemplate(e.target.value);
-            const template = templates.find(t => t.id === e.target.value);
+            const template = templates.find((t) => t.id === e.target.value);
             if (template) {
               setCustomName(`${template.name} - ${hostName}`);
             }
@@ -208,16 +203,15 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
           <Grid container spacing={2}>
             {templates.map((template) => (
               <Grid item xs={12} sm={6} md={4} key={template.id}>
-                <Card 
-                  sx={{ 
+                <Card
+                  sx={{
                     cursor: 'pointer',
                     border: selectedTemplate === template.id ? 2 : 1,
-                    borderColor: selectedTemplate === template.id 
-                      ? `${template.color}.main` 
-                      : 'divider',
+                    borderColor:
+                      selectedTemplate === template.id ? `${template.color}.main` : 'divider',
                     '&:hover': {
-                      boxShadow: 3
-                    }
+                      boxShadow: 3,
+                    },
                   }}
                   onClick={() => {
                     setSelectedTemplate(template.id);
@@ -231,21 +225,19 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
                       label=""
                       sx={{ m: 0, position: 'absolute' }}
                     />
-                    
+
                     <Box sx={{ ml: 4 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Box sx={{ color: `${template.color}.main` }}>
-                          {template.icon}
-                        </Box>
+                        <Box sx={{ color: `${template.color}.main` }}>{template.icon}</Box>
                         <Typography variant="subtitle2" fontWeight="bold">
                           {template.name}
                         </Typography>
                       </Box>
-                      
+
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                         {template.description}
                       </Typography>
-                      
+
                       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                         <Chip
                           icon={<Schedule />}
@@ -274,7 +266,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
           <Typography variant="subtitle1" gutterBottom>
             Scan Configuration
           </Typography>
-          
+
           <TextField
             fullWidth
             label="Scan Name"
@@ -287,10 +279,7 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
             <FormControlLabel
               control={
-                <Switch
-                  checked={emailNotify}
-                  onChange={(e) => setEmailNotify(e.target.checked)}
-                />
+                <Switch checked={emailNotify} onChange={(e) => setEmailNotify(e.target.checked)} />
               }
               label="Email notification when complete"
             />
@@ -302,14 +291,11 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
 
         {/* Selected Template Summary */}
         {selectedTemplateData && (
-          <Alert
-            severity="info"
-            sx={{ mt: 2 }}
-            icon={selectedTemplateData.icon}
-          >
+          <Alert severity="info" sx={{ mt: 2 }} icon={selectedTemplateData.icon}>
             <Typography variant="body2">
-              <strong>{selectedTemplateData.name}</strong> will run {selectedTemplateData.ruleCount} security checks
-              and complete in approximately <strong>{selectedTemplateData.estimatedDuration}</strong>.
+              <strong>{selectedTemplateData.name}</strong> will run {selectedTemplateData.ruleCount}{' '}
+              security checks and complete in approximately{' '}
+              <strong>{selectedTemplateData.estimatedDuration}</strong>.
             </Typography>
           </Alert>
         )}

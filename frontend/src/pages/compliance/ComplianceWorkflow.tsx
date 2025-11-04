@@ -34,7 +34,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -54,7 +54,7 @@ import {
   Assignment,
   Build,
   VerifiedUser,
-  Schedule
+  Schedule,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -134,19 +134,18 @@ const ComplianceWorkflow: React.FC = () => {
   const loadWorkflowData = async () => {
     try {
       setLoading(true);
-      
+
       // Load recent scans with results
       const scansResponse = await api.get('/api/scans/', {
-        params: { limit: 10, include_results: true }
+        params: { limit: 10, include_results: true },
       });
       setScans(scansResponse.data || []);
-      
     } catch (error) {
       console.error('Failed to load workflow data:', error);
       setSnackbar({
         open: true,
         message: 'Failed to load compliance workflow data',
-        severity: 'error'
+        severity: 'error',
       });
     } finally {
       setLoading(false);
@@ -162,7 +161,7 @@ const ComplianceWorkflow: React.FC = () => {
       setSnackbar({
         open: true,
         message: 'Failed to load failed rules',
-        severity: 'error'
+        severity: 'error',
       });
     }
   };
@@ -178,22 +177,21 @@ const ComplianceWorkflow: React.FC = () => {
     try {
       // Send failed rules to AEGIS for remediation
       const response = await api.post(`/api/scans/${scanId}/remediate`);
-      
+
       setSnackbar({
         open: true,
         message: `Remediation job started: ${response.data.job_id}`,
-        severity: 'success'
+        severity: 'success',
       });
-      
+
       // Reload data to show updated status
       loadWorkflowData();
-      
     } catch (error) {
       console.error('Failed to start remediation:', error);
       setSnackbar({
         open: true,
         message: 'Failed to start remediation job',
-        severity: 'error'
+        severity: 'error',
       });
     }
   };
@@ -203,42 +201,49 @@ const ComplianceWorkflow: React.FC = () => {
       // Start verification scan after remediation
       const response = await api.post('/api/scans/verify', {
         host_id: hostId,
-        verification_scan: true
+        verification_scan: true,
       });
-      
+
       setSnackbar({
         open: true,
         message: 'Verification scan started',
-        severity: 'success'
+        severity: 'success',
       });
-      
+
       navigate('/scans');
-      
     } catch (error) {
       console.error('Failed to start verification scan:', error);
       setSnackbar({
         open: true,
         message: 'Failed to start verification scan',
-        severity: 'error'
+        severity: 'error',
       });
     }
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'high': return theme.palette.error.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.info.main;
-      default: return theme.palette.grey[500];
+      case 'high':
+        return theme.palette.error.main;
+      case 'medium':
+        return theme.palette.warning.main;
+      case 'low':
+        return theme.palette.info.main;
+      default:
+        return theme.palette.grey[500];
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return theme.palette.success.main;
-      case 'running': return theme.palette.info.main;
-      case 'failed': return theme.palette.error.main;
-      default: return theme.palette.grey[500];
+      case 'completed':
+        return theme.palette.success.main;
+      case 'running':
+        return theme.palette.info.main;
+      case 'failed':
+        return theme.palette.error.main;
+      default:
+        return theme.palette.grey[500];
     }
   };
 
@@ -271,11 +276,7 @@ const ComplianceWorkflow: React.FC = () => {
             </Box>
           }
           action={
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={loadWorkflowData}
-            >
+            <Button variant="outlined" startIcon={<Refresh />} onClick={loadWorkflowData}>
               Refresh
             </Button>
           }
@@ -286,21 +287,18 @@ const ComplianceWorkflow: React.FC = () => {
         {/* Left Panel - Scan List */}
         <Grid item xs={12} md={4}>
           <Card>
-            <CardHeader
-              title="Recent Scans"
-              subheader={`${scans.length} scans available`}
-            />
+            <CardHeader title="Recent Scans" subheader={`${scans.length} scans available`} />
             <CardContent sx={{ p: 0 }}>
               <List>
                 {scans.map((scan) => (
-                  <ListItem 
+                  <ListItem
                     key={scan.id}
                     button
                     onClick={() => handleScanSelect(scan)}
                     selected={selectedScan?.id === scan.id}
-                    sx={{ 
+                    sx={{
                       borderLeft: selectedScan?.id === scan.id ? 3 : 0,
-                      borderLeftColor: 'primary.main'
+                      borderLeftColor: 'primary.main',
                     }}
                   >
                     <ListItemIcon>
@@ -321,15 +319,15 @@ const ComplianceWorkflow: React.FC = () => {
                           </Typography>
                           {scan.scan_result && (
                             <Box display="flex" gap={1} mt={0.5}>
-                              <Chip 
-                                size="small" 
+                              <Chip
+                                size="small"
                                 label={`${scan.scan_result.failed_rules} Failed`}
-                                color={scan.scan_result.failed_rules > 0 ? "error" : "success"}
+                                color={scan.scan_result.failed_rules > 0 ? 'error' : 'success'}
                                 variant="outlined"
                               />
                               {scan.remediation_requested && (
-                                <Chip 
-                                  size="small" 
+                                <Chip
+                                  size="small"
                                   label="Remediation"
                                   color="warning"
                                   icon={<AutoFixHigh />}
@@ -357,9 +355,9 @@ const ComplianceWorkflow: React.FC = () => {
                 action={
                   <Chip
                     label={selectedScan.status.toUpperCase()}
-                    sx={{ 
+                    sx={{
                       backgroundColor: alpha(getStatusColor(selectedScan.status), 0.1),
-                      color: getStatusColor(selectedScan.status)
+                      color: getStatusColor(selectedScan.status),
                     }}
                   />
                 }
@@ -369,8 +367,16 @@ const ComplianceWorkflow: React.FC = () => {
                 {selectedScan.scan_result && (
                   <Grid container spacing={3} sx={{ mb: 4 }}>
                     <Grid item xs={12} sm={6} md={3}>
-                      <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: alpha(theme.palette.success.main, 0.1) }}>
-                        <CheckCircle sx={{ fontSize: 32, color: theme.palette.success.main, mb: 1 }} />
+                      <Paper
+                        sx={{
+                          p: 2,
+                          textAlign: 'center',
+                          backgroundColor: alpha(theme.palette.success.main, 0.1),
+                        }}
+                      >
+                        <CheckCircle
+                          sx={{ fontSize: 32, color: theme.palette.success.main, mb: 1 }}
+                        />
                         <Typography variant="h5" fontWeight="bold" color="success.main">
                           {selectedScan.scan_result.passed_rules}
                         </Typography>
@@ -378,7 +384,13 @@ const ComplianceWorkflow: React.FC = () => {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                      <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: alpha(theme.palette.error.main, 0.1) }}>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          textAlign: 'center',
+                          backgroundColor: alpha(theme.palette.error.main, 0.1),
+                        }}
+                      >
                         <Error sx={{ fontSize: 32, color: theme.palette.error.main, mb: 1 }} />
                         <Typography variant="h5" fontWeight="bold" color="error.main">
                           {selectedScan.scan_result.failed_rules}
@@ -387,7 +399,13 @@ const ComplianceWorkflow: React.FC = () => {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                      <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: alpha(theme.palette.warning.main, 0.1) }}>
+                      <Paper
+                        sx={{
+                          p: 2,
+                          textAlign: 'center',
+                          backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                        }}
+                      >
                         <Warning sx={{ fontSize: 32, color: theme.palette.warning.main, mb: 1 }} />
                         <Typography variant="h5" fontWeight="bold" color="warning.main">
                           {selectedScan.scan_result.severity_high}
@@ -396,8 +414,16 @@ const ComplianceWorkflow: React.FC = () => {
                       </Paper>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                      <Paper sx={{ p: 2, textAlign: 'center', backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
-                        <VerifiedUser sx={{ fontSize: 32, color: theme.palette.primary.main, mb: 1 }} />
+                      <Paper
+                        sx={{
+                          p: 2,
+                          textAlign: 'center',
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        }}
+                      >
+                        <VerifiedUser
+                          sx={{ fontSize: 32, color: theme.palette.primary.main, mb: 1 }}
+                        />
                         <Typography variant="h5" fontWeight="bold" color="primary.main">
                           {selectedScan.scan_result.score || 'N/A'}
                         </Typography>
@@ -417,7 +443,7 @@ const ComplianceWorkflow: React.FC = () => {
                   >
                     View Details
                   </Button>
-                  
+
                   {selectedScan.scan_result && selectedScan.scan_result.failed_rules > 0 && (
                     <>
                       {!selectedScan.remediation_requested ? (
@@ -489,7 +515,7 @@ const ComplianceWorkflow: React.FC = () => {
                                   label={rule.severity.toUpperCase()}
                                   sx={{
                                     backgroundColor: alpha(getSeverityColor(rule.severity), 0.1),
-                                    color: getSeverityColor(rule.severity)
+                                    color: getSeverityColor(rule.severity),
                                   }}
                                 />
                               </TableCell>
@@ -500,9 +526,7 @@ const ComplianceWorkflow: React.FC = () => {
                                   <Error sx={{ color: theme.palette.error.main }} />
                                 )}
                               </TableCell>
-                              <TableCell>
-                                {rule.estimated_fix_time}min
-                              </TableCell>
+                              <TableCell>{rule.estimated_fix_time}min</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -543,7 +567,10 @@ const ComplianceWorkflow: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>

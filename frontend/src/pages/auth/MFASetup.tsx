@@ -82,7 +82,7 @@ const MFASetup: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  
+
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +117,9 @@ const MFASetup: React.FC = () => {
 
       const data: MFASecret = await response.json();
       setMfaSecret(data);
-      announcer.announce('MFA setup initialized. Please scan the QR code with your authenticator app.');
+      announcer.announce(
+        'MFA setup initialized. Please scan the QR code with your authenticator app.'
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to initialize MFA setup');
       announcer.announce('Error initializing MFA setup', 'assertive');
@@ -255,11 +257,7 @@ const MFASetup: React.FC = () => {
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                 Your account is now protected with multi-factor authentication.
               </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={() => navigate('/dashboard')}
-              >
+              <Button variant="contained" size="large" onClick={() => navigate('/dashboard')}>
                 Continue to Dashboard
               </Button>
             </Box>
@@ -272,7 +270,7 @@ const MFASetup: React.FC = () => {
                   <Typography variant="body1" gutterBottom>
                     Choose and install a compatible authenticator application on your mobile device:
                   </Typography>
-                  
+
                   <Grid container spacing={2} sx={{ mt: 2, mb: 3 }}>
                     {[
                       { name: 'Google Authenticator', icon: '🔐' },
@@ -286,9 +284,7 @@ const MFASetup: React.FC = () => {
                             <Typography variant="h4" sx={{ mb: 1 }}>
                               {app.icon}
                             </Typography>
-                            <Typography variant="body2">
-                              {app.name}
-                            </Typography>
+                            <Typography variant="body2">{app.name}</Typography>
                           </CardContent>
                         </Card>
                       </Grid>
@@ -297,15 +293,12 @@ const MFASetup: React.FC = () => {
 
                   <Alert severity="info" sx={{ mb: 2 }}>
                     <Typography variant="body2">
-                      We recommend Google Authenticator or Microsoft Authenticator for the best experience.
+                      We recommend Google Authenticator or Microsoft Authenticator for the best
+                      experience.
                     </Typography>
                   </Alert>
 
-                  <Button
-                    variant="contained"
-                    onClick={() => setActiveStep(1)}
-                    sx={{ mr: 1 }}
-                  >
+                  <Button variant="contained" onClick={() => setActiveStep(1)} sx={{ mr: 1 }}>
                     App Installed
                   </Button>
                 </StepContent>
@@ -328,7 +321,7 @@ const MFASetup: React.FC = () => {
                           </Typography>
                         </Box>
                       </Grid>
-                      
+
                       <Grid item xs={12} md={6}>
                         <Typography variant="h6" gutterBottom>
                           Manual Entry
@@ -338,19 +331,13 @@ const MFASetup: React.FC = () => {
                             <ListItemIcon>
                               <Key />
                             </ListItemIcon>
-                            <ListItemText
-                              primary="Account"
-                              secondary={mfaSecret.account_name}
-                            />
+                            <ListItemText primary="Account" secondary={mfaSecret.account_name} />
                           </ListItem>
                           <ListItem>
                             <ListItemIcon>
                               <Shield />
                             </ListItemIcon>
-                            <ListItemText
-                              primary="Issuer"
-                              secondary={mfaSecret.issuer}
-                            />
+                            <ListItemText primary="Issuer" secondary={mfaSecret.issuer} />
                           </ListItem>
                           <ListItem>
                             <ListItemIcon>
@@ -390,16 +377,10 @@ const MFASetup: React.FC = () => {
                   )}
 
                   <Box sx={{ mt: 3 }}>
-                    <Button
-                      variant="contained"
-                      onClick={() => setActiveStep(2)}
-                      sx={{ mr: 1 }}
-                    >
+                    <Button variant="contained" onClick={() => setActiveStep(2)} sx={{ mr: 1 }}>
                       QR Code Scanned
                     </Button>
-                    <Button onClick={() => setActiveStep(0)}>
-                      Back
-                    </Button>
+                    <Button onClick={() => setActiveStep(0)}>Back</Button>
                   </Box>
                 </StepContent>
               </Step>
@@ -447,10 +428,15 @@ const MFASetup: React.FC = () => {
                     {mfaSecret?.backup_codes && (
                       <Box sx={{ mt: 3, mb: 2 }}>
                         <Divider sx={{ mb: 2 }} />
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                          <Typography variant="h6">
-                            Backup Codes
-                          </Typography>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            mb: 2,
+                          }}
+                        >
+                          <Typography variant="h6">Backup Codes</Typography>
                           <FormControlLabel
                             control={
                               <Switch
@@ -461,10 +447,11 @@ const MFASetup: React.FC = () => {
                             label="Show codes"
                           />
                         </Box>
-                        
+
                         <Alert severity="warning" sx={{ mb: 2 }}>
                           <Typography variant="body2">
-                            Save these backup codes in a secure location. They can be used to access your account if you lose your authenticator device.
+                            Save these backup codes in a secure location. They can be used to access
+                            your account if you lose your authenticator device.
                           </Typography>
                         </Alert>
 
@@ -498,17 +485,10 @@ const MFASetup: React.FC = () => {
                     )}
 
                     <Box sx={{ mt: 3 }}>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={loading}
-                        sx={{ mr: 1 }}
-                      >
+                      <Button type="submit" variant="contained" disabled={loading} sx={{ mr: 1 }}>
                         {loading ? <CircularProgress size={24} /> : 'Verify & Enable MFA'}
                       </Button>
-                      <Button onClick={() => setActiveStep(1)}>
-                        Back
-                      </Button>
+                      <Button onClick={() => setActiveStep(1)}>Back</Button>
                     </Box>
                   </Box>
                 </StepContent>

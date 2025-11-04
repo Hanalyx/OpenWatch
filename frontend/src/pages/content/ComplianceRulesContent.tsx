@@ -68,21 +68,19 @@ interface ComplianceRulesContentProps {
   onRuleSelect?: (rule: Rule) => void;
 }
 
-const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
-  onRuleSelect,
-}) => {
+const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleSelect }) => {
   const theme = useTheme();
-  
+
   // State management
   const [rules, setRules] = useState<Rule[]>([]);
   const [filteredRules, setFilteredRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Side panel state
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
-  
+
   // Platform statistics for platform view
   const {
     platforms,
@@ -91,9 +89,9 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
     refetch: refetchPlatforms,
     totalPlatforms,
     totalRulesAnalyzed,
-    source
+    source,
   } = useComplianceStatistics();
-  
+
   // Framework statistics for framework view
   const {
     frameworks,
@@ -101,14 +99,14 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
     error: frameworksError,
     refetch: refetchFrameworks,
     totalFrameworks,
-    totalRulesAnalyzed: frameworkTotalRulesAnalyzed
+    totalRulesAnalyzed: frameworkTotalRulesAnalyzed,
   } = useFrameworkStatistics();
-  
+
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('complianceRulesViewMode');
     return (saved as ViewMode) || 'platform';
   });
-  
+
   // Filter state
   const [filters, setFilters] = useState<ComplianceFilters>({
     search: '',
@@ -118,17 +116,17 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
     platform: '',
     compliance_status: '',
   });
-  
+
   // Pagination state
   const [pagination, setPagination] = useState({
     page: 1,
     rowsPerPage: 25,
     total: 0,
   });
-  
+
   // UI state
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Helper functions
   const handleRuleSelect = (rule: Rule) => {
     setSelectedRule(rule);
@@ -137,15 +135,15 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
       onRuleSelect(rule);
     }
   };
-  
+
   const handleCloseSidePanel = () => {
     setSidePanelOpen(false);
     setSelectedRule(null);
   };
-  
+
   // Debounce search
   const debouncedSearch = useDebounce(filters.search, 300);
-  
+
   // Available filter options (derived from data)
   const [filterOptions, setFilterOptions] = useState({
     frameworks: [] as string[],
@@ -159,7 +157,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
   const loadComplianceRules = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await ruleService.getRules({
         offset: (pagination.page - 1) * pagination.rowsPerPage,
@@ -170,15 +168,15 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
         ...(filters.platform && { platform: filters.platform }),
         ...(debouncedSearch && { search: debouncedSearch }),
       });
-      
+
       if (response.success) {
         setRules(response.data.rules);
         setFilteredRules(response.data.rules);
-        setPagination(prev => ({
+        setPagination((prev) => ({
           ...prev,
           total: response.data.total_count,
         }));
-        
+
         extractFilterOptions(response.data.rules);
       } else {
         setError('Failed to load compliance rules from database');
@@ -196,20 +194,20 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
     const frameworks = new Set<string>();
     const categories = new Set<string>();
     const platforms = new Set<string>();
-    
-    rulesData.forEach(rule => {
+
+    rulesData.forEach((rule) => {
       if (rule.frameworks) {
-        Object.keys(rule.frameworks).forEach(framework => frameworks.add(framework));
+        Object.keys(rule.frameworks).forEach((framework) => frameworks.add(framework));
       }
       if (rule.category) {
         categories.add(rule.category);
       }
       if (rule.platform_implementations) {
-        Object.keys(rule.platform_implementations).forEach(platform => platforms.add(platform));
+        Object.keys(rule.platform_implementations).forEach((platform) => platforms.add(platform));
       }
     });
-    
-    setFilterOptions(prev => ({
+
+    setFilterOptions((prev) => ({
       ...prev,
       frameworks: Array.from(frameworks).sort(),
       categories: Array.from(categories).sort(),
@@ -223,11 +221,11 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
 
   // Handle filter changes
   const handleFilterChange = (filterName: keyof ComplianceFilters, value: string) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       [filterName]: value,
     }));
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   // Clear all filters
@@ -240,22 +238,27 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
       platform: '',
       compliance_status: '',
     });
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   // Handle pagination
   const handlePageChange = (event: unknown, newPage: number) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
+    setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
   // Get severity color
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'high': return theme.palette.error.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.info.main;
-      case 'info': return theme.palette.grey[500];
-      default: return theme.palette.grey[500];
+      case 'high':
+        return theme.palette.error.main;
+      case 'medium':
+        return theme.palette.warning.main;
+      case 'low':
+        return theme.palette.info.main;
+      case 'info':
+        return theme.palette.grey[500];
+      default:
+        return theme.palette.grey[500];
     }
   };
 
@@ -288,7 +291,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
   };
 
   // Count active filters
-  const activeFilterCount = Object.values(filters).filter(value => value && value !== '').length;
+  const activeFilterCount = Object.values(filters).filter((value) => value && value !== '').length;
 
   // Calculate pagination info
   const totalPages = Math.ceil(pagination.total / pagination.rowsPerPage);
@@ -296,20 +299,24 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
   const endItem = Math.min(pagination.page * pagination.rowsPerPage, pagination.total);
 
   return (
-    <Box sx={{
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden"
-    }}>
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
       {/* Compact Header */}
-      <Box sx={{ 
-        p: 2, 
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        backgroundColor: theme.palette.background.paper,
-        zIndex: 10,
-        flexShrink: 0
-      }}>
+      <Box
+        sx={{
+          p: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+          zIndex: 10,
+          flexShrink: 0,
+        }}
+      >
         {/* Main Header Row */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
           <Box display="flex" alignItems="center" gap={2}>
@@ -321,24 +328,22 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
             </Box>
             <Divider orientation="vertical" flexItem />
             <Typography variant="body2" color="text.secondary">
-              {viewMode === 'platform' ? (
-                platformsLoading ? '🔄 Loading...' : 
-                `${totalRulesAnalyzed} rules, ${totalPlatforms} platforms`
-              ) : viewMode === 'framework' ? (
-                frameworksLoading ? '🔄 Loading...' : 
-                `${frameworkTotalRulesAnalyzed} rules, ${totalFrameworks} frameworks`
-              ) : (
-                loading ? '🔄 Loading...' : `${pagination.total} rules`
-              )}
+              {viewMode === 'platform'
+                ? platformsLoading
+                  ? '🔄 Loading...'
+                  : `${totalRulesAnalyzed} rules, ${totalPlatforms} platforms`
+                : viewMode === 'framework'
+                  ? frameworksLoading
+                    ? '🔄 Loading...'
+                    : `${frameworkTotalRulesAnalyzed} rules, ${totalFrameworks} frameworks`
+                  : loading
+                    ? '🔄 Loading...'
+                    : `${pagination.total} rules`}
             </Typography>
           </Box>
-          
+
           <Stack direction="row" spacing={1}>
-            <ViewModeToggle 
-              value={viewMode} 
-              onChange={handleViewModeChange} 
-              disabled={loading}
-            />
+            <ViewModeToggle value={viewMode} onChange={handleViewModeChange} disabled={loading} />
             <Tooltip title="Refresh rules">
               <span>
                 <IconButton size="small" onClick={loadComplianceRules} disabled={loading}>
@@ -371,10 +376,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               ),
               endAdornment: filters.search && (
                 <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleFilterChange('search', '')}
-                  >
+                  <IconButton size="small" onClick={() => handleFilterChange('search', '')}>
                     <ClearIcon />
                   </IconButton>
                 </InputAdornment>
@@ -383,7 +385,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
             size="small"
             sx={{ flexGrow: 1, maxWidth: 400 }}
           />
-          
+
           <Button
             variant="outlined"
             size="small"
@@ -396,7 +398,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               <Badge badgeContent={activeFilterCount} color="primary" sx={{ ml: 1 }} />
             )}
           </Button>
-          
+
           {activeFilterCount > 0 && (
             <Button variant="text" size="small" onClick={clearFilters}>
               Clear All
@@ -417,7 +419,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                     onChange={(e) => handleFilterChange('framework', e.target.value)}
                   >
                     <MenuItem value="">All Frameworks</MenuItem>
-                    {filterOptions.frameworks.map(framework => (
+                    {filterOptions.frameworks.map((framework) => (
                       <MenuItem key={framework} value={framework}>
                         {framework.toUpperCase()}
                       </MenuItem>
@@ -435,7 +437,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                     onChange={(e) => handleFilterChange('severity', e.target.value)}
                   >
                     <MenuItem value="">All Severities</MenuItem>
-                    {filterOptions.severities.map(severity => (
+                    {filterOptions.severities.map((severity) => (
                       <MenuItem key={severity} value={severity}>
                         <Box display="flex" alignItems="center" gap={1}>
                           <Box
@@ -463,11 +465,12 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                     onChange={(e) => handleFilterChange('category', e.target.value)}
                   >
                     <MenuItem value="">All Categories</MenuItem>
-                    {filterOptions.categories.map(category => (
+                    {filterOptions.categories.map((category) => (
                       <MenuItem key={category} value={category}>
-                        {category.split('_').map(word => 
-                          word.charAt(0).toUpperCase() + word.slice(1)
-                        ).join(' ')}
+                        {category
+                          .split('_')
+                          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ')}
                       </MenuItem>
                     ))}
                   </Select>
@@ -483,7 +486,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                     onChange={(e) => handleFilterChange('platform', e.target.value)}
                   >
                     <MenuItem value="">All Platforms</MenuItem>
-                    {filterOptions.platforms.map(platform => (
+                    {filterOptions.platforms.map((platform) => (
                       <MenuItem key={platform} value={platform}>
                         {platform.toUpperCase()}
                       </MenuItem>
@@ -522,7 +525,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               <LinearProgress />
             </Box>
           )}
-          
+
           {platformsError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {platformsError}
@@ -531,7 +534,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               </Button>
             </Alert>
           )}
-          
+
           {!platformsLoading && !platformsError && (!platforms || platforms.length === 0) && (
             <Box sx={{ flex: 1, p: 3, textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -542,19 +545,24 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               </Typography>
             </Box>
           )}
-          
+
           {platforms && platforms.length > 0 && (
             <Paper sx={{ flex: 1, p: 3, overflow: 'auto' }}>
               <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography
+                  variant="h6"
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                >
                   <PlatformIcon color="primary" />
                   Platform Overview
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Compliance rules organized by operating system platform. Click "Browse Rules" to view platform-specific rules.
+                  Compliance rules organized by operating system platform. Click "Browse Rules" to
+                  view platform-specific rules.
                 </Typography>
               </Box>
-              
+
               <Grid container spacing={3}>
                 {platforms.map((platform) => (
                   <Grid item xs={12} sm={6} lg={4} key={`${platform.name}-${platform.version}`}>
@@ -579,7 +587,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               <LinearProgress />
             </Box>
           )}
-          
+
           {frameworksError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {frameworksError}
@@ -588,11 +596,15 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
               </Button>
             </Alert>
           )}
-          
+
           {frameworks && frameworks.length > 0 && (
             <Paper sx={{ flex: 1, p: 3, overflow: 'auto' }}>
               <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography
+                  variant="h6"
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                >
                   <SecurityIcon color="primary" />
                   Framework Overview
                 </Typography>
@@ -600,7 +612,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                   Compliance rules organized by regulatory framework and standards.
                 </Typography>
               </Box>
-              
+
               <Grid container spacing={3}>
                 {frameworks.map((framework) => (
                   <Grid item xs={12} sm={6} lg={4} key={`${framework.name}-${framework.version}`}>
@@ -631,28 +643,44 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
         </Box>
       ) : (
         // Optimized table view for 'all' mode with fixed pagination
-        <Box sx={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-          overflow: 'hidden'
-        }}>
-          <TableContainer sx={{
+        <Box
+          sx={{
             flex: 1,
-            overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
             minHeight: 0,
-            marginBottom: 0
-          }}>
+            overflow: 'hidden',
+          }}
+        >
+          <TableContainer
+            sx={{
+              flex: 1,
+              overflow: 'auto',
+              minHeight: 0,
+              marginBottom: 0,
+            }}
+          >
             <Table stickyHeader size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ width: 400, minWidth: 280, maxWidth: 400 }}>Rule Information</TableCell>
-                  <TableCell align="center" sx={{ width: 100, minWidth: 100 }}>Severity</TableCell>
-                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>Category</TableCell>
-                  <TableCell align="center" sx={{ width: 140, minWidth: 140 }}>Frameworks</TableCell>
-                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>Platforms</TableCell>
-                  <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>Actions</TableCell>
+                  <TableCell sx={{ width: 400, minWidth: 280, maxWidth: 400 }}>
+                    Rule Information
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 100, minWidth: 100 }}>
+                    Severity
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>
+                    Category
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 140, minWidth: 140 }}>
+                    Frameworks
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>
+                    Platforms
+                  </TableCell>
+                  <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>
+                    Actions
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -665,10 +693,9 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                           No compliance rules found
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {activeFilterCount > 0 
+                          {activeFilterCount > 0
                             ? 'Try adjusting your filters or search criteria'
-                            : 'No rules are available in the database'
-                          }
+                            : 'No rules are available in the database'}
                         </Typography>
                         {activeFilterCount > 0 && (
                           <Button variant="outlined" onClick={clearFilters}>
@@ -680,49 +707,66 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                   </TableRow>
                 ) : (
                   filteredRules.map((rule) => (
-                    <TableRow 
-                      key={rule.rule_id} 
-                      hover 
-                      sx={{ '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) } }}
+                    <TableRow
+                      key={rule.rule_id}
+                      hover
+                      sx={{
+                        '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) },
+                      }}
                     >
-                      <TableCell sx={{
-                        py: 1.5,
-                        maxWidth: 400,
-                        minWidth: 280,
-                        width: 400,
-                        overflow: 'hidden'
-                      }}>
+                      <TableCell
+                        sx={{
+                          py: 1.5,
+                          maxWidth: 400,
+                          minWidth: 280,
+                          width: 400,
+                          overflow: 'hidden',
+                        }}
+                      >
                         <Box sx={{ maxWidth: '100%' }}>
-                          <Typography variant="body2" fontWeight="medium" sx={{
-                            mb: 0.5,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
+                          <Typography
+                            variant="body2"
+                            fontWeight="medium"
+                            sx={{
+                              mb: 0.5,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {rule.metadata.name}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{
-                            mb: 0.5,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{
+                              mb: 0.5,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {rule.rule_id}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            lineHeight: 1.4,
-                            wordBreak: 'break-word',
-                            overflowWrap: 'break-word'
-                          }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              lineHeight: 1.4,
+                              wordBreak: 'break-word',
+                              overflowWrap: 'break-word',
+                            }}
+                          >
                             {rule.metadata.description}
                           </Typography>
                         </Box>
                       </TableCell>
-                      
+
                       <TableCell align="center" sx={{ width: 100, minWidth: 100 }}>
                         <Chip
                           label={rule.severity}
@@ -737,64 +781,88 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
 
                       <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>
                         <Chip
-                          label={rule.category.split('_').map(word =>
-                            word.charAt(0).toUpperCase() + word.slice(1)
-                          ).join(' ')}
+                          label={rule.category
+                            .split('_')
+                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(' ')}
                           size="small"
                           variant="outlined"
                           icon={<CategoryIcon fontSize="small" />}
                         />
                       </TableCell>
 
-                      <TableCell align="center" sx={{ width: 140, minWidth: 140, overflow: 'hidden' }}>
-                        <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ flexWrap: 'wrap' }}>
-                          {rule.frameworks && Object.keys(rule.frameworks)
-                            .filter(framework => {
-                              const fwData = rule.frameworks[framework];
-                              // Only show if framework has actual mappings (not empty object)
-                              return fwData && typeof fwData === 'object' && Object.keys(fwData).length > 0;
-                            })
-                            .map(framework => (
-                              <Chip
-                                key={framework}
-                                label={framework.toUpperCase()}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ))
-                          }
+                      <TableCell
+                        align="center"
+                        sx={{ width: 140, minWidth: 140, overflow: 'hidden' }}
+                      >
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          justifyContent="center"
+                          sx={{ flexWrap: 'wrap' }}
+                        >
+                          {rule.frameworks &&
+                            Object.keys(rule.frameworks)
+                              .filter((framework) => {
+                                const fwData = rule.frameworks[framework];
+                                // Only show if framework has actual mappings (not empty object)
+                                return (
+                                  fwData &&
+                                  typeof fwData === 'object' &&
+                                  Object.keys(fwData).length > 0
+                                );
+                              })
+                              .map((framework) => (
+                                <Chip
+                                  key={framework}
+                                  label={framework.toUpperCase()}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              ))}
                         </Stack>
                       </TableCell>
 
-                      <TableCell align="center" sx={{ width: 120, minWidth: 120, overflow: 'hidden' }}>
-                        <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ flexWrap: 'wrap' }}>
-                          {rule.platform_implementations && Object.keys(rule.platform_implementations)
-                            .filter(platform => {
-                              const impl = rule.platform_implementations[platform];
-                              // Only show if platform has actual implementation data (not empty/null object)
-                              return impl && typeof impl === 'object' && Object.keys(impl).length > 0 &&
-                                     (impl.versions?.length > 0 || impl.check_command || impl.enable_command);
-                            })
-                            .map(platform => (
-                              <Chip
-                                key={platform}
-                                label={platform.toUpperCase()}
-                                size="small"
-                                variant="outlined"
-                                icon={<PlatformIcon fontSize="small" />}
-                              />
-                            ))
-                          }
+                      <TableCell
+                        align="center"
+                        sx={{ width: 120, minWidth: 120, overflow: 'hidden' }}
+                      >
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          justifyContent="center"
+                          sx={{ flexWrap: 'wrap' }}
+                        >
+                          {rule.platform_implementations &&
+                            Object.keys(rule.platform_implementations)
+                              .filter((platform) => {
+                                const impl = rule.platform_implementations[platform];
+                                // Only show if platform has actual implementation data (not empty/null object)
+                                return (
+                                  impl &&
+                                  typeof impl === 'object' &&
+                                  Object.keys(impl).length > 0 &&
+                                  (impl.versions?.length > 0 ||
+                                    impl.check_command ||
+                                    impl.enable_command)
+                                );
+                              })
+                              .map((platform) => (
+                                <Chip
+                                  key={platform}
+                                  label={platform.toUpperCase()}
+                                  size="small"
+                                  variant="outlined"
+                                  icon={<PlatformIcon fontSize="small" />}
+                                />
+                              ))}
                         </Stack>
                       </TableCell>
 
                       <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>
                         <Tooltip title="View rule details">
                           <span>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRuleSelect(rule)}
-                            >
+                            <IconButton size="small" onClick={() => handleRuleSelect(rule)}>
                               <ViewIcon />
                             </IconButton>
                           </span>
@@ -807,25 +875,29 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
             </Table>
           </TableContainer>
 
-          
           {/* Pagination - Fixed at bottom */}
           {pagination.total > 0 && (
-            <Box sx={{
-              p: 2,
-              borderTop: `2px solid ${theme.palette.primary.main}`,
-              backgroundColor: theme.palette.background.paper,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexShrink: 0,
-              minHeight: 80,
-              zIndex: 100,
-              boxShadow: `0 -4px 8px ${alpha(theme.palette.common.black, 0.2)}`
-            }}>
+            <Box
+              sx={{
+                p: 2,
+                borderTop: `2px solid ${theme.palette.primary.main}`,
+                backgroundColor: theme.palette.background.paper,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexShrink: 0,
+                minHeight: 80,
+                zIndex: 100,
+                boxShadow: `0 -4px 8px ${alpha(theme.palette.common.black, 0.2)}`,
+              }}
+            >
               <Typography variant="body2" color="text.secondary">
-                <strong>{startItem}-{endItem}</strong> of <strong>{pagination.total}</strong>
+                <strong>
+                  {startItem}-{endItem}
+                </strong>{' '}
+                of <strong>{pagination.total}</strong>
               </Typography>
-              
+
               <Pagination
                 count={totalPages}
                 page={pagination.page}
@@ -836,24 +908,20 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({
                 showLastButton
                 siblingCount={1}
                 boundaryCount={1}
-                sx={{ 
-                  '& .MuiPagination-ul': { 
+                sx={{
+                  '& .MuiPagination-ul': {
                     justifyContent: 'center',
-                    margin: 0
-                  } 
+                    margin: 0,
+                  },
                 }}
               />
             </Box>
           )}
         </Box>
       )}
-      
+
       {/* Rule Details Side Panel */}
-      <RuleSidePanel
-        open={sidePanelOpen}
-        rule={selectedRule}
-        onClose={handleCloseSidePanel}
-      />
+      <RuleSidePanel open={sidePanelOpen} rule={selectedRule} onClose={handleCloseSidePanel} />
     </Box>
   );
 };

@@ -48,7 +48,7 @@ export const CustomThemeProvider: React.FC<ThemeProviderProps> = ({ children }) 
         setMode(e.matches ? 'dark' : 'light');
       }
     };
-    
+
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);

@@ -23,7 +23,7 @@ import {
   Paper,
   Stack,
   Avatar,
-  Badge
+  Badge,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -42,7 +42,7 @@ import {
   Error as ErrorIcon,
   Info as InfoIcon,
   Schedule as ScheduleIcon,
-  Settings as ConfigIcon
+  Settings as ConfigIcon,
 } from '@mui/icons-material';
 import { useAppSelector } from '../../hooks/redux';
 import SmartGroupCreationWizard from '../../components/host-groups/SmartGroupCreationWizard';
@@ -96,7 +96,7 @@ const ComplianceGroups: React.FC = () => {
   const [showComplianceScanner, setShowComplianceScanner] = useState(false);
   const [showComplianceReport, setShowComplianceReport] = useState(false);
   const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
-  
+
   const user = useAppSelector((state) => state.auth.user);
 
   useEffect(() => {
@@ -107,11 +107,11 @@ const ComplianceGroups: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/host-groups/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (!response.ok) {
@@ -145,8 +145,12 @@ const ComplianceGroups: React.FC = () => {
 
   const handleDeleteGroup = async () => {
     if (!selectedGroup) return;
-    
-    if (!confirm(`Are you sure you want to delete the group "${selectedGroup.name}"? All hosts will be ungrouped.`)) {
+
+    if (
+      !confirm(
+        `Are you sure you want to delete the group "${selectedGroup.name}"? All hosts will be ungrouped.`
+      )
+    ) {
       handleMenuClose();
       return;
     }
@@ -155,8 +159,8 @@ const ComplianceGroups: React.FC = () => {
       const response = await fetch(`/api/host-groups/${selectedGroup.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (!response.ok) {
@@ -173,31 +177,33 @@ const ComplianceGroups: React.FC = () => {
 
   const handleScanGroup = async () => {
     if (!selectedGroup) return;
-    
+
     try {
       setScanError(null);
       setError(null);
-      
+
       // Check if group has hosts
       if (selectedGroup.host_count === 0) {
         setError('Cannot scan group: No hosts assigned to this group');
         handleMenuClose();
         return;
       }
-      
+
       // Check if group has SCAP content configured
       if (!selectedGroup.scap_content_id || !selectedGroup.default_profile_id) {
-        setError('Cannot scan group: SCAP content and profile must be configured. Click Edit Group to add compliance configuration.');
+        setError(
+          'Cannot scan group: SCAP content and profile must be configured. Click Edit Group to add compliance configuration.'
+        );
         handleMenuClose();
         return;
       }
-      
+
       // Use unified group-compliance API
       const response = await fetch(`/api/group-compliance/${selectedGroup.id}/scan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           scap_content_id: selectedGroup.scap_content_id,
@@ -205,8 +211,8 @@ const ComplianceGroups: React.FC = () => {
           compliance_framework: selectedGroup.compliance_framework,
           remediation_mode: 'report_only',
           email_notifications: false,
-          generate_reports: true
-        })
+          generate_reports: true,
+        }),
       });
 
       if (!response.ok) {
@@ -218,16 +224,17 @@ const ComplianceGroups: React.FC = () => {
       setActiveScanSession(scanData.session_id);
       setShowScanProgress(true);
       handleMenuClose();
-      
+
       // Show success message
       setError(`✅ Compliance scan started successfully. Session: ${scanData.session_id}`);
       setTimeout(() => setError(null), 5000);
-      
     } catch (err) {
       console.error('Error starting group scan:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to start group scan';
       setScanError(errorMessage);
-      setError(`❌ ${errorMessage}. Please check that the group has hosts assigned and SCAP content configured.`);
+      setError(
+        `❌ ${errorMessage}. Please check that the group has hosts assigned and SCAP content configured.`
+      );
       handleMenuClose();
     }
   };
@@ -255,7 +262,7 @@ const ComplianceGroups: React.FC = () => {
 
   const getComplianceScoreColor = (score: number) => {
     if (score >= 95) return 'success';
-    if (score >= 80) return 'info'; 
+    if (score >= 80) return 'info';
     if (score >= 60) return 'warning';
     return 'error';
   };
@@ -269,45 +276,52 @@ const ComplianceGroups: React.FC = () => {
 
   const renderGroupCard = (group: HostGroup) => {
     const compatibilityScore = group.compatibility_summary?.compatibility_score || 0;
-    const hasCompatibilityIssues = group.compatibility_summary && 
-      group.compatibility_summary.incompatible_hosts > 0;
+    const hasCompatibilityIssues =
+      group.compatibility_summary && group.compatibility_summary.incompatible_hosts > 0;
 
     return (
-      <Card 
-        key={group.id} 
-        sx={{ 
-          height: '100%', 
-          display: 'flex', 
+      <Card
+        key={group.id}
+        sx={{
+          height: '100%',
+          display: 'flex',
           flexDirection: 'column',
           position: 'relative',
           '&:hover': {
             boxShadow: 4,
             transform: 'translateY(-2px)',
-            transition: 'all 0.2s ease-in-out'
-          }
+            transition: 'all 0.2s ease-in-out',
+          },
         }}
       >
         {/* Group Color Indicator */}
-        <Box 
-          sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            width: '4px', 
-            height: '100%', 
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '4px',
+            height: '100%',
             bgcolor: group.color || '#666',
-            borderRadius: '4px 0 0 4px'
-          }} 
+            borderRadius: '4px 0 0 4px',
+          }}
         />
-        
+
         <CardContent sx={{ flexGrow: 1, pl: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              mb: 2,
+            }}
+          >
             <Box sx={{ flexGrow: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Typography variant="h6" component="h2">
                   {group.name}
                 </Typography>
-                
+
                 {/* SCAP Configuration Status Indicator */}
                 {group.scap_content_id && group.default_profile_id ? (
                   <Tooltip title="SCAP configuration complete - Ready to scan">
@@ -319,19 +333,15 @@ const ComplianceGroups: React.FC = () => {
                   </Tooltip>
                 )}
               </Box>
-              
+
               {group.description && (
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {group.description}
                 </Typography>
               )}
             </Box>
-            
-            <IconButton
-              onClick={(e) => handleMenuOpen(e, group)}
-              size="small"
-              sx={{ ml: 1 }}
-            >
+
+            <IconButton onClick={(e) => handleMenuOpen(e, group)} size="small" sx={{ ml: 1 }}>
               <MoreIcon />
             </IconButton>
           </Box>
@@ -346,7 +356,7 @@ const ComplianceGroups: React.FC = () => {
                 variant="outlined"
               />
             )}
-            
+
             {group.compliance_framework && (
               <Chip
                 icon={<SecurityIcon />}
@@ -356,12 +366,12 @@ const ComplianceGroups: React.FC = () => {
                 variant="outlined"
               />
             )}
-            
+
             {/* SCAP Configuration Status Chip */}
             {group.scap_content_id && group.default_profile_id ? (
               <Chip
                 icon={<CheckCircle />}
-                label={group.scap_content_name || "SCAP Configured"}
+                label={group.scap_content_name || 'SCAP Configured'}
                 size="small"
                 color="success"
                 variant="filled"
@@ -378,7 +388,9 @@ const ComplianceGroups: React.FC = () => {
           </Stack>
 
           {/* Host Count and Compatibility */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Badge badgeContent={group.host_count} color="primary">
                 <HostIcon />
@@ -387,15 +399,12 @@ const ComplianceGroups: React.FC = () => {
                 {group.host_count} host{group.host_count !== 1 ? 's' : ''}
               </Typography>
             </Box>
-            
+
             {group.compatibility_summary && (
               <Tooltip title={`Compatibility: ${compatibilityScore.toFixed(1)}%`}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   {getComplianceScoreIcon(compatibilityScore)}
-                  <Typography 
-                    variant="body2" 
-                    color={getComplianceScoreColor(compatibilityScore)}
-                  >
+                  <Typography variant="body2" color={getComplianceScoreColor(compatibilityScore)}>
                     {compatibilityScore.toFixed(1)}%
                   </Typography>
                 </Box>
@@ -409,12 +418,17 @@ const ComplianceGroups: React.FC = () => {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                 <Typography variant="caption">Compatibility</Typography>
                 <Typography variant="caption">
-                  {group.compatibility_summary.compatible_hosts}/{group.compatibility_summary.total_hosts}
+                  {group.compatibility_summary.compatible_hosts}/
+                  {group.compatibility_summary.total_hosts}
                 </Typography>
               </Box>
               <LinearProgress
                 variant="determinate"
-                value={(group.compatibility_summary.compatible_hosts / group.compatibility_summary.total_hosts) * 100}
+                value={
+                  (group.compatibility_summary.compatible_hosts /
+                    group.compatibility_summary.total_hosts) *
+                  100
+                }
                 color={getComplianceScoreColor(compatibilityScore)}
                 sx={{ height: 6, borderRadius: 3 }}
               />
@@ -444,11 +458,7 @@ const ComplianceGroups: React.FC = () => {
             ) : (
               <Chip
                 icon={<WarningIcon />}
-                label={
-                  group.host_count === 0 
-                    ? "No hosts assigned" 
-                    : "SCAP content required"
-                }
+                label={group.host_count === 0 ? 'No hosts assigned' : 'SCAP content required'}
                 size="small"
                 color="warning"
                 variant="outlined"
@@ -549,10 +559,10 @@ const ComplianceGroups: React.FC = () => {
               Organize hosts into smart compliance groups with automated validation and scanning
             </Typography>
           </Box>
-          
+
           <Box sx={{ display: 'flex', gap: 2 }}>
             {/* Show bulk config button only if there are unconfigured groups */}
-            {groups.some(g => !g.scap_content_id || !g.default_profile_id) && (
+            {groups.some((g) => !g.scap_content_id || !g.default_profile_id) && (
               <Button
                 variant="outlined"
                 startIcon={<ConfigIcon />}
@@ -563,7 +573,7 @@ const ComplianceGroups: React.FC = () => {
                 Bulk Configure SCAP
               </Button>
             )}
-            
+
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -574,7 +584,7 @@ const ComplianceGroups: React.FC = () => {
             </Button>
           </Box>
         </Box>
-        
+
         {/* Stats Summary */}
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={3}>
@@ -601,7 +611,7 @@ const ComplianceGroups: React.FC = () => {
             <Grid item xs={12} sm={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="success.main">
-                  {groups.filter(g => g.auto_scan_enabled).length}
+                  {groups.filter((g) => g.auto_scan_enabled).length}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Auto-scan Enabled
@@ -611,10 +621,12 @@ const ComplianceGroups: React.FC = () => {
             <Grid item xs={12} sm={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="warning.main">
-                  {groups.filter(g => 
-                    g.compatibility_summary && 
-                    g.compatibility_summary.incompatible_hosts > 0
-                  ).length}
+                  {
+                    groups.filter(
+                      (g) =>
+                        g.compatibility_summary && g.compatibility_summary.incompatible_hosts > 0
+                    ).length
+                  }
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Need Attention
@@ -645,7 +657,8 @@ const ComplianceGroups: React.FC = () => {
             No Compliance Groups
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Create your first compliance group to organize hosts by OS, compliance framework, and SCAP content
+            Create your first compliance group to organize hosts by OS, compliance framework, and
+            SCAP content
           </Typography>
           <Button
             variant="contained"
@@ -667,38 +680,38 @@ const ComplianceGroups: React.FC = () => {
       )}
 
       {/* Context Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-      >
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
         <MenuItem onClick={handleViewCompatibility}>
           <ListItemIcon>
             <ViewIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>View Compatibility</ListItemText>
         </MenuItem>
-        
-        <MenuItem 
+
+        <MenuItem
           onClick={handleScanGroup}
-          disabled={!selectedGroup || selectedGroup.host_count === 0 || !selectedGroup.scap_content_id || !selectedGroup.default_profile_id}
+          disabled={
+            !selectedGroup ||
+            selectedGroup.host_count === 0 ||
+            !selectedGroup.scap_content_id ||
+            !selectedGroup.default_profile_id
+          }
         >
           <ListItemIcon>
             <ScanIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>
             Run Group Scan
-            {selectedGroup && (
-              selectedGroup.host_count === 0 
-                ? " (No hosts)" 
-                : !selectedGroup.scap_content_id || !selectedGroup.default_profile_id 
-                  ? " (SCAP configuration required - Click Edit Group)"
-                  : ""
-            )}
+            {selectedGroup &&
+              (selectedGroup.host_count === 0
+                ? ' (No hosts)'
+                : !selectedGroup.scap_content_id || !selectedGroup.default_profile_id
+                  ? ' (SCAP configuration required - Click Edit Group)'
+                  : '')}
           </ListItemText>
         </MenuItem>
 
-        <MenuItem 
+        <MenuItem
           onClick={handleComplianceScanning}
           disabled={!selectedGroup || selectedGroup.host_count === 0}
         >
@@ -714,16 +727,16 @@ const ComplianceGroups: React.FC = () => {
           </ListItemIcon>
           <ListItemText>Compliance Report</ListItemText>
         </MenuItem>
-        
+
         <Divider />
-        
+
         <MenuItem onClick={handleEditGroup}>
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText>Edit Group</ListItemText>
         </MenuItem>
-        
+
         <MenuItem onClick={handleDeleteGroup} sx={{ color: 'error.main' }}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" color="error" />
@@ -768,12 +781,15 @@ const ComplianceGroups: React.FC = () => {
           groupName={selectedGroup.name}
           onCancel={async (sessionId: string) => {
             try {
-              const response = await fetch(`/api/group-compliance/${selectedGroup.id}/cancel/${sessionId}`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+              const response = await fetch(
+                `/api/group-compliance/${selectedGroup.id}/cancel/${sessionId}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+                  },
                 }
-              });
+              );
               if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.detail || 'Failed to cancel scan');
@@ -799,15 +815,13 @@ const ComplianceGroups: React.FC = () => {
       />
 
       {/* Advanced Compliance Scanner Dialog */}
-      <Dialog 
-        open={showComplianceScanner} 
-        onClose={() => setShowComplianceScanner(false)} 
-        maxWidth="lg" 
+      <Dialog
+        open={showComplianceScanner}
+        onClose={() => setShowComplianceScanner(false)}
+        maxWidth="lg"
         fullWidth
       >
-        <DialogTitle>
-          Advanced Compliance Scanning - {complianceGroup?.name}
-        </DialogTitle>
+        <DialogTitle>Advanced Compliance Scanning - {complianceGroup?.name}</DialogTitle>
         <DialogContent>
           {complianceGroup && (
             <GroupComplianceScanner
@@ -824,21 +838,16 @@ const ComplianceGroups: React.FC = () => {
       </Dialog>
 
       {/* Compliance Report Dialog */}
-      <Dialog 
-        open={showComplianceReport} 
-        onClose={() => setShowComplianceReport(false)} 
-        maxWidth="xl" 
+      <Dialog
+        open={showComplianceReport}
+        onClose={() => setShowComplianceReport(false)}
+        maxWidth="xl"
         fullWidth
       >
-        <DialogTitle>
-          Compliance Report - {complianceGroup?.name}
-        </DialogTitle>
+        <DialogTitle>Compliance Report - {complianceGroup?.name}</DialogTitle>
         <DialogContent>
           {complianceGroup && (
-            <GroupComplianceReport
-              groupId={complianceGroup.id}
-              groupName={complianceGroup.name}
-            />
+            <GroupComplianceReport groupId={complianceGroup.id} groupName={complianceGroup.name} />
           )}
         </DialogContent>
       </Dialog>

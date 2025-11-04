@@ -186,22 +186,24 @@ const initialState: RuleState = {
 // Async thunks
 export const fetchRules = createAsyncThunk(
   'rules/fetchRules',
-  async (params: {
-    offset?: number;
-    limit?: number;
-    platform?: string;
-    severity?: string;
-    category?: string;
-    framework?: string;
-    abstract?: boolean;
-  } = {}) => {
+  async (
+    params: {
+      offset?: number;
+      limit?: number;
+      platform?: string;
+      severity?: string;
+      category?: string;
+      framework?: string;
+      abstract?: boolean;
+    } = {}
+  ) => {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
         queryParams.append(key, value.toString());
       }
     });
-    
+
     const response = await api.get(`/api/v1/rules?${queryParams.toString()}`);
     return response.data;
   }
@@ -226,7 +228,11 @@ export const fetchRuleDetails = createAsyncThunk(
 
 export const fetchRuleDependencies = createAsyncThunk(
   'rules/fetchRuleDependencies',
-  async ({ ruleIds, includeTransitive = true, maxDepth = 5 }: {
+  async ({
+    ruleIds,
+    includeTransitive = true,
+    maxDepth = 5,
+  }: {
     ruleIds: string[];
     includeTransitive?: boolean;
     maxDepth?: number;
@@ -262,7 +268,11 @@ export const detectPlatformCapabilities = createAsyncThunk(
 
 export const exportRules = createAsyncThunk(
   'rules/exportRules',
-  async ({ ruleIds, format, includeMetadata = true }: {
+  async ({
+    ruleIds,
+    format,
+    includeMetadata = true,
+  }: {
     ruleIds: string[];
     format: 'json' | 'csv' | 'xml';
     includeMetadata?: boolean;
@@ -334,18 +344,18 @@ const ruleSlice = createSlice({
             lastUpdated: new Date().toISOString(),
             isStale: false,
           };
-          
+
           // Extract unique values for filters
           const platforms = new Set<string>();
           const categories = new Set<string>();
           const frameworks = new Set<string>();
-          
-          state.rules.forEach(rule => {
-            Object.keys(rule.platform_implementations || {}).forEach(p => platforms.add(p));
+
+          state.rules.forEach((rule) => {
+            Object.keys(rule.platform_implementations || {}).forEach((p) => platforms.add(p));
             if (rule.category) categories.add(rule.category);
-            Object.keys(rule.frameworks || {}).forEach(f => frameworks.add(f));
+            Object.keys(rule.frameworks || {}).forEach((f) => frameworks.add(f));
           });
-          
+
           state.availablePlatforms = Array.from(platforms).sort();
           state.availableCategories = Array.from(categories).sort();
           state.availableFrameworks = Array.from(frameworks).sort();
@@ -355,7 +365,7 @@ const ruleSlice = createSlice({
         state.isLoading = false;
         state.error = action.error.message || 'Failed to fetch rules';
       })
-      
+
       // Search Rules
       .addCase(searchRules.pending, (state) => {
         state.isSearching = true;
@@ -371,21 +381,21 @@ const ruleSlice = createSlice({
         state.isSearching = false;
         state.error = action.error.message || 'Failed to search rules';
       })
-      
+
       // Fetch Rule Details
       .addCase(fetchRuleDetails.fulfilled, (state, action) => {
         if (action.payload.success && action.payload.data) {
           state.selectedRule = action.payload.data;
         }
       })
-      
+
       // Fetch Rule Dependencies
       .addCase(fetchRuleDependencies.fulfilled, (state, action) => {
         if (action.payload.success && action.payload.data) {
           state.ruleDependencies = action.payload.data;
         }
       })
-      
+
       // Platform Capabilities
       .addCase(detectPlatformCapabilities.fulfilled, (state, action) => {
         if (action.payload.success && action.payload.data) {

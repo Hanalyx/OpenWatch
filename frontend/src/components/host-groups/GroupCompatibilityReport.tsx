@@ -95,7 +95,7 @@ interface GroupCompatibilityReportProps {
 const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
   open,
   onClose,
-  group
+  group,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,8 +114,8 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
 
       const response = await fetch(`/api/host-groups/${group.id}/compatibility-report`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (!response.ok) {
@@ -157,7 +157,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
     }
   };
 
-  const getRecommendationSeverity = (type: string): "error" | "warning" | "info" | "success" => {
+  const getRecommendationSeverity = (type: string): 'error' | 'warning' | 'info' | 'success' => {
     switch (type) {
       case 'error':
         return 'error';
@@ -175,7 +175,10 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
 
     const { statistics } = report;
     const totalHosts = statistics.total_hosts;
-    const compatibilityRate = totalHosts > 0 ? ((statistics.fully_compatible + statistics.partially_compatible) / totalHosts * 100) : 0;
+    const compatibilityRate =
+      totalHosts > 0
+        ? ((statistics.fully_compatible + statistics.partially_compatible) / totalHosts) * 100
+        : 0;
 
     return (
       <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -247,9 +250,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
                 <Typography variant="caption">
                   {statistics.fully_compatible + statistics.partially_compatible} compatible
                 </Typography>
-                <Typography variant="caption">
-                  {statistics.incompatible} incompatible
-                </Typography>
+                <Typography variant="caption">{statistics.incompatible} incompatible</Typography>
               </Box>
             </CardContent>
           </Card>
@@ -291,7 +292,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
                         </Box>
                       </Box>
                     </TableCell>
-                    
+
                     <TableCell>
                       {host.os ? (
                         <Chip label={host.os} size="small" />
@@ -388,12 +389,14 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
         {report.recommendations.length > 0 && (
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">Recommendations ({report.recommendations.length})</Typography>
+              <Typography variant="h6">
+                Recommendations ({report.recommendations.length})
+              </Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {report.recommendations.map((recommendation, index) => (
-                  <Alert 
+                  <Alert
                     key={index}
                     severity={getRecommendationSeverity(recommendation.type)}
                     action={
@@ -402,9 +405,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
                       </Button>
                     }
                   >
-                    <Typography variant="body2">
-                      {recommendation.message}
-                    </Typography>
+                    <Typography variant="body2">{recommendation.message}</Typography>
                   </Alert>
                 ))}
               </Box>
@@ -427,9 +428,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ReportIcon color="primary" />
           <Box>
-            <Typography variant="h6">
-              Compatibility Report: {group.name}
-            </Typography>
+            <Typography variant="h6">Compatibility Report: {group.name}</Typography>
             <Typography variant="body2" color="text.secondary">
               Detailed analysis of host compatibility with group requirements
             </Typography>
@@ -478,21 +477,14 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
             {renderIssuesAndRecommendations()}
           </Box>
         ) : (
-          <Typography color="text.secondary">
-            No compatibility data available
-          </Typography>
+          <Typography color="text.secondary">No compatibility data available</Typography>
         )}
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>
-          Close
-        </Button>
+        <Button onClick={onClose}>Close</Button>
         {report && (
-          <Button 
-            variant="outlined" 
-            onClick={() => window.print()}
-          >
+          <Button variant="outlined" onClick={() => window.print()}>
             Print Report
           </Button>
         )}

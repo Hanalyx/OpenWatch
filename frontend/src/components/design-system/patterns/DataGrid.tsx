@@ -11,10 +11,7 @@ import {
   List,
   ListItem,
 } from '@mui/material';
-import {
-  ExpandMore,
-  ChevronRight,
-} from '@mui/icons-material';
+import { ExpandMore, ChevronRight } from '@mui/icons-material';
 
 export type ViewMode = 'grid' | 'list' | 'compact';
 
@@ -71,7 +68,7 @@ const DataGrid = <T extends DataGridItem>({
   // Handle ungrouped items
   const dataToRender = groups.length > 0 ? groups : [{ name: '', items, collapsed: false }];
 
-  if (dataToRender.every(group => group.items.length === 0) && emptyState) {
+  if (dataToRender.every((group) => group.items.length === 0) && emptyState) {
     return <>{emptyState}</>;
   }
 
@@ -87,7 +84,7 @@ const DataGrid = <T extends DataGridItem>({
             ))}
           </Stack>
         );
-      
+
       case 'compact':
         return (
           <Grid container spacing={1}>
@@ -98,7 +95,7 @@ const DataGrid = <T extends DataGridItem>({
             ))}
           </Grid>
         );
-      
+
       case 'grid':
       default:
         return (
@@ -148,9 +145,7 @@ const DataGrid = <T extends DataGridItem>({
           )}
 
           {/* Group Items */}
-          <Collapse in={!group.collapsed}>
-            {renderGroupItems(group.items as T[])}
-          </Collapse>
+          <Collapse in={!group.collapsed}>{renderGroupItems(group.items as T[])}</Collapse>
         </Box>
       ))}
     </Box>

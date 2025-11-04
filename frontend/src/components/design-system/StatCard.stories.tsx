@@ -154,7 +154,13 @@ export const Interactive: Story = {
  */
 export const ColorVariations: Story = {
   render: () => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: '1rem',
+      }}
+    >
       <StatCard
         title="Primary"
         value="100"
@@ -206,7 +212,8 @@ export const ColorVariations: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'StatCard supports different color themes to match various data types and semantic meanings.',
+        story:
+          'StatCard supports different color themes to match various data types and semantic meanings.',
       },
     },
   },
@@ -217,12 +224,14 @@ export const ColorVariations: Story = {
  */
 export const ResponsiveGrid: Story = {
   render: () => (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-      gap: '1rem',
-      maxWidth: '800px' 
-    }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        maxWidth: '800px',
+      }}
+    >
       <StatCard
         title="Hosts"
         value="124"
@@ -262,7 +271,8 @@ export const ResponsiveGrid: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'StatCards work well in responsive grid layouts and automatically adapt to different screen sizes.',
+        story:
+          'StatCards work well in responsive grid layouts and automatically adapt to different screen sizes.',
       },
     },
     viewport: {

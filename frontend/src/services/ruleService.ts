@@ -1,6 +1,11 @@
 import { api } from './api';
 import { getAuthHeaders } from '../hooks/useAuthHeaders';
-import { Rule, SearchRequest, PlatformCapability, RuleDependencyGraph } from '../store/slices/ruleSlice';
+import {
+  Rule,
+  SearchRequest,
+  PlatformCapability,
+  RuleDependencyGraph,
+} from '../store/slices/ruleSlice';
 
 export interface RuleListResponse {
   success: boolean;
@@ -58,18 +63,20 @@ export interface PlatformCapabilitiesResponse {
 class RuleService {
   private readonly baseUrl = '/api/v1/rules';
 
-  async getRules(params: {
-    offset?: number;
-    limit?: number;
-    platform?: string;
-    severity?: string;
-    category?: string;
-    framework?: string;
-    abstract?: boolean;
-    search?: string;
-  } = {}): Promise<RuleListResponse> {
+  async getRules(
+    params: {
+      offset?: number;
+      limit?: number;
+      platform?: string;
+      severity?: string;
+      category?: string;
+      framework?: string;
+      abstract?: boolean;
+      search?: string;
+    } = {}
+  ): Promise<RuleListResponse> {
     console.log('Connecting to MongoDB compliance rules database...');
-    
+
     try {
       // Use our converted rules endpoint instead of MongoDB
       const queryParams = new URLSearchParams();
@@ -80,24 +87,24 @@ class RuleService {
       if (params.category) queryParams.append('category', params.category);
       if (params.framework) queryParams.append('framework', params.framework);
       if (params.search) queryParams.append('search', params.search);
-      
+
       const response = await fetch(`/api/v1/compliance-rules/?${queryParams.toString()}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.message || 'Failed to fetch rules');
       }
-      
+
       const rules = result.data.rules || [];
       const totalCount = result.data.total_count || 0;
-      
+
       console.log(`✅ MongoDB connection successful: Retrieved ${rules.length} rules`);
-      
+
       return {
         success: true,
         data: {
@@ -110,16 +117,15 @@ class RuleService {
           filters_applied: {
             platform: params.platform,
             severity: params.severity,
-            category: params.category
-          }
+            category: params.category,
+          },
         },
         message: `✅ MongoDB Connected: ${totalCount} compliance rules in database`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-      
     } catch (error) {
       console.error('❌ Rules API connection failed:', error);
-      
+
       // Return empty state instead of mock data
       return {
         success: false,
@@ -130,10 +136,10 @@ class RuleService {
           limit: 25,
           has_next: false,
           has_prev: false,
-          filters_applied: {}
+          filters_applied: {},
         },
         message: 'Failed to load compliance rules',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
   }
@@ -147,9 +153,11 @@ class RuleService {
         scap_rule_id: 'xccdf_org.ssgproject.content_rule_sshd_disable_root_login',
         metadata: {
           name: 'Disable SSH Root Login',
-          description: 'The root user should never be allowed to login to a system directly over a network',
-          rationale: 'Disallowing root logins over SSH requires system admins to authenticate using their own individual account',
-          source: 'MongoDB Compliance Database'
+          description:
+            'The root user should never be allowed to login to a system directly over a network',
+          rationale:
+            'Disallowing root logins over SSH requires system admins to authenticate using their own individual account',
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'high',
@@ -158,22 +166,23 @@ class RuleService {
         tags: ['ssh', 'authentication', 'root_access'],
         frameworks: {
           nist: { '800-53r5': ['AC-6', 'IA-2'] },
-          cis: { 'rhel8_v2.0.0': ['5.2.8'] }
+          cis: { 'rhel8_v2.0.0': ['5.2.8'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: "grep '^PermitRootLogin no' /etc/ssh/sshd_config",
-            enable_command: "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl restart sshd"
-          }
+            enable_command:
+              "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl restart sshd",
+          },
         },
         dependencies: {
           requires: ['ow-ssh-service-enabled'],
           conflicts: [],
-          related: ['ow-ssh-protocol-version']
+          related: ['ow-ssh-protocol-version'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-firewall-enabled',
@@ -182,7 +191,7 @@ class RuleService {
           name: 'Enable Firewall',
           description: 'A firewall should be enabled to control network traffic',
           rationale: 'Firewalls provide network access control and logging capabilities',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'high',
@@ -191,27 +200,27 @@ class RuleService {
         tags: ['firewall', 'network', 'security'],
         frameworks: {
           nist: { '800-53r5': ['SC-7'] },
-          cis: { 'rhel8_v2.0.0': ['3.4.1'] }
+          cis: { 'rhel8_v2.0.0': ['3.4.1'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: 'systemctl is-enabled firewalld',
-            enable_command: 'systemctl enable --now firewalld'
+            enable_command: 'systemctl enable --now firewalld',
           },
           ubuntu: {
             versions: ['20.04', '22.04'],
             check_command: 'ufw status | grep "Status: active"',
-            enable_command: 'ufw --force enable'
-          }
+            enable_command: 'ufw --force enable',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: ['ow-iptables-enabled'],
-          related: ['ow-network-hardening']
+          related: ['ow-network-hardening'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-password-complexity',
@@ -220,7 +229,7 @@ class RuleService {
           name: 'Configure Password Complexity',
           description: 'Password complexity requirements should be enforced',
           rationale: 'Complex passwords are harder to crack and provide better security',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'medium',
@@ -229,22 +238,23 @@ class RuleService {
         tags: ['password', 'authentication', 'complexity'],
         frameworks: {
           nist: { '800-53r5': ['IA-5'] },
-          cis: { 'rhel8_v2.0.0': ['5.3.1'] }
+          cis: { 'rhel8_v2.0.0': ['5.3.1'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: 'grep pam_pwquality /etc/pam.d/password-auth',
-            enable_command: 'authconfig --enablereqlower --enablerequpper --enablereqdigit --enablereqother --passminlen=14 --update'
-          }
+            enable_command:
+              'authconfig --enablereqlower --enablerequpper --enablereqdigit --enablereqother --passminlen=14 --update',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-password-history']
+          related: ['ow-password-history'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       // Additional MongoDB rules to show expanded database
       {
@@ -254,7 +264,7 @@ class RuleService {
           name: 'Secure File Permissions',
           description: 'Critical system files should have secure permissions',
           rationale: 'Proper file permissions prevent unauthorized access to system files',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'high',
@@ -264,27 +274,27 @@ class RuleService {
         frameworks: {
           nist: { '800-53r5': ['AC-3', 'AC-6'] },
           cis: { 'rhel8_v2.0.0': ['6.1.1'] },
-          stig: { 'rhel8_v1r6': ['SV-230221r743931_rule'] }
+          stig: { rhel8_v1r6: ['SV-230221r743931_rule'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['7', '8', '9'],
             check_command: 'find /etc -type f -perm -002 | head -10',
-            enable_command: 'chmod -R o-w /etc/'
+            enable_command: 'chmod -R o-w /etc/',
           },
           ubuntu: {
             versions: ['18.04', '20.04', '22.04'],
             check_command: 'find /etc -type f -perm -002 | head -10',
-            enable_command: 'chmod -R o-w /etc/'
-          }
+            enable_command: 'chmod -R o-w /etc/',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-directory-permissions']
+          related: ['ow-directory-permissions'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-audit-logging-enabled',
@@ -293,7 +303,7 @@ class RuleService {
           name: 'Enable Audit Logging',
           description: 'System audit logging should be enabled and configured',
           rationale: 'Audit logs provide accountability and help with incident response',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'medium',
@@ -303,22 +313,22 @@ class RuleService {
         frameworks: {
           nist: { '800-53r5': ['AU-2', 'AU-3', 'AU-12'] },
           cis: { 'rhel8_v2.0.0': ['4.1.1'] },
-          pci: { 'v4.0': ['10.2', '10.3'] }
+          pci: { 'v4.0': ['10.2', '10.3'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: 'systemctl is-enabled auditd',
-            enable_command: 'systemctl enable --now auditd'
-          }
+            enable_command: 'systemctl enable --now auditd',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-log-rotation', 'ow-rsyslog-config']
+          related: ['ow-log-rotation', 'ow-rsyslog-config'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-selinux-enforcing',
@@ -327,7 +337,7 @@ class RuleService {
           name: 'SELinux Enforcing Mode',
           description: 'SELinux should be configured in enforcing mode',
           rationale: 'SELinux enforcing mode provides mandatory access control',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'high',
@@ -337,22 +347,23 @@ class RuleService {
         frameworks: {
           nist: { '800-53r5': ['AC-3', 'SC-3'] },
           cis: { 'rhel8_v2.0.0': ['1.7.1'] },
-          stig: { 'rhel8_v1r6': ['SV-230223r743937_rule'] }
+          stig: { rhel8_v1r6: ['SV-230223r743937_rule'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['7', '8', '9'],
             check_command: 'getenforce',
-            enable_command: 'setenforce 1 && sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config'
-          }
+            enable_command:
+              'setenforce 1 && sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-selinux-policy']
+          related: ['ow-selinux-policy'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-automatic-updates-configured',
@@ -361,7 +372,7 @@ class RuleService {
           name: 'Configure Automatic Security Updates',
           description: 'Automatic security updates should be properly configured',
           rationale: 'Regular security updates reduce attack surface',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'medium',
@@ -370,27 +381,27 @@ class RuleService {
         tags: ['updates', 'patches', 'vulnerability_management'],
         frameworks: {
           nist: { '800-53r5': ['SI-2'] },
-          cis: { 'rhel8_v2.0.0': ['1.9'] }
+          cis: { 'rhel8_v2.0.0': ['1.9'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: 'dnf config-manager --dump | grep -i "install_weak_deps"',
-            enable_command: 'dnf config-manager --set-enabled automatic'
+            enable_command: 'dnf config-manager --set-enabled automatic',
           },
           ubuntu: {
             versions: ['20.04', '22.04'],
             check_command: 'systemctl is-enabled unattended-upgrades',
-            enable_command: 'systemctl enable --now unattended-upgrades'
-          }
+            enable_command: 'systemctl enable --now unattended-upgrades',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-package-management']
+          related: ['ow-package-management'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
+        updated_at: '2025-09-05T09:00:00Z',
       },
       {
         rule_id: 'ow-unused-services-disabled',
@@ -399,7 +410,7 @@ class RuleService {
           name: 'Disable Unused Services',
           description: 'Unnecessary services should be disabled to reduce attack surface',
           rationale: 'Each running service represents a potential attack vector',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: 'low',
@@ -408,28 +419,36 @@ class RuleService {
         tags: ['services', 'attack_surface', 'hardening'],
         frameworks: {
           nist: { '800-53r5': ['CM-7'] },
-          cis: { 'rhel8_v2.0.0': ['2.1'] }
+          cis: { 'rhel8_v2.0.0': ['2.1'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
-            check_command: 'systemctl list-unit-files --type=service --state=enabled | grep -v essential',
-            enable_command: 'systemctl disable rpcbind cups'
-          }
+            check_command:
+              'systemctl list-unit-files --type=service --state=enabled | grep -v essential',
+            enable_command: 'systemctl disable rpcbind cups',
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: ['ow-service-hardening']
+          related: ['ow-service-hardening'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-05T09:00:00Z'
-      }
+        updated_at: '2025-09-05T09:00:00Z',
+      },
     ];
 
     // Generate additional rules to match the 1,584 rules now in MongoDB
     const allRules: Rule[] = [...baseRules];
-    const categories = ['authentication', 'network_security', 'system_maintenance', 'audit', 'configuration', 'access_control'];
+    const categories = [
+      'authentication',
+      'network_security',
+      'system_maintenance',
+      'audit',
+      'configuration',
+      'access_control',
+    ];
     const severities: Array<'high' | 'medium' | 'low' | 'info'> = ['high', 'medium', 'low', 'info'];
 
     // Generate additional rules to reach 1,584 total (matching MongoDB import)
@@ -444,64 +463,67 @@ class RuleService {
           name: `RHEL8 Security Rule ${i}`,
           description: `This is security rule ${i} imported from RHEL8 SCAP content (from MongoDB database)`,
           rationale: 'Security compliance requirement from RHEL8 SCAP baseline',
-          source: 'MongoDB Compliance Database'
+          source: 'MongoDB Compliance Database',
         },
         abstract: false,
         severity: severity,
         category: category,
-        security_function: category === 'authentication' ? 'identification_authentication' : 
-                           category === 'network_security' ? 'boundary_protection' : 'configuration_management',
+        security_function:
+          category === 'authentication'
+            ? 'identification_authentication'
+            : category === 'network_security'
+              ? 'boundary_protection'
+              : 'configuration_management',
         tags: ['rhel8', 'scap', 'compliance'],
         frameworks: {
           nist: { '800-53r5': ['CM-6', 'AC-3'] },
-          cis: { 'rhel8_v2.0.0': [`${Math.floor(i/100) + 1}.${(i % 100) + 1}`] }
+          cis: { 'rhel8_v2.0.0': [`${Math.floor(i / 100) + 1}.${(i % 100) + 1}`] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8'],
             check_command: `# MongoDB stored check command for rule ${i}`,
-            enable_command: `# MongoDB stored enable command for rule ${i}`
-          }
+            enable_command: `# MongoDB stored enable command for rule ${i}`,
+          },
         },
         dependencies: {
           requires: [],
           conflicts: [],
-          related: []
+          related: [],
         },
         created_at: '2025-09-05T14:30:00Z',
-        updated_at: '2025-09-05T14:30:00Z'
+        updated_at: '2025-09-05T14:30:00Z',
       });
     }
 
     // Apply filters
     let filteredRules = allRules;
-    
+
     if (params.severity) {
-      filteredRules = filteredRules.filter(rule => rule.severity === params.severity);
+      filteredRules = filteredRules.filter((rule) => rule.severity === params.severity);
     }
-    
+
     if (params.category) {
-      filteredRules = filteredRules.filter(rule => rule.category === params.category);
+      filteredRules = filteredRules.filter((rule) => rule.category === params.category);
     }
-    
+
     if (params.platform) {
-      filteredRules = filteredRules.filter(rule => 
-        rule.platform_implementations[params.platform]
+      filteredRules = filteredRules.filter(
+        (rule) => rule.platform_implementations[params.platform]
       );
     }
-    
+
     if (params.framework) {
-      filteredRules = filteredRules.filter(rule => 
-        rule.frameworks[params.framework]
-      );
+      filteredRules = filteredRules.filter((rule) => rule.frameworks[params.framework]);
     }
-    
+
     if (params.search) {
       const searchLower = params.search.toLowerCase();
-      filteredRules = filteredRules.filter(rule =>
-        rule.metadata.name.toLowerCase().includes(searchLower) ||
-        rule.metadata.description.toLowerCase().includes(searchLower) ||
-        rule.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      filteredRules = filteredRules.filter(
+        (rule) =>
+          rule.metadata.name.toLowerCase().includes(searchLower) ||
+          rule.metadata.description.toLowerCase().includes(searchLower) ||
+          rule.tags.some((tag) => tag.toLowerCase().includes(searchLower))
       );
     }
 
@@ -540,18 +562,18 @@ class RuleService {
         category: searchRequest.filters?.category?.join(','),
         framework: searchRequest.filters?.framework?.join(','),
         limit: searchRequest.limit || 50,
-        offset: searchRequest.offset || 0
+        offset: searchRequest.offset || 0,
       };
-      
-      const response = await api.get('/api/v1/compliance-rules/', { 
+
+      const response = await api.get('/api/v1/compliance-rules/', {
         params,
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
-      
+
       // Transform to search response format
       const rules = response.data.rules || response.data || [];
       const totalCount = response.data.total || rules.length;
-      
+
       return {
         success: true,
         data: {
@@ -563,11 +585,11 @@ class RuleService {
             platform: searchRequest.filters?.platform,
             severity: searchRequest.filters?.severity,
             category: searchRequest.filters?.category,
-            framework: searchRequest.filters?.framework
-          }
+            framework: searchRequest.filters?.framework,
+          },
         },
         message: `Found ${totalCount} rules matching your search`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
       // Mock response for development
@@ -580,14 +602,14 @@ class RuleService {
       // Use the MongoDB compliance rules endpoint with centralized auth
       const response = await api.get(`/api/v1/compliance-rules/${ruleId}`, {
         params: { include_inheritance: includeInheritance },
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
-      
+
       return {
         success: true,
         data: response.data,
         message: `Retrieved rule details for ${ruleId}`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     } catch (error) {
       // Mock response for development
@@ -661,9 +683,11 @@ class RuleService {
         scap_rule_id: 'xccdf_org.ssgproject.content_rule_sshd_disable_root_login',
         metadata: {
           name: 'Disable SSH Root Login',
-          description: 'The root user should never be allowed to login to a system directly over a network',
-          rationale: 'Disallowing root logins over SSH requires system admins to authenticate using their own individual account',
-          source: 'SCAP'
+          description:
+            'The root user should never be allowed to login to a system directly over a network',
+          rationale:
+            'Disallowing root logins over SSH requires system admins to authenticate using their own individual account',
+          source: 'SCAP',
         },
         abstract: false,
         severity: 'high',
@@ -672,23 +696,24 @@ class RuleService {
         tags: ['ssh', 'authentication', 'root_access'],
         frameworks: {
           nist: { '800-53r5': ['AC-6', 'IA-2'] },
-          cis: { 'rhel8_v2.0.0': ['5.2.8'] }
+          cis: { 'rhel8_v2.0.0': ['5.2.8'] },
         },
         platform_implementations: {
           rhel: {
             versions: ['8', '9'],
             check_command: "grep '^PermitRootLogin no' /etc/ssh/sshd_config",
-            enable_command: "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl restart sshd"
-          }
+            enable_command:
+              "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl restart sshd",
+          },
         },
         dependencies: {
           requires: ['ow-ssh-service-enabled'],
           conflicts: [],
-          related: ['ow-ssh-protocol-version']
+          related: ['ow-ssh-protocol-version'],
         },
         created_at: '2025-01-01T12:00:00Z',
-        updated_at: '2025-09-04T19:00:00Z'
-      }
+        updated_at: '2025-09-04T19:00:00Z',
+      },
     ];
 
     return {
@@ -714,17 +739,18 @@ class RuleService {
   private getMockSearchResponse(searchRequest: SearchRequest): RuleSearchResponse {
     const mockRules = this.getExpandedMongoDBRules({}).data.rules;
     const query = searchRequest.query.toLowerCase();
-    
+
     const results = mockRules
-      .filter(rule => 
-        rule.metadata.name.toLowerCase().includes(query) ||
-        rule.metadata.description.toLowerCase().includes(query) ||
-        rule.tags.some(tag => tag.toLowerCase().includes(query))
+      .filter(
+        (rule) =>
+          rule.metadata.name.toLowerCase().includes(query) ||
+          rule.metadata.description.toLowerCase().includes(query) ||
+          rule.tags.some((tag) => tag.toLowerCase().includes(query))
       )
-      .map(rule => ({
+      .map((rule) => ({
         ...rule,
         relevance_score: Math.random() * 0.4 + 0.6, // 0.6-1.0
-        matched_fields: ['metadata.name', 'tags']
+        matched_fields: ['metadata.name', 'tags'],
       }));
 
     return {
@@ -741,22 +767,27 @@ class RuleService {
     };
   }
 
-  private getMockRuleDetailsResponse(ruleId: string, includeInheritance: boolean): RuleDetailsResponse {
+  private getMockRuleDetailsResponse(
+    ruleId: string,
+    includeInheritance: boolean
+  ): RuleDetailsResponse {
     const mockRules = this.getExpandedMongoDBRules({}).data.rules;
-    const rule = mockRules.find(r => r.rule_id === ruleId) || mockRules[0];
-    
-    const enhancedRule = includeInheritance ? {
-      ...rule,
-      inheritance: {
-        parent_rule: ruleId.includes('ssh') ? 'ow-base-ssh-rule' : null,
-        overridden_parameters: ['check_command'],
-        inherited_frameworks: ['nist']
-      },
-      parameter_overrides: {
-        check_command: `Enhanced command for ${ruleId}`,
-        timeout: 30
-      }
-    } : rule;
+    const rule = mockRules.find((r) => r.rule_id === ruleId) || mockRules[0];
+
+    const enhancedRule = includeInheritance
+      ? {
+          ...rule,
+          inheritance: {
+            parent_rule: ruleId.includes('ssh') ? 'ow-base-ssh-rule' : null,
+            overridden_parameters: ['check_command'],
+            inherited_frameworks: ['nist'],
+          },
+          parameter_overrides: {
+            check_command: `Enhanced command for ${ruleId}`,
+            timeout: 30,
+          },
+        }
+      : rule;
 
     return {
       success: true,
@@ -775,20 +806,20 @@ class RuleService {
           direct_dependencies: {
             requires: ['ow-ssh-service-enabled'],
             conflicts: [],
-            related: ['ow-ssh-protocol-version']
+            related: ['ow-ssh-protocol-version'],
           },
           transitive_dependencies: {
             'ow-ssh-service-enabled': {
               requires: ['ow-systemd-enabled'],
-              depth: 2
-            }
-          }
+              depth: 2,
+            },
+          },
         },
         conflict_analysis: {
           has_conflicts: false,
-          conflict_details: []
+          conflict_details: [],
         },
-        dependency_count: 2
+        dependency_count: 2,
       },
       message: `Dependency analysis complete for ${ruleId}`,
       timestamp: new Date().toISOString(),
@@ -808,25 +839,25 @@ class RuleService {
             detected: true,
             results: {
               firewalld: { version: '0.9.3', installed: true },
-              'openssh-server': { version: '8.0p1', installed: true }
-            }
+              'openssh-server': { version: '8.0p1', installed: true },
+            },
           },
           service: {
             detected: true,
             results: {
               firewalld: { state: 'enabled', enabled: true },
-              sshd: { state: 'enabled', enabled: true }
-            }
-          }
+              sshd: { state: 'enabled', enabled: true },
+            },
+          },
         },
         baseline_comparison: {
           missing: ['aide'],
           matched: ['firewalld', 'openssh-server'],
           analysis: {
             baseline_coverage: 0.85,
-            platform_health: 'good'
-          }
-        }
+            platform_health: 'good',
+          },
+        },
       },
       message: `Platform capabilities detected for ${params.platform} ${params.platformVersion}`,
       timestamp: new Date().toISOString(),
@@ -835,23 +866,25 @@ class RuleService {
 
   private getMockExportResponse(params: any): any {
     const mockRules = this.getExpandedMongoDBRules({}).data.rules;
-    
+
     if (params.format === 'json') {
       return {
         export_format: 'json',
         export_timestamp: new Date().toISOString(),
         rules_count: params.ruleIds.length,
-        rules: mockRules.filter(rule => params.ruleIds.includes(rule.rule_id))
+        rules: mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id)),
       };
     } else if (params.format === 'csv') {
-      return 'rule_id,name,severity,category\n' + 
+      return (
+        'rule_id,name,severity,category\n' +
         mockRules
-          .filter(rule => params.ruleIds.includes(rule.rule_id))
-          .map(rule => `${rule.rule_id},${rule.metadata.name},${rule.severity},${rule.category}`)
-          .join('\n');
+          .filter((rule) => params.ruleIds.includes(rule.rule_id))
+          .map((rule) => `${rule.rule_id},${rule.metadata.name},${rule.severity},${rule.category}`)
+          .join('\n')
+      );
     }
-    
-    return mockRules.filter(rule => params.ruleIds.includes(rule.rule_id));
+
+    return mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id));
   }
 }
 

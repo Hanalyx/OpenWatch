@@ -4,15 +4,7 @@
  */
 
 import React from 'react';
-import {
-  Card,
-  CardContent,
-  CardActionArea,
-  Typography,
-  Box,
-  Chip,
-  Stack,
-} from '@mui/material';
+import { Card, CardContent, CardActionArea, Typography, Box, Chip, Stack } from '@mui/material';
 import { AccountTree as FrameworkIcon } from '@mui/icons-material';
 import type { Framework } from '@/types/scanConfig';
 

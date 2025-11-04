@@ -116,11 +116,11 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
   open,
   onClose,
   group,
-  onGroupUpdated
+  onGroupUpdated,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form fields
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description || '');
@@ -171,18 +171,24 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     try {
       const response = await fetch('/api/scap-content/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
         const data = await response.json();
-        const contentList = Array.isArray(data.scap_content) ? data.scap_content : Array.isArray(data) ? data : [];
+        const contentList = Array.isArray(data.scap_content)
+          ? data.scap_content
+          : Array.isArray(data)
+            ? data
+            : [];
         setAvailableScapContent(contentList);
-        
+
         // Find and set current SCAP content
         if (group.scap_content_id) {
-          const currentContent = contentList.find((c: SCAPContent) => c.id === group.scap_content_id);
+          const currentContent = contentList.find(
+            (c: SCAPContent) => c.id === group.scap_content_id
+          );
           setScapContent(currentContent || null);
           if (currentContent && currentContent.profiles) {
             setAvailableProfiles(currentContent.profiles);
@@ -198,8 +204,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     try {
       const response = await fetch(`/api/host-groups/${group.id}/hosts`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -216,8 +222,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
     try {
       const response = await fetch('/api/hosts/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -246,16 +252,16 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         default_profile_id: defaultProfile.trim() || null,
         compliance_framework: complianceFramework.trim() || null,
         auto_scan_enabled: autoScanEnabled,
-        scan_schedule: scanSchedule.trim() || null
+        scan_schedule: scanSchedule.trim() || null,
       };
 
       const response = await fetch(`/api/host-groups/${group.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {
@@ -280,19 +286,23 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: [host.id]
-        })
+          host_ids: [host.id],
+        }),
       });
 
       if (validateResponse.ok) {
         const validation = await validateResponse.json();
-        
+
         if (validation.incompatible.length > 0) {
           const reasons = validation.incompatible[0].reasons || [];
-          if (!confirm(`Host "${host.hostname}" may not be compatible with this group:\n\n${reasons.join('\n')}\n\nAdd anyway?`)) {
+          if (
+            !confirm(
+              `Host "${host.hostname}" may not be compatible with this group:\n\n${reasons.join('\n')}\n\nAdd anyway?`
+            )
+          ) {
             return;
           }
         }
@@ -303,11 +313,11 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: [host.id]
-        })
+          host_ids: [host.id],
+        }),
       });
 
       if (response.ok) {
@@ -324,8 +334,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       const response = await fetch(`/api/host-groups/${group.id}/hosts/${host.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -338,7 +348,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
   };
 
   const unassignedHosts = availableHosts.filter(
-    host => !groupHosts.some(groupHost => groupHost.id === host.id)
+    (host) => !groupHosts.some((groupHost) => groupHost.id === host.id)
   );
 
   return (
@@ -352,9 +362,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <EditIcon color="primary" />
-          <Typography variant="h6">
-            Edit Group: {group.name}
-          </Typography>
+          <Typography variant="h6">Edit Group: {group.name}</Typography>
         </Box>
       </DialogTitle>
 
@@ -411,8 +419,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                         cursor: 'pointer',
                         border: color === colorOption ? '3px solid #000' : '2px solid #ddd',
                         '&:hover': {
-                          transform: 'scale(1.1)'
-                        }
+                          transform: 'scale(1.1)',
+                        },
                       }}
                       onClick={() => setColor(colorOption)}
                     />
@@ -518,7 +526,9 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                 if (newValue && newValue.profiles) {
                   setAvailableProfiles(newValue.profiles);
                   // Reset default profile if it's not in the new content's profiles
-                  const profileIds = newValue.profiles.map(p => typeof p === 'string' ? p : p.id);
+                  const profileIds = newValue.profiles.map((p) =>
+                    typeof p === 'string' ? p : p.id
+                  );
                   if (!profileIds.includes(defaultProfile)) {
                     setDefaultProfile('');
                   }
@@ -585,7 +595,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                   </MenuItem>
                   {availableProfiles.map((profile) => {
                     const profileId = typeof profile === 'string' ? profile : profile.id;
-                    const profileTitle = typeof profile === 'string' ? profile : profile.title || profile.id;
+                    const profileTitle =
+                      typeof profile === 'string' ? profile : profile.title || profile.id;
                     return (
                       <MenuItem key={profileId} value={profileId}>
                         {profileTitle}
@@ -601,7 +612,11 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                 onChange={(e) => setDefaultProfile(e.target.value)}
                 fullWidth
                 disabled={!scapContent}
-                helperText={scapContent ? "Profile ID from selected SCAP content" : "Select SCAP content first"}
+                helperText={
+                  scapContent
+                    ? 'Profile ID from selected SCAP content'
+                    : 'Select SCAP content first'
+                }
               />
             )}
           </Grid>
@@ -622,7 +637,11 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                     <Box>
                       <Typography>{option.label}</Typography>
                       {option.description && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: 'block' }}
+                        >
                           {option.description}
                         </Typography>
                       )}
@@ -643,15 +662,15 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
               }
               label="Enable automatic scanning"
             />
-            
+
             {autoScanEnabled && (
               <Box sx={{ mt: 1 }}>
                 {(() => {
                   // Check if current schedule matches any predefined option
                   const isPredefinedSchedule = SCAN_SCHEDULE_OPTIONS.some(
-                    option => option.value === scanSchedule
+                    (option) => option.value === scanSchedule
                   );
-                  
+
                   if (isPredefinedSchedule || !scanSchedule) {
                     return (
                       <FormControl fullWidth size="small">
@@ -700,13 +719,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
           {/* Host Management */}
           <Grid item xs={12}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
-                Host Management ({groupHosts.length} hosts)
-              </Typography>
-              <Button
-                variant="outlined"
-                onClick={() => setShowHostManagement(!showHostManagement)}
-              >
+              <Typography variant="h6">Host Management ({groupHosts.length} hosts)</Typography>
+              <Button variant="outlined" onClick={() => setShowHostManagement(!showHostManagement)}>
                 {showHostManagement ? 'Hide' : 'Manage'} Hosts
               </Button>
             </Box>
@@ -725,10 +739,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                         <ListItemIcon>
                           <HostIcon />
                         </ListItemIcon>
-                        <ListItemText
-                          primary={host.hostname}
-                          secondary={host.ip_address}
-                        />
+                        <ListItemText primary={host.hostname} secondary={host.ip_address} />
                         <ListItemSecondaryAction>
                           <Tooltip title="Remove from group">
                             <IconButton
@@ -781,11 +792,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
                         />
                         <ListItemSecondaryAction>
                           <Tooltip title="Add to group">
-                            <IconButton
-                              edge="end"
-                              onClick={() => handleAddHost(host)}
-                              size="small"
-                            >
+                            <IconButton edge="end" onClick={() => handleAddHost(host)} size="small">
                               <AddIcon />
                             </IconButton>
                           </Tooltip>
@@ -814,11 +821,7 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={loading || !name.trim()}
-        >
+        <Button variant="contained" onClick={handleSubmit} disabled={loading || !name.trim()}>
           {loading ? <CircularProgress size={20} /> : 'Update Group'}
         </Button>
       </DialogActions>

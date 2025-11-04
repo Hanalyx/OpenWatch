@@ -18,18 +18,18 @@ interface ResponsiveLayoutProps {
   subtitle?: string;
   headerActions?: React.ReactNode;
   children: React.ReactNode;
-  
+
   // Layout configuration
   maxWidth?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | false;
   disableGutters?: boolean;
-  
+
   // Statistics/metrics section
   statistics?: {
     content: React.ReactNode;
     loading?: boolean;
     columns?: { xs?: number; sm?: number; md?: number; lg?: number; xl?: number };
   };
-  
+
   // Sidebar configuration
   sidebar?: {
     content: React.ReactNode;
@@ -37,7 +37,7 @@ interface ResponsiveLayoutProps {
     position?: 'left' | 'right';
     collapsible?: boolean;
   };
-  
+
   // Floating action button
   fab?: {
     icon: React.ReactNode;
@@ -46,10 +46,10 @@ interface ResponsiveLayoutProps {
     color?: 'primary' | 'secondary' | 'default';
     position?: { bottom?: number; right?: number; left?: number };
   };
-  
+
   // Loading state
   loading?: boolean;
-  
+
   // Custom styling
   sx?: SxProps<Theme>;
 }
@@ -130,8 +130,8 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   }
 
   return (
-    <Container 
-      maxWidth={maxWidth} 
+    <Container
+      maxWidth={maxWidth}
       disableGutters={disableGutters}
       sx={{
         minHeight: '100vh',
@@ -142,8 +142,8 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     >
       {/* Page Header */}
       {(title || headerActions) && (
-        <Box 
-          sx={{ 
+        <Box
+          sx={{
             p: config.headerPadding,
             pb: statistics ? 2 : config.headerPadding,
           }}
@@ -156,7 +156,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           >
             <Box>
               {title && (
-                <Typography 
+                <Typography
                   variant={config.titleVariant}
                   fontWeight="bold"
                   gutterBottom={!!subtitle}
@@ -171,7 +171,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                 </Typography>
               )}
               {subtitle && (
-                <Typography 
+                <Typography
                   variant={config.subtitleVariant}
                   color="text.secondary"
                   sx={{ maxWidth: { xs: '100%', sm: '60%' } }}
@@ -181,13 +181,15 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               )}
             </Box>
             {headerActions && (
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 1,
-                flexWrap: 'wrap',
-                justifyContent: isMobile ? 'flex-start' : 'flex-end',
-                width: isMobile ? '100%' : 'auto',
-              }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 1,
+                  flexWrap: 'wrap',
+                  justifyContent: isMobile ? 'flex-start' : 'flex-end',
+                  width: isMobile ? '100%' : 'auto',
+                }}
+              >
                 {headerActions}
               </Box>
             )}
@@ -201,7 +203,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           {statistics.loading ? (
             <Grid container spacing={2}>
               {[...Array(config.statisticsColumns)].map((_, index) => (
-                <Grid item xs={12} sm={6} md={12/config.statisticsColumns} key={index}>
+                <Grid item xs={12} sm={6} md={12 / config.statisticsColumns} key={index}>
                   <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
                 </Grid>
               ))}
@@ -217,18 +219,18 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
         {sidebar && config.sidebarEnabled ? (
           <Grid container spacing={3}>
             {/* Sidebar */}
-            <Grid 
-              item 
+            <Grid
+              item
               xs={sidebar.width?.xs || 12}
               sm={sidebar.width?.sm || 4}
               md={sidebar.width?.md || 3}
               lg={sidebar.width?.lg || 3}
               order={sidebar.position === 'right' ? 2 : 1}
             >
-              <Paper 
+              <Paper
                 elevation={1}
-                sx={{ 
-                  p: 2, 
+                sx={{
+                  p: 2,
                   height: 'fit-content',
                   position: 'sticky',
                   top: theme.spacing(2),
@@ -237,10 +239,10 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                 {sidebar.content}
               </Paper>
             </Grid>
-            
+
             {/* Main Content */}
-            <Grid 
-              item 
+            <Grid
+              item
               xs={12 - (sidebar.width?.xs || 0)}
               sm={12 - (sidebar.width?.sm || 4)}
               md={12 - (sidebar.width?.md || 3)}

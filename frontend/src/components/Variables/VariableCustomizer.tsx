@@ -98,9 +98,7 @@ export const VariableCustomizer: React.FC<VariableCustomizerProps> = ({
 
   if (!variables || variables.length === 0) {
     return (
-      <Alert severity="info">
-        No customizable variables available for this framework version
-      </Alert>
+      <Alert severity="info">No customizable variables available for this framework version</Alert>
     );
   }
 

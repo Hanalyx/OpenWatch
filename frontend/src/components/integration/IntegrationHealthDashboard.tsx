@@ -26,7 +26,7 @@ import {
   ListItemText,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -41,9 +41,22 @@ import {
   ExpandMore as ExpandMoreIcon,
   Api as ApiIcon,
   CloudSync as CloudSyncIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 
 interface HealthMetrics {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
@@ -59,24 +72,27 @@ interface HealthMetrics {
 
 interface PerformanceData {
   timestamp: string;
-  performance_data: Record<string, {
-    last_hour: {
-      requests: number;
-      error_rate: number;
-      avg_duration_ms: number;
-      p95_duration_ms: number;
-    };
-    last_24h: {
-      requests: number;
-      error_rate: number;
-      avg_duration_ms: number;
-      p95_duration_ms: number;
-    };
-    trends?: {
-      error_rate_trend: 'up' | 'down' | 'stable';
-      performance_trend: 'better' | 'worse' | 'stable';
-    };
-  }>;
+  performance_data: Record<
+    string,
+    {
+      last_hour: {
+        requests: number;
+        error_rate: number;
+        avg_duration_ms: number;
+        p95_duration_ms: number;
+      };
+      last_24h: {
+        requests: number;
+        error_rate: number;
+        avg_duration_ms: number;
+        p95_duration_ms: number;
+      };
+      trends?: {
+        error_rate_trend: 'up' | 'down' | 'stable';
+        performance_trend: 'better' | 'worse' | 'stable';
+      };
+    }
+  >;
   summary: {
     total_operations_1h: number;
     total_operations_24h: number;
@@ -111,8 +127,8 @@ const IntegrationHealthDashboard: React.FC = () => {
       const token = localStorage.getItem('auth_token');
       const response = await fetch('/api/integration/metrics/performance', {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!response.ok) {
         throw new Error('Failed to fetch performance data');
@@ -149,19 +165,27 @@ const IntegrationHealthDashboard: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy': return 'success';
-      case 'degraded': return 'warning';
-      case 'unhealthy': return 'error';
-      default: return 'default';
+      case 'healthy':
+        return 'success';
+      case 'degraded':
+        return 'warning';
+      case 'unhealthy':
+        return 'error';
+      default:
+        return 'default';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'healthy': return <CheckCircleIcon />;
-      case 'degraded': return <WarningIcon />;
-      case 'unhealthy': return <ErrorIcon />;
-      default: return <ErrorIcon />;
+      case 'healthy':
+        return <CheckCircleIcon />;
+      case 'degraded':
+        return <WarningIcon />;
+      case 'unhealthy':
+        return <ErrorIcon />;
+      default:
+        return <ErrorIcon />;
     }
   };
 
@@ -187,7 +211,9 @@ const IntegrationHealthDashboard: React.FC = () => {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
-        <Typography variant="h6" ml={2}>Loading integration health data...</Typography>
+        <Typography variant="h6" ml={2}>
+          Loading integration health data...
+        </Typography>
       </Box>
     );
   }
@@ -226,8 +252,8 @@ const IntegrationHealthDashboard: React.FC = () => {
                     Overall Status
                   </Typography>
                 </Box>
-                <Chip 
-                  label={healthMetrics.status.toUpperCase()} 
+                <Chip
+                  label={healthMetrics.status.toUpperCase()}
                   color={getStatusColor(healthMetrics.status)}
                   sx={{ mt: 1 }}
                 />
@@ -247,9 +273,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                     Operations (1h)
                   </Typography>
                 </Box>
-                <Typography variant="h4">
-                  {healthMetrics.metrics.total_operations_1h}
-                </Typography>
+                <Typography variant="h4">{healthMetrics.metrics.total_operations_1h}</Typography>
                 <Typography variant="caption">
                   Active metrics: {healthMetrics.metrics.active_metrics}
                 </Typography>
@@ -261,7 +285,9 @@ const IntegrationHealthDashboard: React.FC = () => {
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center">
-                  <ErrorIcon color={healthMetrics.metrics.error_rate_1h > 5 ? 'error' : 'inherit'} />
+                  <ErrorIcon
+                    color={healthMetrics.metrics.error_rate_1h > 5 ? 'error' : 'inherit'}
+                  />
                   <Typography variant="h6" ml={1}>
                     Error Rate (1h)
                   </Typography>
@@ -314,7 +340,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Operation Performance Overview
                 </Typography>
-                
+
                 <TableContainer component={Paper} elevation={0}>
                   <Table>
                     <TableHead>
@@ -335,34 +361,45 @@ const IntegrationHealthDashboard: React.FC = () => {
                               {operation.replace(/_/g, ' ')}
                             </Typography>
                           </TableCell>
+                          <TableCell align="right">{data.last_hour.requests}</TableCell>
                           <TableCell align="right">
-                            {data.last_hour.requests}
-                          </TableCell>
-                          <TableCell align="right">
-                            <Chip 
+                            <Chip
                               label={`${data.last_hour.error_rate.toFixed(1)}%`}
-                              color={data.last_hour.error_rate > 5 ? 'error' : data.last_hour.error_rate > 1 ? 'warning' : 'success'}
+                              color={
+                                data.last_hour.error_rate > 5
+                                  ? 'error'
+                                  : data.last_hour.error_rate > 1
+                                    ? 'warning'
+                                    : 'success'
+                              }
                               size="small"
                             />
                           </TableCell>
                           <TableCell align="right">
                             {formatDuration(data.last_hour.avg_duration_ms)}
                           </TableCell>
-                          <TableCell align="right">
-                            {data.last_24h.requests}
-                          </TableCell>
+                          <TableCell align="right">{data.last_24h.requests}</TableCell>
                           <TableCell align="center">
                             <Box display="flex" justifyContent="center" gap={1}>
                               {data.trends && (
                                 <>
-                                  <Tooltip title={`Error rate trend: ${data.trends.error_rate_trend}`}>
+                                  <Tooltip
+                                    title={`Error rate trend: ${data.trends.error_rate_trend}`}
+                                  >
                                     {getTrendIcon(data.trends.error_rate_trend)}
                                   </Tooltip>
-                                  <Tooltip title={`Performance trend: ${data.trends.performance_trend}`}>
-                                    <SpeedIcon color={
-                                      data.trends.performance_trend === 'better' ? 'success' :
-                                      data.trends.performance_trend === 'worse' ? 'error' : 'inherit'
-                                    } />
+                                  <Tooltip
+                                    title={`Performance trend: ${data.trends.performance_trend}`}
+                                  >
+                                    <SpeedIcon
+                                      color={
+                                        data.trends.performance_trend === 'better'
+                                          ? 'success'
+                                          : data.trends.performance_trend === 'worse'
+                                            ? 'error'
+                                            : 'inherit'
+                                      }
+                                    />
                                   </Tooltip>
                                 </>
                               )}
@@ -385,9 +422,7 @@ const IntegrationHealthDashboard: React.FC = () => {
                       <Typography variant="h4" color="primary">
                         {performanceData.summary.total_operations_1h}
                       </Typography>
-                      <Typography variant="caption">
-                        Total Operations (1h)
-                      </Typography>
+                      <Typography variant="caption">Total Operations (1h)</Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={6} md={3}>
@@ -395,29 +430,29 @@ const IntegrationHealthDashboard: React.FC = () => {
                       <Typography variant="h4" color="primary">
                         {performanceData.summary.total_operations_24h}
                       </Typography>
-                      <Typography variant="caption">
-                        Total Operations (24h)
-                      </Typography>
+                      <Typography variant="caption">Total Operations (24h)</Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={6} md={3}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
-                      <Typography variant="h4" color={performanceData.summary.avg_error_rate_1h > 5 ? 'error' : 'primary'}>
+                      <Typography
+                        variant="h4"
+                        color={performanceData.summary.avg_error_rate_1h > 5 ? 'error' : 'primary'}
+                      >
                         {performanceData.summary.avg_error_rate_1h.toFixed(2)}%
                       </Typography>
-                      <Typography variant="caption">
-                        Avg Error Rate (1h)
-                      </Typography>
+                      <Typography variant="caption">Avg Error Rate (1h)</Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={6} md={3}>
                     <Paper elevation={1} sx={{ p: 2, textAlign: 'center' }}>
-                      <Typography variant="h4" color={performanceData.summary.avg_error_rate_24h > 5 ? 'error' : 'primary'}>
+                      <Typography
+                        variant="h4"
+                        color={performanceData.summary.avg_error_rate_24h > 5 ? 'error' : 'primary'}
+                      >
                         {performanceData.summary.avg_error_rate_24h.toFixed(2)}%
                       </Typography>
-                      <Typography variant="caption">
-                        Avg Error Rate (24h)
-                      </Typography>
+                      <Typography variant="caption">Avg Error Rate (24h)</Typography>
                     </Paper>
                   </Grid>
                 </Grid>
@@ -429,7 +464,8 @@ const IntegrationHealthDashboard: React.FC = () => {
 
       {!healthMetrics && !performanceData && !loading && (
         <Alert severity="info">
-          No integration health data available. Make sure the integration metrics service is running.
+          No integration health data available. Make sure the integration metrics service is
+          running.
         </Alert>
       )}
     </Box>

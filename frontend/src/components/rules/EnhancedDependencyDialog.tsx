@@ -94,7 +94,9 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
       if (response.success) {
         setDependencies(response.data);
         // Auto-expand first level
-        setExpandedNodes(new Set(['root', ...response.data.dependency_graph.direct_dependencies.requires]));
+        setExpandedNodes(
+          new Set(['root', ...response.data.dependency_graph.direct_dependencies.requires])
+        );
       } else {
         setError('Failed to load dependencies');
       }
@@ -153,7 +155,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
 
     // Add direct dependencies with their transitive children
     const addDependencyNodes = (deps: string[], type: 'requires' | 'conflicts' | 'related') => {
-      deps.forEach(dep => {
+      deps.forEach((dep) => {
         const node: DependencyNode = {
           id: dep,
           name: dep, // In real implementation, would resolve rule name
@@ -166,7 +168,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
         // Add transitive dependencies if available
         if (type === 'requires' && transitive_dependencies && transitive_dependencies[dep]) {
           const transDep = transitive_dependencies[dep];
-          node.children = transDep.requires.map(childDep => ({
+          node.children = transDep.requires.map((childDep) => ({
             id: childDep,
             name: childDep,
             type: 'requires' as const,
@@ -200,9 +202,10 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
     }
 
     const { direct_dependencies, transitive_dependencies } = dependencies.dependency_graph;
-    
-    const maxDepth = transitive_dependencies ? 
-      Math.max(...Object.values(transitive_dependencies).map(dep => dep.depth), 1) : 1;
+
+    const maxDepth = transitive_dependencies
+      ? Math.max(...Object.values(transitive_dependencies).map((dep) => dep.depth), 1)
+      : 1;
 
     return {
       totalRequires: direct_dependencies.requires.length,
@@ -221,9 +224,9 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
 
     return (
       <Box key={node.id} sx={{ ml: level * 2 }}>
-        <Card 
-          variant="outlined" 
-          sx={{ 
+        <Card
+          variant="outlined"
+          sx={{
             mb: 1,
             backgroundColor: level > 0 ? alpha(typeInfo.bgColor, 0.3) : undefined,
             border: `1px solid ${alpha(typeInfo.color, 0.3)}`,
@@ -233,19 +236,17 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box display="flex" alignItems="center" gap={1}>
                 {hasChildren && (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => toggleNode(node.id)}
                     sx={{ color: typeInfo.color }}
                   >
                     {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                   </IconButton>
                 )}
-                
-                <Box sx={{ color: typeInfo.color }}>
-                  {typeInfo.icon}
-                </Box>
-                
+
+                <Box sx={{ color: typeInfo.color }}>{typeInfo.icon}</Box>
+
                 <Box>
                   <Typography variant="body2" fontWeight="medium">
                     {node.name}
@@ -267,7 +268,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
                     }}
                   />
                 )}
-                
+
                 <Chip
                   label={typeInfo.label}
                   size="small"
@@ -278,8 +279,8 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
                 />
 
                 {onRuleSelect && (
-                  <IconButton 
-                    size="small" 
+                  <IconButton
+                    size="small"
                     onClick={() => onRuleSelect(node.id)}
                     title="View rule details"
                   >
@@ -292,9 +293,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
         </Card>
 
         <Collapse in={isExpanded} timeout="auto">
-          <Box>
-            {node.children.map(child => renderTreeNode(child, level + 1))}
-          </Box>
+          <Box>{node.children.map((child) => renderTreeNode(child, level + 1))}</Box>
         </Collapse>
       </Box>
     );
@@ -305,7 +304,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
     if (!dependencies) return null;
 
     const { direct_dependencies } = dependencies.dependency_graph;
-    
+
     return (
       <Stack spacing={2}>
         {/* Requirements */}
@@ -316,15 +315,12 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
               Requirements ({direct_dependencies.requires.length})
             </Typography>
             <List dense>
-              {direct_dependencies.requires.map(ruleId => (
+              {direct_dependencies.requires.map((ruleId) => (
                 <ListItem key={ruleId} sx={{ py: 0.5 }}>
                   <ListItemIcon>
                     <CheckIcon fontSize="small" color="success" />
                   </ListItemIcon>
-                  <ListItemText 
-                    primary={ruleId}
-                    secondary="This rule must be enabled"
-                  />
+                  <ListItemText primary={ruleId} secondary="This rule must be enabled" />
                   {onRuleSelect && (
                     <IconButton size="small" onClick={() => onRuleSelect(ruleId)}>
                       <ViewIcon fontSize="small" />
@@ -344,15 +340,12 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
               Conflicts ({direct_dependencies.conflicts.length})
             </Typography>
             <List dense>
-              {direct_dependencies.conflicts.map(ruleId => (
+              {direct_dependencies.conflicts.map((ruleId) => (
                 <ListItem key={ruleId} sx={{ py: 0.5 }}>
                   <ListItemIcon>
                     <ErrorIcon fontSize="small" color="error" />
                   </ListItemIcon>
-                  <ListItemText 
-                    primary={ruleId}
-                    secondary="Cannot be enabled with this rule"
-                  />
+                  <ListItemText primary={ruleId} secondary="Cannot be enabled with this rule" />
                   {onRuleSelect && (
                     <IconButton size="small" onClick={() => onRuleSelect(ruleId)}>
                       <ViewIcon fontSize="small" />
@@ -372,12 +365,12 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
               Related Rules ({direct_dependencies.related.length})
             </Typography>
             <List dense>
-              {direct_dependencies.related.map(ruleId => (
+              {direct_dependencies.related.map((ruleId) => (
                 <ListItem key={ruleId} sx={{ py: 0.5 }}>
                   <ListItemIcon>
                     <InfoIcon fontSize="small" color="info" />
                   </ListItemIcon>
-                  <ListItemText 
+                  <ListItemText
                     primary={ruleId}
                     secondary="Consider enabling for better coverage"
                   />
@@ -416,15 +409,13 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
           <Box display="flex" alignItems="center" gap={1}>
             <TreeIcon color="primary" />
             <Box>
-              <Typography variant="h6">
-                Rule Dependencies
-              </Typography>
+              <Typography variant="h6">Rule Dependencies</Typography>
               <Typography variant="caption" color="text.secondary">
                 {ruleName || ruleId}
               </Typography>
             </Box>
           </Box>
-          
+
           <Box display="flex" alignItems="center" gap={1}>
             <Button
               size="small"
@@ -481,26 +472,12 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
                   />
                 </Badge>
                 <Badge badgeContent={stats.totalConflicts} color="error">
-                  <Chip
-                    label="Conflicts"
-                    icon={<ErrorIcon />}
-                    color="error"
-                    variant="outlined"
-                  />
+                  <Chip label="Conflicts" icon={<ErrorIcon />} color="error" variant="outlined" />
                 </Badge>
                 <Badge badgeContent={stats.totalRelated} color="info">
-                  <Chip
-                    label="Related"
-                    icon={<InfoIcon />}
-                    color="info"
-                    variant="outlined"
-                  />
+                  <Chip label="Related" icon={<InfoIcon />} color="info" variant="outlined" />
                 </Badge>
-                <Chip
-                  label={`Max Depth: ${stats.maxDepth}`}
-                  icon={<TreeIcon />}
-                  color="primary"
-                />
+                <Chip label={`Max Depth: ${stats.maxDepth}`} icon={<TreeIcon />} color="primary" />
               </Stack>
             </Paper>
 
@@ -511,8 +488,8 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
                   ⚠️ Dependency Conflicts Detected
                 </Typography>
                 <Typography variant="body2">
-                  This rule has conflicting dependencies that may prevent proper operation.
-                  Review the conflicts below and resolve them before enabling this rule.
+                  This rule has conflicting dependencies that may prevent proper operation. Review
+                  the conflicts below and resolve them before enabling this rule.
                 </Typography>
               </Alert>
             )}
@@ -524,13 +501,9 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
                   Dependency Tree
                 </Typography>
                 {dependencyTree.length > 0 ? (
-                  <Box>
-                    {dependencyTree.map(node => renderTreeNode(node))}
-                  </Box>
+                  <Box>{dependencyTree.map((node) => renderTreeNode(node))}</Box>
                 ) : (
-                  <Alert severity="info">
-                    This rule has no dependencies.
-                  </Alert>
+                  <Alert severity="info">This rule has no dependencies.</Alert>
                 )}
               </Box>
             ) : (
@@ -543,9 +516,7 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
             )}
           </Stack>
         ) : (
-          <Alert severity="info">
-            No dependency information available for this rule.
-          </Alert>
+          <Alert severity="info">No dependency information available for this rule.</Alert>
         )}
       </DialogContent>
 

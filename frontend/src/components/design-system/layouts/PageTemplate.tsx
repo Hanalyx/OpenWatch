@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Breadcrumbs,
-  Link,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { Box, Typography, Breadcrumbs, Link, useTheme, alpha } from '@mui/material';
 import { NavigateNext } from '@mui/icons-material';
 
 interface BreadcrumbItem {
@@ -48,10 +41,10 @@ const PageTemplate: React.FC<PageTemplateProps> = ({
       {/* Header Section */}
       <Box
         sx={{
-          backgroundColor: headerBackground 
+          backgroundColor: headerBackground
             ? alpha(theme.palette.primary.main, 0.02)
             : 'transparent',
-          borderBottom: headerBackground 
+          borderBottom: headerBackground
             ? `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
             : 'none',
           py: 3,
@@ -66,10 +59,7 @@ const PageTemplate: React.FC<PageTemplateProps> = ({
         >
           {/* Breadcrumbs */}
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <Breadcrumbs
-              separator={<NavigateNext fontSize="small" />}
-              sx={{ mb: 2 }}
-            >
+            <Breadcrumbs separator={<NavigateNext fontSize="small" />} sx={{ mb: 2 }}>
               {breadcrumbs.map((item, index) => (
                 <Link
                   key={index}
@@ -111,21 +101,13 @@ const PageTemplate: React.FC<PageTemplateProps> = ({
                 {title}
               </Typography>
               {subtitle && (
-                <Typography
-                  variant="h6"
-                  color="text.secondary"
-                  sx={{ mt: -1 }}
-                >
+                <Typography variant="h6" color="text.secondary" sx={{ mt: -1 }}>
                   {subtitle}
                 </Typography>
               )}
             </Box>
 
-            {actions && (
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                {actions}
-              </Box>
-            )}
+            {actions && <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>{actions}</Box>}
           </Box>
         </Box>
       </Box>

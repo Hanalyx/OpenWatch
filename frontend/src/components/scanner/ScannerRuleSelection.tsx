@@ -103,14 +103,20 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
 
   // Handle scan configuration changes
   const updateScanConfig = useCallback((updates: Partial<ScanConfiguration>) => {
-    setScanConfig(prev => ({ ...prev, ...updates }));
+    setScanConfig((prev) => ({ ...prev, ...updates }));
   }, []);
 
   // Handle host input changes
-  const handleHostsChange = useCallback((hostsString: string) => {
-    const hosts = hostsString.split(',').map(h => h.trim()).filter(h => h);
-    updateScanConfig({ targetHosts: hosts });
-  }, [updateScanConfig]);
+  const handleHostsChange = useCallback(
+    (hostsString: string) => {
+      const hosts = hostsString
+        .split(',')
+        .map((h) => h.trim())
+        .filter((h) => h);
+      updateScanConfig({ targetHosts: hosts });
+    },
+    [updateScanConfig]
+  );
 
   // Start scan process
   const handleStartScan = useCallback(async () => {
@@ -119,7 +125,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
     }
 
     setIsScanning(true);
-    
+
     // Initialize scan progress
     const newScanProgress: ScanProgress = {
       scanId: `scan-${Date.now()}`,
@@ -135,16 +141,19 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
     try {
       // Start the scan
       await onStartScan(scanConfig);
-      
+
       // Simulate scan progress (in real implementation, this would be WebSocket or polling)
       simulateScanProgress();
-      
     } catch (error) {
-      setScanProgress(prev => prev ? {
-        ...prev,
-        status: 'failed',
-        errors: [...prev.errors, error instanceof Error ? error.message : 'Scan failed']
-      } : null);
+      setScanProgress((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'failed',
+              errors: [...prev.errors, error instanceof Error ? error.message : 'Scan failed'],
+            }
+          : null
+      );
     }
   }, [selectedRules, scanConfig, onStartScan]);
 
@@ -153,27 +162,36 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
     let progress = 0;
     const interval = setInterval(() => {
       progress += Math.random() * 15 + 5; // Progress by 5-20% each step
-      
+
       if (progress >= 100) {
         progress = 100;
-        setScanProgress(prev => prev ? {
-          ...prev,
-          status: 'completed',
-          progress: 100,
-          completedRules: prev.totalRules,
-          estimatedEndTime: new Date().toISOString(),
-        } : null);
+        setScanProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'completed',
+                progress: 100,
+                completedRules: prev.totalRules,
+                estimatedEndTime: new Date().toISOString(),
+              }
+            : null
+        );
         setIsScanning(false);
         clearInterval(interval);
       } else {
-        setScanProgress(prev => prev ? {
-          ...prev,
-          status: 'running',
-          progress,
-          completedRules: Math.floor((progress / 100) * prev.totalRules),
-          currentRule: selectedRules[Math.floor((progress / 100) * selectedRules.length)]?.metadata.name,
-          estimatedEndTime: new Date(Date.now() + (100 - progress) * 1000).toISOString(),
-        } : null);
+        setScanProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'running',
+                progress,
+                completedRules: Math.floor((progress / 100) * prev.totalRules),
+                currentRule:
+                  selectedRules[Math.floor((progress / 100) * selectedRules.length)]?.metadata.name,
+                estimatedEndTime: new Date(Date.now() + (100 - progress) * 1000).toISOString(),
+              }
+            : null
+        );
       }
     }, 1500);
   }, [selectedRules]);
@@ -181,7 +199,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
   // Get severity statistics
   const getSeverityStats = () => {
     const stats = { high: 0, medium: 0, low: 0, info: 0 };
-    selectedRules.forEach(rule => {
+    selectedRules.forEach((rule) => {
       if (rule.severity in stats) {
         stats[rule.severity as keyof typeof stats]++;
       }
@@ -195,7 +213,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
       <Typography variant="h6" gutterBottom>
         Selected Rules ({selectedRules.length})
       </Typography>
-      
+
       {selectedRules.length === 0 ? (
         <Alert severity="warning" sx={{ mb: 2 }}>
           No rules selected. Please go back to the Rules Explorer and select rules to scan.
@@ -208,44 +226,41 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
               Severity Distribution
             </Typography>
             <Stack direction="row" spacing={1}>
-              {Object.entries(getSeverityStats()).map(([severity, count]) => (
-                count > 0 && (
-                  <Chip
-                    key={severity}
-                    label={`${severity.toUpperCase()}: ${count}`}
-                    size="small"
-                    color={
-                      severity === 'high' ? 'error' :
-                      severity === 'medium' ? 'warning' :
-                      severity === 'low' ? 'info' : 'default'
-                    }
-                  />
-                )
-              ))}
+              {Object.entries(getSeverityStats()).map(
+                ([severity, count]) =>
+                  count > 0 && (
+                    <Chip
+                      key={severity}
+                      label={`${severity.toUpperCase()}: ${count}`}
+                      size="small"
+                      color={
+                        severity === 'high'
+                          ? 'error'
+                          : severity === 'medium'
+                            ? 'warning'
+                            : severity === 'low'
+                              ? 'info'
+                              : 'default'
+                      }
+                    />
+                  )
+              )}
             </Stack>
           </Paper>
 
           {/* Rule List */}
           <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-            {selectedRules.map(rule => (
+            {selectedRules.map((rule) => (
               <ListItem
                 key={rule.rule_id}
                 secondaryAction={
-                  <IconButton
-                    edge="end"
-                    onClick={() => onRuleToggle(rule)}
-                    size="small"
-                  >
+                  <IconButton edge="end" onClick={() => onRuleToggle(rule)} size="small">
                     <CloseIcon />
                   </IconButton>
                 }
               >
                 <ListItemIcon>
-                  <Checkbox
-                    checked={true}
-                    onChange={() => onRuleToggle(rule)}
-                    color="primary"
-                  />
+                  <Checkbox checked={true} onChange={() => onRuleToggle(rule)} color="primary" />
                 </ListItemIcon>
                 <ListItemText
                   primary={rule.metadata.name}
@@ -255,9 +270,13 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
                         label={rule.severity}
                         size="small"
                         color={
-                          rule.severity === 'high' ? 'error' :
-                          rule.severity === 'medium' ? 'warning' :
-                          rule.severity === 'low' ? 'info' : 'default'
+                          rule.severity === 'high'
+                            ? 'error'
+                            : rule.severity === 'medium'
+                              ? 'warning'
+                              : rule.severity === 'low'
+                                ? 'info'
+                                : 'default'
                         }
                       />
                       <Chip label={rule.category} size="small" variant="outlined" />
@@ -291,7 +310,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             onChange={(e) => updateScanConfig({ scanName: e.target.value })}
             fullWidth
           />
-          
+
           <TextField
             label="Description (Optional)"
             value={scanConfig.description}
@@ -300,7 +319,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             rows={2}
             fullWidth
           />
-          
+
           <TextField
             label="Target Hosts (comma-separated)"
             value={scanConfig.targetHosts.join(', ')}
@@ -323,7 +342,9 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
           >
             <MenuItem value="quick">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Quick Scan</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Quick Scan
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Basic security checks, faster execution
                 </Typography>
@@ -331,7 +352,9 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             </MenuItem>
             <MenuItem value="standard">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Standard Scan</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Standard Scan
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Comprehensive security assessment, balanced speed and coverage
                 </Typography>
@@ -339,7 +362,9 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             </MenuItem>
             <MenuItem value="comprehensive">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Comprehensive Scan</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Comprehensive Scan
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   In-depth analysis, longer execution time
                 </Typography>
@@ -355,14 +380,14 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
           Output Formats
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {['html', 'xml', 'json', 'pdf'].map(format => (
+          {['html', 'xml', 'json', 'pdf'].map((format) => (
             <Chip
               key={format}
               label={format.toUpperCase()}
               variant={scanConfig.outputFormats.includes(format) ? 'filled' : 'outlined'}
               onClick={() => {
                 const formats = scanConfig.outputFormats.includes(format)
-                  ? scanConfig.outputFormats.filter(f => f !== format)
+                  ? scanConfig.outputFormats.filter((f) => f !== format)
                   : [...scanConfig.outputFormats, format];
                 updateScanConfig({ outputFormats: formats });
               }}
@@ -385,7 +410,8 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
         <Box textAlign="center" py={4}>
           <ComputerIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
           <Typography variant="body1" gutterBottom>
-            Ready to start scanning {selectedRules.length} rules on {scanConfig.targetHosts.length} host(s)
+            Ready to start scanning {selectedRules.length} rules on {scanConfig.targetHosts.length}{' '}
+            host(s)
           </Typography>
           <Button
             variant="contained"
@@ -402,29 +428,34 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
           {/* Progress Overview */}
           <Paper sx={{ p: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="subtitle2">
-                Scan Progress - {scanProgress.scanId}
-              </Typography>
+              <Typography variant="subtitle2">Scan Progress - {scanProgress.scanId}</Typography>
               <Chip
                 label={scanProgress.status}
                 color={
-                  scanProgress.status === 'completed' ? 'success' :
-                  scanProgress.status === 'failed' ? 'error' :
-                  scanProgress.status === 'running' ? 'primary' : 'default'
+                  scanProgress.status === 'completed'
+                    ? 'success'
+                    : scanProgress.status === 'failed'
+                      ? 'error'
+                      : scanProgress.status === 'running'
+                        ? 'primary'
+                        : 'default'
                 }
               />
             </Box>
-            
+
             <LinearProgress
               variant="determinate"
               value={scanProgress.progress}
               sx={{ mb: 2, height: 8, borderRadius: 4 }}
               color={
-                scanProgress.status === 'completed' ? 'success' :
-                scanProgress.status === 'failed' ? 'error' : 'primary'
+                scanProgress.status === 'completed'
+                  ? 'success'
+                  : scanProgress.status === 'failed'
+                    ? 'error'
+                    : 'primary'
               }
             />
-            
+
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Typography variant="body2" color="text.secondary">
                 {scanProgress.completedRules} / {scanProgress.totalRules} rules completed
@@ -467,7 +498,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
               </Typography>
               {scanProgress.estimatedEndTime && (
                 <Typography variant="body2">
-                  {scanProgress.status === 'completed' ? 'Completed' : 'Estimated completion'}: {' '}
+                  {scanProgress.status === 'completed' ? 'Completed' : 'Estimated completion'}:{' '}
                   {new Date(scanProgress.estimatedEndTime).toLocaleString()}
                 </Typography>
               )}
@@ -497,11 +528,11 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
   ];
 
   const handleNext = () => {
-    setActiveStep(prev => Math.min(prev + 1, steps.length - 1));
+    setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
   const handleBack = () => {
-    setActiveStep(prev => Math.max(prev - 1, 0));
+    setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
   return (
@@ -521,9 +552,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center" gap={1}>
             <AssessmentIcon color="primary" />
-            <Typography variant="h6">
-              Scanner - Rule Selection & Configuration
-            </Typography>
+            <Typography variant="h6">Scanner - Rule Selection & Configuration</Typography>
           </Box>
           <IconButton onClick={onClose} disabled={isScanning}>
             <CloseIcon />
@@ -539,9 +568,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             <Step key={step.label} completed={step.completed || false}>
               <StepLabel>{step.label}</StepLabel>
               <StepContent>
-                <Box sx={{ p: 2 }}>
-                  {step.content}
-                </Box>
+                <Box sx={{ p: 2 }}>{step.content}</Box>
               </StepContent>
             </Step>
           ))}
@@ -556,12 +583,12 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
             </Button>
           )}
         </Box>
-        
+
         <Box display="flex" gap={1}>
           <Button onClick={onClose} disabled={isScanning}>
             {scanProgress?.status === 'completed' ? 'Close' : 'Cancel'}
           </Button>
-          
+
           {activeStep < steps.length - 1 && (
             <Button
               variant="contained"

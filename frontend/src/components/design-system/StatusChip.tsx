@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  Chip,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { Chip, useTheme, alpha } from '@mui/material';
 import {
   CheckCircle,
   Error,
@@ -19,10 +15,26 @@ import {
 } from '@mui/icons-material';
 
 export type StatusType =
-  | 'online' | 'degraded' | 'critical' | 'down' | 'offline' | 'maintenance' | 'scanning' | 'pending' | 'reachable' | 'ping_only'
-  | 'success' | 'error' | 'warning' | 'info'
-  | 'high' | 'medium' | 'low'
-  | 'compliant' | 'non-compliant' | 'unknown';
+  | 'online'
+  | 'degraded'
+  | 'critical'
+  | 'down'
+  | 'offline'
+  | 'maintenance'
+  | 'scanning'
+  | 'pending'
+  | 'reachable'
+  | 'ping_only'
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'info'
+  | 'high'
+  | 'medium'
+  | 'low'
+  | 'compliant'
+  | 'non-compliant'
+  | 'unknown';
 
 interface StatusChipProps {
   status: StatusType;
@@ -45,12 +57,15 @@ const StatusChip: React.FC<StatusChipProps> = ({
 
   const getStatusConfig = (status: StatusType) => {
     // Gmail-inspired compliance colors for SecureOps
-    const configs: Record<StatusType, {
-      color: string;
-      backgroundColor: string;
-      icon: React.ReactNode;
-      defaultLabel: string;
-    }> = {
+    const configs: Record<
+      StatusType,
+      {
+        color: string;
+        backgroundColor: string;
+        icon: React.ReactNode;
+        defaultLabel: string;
+      }
+    > = {
       // System Status (Google-inspired compliance colors)
       online: {
         color: theme.palette.success.main, // Google Green - Everything OK
@@ -204,13 +219,16 @@ const StatusChip: React.FC<StatusChipProps> = ({
       fontSize: '0.75rem',
       fontWeight: 500,
     },
-    '&:hover': onClick ? {
-      backgroundColor: alpha(config.color, variant === 'filled' ? 0.2 : 0.08),
-      transform: 'translateY(-1px)',
-      boxShadow: theme.palette.mode === 'light' 
-        ? '0 2px 4px 0 rgba(60, 64, 67, .3), 0 1px 2px 0 rgba(60, 64, 67, .15)'
-        : '0 2px 4px 0 rgba(0, 0, 0, .3), 0 1px 2px 0 rgba(0, 0, 0, .15)',
-    } : undefined,
+    '&:hover': onClick
+      ? {
+          backgroundColor: alpha(config.color, variant === 'filled' ? 0.2 : 0.08),
+          transform: 'translateY(-1px)',
+          boxShadow:
+            theme.palette.mode === 'light'
+              ? '0 2px 4px 0 rgba(60, 64, 67, .3), 0 1px 2px 0 rgba(60, 64, 67, .15)'
+              : '0 2px 4px 0 rgba(0, 0, 0, .3), 0 1px 2px 0 rgba(0, 0, 0, .15)',
+        }
+      : undefined,
     transition: 'all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)', // Gmail-style smooth transitions
   };
 

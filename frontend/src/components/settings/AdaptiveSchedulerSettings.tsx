@@ -18,7 +18,7 @@ import {
   Collapse,
   IconButton,
   Tooltip,
-  LinearProgress
+  LinearProgress,
 } from '@mui/material';
 import {
   Schedule as ScheduleIcon,
@@ -27,7 +27,7 @@ import {
   RestartAlt as ResetIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 
@@ -64,7 +64,10 @@ interface AdaptiveSchedulerSettingsProps {
   onError?: (message: string) => void;
 }
 
-const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ onSuccess, onError }) => {
+const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
+  onSuccess,
+  onError,
+}) => {
   const [config, setConfig] = useState<SchedulerConfig | null>(null);
   const [stats, setStats] = useState<SchedulerStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -110,7 +113,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
         : '/api/system/adaptive-scheduler/start';
 
       await api.post(endpoint);
-      onSuccess?.(config?.enabled ? 'Scheduler stopped successfully' : 'Scheduler started successfully');
+      onSuccess?.(
+        config?.enabled ? 'Scheduler stopped successfully' : 'Scheduler started successfully'
+      );
       await loadConfig();
       await loadStats();
     } catch (err: any) {
@@ -127,7 +132,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
     try {
       setLoading(true);
       await api.put('/api/system/adaptive-scheduler/config', {
-        intervals: localIntervals
+        intervals: localIntervals,
       });
       onSuccess?.('Check intervals updated successfully');
       await loadConfig();
@@ -143,7 +148,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
     try {
       setLoading(true);
       await api.put('/api/system/adaptive-scheduler/config', {
-        maintenance_mode: mode
+        maintenance_mode: mode,
       });
       onSuccess?.('Maintenance mode updated successfully');
       await loadConfig();
@@ -194,7 +199,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
       critical: '#f44336',
       down: '#757575',
       maintenance: '#2196f3',
-      unknown: '#9c27b0'
+      unknown: '#9c27b0',
     };
     return colors[state] || '#757575';
   };
@@ -206,7 +211,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
       critical: 'Critical',
       down: 'Down',
       maintenance: 'Maintenance',
-      unknown: 'Unknown'
+      unknown: 'Unknown',
     };
     return labels[state] || state;
   };
@@ -231,7 +236,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
           />
         </Box>
         <Typography variant="body2" color="text.secondary">
-          Intelligent monitoring with state-based check intervals. Critical hosts are checked more frequently than healthy hosts.
+          Intelligent monitoring with state-based check intervals. Critical hosts are checked more
+          frequently than healthy hosts.
         </Typography>
       </Box>
 
@@ -239,11 +245,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
       <Box sx={{ mb: 3 }}>
         <FormControlLabel
           control={
-            <Switch
-              checked={config.enabled}
-              onChange={toggleScheduler}
-              disabled={loading}
-            />
+            <Switch checked={config.enabled} onChange={toggleScheduler} disabled={loading} />
           }
           label="Enable Adaptive Monitoring"
         />
@@ -274,7 +276,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
                 sx={{
                   backgroundColor: getStateColor(state),
                   color: 'white',
-                  fontWeight: 'medium'
+                  fontWeight: 'medium',
                 }}
               />
             ))}
@@ -307,7 +309,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.unknown}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, unknown: parseInt(e.target.value) || 0 })}
+              onChange={(e) =>
+                setLocalIntervals({ ...localIntervals, unknown: parseInt(e.target.value) || 0 })
+              }
               inputProps={{ min: 0, max: 60 }}
               helperText="0 = immediate (0-60 min)"
             />
@@ -319,7 +323,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.online}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, online: parseInt(e.target.value) || 15 })}
+              onChange={(e) =>
+                setLocalIntervals({ ...localIntervals, online: parseInt(e.target.value) || 15 })
+              }
               inputProps={{ min: 5, max: 60 }}
               helperText="5-60 minutes"
             />
@@ -331,7 +337,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.degraded}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, degraded: parseInt(e.target.value) || 5 })}
+              onChange={(e) =>
+                setLocalIntervals({ ...localIntervals, degraded: parseInt(e.target.value) || 5 })
+              }
               inputProps={{ min: 1, max: 15 }}
               helperText="1-15 minutes"
             />
@@ -343,7 +351,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.critical}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, critical: parseInt(e.target.value) || 2 })}
+              onChange={(e) =>
+                setLocalIntervals({ ...localIntervals, critical: parseInt(e.target.value) || 2 })
+              }
               inputProps={{ min: 1, max: 10 }}
               helperText="1-10 minutes"
             />
@@ -355,7 +365,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.down}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, down: parseInt(e.target.value) || 30 })}
+              onChange={(e) =>
+                setLocalIntervals({ ...localIntervals, down: parseInt(e.target.value) || 30 })
+              }
               inputProps={{ min: 10, max: 120 }}
               helperText="10-120 minutes"
             />
@@ -367,19 +379,19 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
               type="number"
               size="small"
               value={localIntervals.maintenance}
-              onChange={(e) => setLocalIntervals({ ...localIntervals, maintenance: parseInt(e.target.value) || 60 })}
+              onChange={(e) =>
+                setLocalIntervals({
+                  ...localIntervals,
+                  maintenance: parseInt(e.target.value) || 60,
+                })
+              }
               inputProps={{ min: 15, max: 1440 }}
               helperText="15-1440 minutes"
             />
           </Grid>
         </Grid>
         <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={updateIntervals}
-            disabled={loading}
-          >
+          <Button variant="contained" size="small" onClick={updateIntervals} disabled={loading}>
             Save Intervals
           </Button>
           <Button
@@ -411,7 +423,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
           >
             <MenuItem value="skip">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Skip Checks</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Skip Checks
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Don't monitor hosts in maintenance mode
                 </Typography>
@@ -419,7 +433,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
             </MenuItem>
             <MenuItem value="passive">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Passive Only</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Passive Only
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Only check when manually triggered
                 </Typography>
@@ -427,7 +443,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
             </MenuItem>
             <MenuItem value="reduced">
               <Box>
-                <Typography variant="body2" fontWeight="medium">Reduced Checks</Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  Reduced Checks
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Check every {localIntervals.maintenance} minutes
                 </Typography>
@@ -456,7 +474,11 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
                   type="number"
                   size="small"
                   value={config.max_concurrent_checks}
-                  onChange={(e) => updateAdvancedSettings({ max_concurrent_checks: parseInt(e.target.value) || 10 })}
+                  onChange={(e) =>
+                    updateAdvancedSettings({
+                      max_concurrent_checks: parseInt(e.target.value) || 10,
+                    })
+                  }
                   inputProps={{ min: 1, max: 50 }}
                   helperText="1-50 (prevents network flooding)"
                 />
@@ -468,7 +490,11 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
                   type="number"
                   size="small"
                   value={config.check_timeout_seconds}
-                  onChange={(e) => updateAdvancedSettings({ check_timeout_seconds: parseInt(e.target.value) || 30 })}
+                  onChange={(e) =>
+                    updateAdvancedSettings({
+                      check_timeout_seconds: parseInt(e.target.value) || 30,
+                    })
+                  }
                   inputProps={{ min: 10, max: 300 }}
                   helperText="10-300 seconds"
                 />
@@ -478,7 +504,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
                   control={
                     <Switch
                       checked={config.retry_on_failure}
-                      onChange={(e) => updateAdvancedSettings({ retry_on_failure: e.target.checked })}
+                      onChange={(e) =>
+                        updateAdvancedSettings({ retry_on_failure: e.target.checked })
+                      }
                       disabled={loading}
                     />
                   }
@@ -493,9 +521,10 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({ o
       {/* Info Alert */}
       <Alert severity="info" sx={{ mt: 3 }}>
         <Typography variant="body2">
-          <strong>Adaptive Monitoring:</strong> The scheduler automatically adjusts check frequency based on host health.
-          Critical hosts are checked every {localIntervals.critical} minutes, while healthy hosts are only checked every {localIntervals.online} minutes.
-          This prevents network flooding and optimizes resource usage for environments with 100+ hosts.
+          <strong>Adaptive Monitoring:</strong> The scheduler automatically adjusts check frequency
+          based on host health. Critical hosts are checked every {localIntervals.critical} minutes,
+          while healthy hosts are only checked every {localIntervals.online} minutes. This prevents
+          network flooding and optimizes resource usage for environments with 100+ hosts.
         </Typography>
       </Alert>
     </Card>

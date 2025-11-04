@@ -48,13 +48,10 @@ export const uploadContent = createAsyncThunk(
   }
 );
 
-export const deleteContent = createAsyncThunk(
-  'content/deleteContent',
-  async (id: string) => {
-    await api.delete(`/content/${id}`);
-    return id;
-  }
-);
+export const deleteContent = createAsyncThunk('content/deleteContent', async (id: string) => {
+  await api.delete(`/content/${id}`);
+  return id;
+});
 
 const contentSlice = createSlice({
   name: 'content',

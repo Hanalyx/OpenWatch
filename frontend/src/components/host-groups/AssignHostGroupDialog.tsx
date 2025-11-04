@@ -13,12 +13,9 @@ import {
   Typography,
   Alert,
   CircularProgress,
-  Chip
+  Chip,
 } from '@mui/material';
-import {
-  Group as GroupIcon,
-  Computer as ComputerIcon
-} from '@mui/icons-material';
+import { Group as GroupIcon, Computer as ComputerIcon } from '@mui/icons-material';
 
 interface HostGroup {
   id: number;
@@ -47,7 +44,7 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
   open,
   onClose,
   selectedHosts,
-  onAssigned
+  onAssigned,
 }) => {
   const [groups, setGroups] = useState<HostGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | ''>('');
@@ -68,8 +65,8 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
       setLoading(true);
       const response = await fetch('/api/host-groups/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -100,11 +97,11 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
-          host_ids: selectedHosts.map(host => host.id)
-        })
+          host_ids: selectedHosts.map((host) => host.id),
+        }),
       });
 
       if (response.ok) {
@@ -133,8 +130,8 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
           await fetch(`/api/host-groups/${host.group_id}/hosts/${host.id}`, {
             method: 'DELETE',
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-            }
+              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            },
           });
         }
       }
@@ -149,22 +146,17 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
     }
   };
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <GroupIcon color="primary" />
           <Typography variant="h6">Assign Hosts to Group</Typography>
         </Box>
       </DialogTitle>
-      
+
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -174,7 +166,10 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
 
         {/* Selected Hosts Summary */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}
+          >
             <ComputerIcon fontSize="small" />
             Selected Hosts ({selectedHosts.length})
           </Typography>
@@ -195,7 +190,8 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
         {selectedHosts.length === 1 && selectedHosts[0].group_name && (
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>{selectedHosts[0].display_name || selectedHosts[0].hostname}</strong> is currently in group: 
+              <strong>{selectedHosts[0].display_name || selectedHosts[0].hostname}</strong> is
+              currently in group:
               <strong> {selectedHosts[0].group_name}</strong>
             </Typography>
           </Alert>
@@ -218,7 +214,7 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
                       width: 12,
                       height: 12,
                       borderRadius: '50%',
-                      bgcolor: group.color || '#666'
+                      bgcolor: group.color || '#666',
                     }}
                   />
                   <Box sx={{ flexGrow: 1 }}>
@@ -229,11 +225,7 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
                       </Typography>
                     )}
                   </Box>
-                  <Chip
-                    label={`${group.host_count} hosts`}
-                    size="small"
-                    variant="outlined"
-                  />
+                  <Chip label={`${group.host_count} hosts`} size="small" variant="outlined" />
                 </Box>
               </MenuItem>
             ))}
@@ -249,7 +241,7 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
                   width: 12,
                   height: 12,
                   borderRadius: '50%',
-                  bgcolor: selectedGroup.color || '#666'
+                  bgcolor: selectedGroup.color || '#666',
                 }}
               />
               {selectedGroup.name}
@@ -271,23 +263,19 @@ const AssignHostGroupDialog: React.FC<AssignHostGroupDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      
+
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        
+
         {/* Show remove from group option if hosts are currently in groups */}
-        {selectedHosts.some(host => host.group_id) && (
-          <Button
-            onClick={handleRemoveFromGroup}
-            disabled={loading}
-            color="warning"
-          >
+        {selectedHosts.some((host) => host.group_id) && (
+          <Button onClick={handleRemoveFromGroup} disabled={loading} color="warning">
             Remove from Groups
           </Button>
         )}
-        
+
         <Button
           onClick={handleAssign}
           variant="contained"

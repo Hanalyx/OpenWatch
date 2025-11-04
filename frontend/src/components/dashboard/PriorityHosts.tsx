@@ -13,7 +13,7 @@ import {
   useTheme,
   alpha,
   LinearProgress,
-  IconButton
+  IconButton,
 } from '@mui/material';
 import {
   Error as ErrorIcon,
@@ -24,7 +24,7 @@ import {
   PlayArrow,
   Build,
   CalendarToday,
-  MoreVert
+  MoreVert,
 } from '@mui/icons-material';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -53,22 +53,15 @@ interface PriorityHostsProps {
   loading?: boolean;
 }
 
-const PriorityHosts: React.FC<PriorityHostsProps> = ({
-  hosts,
-  onViewAll,
-  loading = false
-}) => {
+const PriorityHosts: React.FC<PriorityHostsProps> = ({ hosts, onViewAll, loading = false }) => {
   const theme = useTheme();
 
   // Ensure hosts is an array and filter out invalid entries
-  const safeHosts = Array.isArray(hosts) ? hosts.filter(host => 
-    host && 
-    host.id && 
-    host.hostname && 
-    host.issue && 
-    host.issueType && 
-    host.severity
-  ) : [];
+  const safeHosts = Array.isArray(hosts)
+    ? hosts.filter(
+        (host) => host && host.id && host.hostname && host.issue && host.issueType && host.severity
+      )
+    : [];
 
   const getIssueIcon = (issueType: PriorityHost['issueType']) => {
     switch (issueType) {
@@ -89,10 +82,14 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
 
   const getSeverityColor = (severity: PriorityHost['severity']) => {
     switch (severity) {
-      case 'critical': return theme.palette.error.main;
-      case 'high': return theme.palette.warning.dark;
-      case 'medium': return theme.palette.warning.main;
-      default: return theme.palette.text.secondary;
+      case 'critical':
+        return theme.palette.error.main;
+      case 'high':
+        return theme.palette.warning.dark;
+      case 'medium':
+        return theme.palette.warning.main;
+      default:
+        return theme.palette.text.secondary;
     }
   };
 
@@ -115,9 +112,7 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
     <Card sx={{ height: '100%' }}>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6">
-            Hosts Requiring Attention
-          </Typography>
+          <Typography variant="h6">Hosts Requiring Attention</Typography>
           {onViewAll && (
             <Button size="small" onClick={onViewAll}>
               View All
@@ -151,43 +146,48 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
                   bgcolor: alpha(getSeverityColor(host.severity), 0.04),
                   borderRadius: '0 4px 4px 0',
                   '&:hover': {
-                    bgcolor: alpha(getSeverityColor(host.severity), 0.08)
-                  }
+                    bgcolor: alpha(getSeverityColor(host.severity), 0.08),
+                  },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 40 }}>
-                  {getIssueIcon(host.issueType)}
-                </ListItemIcon>
+                <ListItemIcon sx={{ minWidth: 40 }}>{getIssueIcon(host.issueType)}</ListItemIcon>
                 <ListItemText
-                  primaryTypographyProps={{ 
+                  primaryTypographyProps={{
                     component: 'div',
-                    sx: { display: 'flex', alignItems: 'center', gap: 1 }
+                    sx: { display: 'flex', alignItems: 'center', gap: 1 },
                   }}
                   secondaryTypographyProps={{
-                    component: 'div'
+                    component: 'div',
                   }}
                   primary={
                     <>
                       <Typography component="span" variant="subtitle2" fontWeight="medium">
                         {host.displayName || host.hostname}
                       </Typography>
-                      {host.complianceScore !== undefined && typeof host.complianceScore === 'number' && (
-                        <Chip
-                          label={`${Math.round(host.complianceScore)}%`}
-                          size="small"
-                          color={host.complianceScore >= 90 ? 'success' : 
-                                 host.complianceScore >= 70 ? 'warning' : 'error'}
-                          sx={{ height: 20, fontSize: '0.7rem' }}
-                        />
-                      )}
+                      {host.complianceScore !== undefined &&
+                        typeof host.complianceScore === 'number' && (
+                          <Chip
+                            label={`${Math.round(host.complianceScore)}%`}
+                            size="small"
+                            color={
+                              host.complianceScore >= 90
+                                ? 'success'
+                                : host.complianceScore >= 70
+                                  ? 'warning'
+                                  : 'error'
+                            }
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        )}
                       {host.previousScore !== undefined && host.complianceScore !== undefined && (
-                        <Typography 
+                        <Typography
                           component="span"
-                          variant="caption" 
-                          sx={{ 
-                            color: host.complianceScore < host.previousScore 
-                              ? theme.palette.error.main 
-                              : theme.palette.success.main 
+                          variant="caption"
+                          sx={{
+                            color:
+                              host.complianceScore < host.previousScore
+                                ? theme.palette.error.main
+                                : theme.palette.success.main,
                           }}
                         >
                           {host.complianceScore < host.previousScore ? '↓' : '↑'}
@@ -198,13 +198,23 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
                   }
                   secondary={
                     <>
-                      <Typography component="span" variant="body2" color="text.secondary" display="block">
+                      <Typography
+                        component="span"
+                        variant="body2"
+                        color="text.secondary"
+                        display="block"
+                      >
                         {host.issue}
                       </Typography>
-                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                      <Box
+                        component="span"
+                        sx={{ display: 'inline-flex', alignItems: 'center', gap: 2, mt: 0.5 }}
+                      >
                         {host.lastScan && (
                           <Typography component="span" variant="caption" color="text.secondary">
-                            <CalendarToday sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }} />
+                            <CalendarToday
+                              sx={{ fontSize: 12, mr: 0.5, verticalAlign: 'middle' }}
+                            />
                             Last scan: {formatDistanceToNow(host.lastScan, { addSuffix: true })}
                           </Typography>
                         )}
@@ -238,7 +248,7 @@ const PriorityHosts: React.FC<PriorityHostsProps> = ({
                       textTransform: 'none',
                       fontSize: '0.875rem',
                       py: 0.5,
-                      px: 1.5
+                      px: 1.5,
                     }}
                   >
                     {host.action.label}

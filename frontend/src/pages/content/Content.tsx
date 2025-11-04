@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Container,
-  Typography,
-  Box,
-  Tabs,
-  Tab,
-  Paper,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { Container, Typography, Box, Tabs, Tab, Paper, useTheme, alpha } from '@mui/material';
 import {
   Folder as ContentIcon,
   AccountTree as RulesIcon,
@@ -40,11 +31,7 @@ function TabPanel(props: TabPanelProps) {
       style={{ display: value === index ? 'block' : 'none' }}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ width: '100%' }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ width: '100%' }}>{children}</Box>}
     </div>
   );
 }
@@ -65,14 +52,18 @@ const Content: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', pb: 4 }}>
+    <Container
+      maxWidth="xl"
+      sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', pb: 4 }}
+    >
       {/* Header */}
       <Box sx={{ py: 3 }}>
         <Typography variant="h4" gutterBottom>
           Content Library
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Browse compliance rules from database, explore security configurations, configure platform capabilities, and manage rule updates
+          Browse compliance rules from database, explore security configurations, configure platform
+          capabilities, and manage rule updates
         </Typography>
       </Box>
 
@@ -96,12 +87,7 @@ const Content: React.FC = () => {
             label="Compliance Rules"
             {...a11yProps(0)}
           />
-          <Tab
-            icon={<RulesIcon />}
-            iconPosition="start"
-            label="Rules Explorer"
-            {...a11yProps(1)}
-          />
+          <Tab icon={<RulesIcon />} iconPosition="start" label="Rules Explorer" {...a11yProps(1)} />
           <Tab
             icon={<PlatformIcon />}
             iconPosition="start"

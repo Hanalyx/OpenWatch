@@ -40,13 +40,9 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
   };
 
   // Sort categories by count and limit display
-  const displayCategories = categories
-    .sort((a, b) => b.count - a.count)
-    .slice(0, maxCategories);
+  const displayCategories = categories.sort((a, b) => b.count - a.count).slice(0, maxCategories);
 
-  const otherCount = categories
-    .slice(maxCategories)
-    .reduce((sum, cat) => sum + cat.count, 0);
+  const otherCount = categories.slice(maxCategories).reduce((sum, cat) => sum + cat.count, 0);
 
   if (compact) {
     return (
@@ -88,11 +84,11 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
       <Typography variant="subtitle2" gutterBottom color="text.secondary">
         Rule Categories
       </Typography>
-      
+
       <Stack spacing={1.5}>
         {displayCategories.map((category, index) => {
           const color = getCategoryColor(index);
-          
+
           return (
             <Box key={category.name}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
@@ -104,7 +100,7 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
                   {showPercentages && ` (${category.percentage}%)`}
                 </Typography>
               </Box>
-              
+
               <LinearProgress
                 variant="determinate"
                 value={category.percentage}
@@ -121,7 +117,7 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
             </Box>
           );
         })}
-        
+
         {otherCount > 0 && (
           <Box>
             <Typography variant="caption" color="text.secondary">
@@ -130,7 +126,7 @@ export const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
           </Box>
         )}
       </Stack>
-      
+
       {categories.length === 0 && (
         <Typography variant="body2" color="text.secondary" fontStyle="italic">
           No category breakdown available

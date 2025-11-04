@@ -41,11 +41,7 @@ interface DependencyNode {
   children: DependencyNode[];
 }
 
-const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
-  open,
-  onClose,
-  ruleId,
-}) => {
+const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({ open, onClose, ruleId }) => {
   const theme = useTheme();
   const ruleDependencies = useSelector((state: RootState) => state.rules.ruleDependencies);
   const rules = useSelector((state: RootState) => state.rules.rules);
@@ -53,7 +49,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
 
   // Find the rule name
   const getRuleName = (id: string): string => {
-    const rule = rules.find(r => r.rule_id === id);
+    const rule = rules.find((r) => r.rule_id === id);
     return rule?.metadata.name || id;
   };
 
@@ -100,7 +96,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
     const { direct_dependencies, transitive_dependencies } = ruleDependencies.dependency_graph;
 
     // Add direct dependencies
-    direct_dependencies.requires.forEach(dep => {
+    direct_dependencies.requires.forEach((dep) => {
       const node: DependencyNode = {
         id: dep,
         name: getRuleName(dep),
@@ -112,7 +108,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
       // Add transitive dependencies if available
       if (transitive_dependencies && transitive_dependencies[dep]) {
         const transDep = transitive_dependencies[dep];
-        node.children = transDep.requires.map(childDep => ({
+        node.children = transDep.requires.map((childDep) => ({
           id: childDep,
           name: getRuleName(childDep),
           type: 'requires',
@@ -125,7 +121,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
     });
 
     // Add conflicts
-    direct_dependencies.conflicts.forEach(dep => {
+    direct_dependencies.conflicts.forEach((dep) => {
       nodes.push({
         id: dep,
         name: getRuleName(dep),
@@ -136,7 +132,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
     });
 
     // Add related
-    direct_dependencies.related.forEach(dep => {
+    direct_dependencies.related.forEach((dep) => {
       nodes.push({
         id: dep,
         name: getRuleName(dep),
@@ -170,26 +166,15 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
           }}
           onClick={() => hasChildren && toggleNode(node.id)}
         >
-          {hasChildren && (
-            <IconButton size="small">
-              {isExpanded ? '−' : '+'}
-            </IconButton>
-          )}
+          {hasChildren && <IconButton size="small">{isExpanded ? '−' : '+'}</IconButton>}
           {!hasChildren && <Box sx={{ width: 32 }} />}
-          
+
           {getTypeIcon(node.type)}
-          
-          <Typography variant="body2">
-            {node.name}
-          </Typography>
-          
-          <Chip
-            label={node.id}
-            size="small"
-            variant="outlined"
-            sx={{ ml: 'auto' }}
-          />
-          
+
+          <Typography variant="body2">{node.name}</Typography>
+
+          <Chip label={node.id} size="small" variant="outlined" sx={{ ml: 'auto' }} />
+
           {node.depth > 1 && (
             <Chip
               label={`Depth: ${node.depth}`}
@@ -201,11 +186,9 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
             />
           )}
         </Box>
-        
+
         {hasChildren && isExpanded && (
-          <Box>
-            {node.children.map(child => renderNode(child, level + 1))}
-          </Box>
+          <Box>{node.children.map((child) => renderNode(child, level + 1))}</Box>
         )}
       </Box>
     );
@@ -229,9 +212,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center" gap={1}>
             <TreeIcon />
-            <Typography variant="h6">
-              Rule Dependencies
-            </Typography>
+            <Typography variant="h6">Rule Dependencies</Typography>
           </Box>
           <IconButton onClick={onClose}>
             <CloseIcon />
@@ -306,15 +287,11 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({
               <Typography variant="subtitle2" gutterBottom>
                 Dependency Tree
               </Typography>
-              
+
               {dependencyTree.length > 0 ? (
-                <Paper sx={{ p: 2 }}>
-                  {dependencyTree.map(node => renderNode(node))}
-                </Paper>
+                <Paper sx={{ p: 2 }}>{dependencyTree.map((node) => renderNode(node))}</Paper>
               ) : (
-                <Alert severity="info">
-                  This rule has no dependencies.
-                </Alert>
+                <Alert severity="info">This rule has no dependencies.</Alert>
               )}
             </Box>
 

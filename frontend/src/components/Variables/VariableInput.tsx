@@ -68,7 +68,9 @@ export const VariableInput: React.FC<VariableInputProps> = ({
             onChange={(e) => onChange(e.target.value)}
             inputProps={{ min: lower_bound, max: upper_bound }}
             error={!!error}
-            helperText={error || `Range: ${lower_bound}-${upper_bound} (Default: ${variable.default})`}
+            helperText={
+              error || `Range: ${lower_bound}-${upper_bound} (Default: ${variable.default})`
+            }
             size="small"
           />
         </Box>
@@ -106,9 +108,7 @@ export const VariableInput: React.FC<VariableInputProps> = ({
             </Box>
           }
         />
-        {error && (
-          <FormHelperText error>{error}</FormHelperText>
-        )}
+        {error && <FormHelperText error>{error}</FormHelperText>}
       </Box>
     );
   }
@@ -146,7 +146,10 @@ export const VariableInput: React.FC<VariableInputProps> = ({
       label={variable.title}
       value={currentValue || ''}
       onChange={(e) => onChange(e.target.value)}
-      helperText={error || `${variable.description} ${variable.default ? `(Default: ${variable.default})` : ''}`}
+      helperText={
+        error ||
+        `${variable.description} ${variable.default ? `(Default: ${variable.default})` : ''}`
+      }
       error={!!error}
       inputProps={inputProps}
     />

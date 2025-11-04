@@ -8,7 +8,7 @@ class TokenService {
   // Check token expiry and refresh if needed
   async checkAndRefreshToken(): Promise<boolean> {
     const state = store.getState().auth;
-    
+
     if (!state.token || !state.refreshToken) {
       return false;
     }
@@ -30,7 +30,7 @@ class TokenService {
   // Refresh the access token using refresh token
   async refreshToken(manual: boolean = false): Promise<boolean> {
     const state = store.getState().auth;
-    
+
     if (!state.refreshToken) {
       console.warn('[SECURITY] No refresh token available');
       if (!manual) {
@@ -63,7 +63,7 @@ class TokenService {
       }
 
       const data = await response.json();
-      
+
       // Validate response structure
       if (!data.access_token || !data.expires_in) {
         console.error('[SECURITY] Invalid refresh response structure');
@@ -73,10 +73,12 @@ class TokenService {
         return false;
       }
 
-      store.dispatch(refreshTokenSuccess({
-        token: data.access_token,
-        expiresIn: data.expires_in,
-      }));
+      store.dispatch(
+        refreshTokenSuccess({
+          token: data.access_token,
+          expiresIn: data.expires_in,
+        })
+      );
 
       console.log('[SECURITY] Token refreshed successfully');
       return true;
@@ -93,7 +95,7 @@ class TokenService {
   // Start automatic token refresh
   startTokenRefreshTimer() {
     this.stopTokenRefreshTimer();
-    
+
     // Check every minute for token refresh, but don't auto-logout
     this.refreshTimer = setInterval(() => {
       this.checkAndRefreshToken();
@@ -101,7 +103,7 @@ class TokenService {
 
     // Also check immediately
     this.checkAndRefreshToken();
-    
+
     // Security: Monitor for tab focus to check session validity
     this.monitorTabFocus();
   }
@@ -115,7 +117,7 @@ class TokenService {
       };
 
       window.addEventListener('focus', handleFocus);
-      
+
       // Clean up listener when timer stops
       const originalStop = this.stopTokenRefreshTimer.bind(this);
       this.stopTokenRefreshTimer = () => {
@@ -150,14 +152,14 @@ class TokenService {
   // Add Authorization header to requests
   getAuthHeaders(): HeadersInit {
     const token = store.getState().auth.token;
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   // Enhanced fetch with automatic token refresh
   async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
     // Check and refresh token before making request
     const tokenValid = await this.checkAndRefreshToken();
-    
+
     if (!tokenValid) {
       throw new Error('Authentication failed');
     }
@@ -173,11 +175,11 @@ class TokenService {
     };
 
     const response = await fetch(url, mergedOptions);
-    
+
     // If we get 401, try refreshing token once
     if (response.status === 401) {
       const refreshed = await this.refreshToken();
-      
+
       if (refreshed) {
         // Retry the request with new token
         const newAuthHeaders = this.getAuthHeaders();
@@ -188,7 +190,7 @@ class TokenService {
             ...options.headers,
           },
         };
-        
+
         return await fetch(url, retryOptions);
       }
     }

@@ -30,7 +30,7 @@ import {
   Chip,
   Tooltip,
   TablePagination,
-  InputAdornment
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -43,7 +43,7 @@ import {
   Assessment as AnalystIcon,
   Policy as ComplianceIcon,
   Visibility as AuditorIcon,
-  PersonOutline as GuestIcon
+  PersonOutline as GuestIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 
@@ -72,7 +72,7 @@ const roleIcons: Record<string, JSX.Element> = {
   security_analyst: <AnalystIcon color="info" />,
   compliance_officer: <ComplianceIcon color="success" />,
   auditor: <AuditorIcon color="secondary" />,
-  guest: <GuestIcon color="disabled" />
+  guest: <GuestIcon color="disabled" />,
 };
 
 const roleColors: Record<string, string> = {
@@ -81,7 +81,7 @@ const roleColors: Record<string, string> = {
   security_analyst: '#2196f3',
   compliance_officer: '#4caf50',
   auditor: '#9c27b0',
-  guest: '#757575'
+  guest: '#757575',
 };
 
 const Users: React.FC = () => {
@@ -90,11 +90,11 @@ const Users: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  
+
   // Pagination and filtering
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -102,14 +102,14 @@ const Users: React.FC = () => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  
+
   // Form state
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     role: 'guest',
-    is_active: true
+    is_active: true,
   });
 
   const loadRoles = async () => {
@@ -126,13 +126,13 @@ const Users: React.FC = () => {
       setLoading(true);
       const params = new URLSearchParams({
         page: (page + 1).toString(),
-        page_size: pageSize.toString()
+        page_size: pageSize.toString(),
       });
-      
+
       if (search) params.append('search', search);
       if (roleFilter) params.append('role', roleFilter);
       if (statusFilter !== '') params.append('is_active', statusFilter);
-      
+
       const response = await api.get(`/api/users?${params.toString()}`);
       setUsers(response.users);
       setTotal(response.total);
@@ -159,7 +159,7 @@ const Users: React.FC = () => {
       email: '',
       password: '',
       role: 'guest',
-      is_active: true
+      is_active: true,
     });
     setDialogOpen(true);
   };
@@ -171,7 +171,7 @@ const Users: React.FC = () => {
       email: user.email,
       password: '',
       role: user.role,
-      is_active: user.is_active
+      is_active: user.is_active,
     });
     setDialogOpen(true);
   };
@@ -194,7 +194,7 @@ const Users: React.FC = () => {
   const handleSaveUser = async () => {
     try {
       setLoading(true);
-      
+
       if (editingUser) {
         // Update existing user
         const updateData: any = {};
@@ -203,7 +203,7 @@ const Users: React.FC = () => {
         if (formData.role !== editingUser.role) updateData.role = formData.role;
         if (formData.is_active !== editingUser.is_active) updateData.is_active = formData.is_active;
         if (formData.password) updateData.password = formData.password;
-        
+
         await api.put(`/api/users/${editingUser.id}`, updateData);
         setSuccess('User updated successfully');
       } else {
@@ -211,7 +211,7 @@ const Users: React.FC = () => {
         await api.post('/api/users', formData);
         setSuccess('User created successfully');
       }
-      
+
       setDialogOpen(false);
       loadUsers();
     } catch (err: any) {
@@ -223,14 +223,14 @@ const Users: React.FC = () => {
   };
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const getRoleDisplay = (role: string) => {
-    const roleData = roles.find(r => r.name === role);
+    const roleData = roles.find((r) => r.name === role);
     return roleData ? roleData.display_name : role;
   };
 
@@ -268,7 +268,7 @@ const Users: React.FC = () => {
               }}
               sx={{ minWidth: 200 }}
             />
-            
+
             <FormControl sx={{ minWidth: 150 }}>
               <InputLabel>Role</InputLabel>
               <Select
@@ -284,7 +284,7 @@ const Users: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
-            
+
             <FormControl sx={{ minWidth: 120 }}>
               <InputLabel>Status</InputLabel>
               <Select
@@ -297,13 +297,9 @@ const Users: React.FC = () => {
                 <MenuItem value="false">Inactive</MenuItem>
               </Select>
             </FormControl>
-            
+
             <Box sx={{ ml: 'auto' }}>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddUser}
-              >
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddUser}>
                 Add User
               </Button>
             </Box>
@@ -348,12 +344,14 @@ const Users: React.FC = () => {
                       sx={{
                         backgroundColor: roleColors[user.role] + '20',
                         color: roleColors[user.role],
-                        fontWeight: 'medium'
+                        fontWeight: 'medium',
                       }}
                     />
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Box
+                      sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}
+                    >
                       <Chip
                         label={user.is_active ? 'Active' : 'Inactive'}
                         size="small"
@@ -373,31 +371,19 @@ const Users: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {formatDate(user.last_login)}
-                    </Typography>
+                    <Typography variant="body2">{formatDate(user.last_login)}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2">
-                      {formatDate(user.created_at)}
-                    </Typography>
+                    <Typography variant="body2">{formatDate(user.created_at)}</Typography>
                   </TableCell>
                   <TableCell>
                     <Tooltip title="Edit User">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditUser(user)}
-                        sx={{ mr: 1 }}
-                      >
+                      <IconButton size="small" onClick={() => handleEditUser(user)} sx={{ mr: 1 }}>
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete User">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteUser(user)}
-                        color="error"
-                      >
+                      <IconButton size="small" onClick={() => handleDeleteUser(user)} color="error">
                         <DeleteIcon />
                       </IconButton>
                     </Tooltip>
@@ -407,16 +393,14 @@ const Users: React.FC = () => {
               {users.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} align="center">
-                    <Typography color="text.secondary">
-                      No users found
-                    </Typography>
+                    <Typography color="text.secondary">No users found</Typography>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
-        
+
         <TablePagination
           component="div"
           count={total}
@@ -433,9 +417,7 @@ const Users: React.FC = () => {
 
       {/* Add/Edit User Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingUser ? 'Edit User' : 'Add New User'}
-        </DialogTitle>
+        <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2, display: 'grid', gap: 2 }}>
             <TextField
@@ -445,7 +427,7 @@ const Users: React.FC = () => {
               onChange={(e) => handleFormChange('username', e.target.value)}
               required
             />
-            
+
             <TextField
               label="Email"
               type="email"
@@ -454,17 +436,19 @@ const Users: React.FC = () => {
               onChange={(e) => handleFormChange('email', e.target.value)}
               required
             />
-            
+
             <TextField
               label="Password"
               type="password"
               fullWidth
               value={formData.password}
               onChange={(e) => handleFormChange('password', e.target.value)}
-              helperText={editingUser ? "Leave blank to keep current password" : "Required for new users"}
+              helperText={
+                editingUser ? 'Leave blank to keep current password' : 'Required for new users'
+              }
               required={!editingUser}
             />
-            
+
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
@@ -487,7 +471,7 @@ const Users: React.FC = () => {
                 ))}
               </Select>
             </FormControl>
-            
+
             <FormControlLabel
               control={
                 <Switch
@@ -504,7 +488,12 @@ const Users: React.FC = () => {
           <Button
             onClick={handleSaveUser}
             variant="contained"
-            disabled={loading || !formData.username || !formData.email || (!editingUser && !formData.password)}
+            disabled={
+              loading ||
+              !formData.username ||
+              !formData.email ||
+              (!editingUser && !formData.password)
+            }
           >
             {loading ? 'Saving...' : editingUser ? 'Update' : 'Create'}
           </Button>
@@ -512,21 +501,13 @@ const Users: React.FC = () => {
       </Dialog>
 
       {/* Success/Error Snackbars */}
-      <Snackbar
-        open={!!success}
-        autoHideDuration={6000}
-        onClose={() => setSuccess(null)}
-      >
+      <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess(null)}>
         <Alert onClose={() => setSuccess(null)} severity="success">
           {success}
         </Alert>
       </Snackbar>
-      
-      <Snackbar
-        open={!!error}
-        autoHideDuration={6000}
-        onClose={() => setError(null)}
-      >
+
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)}>
         <Alert onClose={() => setError(null)} severity="error">
           {error}
         </Alert>

@@ -21,7 +21,7 @@ import {
   ListItemText,
   Paper,
   Typography,
-  CircularProgress
+  CircularProgress,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -38,7 +38,7 @@ import {
   NetworkCheck as NetworkIcon,
   Computer as ComputerIcon,
   Storage as StorageIcon,
-  Extension as ExtensionIcon
+  Extension as ExtensionIcon,
 } from '@mui/icons-material';
 
 // Type definitions matching Daniel's error classification system
@@ -54,7 +54,15 @@ export interface AutomatedFix {
 
 export interface ClassifiedError {
   error_code: string;
-  category: 'network' | 'authentication' | 'privilege' | 'resource' | 'dependency' | 'content' | 'execution' | 'configuration';
+  category:
+    | 'network'
+    | 'authentication'
+    | 'privilege'
+    | 'resource'
+    | 'dependency'
+    | 'content'
+    | 'execution'
+    | 'configuration';
   severity: 'critical' | 'error' | 'warning' | 'info';
   message: string;
   technical_details?: Record<string, any>;
@@ -77,58 +85,80 @@ interface ErrorClassificationDisplayProps {
 
 const getCategoryIcon = (category: string) => {
   switch (category) {
-    case 'network': return <NetworkIcon />;
-    case 'authentication': return <SecurityIcon />;
-    case 'privilege': return <SecurityIcon />;
-    case 'resource': return <StorageIcon />;
-    case 'dependency': return <ExtensionIcon />;
-    case 'content': return <ComputerIcon />;
-    default: return <ErrorIcon />;
+    case 'network':
+      return <NetworkIcon />;
+    case 'authentication':
+      return <SecurityIcon />;
+    case 'privilege':
+      return <SecurityIcon />;
+    case 'resource':
+      return <StorageIcon />;
+    case 'dependency':
+      return <ExtensionIcon />;
+    case 'content':
+      return <ComputerIcon />;
+    default:
+      return <ErrorIcon />;
   }
 };
 
 const getCategoryColor = (category: string) => {
   switch (category) {
-    case 'network': return 'info';
-    case 'authentication': return 'warning';
-    case 'privilege': return 'warning';
-    case 'resource': return 'error';
-    case 'dependency': return 'info';
-    case 'content': return 'primary';
-    default: return 'default';
+    case 'network':
+      return 'info';
+    case 'authentication':
+      return 'warning';
+    case 'privilege':
+      return 'warning';
+    case 'resource':
+      return 'error';
+    case 'dependency':
+      return 'info';
+    case 'content':
+      return 'primary';
+    default:
+      return 'default';
   }
 };
 
 const getSeverityIcon = (severity: string) => {
   switch (severity) {
     case 'critical':
-    case 'error': return <ErrorIcon color="error" />;
-    case 'warning': return <WarningIcon color="warning" />;
-    case 'info': return <InfoIcon color="info" />;
-    default: return <InfoIcon />;
+    case 'error':
+      return <ErrorIcon color="error" />;
+    case 'warning':
+      return <WarningIcon color="warning" />;
+    case 'info':
+      return <InfoIcon color="info" />;
+    default:
+      return <InfoIcon />;
   }
 };
 
 const getSeverityColor = (severity: string): 'error' | 'warning' | 'info' | 'success' => {
   switch (severity) {
     case 'critical':
-    case 'error': return 'error';
-    case 'warning': return 'warning';
-    case 'info': return 'info';
-    default: return 'info';
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    case 'info':
+      return 'info';
+    default:
+      return 'info';
   }
 };
 
 const formatErrorCode = (errorCode: string, category: string): string => {
   const categoryMap = {
-    'network': 'Network',
-    'authentication': 'Authentication',
-    'privilege': 'Privileges',
-    'resource': 'Resources', 
-    'dependency': 'Dependencies',
-    'content': 'Content',
-    'execution': 'Execution',
-    'configuration': 'Configuration'
+    network: 'Network',
+    authentication: 'Authentication',
+    privilege: 'Privileges',
+    resource: 'Resources',
+    dependency: 'Dependencies',
+    content: 'Content',
+    execution: 'Execution',
+    configuration: 'Configuration',
   };
   return `${categoryMap[category as keyof typeof categoryMap] || 'System'} Error ${errorCode}`;
 };
@@ -139,7 +169,7 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
   onApplyFix,
   showTechnicalDetails = false,
   compact = false,
-  'data-testid': testId = 'error-classification'
+  'data-testid': testId = 'error-classification',
 }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [showFixDialog, setShowFixDialog] = useState(false);
@@ -148,7 +178,7 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
 
   const handleApplyFix = async (fix: AutomatedFix) => {
     if (!onApplyFix) return;
-    
+
     setApplyingFix(true);
     try {
       await onApplyFix(fix.fix_id);
@@ -166,7 +196,7 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
 
   if (compact) {
     return (
-      <Alert 
+      <Alert
         severity={getSeverityColor(error.severity)}
         icon={getSeverityIcon(error.severity)}
         data-testid={testId}
@@ -233,7 +263,11 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
           {/* Automated Fixes */}
           {error.automated_fixes.length > 0 && (
             <Box mb={2}>
-              <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography
+                variant="subtitle2"
+                gutterBottom
+                sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+              >
                 <BuildIcon fontSize="small" />
                 Automated Fixes Available
               </Typography>
@@ -269,7 +303,7 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
                 {error.retry_after ? `Retry (wait ${error.retry_after}s)` : 'Retry'}
               </Button>
             )}
-            
+
             {error.documentation_url && (
               <Button
                 variant="outlined"
@@ -308,19 +342,22 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
                   Category: {error.category}
                 </Typography>
                 <Typography variant="caption" display="block" gutterBottom>
-                  Timestamp: {error.timestamp ? new Date(error.timestamp).toLocaleString() : 'Not available'}
+                  Timestamp:{' '}
+                  {error.timestamp ? new Date(error.timestamp).toLocaleString() : 'Not available'}
                 </Typography>
                 {error.technical_details && (
                   <Box mt={1}>
                     <Typography variant="caption" display="block" gutterBottom>
                       Additional Details:
                     </Typography>
-                    <pre style={{ 
-                      fontSize: '0.75rem', 
-                      overflow: 'auto', 
-                      margin: 0,
-                      whiteSpace: 'pre-wrap'
-                    }}>
+                    <pre
+                      style={{
+                        fontSize: '0.75rem',
+                        overflow: 'auto',
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
                       {JSON.stringify(error.technical_details, null, 2)}
                     </pre>
                   </Box>
@@ -351,20 +388,16 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
               <Typography variant="h6" gutterBottom>
                 {selectedFix.description}
               </Typography>
-              
+
               <Box display="flex" gap={1} mb={2}>
-                <Chip 
-                  label={`~${selectedFix.estimated_time}s`} 
-                  size="small" 
-                  variant="outlined" 
-                />
+                <Chip label={`~${selectedFix.estimated_time}s`} size="small" variant="outlined" />
                 {selectedFix.requires_sudo && (
                   <Chip label="Requires Sudo" color="warning" size="small" />
                 )}
-                <Chip 
-                  label={selectedFix.is_safe ? "Safe" : "Use Caution"} 
-                  color={selectedFix.is_safe ? "success" : "error"}
-                  size="small" 
+                <Chip
+                  label={selectedFix.is_safe ? 'Safe' : 'Use Caution'}
+                  color={selectedFix.is_safe ? 'success' : 'error'}
+                  size="small"
                 />
               </Box>
 
@@ -397,18 +430,15 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
               {!selectedFix.is_safe && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
                   <AlertTitle>Use Caution</AlertTitle>
-                  This fix makes system changes that could affect other services.
-                  Ensure you have appropriate backups and permissions before proceeding.
+                  This fix makes system changes that could affect other services. Ensure you have
+                  appropriate backups and permissions before proceeding.
                 </Alert>
               )}
             </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setShowFixDialog(false)}
-            disabled={applyingFix}
-          >
+          <Button onClick={() => setShowFixDialog(false)} disabled={applyingFix}>
             Cancel
           </Button>
           <Button

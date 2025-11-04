@@ -112,20 +112,23 @@ const StatCard: React.FC<StatCardProps> = ({
         position: 'relative',
         borderRadius: 2, // Standard theme border-radius
         border: 'none', // Remove solid border
-        boxShadow: theme.palette.mode === 'light' 
-          ? '0 1px 2px 0 rgba(60, 64, 67, .3), 0 1px 3px 1px rgba(60, 64, 67, .15)'
-          : '0 1px 2px 0 rgba(0, 0, 0, .3), 0 1px 3px 1px rgba(0, 0, 0, .15)',
+        boxShadow:
+          theme.palette.mode === 'light'
+            ? '0 1px 2px 0 rgba(60, 64, 67, .3), 0 1px 3px 1px rgba(60, 64, 67, .15)'
+            : '0 1px 2px 0 rgba(0, 0, 0, .3), 0 1px 3px 1px rgba(0, 0, 0, .15)',
         '&:hover': onClick
           ? {
               transform: 'translateY(-2px)',
-              boxShadow: theme.palette.mode === 'light'
-                ? '0 1px 3px 0 rgba(60, 64, 67, .3), 0 4px 8px 3px rgba(60, 64, 67, .15)'
-                : '0 1px 3px 0 rgba(0, 0, 0, .3), 0 4px 8px 3px rgba(0, 0, 0, .15)',
+              boxShadow:
+                theme.palette.mode === 'light'
+                  ? '0 1px 3px 0 rgba(60, 64, 67, .3), 0 4px 8px 3px rgba(60, 64, 67, .15)'
+                  : '0 1px 3px 0 rgba(0, 0, 0, .3), 0 4px 8px 3px rgba(0, 0, 0, .15)',
             }
           : {
-              boxShadow: theme.palette.mode === 'light'
-                ? '0 1px 3px 0 rgba(60, 64, 67, .3), 0 4px 8px 3px rgba(60, 64, 67, .15)'
-                : '0 1px 3px 0 rgba(0, 0, 0, .3), 0 4px 8px 3px rgba(0, 0, 0, .15)',
+              boxShadow:
+                theme.palette.mode === 'light'
+                  ? '0 1px 3px 0 rgba(60, 64, 67, .3), 0 4px 8px 3px rgba(60, 64, 67, .15)'
+                  : '0 1px 3px 0 rgba(0, 0, 0, .3), 0 4px 8px 3px rgba(0, 0, 0, .15)',
             },
       }}
       onClick={onClick}
@@ -155,11 +158,7 @@ const StatCard: React.FC<StatCardProps> = ({
                 {icon}
               </Box>
             )}
-            <Typography
-              variant={config.titleVariant}
-              color="text.secondary"
-              fontWeight={500}
-            >
+            <Typography variant={config.titleVariant} color="text.secondary" fontWeight={500}>
               {title}
             </Typography>
           </Box>

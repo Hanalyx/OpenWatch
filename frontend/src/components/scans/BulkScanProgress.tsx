@@ -19,7 +19,7 @@ import {
   Collapse,
   Alert,
   Grid,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -33,7 +33,7 @@ import {
   ExpandLess,
   Computer,
   Timer,
-  Assessment
+  Assessment,
 } from '@mui/icons-material';
 
 interface ScanProgress {
@@ -77,7 +77,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
   onClose,
   sessionId,
   sessionName,
-  onCancel
+  onCancel,
 }) => {
   const [session, setSession] = useState<BulkScanSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,19 +89,23 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
   const fetchProgress = useCallback(async () => {
     try {
       setError(null);
-      
+
       const response = await fetch(`/api/scans/bulk-scan/${sessionId}/progress`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
         const data = await response.json();
         setSession(data);
-        
+
         // Stop auto-refresh if session is completed or failed
-        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        if (
+          data.status === 'completed' ||
+          data.status === 'failed' ||
+          data.status === 'cancelled'
+        ) {
           setAutoRefresh(false);
         }
       } else {
@@ -119,7 +123,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
   useEffect(() => {
     if (open && sessionId) {
       fetchProgress();
-      
+
       if (autoRefresh) {
         const interval = setInterval(fetchProgress, 3000); // Refresh every 3 seconds
         return () => clearInterval(interval);
@@ -135,8 +139,8 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
         const response = await fetch(`/api/scans/bulk-scan/${sessionId}/cancel`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          },
         });
 
         if (response.ok) {
@@ -151,41 +155,53 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'success';
-      case 'failed': return 'error';
-      case 'running': return 'primary';
-      case 'cancelled': return 'default';
-      default: return 'default';
+      case 'completed':
+        return 'success';
+      case 'failed':
+        return 'error';
+      case 'running':
+        return 'primary';
+      case 'cancelled':
+        return 'default';
+      default:
+        return 'default';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle color="success" />;
-      case 'failed': return <Error color="error" />;
-      case 'running': return <PlayArrow color="primary" />;
-      case 'cancelled': return <Stop color="disabled" />;
-      default: return <Schedule color="disabled" />;
+      case 'completed':
+        return <CheckCircle color="success" />;
+      case 'failed':
+        return <Error color="error" />;
+      case 'running':
+        return <PlayArrow color="primary" />;
+      case 'cancelled':
+        return <Stop color="disabled" />;
+      default:
+        return <Schedule color="disabled" />;
     }
   };
 
   const formatDuration = (startTime?: string, endTime?: string) => {
     if (!startTime) return 'Not started';
-    
+
     const start = new Date(startTime);
     const end = endTime ? new Date(endTime) : new Date();
     const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
-    
+
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
-    
+
     return `${minutes}m ${seconds}s`;
   };
 
   const calculateAverageScore = (scans: ScanProgress[]) => {
-    const completedScans = scans.filter(scan => scan.status === 'completed' && scan.compliance_score !== undefined);
+    const completedScans = scans.filter(
+      (scan) => scan.status === 'completed' && scan.compliance_score !== undefined
+    );
     if (completedScans.length === 0) return null;
-    
+
     const totalScore = completedScans.reduce((sum, scan) => sum + (scan.compliance_score || 0), 0);
     return Math.round(totalScore / completedScans.length);
   };
@@ -206,9 +222,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography variant="h6">
-              Bulk Scan Progress
-            </Typography>
+            <Typography variant="h6">Bulk Scan Progress</Typography>
             <Typography variant="body2" color="text.secondary">
               {session?.session_name || sessionName}
             </Typography>
@@ -231,10 +245,15 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
             {/* Overall Progress */}
             <Card sx={{ mb: 2 }}>
               <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h6">
-                    Overall Progress
-                  </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="h6">Overall Progress</Typography>
                   <Chip
                     label={session.status.toUpperCase()}
                     color={getStatusColor(session.status) as any}
@@ -295,8 +314,10 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                   <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <Chip
                       icon={<Timer />}
-                      label={`Duration: ${formatDuration(session.started_at, 
-                        session.status === 'completed' ? session.estimated_completion : undefined)}`}
+                      label={`Duration: ${formatDuration(
+                        session.started_at,
+                        session.status === 'completed' ? session.estimated_completion : undefined
+                      )}`}
                       variant="outlined"
                       size="small"
                     />
@@ -324,21 +345,17 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
             {/* Individual Scans */}
             <Card>
               <CardContent sx={{ pb: 1 }}>
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                   onClick={() => setExpanded(!expanded)}
                 >
-                  <Typography variant="h6">
-                    Individual Scans ({session.total_hosts})
-                  </Typography>
-                  <IconButton size="small">
-                    {expanded ? <ExpandLess /> : <ExpandMore />}
-                  </IconButton>
+                  <Typography variant="h6">Individual Scans ({session.total_hosts})</Typography>
+                  <IconButton size="small">{expanded ? <ExpandLess /> : <ExpandMore />}</IconButton>
                 </Box>
               </CardContent>
 
@@ -347,9 +364,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                   {session.individual_scans.map((scan, index) => (
                     <React.Fragment key={scan.scan_id}>
                       <ListItem>
-                        <ListItemIcon>
-                          {getStatusIcon(scan.status)}
-                        </ListItemIcon>
+                        <ListItemIcon>{getStatusIcon(scan.status)}</ListItemIcon>
                         <ListItemText
                           primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -384,11 +399,13 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                                     • Score: {scan.compliance_score}%
                                   </Typography>
                                 )}
-                                {scan.failed_rules !== undefined && scan.total_rules !== undefined && (
-                                  <Typography variant="caption" color="text.secondary">
-                                    • {scan.total_rules - scan.failed_rules}/{scan.total_rules} passed
-                                  </Typography>
-                                )}
+                                {scan.failed_rules !== undefined &&
+                                  scan.total_rules !== undefined && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      • {scan.total_rules - scan.failed_rules}/{scan.total_rules}{' '}
+                                      passed
+                                    </Typography>
+                                  )}
                               </Box>
                             </Box>
                           }
@@ -413,7 +430,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
         >
           {autoRefresh ? 'Pause Updates' : 'Resume Updates'}
         </Button>
-        
+
         {session?.status === 'running' && (
           <Button
             onClick={handleCancel}
@@ -425,7 +442,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
             Cancel Session
           </Button>
         )}
-        
+
         <Button onClick={onClose} variant="contained">
           Close
         </Button>

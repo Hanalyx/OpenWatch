@@ -32,24 +32,30 @@ export const useComplianceStatistics = (): UseComplianceStatisticsReturn => {
         throw new Error(`API endpoint not available (${response.status})`);
       }
 
-      const result: { success: boolean; data: PlatformStatisticsResponse; message: string } = await response.json();
-      
+      const result: { success: boolean; data: PlatformStatisticsResponse; message: string } =
+        await response.json();
+
       if (!result.success) {
         throw new Error('API returned unsuccessful response');
       }
 
-      const { platforms: platformData, total_platforms, total_rules_analyzed, source: dataSource } = result.data;
-      
+      const {
+        platforms: platformData,
+        total_platforms,
+        total_rules_analyzed,
+        source: dataSource,
+      } = result.data;
+
       setPlatforms(platformData);
       setTotalPlatforms(total_platforms);
       setTotalRulesAnalyzed(total_rules_analyzed);
       setSource(dataSource);
-
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch platform statistics';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to fetch platform statistics';
       setError(errorMessage);
       console.error('Error fetching platform statistics:', err);
-      
+
       // No fallback data - show actual error state
       setPlatforms([]);
       setTotalPlatforms(0);

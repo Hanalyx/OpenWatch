@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import {
-  Box,
-  useTheme,
-  alpha,
-} from '@mui/material';
+import { Box, useTheme, alpha } from '@mui/material';
 
 export interface VirtualListProps<T> {
   items: T[];
@@ -45,11 +41,14 @@ const VirtualList = <T extends any>({
   const transform = `translateY(${visibleRange.startIndex * itemHeight}px)`;
 
   // Handle scroll events
-  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const newScrollTop = event.currentTarget.scrollTop;
-    setScrollTop(newScrollTop);
-    onScroll?.(newScrollTop);
-  }, [onScroll]);
+  const handleScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const newScrollTop = event.currentTarget.scrollTop;
+      setScrollTop(newScrollTop);
+      onScroll?.(newScrollTop);
+    },
+    [onScroll]
+  );
 
   // Notify visible range changes
   useEffect(() => {
@@ -62,15 +61,18 @@ const VirtualList = <T extends any>({
   }, [items, visibleRange.startIndex, visibleRange.endIndex]);
 
   // Scroll to specific item
-  const scrollToItem = useCallback((index: number, behavior: 'auto' | 'smooth' = 'smooth') => {
-    if (containerRef.current) {
-      const scrollTop = index * itemHeight;
-      containerRef.current.scrollTo({
-        top: scrollTop,
-        behavior,
-      });
-    }
-  }, [itemHeight]);
+  const scrollToItem = useCallback(
+    (index: number, behavior: 'auto' | 'smooth' = 'smooth') => {
+      if (containerRef.current) {
+        const scrollTop = index * itemHeight;
+        containerRef.current.scrollTo({
+          top: scrollTop,
+          behavior,
+        });
+      }
+    },
+    [itemHeight]
+  );
 
   // Scroll to top
   const scrollToTop = useCallback(() => {
@@ -83,14 +85,20 @@ const VirtualList = <T extends any>({
   }, [scrollToItem, items.length]);
 
   // Get item index at current scroll position
-  const getItemIndexAtPosition = useCallback((scrollTop: number) => {
-    return Math.floor(scrollTop / itemHeight);
-  }, [itemHeight]);
+  const getItemIndexAtPosition = useCallback(
+    (scrollTop: number) => {
+      return Math.floor(scrollTop / itemHeight);
+    },
+    [itemHeight]
+  );
 
   // Check if item is visible
-  const isItemVisible = useCallback((index: number) => {
-    return index >= visibleRange.startIndex && index <= visibleRange.endIndex;
-  }, [visibleRange.startIndex, visibleRange.endIndex]);
+  const isItemVisible = useCallback(
+    (index: number) => {
+      return index >= visibleRange.startIndex && index <= visibleRange.endIndex;
+    },
+    [visibleRange.startIndex, visibleRange.endIndex]
+  );
 
   return (
     <Box
@@ -181,40 +189,39 @@ export const EnhancedVirtualList = <T extends any>({
 }: EnhancedVirtualListProps<T>) => {
   const theme = useTheme();
 
-  const enhancedRenderItem = useCallback((item: T, index: number) => {
-    const isSelected = selectedIndex === index;
-    
-    return (
-      <Box
-        onClick={() => onItemClick?.(item, index)}
-        sx={{
-          width: '100%',
-          cursor: onItemClick ? 'pointer' : 'default',
-          backgroundColor: isSelected && highlightSelected 
-            ? alpha(theme.palette.primary.main, 0.1) 
-            : 'transparent',
-          borderLeft: isSelected && highlightSelected 
-            ? `4px solid ${theme.palette.primary.main}` 
-            : '4px solid transparent',
-          paddingLeft: theme.spacing(2),
-          transition: 'all 0.2s ease',
-          '&:hover': {
-            backgroundColor: alpha(theme.palette.action.hover, 0.04),
-          },
-        }}
-      >
-        {props.renderItem(item, index)}
-      </Box>
-    );
-  }, [props.renderItem, onItemClick, selectedIndex, highlightSelected, theme]);
+  const enhancedRenderItem = useCallback(
+    (item: T, index: number) => {
+      const isSelected = selectedIndex === index;
 
-  return (
-    <VirtualList
-      {...props}
-      renderItem={enhancedRenderItem}
-      className={props.className}
-    />
+      return (
+        <Box
+          onClick={() => onItemClick?.(item, index)}
+          sx={{
+            width: '100%',
+            cursor: onItemClick ? 'pointer' : 'default',
+            backgroundColor:
+              isSelected && highlightSelected
+                ? alpha(theme.palette.primary.main, 0.1)
+                : 'transparent',
+            borderLeft:
+              isSelected && highlightSelected
+                ? `4px solid ${theme.palette.primary.main}`
+                : '4px solid transparent',
+            paddingLeft: theme.spacing(2),
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.action.hover, 0.04),
+            },
+          }}
+        >
+          {props.renderItem(item, index)}
+        </Box>
+      );
+    },
+    [props.renderItem, onItemClick, selectedIndex, highlightSelected, theme]
   );
+
+  return <VirtualList {...props} renderItem={enhancedRenderItem} className={props.className} />;
 };
 
 // Specialized virtual list for common use cases
@@ -234,38 +241,41 @@ export const VirtualTable = <T extends any>({
 } & Omit<VirtualListProps<T>, 'renderItem'>) => {
   const theme = useTheme();
 
-  const renderTableRow = useCallback((item: T, index: number) => (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        height: '100%',
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        '&:last-child': {
-          borderBottom: 'none',
-        },
-      }}
-    >
-      {columns.map((column) => (
-        <Box
-          key={column.key}
-          sx={{
-            flex: column.width ? 'none' : 1,
-            width: column.width,
-            padding: theme.spacing(0, 1),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {renderCell(item, column.key, index)}
-        </Box>
-      ))}
-    </Box>
-  ), [columns, renderCell, theme]);
+  const renderTableRow = useCallback(
+    (item: T, index: number) => (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          height: '100%',
+          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          '&:last-child': {
+            borderBottom: 'none',
+          },
+        }}
+      >
+        {columns.map((column) => (
+          <Box
+            key={column.key}
+            sx={{
+              flex: column.width ? 'none' : 1,
+              width: column.width,
+              padding: theme.spacing(0, 1),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {renderCell(item, column.key, index)}
+          </Box>
+        ))}
+      </Box>
+    ),
+    [columns, renderCell, theme]
+  );
 
   return (
     <Box>
@@ -300,7 +310,7 @@ export const VirtualTable = <T extends any>({
           </Box>
         ))}
       </Box>
-      
+
       {/* Virtual Table Body */}
       <VirtualList
         items={items}

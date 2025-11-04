@@ -92,6 +92,13 @@ repos:
         files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
+      - id: prettier
+        name: Prettier Frontend Formatting
+        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{js,jsx,ts,tsx,css,scss,json}"'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx|js|jsx|css|scss|json)$
+        pass_filenames: false
+
       - id: frontend-typecheck
         name: TypeScript Type Check
         entry: bash -c 'cd frontend && npx tsc --noEmit'

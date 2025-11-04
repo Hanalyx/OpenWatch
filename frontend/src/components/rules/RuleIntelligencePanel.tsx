@@ -37,10 +37,10 @@ import {
   Speed as PerformanceIcon,
 } from '@mui/icons-material';
 import { Rule } from '../../store/slices/ruleSlice';
-import { 
-  ruleIntelligenceService, 
-  RuleIntelligenceAnalysis, 
-  RuleRecommendation 
+import {
+  ruleIntelligenceService,
+  RuleIntelligenceAnalysis,
+  RuleRecommendation,
 } from '../../services/ruleIntelligenceService';
 
 interface RuleIntelligencePanelProps {
@@ -78,7 +78,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
   const loadIntelligence = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const result = await ruleIntelligenceService.generateRecommendations({
         availableRules,
@@ -90,7 +90,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
           preferredFrameworks: ['nist', 'cis'],
         },
       });
-      
+
       setAnalysis(result);
     } catch (err) {
       setError('Failed to generate rule intelligence analysis');
@@ -121,19 +121,23 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
   // Get confidence color
   const getConfidenceColor = (confidence: string) => {
     switch (confidence) {
-      case 'high': return theme.palette.success.main;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.error.main;
-      default: return theme.palette.grey[500];
+      case 'high':
+        return theme.palette.success.main;
+      case 'medium':
+        return theme.palette.warning.main;
+      case 'low':
+        return theme.palette.error.main;
+      default:
+        return theme.palette.grey[500];
     }
   };
 
   // Render statistics overview
   const renderStatistics = () => {
     if (!analysis) return null;
-    
+
     const { statistics } = analysis;
-    
+
     return (
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         <Card sx={{ flex: 1, textAlign: 'center' }}>
@@ -146,7 +150,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             </Typography>
           </CardContent>
         </Card>
-        
+
         <Card sx={{ flex: 1, textAlign: 'center' }}>
           <CardContent sx={{ p: 1.5 }}>
             <Typography variant="h6" color="error">
@@ -157,7 +161,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             </Typography>
           </CardContent>
         </Card>
-        
+
         <Card sx={{ flex: 1, textAlign: 'center' }}>
           <CardContent sx={{ p: 1.5 }}>
             <Typography variant="h6" color="info">
@@ -168,7 +172,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             </Typography>
           </CardContent>
         </Card>
-        
+
         <Card sx={{ flex: 1, textAlign: 'center' }}>
           <CardContent sx={{ p: 1.5 }}>
             <Typography variant="h6" color="success">
@@ -186,9 +190,9 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
   // Render recommendations
   const renderRecommendations = () => {
     if (!analysis?.recommendations.length) return null;
-    
+
     return (
-      <Accordion 
+      <Accordion
         expanded={expandedSections.has('recommendations')}
         onChange={() => toggleSection('recommendations')}
       >
@@ -201,7 +205,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             <Badge badgeContent={analysis.recommendations.length} color="primary" />
           </Box>
         </AccordionSummary>
-        
+
         <AccordionDetails>
           <List dense>
             {analysis.recommendations.slice(0, 10).map((recommendation, index) => (
@@ -216,15 +220,12 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                 secondaryAction={
                   <Stack direction="row" spacing={1}>
                     <Tooltip title="View details">
-                      <IconButton 
-                        size="small"
-                        onClick={() => onRuleSelect(recommendation.rule)}
-                      >
+                      <IconButton size="small" onClick={() => onRuleSelect(recommendation.rule)}>
                         <SecurityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Add to scan">
-                      <IconButton 
+                      <IconButton
                         size="small"
                         onClick={() => onRuleAdd(recommendation.rule)}
                         sx={{ color: theme.palette.success.main }}
@@ -253,7 +254,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                     {index + 1}
                   </Box>
                 </ListItemIcon>
-                
+
                 <ListItemText
                   primary={
                     <Box display="flex" alignItems="center" gap={1}>
@@ -288,15 +289,21 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                           label={recommendation.rule.severity}
                           size="small"
                           color={
-                            recommendation.rule.severity === 'high' ? 'error' :
-                            recommendation.rule.severity === 'medium' ? 'warning' : 'info'
+                            recommendation.rule.severity === 'high'
+                              ? 'error'
+                              : recommendation.rule.severity === 'medium'
+                                ? 'warning'
+                                : 'info'
                           }
                         />
                         <Chip
                           label={recommendation.confidence}
                           size="small"
                           sx={{
-                            backgroundColor: alpha(getConfidenceColor(recommendation.confidence), 0.1),
+                            backgroundColor: alpha(
+                              getConfidenceColor(recommendation.confidence),
+                              0.1
+                            ),
                             color: getConfidenceColor(recommendation.confidence),
                           }}
                         />
@@ -307,7 +314,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
               </ListItem>
             ))}
           </List>
-          
+
           {analysis.recommendations.length > 10 && (
             <Alert severity="info" sx={{ mt: 2 }}>
               Showing top 10 recommendations. {analysis.recommendations.length - 10} more available.
@@ -321,19 +328,20 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
   // Render insights
   const renderInsights = () => {
     if (!analysis?.insights) return null;
-    
+
     const { insights } = analysis;
-    const hasInsights = [
-      ...insights.coverage_gaps,
-      ...insights.priority_areas,
-      ...insights.platform_specific_suggestions,
-      ...insights.dependency_chains,
-    ].length > 0;
-    
+    const hasInsights =
+      [
+        ...insights.coverage_gaps,
+        ...insights.priority_areas,
+        ...insights.platform_specific_suggestions,
+        ...insights.dependency_chains,
+      ].length > 0;
+
     if (!hasInsights) return null;
-    
+
     return (
-      <Accordion 
+      <Accordion
         expanded={expandedSections.has('insights')}
         onChange={() => toggleSection('insights')}
       >
@@ -345,7 +353,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             </Typography>
           </Box>
         </AccordionSummary>
-        
+
         <AccordionDetails>
           <Stack spacing={2}>
             {/* Coverage Gaps */}
@@ -363,7 +371,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                 </Stack>
               </Box>
             )}
-            
+
             {/* Priority Areas */}
             {insights.priority_areas.length > 0 && (
               <Box>
@@ -383,7 +391,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                 </Stack>
               </Box>
             )}
-            
+
             {/* Platform Suggestions */}
             {insights.platform_specific_suggestions.length > 0 && (
               <Box>
@@ -399,7 +407,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                 </Stack>
               </Box>
             )}
-            
+
             {/* Dependency Chains */}
             {insights.dependency_chains.length > 0 && (
               <Box>
@@ -412,9 +420,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
                       <ListItemIcon>
                         <TrendingUpIcon fontSize="small" color="action" />
                       </ListItemIcon>
-                      <ListItemText
-                        primary={<Typography variant="body2">{chain}</Typography>}
-                      />
+                      <ListItemText primary={<Typography variant="body2">{chain}</Typography>} />
                     </ListItem>
                   ))}
                 </List>
@@ -435,7 +441,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
               <IntelligenceIcon color="primary" />
               <Typography variant="subtitle1">Rule Intelligence</Typography>
               {analysis && (
-                <Chip 
+                <Chip
                   label={`${analysis.recommendations.length} recommendations`}
                   size="small"
                   color="primary"
@@ -460,14 +466,14 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             <IntelligenceIcon color="primary" />
             <Typography variant="h6">Rule Intelligence</Typography>
             {analysis && (
-              <Chip 
+              <Chip
                 label={`Updated ${new Date(analysis.timestamp).toLocaleTimeString()}`}
                 size="small"
                 variant="outlined"
               />
             )}
           </Box>
-          
+
           <Box display="flex" gap={1}>
             <Tooltip title="Refresh analysis">
               <IconButton size="small" onClick={loadIntelligence} disabled={isLoading}>
@@ -508,7 +514,7 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
             {renderStatistics()}
             {renderRecommendations()}
             {renderInsights()}
-            
+
             {/* Cache Performance Info */}
             <Box sx={{ pt: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
               <Box display="flex" alignItems="center" gap={1}>

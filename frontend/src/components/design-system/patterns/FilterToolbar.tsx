@@ -10,13 +10,7 @@ import {
   Chip,
   Button,
 } from '@mui/material';
-import {
-  Search,
-  FilterList,
-  ViewModule,
-  ViewList,
-  ViewCompact,
-} from '@mui/icons-material';
+import { Search, FilterList, ViewModule, ViewList, ViewCompact } from '@mui/icons-material';
 
 export type ViewMode = 'grid' | 'list' | 'compact';
 export type GroupBy = 'none' | string;

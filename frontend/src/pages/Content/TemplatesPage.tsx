@@ -20,11 +20,13 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
+import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import {
-  Search as SearchIcon,
-  Add as AddIcon,
-} from '@mui/icons-material';
-import { useTemplates, useDeleteTemplate, useCloneTemplate, useSetDefaultTemplate } from '@/hooks/useTemplates';
+  useTemplates,
+  useDeleteTemplate,
+  useCloneTemplate,
+  useSetDefaultTemplate,
+} from '@/hooks/useTemplates';
 import { TemplateCard } from '@/components/Templates/TemplateCard';
 
 export const TemplatesPage: React.FC = () => {
@@ -84,7 +86,8 @@ export const TemplatesPage: React.FC = () => {
   };
 
   const myTemplates = templates?.filter((t) => t.created_by === currentUser.username) || [];
-  const publicTemplates = templates?.filter((t) => t.is_public && t.created_by !== currentUser.username) || [];
+  const publicTemplates =
+    templates?.filter((t) => t.is_public && t.created_by !== currentUser.username) || [];
 
   const filteredMyTemplates = myTemplates.filter((t) =>
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -205,7 +208,9 @@ export const TemplatesPage: React.FC = () => {
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Delete Template</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete this template? This action cannot be undone.</Typography>
+          <Typography>
+            Are you sure you want to delete this template? This action cannot be undone.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>

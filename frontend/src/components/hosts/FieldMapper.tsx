@@ -69,12 +69,37 @@ interface FieldMapping {
 const TARGET_FIELDS = [
   { value: 'hostname', label: 'Hostname', required: true, description: 'System hostname or name' },
   { value: 'ip_address', label: 'IP Address', required: true, description: 'IPv4 or IPv6 address' },
-  { value: 'display_name', label: 'Display Name', required: false, description: 'Friendly display name' },
-  { value: 'operating_system', label: 'Operating System', required: false, description: 'OS type (RHEL, CentOS, etc.)' },
-  { value: 'port', label: 'SSH Port', required: false, description: 'SSH connection port (default: 22)' },
+  {
+    value: 'display_name',
+    label: 'Display Name',
+    required: false,
+    description: 'Friendly display name',
+  },
+  {
+    value: 'operating_system',
+    label: 'Operating System',
+    required: false,
+    description: 'OS type (RHEL, CentOS, etc.)',
+  },
+  {
+    value: 'port',
+    label: 'SSH Port',
+    required: false,
+    description: 'SSH connection port (default: 22)',
+  },
   { value: 'username', label: 'Username', required: false, description: 'SSH username' },
-  { value: 'auth_method', label: 'Auth Method', required: false, description: 'Authentication method' },
-  { value: 'environment', label: 'Environment', required: false, description: 'Environment (prod, staging, dev)' },
+  {
+    value: 'auth_method',
+    label: 'Auth Method',
+    required: false,
+    description: 'Authentication method',
+  },
+  {
+    value: 'environment',
+    label: 'Environment',
+    required: false,
+    description: 'Environment (prod, staging, dev)',
+  },
   { value: 'tags', label: 'Tags', required: false, description: 'Comma-separated tags' },
   { value: 'owner', label: 'Owner', required: false, description: 'Responsible person or team' },
 ];
@@ -83,7 +108,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
   analysis,
   initialMappings,
   onMappingComplete,
-  onBack
+  onBack,
 }) => {
   const [mappings, setMappings] = useState<FieldMapping[]>(initialMappings);
   const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
@@ -93,32 +118,32 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
   }, [initialMappings]);
 
   const handleMappingChange = (sourceColumn: string, targetField: string) => {
-    setMappings(prev => {
+    setMappings((prev) => {
       // Remove any existing mapping for this source column
-      const filtered = prev.filter(m => m.source_column !== sourceColumn);
-      
+      const filtered = prev.filter((m) => m.source_column !== sourceColumn);
+
       // Add new mapping if target is not empty
       if (targetField) {
         // Also remove any existing mapping to this target field
-        const finalFiltered = filtered.filter(m => m.target_field !== targetField);
+        const finalFiltered = filtered.filter((m) => m.target_field !== targetField);
         return [...finalFiltered, { source_column: sourceColumn, target_field: targetField }];
       }
-      
+
       return filtered;
     });
   };
 
   const clearMapping = (sourceColumn: string) => {
-    setMappings(prev => prev.filter(m => m.source_column !== sourceColumn));
+    setMappings((prev) => prev.filter((m) => m.source_column !== sourceColumn));
   };
 
   const applyAutoMappings = () => {
     if (!analysis) return;
-    
+
     const autoMappings: FieldMapping[] = Object.entries(analysis.auto_mappings).map(
       ([source, target]) => ({
         source_column: source,
-        target_field: target
+        target_field: target,
       })
     );
     setMappings(autoMappings);
@@ -129,15 +154,15 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
   };
 
   const getMappedTargets = () => {
-    return new Set(mappings.map(m => m.target_field));
+    return new Set(mappings.map((m) => m.target_field));
   };
 
   const getMappingForColumn = (columnName: string) => {
-    return mappings.find(m => m.source_column === columnName);
+    return mappings.find((m) => m.source_column === columnName);
   };
 
   const getFieldAnalysis = (columnName: string) => {
-    return analysis?.field_analyses.find(f => f.column_name === columnName);
+    return analysis?.field_analyses.find((f) => f.column_name === columnName);
   };
 
   const getConfidenceColor = (confidence: number) => {
@@ -148,7 +173,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
 
   const requiredFieldsMapped = () => {
     const mappedTargets = getMappedTargets();
-    return TARGET_FIELDS.filter(f => f.required).every(f => mappedTargets.has(f.value));
+    return TARGET_FIELDS.filter((f) => f.required).every((f) => mappedTargets.has(f.value));
   };
 
   const handleContinue = () => {
@@ -166,7 +191,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
           <SettingsIcon color="primary" />
           <Typography variant="h6">Field Mapping</Typography>
         </Box>
-        
+
         <Box display="flex" gap={1}>
           <Button
             variant="outlined"
@@ -188,7 +213,8 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Map your CSV columns to SecureOps fields. Required fields (hostname and IP address) must be mapped to proceed.
+        Map your CSV columns to SecureOps fields. Required fields (hostname and IP address) must be
+        mapped to proceed.
       </Alert>
 
       <Grid container spacing={3}>
@@ -199,16 +225,21 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
               <Typography variant="h6" gutterBottom>
                 Your CSV Columns ({analysis.headers.length})
               </Typography>
-              
+
               <List dense>
                 {analysis.headers.map((header, index) => {
                   const fieldAnalysis = getFieldAnalysis(header);
                   const mapping = getMappingForColumn(header);
-                  
+
                   return (
                     <ListItem key={index}>
                       <Box sx={{ width: '100%' }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                        <Box
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          mb={1}
+                        >
                           <Typography variant="body2" fontWeight="medium">
                             {header}
                           </Typography>
@@ -222,7 +253,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                             </IconButton>
                           )}
                         </Box>
-                        
+
                         {fieldAnalysis && (
                           <Box display="flex" alignItems="center" gap={1} mb={1}>
                             <Chip
@@ -235,7 +266,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                             </Typography>
                           </Box>
                         )}
-                        
+
                         <FormControl fullWidth size="small">
                           <Select
                             value={mapping?.target_field || ''}
@@ -246,8 +277,9 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                               <em>Not mapped</em>
                             </MenuItem>
                             {TARGET_FIELDS.map((field) => {
-                              const isAlreadyMapped = getMappedTargets().has(field.value) && 
-                                                    mapping?.target_field !== field.value;
+                              const isAlreadyMapped =
+                                getMappedTargets().has(field.value) &&
+                                mapping?.target_field !== field.value;
                               return (
                                 <MenuItem
                                   key={field.value}
@@ -256,7 +288,9 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                                 >
                                   <Box display="flex" alignItems="center" gap={1}>
                                     {field.label}
-                                    {field.required && <Chip label="Required" size="small" color="error" />}
+                                    {field.required && (
+                                      <Chip label="Required" size="small" color="error" />
+                                    )}
                                     {isAlreadyMapped && <Chip label="Mapped" size="small" />}
                                   </Box>
                                 </MenuItem>
@@ -264,9 +298,13 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                             })}
                           </Select>
                         </FormControl>
-                        
+
                         {fieldAnalysis && fieldAnalysis.sample_values.length > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ mt: 0.5, display: 'block' }}
+                          >
                             Sample: {fieldAnalysis.sample_values.slice(0, 2).join(', ')}
                           </Typography>
                         )}
@@ -286,12 +324,12 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
               <Typography variant="h6" gutterBottom>
                 SecureOps Fields
               </Typography>
-              
+
               <List dense>
                 {TARGET_FIELDS.map((field) => {
                   const isAlreadyMapped = getMappedTargets().has(field.value);
-                  const mappingForField = mappings.find(m => m.target_field === field.value);
-                  
+                  const mappingForField = mappings.find((m) => m.target_field === field.value);
+
                   return (
                     <ListItem key={field.value}>
                       <Box sx={{ width: '100%' }}>
@@ -300,11 +338,9 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                             <Typography variant="body2" fontWeight="medium">
                               {field.label}
                             </Typography>
-                            {field.required && (
-                              <Chip label="Required" size="small" color="error" />
-                            )}
+                            {field.required && <Chip label="Required" size="small" color="error" />}
                           </Box>
-                          
+
                           {isAlreadyMapped && (
                             <Box display="flex" alignItems="center" gap={1}>
                               <ArrowIcon color="success" fontSize="small" />
@@ -317,7 +353,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
                             </Box>
                           )}
                         </Box>
-                        
+
                         <Typography variant="caption" color="text.secondary">
                           {field.description}
                         </Typography>
@@ -334,15 +370,13 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
       {/* Mapping Summary */}
       <Accordion sx={{ mt: 3 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">
-            Mapping Summary ({mappings.length} mapped)
-          </Typography>
+          <Typography variant="h6">Mapping Summary ({mappings.length} mapped)</Typography>
         </AccordionSummary>
         <AccordionDetails>
           {mappings.length > 0 ? (
             <List dense>
               {mappings.map((mapping, index) => {
-                const targetField = TARGET_FIELDS.find(f => f.value === mapping.target_field);
+                const targetField = TARGET_FIELDS.find((f) => f.value === mapping.target_field);
                 return (
                   <ListItem key={index}>
                     <ListItemIcon>
@@ -381,14 +415,10 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
 
       {/* Navigation */}
       <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
-        <Button
-          variant="outlined"
-          startIcon={<BackIcon />}
-          onClick={onBack}
-        >
+        <Button variant="outlined" startIcon={<BackIcon />} onClick={onBack}>
           Back to Analysis
         </Button>
-        
+
         <Button
           variant="contained"
           onClick={handleContinue}

@@ -27,16 +27,9 @@ import {
   Alert,
   Chip,
   IconButton,
-  CircularProgress
+  CircularProgress,
 } from '@mui/material';
-import {
-  Group,
-  Computer,
-  Search,
-  ArrowBack,
-  ArrowForward,
-  CheckCircle
-} from '@mui/icons-material';
+import { Group, Computer, Search, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 
@@ -84,7 +77,9 @@ const ComplianceScans: React.FC = () => {
   const [severityFilter, setSeverityFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [rulesError, setRulesError] = useState(false);
-  const [availableFrameworks, setAvailableFrameworks] = useState<Array<{value: string, label: string}>>([]);
+  const [availableFrameworks, setAvailableFrameworks] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
 
   const steps = ['Select Target', 'Choose Rules', 'Review & Start'];
 
@@ -151,9 +146,9 @@ const ComplianceScans: React.FC = () => {
       const params: any = {};
       if (frameworkFilter) params.framework = frameworkFilter;
       if (severityFilter) params.business_impact = severityFilter;
-      
+
       const response = await api.get('/api/v1/compliance-rules/semantic-rules', { params });
-      
+
       // Transform the response to match our interface
       const transformedRules = (response.rules || []).map((rule: any) => ({
         id: rule.id,
@@ -162,9 +157,9 @@ const ComplianceScans: React.FC = () => {
         description: rule.compliance_intent,
         severity: rule.risk_level?.toLowerCase() || 'medium',
         framework: rule.frameworks?.[0] || 'unknown',
-        frameworks: rule.frameworks || [] // Store all frameworks for filtering
+        frameworks: rule.frameworks || [], // Store all frameworks for filtering
       }));
-      
+
       setRules(transformedRules);
     } catch (error) {
       console.error('Failed to load rules:', error);
@@ -189,39 +184,37 @@ const ComplianceScans: React.FC = () => {
       return;
     }
     setError(null);
-    setActiveStep(prev => prev + 1);
+    setActiveStep((prev) => prev + 1);
   };
 
   const handleBack = () => {
-    setActiveStep(prev => prev - 1);
+    setActiveStep((prev) => prev - 1);
   };
 
   const handleSelectAllHosts = () => {
     if (selectedHosts.length === hosts.length) {
       setSelectedHosts([]);
     } else {
-      setSelectedHosts(hosts.map(h => h.id));
+      setSelectedHosts(hosts.map((h) => h.id));
     }
   };
 
   const handleHostToggle = (hostId: string) => {
-    setSelectedHosts(prev => 
-      prev.includes(hostId) 
-        ? prev.filter(id => id !== hostId)
-        : [...prev, hostId]
+    setSelectedHosts((prev) =>
+      prev.includes(hostId) ? prev.filter((id) => id !== hostId) : [...prev, hostId]
     );
   };
 
   const handleStartScan = async () => {
     try {
       setLoading(true);
-      
+
       if (targetType === 'groups') {
         // Use group compliance endpoint for host groups
         for (const groupId of selectedGroups) {
           const response = await api.post(`/api/group-compliance/${groupId}/scan`, {
             rule_ids: selectedRules,
-            scan_name: `Compliance Scan - ${new Date().toISOString()}`
+            scan_name: `Compliance Scan - ${new Date().toISOString()}`,
           });
           console.log(`Started scan for group ${groupId}:`, response);
         }
@@ -232,7 +225,7 @@ const ComplianceScans: React.FC = () => {
         console.log(`Starting individual host scans for ${selectedHosts.length} hosts`);
 
         for (const hostId of selectedHosts) {
-          const host = hosts.find(h => h.id === hostId);
+          const host = hosts.find((h) => h.id === hostId);
           if (!host) {
             console.error(`Host ${hostId} not found`);
             continue;
@@ -264,23 +257,23 @@ const ComplianceScans: React.FC = () => {
             let connectionParams = undefined;
             if (host.username && host.port) {
               connectionParams = {
-                host_id: hostId,  // Include host_id for credential fetching
+                host_id: hostId, // Include host_id for credential fetching
                 username: host.username,
                 port: host.port,
-                auth_method: host.auth_method || 'ssh_key'
+                auth_method: host.auth_method || 'ssh_key',
               };
             }
 
             const response = await api.post('/api/v1/mongodb-scans/start', {
               host_id: hostId,
-              hostname: host.ip_address || host.hostname,  // Prefer IP for DNS resolution
+              hostname: host.ip_address || host.hostname, // Prefer IP for DNS resolution
               platform: platform,
               platform_version: platformVersion,
               framework: frameworkFilter || undefined,
               rule_ids: selectedRules,
               connection_params: connectionParams,
               include_enrichment: true,
-              generate_report: true
+              generate_report: true,
             });
             console.log(`Started MongoDB scan for host ${hostId}:`, response);
           } catch (error) {
@@ -309,19 +302,19 @@ const ComplianceScans: React.FC = () => {
           Choose whether to scan individual hosts or host groups.
         </Typography>
       </Box>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               cursor: 'pointer',
               border: targetType === 'groups' ? '2px solid' : '1px solid',
               borderColor: targetType === 'groups' ? 'primary.main' : 'divider',
               transition: 'all 0.3s',
               '&:hover': {
                 borderColor: 'primary.main',
-                transform: 'translateY(-2px)'
-              }
+                transform: 'translateY(-2px)',
+              },
             }}
             onClick={() => setTargetType('groups')}
           >
@@ -336,18 +329,18 @@ const ComplianceScans: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} md={6}>
-          <Card 
-            sx={{ 
+          <Card
+            sx={{
               cursor: 'pointer',
               border: targetType === 'hosts' ? '2px solid' : '1px solid',
               borderColor: targetType === 'hosts' ? 'primary.main' : 'divider',
               transition: 'all 0.3s',
               '&:hover': {
                 borderColor: 'primary.main',
-                transform: 'translateY(-2px)'
-              }
+                transform: 'translateY(-2px)',
+              },
             }}
             onClick={() => setTargetType('hosts')}
           >
@@ -377,11 +370,7 @@ const ComplianceScans: React.FC = () => {
             Select one or more hosts to scan for compliance.
           </Typography>
         </Box>
-        <Button
-          variant="text"
-          onClick={handleSelectAllHosts}
-          disabled={loading}
-        >
+        <Button variant="text" onClick={handleSelectAllHosts} disabled={loading}>
           {selectedHosts.length === hosts.length ? 'Deselect All' : 'Select All'}
         </Button>
       </Box>
@@ -397,7 +386,7 @@ const ComplianceScans: React.FC = () => {
         <Alert severity="info">No hosts available for scanning</Alert>
       ) : (
         <Grid container spacing={2}>
-          {hosts.map(host => (
+          {hosts.map((host) => (
             <Grid item xs={12} md={6} key={host.id}>
               <Card
                 sx={{
@@ -406,8 +395,8 @@ const ComplianceScans: React.FC = () => {
                   borderColor: selectedHosts.includes(host.id) ? 'primary.main' : 'divider',
                   transition: 'all 0.2s',
                   '&:hover': {
-                    borderColor: 'primary.main'
-                  }
+                    borderColor: 'primary.main',
+                  },
                 }}
                 onClick={() => handleHostToggle(host.id)}
               >
@@ -415,7 +404,7 @@ const ComplianceScans: React.FC = () => {
                   <Checkbox
                     checked={selectedHosts.includes(host.id)}
                     onChange={() => handleHostToggle(host.id)}
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   />
                   <Box sx={{ ml: 2, flexGrow: 1 }}>
                     <Typography variant="subtitle1" fontWeight="medium">
@@ -451,7 +440,8 @@ const ComplianceScans: React.FC = () => {
           Choose Compliance Rules
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Select specific compliance rules to check or enable full scan for comprehensive assessment.
+          Select specific compliance rules to check or enable full scan for comprehensive
+          assessment.
         </Typography>
       </Box>
 
@@ -507,7 +497,7 @@ const ComplianceScans: React.FC = () => {
           <Grid item xs={12} md={2} sx={{ textAlign: 'right' }}>
             <Button
               variant="text"
-              onClick={() => setSelectedRules(rules.map(r => r.id))}
+              onClick={() => setSelectedRules(rules.map((r) => r.id))}
               disabled={loading || rules.length === 0}
             >
               {selectedRules.length === rules.length ? 'Deselect All' : 'Select All'}
@@ -538,8 +528,8 @@ const ComplianceScans: React.FC = () => {
             No compliance rules available
           </Typography>
           <Alert severity="error" sx={{ mt: 3, mb: 2 }}>
-            We don't see compliance rules here because the MongoDB database failed to connect
-            but this is the view for step 4
+            We don't see compliance rules here because the MongoDB database failed to connect but
+            this is the view for step 4
           </Alert>
           <Button
             variant="outlined"
@@ -564,7 +554,7 @@ const ComplianceScans: React.FC = () => {
                       if (selectedRules.length === rules.length) {
                         setSelectedRules([]);
                       } else {
-                        setSelectedRules(rules.map(r => r.id));
+                        setSelectedRules(rules.map((r) => r.id));
                       }
                     }}
                   />
@@ -577,9 +567,12 @@ const ComplianceScans: React.FC = () => {
             </TableHead>
             <TableBody>
               {rules
-                .filter(rule => {
-                  if (searchQuery && !rule.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-                      !rule.rule_id.toLowerCase().includes(searchQuery.toLowerCase())) {
+                .filter((rule) => {
+                  if (
+                    searchQuery &&
+                    !rule.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                    !rule.rule_id.toLowerCase().includes(searchQuery.toLowerCase())
+                  ) {
                     return false;
                   }
                   if (frameworkFilter && !rule.frameworks?.includes(frameworkFilter)) {
@@ -590,14 +583,14 @@ const ComplianceScans: React.FC = () => {
                   }
                   return true;
                 })
-                .map(rule => (
+                .map((rule) => (
                   <TableRow
                     key={rule.id}
                     hover
                     onClick={() => {
-                      setSelectedRules(prev =>
+                      setSelectedRules((prev) =>
                         prev.includes(rule.id)
-                          ? prev.filter(id => id !== rule.id)
+                          ? prev.filter((id) => id !== rule.id)
                           : [...prev, rule.id]
                       );
                     }}
@@ -606,7 +599,7 @@ const ComplianceScans: React.FC = () => {
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={selectedRules.includes(rule.id)}
-                        onClick={e => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </TableCell>
                     <TableCell>{rule.rule_id}</TableCell>
@@ -617,8 +610,11 @@ const ComplianceScans: React.FC = () => {
                         label={rule.severity}
                         size="small"
                         color={
-                          rule.severity === 'high' ? 'error' :
-                          rule.severity === 'medium' ? 'warning' : 'default'
+                          rule.severity === 'high'
+                            ? 'error'
+                            : rule.severity === 'medium'
+                              ? 'warning'
+                              : 'default'
                         }
                       />
                     </TableCell>
@@ -638,7 +634,7 @@ const ComplianceScans: React.FC = () => {
           Review & Start Scan
         </Typography>
       </Box>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <Card>
@@ -646,13 +642,17 @@ const ComplianceScans: React.FC = () => {
               <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
                 Scan Configuration Summary
               </Typography>
-              
+
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Target Type: <strong>{targetType === 'hosts' ? 'Individual Hosts' : 'Host Groups'}</strong>
+                  Target Type:{' '}
+                  <strong>{targetType === 'hosts' ? 'Individual Hosts' : 'Host Groups'}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Selected Targets: <strong>{targetType === 'hosts' ? selectedHosts.length : selectedGroups.length}</strong>
+                  Selected Targets:{' '}
+                  <strong>
+                    {targetType === 'hosts' ? selectedHosts.length : selectedGroups.length}
+                  </strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   Compliance Rules: <strong>{selectedRules.length}</strong>
@@ -723,42 +723,40 @@ const ComplianceScans: React.FC = () => {
 
       {/* Content in Card */}
       <Card sx={{ mb: 3 }}>
-        <CardContent sx={{ p: 3 }}>
-          {getStepContent()}
-        </CardContent>
+        <CardContent sx={{ p: 3 }}>{getStepContent()}</CardContent>
       </Card>
 
       {/* Navigation Actions */}
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button
-          onClick={() => {
-            if (activeStep === 0 && targetType !== null) {
-              setTargetType(null);
-            } else if (activeStep > 0) {
-              handleBack();
-            } else {
-              navigate('/scans');
-            }
-          }}
-          startIcon={<ArrowBack />}
-        >
-          Back
-        </Button>
-        
-        {activeStep < steps.length - 1 && (
           <Button
-            variant="contained"
-            onClick={handleNext}
-            endIcon={<ArrowForward />}
-            disabled={
-              (activeStep === 0 && targetType === null) ||
-              (activeStep === 0 && targetType === 'hosts' && selectedHosts.length === 0)
-            }
+            onClick={() => {
+              if (activeStep === 0 && targetType !== null) {
+                setTargetType(null);
+              } else if (activeStep > 0) {
+                handleBack();
+              } else {
+                navigate('/scans');
+              }
+            }}
+            startIcon={<ArrowBack />}
           >
-            Next
+            Back
           </Button>
-        )}
+
+          {activeStep < steps.length - 1 && (
+            <Button
+              variant="contained"
+              onClick={handleNext}
+              endIcon={<ArrowForward />}
+              disabled={
+                (activeStep === 0 && targetType === null) ||
+                (activeStep === 0 && targetType === 'hosts' && selectedHosts.length === 0)
+              }
+            >
+              Next
+            </Button>
+          )}
         </Box>
       </Paper>
     </Container>

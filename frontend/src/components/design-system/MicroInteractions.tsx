@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  useTheme,
-  alpha,
-  keyframes,
-} from '@mui/material';
+import { Box, useTheme, alpha, keyframes } from '@mui/material';
 
 // Animation keyframes
 const fadeIn = keyframes`
@@ -213,22 +208,23 @@ const MicroInteractions: React.FC<MicroInteractionsProps> = ({
       onAnimationEnd={handleAnimationEnd}
       sx={{
         ...animationStyle,
-        ...(animation === 'ripple' && isAnimating && {
-          position: 'relative',
-          overflow: 'hidden',
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: '20px',
-            height: '20px',
-            borderRadius: '50%',
-            backgroundColor: alpha(theme.palette.primary.main, 0.3),
-            transform: 'translate(-50%, -50%)',
-            animation: `${ripple} ${duration}ms ease-out`,
-          },
-        }),
+        ...(animation === 'ripple' &&
+          isAnimating && {
+            position: 'relative',
+            overflow: 'hidden',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              backgroundColor: alpha(theme.palette.primary.main, 0.3),
+              transform: 'translate(-50%, -50%)',
+              animation: `${ripple} ${duration}ms ease-out`,
+            },
+          }),
       }}
     >
       {children}

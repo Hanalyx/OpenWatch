@@ -48,10 +48,10 @@ class ErrorService {
       return result;
     } catch (error: any) {
       console.error('Validation request failed:', error);
-      
+
       // Transform generic errors into structured format
       const classifiedError: ClassifiedError = this.classifyGenericError(error);
-      
+
       return {
         can_proceed: false,
         errors: [classifiedError],
@@ -63,8 +63,8 @@ class ErrorService {
           authentication: false,
           privileges: false,
           resources: false,
-          dependencies: false
-        }
+          dependencies: false,
+        },
       };
     }
   }
@@ -84,12 +84,16 @@ class ErrorService {
   /**
    * Apply an automated fix to a host
    */
-  async applyAutomatedFix(hostId: string, fixId: string, validateAfter: boolean = true): Promise<AutomatedFixResponse> {
+  async applyAutomatedFix(
+    hostId: string,
+    fixId: string,
+    validateAfter: boolean = true
+  ): Promise<AutomatedFixResponse> {
     try {
       return await api.post<AutomatedFixResponse>(`/api/scans/hosts/${hostId}/apply-fix`, {
         fix_id: fixId,
         host_id: hostId,
-        validate_after: validateAfter
+        validate_after: validateAfter,
       });
     } catch (error: any) {
       console.error('Automated fix request failed:', error);
@@ -101,7 +105,8 @@ class ErrorService {
    * Classify a generic error into structured format
    */
   classifyGenericError(error: any): ClassifiedError {
-    const errorMessage = error.response?.data?.detail || error.message || 'An unexpected error occurred';
+    const errorMessage =
+      error.response?.data?.detail || error.message || 'An unexpected error occurred';
     const statusCode = error.response?.status;
 
     // Network errors
@@ -114,7 +119,7 @@ class ErrorService {
         user_guidance: 'Check your network connection and ensure the OpenWatch server is running',
         technical_details: {
           original_error: errorMessage,
-          status_code: statusCode
+          status_code: statusCode,
         },
         automated_fixes: [
           {
@@ -122,12 +127,12 @@ class ErrorService {
             description: 'Retry connection',
             requires_sudo: false,
             estimated_time: 5,
-            is_safe: true
-          }
+            is_safe: true,
+          },
         ],
         can_retry: true,
         retry_after: 30,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
@@ -141,7 +146,7 @@ class ErrorService {
         user_guidance: 'Your session may have expired. Please log in again',
         technical_details: {
           status_code: statusCode,
-          original_error: errorMessage
+          original_error: errorMessage,
         },
         automated_fixes: [
           {
@@ -149,11 +154,11 @@ class ErrorService {
             description: 'Refresh login',
             requires_sudo: false,
             estimated_time: 10,
-            is_safe: true
-          }
+            is_safe: true,
+          },
         ],
         can_retry: true,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
@@ -167,11 +172,11 @@ class ErrorService {
         user_guidance: 'You do not have permission to perform this action',
         technical_details: {
           status_code: statusCode,
-          original_error: errorMessage
+          original_error: errorMessage,
         },
         automated_fixes: [],
         can_retry: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
@@ -182,10 +187,11 @@ class ErrorService {
         category: 'execution',
         severity: 'error',
         message: 'Server error occurred',
-        user_guidance: 'A server error occurred. Please try again or contact support if the problem persists',
+        user_guidance:
+          'A server error occurred. Please try again or contact support if the problem persists',
         technical_details: {
           status_code: statusCode,
-          original_error: errorMessage
+          original_error: errorMessage,
         },
         automated_fixes: [
           {
@@ -193,12 +199,12 @@ class ErrorService {
             description: 'Retry request',
             requires_sudo: false,
             estimated_time: 5,
-            is_safe: true
-          }
+            is_safe: true,
+          },
         ],
         can_retry: true,
         retry_after: 60,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
@@ -212,11 +218,11 @@ class ErrorService {
         user_guidance: errorMessage,
         technical_details: {
           status_code: statusCode,
-          original_error: errorMessage
+          original_error: errorMessage,
         },
         automated_fixes: [],
         can_retry: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
 
@@ -229,7 +235,7 @@ class ErrorService {
       user_guidance: errorMessage,
       technical_details: {
         original_error: errorMessage,
-        status_code: statusCode
+        status_code: statusCode,
       },
       automated_fixes: [
         {
@@ -237,11 +243,11 @@ class ErrorService {
           description: 'Retry operation',
           requires_sudo: false,
           estimated_time: 5,
-          is_safe: true
-        }
+          is_safe: true,
+        },
       ],
       can_retry: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -251,11 +257,11 @@ class ErrorService {
   enhanceError(error: any): Error {
     const classifiedError = this.classifyGenericError(error);
     const enhancedError = new Error(classifiedError.message);
-    
+
     // Attach classification data to error
     (enhancedError as any).classification = classifiedError;
     (enhancedError as any).isClassified = true;
-    
+
     return enhancedError;
   }
 

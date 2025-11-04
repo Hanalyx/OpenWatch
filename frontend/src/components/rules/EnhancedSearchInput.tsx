@@ -44,7 +44,7 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
   value,
   onChange,
   onSuggestionSelect,
-  placeholder = "Search rules, tags, or categories...",
+  placeholder = 'Search rules, tags, or categories...',
   disabled = false,
   showHistory = true,
   showSavedSearches = true,
@@ -54,127 +54,152 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  
+
   const debouncedInputValue = useDebounce(inputValue, 200);
 
   // Search history (would be stored in localStorage in real implementation)
-  const searchHistory = useMemo(() => [
-    { type: 'history' as const, value: 'ssh authentication', label: 'ssh authentication', icon: <HistoryIcon fontSize="small" /> },
-    { type: 'history' as const, value: 'firewall security', label: 'firewall security', icon: <HistoryIcon fontSize="small" /> },
-    { type: 'history' as const, value: 'password complexity', label: 'password complexity', icon: <HistoryIcon fontSize="small" /> },
-  ], []);
+  const searchHistory = useMemo(
+    () => [
+      {
+        type: 'history' as const,
+        value: 'ssh authentication',
+        label: 'ssh authentication',
+        icon: <HistoryIcon fontSize="small" />,
+      },
+      {
+        type: 'history' as const,
+        value: 'firewall security',
+        label: 'firewall security',
+        icon: <HistoryIcon fontSize="small" />,
+      },
+      {
+        type: 'history' as const,
+        value: 'password complexity',
+        label: 'password complexity',
+        icon: <HistoryIcon fontSize="small" />,
+      },
+    ],
+    []
+  );
 
   // Saved searches (would be stored in user preferences)
-  const savedSearches = useMemo(() => [
-    { 
-      type: 'saved' as const, 
-      value: 'severity:high AND category:authentication', 
-      label: 'High Priority Auth Rules',
-      description: 'Critical authentication security rules',
-      icon: <BookmarkIcon fontSize="small" /> 
-    },
-    { 
-      type: 'saved' as const, 
-      value: 'framework:nist AND platform:rhel', 
-      label: 'NIST RHEL Rules',
-      description: 'NIST framework rules for RHEL systems',
-      icon: <BookmarkIcon fontSize="small" /> 
-    },
-  ], []);
+  const savedSearches = useMemo(
+    () => [
+      {
+        type: 'saved' as const,
+        value: 'severity:high AND category:authentication',
+        label: 'High Priority Auth Rules',
+        description: 'Critical authentication security rules',
+        icon: <BookmarkIcon fontSize="small" />,
+      },
+      {
+        type: 'saved' as const,
+        value: 'framework:nist AND platform:rhel',
+        label: 'NIST RHEL Rules',
+        description: 'NIST framework rules for RHEL systems',
+        icon: <BookmarkIcon fontSize="small" />,
+      },
+    ],
+    []
+  );
 
   // Generate suggestions based on input
-  const generateSuggestions = useCallback(async (query: string): Promise<SearchSuggestion[]> => {
-    if (!query.trim()) {
-      // Return recent history and saved searches when no query
+  const generateSuggestions = useCallback(
+    async (query: string): Promise<SearchSuggestion[]> => {
+      if (!query.trim()) {
+        // Return recent history and saved searches when no query
+        const suggestions: SearchSuggestion[] = [];
+
+        if (showSavedSearches) {
+          suggestions.push(...savedSearches);
+        }
+
+        if (showHistory && suggestions.length < 5) {
+          suggestions.push(...searchHistory.slice(0, 5 - suggestions.length));
+        }
+
+        return suggestions;
+      }
+
       const suggestions: SearchSuggestion[] = [];
-      
-      if (showSavedSearches) {
-        suggestions.push(...savedSearches);
-      }
-      
-      if (showHistory && suggestions.length < 5) {
-        suggestions.push(...searchHistory.slice(0, 5 - suggestions.length));
-      }
-      
-      return suggestions;
-    }
+      const lowerQuery = query.toLowerCase();
 
-    const suggestions: SearchSuggestion[] = [];
-    const lowerQuery = query.toLowerCase();
+      try {
+        // Mock API call for auto-complete suggestions
+        // In real implementation, this would call a dedicated autocomplete endpoint
+        const mockSuggestions: SearchSuggestion[] = [
+          {
+            type: 'rule',
+            value: 'SSH Root Login',
+            label: 'SSH Root Login',
+            description: 'Disable SSH root login access',
+            count: 1,
+          },
+          {
+            type: 'tag',
+            value: 'authentication',
+            label: 'authentication',
+            description: '12 rules',
+            icon: <TagIcon fontSize="small" />,
+            count: 12,
+          },
+          {
+            type: 'category',
+            value: 'network_security',
+            label: 'Network Security',
+            description: '8 rules',
+            count: 8,
+          },
+          {
+            type: 'framework',
+            value: 'nist',
+            label: 'NIST 800-53',
+            description: '45 controls',
+            count: 45,
+          },
+        ];
 
-    try {
-      // Mock API call for auto-complete suggestions
-      // In real implementation, this would call a dedicated autocomplete endpoint
-      const mockSuggestions: SearchSuggestion[] = [
-        {
-          type: 'rule',
-          value: 'SSH Root Login',
-          label: 'SSH Root Login',
-          description: 'Disable SSH root login access',
-          count: 1
-        },
-        {
-          type: 'tag',
-          value: 'authentication',
-          label: 'authentication',
-          description: '12 rules',
-          icon: <TagIcon fontSize="small" />,
-          count: 12
-        },
-        {
-          type: 'category',
-          value: 'network_security',
-          label: 'Network Security',
-          description: '8 rules',
-          count: 8
-        },
-        {
-          type: 'framework',
-          value: 'nist',
-          label: 'NIST 800-53',
-          description: '45 controls',
-          count: 45
-        },
-      ];
-
-      // Filter suggestions based on query
-      const filtered = mockSuggestions.filter(s => 
-        s.label.toLowerCase().includes(lowerQuery) ||
-        s.value.toLowerCase().includes(lowerQuery) ||
-        (s.description && s.description.toLowerCase().includes(lowerQuery))
-      );
-
-      suggestions.push(...filtered);
-
-      // Add matching search history
-      if (showHistory) {
-        const matchingHistory = searchHistory.filter(h => 
-          h.label.toLowerCase().includes(lowerQuery)
+        // Filter suggestions based on query
+        const filtered = mockSuggestions.filter(
+          (s) =>
+            s.label.toLowerCase().includes(lowerQuery) ||
+            s.value.toLowerCase().includes(lowerQuery) ||
+            (s.description && s.description.toLowerCase().includes(lowerQuery))
         );
-        suggestions.push(...matchingHistory);
+
+        suggestions.push(...filtered);
+
+        // Add matching search history
+        if (showHistory) {
+          const matchingHistory = searchHistory.filter((h) =>
+            h.label.toLowerCase().includes(lowerQuery)
+          );
+          suggestions.push(...matchingHistory);
+        }
+
+        // Add matching saved searches
+        if (showSavedSearches) {
+          const matchingSaved = savedSearches.filter(
+            (s) =>
+              s.label.toLowerCase().includes(lowerQuery) ||
+              s.description?.toLowerCase().includes(lowerQuery)
+          );
+          suggestions.push(...matchingSaved);
+        }
+      } catch (error) {
+        console.error('Error generating search suggestions:', error);
       }
 
-      // Add matching saved searches
-      if (showSavedSearches) {
-        const matchingSaved = savedSearches.filter(s => 
-          s.label.toLowerCase().includes(lowerQuery) ||
-          s.description?.toLowerCase().includes(lowerQuery)
-        );
-        suggestions.push(...matchingSaved);
-      }
-
-    } catch (error) {
-      console.error('Error generating search suggestions:', error);
-    }
-
-    return suggestions.slice(0, 10); // Limit to 10 suggestions
-  }, [searchHistory, savedSearches, showHistory, showSavedSearches]);
+      return suggestions.slice(0, 10); // Limit to 10 suggestions
+    },
+    [searchHistory, savedSearches, showHistory, showSavedSearches]
+  );
 
   // Update suggestions when debounced input changes
   React.useEffect(() => {
     if (open) {
       setIsLoading(true);
-      generateSuggestions(debouncedInputValue).then(newSuggestions => {
+      generateSuggestions(debouncedInputValue).then((newSuggestions) => {
         setSuggestions(newSuggestions);
         setIsLoading(false);
       });
@@ -185,7 +210,10 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
     setInputValue(newInputValue);
   };
 
-  const handleChange = (event: React.SyntheticEvent, newValue: SearchSuggestion | string | null) => {
+  const handleChange = (
+    event: React.SyntheticEvent,
+    newValue: SearchSuggestion | string | null
+  ) => {
     if (typeof newValue === 'string') {
       onChange(newValue);
       setInputValue(newValue);
@@ -208,25 +236,32 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
   const renderOption = (props: any, option: SearchSuggestion) => {
     const getTypeColor = (type: string) => {
       switch (type) {
-        case 'rule': return theme.palette.primary.main;
-        case 'tag': return theme.palette.secondary.main;
-        case 'category': return theme.palette.info.main;
-        case 'framework': return theme.palette.success.main;
-        case 'history': return theme.palette.text.secondary;
-        case 'saved': return theme.palette.warning.main;
-        default: return theme.palette.text.secondary;
+        case 'rule':
+          return theme.palette.primary.main;
+        case 'tag':
+          return theme.palette.secondary.main;
+        case 'category':
+          return theme.palette.info.main;
+        case 'framework':
+          return theme.palette.success.main;
+        case 'history':
+          return theme.palette.text.secondary;
+        case 'saved':
+          return theme.palette.warning.main;
+        default:
+          return theme.palette.text.secondary;
       }
     };
 
     return (
       <Box component="li" {...props} sx={{ p: 1 }}>
         <Box display="flex" alignItems="center" width="100%">
-          <Box 
-            sx={{ 
-              mr: 1.5, 
+          <Box
+            sx={{
+              mr: 1.5,
               color: getTypeColor(option.type),
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
             }}
           >
             {option.icon || <SearchIcon fontSize="small" />}
@@ -242,26 +277,26 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
             )}
           </Box>
           {option.count && (
-            <Chip 
+            <Chip
               label={option.count}
               size="small"
               sx={{
                 backgroundColor: alpha(getTypeColor(option.type), 0.1),
                 color: getTypeColor(option.type),
                 fontSize: '0.7rem',
-                height: 20
+                height: 20,
               }}
             />
           )}
-          <Chip 
+          <Chip
             label={option.type}
             size="small"
             variant="outlined"
-            sx={{ 
+            sx={{
               ml: 1,
               fontSize: '0.7rem',
               height: 20,
-              textTransform: 'capitalize'
+              textTransform: 'capitalize',
             }}
           />
         </Box>
@@ -306,12 +341,12 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
               <InputAdornment position="end">
                 {isLoading && <CircularProgress size={16} />}
                 {inputValue && !isLoading && (
-                  <ClearIcon 
-                    fontSize="small" 
-                    sx={{ 
+                  <ClearIcon
+                    fontSize="small"
+                    sx={{
                       cursor: 'pointer',
                       color: 'action.active',
-                      '&:hover': { color: 'text.primary' }
+                      '&:hover': { color: 'text.primary' },
                     }}
                     onClick={() => {
                       setInputValue('');

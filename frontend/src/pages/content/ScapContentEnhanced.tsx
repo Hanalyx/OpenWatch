@@ -44,7 +44,7 @@ import {
   ButtonGroup,
   Divider,
   useTheme,
-  alpha
+  alpha,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -132,21 +132,21 @@ const ScapContentEnhanced: React.FC = () => {
         type: 'official',
         enabled: true,
         lastSync: '2025-08-05T20:00:00Z',
-        status: 'healthy'
+        status: 'healthy',
       },
       {
-        id: '2', 
+        id: '2',
         name: 'Red Hat Security Data',
         url: 'https://access.redhat.com/security',
         type: 'official',
         enabled: true,
         lastSync: '2025-08-05T19:30:00Z',
-        status: 'healthy'
-      }
+        status: 'healthy',
+      },
     ],
     autoSyncEnabled: true,
     lastGlobalSync: '2025-08-05T20:00:00Z',
-    nextScheduledSync: '2025-08-06T02:00:00Z'
+    nextScheduledSync: '2025-08-06T02:00:00Z',
   });
 
   // UI state
@@ -170,7 +170,7 @@ const ScapContentEnhanced: React.FC = () => {
   }>({
     open: false,
     message: '',
-    severity: 'info'
+    severity: 'info',
   });
 
   // Mock data for demonstration
@@ -184,7 +184,7 @@ const ScapContentEnhanced: React.FC = () => {
       version: '1.0.5',
       profiles: [
         { id: 'stig', title: 'STIG Profile', description: 'DoD STIG compliance profile' },
-        { id: 'stig-gui', title: 'STIG GUI Profile', description: 'STIG profile for GUI systems' }
+        { id: 'stig-gui', title: 'STIG GUI Profile', description: 'STIG profile for GUI systems' },
       ],
       uploaded_at: '2025-08-05T20:00:00Z',
       uploaded_by: 1,
@@ -193,7 +193,7 @@ const ScapContentEnhanced: React.FC = () => {
       os_version: '9.3',
       source: 'repository',
       status: 'current',
-      compliance_framework: 'STIG'
+      compliance_framework: 'STIG',
     },
     {
       id: 2,
@@ -204,7 +204,11 @@ const ScapContentEnhanced: React.FC = () => {
       version: '1.0.0',
       profiles: [
         { id: 'level1-server', title: 'Level 1 Server', description: 'Basic security hardening' },
-        { id: 'level2-server', title: 'Level 2 Server', description: 'Enhanced security hardening' }
+        {
+          id: 'level2-server',
+          title: 'Level 2 Server',
+          description: 'Enhanced security hardening',
+        },
       ],
       uploaded_at: '2025-08-05T18:30:00Z',
       uploaded_by: 1,
@@ -213,7 +217,7 @@ const ScapContentEnhanced: React.FC = () => {
       os_version: '22.04',
       source: 'repository',
       status: 'current',
-      compliance_framework: 'CIS'
+      compliance_framework: 'CIS',
     },
     {
       id: 3,
@@ -223,7 +227,11 @@ const ScapContentEnhanced: React.FC = () => {
       description: 'Custom security profile for RHEL 8 production environment',
       version: '2.1',
       profiles: [
-        { id: 'production', title: 'Production Profile', description: 'Production environment hardening' }
+        {
+          id: 'production',
+          title: 'Production Profile',
+          description: 'Production environment hardening',
+        },
       ],
       uploaded_at: '2025-08-04T14:20:00Z',
       uploaded_by: 2,
@@ -232,11 +240,14 @@ const ScapContentEnhanced: React.FC = () => {
       os_version: '8.8',
       source: 'manual',
       status: 'current',
-      compliance_framework: 'Custom'
-    }
+      compliance_framework: 'Custom',
+    },
   ];
 
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+  const showSnackbar = (
+    message: string,
+    severity: 'success' | 'error' | 'warning' | 'info' = 'info'
+  ) => {
     setSnackbar({ open: true, message, severity });
   };
 
@@ -257,25 +268,28 @@ const ScapContentEnhanced: React.FC = () => {
   }, []);
 
   // Group content by OS family and version
-  const groupedContent = scapContent.reduce((groups, content) => {
-    const key = content.os_family;
-    if (!groups[key]) {
-      groups[key] = {};
-    }
-    if (!groups[key][content.os_version]) {
-      groups[key][content.os_version] = [];
-    }
-    groups[key][content.os_version].push(content);
-    return groups;
-  }, {} as Record<string, Record<string, SCAPContent[]>>);
+  const groupedContent = scapContent.reduce(
+    (groups, content) => {
+      const key = content.os_family;
+      if (!groups[key]) {
+        groups[key] = {};
+      }
+      if (!groups[key][content.os_version]) {
+        groups[key][content.os_version] = [];
+      }
+      groups[key][content.os_version].push(content);
+      return groups;
+    },
+    {} as Record<string, Record<string, SCAPContent[]>>
+  );
 
   // Calculate statistics
   const stats = {
     totalContent: scapContent.length,
     osTypes: Object.keys(groupedContent).length,
     totalProfiles: scapContent.reduce((sum, content) => sum + content.profiles.length, 0),
-    outdated: scapContent.filter(c => c.status === 'outdated').length,
-    updateAvailable: scapContent.filter(c => c.update_available).length
+    outdated: scapContent.filter((c) => c.status === 'outdated').length,
+    updateAvailable: scapContent.filter((c) => c.update_available).length,
   };
 
   const handleSync = async () => {
@@ -292,14 +306,11 @@ const ScapContentEnhanced: React.FC = () => {
   };
 
   const handleAutoSyncToggle = () => {
-    setEnvironmentInfo(prev => ({
+    setEnvironmentInfo((prev) => ({
       ...prev,
-      autoSyncEnabled: !prev.autoSyncEnabled
+      autoSyncEnabled: !prev.autoSyncEnabled,
     }));
-    showSnackbar(
-      `Auto-sync ${!environmentInfo.autoSyncEnabled ? 'enabled' : 'disabled'}`,
-      'info'
-    );
+    showSnackbar(`Auto-sync ${!environmentInfo.autoSyncEnabled ? 'enabled' : 'disabled'}`, 'info');
   };
 
   const getOSIcon = (osFamily: string) => {
@@ -354,19 +365,17 @@ const ScapContentEnhanced: React.FC = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffHours < 1) return 'Just now';
     if (diffHours < 24) return `${diffHours}h ago`;
-    
+
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
   };
 
   const toggleGroupExpansion = (groupKey: string) => {
-    setExpandedGroups(prev => 
-      prev.includes(groupKey) 
-        ? prev.filter(k => k !== groupKey)
-        : [...prev, groupKey]
+    setExpandedGroups((prev) =>
+      prev.includes(groupKey) ? prev.filter((k) => k !== groupKey) : [...prev, groupKey]
     );
   };
 
@@ -376,17 +385,17 @@ const ScapContentEnhanced: React.FC = () => {
       const token = localStorage.getItem('auth_token');
       const url = `/api/scap-content/${content.id}/download`;
       console.log('Downloading from URL:', url);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+          Authorization: `Bearer ${token}`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
       });
 
       console.log('Download response status:', response.status);
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const downloadUrl = window.URL.createObjectURL(blob);
@@ -417,13 +426,13 @@ const ScapContentEnhanced: React.FC = () => {
       const token = localStorage.getItem('auth_token');
       const url = `/api/scap-content/${selectedContent.id}`;
       console.log('Deleting from URL:', url);
-      
+
       const response = await fetch(url, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+          Authorization: `Bearer ${token}`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
       });
 
       console.log('Delete response status:', response.status);
@@ -450,22 +459,14 @@ const ScapContentEnhanced: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
-
-
-
       {/* Main Content Area */}
       <Card>
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h6">
-              Content Library
-            </Typography>
+            <Typography variant="h6">Content Library</Typography>
             <Box display="flex" gap={1} alignItems="center">
               <ButtonGroup variant="contained" size="small" sx={{ mr: 2 }}>
-                <Button
-                  startIcon={<UploadIcon />}
-                  onClick={() => setUploadDialogOpen(true)}
-                >
+                <Button startIcon={<UploadIcon />} onClick={() => setUploadDialogOpen(true)}>
                   Upload Content
                 </Button>
                 <Button
@@ -487,10 +488,7 @@ const ScapContentEnhanced: React.FC = () => {
                 </IconButton>
               </Tooltip>
               <Tooltip title="Repository Settings">
-                <IconButton 
-                  size="small"
-                  onClick={() => setRepositoryDialogOpen(true)}
-                >
+                <IconButton size="small" onClick={() => setRepositoryDialogOpen(true)}>
                   <StorageIcon />
                 </IconButton>
               </Tooltip>
@@ -504,22 +502,22 @@ const ScapContentEnhanced: React.FC = () => {
             {Object.entries(groupedContent).map(([osFamily, versions]) => {
               const isExpanded = expandedGroups.includes(osFamily);
               const contentCount = Object.values(versions).flat().length;
-              const hasUpdates = Object.values(versions).flat().some(c => c.update_available);
+              const hasUpdates = Object.values(versions)
+                .flat()
+                .some((c) => c.update_available);
 
               return (
                 <Card key={osFamily} variant="outlined" sx={{ mb: 2 }}>
                   <CardContent sx={{ pb: 1 }}>
-                    <Box 
-                      display="flex" 
-                      alignItems="center" 
+                    <Box
+                      display="flex"
+                      alignItems="center"
                       justifyContent="space-between"
                       sx={{ cursor: 'pointer' }}
                       onClick={() => toggleGroupExpansion(osFamily)}
                     >
                       <Box display="flex" alignItems="center" gap={2}>
-                        <Box sx={{ fontSize: '1.5rem' }}>
-                          {getOSIcon(osFamily)}
-                        </Box>
+                        <Box sx={{ fontSize: '1.5rem' }}>{getOSIcon(osFamily)}</Box>
                         <Box>
                           <Typography variant="h6" sx={{ textTransform: 'uppercase' }}>
                             {osFamily} Family
@@ -579,9 +577,11 @@ const ScapContentEnhanced: React.FC = () => {
                                         </Typography>
                                         <br />
                                         <Typography variant="caption" color="text.secondary">
-                                          {content.profiles.length} profiles • v{content.version} • 
-                                          {content.source === 'repository' ? ' 🔄 Auto' : ' 📦 Manual'} • 
-                                          {formatRelativeTime(content.uploaded_at)}
+                                          {content.profiles.length} profiles • v{content.version} •
+                                          {content.source === 'repository'
+                                            ? ' 🔄 Auto'
+                                            : ' 📦 Manual'}{' '}
+                                          •{formatRelativeTime(content.uploaded_at)}
                                         </Typography>
                                       </Box>
                                     }
@@ -611,16 +611,17 @@ const ScapContentEnhanced: React.FC = () => {
             })}
 
             {Object.keys(groupedContent).length === 0 && !loading && (
-              <Paper sx={{ p: 4, textAlign: 'center', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+              <Paper
+                sx={{ p: 4, textAlign: 'center', bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+              >
                 <SecurityIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   No Content Available
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  {environmentInfo.type === 'connected' 
+                  {environmentInfo.type === 'connected'
                     ? 'Sync with repositories or upload content to get started'
-                    : 'Upload content files to get started'
-                  }
+                    : 'Upload content files to get started'}
                 </Typography>
                 <ButtonGroup>
                   <Button
@@ -648,10 +649,10 @@ const ScapContentEnhanced: React.FC = () => {
       </Card>
 
       {/* Upload Dialog - Enhanced with OS Selection */}
-      <Dialog 
-        open={uploadDialogOpen} 
-        onClose={() => setUploadDialogOpen(false)} 
-        maxWidth="md" 
+      <Dialog
+        open={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>Upload Content</DialogTitle>
@@ -665,26 +666,33 @@ const ScapContentEnhanced: React.FC = () => {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  console.log('File selected:', { name: file.name, size: file.size, type: file.type });
-                  
+                  console.log('File selected:', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                  });
+
                   // Validate file type
                   const allowedExtensions = ['.xml', '.zip'];
                   const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
                   if (!allowedExtensions.includes(fileExt)) {
-                    showSnackbar(`Invalid file type. Please select ${allowedExtensions.join(' or ')} files only.`, 'error');
+                    showSnackbar(
+                      `Invalid file type. Please select ${allowedExtensions.join(' or ')} files only.`,
+                      'error'
+                    );
                     return;
                   }
-                  
+
                   // Validate file size (max 100MB)
                   const maxSize = 100 * 1024 * 1024; // 100MB
                   if (file.size > maxSize) {
                     showSnackbar('File size exceeds 100MB limit.', 'error');
                     return;
                   }
-                  
+
                   setUploadFile(file);
-                  setUploadName(file.name.replace(/\.[^/.]+$/, ""));
-                  
+                  setUploadName(file.name.replace(/\.[^/.]+$/, ''));
+
                   // Auto-detect OS family from filename if possible
                   const fileName = file.name.toLowerCase();
                   if (fileName.includes('rhel') || fileName.includes('redhat')) {
@@ -715,7 +723,7 @@ const ScapContentEnhanced: React.FC = () => {
                 {uploadFile ? uploadFile.name : 'Select Content File (XML or ZIP)'}
               </Button>
             </label>
-            
+
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -746,7 +754,7 @@ const ScapContentEnhanced: React.FC = () => {
                 </FormControl>
               </Grid>
             </Grid>
-            
+
             <TextField
               fullWidth
               label="Description"
@@ -757,7 +765,7 @@ const ScapContentEnhanced: React.FC = () => {
               rows={3}
               helperText="Optional description and version information"
             />
-            
+
             {uploading && (
               <Box sx={{ mt: 2 }}>
                 <LinearProgress variant="indeterminate" />
@@ -772,20 +780,20 @@ const ScapContentEnhanced: React.FC = () => {
           <Button onClick={() => setUploadDialogOpen(false)} disabled={uploading}>
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={async () => {
-              console.log('Upload button clicked', { 
-                uploadFile: uploadFile?.name, 
+              console.log('Upload button clicked', {
+                uploadFile: uploadFile?.name,
                 uploadName: uploadName.trim(),
                 hasFile: !!uploadFile,
-                hasName: !!uploadName.trim()
+                hasName: !!uploadName.trim(),
               });
-              
+
               if (!uploadFile) {
                 showSnackbar('Please select a file to upload', 'error');
                 return;
               }
-              
+
               if (!uploadName.trim()) {
                 showSnackbar('Please provide a name for the content', 'error');
                 return;
@@ -793,10 +801,10 @@ const ScapContentEnhanced: React.FC = () => {
 
               try {
                 setUploading(true);
-                console.log('Starting SCAP content upload...', { 
-                  fileName: uploadFile.name, 
+                console.log('Starting SCAP content upload...', {
+                  fileName: uploadFile.name,
                   name: uploadName.trim(),
-                  description: uploadDescription.trim()
+                  description: uploadDescription.trim(),
                 });
 
                 const formData = new FormData();
@@ -806,23 +814,26 @@ const ScapContentEnhanced: React.FC = () => {
 
                 // The api.post method already returns the response data directly
                 const result = await api.post('/api/scap-content/upload', formData);
-                
+
                 console.log('Upload successful:', result);
-                showSnackbar(`Content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`, 'success');
-                
+                showSnackbar(
+                  `Content uploaded successfully. Found ${result.profiles?.length || 0} profiles.`,
+                  'success'
+                );
+
                 // Reset form and close dialog
                 setUploadDialogOpen(false);
                 setUploadFile(null);
                 setUploadName('');
                 setUploadDescription('');
                 setSelectedOsFamily('');
-                
+
                 // Refresh content list
                 fetchScapContent();
               } catch (error: any) {
                 console.error('Upload error:', error);
                 let errorMessage = 'Failed to upload SCAP content';
-                
+
                 // Handle different error types
                 if (error.response?.data?.detail) {
                   errorMessage = error.response.data.detail;
@@ -834,13 +845,13 @@ const ScapContentEnhanced: React.FC = () => {
                 } else if (error.message) {
                   errorMessage = error.message;
                 }
-                
+
                 showSnackbar(errorMessage, 'error');
               } finally {
                 setUploading(false);
               }
-            }} 
-            variant="contained" 
+            }}
+            variant="contained"
             disabled={uploading || !uploadFile}
           >
             Upload
@@ -860,7 +871,7 @@ const ScapContentEnhanced: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Configure content repositories for automatic updates
           </Typography>
-          
+
           <List>
             {environmentInfo.repositories.map((repo) => (
               <ListItem key={repo.id}>
@@ -889,55 +900,51 @@ const ScapContentEnhanced: React.FC = () => {
                   secondaryTypographyProps={{ component: 'div' }}
                 />
                 <ListItemSecondaryAction>
-                  <Switch
-                    checked={repo.enabled}
-                    disabled={environmentInfo.type === 'air-gapped'}
-                  />
+                  <Switch checked={repo.enabled} disabled={environmentInfo.type === 'air-gapped'} />
                 </ListItemSecondaryAction>
               </ListItem>
             ))}
           </List>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRepositoryDialogOpen(false)}>
-            Close
-          </Button>
-          <Button variant="contained">
-            Save Changes
-          </Button>
+          <Button onClick={() => setRepositoryDialogOpen(false)}>Close</Button>
+          <Button variant="contained">Save Changes</Button>
         </DialogActions>
       </Dialog>
 
       {/* Context Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem onClick={() => {
-          console.log('Download clicked for:', selectedContent);
-          if (selectedContent) {
-            handleDownload(selectedContent);
-          }
-          setAnchorEl(null);
-        }}>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        <MenuItem
+          onClick={() => {
+            console.log('Download clicked for:', selectedContent);
+            if (selectedContent) {
+              handleDownload(selectedContent);
+            }
+            setAnchorEl(null);
+          }}
+        >
           <DownloadIcon sx={{ mr: 2 }} />
           Download
         </MenuItem>
-        <MenuItem onClick={() => {
-          console.log('View Details clicked for:', selectedContent);
-          setDetailsDialogOpen(true);
-          setAnchorEl(null);
-        }}>
+        <MenuItem
+          onClick={() => {
+            console.log('View Details clicked for:', selectedContent);
+            setDetailsDialogOpen(true);
+            setAnchorEl(null);
+          }}
+        >
           <InfoIcon sx={{ mr: 2 }} />
           View Details
         </MenuItem>
         <Divider />
-        <MenuItem onClick={() => {
-          console.log('Delete clicked for:', selectedContent);
-          setDeleteDialogOpen(true);
-          setAnchorEl(null);
-        }} sx={{ color: 'error.main' }}>
+        <MenuItem
+          onClick={() => {
+            console.log('Delete clicked for:', selectedContent);
+            setDeleteDialogOpen(true);
+            setAnchorEl(null);
+          }}
+          sx={{ color: 'error.main' }}
+        >
           <DeleteIcon sx={{ mr: 2 }} />
           Delete
         </MenuItem>
@@ -961,25 +968,37 @@ const ScapContentEnhanced: React.FC = () => {
             <Box>
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Name</Typography>
-                  <Typography variant="body1" fontWeight="medium">{selectedContent.name}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Name
+                  </Typography>
+                  <Typography variant="body1" fontWeight="medium">
+                    {selectedContent.name}
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Version</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Version
+                  </Typography>
                   <Typography variant="body1">{selectedContent.version}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Operating System</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Operating System
+                  </Typography>
                   <Typography variant="body1">
                     {selectedContent.os_family.toUpperCase()} {selectedContent.os_version}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Content Type</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Content Type
+                  </Typography>
                   <Typography variant="body1">{selectedContent.content_type}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Framework</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Framework
+                  </Typography>
                   <Chip
                     label={selectedContent.compliance_framework}
                     color={getFrameworkColor(selectedContent.compliance_framework)}
@@ -987,7 +1006,9 @@ const ScapContentEnhanced: React.FC = () => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Status
+                  </Typography>
                   <Chip
                     label={selectedContent.status}
                     color={getStatusColor(selectedContent.status)}
@@ -995,23 +1016,32 @@ const ScapContentEnhanced: React.FC = () => {
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Description
+                  </Typography>
                   <Typography variant="body1">{selectedContent.description}</Typography>
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">Filename</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Filename
+                  </Typography>
                   <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
                     {selectedContent.filename}
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">Uploaded</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Uploaded
+                  </Typography>
                   <Typography variant="body1">
-                    {new Date(selectedContent.uploaded_at).toLocaleString()} ({formatRelativeTime(selectedContent.uploaded_at)})
+                    {new Date(selectedContent.uploaded_at).toLocaleString()} (
+                    {formatRelativeTime(selectedContent.uploaded_at)})
                   </Typography>
                 </Grid>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">Source</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Source
+                  </Typography>
                   <Typography variant="body1">
                     {selectedContent.source === 'repository' ? '🔄 Repository' : '📦 Manual Upload'}
                   </Typography>
@@ -1029,10 +1059,7 @@ const ScapContentEnhanced: React.FC = () => {
                     <ListItemIcon>
                       <SecurityIcon color="action" />
                     </ListItemIcon>
-                    <ListItemText
-                      primary={profile.title}
-                      secondary={profile.description}
-                    />
+                    <ListItemText primary={profile.title} secondary={profile.description} />
                   </ListItem>
                 ))}
               </List>
@@ -1040,11 +1067,9 @@ const ScapContentEnhanced: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDetailsDialogOpen(false)}>
-            Close
-          </Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+          <Button
+            variant="contained"
             startIcon={<DownloadIcon />}
             onClick={() => {
               if (selectedContent) {
@@ -1068,7 +1093,8 @@ const ScapContentEnhanced: React.FC = () => {
         <DialogTitle>Confirm Deletion</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            This action cannot be undone. Deleting content will also remove all associated scan results.
+            This action cannot be undone. Deleting content will also remove all associated scan
+            results.
           </Alert>
           {selectedContent && (
             <Box>
@@ -1087,11 +1113,9 @@ const ScapContentEnhanced: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
             color="error"
             startIcon={<DeleteIcon />}
             onClick={handleDelete}
@@ -1107,8 +1131,8 @@ const ScapContentEnhanced: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

@@ -45,27 +45,26 @@ export const useFrameworkStatistics = (): UseFrameworkStatisticsReturn => {
 
       // Use MongoDB compliance rules API endpoint
       const response = await fetch('/api/v1/compliance-rules/?view_mode=framework_statistics');
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.message || 'Failed to fetch framework statistics');
       }
 
       const data: FrameworkStatistics = result.data;
-      
+
       setFrameworks(data.frameworks || []);
       setTotalFrameworks(data.total_frameworks || 0);
       setTotalRulesAnalyzed(data.total_rules_analyzed || 0);
-
     } catch (err) {
       console.error('Error fetching framework statistics:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      
+
       // Clear data on error
       setFrameworks([]);
       setTotalFrameworks(0);

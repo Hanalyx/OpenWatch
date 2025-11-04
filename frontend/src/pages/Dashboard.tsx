@@ -1,22 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Container,
-  Grid,
-  Box,
-  Paper,
-  Skeleton,
-  Alert,
-  Button,
-  Typography
-} from '@mui/material';
+import { Container, Grid, Box, Paper, Skeleton, Alert, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import {
-  Scanner,
-  AddCircle,
-  Warning,
-  Assessment,
-  Computer
-} from '@mui/icons-material';
+import { Scanner, AddCircle, Warning, Assessment, Computer } from '@mui/icons-material';
 
 // Dashboard components
 import SmartAlertBar from '../components/dashboard/SmartAlertBar';
@@ -49,24 +34,26 @@ const Dashboard: React.FC = () => {
   const [criticalIssues, setCriticalIssues] = useState(0);
   const [trendData, setTrendData] = useState<any[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [priorityHosts, setPriorityHosts] = useState<Array<{
-    id: string;
-    hostname: string;
-    displayName: string;
-    ipAddress: string;
-    operatingSystem: string;
-    status: string;
-    complianceScore: number;
-    issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline';
-    issue: string;
-    severity: 'critical' | 'high' | 'medium';
-    lastScan: string;
-    criticalIssues: number;
-    highIssues: number;
-    mediumIssues: number;
-    lowIssues: number;
-    passedRules: number;
-  }>>([]);
+  const [priorityHosts, setPriorityHosts] = useState<
+    Array<{
+      id: string;
+      hostname: string;
+      displayName: string;
+      ipAddress: string;
+      operatingSystem: string;
+      status: string;
+      complianceScore: number;
+      issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline';
+      issue: string;
+      severity: 'critical' | 'high' | 'medium';
+      lastScan: string;
+      criticalIssues: number;
+      highIssues: number;
+      mediumIssues: number;
+      lowIssues: number;
+      passedRules: number;
+    }>
+  >([]);
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async () => {
@@ -81,14 +68,14 @@ const Dashboard: React.FC = () => {
         // Attempt to fetch from API using consistent service
         const [hostsData, scansData] = await Promise.all([
           api.get<any[]>('/api/hosts/'),
-          api.get<{scans: any[]}>('/api/scans/')
+          api.get<{ scans: any[] }>('/api/scans/'),
         ]);
 
         hosts = hostsData || [];
         scans = scansData.scans || [];
       } catch (apiError: any) {
         console.error('Failed to fetch dashboard data:', apiError);
-        
+
         // More specific error messages based on error type
         if (apiError.code === 'NETWORK_ERROR' || apiError.message?.includes('Network Error')) {
           throw new Error('Unable to connect to the server. Please check your connection.');
@@ -103,7 +90,10 @@ const Dashboard: React.FC = () => {
 
       // Ensure we have arrays to work with and normalize data
       if (!Array.isArray(hosts) || !Array.isArray(scans)) {
-        console.warn('Invalid data format received from API', { hosts: typeof hosts, scans: typeof scans });
+        console.warn('Invalid data format received from API', {
+          hosts: typeof hosts,
+          scans: typeof scans,
+        });
         throw new Error('Invalid data format received from server');
       }
 
@@ -116,26 +106,37 @@ const Dashboard: React.FC = () => {
         mediumIssues: host.medium_issues || host.mediumIssues || 0,
         lowIssues: host.low_issues || host.lowIssues || 0,
         passedRules: host.passed_rules || host.passedRules || 0,
-        complianceScore: host.compliance_score !== null ? host.compliance_score : (host.complianceScore || 0),
+        complianceScore:
+          host.compliance_score !== null ? host.compliance_score : host.complianceScore || 0,
         displayName: host.display_name || host.displayName || host.hostname,
         ipAddress: host.ip_address || host.ipAddress || '',
         operatingSystem: host.operating_system || host.operatingSystem || 'Unknown',
         lastScan: host.last_scan || host.lastScan,
         // Ensure status has a valid value
-        status: host.status || 'offline'
+        status: host.status || 'offline',
       }));
 
       // Process data for dashboard using normalized hosts with adaptive monitoring states
-      const onlineCount = normalizedHosts.filter((h: any) => h.status === 'online' || h.status === 'reachable').length;
+      const onlineCount = normalizedHosts.filter(
+        (h: any) => h.status === 'online' || h.status === 'reachable'
+      ).length;
       const degradedCount = normalizedHosts.filter((h: any) => h.status === 'degraded').length;
       const criticalCount = normalizedHosts.filter((h: any) => h.status === 'critical').length;
-      const downCount = normalizedHosts.filter((h: any) => h.status === 'down' || h.status === 'offline').length;
+      const downCount = normalizedHosts.filter(
+        (h: any) => h.status === 'down' || h.status === 'offline'
+      ).length;
       const scanningCount = normalizedHosts.filter((h: any) => h.status === 'scanning').length;
-      const maintenanceCount = normalizedHosts.filter((h: any) => h.status === 'maintenance').length;
+      const maintenanceCount = normalizedHosts.filter(
+        (h: any) => h.status === 'maintenance'
+      ).length;
       const totalCount = normalizedHosts.length;
 
       // Calculate compliance stats
-      let totalCritical = 0, totalHigh = 0, totalMedium = 0, totalLow = 0, totalPassed = 0;
+      let totalCritical = 0,
+        totalHigh = 0,
+        totalMedium = 0,
+        totalLow = 0,
+        totalPassed = 0;
       let totalCompliance = 0;
       let complianceCount = 0;
 
@@ -151,22 +152,82 @@ const Dashboard: React.FC = () => {
         totalPassed += host.passedRules;
       });
 
-      const overallCompliance = complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
+      const overallCompliance =
+        complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
 
       // Generate trend data with realistic progression and ensure data integrity
-      const trendDataArray: any[] = normalizedHosts.length > 0 ? [
-        { date: '2025-08-13', overall: 85, critical: Math.max(12, totalCritical - 10), high: Math.max(25, totalHigh - 5), medium: Math.max(18, totalMedium), low: Math.max(8, totalLow) },
-        { date: '2025-08-14', overall: 87, critical: Math.max(10, totalCritical - 8), high: Math.max(22, totalHigh - 3), medium: Math.max(20, totalMedium + 2), low: Math.max(6, totalLow - 2) },
-        { date: '2025-08-15', overall: 82, critical: Math.max(15, totalCritical - 5), high: Math.max(28, totalHigh), medium: Math.max(15, totalMedium - 5), low: Math.max(10, totalLow + 2) },
-        { date: '2025-08-16', overall: 89, critical: Math.max(8, totalCritical - 12), high: Math.max(18, totalHigh - 7), medium: Math.max(22, totalMedium + 4), low: Math.max(5, totalLow - 3) },
-        { date: '2025-08-17', overall: 91, critical: Math.max(6, totalCritical - 14), high: Math.max(15, totalHigh - 10), medium: Math.max(25, totalMedium + 7), low: Math.max(4, totalLow - 4) },
-        { date: '2025-08-18', overall: 88, critical: Math.max(9, totalCritical - 11), high: Math.max(20, totalHigh - 5), medium: Math.max(23, totalMedium + 5), low: Math.max(7, totalLow - 1) },
-        { date: '2025-08-19', overall: 92, critical: Math.max(5, totalCritical - 15), high: Math.max(12, totalHigh - 13), medium: Math.max(28, totalMedium + 10), low: Math.max(3, totalLow - 5) },
-        { date: '2025-08-20', overall: Math.max(0, Math.min(100, overallCompliance)), critical: Math.max(0, totalCritical), high: Math.max(0, totalHigh), medium: Math.max(0, totalMedium), low: Math.max(0, totalLow) }
-      ] : [
-        // Fallback data when no hosts exist
-        { date: '2025-08-20', overall: 0, critical: 0, high: 0, medium: 0, low: 0 }
-      ];
+      const trendDataArray: any[] =
+        normalizedHosts.length > 0
+          ? [
+              {
+                date: '2025-08-13',
+                overall: 85,
+                critical: Math.max(12, totalCritical - 10),
+                high: Math.max(25, totalHigh - 5),
+                medium: Math.max(18, totalMedium),
+                low: Math.max(8, totalLow),
+              },
+              {
+                date: '2025-08-14',
+                overall: 87,
+                critical: Math.max(10, totalCritical - 8),
+                high: Math.max(22, totalHigh - 3),
+                medium: Math.max(20, totalMedium + 2),
+                low: Math.max(6, totalLow - 2),
+              },
+              {
+                date: '2025-08-15',
+                overall: 82,
+                critical: Math.max(15, totalCritical - 5),
+                high: Math.max(28, totalHigh),
+                medium: Math.max(15, totalMedium - 5),
+                low: Math.max(10, totalLow + 2),
+              },
+              {
+                date: '2025-08-16',
+                overall: 89,
+                critical: Math.max(8, totalCritical - 12),
+                high: Math.max(18, totalHigh - 7),
+                medium: Math.max(22, totalMedium + 4),
+                low: Math.max(5, totalLow - 3),
+              },
+              {
+                date: '2025-08-17',
+                overall: 91,
+                critical: Math.max(6, totalCritical - 14),
+                high: Math.max(15, totalHigh - 10),
+                medium: Math.max(25, totalMedium + 7),
+                low: Math.max(4, totalLow - 4),
+              },
+              {
+                date: '2025-08-18',
+                overall: 88,
+                critical: Math.max(9, totalCritical - 11),
+                high: Math.max(20, totalHigh - 5),
+                medium: Math.max(23, totalMedium + 5),
+                low: Math.max(7, totalLow - 1),
+              },
+              {
+                date: '2025-08-19',
+                overall: 92,
+                critical: Math.max(5, totalCritical - 15),
+                high: Math.max(12, totalHigh - 13),
+                medium: Math.max(28, totalMedium + 10),
+                low: Math.max(3, totalLow - 5),
+              },
+              {
+                date: '2025-08-20',
+                overall: Math.max(0, Math.min(100, overallCompliance)),
+                critical: Math.max(0, totalCritical),
+                high: Math.max(0, totalHigh),
+                medium: Math.max(0, totalMedium),
+                low: Math.max(0, totalLow),
+              },
+            ]
+          : [
+              // Fallback data when no hosts exist
+              { date: '2025-08-20', overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
+            ];
 
       // Generate activity items from recent scans
       const activitiesArray: ActivityItem[] = scans
@@ -180,12 +241,12 @@ const Dashboard: React.FC = () => {
           severity: scan.status === 'completed' ? 'success' : 'error',
           metadata: {
             scanId: scan.id,
-            complianceScore: scan.results?.score
+            complianceScore: scan.results?.score,
           },
           action: {
             label: 'View Report',
-            onClick: () => navigate(`/scans/${scan.id}`)
-          }
+            onClick: () => navigate(`/scans/${scan.id}`),
+          },
         }));
 
       // Identify priority hosts using normalized data
@@ -220,7 +281,8 @@ const Dashboard: React.FC = () => {
         })
         .slice(0, 5)
         .map((host: any) => {
-          let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' = 'critical_issues';
+          let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
+            'critical_issues';
           let issue = '';
           let severity: 'critical' | 'high' | 'medium' = 'medium';
 
@@ -230,7 +292,9 @@ const Dashboard: React.FC = () => {
             severity = 'critical';
           } else if (!host.lastScan || daysSince(host.lastScan) > 30) {
             issueType = 'not_scanned';
-            issue = host.lastScan ? `Not scanned in ${daysSince(host.lastScan)} days` : 'Never scanned';
+            issue = host.lastScan
+              ? `Not scanned in ${daysSince(host.lastScan)} days`
+              : 'Never scanned';
             severity = daysSince(host.lastScan || '1970-01-01') > 60 ? 'high' : 'medium';
           } else if (host.status === 'offline') {
             issueType = 'offline';
@@ -298,11 +362,14 @@ const Dashboard: React.FC = () => {
         priorityHosts: priorityHostsArray,
         trendData: trendDataArray,
       });
-
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      setError(error instanceof Error ? error.message : 'Unable to load dashboard data. Please check your connection and try again.');
-      
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load dashboard data. Please check your connection and try again.'
+      );
+
       // Reset all counts to 0 when there's an error
       setTotalHosts(0);
       setOnlineHosts(0);
@@ -368,21 +435,29 @@ const Dashboard: React.FC = () => {
     );
   }
 
-
   return (
     <Container maxWidth="xl" sx={{ maxWidth: '100%', px: { xs: 2, sm: 3 }, overflow: 'visible' }}>
       {/* Header */}
       <Box sx={{ mb: 4, overflow: 'visible' }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}>
+        <Typography
+          variant="h4"
+          component="h1"
+          gutterBottom
+          sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
+        >
           Security Compliance Dashboard
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}>
+        <Typography
+          variant="body1"
+          color="text.secondary"
+          sx={{ overflow: 'visible', wordBreak: 'normal', whiteSpace: 'normal' }}
+        >
           Monitor your infrastructure security posture and compliance status
         </Typography>
       </Box>
 
       {/* Smart Alert Bar */}
-      <SmartAlertBar 
+      <SmartAlertBar
         stats={{
           critical: criticalIssues,
           high: dashboardData?.stats?.high || 0,
@@ -390,7 +465,12 @@ const Dashboard: React.FC = () => {
           low: dashboardData?.stats?.low || 0,
           passed: dashboardData?.stats?.passed || 0,
           overallCompliance: dashboardData?.stats?.avgCompliance || 0,
-          trend: dashboardData?.stats?.avgCompliance > 85 ? 'up' : dashboardData?.stats?.avgCompliance > 70 ? 'stable' : 'down'
+          trend:
+            dashboardData?.stats?.avgCompliance > 85
+              ? 'up'
+              : dashboardData?.stats?.avgCompliance > 70
+                ? 'stable'
+                : 'down',
         }}
         onFilterClick={handleFilterClick}
       />
@@ -456,13 +536,13 @@ const Dashboard: React.FC = () => {
                     critical: criticalHosts,
                     down: downHosts,
                     scanning: scanningHosts,
-                    maintenance: maintenanceHosts
+                    maintenance: maintenanceHosts,
                   }}
                   onSegmentClick={handleFilterClick}
                 />
               </DashboardErrorBoundary>
             </Grid>
-            
+
             {/* Compliance Trend */}
             <Grid item xs={12} md={6}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
@@ -473,12 +553,12 @@ const Dashboard: React.FC = () => {
                 />
               </DashboardErrorBoundary>
             </Grid>
-            
+
             {/* Priority Hosts */}
             <Grid item xs={12}>
               <DashboardErrorBoundary onRetry={fetchDashboardData}>
-                <PriorityHosts 
-                  hosts={priorityHosts.map(host => ({
+                <PriorityHosts
+                  hosts={priorityHosts.map((host) => ({
                     id: host.id,
                     hostname: host.hostname,
                     displayName: host.displayName,
@@ -491,21 +571,30 @@ const Dashboard: React.FC = () => {
                     criticalCount: host.criticalIssues,
                     daysUntilExpiry: undefined,
                     action: {
-                      label: host.issueType === 'not_scanned' || host.issueType === 'critical_issues' ? 'Quick Scan' : 'Fix',
+                      label:
+                        host.issueType === 'not_scanned' || host.issueType === 'critical_issues'
+                          ? 'Quick Scan'
+                          : 'Fix',
                       onClick: () => {
-                        if (host.issueType === 'not_scanned' || host.issueType === 'critical_issues') {
-                          navigate('/scans/new', { 
-                            state: { 
-                              hostId: host.id, 
+                        if (
+                          host.issueType === 'not_scanned' ||
+                          host.issueType === 'critical_issues'
+                        ) {
+                          navigate('/scans/new', {
+                            state: {
+                              hostId: host.id,
                               quickScan: true,
-                              suggestedTemplate: host.issueType === 'critical_issues' ? 'security-audit' : 'quick-compliance'
-                            } 
+                              suggestedTemplate:
+                                host.issueType === 'critical_issues'
+                                  ? 'security-audit'
+                                  : 'quick-compliance',
+                            },
                           });
                         } else {
                           navigate(`/hosts/${host.id}`);
                         }
-                      }
-                    }
+                      },
+                    },
                   }))}
                 />
               </DashboardErrorBoundary>
@@ -535,6 +624,5 @@ const Dashboard: React.FC = () => {
     </Container>
   );
 };
-
 
 export default Dashboard;

@@ -53,7 +53,10 @@ class ScanService {
   /**
    * Start a group scan for all hosts in the specified host group
    */
-  static async startGroupScan(groupId: number, request: GroupScanRequest): Promise<GroupScanSessionResponse> {
+  static async startGroupScan(
+    groupId: number,
+    request: GroupScanRequest
+  ): Promise<GroupScanSessionResponse> {
     const response = await fetch(`/api/host-groups/${groupId}/scan`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -61,8 +64,8 @@ class ScanService {
         scan_name: request.scan_name || `Group Scan - ${new Date().toLocaleString()}`,
         profile_id: request.profile_id,
         priority: request.priority || 'normal',
-        template_id: request.template_id || 'auto'
-      })
+        template_id: request.template_id || 'auto',
+      }),
     });
 
     if (!response.ok) {
@@ -76,10 +79,16 @@ class ScanService {
   /**
    * Get progress of a group scan session
    */
-  static async getGroupScanProgress(groupId: number, sessionId: string): Promise<ScanProgressResponse> {
-    const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`, {
-      headers: getAuthHeaders()
-    });
+  static async getGroupScanProgress(
+    groupId: number,
+    sessionId: string
+  ): Promise<ScanProgressResponse> {
+    const response = await fetch(
+      `/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`,
+      {
+        headers: getAuthHeaders(),
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -95,7 +104,7 @@ class ScanService {
   static async cancelGroupScan(groupId: number, sessionId: string): Promise<void> {
     const response = await fetch(`/api/host-groups/${groupId}/scan-sessions/${sessionId}/cancel`, {
       method: 'POST',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -109,7 +118,7 @@ class ScanService {
    */
   static async getGroupScanSessions(groupId: number): Promise<GroupScanSessionResponse[]> {
     const response = await fetch(`/api/host-groups/${groupId}/scan-sessions`, {
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -132,8 +141,8 @@ class ScanService {
         host_id: hostId,
         content_id: contentId,
         profile_id: profileId,
-        scan_options: {}
-      })
+        scan_options: {},
+      }),
     });
 
     if (!response.ok) {
@@ -149,7 +158,7 @@ class ScanService {
    */
   static async getScanDetails(scanId: string): Promise<any> {
     const response = await fetch(`/api/scans/${scanId}`, {
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -166,7 +175,7 @@ class ScanService {
   static async cancelScan(scanId: string): Promise<void> {
     const response = await fetch(`/api/scans/${scanId}/cancel`, {
       method: 'POST',
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -180,7 +189,7 @@ class ScanService {
    */
   static async getScanResults(scanId: string): Promise<any> {
     const response = await fetch(`/api/scans/${scanId}/results`, {
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {

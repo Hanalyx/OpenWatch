@@ -23,7 +23,7 @@ import {
   ListItemIcon,
   Chip,
   Divider,
-  LinearProgress
+  LinearProgress,
 } from '@mui/material';
 import {
   Computer as ComputerIcon,
@@ -32,16 +32,18 @@ import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Schedule as ScheduleIcon,
-  NetworkCheck as NetworkCheckIcon
+  NetworkCheck as NetworkCheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import PreFlightValidationDialog from '../../components/errors/PreFlightValidationDialog';
-import ErrorClassificationDisplay, { ClassifiedError } from '../../components/errors/ErrorClassificationDisplay';
+import ErrorClassificationDisplay, {
+  ClassifiedError,
+} from '../../components/errors/ErrorClassificationDisplay';
 import { errorService } from '../../services/errorService';
 
 interface Host {
-  id: string;  // Changed to string to handle UUID
+  id: string; // Changed to string to handle UUID
   name: string;
   hostname: string;
   operating_system: string;
@@ -67,17 +69,17 @@ const steps = ['Select Host', 'Choose Content', 'Configure Scan', 'Review & Star
 const NewScapScan: React.FC = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
-  
+
   // Form data
   const [scanName, setScanName] = useState('');
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
   const [selectedContent, setSelectedContent] = useState<ScapContent | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
-  
+
   // Data
   const [hosts, setHosts] = useState<Host[]>([]);
   const [scapContent, setScapContent] = useState<ScapContent[]>([]);
-  
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -90,10 +92,13 @@ const NewScapScan: React.FC = () => {
   }>({
     open: false,
     message: '',
-    severity: 'info'
+    severity: 'info',
   });
 
-  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+  const showSnackbar = (
+    message: string,
+    severity: 'success' | 'error' | 'warning' | 'info' = 'info'
+  ) => {
     setSnackbar({ open: true, message, severity });
   };
 
@@ -115,11 +120,11 @@ const NewScapScan: React.FC = () => {
       const data = await api.get('/api/hosts/');
       // Convert API data to expected format
       const formattedHosts = data.map((host: any) => ({
-          id: host.id,  // Keep as string UUID
-          name: host.display_name || host.hostname,
-          hostname: host.hostname,
-          operating_system: host.operating_system,
-          status: host.status
+        id: host.id, // Keep as string UUID
+        name: host.display_name || host.hostname,
+        hostname: host.hostname,
+        operating_system: host.operating_system,
+        status: host.status,
       }));
       setHosts(formattedHosts);
     } catch (error) {
@@ -178,25 +183,25 @@ const NewScapScan: React.FC = () => {
     try {
       setStarting(true);
       setShowPreFlightDialog(false);
-      
+
       const scanRequest = {
         name: scanName.trim(),
         host_id: selectedHost.id,
         content_id: selectedContent.id,
         profile_id: selectedProfile.id,
-        scan_options: {}
+        scan_options: {},
       };
 
       const result = await api.post('/api/scans/', scanRequest);
       showSnackbar('Scan started successfully!', 'success');
-      
+
       // Navigate to scan detail page after a short delay
       setTimeout(() => {
         navigate(`/scans/${result.id}`);
       }, 1500);
     } catch (error: any) {
       console.error('Scan creation failed:', error);
-      
+
       // Try to classify the error using our error service
       const classification = errorService.getErrorClassification(error);
       if (classification) {
@@ -218,7 +223,7 @@ const NewScapScan: React.FC = () => {
 
   const handleApplyFix = async (fixId: string) => {
     if (!selectedHost) return;
-    
+
     try {
       await errorService.applyAutomatedFix(selectedHost.id, fixId);
       showSnackbar('Fix applied successfully', 'success');
@@ -230,11 +235,11 @@ const NewScapScan: React.FC = () => {
 
   const getValidationRequest = () => {
     if (!selectedHost || !selectedContent || !selectedProfile) return null;
-    
+
     return {
       host_id: selectedHost.id,
       content_id: selectedContent.id,
-      profile_id: selectedProfile.id
+      profile_id: selectedProfile.id,
     };
   };
 
@@ -249,7 +254,7 @@ const NewScapScan: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Choose the host you want to scan for compliance.
             </Typography>
-            
+
             <Grid container spacing={2}>
               {hosts.map((host) => (
                 <Grid item xs={12} md={6} key={host.id}>
@@ -260,8 +265,8 @@ const NewScapScan: React.FC = () => {
                       borderColor: selectedHost?.id === host.id ? 'primary.main' : 'divider',
                       '&:hover': {
                         borderColor: 'primary.main',
-                        boxShadow: 1
-                      }
+                        boxShadow: 1,
+                      },
                     }}
                     onClick={() => setSelectedHost(host)}
                   >
@@ -290,7 +295,7 @@ const NewScapScan: React.FC = () => {
                 </Grid>
               ))}
             </Grid>
-            
+
             {hosts.length === 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 No hosts available. Please add hosts before creating scans.
@@ -308,7 +313,7 @@ const NewScapScan: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Select the SCAP content to use for compliance checking.
             </Typography>
-            
+
             <Grid container spacing={2}>
               {scapContent.map((content) => (
                 <Grid item xs={12} key={content.id}>
@@ -319,8 +324,8 @@ const NewScapScan: React.FC = () => {
                       borderColor: selectedContent?.id === content.id ? 'primary.main' : 'divider',
                       '&:hover': {
                         borderColor: 'primary.main',
-                        boxShadow: 1
-                      }
+                        boxShadow: 1,
+                      },
                     }}
                     onClick={() => setSelectedContent(content)}
                   >
@@ -353,7 +358,7 @@ const NewScapScan: React.FC = () => {
                 </Grid>
               ))}
             </Grid>
-            
+
             {scapContent.length === 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 No SCAP content available. Please upload SCAP content before creating scans.
@@ -371,7 +376,7 @@ const NewScapScan: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Select the compliance profile to apply during the scan.
             </Typography>
-            
+
             {selectedContent?.profiles.map((profile) => (
               <Card
                 key={profile.id}
@@ -382,8 +387,8 @@ const NewScapScan: React.FC = () => {
                   borderColor: selectedProfile?.id === profile.id ? 'primary.main' : 'divider',
                   '&:hover': {
                     borderColor: 'primary.main',
-                    boxShadow: 1
-                  }
+                    boxShadow: 1,
+                  },
                 }}
                 onClick={() => setSelectedProfile(profile)}
               >
@@ -412,7 +417,7 @@ const NewScapScan: React.FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Review your scan configuration and provide a name for the scan.
             </Typography>
-            
+
             <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
               <Typography variant="subtitle2" gutterBottom>
                 Scan Configuration
@@ -431,23 +436,17 @@ const NewScapScan: React.FC = () => {
                   <ListItemIcon>
                     <SecurityIcon />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="Content"
-                    secondary={selectedContent?.name}
-                  />
+                  <ListItemText primary="Content" secondary={selectedContent?.name} />
                 </ListItem>
                 <ListItem disablePadding>
                   <ListItemIcon>
                     <CheckCircleIcon />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="Compliance Profile"
-                    secondary={selectedProfile?.title}
-                  />
+                  <ListItemText primary="Compliance Profile" secondary={selectedProfile?.title} />
                 </ListItem>
               </List>
             </Paper>
-            
+
             <TextField
               fullWidth
               label="Scan Name"
@@ -457,7 +456,7 @@ const NewScapScan: React.FC = () => {
               helperText="Provide a descriptive name for this scan"
               sx={{ mb: 2 }}
             />
-            
+
             {starting && (
               <Box sx={{ mt: 2 }}>
                 <LinearProgress />
@@ -479,7 +478,7 @@ const NewScapScan: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         New SCAP Scan
       </Typography>
-      
+
       <Paper sx={{ p: 3, mt: 3 }}>
         <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
           {steps.map((label) => (
@@ -489,18 +488,13 @@ const NewScapScan: React.FC = () => {
           ))}
         </Stepper>
 
-        <Box sx={{ minHeight: 400 }}>
-          {renderStepContent()}
-        </Box>
+        <Box sx={{ minHeight: 400 }}>{renderStepContent()}</Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-          <Button
-            onClick={handleBack}
-            disabled={activeStep === 0}
-          >
+          <Button onClick={handleBack} disabled={activeStep === 0}>
             Back
           </Button>
-          
+
           <Box>
             {activeStep === steps.length - 1 ? (
               <Button
@@ -513,11 +507,7 @@ const NewScapScan: React.FC = () => {
                 {starting ? 'Starting...' : 'Validate & Start Scan'}
               </Button>
             ) : (
-              <Button
-                variant="contained"
-                onClick={handleNext}
-                disabled={!canProceed()}
-              >
+              <Button variant="contained" onClick={handleNext} disabled={!canProceed()}>
                 Next
               </Button>
             )}
@@ -554,8 +544,8 @@ const NewScapScan: React.FC = () => {
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert 
-          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

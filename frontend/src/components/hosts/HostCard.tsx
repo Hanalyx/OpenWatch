@@ -15,7 +15,7 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Badge
+  Badge,
 } from '@mui/material';
 import {
   Computer,
@@ -32,7 +32,7 @@ import {
   Assessment,
   Security,
   Wifi,
-  WifiOff
+  WifiOff,
 } from '@mui/icons-material';
 import { QuickScanDropdown } from '../scans';
 
@@ -42,7 +42,18 @@ interface Host {
   displayName: string;
   ipAddress: string;
   operatingSystem: string;
-  status: 'online' | 'degraded' | 'critical' | 'down' | 'offline' | 'maintenance' | 'scanning' | 'reachable' | 'ping_only' | 'error' | 'unknown';
+  status:
+    | 'online'
+    | 'degraded'
+    | 'critical'
+    | 'down'
+    | 'offline'
+    | 'maintenance'
+    | 'scanning'
+    | 'reachable'
+    | 'ping_only'
+    | 'error'
+    | 'unknown';
   complianceScore?: number;
   complianceTrend?: 'up' | 'down' | 'stable';
   lastScan?: string;
@@ -101,7 +112,7 @@ const HostCard: React.FC<HostCardProps> = ({
   onSelect,
   onEdit,
   onDelete,
-  onCheckStatus
+  onCheckStatus,
 }) => {
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
 
@@ -116,27 +127,43 @@ const HostCard: React.FC<HostCardProps> = ({
 
   const getStatusColor = () => {
     switch (host.status) {
-      case 'online': return 'success';
-      case 'degraded': return 'warning';
-      case 'critical': return 'error';
-      case 'down': return 'error';
-      case 'scanning': return 'primary';
-      case 'maintenance': return 'info';
-      case 'error': return 'error';
-      case 'offline': return 'default';
-      default: return 'default';
+      case 'online':
+        return 'success';
+      case 'degraded':
+        return 'warning';
+      case 'critical':
+        return 'error';
+      case 'down':
+        return 'error';
+      case 'scanning':
+        return 'primary';
+      case 'maintenance':
+        return 'info';
+      case 'error':
+        return 'error';
+      case 'offline':
+        return 'default';
+      default:
+        return 'default';
     }
   };
 
   const getStatusIcon = () => {
     switch (host.status) {
-      case 'online': return <Wifi color="success" />;
-      case 'degraded': return <Wifi color="warning" />;
-      case 'critical': return <ErrorIcon color="error" />;
-      case 'down': return <ErrorIcon color="error" />;
-      case 'scanning': return <PlayArrow color="primary" />;
-      case 'error': return <ErrorIcon color="error" />;
-      default: return <WifiOff color="disabled" />;
+      case 'online':
+        return <Wifi color="success" />;
+      case 'degraded':
+        return <Wifi color="warning" />;
+      case 'critical':
+        return <ErrorIcon color="error" />;
+      case 'down':
+        return <ErrorIcon color="error" />;
+      case 'scanning':
+        return <PlayArrow color="primary" />;
+      case 'error':
+        return <ErrorIcon color="error" />;
+      default:
+        return <WifiOff color="disabled" />;
     }
   };
 
@@ -149,11 +176,11 @@ const HostCard: React.FC<HostCardProps> = ({
 
   const formatLastScan = (lastScan?: string) => {
     if (!lastScan) return 'Never scanned';
-    
+
     const date = new Date(lastScan);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
@@ -168,13 +195,15 @@ const HostCard: React.FC<HostCardProps> = ({
   const cardContent = (
     <>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+      <Box
+        sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}
+      >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
           <Avatar
             sx={{
               bgcolor: host.group_color || 'primary.main',
               width: 40,
-              height: 40
+              height: 40,
             }}
           >
             <Computer />
@@ -188,13 +217,10 @@ const HostCard: React.FC<HostCardProps> = ({
             </Typography>
           </Box>
         </Box>
-        
+
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {getStatusIcon()}
-          <IconButton
-            size="small"
-            onClick={handleMenuClick}
-          >
+          <IconButton size="small" onClick={handleMenuClick}>
             <MoreVert />
           </IconButton>
         </Box>
@@ -222,9 +248,9 @@ const HostCard: React.FC<HostCardProps> = ({
             label={host.group}
             size="small"
             variant="outlined"
-            sx={{ 
+            sx={{
               backgroundColor: host.group_color ? `${host.group_color}20` : undefined,
-              borderColor: host.group_color || undefined
+              borderColor: host.group_color || undefined,
             }}
           />
         )}
@@ -233,7 +259,9 @@ const HostCard: React.FC<HostCardProps> = ({
       {/* Scan Progress */}
       {host.scanStatus === 'running' && host.scanProgress !== undefined && (
         <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Box
+            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}
+          >
             <Typography variant="body2" color="primary">
               Scanning in progress...
             </Typography>
@@ -277,7 +305,9 @@ const HostCard: React.FC<HostCardProps> = ({
       {/* Compliance Progress Bar */}
       {host.complianceScore !== undefined && (
         <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Box
+            sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}
+          >
             <Typography variant="body2" color="text.secondary">
               Compliance Score
             </Typography>
@@ -306,16 +336,14 @@ const HostCard: React.FC<HostCardProps> = ({
           cursor: onSelect ? 'pointer' : 'default',
           '&:hover': {
             boxShadow: 3,
-            transform: 'translateY(-2px)'
+            transform: 'translateY(-2px)',
           },
-          transition: 'all 0.2s'
+          transition: 'all 0.2s',
         }}
         onClick={() => onSelect && onSelect(host.id)}
       >
-        <CardContent sx={{ pb: 1 }}>
-          {cardContent}
-        </CardContent>
-        
+        <CardContent sx={{ pb: 1 }}>{cardContent}</CardContent>
+
         <CardActions sx={{ pt: 0, justifyContent: 'space-between' }}>
           {/* Phase 2: Quick Scan Dropdown */}
           <QuickScanDropdown
@@ -340,7 +368,7 @@ const HostCard: React.FC<HostCardProps> = ({
                 </IconButton>
               </Tooltip>
             )}
-            
+
             <Tooltip title="View details">
               <IconButton
                 size="small"
@@ -376,7 +404,7 @@ const HostCard: React.FC<HostCardProps> = ({
             <ListItemText>Edit Host</ListItemText>
           </MenuItem>
         )}
-        
+
         {onCheckStatus && (
           <MenuItem
             onClick={() => {
@@ -390,9 +418,9 @@ const HostCard: React.FC<HostCardProps> = ({
             <ListItemText>Check Status</ListItemText>
           </MenuItem>
         )}
-        
+
         <Divider />
-        
+
         {onDelete && (
           <MenuItem
             onClick={() => {

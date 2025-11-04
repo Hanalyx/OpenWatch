@@ -7,7 +7,7 @@ import {
   IconButton,
   Badge,
   useTheme,
-  alpha
+  alpha,
 } from '@mui/material';
 import { ArrowForward } from '@mui/icons-material';
 
@@ -28,7 +28,7 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
   color = 'primary',
   onClick,
   badge,
-  disabled = false
+  disabled = false,
 }) => {
   const theme = useTheme();
 
@@ -38,13 +38,15 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
         height: '100%',
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.3s ease',
-        '&:hover': disabled ? {} : {
-          transform: 'translateY(-4px)',
-          boxShadow: theme.shadows[8],
-          '& .action-arrow': {
-            transform: 'translateX(4px)',
-          }
-        }
+        '&:hover': disabled
+          ? {}
+          : {
+              transform: 'translateY(-4px)',
+              boxShadow: theme.shadows[8],
+              '& .action-arrow': {
+                transform: 'translateX(4px)',
+              },
+            },
       }}
       onClick={disabled ? undefined : onClick}
     >
@@ -61,7 +63,7 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
                     color: theme.palette[color].main,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
                   }}
                 >
                   {icon}
@@ -80,7 +82,7 @@ const QuickActionCard: React.FC<QuickActionCardProps> = ({
             className="action-arrow"
             sx={{
               transition: 'transform 0.3s ease',
-              color: theme.palette[color].main
+              color: theme.palette[color].main,
             }}
             disabled={disabled}
           >

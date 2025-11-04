@@ -55,8 +55,8 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
   onDelete,
   onReplace,
   compact = false,
-  systemDefaultLabel = "Uses system default SSH key",
-  loading = false
+  systemDefaultLabel = 'Uses system default SSH key',
+  loading = false,
 }) => {
   const theme = useTheme();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -105,12 +105,12 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
   // Format date for display (GitHub-style relative dates)
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null;
-    
+
     const date = new Date(dateString);
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) {
       return 'today';
     } else if (diffDays === 1) {
@@ -152,7 +152,11 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
     return (
       <Card variant="outlined" sx={{ bgcolor: alpha(theme.palette.info.main, 0.05) }}>
         <CardContent sx={{ py: compact ? 1.5 : 2 }}>
-          <Stack direction={compact ? "column" : "row"} spacing={2} alignItems={compact ? "flex-start" : "center"}>
+          <Stack
+            direction={compact ? 'column' : 'row'}
+            spacing={2}
+            alignItems={compact ? 'flex-start' : 'center'}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <VpnKey sx={{ color: theme.palette.info.main }} />
               <Typography variant="body2" color="text.secondary">
@@ -161,12 +165,7 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
             </Box>
             {showActions && (
               <Stack direction="row" spacing={1} sx={{ ml: 'auto' }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={onEdit}
-                  startIcon={<Edit />}
-                >
+                <Button size="small" variant="outlined" onClick={onEdit} startIcon={<Edit />}>
                   Configure System Default
                 </Button>
               </Stack>
@@ -182,7 +181,11 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
     return (
       <Card variant="outlined" sx={{ bgcolor: alpha(theme.palette.grey[500], 0.05) }}>
         <CardContent sx={{ py: compact ? 1.5 : 2 }}>
-          <Stack direction={compact ? "column" : "row"} spacing={2} alignItems={compact ? "flex-start" : "center"}>
+          <Stack
+            direction={compact ? 'column' : 'row'}
+            spacing={2}
+            alignItems={compact ? 'flex-start' : 'center'}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <VpnKey sx={{ color: theme.palette.text.secondary }} />
               <Typography variant="body2" color="text.secondary">
@@ -191,12 +194,7 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
             </Box>
             {showActions && (
               <Stack direction="row" spacing={1} sx={{ ml: 'auto' }}>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={onEdit}
-                  startIcon={<VpnKey />}
-                >
+                <Button size="small" variant="contained" onClick={onEdit} startIcon={<VpnKey />}>
                   Add SSH Key
                 </Button>
               </Stack>
@@ -220,39 +218,45 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
                 <Typography
                   variant="body2"
                   component="div"
-                  sx={{ 
-                    fontFamily: 'monospace', 
+                  sx={{
+                    fontFamily: 'monospace',
                     fontSize: '0.875rem',
                     color: theme.palette.text.primary,
                     fontWeight: 500,
                     wordBreak: 'break-all',
-                    lineHeight: 1.4
+                    lineHeight: 1.4,
                   }}
                 >
                   {formatFingerprint(sshKeyInfo.fingerprint)}
                 </Typography>
 
                 {/* GitHub-style metadata line */}
-                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Box
+                  sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}
+                >
                   {/* Creation date */}
                   {sshKeyInfo.createdAt && (
                     <Typography variant="caption" color="text.secondary">
                       Added on {new Date(sshKeyInfo.createdAt).toLocaleDateString()}
                     </Typography>
                   )}
-                  
+
                   {/* Last used */}
                   {sshKeyInfo.lastUsed && (
                     <>
-                      <Typography variant="caption" color="text.secondary">•</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        •
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Last used {formatDate(sshKeyInfo.lastUsed)}
                       </Typography>
                     </>
                   )}
-                  
+
                   {/* Access level - always show Read/write for SSH keys */}
-                  <Typography variant="caption" color="text.secondary">•</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    •
+                  </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
                     Read/write
                   </Typography>
@@ -268,16 +272,16 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
                       bgcolor: alpha(security.color, 0.1),
                       color: security.color,
                       '& .MuiChip-icon': {
-                        color: security.color
-                      }
+                        color: security.color,
+                      },
                     }}
                   />
-                  
+
                   {/* Key comment */}
                   {sshKeyInfo.keyComment && (
-                    <Typography 
-                      variant="caption" 
-                      color="text.secondary" 
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
                       sx={{ fontStyle: 'italic', ml: 1 }}
                     >
                       "{sshKeyInfo.keyComment}"
@@ -320,12 +324,7 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Delete color="error" />
           Delete SSH Key
@@ -344,9 +343,9 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDeleteCancel}>Cancel</Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            color="error" 
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
             variant="contained"
             startIcon={<Delete />}
           >

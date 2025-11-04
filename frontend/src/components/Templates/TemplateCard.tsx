@@ -70,12 +70,8 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
             <Typography variant="h6" component="span">
               {template.name}
             </Typography>
-            {template.is_default && (
-              <StarIcon fontSize="small" color="primary" />
-            )}
-            {template.is_public && (
-              <PublicIcon fontSize="small" color="action" />
-            )}
+            {template.is_default && <StarIcon fontSize="small" color="primary" />}
+            {template.is_public && <PublicIcon fontSize="small" color="action" />}
           </Box>
         }
         subheader={`${template.framework} ${template.framework_version}`}

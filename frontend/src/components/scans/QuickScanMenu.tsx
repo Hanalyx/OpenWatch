@@ -10,7 +10,7 @@ import {
   Box,
   Chip,
   CircularProgress,
-  Alert
+  Alert,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -20,7 +20,7 @@ import {
   Settings,
   ExpandMore,
   Schedule,
-  CheckCircle
+  CheckCircle,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -48,7 +48,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
   hostId,
   hostName,
   onScanStart,
-  disabled = false
+  disabled = false,
 }) => {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -69,8 +69,8 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
       setLoading(true);
       const response = await fetch(`/api/scan-templates/host/${hostId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -99,7 +99,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
       isDefault: true,
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_cui',
-      estimatedDuration: '5-10 min'
+      estimatedDuration: '5-10 min',
     },
     {
       id: 'security-audit',
@@ -109,7 +109,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
       color: 'error',
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_stig',
-      estimatedDuration: '15-25 min'
+      estimatedDuration: '15-25 min',
     },
     {
       id: 'vulnerability-scan',
@@ -119,8 +119,8 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
       color: 'warning',
       contentId: 1,
       profileId: 'xccdf_org.ssgproject.content_profile_cis',
-      estimatedDuration: '10-15 min'
-    }
+      estimatedDuration: '10-15 min',
+    },
   ];
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -134,14 +134,14 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
 
   const handleTemplateSelect = async (template: ScanTemplate) => {
     handleMenuClose();
-    
+
     try {
       // Start scan immediately with template
       const response = await fetch('/api/scans/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           name: `${template.name} - ${hostName}`,
@@ -150,9 +150,9 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
           profile_id: template.profileId,
           scan_options: {
             template_id: template.id,
-            quick_scan: true
-          }
-        })
+            quick_scan: true,
+          },
+        }),
       });
 
       if (response.ok) {
@@ -174,7 +174,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
     navigate('/scans/new', { state: { hostId } });
   };
 
-  const defaultTemplate = templates.find(t => t.isDefault);
+  const defaultTemplate = templates.find((t) => t.isDefault);
 
   return (
     <>
@@ -182,9 +182,13 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
         variant="contained"
         startIcon={<PlayArrow />}
         endIcon={templates.length > 1 ? <ExpandMore /> : undefined}
-        onClick={templates.length === 1 || !defaultTemplate ? handleCustomScan : 
-                 templates.length > 1 ? handleMenuOpen : 
-                 () => handleTemplateSelect(defaultTemplate)}
+        onClick={
+          templates.length === 1 || !defaultTemplate
+            ? handleCustomScan
+            : templates.length > 1
+              ? handleMenuOpen
+              : () => handleTemplateSelect(defaultTemplate)
+        }
         disabled={disabled}
         sx={{ minWidth: 140 }}
       >
@@ -196,7 +200,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
         open={open}
         onClose={handleMenuClose}
         PaperProps={{
-          sx: { minWidth: 300, maxWidth: 400 }
+          sx: { minWidth: 300, maxWidth: 400 },
         }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
@@ -226,21 +230,17 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
                 sx={{ py: 1.5 }}
               >
                 <ListItemIcon>
-                  <Box sx={{ color: `${template.color}.main` }}>
-                    {template.icon}
-                  </Box>
+                  <Box sx={{ color: `${template.color}.main` }}>{template.icon}</Box>
                 </ListItemIcon>
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="subtitle2">
-                        {template.name}
-                      </Typography>
+                      <Typography variant="subtitle2">{template.name}</Typography>
                       {template.isDefault && (
-                        <Chip 
-                          label="Default" 
-                          size="small" 
-                          color="primary" 
+                        <Chip
+                          label="Default"
+                          size="small"
+                          color="primary"
                           sx={{ height: 18, fontSize: '0.7rem' }}
                         />
                       )}
@@ -269,15 +269,12 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
             ))}
 
             <Divider />
-            
+
             <MenuItem onClick={handleCustomScan}>
               <ListItemIcon>
                 <Settings />
               </ListItemIcon>
-              <ListItemText
-                primary="Custom Scan"
-                secondary="Configure scan options manually"
-              />
+              <ListItemText primary="Custom Scan" secondary="Configure scan options manually" />
             </MenuItem>
           </>
         )}

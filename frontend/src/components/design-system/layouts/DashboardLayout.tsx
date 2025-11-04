@@ -1,14 +1,5 @@
 import React from 'react';
-import {
-  Box,
-  Grid,
-  Toolbar,
-  Paper,
-  Typography,
-  Button,
-  IconButton,
-  Fab,
-} from '@mui/material';
+import { Box, Grid, Toolbar, Paper, Typography, Button, IconButton, Fab } from '@mui/material';
 import { Add } from '@mui/icons-material';
 
 interface DashboardLayoutProps {
@@ -52,35 +43,23 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 </Typography>
               )}
             </Box>
-            {actions && (
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {actions}
-              </Box>
-            )}
+            {actions && <Box sx={{ display: 'flex', gap: 1 }}>{actions}</Box>}
           </Box>
         </Box>
       )}
 
       {/* Statistics Section */}
-      {statistics && (
-        <Box sx={{ mb: 2 }}>
-          {statistics}
-        </Box>
-      )}
+      {statistics && <Box sx={{ mb: 2 }}>{statistics}</Box>}
 
       {/* Toolbar Section */}
       {toolbar && (
         <Paper sx={{ mb: 2 }}>
-          <Toolbar sx={{ gap: 2 }}>
-            {toolbar}
-          </Toolbar>
+          <Toolbar sx={{ gap: 2 }}>{toolbar}</Toolbar>
         </Paper>
       )}
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
-        {children}
-      </Box>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>{children}</Box>
 
       {/* Floating Action Button */}
       {fab && (

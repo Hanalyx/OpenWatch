@@ -39,18 +39,23 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
 
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
-      case 'critical': return theme.palette.error.main;
-      case 'high': return theme.palette.error.light;
-      case 'medium': return theme.palette.warning.main;
-      case 'low': return theme.palette.info.main;
-      default: return theme.palette.grey[500];
+      case 'critical':
+        return theme.palette.error.main;
+      case 'high':
+        return theme.palette.error.light;
+      case 'medium':
+        return theme.palette.warning.main;
+      case 'low':
+        return theme.palette.info.main;
+      default:
+        return theme.palette.grey[500];
     }
   };
 
   // Helper to check if frameworks have data
   const hasFrameworkData = () => {
     if (!rule.frameworks) return false;
-    return Object.keys(rule.frameworks).some(fw => {
+    return Object.keys(rule.frameworks).some((fw) => {
       const fwData = rule.frameworks[fw];
       return fwData && typeof fwData === 'object' && Object.keys(fwData).length > 0;
     });
@@ -59,19 +64,24 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
   // Helper to check if platform implementations have data
   const hasPlatformData = () => {
     if (!rule.platform_implementations) return false;
-    return Object.keys(rule.platform_implementations).some(platform => {
+    return Object.keys(rule.platform_implementations).some((platform) => {
       const impl = rule.platform_implementations[platform];
-      return impl && typeof impl === 'object' && Object.keys(impl).length > 0 &&
-             (impl.versions?.length > 0 || impl.check_command || impl.enable_command);
+      return (
+        impl &&
+        typeof impl === 'object' &&
+        Object.keys(impl).length > 0 &&
+        (impl.versions?.length > 0 || impl.check_command || impl.enable_command)
+      );
     });
   };
 
   // Helper to check if dependencies have data
   const hasDependencies = () => {
-    return rule.dependencies && (
-      (rule.dependencies.requires && rule.dependencies.requires.length > 0) ||
-      (rule.dependencies.conflicts && rule.dependencies.conflicts.length > 0) ||
-      (rule.dependencies.related && rule.dependencies.related.length > 0)
+    return (
+      rule.dependencies &&
+      ((rule.dependencies.requires && rule.dependencies.requires.length > 0) ||
+        (rule.dependencies.conflicts && rule.dependencies.conflicts.length > 0) ||
+        (rule.dependencies.related && rule.dependencies.related.length > 0))
     );
   };
 
@@ -119,7 +129,11 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                   sx={{ textTransform: 'capitalize' }}
                 />
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+              >
                 {rule.rule_id}
               </Typography>
             </Box>
@@ -135,7 +149,11 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             {/* Description */}
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography
+                  variant="h6"
+                  gutterBottom
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                >
                   <InfoIcon color="primary" fontSize="small" />
                   Description
                 </Typography>
@@ -150,7 +168,12 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                 </Box>
                 {rule.metadata?.rationale && (
                   <>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mt: 2 }}
+                    >
                       Rationale
                     </Typography>
                     <SafeHTMLRenderer html={rule.metadata.rationale} variant="body2" />
@@ -163,7 +186,11 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             {rule.scap_rule_id && (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <SecurityIcon color="primary" fontSize="small" />
                     SCAP Reference
                   </Typography>
@@ -188,16 +215,30 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             {hasFrameworkData() ? (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <LinkIcon color="primary" fontSize="small" />
                     Compliance Frameworks
                   </Typography>
                   <Stack spacing={2}>
                     {Object.entries(rule.frameworks || {})
-                      .filter(([_, versions]) => versions && typeof versions === 'object' && Object.keys(versions).length > 0)
+                      .filter(
+                        ([_, versions]) =>
+                          versions &&
+                          typeof versions === 'object' &&
+                          Object.keys(versions).length > 0
+                      )
                       .map(([framework, versions]) => (
                         <Box key={framework}>
-                          <Typography variant="subtitle2" color="primary" gutterBottom sx={{ textTransform: 'uppercase' }}>
+                          <Typography
+                            variant="subtitle2"
+                            color="primary"
+                            gutterBottom
+                            sx={{ textTransform: 'uppercase' }}
+                          >
                             {framework}
                           </Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -219,7 +260,11 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             ) : (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <LinkIcon color="primary" fontSize="small" />
                     Compliance Frameworks
                   </Typography>
@@ -234,12 +279,16 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             {rule.tags && rule.tags.length > 0 && (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <ComplianceIcon color="primary" fontSize="small" />
                     Tags
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {rule.tags.map(tag => (
+                    {rule.tags.map((tag) => (
                       <Chip key={tag} label={tag} size="small" color="primary" variant="outlined" />
                     ))}
                   </Box>
@@ -251,26 +300,41 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             {hasPlatformData() ? (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <BuildIcon color="primary" fontSize="small" />
                     Platform Implementation
                   </Typography>
                   <Stack spacing={2}>
                     {Object.entries(rule.platform_implementations || {})
-                      .filter(([_, impl]) =>
-                        impl && typeof impl === 'object' && Object.keys(impl).length > 0 &&
-                        (impl.versions?.length > 0 || impl.check_command || impl.enable_command)
+                      .filter(
+                        ([_, impl]) =>
+                          impl &&
+                          typeof impl === 'object' &&
+                          Object.keys(impl).length > 0 &&
+                          (impl.versions?.length > 0 || impl.check_command || impl.enable_command)
                       )
                       .map(([platform, impl]) => (
-                        <Card key={platform} variant="outlined" sx={{ backgroundColor: alpha(theme.palette.common.black, 0.02) }}>
+                        <Card
+                          key={platform}
+                          variant="outlined"
+                          sx={{ backgroundColor: alpha(theme.palette.common.black, 0.02) }}
+                        >
                           <CardContent sx={{ pb: '16px !important' }}>
-                            <Typography variant="subtitle1" gutterBottom sx={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 1,
-                              textTransform: 'capitalize',
-                              color: theme.palette.primary.main,
-                            }}>
+                            <Typography
+                              variant="subtitle1"
+                              gutterBottom
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                textTransform: 'capitalize',
+                                color: theme.palette.primary.main,
+                              }}
+                            >
                               <PlatformIcon fontSize="small" />
                               {platform}
                             </Typography>
@@ -281,7 +345,10 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                                   <Typography variant="body2" color="text.secondary" gutterBottom>
                                     Supported Versions
                                   </Typography>
-                                  <Typography variant="body2" sx={{ fontFamily: 'monospace', mb: 2 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontFamily: 'monospace', mb: 2 }}
+                                  >
                                     {impl.versions.join(', ')}
                                   </Typography>
                                 </Grid>
@@ -339,7 +406,11 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
             ) : (
               <Card variant="outlined">
                 <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                  >
                     <BuildIcon color="primary" fontSize="small" />
                     Platform Implementation
                   </Typography>
@@ -364,8 +435,14 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                           Requires
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {rule.dependencies.requires.map(dep => (
-                            <Chip key={dep} label={dep} size="small" color="success" variant="outlined" />
+                          {rule.dependencies.requires.map((dep) => (
+                            <Chip
+                              key={dep}
+                              label={dep}
+                              size="small"
+                              color="success"
+                              variant="outlined"
+                            />
                           ))}
                         </Box>
                       </Box>
@@ -377,8 +454,14 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                           Conflicts
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {rule.dependencies.conflicts.map(dep => (
-                            <Chip key={dep} label={dep} size="small" color="error" variant="outlined" />
+                          {rule.dependencies.conflicts.map((dep) => (
+                            <Chip
+                              key={dep}
+                              label={dep}
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                            />
                           ))}
                         </Box>
                       </Box>
@@ -390,8 +473,14 @@ const RuleSidePanel: React.FC<RuleSidePanelProps> = ({ open, rule, onClose }) =>
                           Related
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {rule.dependencies.related.map(dep => (
-                            <Chip key={dep} label={dep} size="small" color="info" variant="outlined" />
+                          {rule.dependencies.related.map((dep) => (
+                            <Chip
+                              key={dep}
+                              label={dep}
+                              size="small"
+                              color="info"
+                              variant="outlined"
+                            />
                           ))}
                         </Box>
                       </Box>

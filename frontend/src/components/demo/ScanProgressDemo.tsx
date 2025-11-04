@@ -8,14 +8,9 @@ import {
   Card,
   CardContent,
   Chip,
-  Alert
+  Alert,
 } from '@mui/material';
-import {
-  PlayArrow,
-  Group,
-  Computer,
-  Security
-} from '@mui/icons-material';
+import { PlayArrow, Group, Computer, Security } from '@mui/icons-material';
 import ScanProgressDialog from '../host-groups/ScanProgressDialog';
 
 /**
@@ -28,14 +23,14 @@ const ScanProgressDemo: React.FC = () => {
   // Mock group data for demo
   const mockGroup = {
     id: 1,
-    name: "RHEL 8 STIG Compliance",
+    name: 'RHEL 8 STIG Compliance',
     host_count: 3,
     scap_content_id: 1,
-    default_profile_id: "stig_rhel8",
-    scap_content_name: "RHEL 8 STIG Content"
+    default_profile_id: 'stig_rhel8',
+    scap_content_name: 'RHEL 8 STIG Content',
   };
 
-  const mockSessionId = "demo-session-12345";
+  const mockSessionId = 'demo-session-12345';
 
   const handleStartDemo = () => {
     setShowScanProgress(true);
@@ -46,10 +41,10 @@ const ScanProgressDemo: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Host Group Scan Progress Demo
       </Typography>
-      
+
       <Alert severity="info" sx={{ mb: 3 }}>
-        This demo showcases the enhanced Group Scan Progress functionality. 
-        Click "Start Demo Scan" to see the real-time progress interface in action.
+        This demo showcases the enhanced Group Scan Progress functionality. Click "Start Demo Scan"
+        to see the real-time progress interface in action.
       </Alert>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -59,11 +54,9 @@ const ScanProgressDemo: React.FC = () => {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Group color="primary" />
-                <Typography variant="h6">
-                  {mockGroup.name}
-                </Typography>
+                <Typography variant="h6">{mockGroup.name}</Typography>
               </Box>
-              
+
               <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                 <Chip
                   icon={<Computer />}
@@ -115,7 +108,8 @@ const ScanProgressDemo: React.FC = () => {
                 ✅ <strong>Host Status Visualization</strong> - Individual host progress with icons
               </Typography>
               <Typography variant="body2">
-                ✅ <strong>Overall Progress Tracking</strong> - Session-level progress bar and statistics
+                ✅ <strong>Overall Progress Tracking</strong> - Session-level progress bar and
+                statistics
               </Typography>
               <Typography variant="body2">
                 ✅ <strong>Compliance Score Display</strong> - Results with color-coded scoring
@@ -148,8 +142,8 @@ const ScanProgressDemo: React.FC = () => {
               User Experience
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Immediate feedback when scanning starts, with clear visual indicators 
-              for each possible state (pending, running, completed, failed).
+              Immediate feedback when scanning starts, with clear visual indicators for each
+              possible state (pending, running, completed, failed).
             </Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -157,8 +151,8 @@ const ScanProgressDemo: React.FC = () => {
               Real-time Updates
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Automatic polling with smart stop conditions, pause/resume controls,
-              and background operation support.
+              Automatic polling with smart stop conditions, pause/resume controls, and background
+              operation support.
             </Typography>
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -166,8 +160,8 @@ const ScanProgressDemo: React.FC = () => {
               Error Handling
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Comprehensive validation, graceful error recovery, and 
-              user-friendly error messages with actionable guidance.
+              Comprehensive validation, graceful error recovery, and user-friendly error messages
+              with actionable guidance.
             </Typography>
           </Grid>
         </Grid>

@@ -1,17 +1,6 @@
 import React from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  useTheme,
-  alpha,
-} from '@mui/material';
-import {
-  Inbox,
-  Search,
-  Add,
-  ErrorOutline,
-} from '@mui/icons-material';
+import { Box, Typography, Button, useTheme, alpha } from '@mui/material';
+import { Inbox, Search, Add, ErrorOutline } from '@mui/icons-material';
 
 export type EmptyStateType = 'no-data' | 'no-results' | 'error' | 'custom';
 
@@ -110,22 +99,12 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       )}
 
       {/* Title */}
-      <Typography
-        variant="h5"
-        fontWeight="medium"
-        color="text.primary"
-        gutterBottom
-        sx={{ mb: 1 }}
-      >
+      <Typography variant="h5" fontWeight="medium" color="text.primary" gutterBottom sx={{ mb: 1 }}>
         {displayTitle}
       </Typography>
 
       {/* Description */}
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        sx={{ mb: 4, maxWidth: 300 }}
-      >
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 300 }}>
         {displayDescription}
       </Typography>
 

@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogContent,
   CircularProgress,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Assessment,
@@ -40,7 +40,7 @@ import {
   FilterList,
   Security,
   Computer,
-  BugReport
+  BugReport,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -54,7 +54,7 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell
+  Cell,
 } from 'recharts';
 
 interface ComplianceReportProps {
@@ -96,15 +96,12 @@ const COLORS = {
   warning: '#ff9800',
   error: '#f44336',
   info: '#2196f3',
-  primary: '#1976d2'
+  primary: '#1976d2',
 };
 
 const PIE_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
-  groupId,
-  groupName
-}) => {
+export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId, groupName }) => {
   const [report, setReport] = useState<ComplianceReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +116,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
   const loadComplianceReport = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const params = new URLSearchParams();
       if (selectedFramework) params.append('framework', selectedFramework);
@@ -130,14 +127,11 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
         params.append('date_from', fromDate.toISOString());
       }
 
-      const response = await fetch(
-        `/api/group-compliance/${groupId}/report?${params}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        }
-      );
+      const response = await fetch(`/api/group-compliance/${groupId}/report?${params}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -157,14 +151,11 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
       const params = new URLSearchParams({ format });
       if (selectedFramework) params.append('framework', selectedFramework);
 
-      const response = await fetch(
-        `/api/group-compliance/${groupId}/report/download?${params}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        }
-      );
+      const response = await fetch(`/api/group-compliance/${groupId}/report/download?${params}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
 
       if (response.ok) {
         const blob = await response.blob();
@@ -196,22 +187,24 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
 
   const formatFrameworkDistribution = () => {
     if (!report?.framework_distribution) return [];
-    
-    return Object.entries(report.framework_distribution).map(([framework, data]: [string, any]) => ({
-      name: framework,
-      hosts: data.hosts,
-      score: data.avg_score
-    }));
+
+    return Object.entries(report.framework_distribution).map(
+      ([framework, data]: [string, any]) => ({
+        name: framework,
+        hosts: data.hosts,
+        score: data.avg_score,
+      })
+    );
   };
 
   const formatHostRiskDistribution = () => {
     if (!report) return [];
-    
+
     const lowRisk = report.total_hosts - report.high_risk_hosts - report.medium_risk_hosts;
     return [
       { name: 'Low Risk', value: lowRisk, color: COLORS.success },
       { name: 'Medium Risk', value: report.medium_risk_hosts, color: COLORS.warning },
-      { name: 'High Risk', value: report.high_risk_hosts, color: COLORS.error }
+      { name: 'High Risk', value: report.high_risk_hosts, color: COLORS.error },
     ];
   };
 
@@ -225,9 +218,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
 
   if (error || !report) {
     return (
-      <Alert severity="error" action={
-        <Button onClick={loadComplianceReport}>Retry</Button>
-      }>
+      <Alert severity="error" action={<Button onClick={loadComplianceReport}>Retry</Button>}>
         {error || 'No compliance data available'}
       </Alert>
     );
@@ -241,7 +232,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
           <Assessment color="primary" />
           Compliance Report - {report.group_name}
         </Typography>
-        
+
         <Box display="flex" gap={2} alignItems="center">
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Framework</InputLabel>
@@ -259,11 +250,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
 
           <FormControl size="small" sx={{ minWidth: 100 }}>
             <InputLabel>Period</InputLabel>
-            <Select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              label="Period"
-            >
+            <Select value={dateRange} onChange={(e) => setDateRange(e.target.value)} label="Period">
               <MenuItem value="7d">7 days</MenuItem>
               <MenuItem value="30d">30 days</MenuItem>
               <MenuItem value="90d">90 days</MenuItem>
@@ -276,11 +263,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
             </IconButton>
           </Tooltip>
 
-          <Button
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={() => downloadReport('pdf')}
-          >
+          <Button variant="outlined" startIcon={<Download />} onClick={() => downloadReport('pdf')}>
             Export
           </Button>
         </Box>
@@ -308,7 +291,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: getComplianceScoreColor(report.overall_compliance_score)
+                    backgroundColor: getComplianceScoreColor(report.overall_compliance_score),
                   }}
                 >
                   <CheckCircle sx={{ color: 'white', fontSize: 30 }} />
@@ -385,19 +368,19 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={report.compliance_trend}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     tickFormatter={(date) => new Date(date).toLocaleDateString()}
                   />
                   <YAxis domain={[0, 100]} />
-                  <RechartsTooltip 
+                  <RechartsTooltip
                     labelFormatter={(date) => new Date(date).toLocaleDateString()}
                     formatter={(value: number) => [`${value.toFixed(1)}%`, 'Compliance Score']}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="score" 
-                    stroke={COLORS.primary} 
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke={COLORS.primary}
                     strokeWidth={2}
                     dot={{ fill: COLORS.primary, strokeWidth: 2 }}
                   />
@@ -490,8 +473,13 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
                     <TableCell>
                       <Chip
                         label={rule.severity}
-                        color={rule.severity === 'high' ? 'error' : 
-                               rule.severity === 'medium' ? 'warning' : 'default'}
+                        color={
+                          rule.severity === 'high'
+                            ? 'error'
+                            : rule.severity === 'medium'
+                              ? 'warning'
+                              : 'default'
+                        }
                         size="small"
                       />
                     </TableCell>
@@ -520,11 +508,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6">Host Compliance Summary</Typography>
-            <Button onClick={() => setShowHostDetails(true)}>
-              View All Hosts
-            </Button>
+            <Button onClick={() => setShowHostDetails(true)}>View All Hosts</Button>
           </Box>
-          
+
           <TableContainer>
             <Table>
               <TableHead>
@@ -550,16 +536,19 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
                             variant="determinate"
                             value={host.compliance_score}
                             sx={{ width: 80, mr: 1 }}
-                            color={host.compliance_score >= 90 ? 'success' : 
-                                   host.compliance_score >= 75 ? 'warning' : 'error'}
+                            color={
+                              host.compliance_score >= 90
+                                ? 'success'
+                                : host.compliance_score >= 75
+                                  ? 'warning'
+                                  : 'error'
+                            }
                           />
                           {host.compliance_score.toFixed(1)}%
                         </Box>
                       </TableCell>
                       <TableCell align="right">{host.high_severity_issues}</TableCell>
-                      <TableCell>
-                        {new Date(host.last_scan_date).toLocaleDateString()}
-                      </TableCell>
+                      <TableCell>{new Date(host.last_scan_date).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Chip
                           label={riskLevel.level}
@@ -577,10 +566,10 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
       </Card>
 
       {/* Host Details Dialog */}
-      <Dialog 
-        open={showHostDetails} 
-        onClose={() => setShowHostDetails(false)} 
-        maxWidth="lg" 
+      <Dialog
+        open={showHostDetails}
+        onClose={() => setShowHostDetails(false)}
+        maxWidth="lg"
         fullWidth
       >
         <DialogTitle>Complete Host Compliance Summary</DialogTitle>
@@ -611,9 +600,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({
                       {/* Would need failed_rules in the schema */}
                     </TableCell>
                     <TableCell align="right">{host.high_severity_issues}</TableCell>
-                    <TableCell>
-                      {new Date(host.last_scan_date).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{new Date(host.last_scan_date).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

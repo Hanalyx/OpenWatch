@@ -18,14 +18,14 @@ import {
   CircularProgress,
   Fab,
   Tooltip,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Group as GroupIcon,
-  ColorLens as ColorIcon
+  ColorLens as ColorIcon,
 } from '@mui/icons-material';
 
 interface HostGroup {
@@ -56,11 +56,7 @@ const DEFAULT_COLORS = [
   '#616161', // Grey
 ];
 
-const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
-  open,
-  onClose,
-  onGroupCreated
-}) => {
+const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({ open, onClose, onGroupCreated }) => {
   const [groups, setGroups] = useState<HostGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -68,7 +64,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    color: DEFAULT_COLORS[0]
+    color: DEFAULT_COLORS[0],
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -83,8 +79,8 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
       setLoading(true);
       const response = await fetch('/api/host-groups/', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -106,19 +102,17 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      const url = editingGroup
-        ? `/api/host-groups/${editingGroup.id}`
-        : '/api/host-groups/';
-      
+      const url = editingGroup ? `/api/host-groups/${editingGroup.id}` : '/api/host-groups/';
+
       const method = editingGroup ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
 
       if (response.ok) {
@@ -140,7 +134,11 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
   };
 
   const handleDelete = async (groupId: number) => {
-    if (!confirm('Are you sure you want to delete this group? All hosts will be moved to "Ungrouped".')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete this group? All hosts will be moved to "Ungrouped".'
+      )
+    ) {
       return;
     }
 
@@ -149,8 +147,8 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
       const response = await fetch(`/api/host-groups/${groupId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
@@ -172,7 +170,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
     setFormData({
       name: group.name,
       description: group.description || '',
-      color: group.color || DEFAULT_COLORS[0]
+      color: group.color || DEFAULT_COLORS[0],
     });
     setShowCreateForm(true);
   };
@@ -185,19 +183,14 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <GroupIcon color="primary" />
           <Typography variant="h6">Manage Host Groups</Typography>
         </Box>
       </DialogTitle>
-      
+
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -210,7 +203,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
             <Typography variant="h6" sx={{ mb: 2 }}>
               {editingGroup ? 'Edit Group' : 'Create New Group'}
             </Typography>
-            
+
             <TextField
               label="Group Name"
               value={formData.name}
@@ -219,7 +212,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
               margin="normal"
               required
             />
-            
+
             <TextField
               label="Description (Optional)"
               value={formData.description}
@@ -229,7 +222,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
               multiline
               rows={2}
             />
-            
+
             <Box sx={{ mt: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Group Color
@@ -246,8 +239,8 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
                         cursor: 'pointer',
                         border: formData.color === color ? '3px solid #000' : '2px solid #ddd',
                         '&:hover': {
-                          transform: 'scale(1.1)'
-                        }
+                          transform: 'scale(1.1)',
+                        },
                       }}
                       onClick={() => setFormData({ ...formData, color })}
                     />
@@ -262,23 +255,19 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
                 onClick={handleSubmit}
                 disabled={loading || !formData.name.trim()}
               >
-                {loading ? <CircularProgress size={20} /> : (editingGroup ? 'Update' : 'Create')}
+                {loading ? <CircularProgress size={20} /> : editingGroup ? 'Update' : 'Create'}
               </Button>
-              <Button
-                variant="outlined"
-                onClick={handleCancel}
-                disabled={loading}
-              >
+              <Button variant="outlined" onClick={handleCancel} disabled={loading}>
                 Cancel
               </Button>
             </Box>
           </Box>
         ) : (
           <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Existing Groups ({groups.length})
-              </Typography>
+            <Box
+              sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
+            >
+              <Typography variant="h6">Existing Groups ({groups.length})</Typography>
               <Fab
                 size="small"
                 color="primary"
@@ -316,7 +305,7 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
                           borderRadius: '50%',
                           bgcolor: group.color || '#666',
                           mr: 2,
-                          flexShrink: 0
+                          flexShrink: 0,
                         }}
                       />
                       <ListItemText
@@ -365,11 +354,9 @@ const HostGroupsDialog: React.FC<HostGroupsDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      
+
       <DialogActions>
-        <Button onClick={onClose}>
-          Close
-        </Button>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   );

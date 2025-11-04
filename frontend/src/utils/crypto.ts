@@ -9,13 +9,13 @@ export const generateSalt = (): string => {
 export const hashPassword = (password: string, salt: string): string => {
   const iterations = 10000;
   const keySize = 256 / 32;
-  
+
   const hash = CryptoJS.PBKDF2(password, salt, {
     keySize,
     iterations,
     hasher: CryptoJS.algo.SHA256,
   });
-  
+
   return hash.toString();
 };
 
@@ -36,32 +36,34 @@ export const generateSecureRandom = (length: number = 32): string => {
 };
 
 // Validate password strength
-export const validatePasswordStrength = (password: string): {
+export const validatePasswordStrength = (
+  password: string
+): {
   isValid: boolean;
   errors: string[];
 } => {
   const errors: string[] = [];
-  
+
   if (password.length < 12) {
     errors.push('Password must be at least 12 characters long');
   }
-  
+
   if (!/[A-Z]/.test(password)) {
     errors.push('Password must contain at least one uppercase letter');
   }
-  
+
   if (!/[a-z]/.test(password)) {
     errors.push('Password must contain at least one lowercase letter');
   }
-  
+
   if (!/[0-9]/.test(password)) {
     errors.push('Password must contain at least one number');
   }
-  
+
   if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
     errors.push('Password must contain at least one special character');
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -79,7 +81,7 @@ export const clearSensitiveData = (data: any): void => {
     data.fill(0);
   } else if (typeof data === 'object' && data !== null) {
     // For objects, clear all properties
-    Object.keys(data).forEach(key => {
+    Object.keys(data).forEach((key) => {
       data[key] = null;
     });
   }

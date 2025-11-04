@@ -16,7 +16,7 @@ const NotificationToast: React.FC<NotificationToastProps> = ({
   message,
   severity = 'info',
   duration = 6000,
-  action
+  action,
 }) => {
   return (
     <Snackbar
@@ -25,8 +25,8 @@ const NotificationToast: React.FC<NotificationToastProps> = ({
       onClose={onClose}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
     >
-      <Alert 
-        onClose={onClose} 
+      <Alert
+        onClose={onClose}
         severity={severity}
         variant="filled"
         action={action}

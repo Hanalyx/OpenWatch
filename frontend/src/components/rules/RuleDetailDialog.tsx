@@ -68,20 +68,12 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`rule-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ pt: 3 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
     </div>
   );
 }
 
-const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
-  open,
-  onClose,
-  rule,
-}) => {
+const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({ open, onClose, rule }) => {
   const theme = useTheme();
   const [currentTab, setCurrentTab] = useState(0);
   const [selectedPlatform, setSelectedPlatform] = useState<string>(
@@ -162,12 +154,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                 variant="outlined"
               />
               {rule.abstract && (
-                <Chip
-                  label="Abstract"
-                  size="small"
-                  color="secondary"
-                  variant="outlined"
-                />
+                <Chip label="Abstract" size="small" color="secondary" variant="outlined" />
               )}
             </Stack>
           </Box>
@@ -206,10 +193,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                     {rule.rule_id}
                   </Typography>
                   <Tooltip title={copiedField === 'rule_id' ? 'Copied!' : 'Copy'}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopy(rule.rule_id, 'rule_id')}
-                    >
+                    <IconButton size="small" onClick={() => handleCopy(rule.rule_id, 'rule_id')}>
                       <CopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -262,7 +246,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                   Tags
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  {rule.tags.map(tag => (
+                  {rule.tags.map((tag) => (
                     <Chip
                       key={tag}
                       label={tag}
@@ -275,74 +259,70 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
             )}
 
             {/* Dependencies */}
-            {rule.dependencies && (rule.dependencies.requires.length > 0 || 
-             rule.dependencies.conflicts.length > 0 || 
-             rule.dependencies.related.length > 0) && (
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Dependencies & Relationships
-                </Typography>
-                <Stack spacing={2}>
-                  {rule.dependencies.requires.length > 0 && (
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        <strong>Requires:</strong>
-                      </Typography>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {rule.dependencies.requires.map(dep => (
-                          <Chip
-                            key={dep}
-                            label={dep}
-                            size="small"
-                            variant="outlined"
-                            icon={<CheckIcon fontSize="small" />}
-                            color="success"
-                          />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  
-                  {rule.dependencies.conflicts.length > 0 && (
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        <strong>Conflicts with:</strong>
-                      </Typography>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {rule.dependencies.conflicts.map(dep => (
-                          <Chip
-                            key={dep}
-                            label={dep}
-                            size="small"
-                            variant="outlined"
-                            icon={<ErrorIcon fontSize="small" />}
-                            color="error"
-                          />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                  
-                  {rule.dependencies.related.length > 0 && (
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        <strong>Related rules:</strong>
-                      </Typography>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {rule.dependencies.related.map(dep => (
-                          <Chip
-                            key={dep}
-                            label={dep}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-                </Stack>
-              </Paper>
-            )}
+            {rule.dependencies &&
+              (rule.dependencies.requires.length > 0 ||
+                rule.dependencies.conflicts.length > 0 ||
+                rule.dependencies.related.length > 0) && (
+                <Paper sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Dependencies & Relationships
+                  </Typography>
+                  <Stack spacing={2}>
+                    {rule.dependencies.requires.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          <strong>Requires:</strong>
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {rule.dependencies.requires.map((dep) => (
+                            <Chip
+                              key={dep}
+                              label={dep}
+                              size="small"
+                              variant="outlined"
+                              icon={<CheckIcon fontSize="small" />}
+                              color="success"
+                            />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {rule.dependencies.conflicts.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          <strong>Conflicts with:</strong>
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {rule.dependencies.conflicts.map((dep) => (
+                            <Chip
+                              key={dep}
+                              label={dep}
+                              size="small"
+                              variant="outlined"
+                              icon={<ErrorIcon fontSize="small" />}
+                              color="error"
+                            />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {rule.dependencies.related.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          <strong>Related rules:</strong>
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {rule.dependencies.related.map((dep) => (
+                            <Chip key={dep} label={dep} size="small" variant="outlined" />
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </Stack>
+                </Paper>
+              )}
           </Stack>
         </TabPanel>
 
@@ -359,7 +339,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                 size="small"
                 sx={{ maxWidth: 300 }}
               >
-                {Object.keys(rule.platform_implementations || {}).map(platform => (
+                {Object.keys(rule.platform_implementations || {}).map((platform) => (
                   <MenuItem key={platform} value={platform}>
                     {platform}
                   </MenuItem>
@@ -382,7 +362,10 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                     </Box>
                     <Box>
                       <Typography variant="body2" color="text.secondary">
-                        Supported Versions: <strong>{rule.platform_implementations[selectedPlatform].versions.join(', ')}</strong>
+                        Supported Versions:{' '}
+                        <strong>
+                          {rule.platform_implementations[selectedPlatform].versions.join(', ')}
+                        </strong>
                       </Typography>
                     </Box>
                     {rule.platform_implementations[selectedPlatform].config_files && (
@@ -391,14 +374,11 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                           Configuration Files:
                         </Typography>
                         <Stack direction="row" spacing={0.5} mt={0.5}>
-                          {rule.platform_implementations[selectedPlatform].config_files!.map(file => (
-                            <Chip
-                              key={file}
-                              label={file}
-                              size="small"
-                              variant="outlined"
-                            />
-                          ))}
+                          {rule.platform_implementations[selectedPlatform].config_files!.map(
+                            (file) => (
+                              <Chip key={file} label={file} size="small" variant="outlined" />
+                            )
+                          )}
                         </Stack>
                       </Box>
                     )}
@@ -410,19 +390,21 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                   <Typography variant="subtitle2" gutterBottom>
                     Check Command
                   </Typography>
-                  <Paper sx={{ 
-                    p: 2, 
-                    backgroundColor: theme.palette.grey[900],
-                    color: theme.palette.common.white,
-                    overflow: 'auto'
-                  }}>
-                    <Typography 
-                      variant="body2" 
+                  <Paper
+                    sx={{
+                      p: 2,
+                      backgroundColor: theme.palette.grey[900],
+                      color: theme.palette.common.white,
+                      overflow: 'auto',
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
                       component="code"
-                      sx={{ 
+                      sx={{
                         fontFamily: 'monospace',
                         whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all'
+                        wordBreak: 'break-all',
                       }}
                     >
                       {rule.platform_implementations[selectedPlatform].check_command}
@@ -435,26 +417,29 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                   <Typography variant="subtitle2" gutterBottom>
                     Enable/Fix Command
                   </Typography>
-                  <Paper sx={{ 
-                    p: 2, 
-                    backgroundColor: theme.palette.grey[900],
-                    color: theme.palette.common.white,
-                    overflow: 'auto'
-                  }}>
-                    <Typography 
-                      variant="body2" 
+                  <Paper
+                    sx={{
+                      p: 2,
+                      backgroundColor: theme.palette.grey[900],
+                      color: theme.palette.common.white,
+                      overflow: 'auto',
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
                       component="code"
-                      sx={{ 
+                      sx={{
                         fontFamily: 'monospace',
                         whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all'
+                        wordBreak: 'break-all',
                       }}
                     >
                       {rule.platform_implementations[selectedPlatform].enable_command}
                     </Typography>
                   </Paper>
                   <Alert severity="warning" sx={{ mt: 1 }}>
-                    Always test commands in a non-production environment before applying to production systems.
+                    Always test commands in a non-production environment before applying to
+                    production systems.
                   </Alert>
                 </Box>
               </>
@@ -478,7 +463,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                         Overridden parameters:
                       </Typography>
                       <Stack direction="row" spacing={0.5}>
-                        {rule.inheritance.overridden_parameters.map(param => (
+                        {rule.inheritance.overridden_parameters.map((param) => (
                           <Chip key={param} label={param} size="small" variant="outlined" />
                         ))}
                       </Stack>
@@ -505,7 +490,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {Object.entries(rule.frameworks).map(([framework, versions]) => (
+                    {Object.entries(rule.frameworks).map(([framework, versions]) =>
                       Object.entries(versions).map(([version, controls]) => (
                         <TableRow key={`${framework}-${version}`}>
                           <TableCell>
@@ -516,7 +501,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                           <TableCell>{version}</TableCell>
                           <TableCell>
                             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                              {controls.map(control => (
+                              {controls.map((control) => (
                                 <Chip
                                   key={control}
                                   label={control}
@@ -528,7 +513,7 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                           </TableCell>
                         </TableRow>
                       ))
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -548,9 +533,13 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                   Security Function: <strong>{rule.security_function}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Category: <strong>{rule.category.split('_').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
-                  ).join(' ')}</strong>
+                  Category:{' '}
+                  <strong>
+                    {rule.category
+                      .split('_')
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ')}
+                  </strong>
                 </Typography>
               </Stack>
             </Paper>
@@ -584,19 +573,21 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
                 <Typography variant="subtitle2" gutterBottom>
                   Parameter Overrides
                 </Typography>
-                <Paper sx={{ 
-                  p: 2, 
-                  backgroundColor: theme.palette.grey[900],
-                  color: theme.palette.common.white,
-                  overflow: 'auto'
-                }}>
-                  <Typography 
-                    variant="body2" 
+                <Paper
+                  sx={{
+                    p: 2,
+                    backgroundColor: theme.palette.grey[900],
+                    color: theme.palette.common.white,
+                    overflow: 'auto',
+                  }}
+                >
+                  <Typography
+                    variant="body2"
                     component="pre"
-                    sx={{ 
+                    sx={{
                       fontFamily: 'monospace',
                       whiteSpace: 'pre',
-                      margin: 0
+                      margin: 0,
                     }}
                   >
                     {JSON.stringify(rule.parameter_overrides, null, 2)}
@@ -610,21 +601,23 @@ const RuleDetailDialog: React.FC<RuleDetailDialogProps> = ({
               <Typography variant="subtitle2" gutterBottom>
                 Raw Rule Data
               </Typography>
-              <Paper sx={{ 
-                p: 2, 
-                backgroundColor: theme.palette.grey[900],
-                color: theme.palette.common.white,
-                overflow: 'auto',
-                maxHeight: 400
-              }}>
-                <Typography 
-                  variant="body2" 
+              <Paper
+                sx={{
+                  p: 2,
+                  backgroundColor: theme.palette.grey[900],
+                  color: theme.palette.common.white,
+                  overflow: 'auto',
+                  maxHeight: 400,
+                }}
+              >
+                <Typography
+                  variant="body2"
                   component="pre"
-                  sx={{ 
+                  sx={{
                     fontFamily: 'monospace',
                     whiteSpace: 'pre',
                     margin: 0,
-                    fontSize: '0.75rem'
+                    fontSize: '0.75rem',
                   }}
                 >
                   {JSON.stringify(rule, null, 2)}

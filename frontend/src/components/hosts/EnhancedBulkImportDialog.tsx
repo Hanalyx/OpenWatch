@@ -75,16 +75,12 @@ interface ImportResult {
   }>;
 }
 
-const steps = [
-  'Upload & Analyze',
-  'Map Fields',
-  'Preview & Import'
-];
+const steps = ['Upload & Analyze', 'Map Fields', 'Preview & Import'];
 
 const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
   open,
   onClose,
-  onImportComplete
+  onImportComplete,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -133,16 +129,16 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
     setCsvFile(file);
     setCsvData(csvContent);
     setAnalysis(analysisResult);
-    
+
     // Initialize field mappings from auto-mappings
     const mappings: FieldMapping[] = Object.entries(analysisResult.auto_mappings).map(
       ([source, target]) => ({
         source_column: source,
-        target_field: target
+        target_field: target,
       })
     );
     setFieldMappings(mappings);
-    
+
     setError(null);
     handleNext();
   };
@@ -152,7 +148,10 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
     handleNext();
   };
 
-  const handleImport = async (finalMappings: FieldMapping[], options: { updateExisting: boolean; dryRun: boolean }) => {
+  const handleImport = async (
+    finalMappings: FieldMapping[],
+    options: { updateExisting: boolean; dryRun: boolean }
+  ) => {
     setImporting(true);
     setError(null);
 
@@ -165,8 +164,8 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
       const response = await fetch('/api/bulk/hosts/import-with-mapping', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           csv_data: csvData,
@@ -176,9 +175,9 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
           default_values: {
             environment: 'production',
             port: 22,
-            auth_method: 'ssh_key'
-          }
-        })
+            auth_method: 'ssh_key',
+          },
+        }),
       });
 
       if (!response.ok) {
@@ -202,12 +201,7 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
   const getStepContent = (step: number) => {
     switch (step) {
       case 0:
-        return (
-          <CSVAnalyzer
-            onAnalysisComplete={handleFileAnalyzed}
-            onError={setError}
-          />
-        );
+        return <CSVAnalyzer onAnalysisComplete={handleFileAnalyzed} onError={setError} />;
       case 1:
         return (
           <FieldMapper
@@ -254,11 +248,7 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
 
       <DialogContent dividers>
         {error && (
-          <Alert 
-            severity="error" 
-            sx={{ mb: 2 }}
-            onClose={() => setError(null)}
-          >
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}
@@ -280,8 +270,12 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          bgcolor: completed ? 'success.main' : active ? 'primary.main' : 'grey.300',
-                          color: completed || active ? 'white' : 'grey.600'
+                          bgcolor: completed
+                            ? 'success.main'
+                            : active
+                              ? 'primary.main'
+                              : 'grey.300',
+                          color: completed || active ? 'white' : 'grey.600',
                         }}
                       >
                         {completed ? <CheckIcon /> : <Icon />}
@@ -305,9 +299,7 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
           </Box>
         )}
 
-        <Box sx={{ minHeight: 400 }}>
-          {getStepContent(activeStep)}
-        </Box>
+        <Box sx={{ minHeight: 400 }}>{getStepContent(activeStep)}</Box>
       </DialogContent>
 
       <DialogActions>

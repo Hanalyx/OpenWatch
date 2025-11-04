@@ -47,13 +47,10 @@ export const fetchResults = createAsyncThunk('results/fetchResults', async () =>
   return response.data;
 });
 
-export const fetchResult = createAsyncThunk(
-  'results/fetchResult',
-  async (id: string) => {
-    const response = await api.get(`/results/${id}`);
-    return response.data;
-  }
-);
+export const fetchResult = createAsyncThunk('results/fetchResult', async (id: string) => {
+  const response = await api.get(`/results/${id}`);
+  return response.data;
+});
 
 export const downloadReport = createAsyncThunk(
   'results/downloadReport',

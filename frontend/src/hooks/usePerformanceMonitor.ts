@@ -19,7 +19,11 @@ export interface PerformanceMonitorOptions {
   enabled?: boolean;
   sampleRate?: number;
   thresholds?: Partial<PerformanceThresholds>;
-  onThresholdExceeded?: (metric: keyof PerformanceMetrics, value: number, threshold: number) => void;
+  onThresholdExceeded?: (
+    metric: keyof PerformanceMetrics,
+    value: number,
+    threshold: number
+  ) => void;
   onMetricsUpdate?: (metrics: PerformanceMetrics) => void;
 }
 
@@ -65,11 +69,11 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
 
   const endRenderMeasure = useCallback(() => {
     if (!enabled || renderStartTimeRef.current === 0) return;
-    
+
     const renderTime = performance.now() - renderStartTimeRef.current;
     renderStartTimeRef.current = 0;
-    
-    setMetrics(prev => ({
+
+    setMetrics((prev) => ({
       ...prev,
       renderTime,
       timestamp: Date.now(),
@@ -89,11 +93,11 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
 
   const endInteractionMeasure = useCallback(() => {
     if (!enabled || interactionStartTimeRef.current === 0) return;
-    
+
     const interactionTime = performance.now() - interactionStartTimeRef.current;
     interactionStartTimeRef.current = 0;
-    
-    setMetrics(prev => ({
+
+    setMetrics((prev) => ({
       ...prev,
       interactionTime,
       timestamp: Date.now(),
@@ -108,17 +112,18 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   // Measure frame rate
   const measureFrameRate = useCallback(() => {
     if (!enabled) return;
-    
+
     const currentTime = performance.now();
     const deltaTime = currentTime - lastFrameTimeRef.current;
-    
+
     if (deltaTime > 0) {
       frameCountRef.current++;
-      
-      if (deltaTime >= 1000) { // Calculate FPS every second
+
+      if (deltaTime >= 1000) {
+        // Calculate FPS every second
         const frameRate = Math.round((frameCountRef.current * 1000) / deltaTime);
-        
-        setMetrics(prev => ({
+
+        setMetrics((prev) => ({
           ...prev,
           frameRate,
           timestamp: Date.now(),
@@ -138,12 +143,12 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   // Measure memory usage
   const measureMemoryUsage = useCallback(() => {
     if (!enabled) return;
-    
+
     if ('memory' in performance) {
       const memory = (performance as any).memory;
       const memoryUsage = memory.usedJSHeapSize;
-      
-      setMetrics(prev => ({
+
+      setMetrics((prev) => ({
         ...prev,
         memoryUsage,
         timestamp: Date.now(),
@@ -159,15 +164,15 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   // Start monitoring
   const startMonitoring = useCallback(() => {
     if (!enabled || isMonitoring) return;
-    
+
     setIsMonitoring(true);
-    
+
     // Start frame rate monitoring
     frameRateIntervalRef.current = setInterval(measureFrameRate, 16); // ~60fps
-    
+
     // Start memory monitoring
     memoryIntervalRef.current = setInterval(measureMemoryUsage, sampleRate);
-    
+
     // Initial measurements
     measureMemoryUsage();
   }, [enabled, isMonitoring, measureFrameRate, measureMemoryUsage, sampleRate]);
@@ -175,12 +180,12 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   // Stop monitoring
   const stopMonitoring = useCallback(() => {
     setIsMonitoring(false);
-    
+
     if (frameRateIntervalRef.current) {
       clearInterval(frameRateIntervalRef.current);
       frameRateIntervalRef.current = undefined;
     }
-    
+
     if (memoryIntervalRef.current) {
       clearInterval(memoryIntervalRef.current);
       memoryIntervalRef.current = undefined;
@@ -201,10 +206,11 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   // Get performance summary
   const getPerformanceSummary = useCallback(() => {
     const { renderTime, interactionTime, frameRate, memoryUsage } = metrics;
-    
+
     const summary = {
       renderPerformance: renderTime <= (thresholds.renderTime || 100) ? 'good' : 'poor',
-      interactionPerformance: interactionTime <= (thresholds.interactionTime || 100) ? 'good' : 'poor',
+      interactionPerformance:
+        interactionTime <= (thresholds.interactionTime || 100) ? 'good' : 'poor',
       frameRatePerformance: frameRate >= (thresholds.frameRate || 30) ? 'good' : 'poor',
       memoryPerformance: memoryUsage <= (thresholds.memoryUsage || 100) ? 'good' : 'poor',
       overallScore: 0,
@@ -216,9 +222,9 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     if (summary.interactionPerformance === 'good') score += 25;
     if (summary.frameRatePerformance === 'good') score += 25;
     if (summary.memoryPerformance === 'good') score += 25;
-    
+
     summary.overallScore = score;
-    
+
     return summary;
   }, [metrics, thresholds]);
 
@@ -226,23 +232,23 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   const getRecommendations = useCallback(() => {
     const recommendations: string[] = [];
     const summary = getPerformanceSummary();
-    
+
     if (summary.renderPerformance === 'poor') {
       recommendations.push('Consider optimizing component rendering with React.memo or useMemo');
     }
-    
+
     if (summary.interactionPerformance === 'poor') {
       recommendations.push('Optimize event handlers and reduce computational complexity');
     }
-    
+
     if (summary.frameRatePerformance === 'poor') {
       recommendations.push('Reduce animations or use CSS transforms for better performance');
     }
-    
+
     if (summary.memoryPerformance === 'poor') {
       recommendations.push('Check for memory leaks and optimize data structures');
     }
-    
+
     return recommendations;
   }, [getPerformanceSummary]);
 
@@ -251,7 +257,7 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     if (enabled) {
       startMonitoring();
     }
-    
+
     return () => {
       stopMonitoring();
     };
@@ -280,37 +286,42 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
 };
 
 // Hook for measuring specific component performance
-export const useComponentPerformance = (componentName: string, options?: PerformanceMonitorOptions) => {
+export const useComponentPerformance = (
+  componentName: string,
+  options?: PerformanceMonitorOptions
+) => {
   const { startRenderMeasure, endRenderMeasure, metrics } = usePerformanceMonitor(options);
-  
+
   useEffect(() => {
     startRenderMeasure();
-    
+
     return () => {
       endRenderMeasure();
     };
   }, [startRenderMeasure, endRenderMeasure]);
-  
+
   return metrics;
 };
 
 // Hook for measuring interaction performance
 export const useInteractionPerformance = (options?: PerformanceMonitorOptions) => {
-  const { startInteractionMeasure, endInteractionMeasure, metrics } = usePerformanceMonitor(options);
-  
-  const measureInteraction = useCallback(async <T>(
-    interaction: () => Promise<T> | T
-  ): Promise<T> => {
-    startInteractionMeasure();
-    
-    try {
-      const result = await interaction();
-      return result;
-    } finally {
-      endInteractionMeasure();
-    }
-  }, [startInteractionMeasure, endInteractionMeasure]);
-  
+  const { startInteractionMeasure, endInteractionMeasure, metrics } =
+    usePerformanceMonitor(options);
+
+  const measureInteraction = useCallback(
+    async <T>(interaction: () => Promise<T> | T): Promise<T> => {
+      startInteractionMeasure();
+
+      try {
+        const result = await interaction();
+        return result;
+      } finally {
+        endInteractionMeasure();
+      }
+    },
+    [startInteractionMeasure, endInteractionMeasure]
+  );
+
   return {
     measureInteraction,
     metrics,

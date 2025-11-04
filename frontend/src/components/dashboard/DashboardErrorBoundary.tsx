@@ -42,12 +42,12 @@ class DashboardErrorBoundary extends Component<Props, State> {
 
       return (
         <Box sx={{ p: 2 }}>
-          <Alert 
-            severity="error" 
+          <Alert
+            severity="error"
             action={
-              <Button 
-                color="inherit" 
-                size="small" 
+              <Button
+                color="inherit"
+                size="small"
                 onClick={this.handleRetry}
                 startIcon={<Refresh />}
               >

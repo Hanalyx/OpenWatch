@@ -4,7 +4,12 @@ export interface RuleRecommendation {
   rule: Rule;
   score: number;
   reasons: string[];
-  category: 'security_priority' | 'platform_match' | 'baseline_gap' | 'dependency_related' | 'usage_pattern';
+  category:
+    | 'security_priority'
+    | 'platform_match'
+    | 'baseline_gap'
+    | 'dependency_related'
+    | 'usage_pattern';
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -41,7 +46,7 @@ class RuleIntelligenceService {
   private generateCacheKey(prefix: string, params: Record<string, any>): string {
     const sortedParams = Object.keys(params)
       .sort()
-      .map(key => `${key}:${JSON.stringify(params[key])}`)
+      .map((key) => `${key}:${JSON.stringify(params[key])}`)
       .join('|');
     return `${prefix}:${btoa(sortedParams)}`;
   }
@@ -53,8 +58,9 @@ class RuleIntelligenceService {
 
     // Evict oldest entries if cache is full
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
-      const oldestKey = Array.from(this.cache.entries())
-        .sort(([, a], [, b]) => a.timestamp - b.timestamp)[0][0];
+      const oldestKey = Array.from(this.cache.entries()).sort(
+        ([, a], [, b]) => a.timestamp - b.timestamp
+      )[0][0];
       this.cache.delete(oldestKey);
     }
 
@@ -109,7 +115,7 @@ class RuleIntelligenceService {
   }): Promise<RuleIntelligenceAnalysis> {
     const cacheKey = this.generateCacheKey('recommendations', params);
     const cached = this.getCache<RuleIntelligenceAnalysis>(cacheKey);
-    
+
     if (cached) {
       console.log('Returning cached rule recommendations');
       return cached;
@@ -142,7 +148,8 @@ class RuleIntelligenceService {
         userPreferences,
       });
 
-      if (recommendation && recommendation.score > 0.3) { // Only recommend rules with score > 30%
+      if (recommendation && recommendation.score > 0.3) {
+        // Only recommend rules with score > 30%
         recommendations.push(recommendation);
       }
     }
@@ -166,7 +173,7 @@ class RuleIntelligenceService {
       },
       statistics: {
         total_rules_analyzed: availableRules.length,
-        high_priority_count: availableRules.filter(r => r.severity === 'high').length,
+        high_priority_count: availableRules.filter((r) => r.severity === 'high').length,
         platform_coverage: this.calculatePlatformCoverage(availableRules, currentPlatform),
         baseline_compliance: this.calculateBaselineCompliance(availableRules, securityBaseline),
       },
@@ -220,9 +227,11 @@ class RuleIntelligenceService {
       reasons.push('Matches your severity preferences');
     }
 
-    if (context.userPreferences?.preferredFrameworks?.some((framework: string) =>
-      Object.keys(rule.frameworks || {}).includes(framework)
-    )) {
+    if (
+      context.userPreferences?.preferredFrameworks?.some((framework: string) =>
+        Object.keys(rule.frameworks || {}).includes(framework)
+      )
+    ) {
       score += 0.1;
       reasons.push('Matches your framework preferences');
     }
@@ -267,7 +276,7 @@ class RuleIntelligenceService {
   // Identify coverage gaps
   private identifyCoverageGaps(rules: Rule[], platform?: string): string[] {
     const gaps: string[] = [];
-    const categories = new Set(rules.map(r => r.category));
+    const categories = new Set(rules.map((r) => r.category));
     const expectedCategories = [
       'authentication',
       'network_security',
@@ -276,14 +285,14 @@ class RuleIntelligenceService {
       'logging_monitoring',
     ];
 
-    expectedCategories.forEach(expected => {
+    expectedCategories.forEach((expected) => {
       if (!categories.has(expected)) {
         gaps.push(`Missing ${expected.replace('_', ' ')} rules`);
       }
     });
 
     if (platform) {
-      const platformRules = rules.filter(r => r.platform_implementations?.[platform]);
+      const platformRules = rules.filter((r) => r.platform_implementations?.[platform]);
       if (platformRules.length < rules.length * 0.5) {
         gaps.push(`Limited ${platform} platform coverage`);
       }
@@ -295,8 +304,8 @@ class RuleIntelligenceService {
   // Identify priority areas
   private identifyPriorityAreas(recommendations: RuleRecommendation[]): string[] {
     const categoryCount = new Map<string, number>();
-    
-    recommendations.forEach(rec => {
+
+    recommendations.forEach((rec) => {
       const category = rec.rule.category;
       categoryCount.set(category, (categoryCount.get(category) || 0) + rec.score);
     });
@@ -310,13 +319,13 @@ class RuleIntelligenceService {
   // Generate platform-specific suggestions
   private generatePlatformSuggestions(rules: Rule[], platform?: string): string[] {
     const suggestions: string[] = [];
-    
+
     if (!platform) {
       suggestions.push('Consider specifying your platform for more targeted recommendations');
       return suggestions;
     }
 
-    const platformRules = rules.filter(r => r.platform_implementations?.[platform]);
+    const platformRules = rules.filter((r) => r.platform_implementations?.[platform]);
     const totalRules = rules.length;
     const coverage = platformRules.length / totalRules;
 
@@ -325,7 +334,7 @@ class RuleIntelligenceService {
     }
 
     // Check for missing essential categories on the platform
-    const platformCategories = new Set(platformRules.map(r => r.category));
+    const platformCategories = new Set(platformRules.map((r) => r.category));
     if (!platformCategories.has('authentication')) {
       suggestions.push(`Add authentication rules for ${platform}`);
     }
@@ -339,13 +348,15 @@ class RuleIntelligenceService {
   // Analyze dependency chains
   private analyzeDependencyChains(recommendations: RuleRecommendation[]): string[] {
     const chains: string[] = [];
-    const ruleMap = new Map(recommendations.map(rec => [rec.rule.rule_id, rec.rule]));
+    const ruleMap = new Map(recommendations.map((rec) => [rec.rule.rule_id, rec.rule]));
 
-    recommendations.forEach(rec => {
+    recommendations.forEach((rec) => {
       if (rec.rule.dependencies?.requires.length) {
-        const dependsOn = rec.rule.dependencies.requires.filter(dep => ruleMap.has(dep));
+        const dependsOn = rec.rule.dependencies.requires.filter((dep) => ruleMap.has(dep));
         if (dependsOn.length > 0) {
-          chains.push(`${rec.rule.metadata.name} requires ${dependsOn.length} other recommended rules`);
+          chains.push(
+            `${rec.rule.metadata.name} requires ${dependsOn.length} other recommended rules`
+          );
         }
       }
     });
@@ -356,14 +367,14 @@ class RuleIntelligenceService {
   // Calculate platform coverage percentage
   private calculatePlatformCoverage(rules: Rule[], platform?: string): number {
     if (!platform) return 0;
-    
-    const platformRules = rules.filter(r => r.platform_implementations?.[platform]);
+
+    const platformRules = rules.filter((r) => r.platform_implementations?.[platform]);
     return Math.round((platformRules.length / rules.length) * 100);
   }
 
   // Calculate baseline compliance percentage
   private calculateBaselineCompliance(rules: Rule[], baseline: string): number {
-    const baselineRules = rules.filter(r => r.frameworks?.[baseline]);
+    const baselineRules = rules.filter((r) => r.frameworks?.[baseline]);
     return Math.round((baselineRules.length / rules.length) * 100);
   }
 
@@ -374,9 +385,9 @@ class RuleIntelligenceService {
     framework_coverage: Record<string, number>;
     platform_support: Record<string, number>;
   }> {
-    const cacheKey = this.generateCacheKey('usage-stats', { rules: rules.map(r => r.rule_id) });
+    const cacheKey = this.generateCacheKey('usage-stats', { rules: rules.map((r) => r.rule_id) });
     const cached = this.getCache<any>(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -386,20 +397,20 @@ class RuleIntelligenceService {
     const frameworkCount = new Map<string, number>();
     const platformCount = new Map<string, number>();
 
-    rules.forEach(rule => {
+    rules.forEach((rule) => {
       // Categories
       categoryCount.set(rule.category, (categoryCount.get(rule.category) || 0) + 1);
-      
+
       // Severities
       severityCount.set(rule.severity, (severityCount.get(rule.severity) || 0) + 1);
-      
+
       // Frameworks
-      Object.keys(rule.frameworks || {}).forEach(framework => {
+      Object.keys(rule.frameworks || {}).forEach((framework) => {
         frameworkCount.set(framework, (frameworkCount.get(framework) || 0) + 1);
       });
-      
+
       // Platforms
-      Object.keys(rule.platform_implementations || {}).forEach(platform => {
+      Object.keys(rule.platform_implementations || {}).forEach((platform) => {
         platformCount.set(platform, (platformCount.get(platform) || 0) + 1);
       });
     });
@@ -421,8 +432,8 @@ class RuleIntelligenceService {
   public getCacheStatistics() {
     const now = Date.now();
     const entries = Array.from(this.cache.values());
-    const expired = entries.filter(entry => now > entry.expiry).length;
-    
+    const expired = entries.filter((entry) => now > entry.expiry).length;
+
     return {
       total_entries: this.cache.size,
       expired_entries: expired,

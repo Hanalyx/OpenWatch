@@ -94,7 +94,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
   const handleRemoveFilter = (filterType: keyof FilterState, value: string) => {
     const currentValues = filters[filterType] as string[];
     onFiltersChange({
-      [filterType]: currentValues.filter(v => v !== value),
+      [filterType]: currentValues.filter((v) => v !== value),
     });
   };
 
@@ -107,7 +107,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
         color={filters.severities.includes('high') ? 'error' : 'default'}
         onClick={() => {
           const newSeverities = filters.severities.includes('high')
-            ? filters.severities.filter(s => s !== 'high')
+            ? filters.severities.filter((s) => s !== 'high')
             : [...filters.severities, 'high'];
           handleFilterChange('severities', newSeverities);
         }}
@@ -236,7 +236,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
               </Box>
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                 {/* Platform filters */}
-                {filters.platforms.map(platform => (
+                {filters.platforms.map((platform) => (
                   <Chip
                     key={`platform-${platform}`}
                     label={`Platform: ${platform}`}
@@ -244,20 +244,22 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                     onDelete={() => handleRemoveFilter('platforms', platform)}
                   />
                 ))}
-                
+
                 {/* Severity filters */}
-                {filters.severities.map(severity => (
+                {filters.severities.map((severity) => (
                   <Chip
                     key={`severity-${severity}`}
                     label={`Severity: ${severity}`}
                     size="small"
-                    color={severity === 'high' ? 'error' : severity === 'medium' ? 'warning' : 'default'}
+                    color={
+                      severity === 'high' ? 'error' : severity === 'medium' ? 'warning' : 'default'
+                    }
                     onDelete={() => handleRemoveFilter('severities', severity)}
                   />
                 ))}
-                
+
                 {/* Category filters */}
-                {filters.categories.map(category => (
+                {filters.categories.map((category) => (
                   <Chip
                     key={`category-${category}`}
                     label={`Category: ${category}`}
@@ -265,9 +267,9 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                     onDelete={() => handleRemoveFilter('categories', category)}
                   />
                 ))}
-                
+
                 {/* Framework filters */}
-                {filters.frameworks.map(framework => (
+                {filters.frameworks.map((framework) => (
                   <Chip
                     key={`framework-${framework}`}
                     label={`Framework: ${framework}`}
@@ -275,7 +277,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                     onDelete={() => handleRemoveFilter('frameworks', framework)}
                   />
                 ))}
-                
+
                 {/* Abstract filter */}
                 {filters.abstract !== null && (
                   <Chip
@@ -299,7 +301,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                 onChange={(e) => handleFilterChange('platforms', e.target.value)}
                 renderValue={(selected) => `${selected.length} selected`}
               >
-                {availablePlatforms.map(platform => (
+                {availablePlatforms.map((platform) => (
                   <MenuItem key={platform} value={platform}>
                     <Checkbox checked={filters.platforms.includes(platform)} />
                     {platform}
@@ -317,7 +319,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                 onChange={(e) => handleFilterChange('severities', e.target.value)}
                 renderValue={(selected) => `${selected.length} selected`}
               >
-                {severityOptions.map(severity => (
+                {severityOptions.map((severity) => (
                   <MenuItem key={severity} value={severity}>
                     <Checkbox checked={filters.severities.includes(severity)} />
                     {severity.charAt(0).toUpperCase() + severity.slice(1)}
@@ -335,12 +337,13 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                 onChange={(e) => handleFilterChange('categories', e.target.value)}
                 renderValue={(selected) => `${selected.length} selected`}
               >
-                {availableCategories.map(category => (
+                {availableCategories.map((category) => (
                   <MenuItem key={category} value={category}>
                     <Checkbox checked={filters.categories.includes(category)} />
-                    {category.split('_').map(word => 
-                      word.charAt(0).toUpperCase() + word.slice(1)
-                    ).join(' ')}
+                    {category
+                      .split('_')
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ')}
                   </MenuItem>
                 ))}
               </Select>
@@ -355,7 +358,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                 onChange={(e) => handleFilterChange('frameworks', e.target.value)}
                 renderValue={(selected) => `${selected.length} selected`}
               >
-                {availableFrameworks.map(framework => (
+                {availableFrameworks.map((framework) => (
                   <MenuItem key={framework} value={framework}>
                     <Checkbox checked={filters.frameworks.includes(framework)} />
                     {framework.toUpperCase()}

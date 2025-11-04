@@ -28,7 +28,7 @@ import {
   TableRow,
   Paper,
   Alert,
-  Snackbar
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -41,7 +41,7 @@ import {
   VpnKey as VpnKeyIcon,
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
-  Policy as PolicyIcon
+  Policy as PolicyIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
@@ -50,15 +50,15 @@ import { RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 
 interface SystemCredentials {
-  id: string;  // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
+  id: string; // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
   name: string;
   description?: string;
-  scope?: string;  // WEEK 2 MIGRATION: Added for v2 API (always "system")
-  target_id?: string | null;  // WEEK 2 MIGRATION: Added for v2 API (always null for system)
+  scope?: string; // WEEK 2 MIGRATION: Added for v2 API (always "system")
+  target_id?: string | null; // WEEK 2 MIGRATION: Added for v2 API (always null for system)
   username: string;
   auth_method: string;
   is_default: boolean;
-  is_active: boolean;  // WEEK 2 FIX: Include is_active for compliance visibility
+  is_active: boolean; // WEEK 2 FIX: Include is_active for compliance visibility
   created_at: string;
   updated_at: string;
   ssh_key_fingerprint?: string | null;
@@ -110,11 +110,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`settings-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
     </div>
   );
 }
@@ -122,7 +118,7 @@ function TabPanel(props: TabPanelProps) {
 const Settings: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [credentials, setCredentials] = useState<SystemCredentials[]>([]);
-  const [showInactive, setShowInactive] = useState(false);  // WEEK 2: Toggle for inactive credentials
+  const [showInactive, setShowInactive] = useState(false); // WEEK 2: Toggle for inactive credentials
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -137,7 +133,7 @@ const Settings: React.FC = () => {
     private_key: '',
     private_key_passphrase: '',
     is_default: false,
-    replaceKey: false
+    replaceKey: false,
   });
   const [keyActionLoading, setKeyActionLoading] = useState(false);
 
@@ -145,7 +141,7 @@ const Settings: React.FC = () => {
   const [sshPolicy, setSSHPolicy] = useState<SSHPolicy>({
     policy: 'auto_add',
     trusted_networks: [],
-    description: ''
+    description: '',
   });
   const [knownHosts, setKnownHosts] = useState<KnownHost[]>([]);
   const [sshLoading, setSSHLoading] = useState(false);
@@ -155,7 +151,7 @@ const Settings: React.FC = () => {
     ip_address: '',
     key_type: 'rsa',
     public_key: '',
-    notes: ''
+    notes: '',
   });
 
   // Security settings state
@@ -175,13 +171,13 @@ const Settings: React.FC = () => {
     if (!isSuperAdmin) {
       return;
     }
-    
+
     try {
       setLoading(true);
       // Use unified credentials API with scope filter and inactive toggle
       const params = new URLSearchParams({
         scope: 'system',
-        include_inactive: showInactive.toString()
+        include_inactive: showInactive.toString(),
       });
       const response = await api.get(`/api/system/credentials?${params}`);
       setCredentials(response); // API directly returns array
@@ -225,7 +221,7 @@ const Settings: React.FC = () => {
       setSSHLoading(true);
       const response = await api.post('/api/ssh-settings/policy', {
         policy: newPolicy,
-        trusted_networks: trustedNetworks
+        trusted_networks: trustedNetworks,
       });
       setSSHPolicy(response);
       setSuccess('SSH policy updated successfully');
@@ -248,7 +244,7 @@ const Settings: React.FC = () => {
         ip_address: '',
         key_type: 'rsa',
         public_key: '',
-        notes: ''
+        notes: '',
       });
       await loadKnownHosts();
     } catch (err: any) {
@@ -293,15 +289,18 @@ const Settings: React.FC = () => {
   };
 
   useEffect(() => {
-    if (tabValue === 0) { // System Settings tab
+    if (tabValue === 0) {
+      // System Settings tab
       loadCredentials();
-    } else if (tabValue === 1) { // SSH Configuration tab
+    } else if (tabValue === 1) {
+      // SSH Configuration tab
       loadSSHPolicy();
       loadKnownHosts();
-    } else if (tabValue === 3) { // Security tab
+    } else if (tabValue === 3) {
+      // Security tab
       loadLoggingPolicies();
     }
-  }, [tabValue, isSuperAdmin, showInactive]);  // WEEK 2: Reload when showInactive changes
+  }, [tabValue, isSuperAdmin, showInactive]); // WEEK 2: Reload when showInactive changes
 
   const handleAddCredential = () => {
     setEditingCredential(null);
@@ -314,7 +313,7 @@ const Settings: React.FC = () => {
       private_key: '',
       private_key_passphrase: '',
       is_default: false,
-      replaceKey: false
+      replaceKey: false,
     });
     setKeyActionLoading(false);
     setDialogOpen(true);
@@ -331,7 +330,7 @@ const Settings: React.FC = () => {
       private_key: '',
       private_key_passphrase: '',
       is_default: credential.is_default,
-      replaceKey: false
+      replaceKey: false,
     });
     setKeyActionLoading(false);
     setDialogOpen(true);
@@ -367,7 +366,7 @@ const Settings: React.FC = () => {
         const createFormData = {
           ...formData,
           scope: 'system',
-          target_id: null
+          target_id: null,
         };
         await api.post('/api/system/credentials', createFormData);
         setSuccess('Credential set created successfully');
@@ -377,14 +376,16 @@ const Settings: React.FC = () => {
       loadCredentials();
     } catch (err: any) {
       // Get more specific error message from the response
-      let errorMessage = editingCredential ? 'Failed to update credential set' : 'Failed to create credential set';
-      
+      let errorMessage = editingCredential
+        ? 'Failed to update credential set'
+        : 'Failed to create credential set';
+
       if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail;
       } else if (err.message && err.message !== 'API request failed') {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
       console.error('Error saving credential:', err);
       console.error('Error response:', err.response?.data);
@@ -395,20 +396,20 @@ const Settings: React.FC = () => {
   };
 
   const handleFormChange = (field: string, value: any) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleDeleteSSHKey = async () => {
     if (!editingCredential) return;
-    
+
     try {
       setKeyActionLoading(true);
       await api.delete(`/api/system/credentials/${editingCredential.id}/ssh-key`);
       setSuccess('SSH key deleted successfully');
-      
+
       // Update local state to reflect the key deletion
       const updatedCredential = {
         ...editingCredential,
@@ -416,10 +417,11 @@ const Settings: React.FC = () => {
         ssh_key_type: null,
         ssh_key_bits: null,
         ssh_key_comment: null,
-        auth_method: editingCredential.auth_method === 'both' ? 'password' : editingCredential.auth_method
+        auth_method:
+          editingCredential.auth_method === 'both' ? 'password' : editingCredential.auth_method,
       };
       setEditingCredential(updatedCredential);
-      
+
       // Reload credentials to get updated data
       loadCredentials();
     } catch (err: any) {
@@ -454,24 +456,25 @@ const Settings: React.FC = () => {
 
         <TabPanel value={tabValue} index={0}>
           {/* Adaptive Scheduler Configuration Section */}
-          <AdaptiveSchedulerSettings
-            onSuccess={setSuccess}
-            onError={setError}
-          />
+          <AdaptiveSchedulerSettings onSuccess={setSuccess} onError={setError} />
 
-          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box
+            sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Box>
               <Typography variant="h6" gutterBottom>
                 <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                 SSH Credentials
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Configure master SSH credentials for hosts. If a host doesn't have specific credentials, it will inherit these default settings.
+                Configure master SSH credentials for hosts. If a host doesn't have specific
+                credentials, it will inherit these default settings.
               </Typography>
               {!isSuperAdmin && (
                 <Alert severity="info" sx={{ mt: 1 }}>
                   <Typography variant="body2">
-                    <strong>SSH Credentials Required:</strong> Only Super Administrators can manage SSH credentials for security reasons.
+                    <strong>SSH Credentials Required:</strong> Only Super Administrators can manage
+                    SSH credentials for security reasons.
                   </Typography>
                 </Alert>
               )}
@@ -493,12 +496,15 @@ const Settings: React.FC = () => {
                 No System Credentials Configured (Optional)
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                System credentials provide a default SSH credential set for all hosts. This is optional - you can:
+                System credentials provide a default SSH credential set for all hosts. This is
+                optional - you can:
               </Typography>
               <Typography variant="body2" component="ul" sx={{ ml: 2, mb: 0 }}>
                 <li>Add system credentials here to use as defaults for all hosts</li>
                 <li>Configure individual credentials per host (under Hosts → Edit Host)</li>
-                <li>Use a combination of both (host-specific credentials override system defaults)</li>
+                <li>
+                  Use a combination of both (host-specific credentials override system defaults)
+                </li>
               </Typography>
             </Alert>
           )}
@@ -516,61 +522,65 @@ const Settings: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {credentials && credentials.map((credential) => (
-                  <TableRow key={credential.id}>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="body2" fontWeight="medium">
-                          {credential.name}
-                        </Typography>
-                        {credential.description && (
-                          <Typography variant="caption" color="text.secondary">
-                            {credential.description}
+                {credentials &&
+                  credentials.map((credential) => (
+                    <TableRow key={credential.id}>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {credential.name}
+                          </Typography>
+                          {credential.description && (
+                            <Typography variant="caption" color="text.secondary">
+                              {credential.description}
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{credential.username}</TableCell>
+                      <TableCell>
+                        {credential.auth_method === 'password'
+                          ? 'Password'
+                          : credential.auth_method === 'ssh_key'
+                            ? 'SSH Key'
+                            : 'Both'}
+                      </TableCell>
+                      <TableCell>
+                        {credential.is_default && (
+                          <Typography variant="caption" color="primary" fontWeight="medium">
+                            DEFAULT
                           </Typography>
                         )}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{credential.username}</TableCell>
-                    <TableCell>
-                      {credential.auth_method === 'password' ? 'Password' : 
-                       credential.auth_method === 'ssh_key' ? 'SSH Key' : 'Both'}
-                    </TableCell>
-                    <TableCell>
-                      {credential.is_default && (
-                        <Typography variant="caption" color="primary" fontWeight="medium">
-                          DEFAULT
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="caption"
+                          color={credential.is_active ? 'success.main' : 'error.main'}
+                          fontWeight="medium"
+                        >
+                          {credential.is_active ? 'ACTIVE' : 'INACTIVE'}
                         </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="caption"
-                        color={credential.is_active ? 'success.main' : 'error.main'}
-                        fontWeight="medium"
-                      >
-                        {credential.is_active ? 'ACTIVE' : 'INACTIVE'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditCredential(credential)}
-                        sx={{ mr: 1 }}
-                        disabled={!isSuperAdmin}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteCredential(credential.id)}
-                        color="error"
-                        disabled={!isSuperAdmin}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditCredential(credential)}
+                          sx={{ mr: 1 }}
+                          disabled={!isSuperAdmin}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteCredential(credential.id)}
+                          color="error"
+                          disabled={!isSuperAdmin}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 {credentials.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} align="center">
@@ -607,7 +617,9 @@ const Settings: React.FC = () => {
               >
                 <MenuItem value="strict">
                   <Box>
-                    <Typography variant="body2" fontWeight="medium">Strict</Typography>
+                    <Typography variant="body2" fontWeight="medium">
+                      Strict
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Reject unknown hosts (most secure)
                     </Typography>
@@ -615,7 +627,9 @@ const Settings: React.FC = () => {
                 </MenuItem>
                 <MenuItem value="auto_add">
                   <Box>
-                    <Typography variant="body2" fontWeight="medium">Auto Add</Typography>
+                    <Typography variant="body2" fontWeight="medium">
+                      Auto Add
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Automatically accept and save unknown host keys
                     </Typography>
@@ -623,7 +637,9 @@ const Settings: React.FC = () => {
                 </MenuItem>
                 <MenuItem value="bypass_trusted">
                   <Box>
-                    <Typography variant="body2" fontWeight="medium">Bypass Trusted</Typography>
+                    <Typography variant="body2" fontWeight="medium">
+                      Bypass Trusted
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Auto-add hosts in trusted network ranges
                     </Typography>
@@ -635,10 +651,9 @@ const Settings: React.FC = () => {
             {sshPolicy.policy !== 'strict' && (
               <Alert severity="info" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                  {sshPolicy.policy === 'auto_add' 
-                    ? 'Automatically accept and save unknown host keys' 
-                    : 'Auto-add hosts in trusted network ranges'
-                  }
+                  {sshPolicy.policy === 'auto_add'
+                    ? 'Automatically accept and save unknown host keys'
+                    : 'Auto-add hosts in trusted network ranges'}
                 </Typography>
               </Alert>
             )}
@@ -653,7 +668,10 @@ const Settings: React.FC = () => {
                   placeholder="192.168.1.0/24, 10.0.0.0/8"
                   value={sshPolicy.trusted_networks.join(', ')}
                   onChange={(e) => {
-                    const networks = e.target.value.split(',').map(n => n.trim()).filter(n => n);
+                    const networks = e.target.value
+                      .split(',')
+                      .map((n) => n.trim())
+                      .filter((n) => n);
                     updateSSHPolicy(sshPolicy.policy, networks);
                   }}
                   helperText="Comma-separated list of trusted network ranges (CIDR notation)"
@@ -665,7 +683,9 @@ const Settings: React.FC = () => {
 
           {/* Known SSH Hosts Section */}
           <Card sx={{ p: 3 }}>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box
+              sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <Box>
                 <Typography variant="h6" gutterBottom>
                   <SettingsEthernetIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -701,9 +721,7 @@ const Settings: React.FC = () => {
                   {knownHosts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                        <Typography color="text.secondary">
-                          No known hosts configured
-                        </Typography>
+                        <Typography color="text.secondary">No known hosts configured</Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -713,13 +731,14 @@ const Settings: React.FC = () => {
                         <TableCell>{host.ip_address || '-'}</TableCell>
                         <TableCell>{host.key_type.toUpperCase()}</TableCell>
                         <TableCell>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                          >
                             {host.fingerprint}
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          {new Date(host.first_seen).toLocaleDateString()}
-                        </TableCell>
+                        <TableCell>{new Date(host.first_seen).toLocaleDateString()}</TableCell>
                         <TableCell align="right">
                           <IconButton
                             size="small"
@@ -759,7 +778,12 @@ const Settings: React.FC = () => {
                 }
                 label="Show Inactive Credentials"
               />
-              <Typography variant="caption" display="block" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+              <Typography
+                variant="caption"
+                display="block"
+                color="text.secondary"
+                sx={{ ml: 4, mt: 0.5 }}
+              >
                 Display deleted/inactive credentials for compliance audit (90-day retention)
               </Typography>
             </Box>
@@ -769,21 +793,20 @@ const Settings: React.FC = () => {
         <TabPanel value={tabValue} index={3}>
           {/* Security Settings Section */}
           <Card sx={{ mb: 4, p: 3 }}>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box
+              sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <Box>
                 <Typography variant="h6" gutterBottom>
                   <PolicyIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Logging Policy Management
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Configure centralized audit logging policies for applications, database, and network events.
+                  Configure centralized audit logging policies for applications, database, and
+                  network events.
                 </Typography>
               </Box>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                disabled={securityLoading}
-              >
+              <Button variant="contained" startIcon={<AddIcon />} disabled={securityLoading}>
                 Create Policy
               </Button>
             </Box>
@@ -791,7 +814,8 @@ const Settings: React.FC = () => {
             {loggingPolicies.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography color="text.secondary">
-                  No logging policies configured. Create a policy to enable centralized audit logging.
+                  No logging policies configured. Create a policy to enable centralized audit
+                  logging.
                 </Typography>
               </Box>
             ) : (
@@ -811,19 +835,15 @@ const Settings: React.FC = () => {
                       <TableRow key={policy.id}>
                         <TableCell>{policy.name}</TableCell>
                         <TableCell>
-                          <Typography 
-                            variant="body2" 
+                          <Typography
+                            variant="body2"
                             color={policy.enabled ? 'success.main' : 'text.secondary'}
                           >
                             {policy.enabled ? 'Enabled' : 'Disabled'}
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          {policy.frameworks.join(', ')}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(policy.created_at).toLocaleDateString()}
-                        </TableCell>
+                        <TableCell>{policy.frameworks.join(', ')}</TableCell>
+                        <TableCell>{new Date(policy.created_at).toLocaleDateString()}</TableCell>
                         <TableCell align="right">
                           <IconButton size="small">
                             <EditIcon />
@@ -852,20 +872,26 @@ const Settings: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 2 }}>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: 2,
+              }}
+            >
               {[
                 { name: 'SOC2', description: 'System and Organization Controls', enabled: true },
                 { name: 'HIPAA', description: 'Health Insurance Portability', enabled: true },
                 { name: 'PCI-DSS', description: 'Payment Card Industry', enabled: true },
-                { name: 'GDPR', description: 'General Data Protection', enabled: true }
+                { name: 'GDPR', description: 'General Data Protection', enabled: true },
               ].map((framework) => (
-                <Card 
-                  key={framework.name} 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2, 
+                <Card
+                  key={framework.name}
+                  variant="outlined"
+                  sx={{
+                    p: 2,
                     textAlign: 'center',
-                    backgroundColor: framework.enabled ? 'action.selected' : 'background.paper'
+                    backgroundColor: framework.enabled ? 'action.selected' : 'background.paper',
                   }}
                 >
                   <Typography variant="h6" gutterBottom>
@@ -882,12 +908,17 @@ const Settings: React.FC = () => {
       </Card>
 
       {/* Add/Edit Credential Dialog */}
-      <Dialog open={dialogOpen} onClose={() => {
-        setDialogOpen(false);
-        // Reset replaceKey flag when closing dialog
-        setFormData(prev => ({ ...prev, replaceKey: false }));
-        setKeyActionLoading(false);
-      }} maxWidth="md" fullWidth>
+      <Dialog
+        open={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false);
+          // Reset replaceKey flag when closing dialog
+          setFormData((prev) => ({ ...prev, replaceKey: false }));
+          setKeyActionLoading(false);
+        }}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>
           {editingCredential ? 'Edit SSH Credentials' : 'Add SSH Credentials'}
         </DialogTitle>
@@ -900,7 +931,7 @@ const Settings: React.FC = () => {
               onChange={(e) => handleFormChange('name', e.target.value)}
               helperText="A descriptive name for this credential set"
             />
-            
+
             <TextField
               label="Description"
               fullWidth
@@ -910,7 +941,7 @@ const Settings: React.FC = () => {
               onChange={(e) => handleFormChange('description', e.target.value)}
               helperText="Optional description of when to use these credentials"
             />
-            
+
             <TextField
               label="Username"
               fullWidth
@@ -918,7 +949,7 @@ const Settings: React.FC = () => {
               onChange={(e) => handleFormChange('username', e.target.value)}
               helperText="SSH username for remote hosts"
             />
-            
+
             <FormControl fullWidth>
               <InputLabel>Authentication Method</InputLabel>
               <Select
@@ -931,7 +962,7 @@ const Settings: React.FC = () => {
                 <MenuItem value="both">Both (Password + SSH Key)</MenuItem>
               </Select>
             </FormControl>
-            
+
             {(formData.auth_method === 'password' || formData.auth_method === 'both') && (
               <TextField
                 label="Password"
@@ -939,10 +970,12 @@ const Settings: React.FC = () => {
                 fullWidth
                 value={formData.password}
                 onChange={(e) => handleFormChange('password', e.target.value)}
-                helperText={editingCredential ? "Leave blank to keep existing password" : "SSH password"}
+                helperText={
+                  editingCredential ? 'Leave blank to keep existing password' : 'SSH password'
+                }
               />
             )}
-            
+
             {(formData.auth_method === 'ssh_key' || formData.auth_method === 'both') && (
               <>
                 {editingCredential && editingCredential.ssh_key_fingerprint ? (
@@ -958,7 +991,7 @@ const Settings: React.FC = () => {
                         keyBits: editingCredential.ssh_key_bits,
                         keyComment: editingCredential.ssh_key_comment,
                         createdAt: editingCredential.created_at,
-                        lastUsed: editingCredential.updated_at // Use updated_at as approximation for last used
+                        lastUsed: editingCredential.updated_at, // Use updated_at as approximation for last used
                       }}
                       showActions={true}
                       onReplace={() => {
@@ -986,7 +1019,9 @@ const Settings: React.FC = () => {
                         <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                           <Button
                             size="small"
-                            onClick={() => setFormData({ ...formData, replaceKey: false, private_key: '' })}
+                            onClick={() =>
+                              setFormData({ ...formData, replaceKey: false, private_key: '' })
+                            }
                           >
                             Cancel
                           </Button>
@@ -1009,7 +1044,7 @@ const Settings: React.FC = () => {
 -----END OPENSSH PRIVATE KEY-----"
                   />
                 )}
-                
+
                 <TextField
                   label="Private Key Passphrase"
                   type="password"
@@ -1020,7 +1055,7 @@ const Settings: React.FC = () => {
                 />
               </>
             )}
-            
+
             <FormControlLabel
               control={
                 <Switch
@@ -1033,12 +1068,16 @@ const Settings: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setDialogOpen(false);
-            // Reset replaceKey flag when canceling
-            setFormData(prev => ({ ...prev, replaceKey: false }));
-            setKeyActionLoading(false);
-          }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setDialogOpen(false);
+              // Reset replaceKey flag when canceling
+              setFormData((prev) => ({ ...prev, replaceKey: false }));
+              setKeyActionLoading(false);
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleSaveCredential}
             variant="contained"
@@ -1050,10 +1089,10 @@ const Settings: React.FC = () => {
       </Dialog>
 
       {/* Add Host Key Dialog */}
-      <Dialog 
-        open={addHostKeyOpen} 
-        onClose={() => setAddHostKeyOpen(false)} 
-        maxWidth="md" 
+      <Dialog
+        open={addHostKeyOpen}
+        onClose={() => setAddHostKeyOpen(false)}
+        maxWidth="md"
         fullWidth
       >
         <DialogTitle>Add SSH Host Key</DialogTitle>
@@ -1063,24 +1102,24 @@ const Settings: React.FC = () => {
               label="Hostname"
               fullWidth
               value={newHostKey.hostname}
-              onChange={(e) => setNewHostKey(prev => ({ ...prev, hostname: e.target.value }))}
+              onChange={(e) => setNewHostKey((prev) => ({ ...prev, hostname: e.target.value }))}
               helperText="The hostname or FQDN for this host key"
               required
             />
-            
+
             <TextField
               label="IP Address"
               fullWidth
               value={newHostKey.ip_address}
-              onChange={(e) => setNewHostKey(prev => ({ ...prev, ip_address: e.target.value }))}
+              onChange={(e) => setNewHostKey((prev) => ({ ...prev, ip_address: e.target.value }))}
               helperText="Optional IP address for this host"
             />
-            
+
             <FormControl fullWidth>
               <InputLabel>Key Type</InputLabel>
               <Select
                 value={newHostKey.key_type}
-                onChange={(e) => setNewHostKey(prev => ({ ...prev, key_type: e.target.value }))}
+                onChange={(e) => setNewHostKey((prev) => ({ ...prev, key_type: e.target.value }))}
               >
                 <MenuItem value="rsa">RSA</MenuItem>
                 <MenuItem value="ecdsa">ECDSA</MenuItem>
@@ -1088,34 +1127,32 @@ const Settings: React.FC = () => {
                 <MenuItem value="dsa">DSA</MenuItem>
               </Select>
             </FormControl>
-            
+
             <TextField
               label="Public Key"
               fullWidth
               multiline
               rows={4}
               value={newHostKey.public_key}
-              onChange={(e) => setNewHostKey(prev => ({ ...prev, public_key: e.target.value }))}
+              onChange={(e) => setNewHostKey((prev) => ({ ...prev, public_key: e.target.value }))}
               helperText="The SSH public key for this host (base64 encoded)"
               placeholder="AAAAB3NzaC1yc2EAAAA..."
               required
             />
-            
+
             <TextField
               label="Notes"
               fullWidth
               multiline
               rows={2}
               value={newHostKey.notes}
-              onChange={(e) => setNewHostKey(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) => setNewHostKey((prev) => ({ ...prev, notes: e.target.value }))}
               helperText="Optional notes about this host key"
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddHostKeyOpen(false)}>
-            Cancel
-          </Button>
+          <Button onClick={() => setAddHostKeyOpen(false)}>Cancel</Button>
           <Button
             onClick={addKnownHost}
             variant="contained"
@@ -1127,21 +1164,13 @@ const Settings: React.FC = () => {
       </Dialog>
 
       {/* Success/Error Snackbars */}
-      <Snackbar
-        open={!!success}
-        autoHideDuration={6000}
-        onClose={() => setSuccess(null)}
-      >
+      <Snackbar open={!!success} autoHideDuration={6000} onClose={() => setSuccess(null)}>
         <Alert onClose={() => setSuccess(null)} severity="success">
           {success}
         </Alert>
       </Snackbar>
-      
-      <Snackbar
-        open={!!error}
-        autoHideDuration={6000}
-        onClose={() => setError(null)}
-      >
+
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError(null)}>
         <Alert onClose={() => setError(null)} severity="error">
           {error}
         </Alert>

@@ -82,22 +82,29 @@ import {
   Settings,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { StatCard, StatusChip, SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import {
+  StatCard,
+  StatusChip,
+  SSHKeyDisplay,
+  type SSHKeyInfo,
+} from '../../components/design-system';
 import { api } from '../../services/api';
 
 const AddHost: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  
+
   // Form state
   const [activeStep, setActiveStep] = useState(0);
   const [quickMode, setQuickMode] = useState(true);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'testing' | 'success' | 'failed'
+  >('idle');
   const [connectionTestResults, setConnectionTestResults] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+
   // Enhanced authentication state management
   const [sshKeyValidation, setSshKeyValidation] = useState<{
     status: 'idle' | 'validating' | 'valid' | 'invalid';
@@ -124,7 +131,7 @@ const AddHost: React.FC = () => {
     ipAddress: '',
     port: '22',
     displayName: '',
-    
+
     // Authentication
     authMethod: 'ssh_key',
     username: '',
@@ -136,21 +143,21 @@ const AddHost: React.FC = () => {
     bastionHost: '',
     bastionPort: '22',
     bastionUser: '',
-    
+
     // Classification
     operatingSystem: 'auto-detect',
     environment: 'production',
     hostGroup: '',
     tags: [] as string[],
     owner: '',
-    
+
     // Scan Configuration
     complianceProfile: 'auto',
     scanSchedule: 'immediate',
     customCron: '',
     scanIntensity: 'normal',
     scanPriority: 'medium',
-    
+
     // Advanced Options
     sudoMethod: 'sudo',
     sudoPassword: '',
@@ -170,7 +177,7 @@ const AddHost: React.FC = () => {
     'Authentication',
     'Classification',
     'Scan Configuration',
-    'Review & Test'
+    'Review & Test',
   ];
 
   const operatingSystems = [
@@ -200,14 +207,24 @@ const AddHost: React.FC = () => {
   ];
 
   const availableTags = [
-    'production', 'staging', 'development', 'test',
-    'web', 'database', 'application', 'cache',
-    'critical', 'public-facing', 'internal',
-    'linux', 'windows', 'container',
+    'production',
+    'staging',
+    'development',
+    'test',
+    'web',
+    'database',
+    'application',
+    'cache',
+    'critical',
+    'public-facing',
+    'internal',
+    'linux',
+    'windows',
+    'container',
   ];
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleNext = () => {
@@ -221,7 +238,7 @@ const AddHost: React.FC = () => {
   const handleTestConnection = async () => {
     setTestingConnection(true);
     setConnectionStatus('testing');
-    
+
     try {
       // Prepare test connection data
       const testData = {
@@ -229,19 +246,25 @@ const AddHost: React.FC = () => {
         port: parseInt(formData.port) || 22,
         username: formData.username,
         auth_method: formData.authMethod,
-        password: (formData.authMethod === 'password' || formData.authMethod === 'both') ? formData.password : undefined,
-        ssh_key: (formData.authMethod === 'ssh_key' || formData.authMethod === 'both') ? formData.sshKey : undefined,
-        timeout: 30
+        password:
+          formData.authMethod === 'password' || formData.authMethod === 'both'
+            ? formData.password
+            : undefined,
+        ssh_key:
+          formData.authMethod === 'ssh_key' || formData.authMethod === 'both'
+            ? formData.sshKey
+            : undefined,
+        timeout: 30,
       };
 
       console.log('Testing connection to:', testData.hostname);
-      
+
       // Make API call to test connection
       const result = await api.post('/api/hosts/test-connection', testData);
-      
+
       setTestingConnection(false);
       setConnectionStatus('success');
-      
+
       // Store the actual results for display
       setConnectionTestResults({
         success: true,
@@ -251,14 +274,13 @@ const AddHost: React.FC = () => {
         detectedVersion: result.os_version || '',
         responseTime: result.response_time_ms || 0,
         sshVersion: result.ssh_version || '',
-        additionalInfo: result.additional_info || ''
+        additionalInfo: result.additional_info || '',
       });
-      
     } catch (error: any) {
       console.error('Connection test failed:', error);
       setTestingConnection(false);
       setConnectionStatus('failed');
-      
+
       // Store error details for display
       setConnectionTestResults({
         success: false,
@@ -268,7 +290,7 @@ const AddHost: React.FC = () => {
         authentication: false,
         detectedOS: '',
         detectedVersion: '',
-        responseTime: 0
+        responseTime: 0,
       });
     }
   };
@@ -280,19 +302,26 @@ const AddHost: React.FC = () => {
         hostname: formData.hostname || formData.ipAddress,
         ip_address: formData.ipAddress || formData.hostname,
         display_name: formData.displayName,
-        operating_system: formData.operatingSystem === 'auto-detect' ? 'Unknown' : formData.operatingSystem,
+        operating_system:
+          formData.operatingSystem === 'auto-detect' ? 'Unknown' : formData.operatingSystem,
         port: formData.port,
         username: formData.username,
         auth_method: formData.authMethod,
-        password: (formData.authMethod === 'password' || formData.authMethod === 'both') ? formData.password : undefined,
-        ssh_key: (formData.authMethod === 'ssh_key' || formData.authMethod === 'both') ? formData.sshKey : undefined,
+        password:
+          formData.authMethod === 'password' || formData.authMethod === 'both'
+            ? formData.password
+            : undefined,
+        ssh_key:
+          formData.authMethod === 'ssh_key' || formData.authMethod === 'both'
+            ? formData.sshKey
+            : undefined,
         environment: formData.environment,
         tags: formData.tags,
-        owner: formData.owner
+        owner: formData.owner,
       };
 
       console.log('Submitting host to API:', hostData);
-      
+
       // Make API call to create host
       const newHost = await api.post('/api/hosts/', hostData);
       console.log('Host created successfully:', newHost);
@@ -310,14 +339,14 @@ const AddHost: React.FC = () => {
       // Use unified credentials API with scope filter
       const response = await fetch('/api/system/credentials?scope=system', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
       });
 
       if (response.ok) {
         const credentials = await response.json();
         const defaultCredential = credentials.find((cred: any) => cred.is_default);
-        
+
         if (defaultCredential) {
           setSystemCredentials({
             name: defaultCredential.name,
@@ -325,7 +354,7 @@ const AddHost: React.FC = () => {
             authMethod: defaultCredential.auth_method,
             sshKeyType: defaultCredential.ssh_key_type,
             sshKeyBits: defaultCredential.ssh_key_bits,
-            sshKeyComment: defaultCredential.ssh_key_comment
+            sshKeyComment: defaultCredential.ssh_key_comment,
           });
         }
       }
@@ -346,21 +375,21 @@ const AddHost: React.FC = () => {
     try {
       // Basic client-side validation first
       const trimmedKey = keyContent.trim();
-      
+
       // Check for common SSH key formats
       const validKeyHeaders = [
         '-----BEGIN OPENSSH PRIVATE KEY-----',
         '-----BEGIN RSA PRIVATE KEY-----',
         '-----BEGIN EC PRIVATE KEY-----',
-        '-----BEGIN DSA PRIVATE KEY-----'
+        '-----BEGIN DSA PRIVATE KEY-----',
       ];
-      
-      const hasValidHeader = validKeyHeaders.some(header => trimmedKey.startsWith(header));
-      
+
+      const hasValidHeader = validKeyHeaders.some((header) => trimmedKey.startsWith(header));
+
       if (!hasValidHeader) {
         setSshKeyValidation({
           status: 'invalid',
-          message: 'Invalid SSH key format. Please paste a valid private key.'
+          message: 'Invalid SSH key format. Please paste a valid private key.',
         });
         return;
       }
@@ -368,23 +397,23 @@ const AddHost: React.FC = () => {
       // Validate with backend using the new validate-credentials endpoint
       const validationData = {
         auth_method: 'ssh_key',
-        ssh_key: keyContent
+        ssh_key: keyContent,
       };
 
       const response = await fetch('/api/hosts/validate-credentials', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
-        body: JSON.stringify(validationData)
+        body: JSON.stringify(validationData),
       });
 
       if (!response.ok) {
         const error = await response.json();
         setSshKeyValidation({
           status: 'invalid',
-          message: error.detail || 'SSH key validation failed.'
+          message: error.detail || 'SSH key validation failed.',
         });
         return;
       }
@@ -403,19 +432,19 @@ const AddHost: React.FC = () => {
           message: message,
           keyType: result.key_type,
           keyBits: result.key_bits,
-          securityLevel: result.security_level
+          securityLevel: result.security_level,
         });
         setAuthMethodLocked(true);
       } else {
         setSshKeyValidation({
           status: 'invalid',
-          message: result.error_message || 'SSH key validation failed.'
+          message: result.error_message || 'SSH key validation failed.',
         });
       }
     } catch (error) {
       setSshKeyValidation({
         status: 'invalid',
-        message: 'Error validating SSH key. Please check the format and try again.'
+        message: 'Error validating SSH key. Please check the format and try again.',
       });
     }
   };
@@ -429,7 +458,7 @@ const AddHost: React.FC = () => {
     handleInputChange('authMethod', method);
     setAuthMethodLocked(false);
     setSshKeyValidation({ status: 'idle', message: '' });
-    
+
     // Fetch system credentials when system_default is selected
     if (method === 'system_default' && !systemCredentials) {
       await fetchSystemCredentials();
@@ -463,11 +492,7 @@ const AddHost: React.FC = () => {
         <Typography variant="h5" fontWeight="bold">
           Quick Add Host
         </Typography>
-        <Button
-          variant="outlined"
-          onClick={() => setQuickMode(false)}
-          startIcon={<Settings />}
-        >
+        <Button variant="outlined" onClick={() => setQuickMode(false)} startIcon={<Settings />}>
           Advanced Mode
         </Button>
       </Box>
@@ -514,7 +539,9 @@ const AddHost: React.FC = () => {
         </Grid>
 
         <Grid item xs={12}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
+          >
             <Box>
               <RadioGroup
                 value={formData.authMethod}
@@ -552,7 +579,7 @@ const AddHost: React.FC = () => {
                 size="small"
                 onClick={toggleAuthEdit}
                 startIcon={editingAuth ? <CheckCircle /> : <Edit />}
-                color={editingAuth ? "primary" : "secondary"}
+                color={editingAuth ? 'primary' : 'secondary'}
               >
                 {editingAuth ? 'Done' : 'Edit'}
               </Button>
@@ -596,8 +623,8 @@ const AddHost: React.FC = () => {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton 
-                      onClick={() => setShowPassword(!showPassword)} 
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                       disabled={authMethodLocked && !editingAuth}
                     >
@@ -612,12 +639,14 @@ const AddHost: React.FC = () => {
 
         {formData.authMethod === 'system_default' && (
           <Grid item xs={12}>
-            <Card sx={{ 
-              border: '2px solid', 
-              borderColor: 'primary.main', 
-              bgcolor: 'primary.50',
-              '&:hover': { bgcolor: 'primary.100' }
-            }}>
+            <Card
+              sx={{
+                border: '2px solid',
+                borderColor: 'primary.main',
+                bgcolor: 'primary.50',
+                '&:hover': { bgcolor: 'primary.100' },
+              }}
+            >
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                   <Security color="primary" sx={{ mr: 1 }} />
@@ -635,7 +664,8 @@ const AddHost: React.FC = () => {
                     </Typography>
                     {systemCredentials.sshKeyType && (
                       <Typography variant="body2" color="text.secondary">
-                        <strong>Key Type:</strong> {systemCredentials.sshKeyType?.toUpperCase()} {systemCredentials.sshKeyBits}-bit
+                        <strong>Key Type:</strong> {systemCredentials.sshKeyType?.toUpperCase()}{' '}
+                        {systemCredentials.sshKeyBits}-bit
                         {systemCredentials.sshKeyComment && ` (${systemCredentials.sshKeyComment})`}
                       </Typography>
                     )}
@@ -645,7 +675,11 @@ const AddHost: React.FC = () => {
                     Loading system credentials...
                   </Typography>
                 )}
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 2, fontStyle: 'italic' }}
+                >
                   All credential input fields are hidden when using system default
                 </Typography>
               </CardContent>
@@ -657,12 +691,14 @@ const AddHost: React.FC = () => {
           <Grid item xs={12}>
             {sshKeyValidation.status === 'valid' && authMethodLocked && !editingAuth ? (
               // Show validated SSH key info when locked
-              <Card sx={{ 
-                border: '2px solid', 
-                borderColor: 'success.main', 
-                bgcolor: 'success.50',
-                '&:hover': { bgcolor: 'success.100' }
-              }}>
+              <Card
+                sx={{
+                  border: '2px solid',
+                  borderColor: 'success.main',
+                  bgcolor: 'success.50',
+                  '&:hover': { bgcolor: 'success.100' },
+                }}
+              >
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <CheckCircle color="success" sx={{ mr: 1 }} />
@@ -672,14 +708,20 @@ const AddHost: React.FC = () => {
                   </Box>
                   {sshKeyValidation.keyType && (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                      <strong>Key Type:</strong> {sshKeyValidation.keyType?.toUpperCase()} {sshKeyValidation.keyBits}-bit
+                      <strong>Key Type:</strong> {sshKeyValidation.keyType?.toUpperCase()}{' '}
+                      {sshKeyValidation.keyBits}-bit
                     </Typography>
                   )}
                   {sshKeyValidation.securityLevel && (
-                    <Chip 
-                      label={sshKeyValidation.securityLevel.toUpperCase()} 
-                      color={sshKeyValidation.securityLevel === 'secure' ? 'success' : 
-                             sshKeyValidation.securityLevel === 'acceptable' ? 'warning' : 'error'}
+                    <Chip
+                      label={sshKeyValidation.securityLevel.toUpperCase()}
+                      color={
+                        sshKeyValidation.securityLevel === 'secure'
+                          ? 'success'
+                          : sshKeyValidation.securityLevel === 'acceptable'
+                            ? 'warning'
+                            : 'error'
+                      }
                       size="small"
                     />
                   )}
@@ -702,36 +744,43 @@ const AddHost: React.FC = () => {
                   multiline
                   rows={4}
                   error={sshKeyValidation.status === 'invalid'}
-                  helperText={sshKeyValidation.message || "Paste your SSH private key content"}
+                  helperText={sshKeyValidation.message || 'Paste your SSH private key content'}
                   disabled={sshKeyValidation.status === 'validating'}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Key color={
-                          sshKeyValidation.status === 'valid' ? 'success' :
-                          sshKeyValidation.status === 'invalid' ? 'error' : 'inherit'
-                        } />
+                        <Key
+                          color={
+                            sshKeyValidation.status === 'valid'
+                              ? 'success'
+                              : sshKeyValidation.status === 'invalid'
+                                ? 'error'
+                                : 'inherit'
+                          }
+                        />
                       </InputAdornment>
                     ),
-                    endAdornment: sshKeyValidation.status === 'validating' ? (
-                      <InputAdornment position="end">
-                        <LinearProgress sx={{ width: 40 }} />
-                      </InputAdornment>
-                    ) : sshKeyValidation.status === 'valid' ? (
-                      <InputAdornment position="end">
-                        <CheckCircle color="success" />
-                      </InputAdornment>
-                    ) : sshKeyValidation.status === 'invalid' ? (
-                      <InputAdornment position="end">
-                        <ErrorIcon color="error" />
-                      </InputAdornment>
-                    ) : null,
+                    endAdornment:
+                      sshKeyValidation.status === 'validating' ? (
+                        <InputAdornment position="end">
+                          <LinearProgress sx={{ width: 40 }} />
+                        </InputAdornment>
+                      ) : sshKeyValidation.status === 'valid' ? (
+                        <InputAdornment position="end">
+                          <CheckCircle color="success" />
+                        </InputAdornment>
+                      ) : sshKeyValidation.status === 'invalid' ? (
+                        <InputAdornment position="end">
+                          <ErrorIcon color="error" />
+                        </InputAdornment>
+                      ) : null,
                   }}
                 />
                 {sshKeyValidation.status === 'valid' && (
                   <Alert severity="success" sx={{ mt: 1 }}>
-                    SSH key validated successfully! 
-                    {sshKeyValidation.keyType && ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
+                    SSH key validated successfully!
+                    {sshKeyValidation.keyType &&
+                      ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
                   </Alert>
                 )}
                 {sshKeyValidation.status === 'invalid' && (
@@ -749,8 +798,8 @@ const AddHost: React.FC = () => {
             <Grid item xs={12}>
               <Alert severity="info" icon={<Security />}>
                 <AlertTitle>SSH Key + Password Fallback</AlertTitle>
-                The system will attempt SSH key authentication first (more secure).
-                If SSH key fails, it will automatically fallback to password authentication.
+                The system will attempt SSH key authentication first (more secure). If SSH key
+                fails, it will automatically fallback to password authentication.
               </Alert>
             </Grid>
 
@@ -769,7 +818,9 @@ const AddHost: React.FC = () => {
                 multiline
                 rows={4}
                 error={sshKeyValidation.status === 'invalid'}
-                helperText={sshKeyValidation.message || "SSH key will be tried first for authentication"}
+                helperText={
+                  sshKeyValidation.message || 'SSH key will be tried first for authentication'
+                }
                 disabled={sshKeyValidation.status === 'validating'}
                 InputProps={{
                   startAdornment: (
@@ -782,7 +833,8 @@ const AddHost: React.FC = () => {
               {sshKeyValidation.status === 'valid' && (
                 <Alert severity="success" sx={{ mt: 1 }}>
                   SSH key validated successfully!
-                  {sshKeyValidation.keyType && ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
+                  {sshKeyValidation.keyType &&
+                    ` (${sshKeyValidation.keyType?.toUpperCase()} ${sshKeyValidation.keyBits}-bit)`}
                 </Alert>
               )}
               {sshKeyValidation.status === 'invalid' && (
@@ -809,10 +861,7 @@ const AddHost: React.FC = () => {
                   ),
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword(!showPassword)}
-                        edge="end"
-                      >
+                      <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
                     </InputAdornment>
@@ -825,11 +874,7 @@ const AddHost: React.FC = () => {
 
         <Grid item xs={12}>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/hosts')}
-              startIcon={<Cancel />}
-            >
+            <Button variant="outlined" onClick={() => navigate('/hosts')} startIcon={<Cancel />}>
               Cancel
             </Button>
             <Button
@@ -844,7 +889,10 @@ const AddHost: React.FC = () => {
               variant="contained"
               onClick={handleSubmit}
               startIcon={<Add />}
-              disabled={!formData.hostname || (!formData.username && formData.authMethod !== 'system_default')}
+              disabled={
+                !formData.hostname ||
+                (!formData.username && formData.authMethod !== 'system_default')
+              }
             >
               Add Host & Scan Now
             </Button>
@@ -853,8 +901,14 @@ const AddHost: React.FC = () => {
 
         {connectionStatus !== 'idle' && (
           <Grid item xs={12}>
-            <Alert 
-              severity={connectionStatus === 'success' ? 'success' : connectionStatus === 'failed' ? 'error' : 'info'}
+            <Alert
+              severity={
+                connectionStatus === 'success'
+                  ? 'success'
+                  : connectionStatus === 'failed'
+                    ? 'error'
+                    : 'info'
+              }
               icon={connectionStatus === 'testing' ? <LinearProgress /> : undefined}
             >
               <AlertTitle>
@@ -865,15 +919,18 @@ const AddHost: React.FC = () => {
               {connectionStatus === 'success' && connectionTestResults?.success && (
                 <Box>
                   <Typography variant="body2">
-                    {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity verified
-                    {connectionTestResults.responseTime > 0 && ` (${connectionTestResults.responseTime}ms)`}
+                    {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity
+                    verified
+                    {connectionTestResults.responseTime > 0 &&
+                      ` (${connectionTestResults.responseTime}ms)`}
                   </Typography>
                   <Typography variant="body2">
                     {connectionTestResults.authentication ? '✓' : '✗'} Authentication successful
                   </Typography>
                   <Typography variant="body2">
                     ✓ Detected: {connectionTestResults.detectedOS}
-                    {connectionTestResults.detectedVersion && ` ${connectionTestResults.detectedVersion}`}
+                    {connectionTestResults.detectedVersion &&
+                      ` ${connectionTestResults.detectedVersion}`}
                   </Typography>
                   {connectionTestResults.sshVersion && (
                     <Typography variant="body2">
@@ -887,24 +944,26 @@ const AddHost: React.FC = () => {
                   )}
                 </Box>
               )}
-              {connectionStatus === 'failed' && connectionTestResults && !connectionTestResults.success && (
-                <Box>
-                  <Typography variant="body2" color="error">
-                    Connection failed: {connectionTestResults.error}
-                  </Typography>
-                  {connectionTestResults.errorCode && (
-                    <Typography variant="body2" color="text.secondary">
-                      Error code: {connectionTestResults.errorCode}
+              {connectionStatus === 'failed' &&
+                connectionTestResults &&
+                !connectionTestResults.success && (
+                  <Box>
+                    <Typography variant="body2" color="error">
+                      Connection failed: {connectionTestResults.error}
                     </Typography>
-                  )}
-                  <Typography variant="body2">
-                    {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity
-                  </Typography>
-                  <Typography variant="body2">
-                    {connectionTestResults.authentication ? '✓' : '✗'} Authentication
-                  </Typography>
-                </Box>
-              )}
+                    {connectionTestResults.errorCode && (
+                      <Typography variant="body2" color="text.secondary">
+                        Error code: {connectionTestResults.errorCode}
+                      </Typography>
+                    )}
+                    <Typography variant="body2">
+                      {connectionTestResults.networkConnectivity ? '✓' : '✗'} Network connectivity
+                    </Typography>
+                    <Typography variant="body2">
+                      {connectionTestResults.authentication ? '✓' : '✗'} Authentication
+                    </Typography>
+                  </Box>
+                )}
             </Alert>
           </Grid>
         )}
@@ -919,11 +978,7 @@ const AddHost: React.FC = () => {
           <Typography variant="h5" fontWeight="bold">
             Add New Host
           </Typography>
-          <Button
-            variant="outlined"
-            onClick={() => setQuickMode(true)}
-            startIcon={<Speed />}
-          >
+          <Button variant="outlined" onClick={() => setQuickMode(true)} startIcon={<Speed />}>
             Quick Mode
           </Button>
         </Box>
@@ -980,13 +1035,15 @@ const AddHost: React.FC = () => {
                     onChange={(e) => handleInputChange('operatingSystem', e.target.value)}
                     label="Operating System"
                   >
-                    {operatingSystems.map(os => (
-                      <MenuItem key={os.value} value={os.value}>{os.label}</MenuItem>
+                    {operatingSystems.map((os) => (
+                      <MenuItem key={os.value} value={os.value}>
+                        {os.label}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Grid>
-              
+
               <Grid item xs={12}>
                 <FormControlLabel
                   control={
@@ -998,7 +1055,7 @@ const AddHost: React.FC = () => {
                   label="Use Bastion/Jump Host"
                 />
               </Grid>
-              
+
               {formData.useBastion && (
                 <>
                   <Grid item xs={12} md={4}>
@@ -1029,11 +1086,13 @@ const AddHost: React.FC = () => {
                   </Grid>
                 </>
               )}
-              
+
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={() => navigate('/hosts')}>Cancel</Button>
-                  <Button variant="contained" onClick={handleNext}>Next</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1051,9 +1110,21 @@ const AddHost: React.FC = () => {
                     value={formData.authMethod}
                     onChange={(e) => handleInputChange('authMethod', e.target.value)}
                   >
-                    <FormControlLabel value="system_default" control={<Radio />} label="System Default" />
-                    <FormControlLabel value="ssh_key" control={<Radio />} label="SSH Key Authentication" />
-                    <FormControlLabel value="password" control={<Radio />} label="Password Authentication" />
+                    <FormControlLabel
+                      value="system_default"
+                      control={<Radio />}
+                      label="System Default"
+                    />
+                    <FormControlLabel
+                      value="ssh_key"
+                      control={<Radio />}
+                      label="SSH Key Authentication"
+                    />
+                    <FormControlLabel
+                      value="password"
+                      control={<Radio />}
+                      label="Password Authentication"
+                    />
                   </RadioGroup>
                 </FormControl>
               </Grid>
@@ -1066,7 +1137,11 @@ const AddHost: React.FC = () => {
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   required
                   disabled={formData.authMethod === 'system_default'}
-                  helperText={formData.authMethod === 'system_default' ? 'Username will be taken from system default credentials' : ''}
+                  helperText={
+                    formData.authMethod === 'system_default'
+                      ? 'Username will be taken from system default credentials'
+                      : ''
+                  }
                 />
               </Grid>
 
@@ -1113,11 +1188,7 @@ const AddHost: React.FC = () => {
                     multiline
                     rows={6}
                   />
-                  <Button
-                    variant="outlined"
-                    startIcon={<Upload />}
-                    sx={{ mt: 1 }}
-                  >
+                  <Button variant="outlined" startIcon={<Upload />} sx={{ mt: 1 }}>
                     Upload Key File
                   </Button>
                 </Grid>
@@ -1190,7 +1261,9 @@ const AddHost: React.FC = () => {
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
-                  <Button variant="contained" onClick={handleNext}>Next</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1217,7 +1290,7 @@ const AddHost: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              
+
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
@@ -1258,7 +1331,9 @@ const AddHost: React.FC = () => {
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
-                  <Button variant="contained" onClick={handleNext}>Next</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1278,7 +1353,7 @@ const AddHost: React.FC = () => {
                     onChange={(e) => handleInputChange('complianceProfile', e.target.value)}
                     label="Compliance Profile"
                   >
-                    {complianceProfiles.map(profile => (
+                    {complianceProfiles.map((profile) => (
                       <MenuItem key={profile.value} value={profile.value}>
                         {profile.label}
                       </MenuItem>
@@ -1369,7 +1444,7 @@ const AddHost: React.FC = () => {
                       type="number"
                     />
                   </Grid>
-                  
+
                   <Grid item xs={12} md={3}>
                     <TextField
                       fullWidth
@@ -1379,7 +1454,7 @@ const AddHost: React.FC = () => {
                       type="number"
                     />
                   </Grid>
-                  
+
                   <Grid item xs={12} md={3}>
                     <TextField
                       fullWidth
@@ -1395,7 +1470,9 @@ const AddHost: React.FC = () => {
                       fullWidth
                       label="Exclude Paths (one per line)"
                       value={formData.excludePaths.join('\n')}
-                      onChange={(e) => handleInputChange('excludePaths', e.target.value.split('\n'))}
+                      onChange={(e) =>
+                        handleInputChange('excludePaths', e.target.value.split('\n'))
+                      }
                       multiline
                       rows={3}
                       placeholder="/tmp&#10;/var/cache&#10;/mnt"
@@ -1411,7 +1488,7 @@ const AddHost: React.FC = () => {
                       placeholder="proxy.example.com"
                     />
                   </Grid>
-                  
+
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
@@ -1433,7 +1510,7 @@ const AddHost: React.FC = () => {
                       placeholder="Commands to run before scan"
                     />
                   </Grid>
-                  
+
                   <Grid item xs={12} md={6}>
                     <TextField
                       fullWidth
@@ -1451,7 +1528,9 @@ const AddHost: React.FC = () => {
               <Grid item xs={12}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
-                  <Button variant="contained" onClick={handleNext}>Next</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
                 </Box>
               </Grid>
             </Grid>
@@ -1470,70 +1549,83 @@ const AddHost: React.FC = () => {
                       Host Configuration Summary
                     </Typography>
                     <Divider sx={{ my: 2 }} />
-                    
+
                     <Grid container spacing={2}>
                       <Grid item xs={12} md={6}>
                         <List dense>
                           <ListItem>
-                            <ListItemIcon><Computer /></ListItemIcon>
-                            <ListItemText 
-                              primary="Hostname" 
+                            <ListItemIcon>
+                              <Computer />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Hostname"
                               secondary={formData.hostname || 'Not specified'}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><Label /></ListItemIcon>
-                            <ListItemText 
-                              primary="Display Name" 
+                            <ListItemIcon>
+                              <Label />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Display Name"
                               secondary={formData.displayName || formData.hostname}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><VpnKey /></ListItemIcon>
-                            <ListItemText 
-                              primary="Authentication" 
+                            <ListItemIcon>
+                              <VpnKey />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Authentication"
                               secondary={formData.authMethod.toUpperCase()}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><AccountTree /></ListItemIcon>
-                            <ListItemText 
-                              primary="Username" 
+                            <ListItemIcon>
+                              <AccountTree />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Username"
                               secondary={formData.username || 'Not specified'}
                             />
                           </ListItem>
                         </List>
                       </Grid>
-                      
+
                       <Grid item xs={12} md={6}>
                         <List dense>
                           <ListItem>
-                            <ListItemIcon><Storage /></ListItemIcon>
-                            <ListItemText 
-                              primary="Operating System" 
+                            <ListItemIcon>
+                              <Storage />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Operating System"
                               secondary={formData.operatingSystem}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><Security /></ListItemIcon>
-                            <ListItemText 
-                              primary="Compliance Profile" 
+                            <ListItemIcon>
+                              <Security />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Compliance Profile"
                               secondary={formData.complianceProfile}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><Schedule /></ListItemIcon>
-                            <ListItemText 
-                              primary="Scan Schedule" 
+                            <ListItemIcon>
+                              <Schedule />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary="Scan Schedule"
                               secondary={formData.scanSchedule}
                             />
                           </ListItem>
                           <ListItem>
-                            <ListItemIcon><Group /></ListItemIcon>
-                            <ListItemText 
-                              primary="Environment" 
-                              secondary={formData.environment}
-                            />
+                            <ListItemIcon>
+                              <Group />
+                            </ListItemIcon>
+                            <ListItemText primary="Environment" secondary={formData.environment} />
                           </ListItem>
                         </List>
                       </Grid>
@@ -1541,9 +1633,11 @@ const AddHost: React.FC = () => {
 
                     {formData.tags.length > 0 && (
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>Tags:</Typography>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Tags:
+                        </Typography>
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          {formData.tags.map(tag => (
+                          {formData.tags.map((tag) => (
                             <Chip key={tag} label={tag} size="small" />
                           ))}
                         </Box>
@@ -1565,8 +1659,14 @@ const AddHost: React.FC = () => {
 
               {connectionStatus !== 'idle' && (
                 <Grid item xs={12}>
-                  <Alert 
-                    severity={connectionStatus === 'success' ? 'success' : connectionStatus === 'failed' ? 'error' : 'info'}
+                  <Alert
+                    severity={
+                      connectionStatus === 'success'
+                        ? 'success'
+                        : connectionStatus === 'failed'
+                          ? 'error'
+                          : 'info'
+                    }
                     icon={connectionStatus === 'testing' ? <LinearProgress /> : undefined}
                   >
                     <AlertTitle>
@@ -1578,7 +1678,9 @@ const AddHost: React.FC = () => {
                       <Box>
                         <Typography variant="body2">✓ Network connectivity established</Typography>
                         <Typography variant="body2">✓ Authentication verified</Typography>
-                        <Typography variant="body2">✓ Operating system detected: Ubuntu 22.04 LTS</Typography>
+                        <Typography variant="body2">
+                          ✓ Operating system detected: Ubuntu 22.04 LTS
+                        </Typography>
                         <Typography variant="body2">✓ Sudo access confirmed</Typography>
                         <Typography variant="body2" sx={{ mt: 1 }}>
                           <strong>Ready to add host and begin scanning</strong>
@@ -1599,10 +1701,7 @@ const AddHost: React.FC = () => {
                   <Button onClick={handleBack}>Back</Button>
                   <Button onClick={() => navigate('/hosts')}>Cancel</Button>
                   <Box sx={{ flexGrow: 1 }} />
-                  <Button
-                    variant="outlined"
-                    startIcon={<SaveIcon />}
-                  >
+                  <Button variant="outlined" startIcon={<SaveIcon />}>
                     Save as Template
                   </Button>
                   <Button
@@ -1684,9 +1783,14 @@ const AddHost: React.FC = () => {
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+            <Card
+              variant="outlined"
+              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="primary">Linux Web Server</Typography>
+                <Typography variant="subtitle2" color="primary">
+                  Linux Web Server
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Ubuntu/RHEL with CIS Level 2
                 </Typography>
@@ -1694,9 +1798,14 @@ const AddHost: React.FC = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+            <Card
+              variant="outlined"
+              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="primary">Database Server</Typography>
+                <Typography variant="subtitle2" color="primary">
+                  Database Server
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   PostgreSQL/MySQL with STIG
                 </Typography>
@@ -1704,9 +1813,14 @@ const AddHost: React.FC = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+            <Card
+              variant="outlined"
+              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="primary">Container Host</Typography>
+                <Typography variant="subtitle2" color="primary">
+                  Container Host
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Docker/K8s with CIS Benchmark
                 </Typography>
@@ -1714,9 +1828,14 @@ const AddHost: React.FC = () => {
             </Card>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+            <Card
+              variant="outlined"
+              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="primary">Windows Server</Typography>
+                <Typography variant="subtitle2" color="primary">
+                  Windows Server
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Windows 2019/2022 with STIG
                 </Typography>

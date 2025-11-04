@@ -44,7 +44,10 @@ interface DataPreviewProps {
   csvData: string;
   fieldMappings: FieldMapping[];
   analysis: CSVAnalysis | null;
-  onImport: (mappings: FieldMapping[], options: { updateExisting: boolean; dryRun: boolean }) => void;
+  onImport: (
+    mappings: FieldMapping[],
+    options: { updateExisting: boolean; dryRun: boolean }
+  ) => void;
   onBack: () => void;
   importing: boolean;
   importResult: ImportResult | null;
@@ -108,7 +111,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
   updateExisting,
   setUpdateExisting,
   dryRun,
-  setDryRun
+  setDryRun,
 }) => {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [showErrors, setShowErrors] = useState(true);
@@ -122,22 +125,25 @@ const DataPreview: React.FC<DataPreviewProps> = ({
     try {
       // Parse CSV data
       const lines = csvData.trim().split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      
+      const headers = lines[0].split(',').map((h) => h.trim().replace(/"/g, ''));
+
       // Create field mapping lookup
-      const fieldMap = fieldMappings.reduce((acc, mapping) => {
-        acc[mapping.source_column] = mapping.target_field;
-        return acc;
-      }, {} as Record<string, string>);
+      const fieldMap = fieldMappings.reduce(
+        (acc, mapping) => {
+          acc[mapping.source_column] = mapping.target_field;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
 
       // Process first 5 rows for preview
       const preview = [];
       const warnings = [];
-      
+
       for (let i = 1; i < Math.min(6, lines.length); i++) {
-        const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+        const values = lines[i].split(',').map((v) => v.trim().replace(/"/g, ''));
         const mappedRow: any = {};
-        
+
         // Apply field mappings
         headers.forEach((header, index) => {
           const targetField = fieldMap[header];
@@ -145,7 +151,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
             mappedRow[targetField] = values[index];
           }
         });
-        
+
         // Apply defaults
         if (!mappedRow.environment) mappedRow.environment = 'production';
         if (!mappedRow.port) mappedRow.port = 22;
@@ -153,7 +159,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
         if (!mappedRow.display_name && mappedRow.hostname) {
           mappedRow.display_name = mappedRow.hostname;
         }
-        
+
         // Validate required fields
         if (!mappedRow.hostname) {
           warnings.push(`Row ${i}: Missing hostname`);
@@ -161,10 +167,10 @@ const DataPreview: React.FC<DataPreviewProps> = ({
         if (!mappedRow.ip_address) {
           warnings.push(`Row ${i}: Missing IP address`);
         }
-        
+
         preview.push({ ...mappedRow, _row: i });
       }
-      
+
       setPreviewData(preview);
       setValidationWarnings(warnings);
     } catch (error) {
@@ -178,13 +184,13 @@ const DataPreview: React.FC<DataPreviewProps> = ({
   };
 
   const getMappedFields = () => {
-    return fieldMappings.map(m => m.target_field);
+    return fieldMappings.map((m) => m.target_field);
   };
 
   const getUnmappedRequiredFields = () => {
     const mapped = getMappedFields();
     const required = ['hostname', 'ip_address'];
-    return required.filter(field => !mapped.includes(field));
+    return required.filter((field) => !mapped.includes(field));
   };
 
   if (importResult) {
@@ -192,18 +198,11 @@ const DataPreview: React.FC<DataPreviewProps> = ({
       <Box>
         <Box display="flex" alignItems="center" gap={2} mb={3}>
           <PreviewIcon color="primary" />
-          <Typography variant="h6">
-            {dryRun ? 'Validation Complete' : 'Import Complete'}
-          </Typography>
+          <Typography variant="h6">{dryRun ? 'Validation Complete' : 'Import Complete'}</Typography>
         </Box>
 
-        <Alert 
-          severity={importResult.failed_imports > 0 ? 'warning' : 'success'}
-          sx={{ mb: 3 }}
-        >
-          <AlertTitle>
-            {dryRun ? 'Validation Results' : 'Import Results'}
-          </AlertTitle>
+        <Alert severity={importResult.failed_imports > 0 ? 'warning' : 'success'} sx={{ mb: 3 }}>
+          <AlertTitle>{dryRun ? 'Validation Results' : 'Import Results'}</AlertTitle>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={3}>
               <Typography variant="body2">
@@ -234,13 +233,11 @@ const DataPreview: React.FC<DataPreviewProps> = ({
 
         {importResult.errors.length > 0 && (
           <Accordion sx={{ mb: 2 }}>
-            <AccordionSummary 
+            <AccordionSummary
               expandIcon={<ExpandMoreIcon />}
               onClick={() => setShowErrors(!showErrors)}
             >
-              <Typography variant="h6">
-                Errors ({importResult.errors.length})
-              </Typography>
+              <Typography variant="h6">Errors ({importResult.errors.length})</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <TableContainer component={Paper} variant="outlined">
@@ -349,7 +346,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({
       {/* Import Options */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Import Options</Typography>
+          <Typography variant="h6" gutterBottom>
+            Import Options
+          </Typography>
           <Box>
             <FormControlLabel
               control={
@@ -361,12 +360,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
               label="Update existing hosts instead of skipping duplicates"
             />
             <FormControlLabel
-              control={
-                <Checkbox
-                  checked={dryRun}
-                  onChange={(e) => setDryRun(e.target.checked)}
-                />
-              }
+              control={<Checkbox checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />}
               label="Dry run (validate data without importing)"
             />
           </Box>
@@ -404,11 +398,11 @@ const DataPreview: React.FC<DataPreviewProps> = ({
                     <TableCell>{row._row}</TableCell>
                     {getMappedFields().map((field) => (
                       <TableCell key={field}>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
+                        <Typography
+                          variant="body2"
+                          sx={{
                             fontFamily: 'monospace',
-                            color: row[field] ? 'text.primary' : 'text.secondary'
+                            color: row[field] ? 'text.primary' : 'text.secondary',
                           }}
                         >
                           {row[field] || <em>default</em>}
@@ -426,9 +420,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
       {/* Field Mapping Summary */}
       <Accordion sx={{ mb: 3 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">
-            Applied Mappings ({fieldMappings.length})
-          </Typography>
+          <Typography variant="h6">Applied Mappings ({fieldMappings.length})</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <List dense>
@@ -449,15 +441,10 @@ const DataPreview: React.FC<DataPreviewProps> = ({
 
       {/* Navigation */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button
-          variant="outlined"
-          startIcon={<BackIcon />}
-          onClick={onBack}
-          disabled={importing}
-        >
+        <Button variant="outlined" startIcon={<BackIcon />} onClick={onBack} disabled={importing}>
           Back to Mapping
         </Button>
-        
+
         <Box display="flex" gap={2}>
           {!dryRun && (
             <Button
@@ -471,7 +458,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({
               Validate First
             </Button>
           )}
-          
+
           <Button
             variant="contained"
             onClick={handleImport}

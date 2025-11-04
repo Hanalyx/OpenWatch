@@ -9,7 +9,7 @@ import {
   DialogActions,
   Typography,
   Box,
-  LinearProgress
+  LinearProgress,
 } from '@mui/material';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { logout, clearError } from '../../store/slices/authSlice';
@@ -17,7 +17,7 @@ import { tokenService } from '../../services/tokenService';
 
 const SessionManager: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, sessionExpiry, error } = useAppSelector(state => state.auth);
+  const { isAuthenticated, sessionExpiry, error } = useAppSelector((state) => state.auth);
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
@@ -37,7 +37,7 @@ const SessionManager: React.FC = () => {
     const checkExpiry = () => {
       const now = Date.now();
       const remaining = sessionExpiry - now;
-      
+
       // Show warning if 5 minutes or less remaining
       if (remaining <= 5 * 60 * 1000 && remaining > 0) {
         setTimeLeft(Math.floor(remaining / 1000));
@@ -54,7 +54,7 @@ const SessionManager: React.FC = () => {
         // Let the user see the 0:00 countdown and try to extend
         setTimeLeft(0);
         setShowExpiryWarning(true);
-        
+
         // Set a force logout timer if not already set
         if (!forceLogoutTimer) {
           forceLogoutTimer = setTimeout(() => {
@@ -89,7 +89,7 @@ const SessionManager: React.FC = () => {
   const handleExtendSession = async () => {
     setIsExtending(true);
     setExtendError(null);
-    
+
     // Security check: Don't allow extension if session has been expired for more than 60 seconds
     const now = Date.now();
     const gracePeriod = 60 * 1000; // 1 minute grace period
@@ -98,7 +98,7 @@ const SessionManager: React.FC = () => {
       setTimeout(() => dispatch(logout()), 2000);
       return;
     }
-    
+
     try {
       // Use manual refresh mode to prevent automatic logout
       const success = await tokenService.refreshToken(true);
@@ -116,7 +116,9 @@ const SessionManager: React.FC = () => {
       }
     } catch (error) {
       // Security: Network errors during token refresh should force logout
-      setExtendError('Network error during session extension. You will be logged out for security.');
+      setExtendError(
+        'Network error during session extension. You will be logged out for security.'
+      );
       console.error('Failed to extend session:', error);
       setTimeout(() => dispatch(logout()), 3000);
     } finally {
@@ -149,7 +151,7 @@ const SessionManager: React.FC = () => {
           }
         `}
       </style>
-      
+
       {/* Session expiry warning dialog */}
       <Dialog
         open={showExpiryWarning}
@@ -169,7 +171,7 @@ const SessionManager: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             You will be automatically logged out for security purposes.
           </Typography>
-          
+
           <Box sx={{ mb: 2 }}>
             <LinearProgress
               variant="determinate"
@@ -183,16 +185,29 @@ const SessionManager: React.FC = () => {
           <Button onClick={handleLogout} color="inherit">
             Logout Now
           </Button>
-          <Button 
-            onClick={handleExtendSession} 
+          <Button
+            onClick={handleExtendSession}
             variant="contained"
             disabled={isExtending}
-            startIcon={isExtending ? <div style={{ width: 16, height: 16, border: '2px solid transparent', borderTop: '2px solid currentColor', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /> : null}
+            startIcon={
+              isExtending ? (
+                <div
+                  style={{
+                    width: 16,
+                    height: 16,
+                    border: '2px solid transparent',
+                    borderTop: '2px solid currentColor',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />
+              ) : null
+            }
           >
             {isExtending ? 'Extending...' : 'Extend Session'}
           </Button>
         </DialogActions>
-        
+
         {extendError && (
           <Box sx={{ px: 3, pb: 2 }}>
             <Typography variant="body2" color="error" sx={{ textAlign: 'center' }}>
@@ -209,11 +224,7 @@ const SessionManager: React.FC = () => {
         onClose={() => dispatch(clearError())}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={() => dispatch(clearError())} 
-          severity="error"
-          variant="filled"
-        >
+        <Alert onClose={() => dispatch(clearError())} severity="error" variant="filled">
           {error}
         </Alert>
       </Snackbar>

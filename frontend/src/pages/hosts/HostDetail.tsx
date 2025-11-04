@@ -49,7 +49,12 @@ import {
   Settings as SettingsIcon,
   Terminal as TerminalIcon,
 } from '@mui/icons-material';
-import { StatusChip, ComplianceRing, SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import {
+  StatusChip,
+  ComplianceRing,
+  SSHKeyDisplay,
+  type SSHKeyInfo,
+} from '../../components/design-system';
 import HostTerminal from '../../components/terminal/HostTerminal';
 import { api } from '../../services/api';
 
@@ -154,12 +159,14 @@ const HostDetail: React.FC = () => {
         // Update host with enhanced data
         setHost((prevHost) => ({
           ...prevHost,
-          ...enhancedHost
+          ...enhancedHost,
         }));
-        
+
         // Log scan information from host data
         if (enhancedHost.latest_scan_id) {
-          console.log(`Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`);
+          console.log(
+            `Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`
+          );
         }
       }
     } catch (error) {
@@ -220,31 +227,31 @@ const HostDetail: React.FC = () => {
         return {
           label: 'System Default',
           icon: <SettingsIcon fontSize="small" />,
-          description: 'Uses system default SSH credentials'
+          description: 'Uses system default SSH credentials',
         };
       case 'ssh_key':
         return {
           label: 'SSH Key',
           icon: <SecurityIcon fontSize="small" />,
-          description: 'Host-specific SSH key authentication'
+          description: 'Host-specific SSH key authentication',
         };
       case 'password':
         return {
           label: 'Password',
           icon: <SecurityIcon fontSize="small" />,
-          description: 'Host-specific password authentication'
+          description: 'Host-specific password authentication',
         };
       case 'both':
         return {
           label: 'Password + SSH Key',
           icon: <SecurityIcon fontSize="small" />,
-          description: 'Both password and SSH key authentication'
+          description: 'Both password and SSH key authentication',
         };
       default:
         return {
           label: authMethod,
           icon: <SecurityIcon fontSize="small" />,
-          description: 'Custom authentication method'
+          description: 'Custom authentication method',
         };
     }
   };
@@ -259,15 +266,19 @@ const HostDetail: React.FC = () => {
     setDeletingSSHKey(true);
     try {
       await api.delete(`/api/hosts/${host.id}/ssh-key`);
-      
+
       // Update host state to remove SSH key metadata
-      setHost(prev => prev ? {
-        ...prev,
-        ssh_key_fingerprint: undefined,
-        ssh_key_type: undefined,
-        ssh_key_bits: undefined,
-        ssh_key_comment: undefined
-      } : null);
+      setHost((prev) =>
+        prev
+          ? {
+              ...prev,
+              ssh_key_fingerprint: undefined,
+              ssh_key_type: undefined,
+              ssh_key_bits: undefined,
+              ssh_key_comment: undefined,
+            }
+          : null
+      );
     } catch (error) {
       console.error('Error deleting SSH key:', error);
       setError('Error deleting SSH key');
@@ -297,7 +308,7 @@ const HostDetail: React.FC = () => {
   }
 
   const latestScan = scans.length > 0 ? scans[0] : null;
-  const runningScan = scans.find(scan => scan.status === 'running' || scan.status === 'pending');
+  const runningScan = scans.find((scan) => scan.status === 'running' || scan.status === 'pending');
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -336,9 +347,7 @@ const HostDetail: React.FC = () => {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Operating System
               </Typography>
-              <Typography variant="body1">
-                {host.operating_system}
-              </Typography>
+              <Typography variant="body1">{host.operating_system}</Typography>
               <Box sx={{ mt: 2 }}>
                 <StatusChip status={host.status as any} size="small" />
               </Box>
@@ -381,18 +390,14 @@ const HostDetail: React.FC = () => {
                 <SecurityIcon color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Compliance</Typography>
               </Box>
-              {(latestScan && getComplianceScore(latestScan) !== null) ? (
+              {latestScan && getComplianceScore(latestScan) !== null ? (
                 <ComplianceRing
                   score={getComplianceScore(latestScan)!}
                   size="medium"
                   trend="stable"
                 />
               ) : host.compliance_score !== undefined && host.compliance_score !== null ? (
-                <ComplianceRing
-                  score={host.compliance_score}
-                  size="medium"
-                  trend="stable"
-                />
+                <ComplianceRing score={host.compliance_score} size="medium" trend="stable" />
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   No compliance data available
@@ -400,15 +405,11 @@ const HostDetail: React.FC = () => {
               )}
               {host.critical_issues !== undefined && host.critical_issues > 0 && (
                 <Box sx={{ mt: 2 }}>
-                  <Chip 
-                    label={`${host.critical_issues} Critical`} 
-                    size="small" 
-                    color="error" 
-                  />
+                  <Chip label={`${host.critical_issues} Critical`} size="small" color="error" />
                   {host.high_issues !== undefined && host.high_issues > 0 && (
-                    <Chip 
-                      label={`${host.high_issues} High`} 
-                      size="small" 
+                    <Chip
+                      label={`${host.high_issues} High`}
+                      size="small"
                       color="warning"
                       sx={{ ml: 1 }}
                     />
@@ -453,11 +454,7 @@ const HostDetail: React.FC = () => {
           <Tab label="Scan History" />
           <Tab label="Host Information" />
           <Tab label="System Details" />
-          <Tab 
-            label="Terminal" 
-            icon={<TerminalIcon />}
-            iconPosition="start"
-          />
+          <Tab label="Terminal" icon={<TerminalIcon />} iconPosition="start" />
         </Tabs>
       </Box>
 
@@ -483,10 +480,15 @@ const HostDetail: React.FC = () => {
               <TableBody>
                 {scans.map((scan) => {
                   const complianceScore = getComplianceScore(scan);
-                  const duration = scan.completed_at && scan.started_at
-                    ? Math.round((new Date(scan.completed_at).getTime() - new Date(scan.started_at).getTime()) / 1000)
-                    : null;
-                  
+                  const duration =
+                    scan.completed_at && scan.started_at
+                      ? Math.round(
+                          (new Date(scan.completed_at).getTime() -
+                            new Date(scan.started_at).getTime()) /
+                            1000
+                        )
+                      : null;
+
                   return (
                     <TableRow key={scan.id} hover>
                       <TableCell>
@@ -507,9 +509,13 @@ const HostDetail: React.FC = () => {
                               label={scan.status}
                               size="small"
                               color={
-                                scan.status === 'completed' ? 'success' :
-                                scan.status === 'running' ? 'primary' :
-                                scan.status === 'failed' ? 'error' : 'default'
+                                scan.status === 'completed'
+                                  ? 'success'
+                                  : scan.status === 'running'
+                                    ? 'primary'
+                                    : scan.status === 'failed'
+                                      ? 'error'
+                                      : 'default'
                               }
                             />
                             {scan.status === 'running' && (
@@ -528,8 +534,11 @@ const HostDetail: React.FC = () => {
                             label={`${complianceScore.toFixed(1)}%`}
                             size="small"
                             color={
-                              complianceScore >= 70 ? 'success' :
-                              complianceScore >= 40 ? 'warning' : 'error'
+                              complianceScore >= 70
+                                ? 'success'
+                                : complianceScore >= 40
+                                  ? 'warning'
+                                  : 'error'
                             }
                           />
                         ) : (
@@ -575,16 +584,11 @@ const HostDetail: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">
-                          {duration ? `${duration}s` : 'N/A'}
-                        </Typography>
+                        <Typography variant="body2">{duration ? `${duration}s` : 'N/A'}</Typography>
                       </TableCell>
                       <TableCell>
                         <Tooltip title="View Scan Details">
-                          <IconButton
-                            size="small"
-                            onClick={() => navigate(`/scans/${scan.id}`)}
-                          >
+                          <IconButton size="small" onClick={() => navigate(`/scans/${scan.id}`)}>
                             <VisibilityIcon />
                           </IconButton>
                         </Tooltip>
@@ -612,35 +616,33 @@ const HostDetail: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <Typography variant="h6" sx={{ mb: 2 }}>Host Information</Typography>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Host Information
+        </Typography>
         <List>
           <ListItem>
-            <ListItemIcon><ComputerIcon /></ListItemIcon>
-            <ListItemText
-              primary="Hostname"
-              secondary={host.hostname}
-            />
+            <ListItemIcon>
+              <ComputerIcon />
+            </ListItemIcon>
+            <ListItemText primary="Hostname" secondary={host.hostname} />
           </ListItem>
           <ListItem>
-            <ListItemIcon><NetworkCheckIcon /></ListItemIcon>
-            <ListItemText
-              primary="IP Address"
-              secondary={host.ip_address}
-            />
+            <ListItemIcon>
+              <NetworkCheckIcon />
+            </ListItemIcon>
+            <ListItemText primary="IP Address" secondary={host.ip_address} />
           </ListItem>
           <ListItem>
-            <ListItemIcon><StorageIcon /></ListItemIcon>
-            <ListItemText
-              primary="Operating System"
-              secondary={host.operating_system}
-            />
+            <ListItemIcon>
+              <StorageIcon />
+            </ListItemIcon>
+            <ListItemText primary="Operating System" secondary={host.operating_system} />
           </ListItem>
           <ListItem>
-            <ListItemIcon><SecurityIcon /></ListItemIcon>
-            <ListItemText
-              primary="SSH Port"
-              secondary={host.port}
-            />
+            <ListItemIcon>
+              <SecurityIcon />
+            </ListItemIcon>
+            <ListItemText primary="SSH Port" secondary={host.port} />
           </ListItem>
           <ListItem>
             <ListItemIcon>{getAuthMethodDisplay(host.auth_method).icon}</ListItemIcon>
@@ -662,7 +664,7 @@ const HostDetail: React.FC = () => {
                           keyType: host.ssh_key_type || 'Unknown',
                           keyBits: host.ssh_key_bits || 0,
                           keyComment: host.ssh_key_comment || '',
-                          createdAt: host.created_at
+                          createdAt: host.created_at,
                         }}
                         onDelete={handleDeleteSSHKey}
                         loading={deletingSSHKey}
@@ -675,15 +677,16 @@ const HostDetail: React.FC = () => {
             />
           </ListItem>
           <ListItem>
-            <ListItemIcon><ScheduleIcon /></ListItemIcon>
-            <ListItemText
-              primary="Added"
-              secondary={new Date(host.created_at).toLocaleString()}
-            />
+            <ListItemIcon>
+              <ScheduleIcon />
+            </ListItemIcon>
+            <ListItemText primary="Added" secondary={new Date(host.created_at).toLocaleString()} />
           </ListItem>
           {host.last_check && (
             <ListItem>
-              <ListItemIcon><CheckCircleIcon /></ListItemIcon>
+              <ListItemIcon>
+                <CheckCircleIcon />
+              </ListItemIcon>
               <ListItemText
                 primary="Last Check"
                 secondary={new Date(host.last_check).toLocaleString()}
@@ -694,7 +697,9 @@ const HostDetail: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={2}>
-        <Typography variant="h6" sx={{ mb: 2 }}>System Details</Typography>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          System Details
+        </Typography>
         <Alert severity="info">
           System monitoring data will be displayed here once monitoring agents are deployed.
         </Alert>
@@ -702,11 +707,7 @@ const HostDetail: React.FC = () => {
 
       <TabPanel value={tabValue} index={3}>
         <Box sx={{ height: '600px' }}>
-          <HostTerminal 
-            hostId={host.id} 
-            hostname={host.hostname} 
-            ipAddress={host.ip_address} 
-          />
+          <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>
       </TabPanel>
     </Container>

@@ -19,7 +19,7 @@ import {
   Paper,
   CircularProgress,
   Collapse,
-  IconButton
+  IconButton,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -34,7 +34,7 @@ import {
   PlayArrow as PlayArrowIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import ErrorClassificationDisplay, { ClassifiedError } from './ErrorClassificationDisplay';
@@ -89,11 +89,16 @@ const getStepIcon = (status: string, icon: React.ReactNode) => {
 
 const getStepColor = (status: string) => {
   switch (status) {
-    case 'success': return 'success';
-    case 'error': return 'error';
-    case 'warning': return 'warning';
-    case 'running': return 'primary';
-    default: return 'default';
+    case 'success':
+      return 'success';
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warning';
+    case 'running':
+      return 'primary';
+    default:
+      return 'default';
   }
 };
 
@@ -102,40 +107,40 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
   onClose,
   onProceed,
   validationRequest,
-  title = "Pre-Flight Validation",
-  'data-testid': testId = 'preflight-validation-dialog'
+  title = 'Pre-Flight Validation',
+  'data-testid': testId = 'preflight-validation-dialog',
 }) => {
   const [validationSteps, setValidationSteps] = useState<ValidationStep[]>([
     {
       id: 'network_connectivity',
       label: 'Network Connectivity',
       icon: <NetworkIcon />,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'authentication',
       label: 'SSH Authentication',
       icon: <SecurityIcon />,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'privileges',
       label: 'System Privileges',
       icon: <SecurityIcon />,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'resources',
       label: 'System Resources',
       icon: <StorageIcon />,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'dependencies',
       label: 'OpenSCAP Dependencies',
       icon: <ExtensionIcon />,
-      status: 'pending'
-    }
+      status: 'pending',
+    },
   ]);
 
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
@@ -151,12 +156,15 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
     }
   }, [open, validationRequest]);
 
-  const updateStepStatus = (stepId: string, status: ValidationStep['status'], duration?: number, details?: string) => {
-    setValidationSteps(prev => prev.map(step => 
-      step.id === stepId 
-        ? { ...step, status, duration, details }
-        : step
-    ));
+  const updateStepStatus = (
+    stepId: string,
+    status: ValidationStep['status'],
+    duration?: number,
+    details?: string
+  ) => {
+    setValidationSteps((prev) =>
+      prev.map((step) => (step.id === stepId ? { ...step, status, duration, details } : step))
+    );
   };
 
   const startValidation = async () => {
@@ -167,33 +175,35 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
     setCurrentStep(0);
 
     // Reset all steps to pending
-    setValidationSteps(prev => prev.map(step => ({ ...step, status: 'pending' as const })));
+    setValidationSteps((prev) => prev.map((step) => ({ ...step, status: 'pending' as const })));
 
     try {
       // Simulate step-by-step validation for better UX
-      const steps = validationSteps.map(s => s.id);
-      
+      const steps = validationSteps.map((s) => s.id);
+
       for (let i = 0; i < steps.length; i++) {
         setCurrentStep(i);
         updateStepStatus(steps[i], 'running');
-        
+
         // Add small delay for visual feedback
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
       // Perform actual validation
       const result = await api.post<ValidationResult>('/api/scans/validate', validationRequest);
-      
+
       // Update steps based on validation results
       Object.entries(result.validation_checks).forEach(([stepId, success]) => {
         // Check for specific errors/warnings for this step
-        const stepErrors = result.errors.filter(e => 
-          e.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
-          e.category.toLowerCase().includes(stepId.split('_')[0])
+        const stepErrors = result.errors.filter(
+          (e) =>
+            e.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
+            e.category.toLowerCase().includes(stepId.split('_')[0])
         );
-        const stepWarnings = result.warnings.filter(w => 
-          w.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
-          w.category.toLowerCase().includes(stepId.split('_')[0])
+        const stepWarnings = result.warnings.filter(
+          (w) =>
+            w.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
+            w.category.toLowerCase().includes(stepId.split('_')[0])
         );
 
         let status: ValidationStep['status'] = 'success';
@@ -205,42 +215,55 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
           status = 'warning';
         }
 
-        updateStepStatus(stepId, status, undefined, 
-          stepErrors.length > 0 ? stepErrors[0].message :
-          stepWarnings.length > 0 ? stepWarnings[0].message :
-          undefined
+        updateStepStatus(
+          stepId,
+          status,
+          undefined,
+          stepErrors.length > 0
+            ? stepErrors[0].message
+            : stepWarnings.length > 0
+              ? stepWarnings[0].message
+              : undefined
         );
       });
 
       setValidationResult(result);
-      
     } catch (error: any) {
       console.error('Validation failed:', error);
-      
+
       // Mark current step as failed
       if (currentStep >= 0 && currentStep < validationSteps.length) {
-        updateStepStatus(validationSteps[currentStep].id, 'error', 
-          undefined, error.response?.data?.detail || error.message || 'Validation failed');
+        updateStepStatus(
+          validationSteps[currentStep].id,
+          'error',
+          undefined,
+          error.response?.data?.detail || error.message || 'Validation failed'
+        );
       }
 
       // Create a fallback validation result
       setValidationResult({
         can_proceed: false,
-        errors: [{
-          error_code: 'VAL_001',
-          category: 'execution',
-          severity: 'error',
-          message: 'Pre-flight validation failed',
-          user_guidance: error.response?.data?.detail || error.message || 'An error occurred during validation',
-          technical_details: { error: error.message },
-          automated_fixes: [],
-          can_retry: true,
-          retry_after: 30
-        }],
+        errors: [
+          {
+            error_code: 'VAL_001',
+            category: 'execution',
+            severity: 'error',
+            message: 'Pre-flight validation failed',
+            user_guidance:
+              error.response?.data?.detail ||
+              error.message ||
+              'An error occurred during validation',
+            technical_details: { error: error.message },
+            automated_fixes: [],
+            can_retry: true,
+            retry_after: 30,
+          },
+        ],
         warnings: [],
         pre_flight_duration: 0,
         system_info: {},
-        validation_checks: {}
+        validation_checks: {},
       });
     } finally {
       setIsValidating(false);
@@ -265,19 +288,13 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
   const hasWarnings = (validationResult?.warnings.length || 0) > 0;
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="md"
-      fullWidth
-      data-testid={testId}
-    >
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth data-testid={testId}>
       <DialogTitle>
         <Box display="flex" alignItems="center" gap={2}>
           <NetworkIcon />
           {title}
           {isValidating && (
-            <Chip 
+            <Chip
               icon={<CircularProgress size={16} />}
               label="Validating..."
               color="primary"
@@ -294,15 +311,11 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
             {validationSteps.map((step, index) => (
               <React.Fragment key={step.id}>
                 <ListItem>
-                  <ListItemIcon>
-                    {getStepIcon(step.status, step.icon)}
-                  </ListItemIcon>
+                  <ListItemIcon>{getStepIcon(step.status, step.icon)}</ListItemIcon>
                   <ListItemText
                     primary={
                       <Box display="flex" alignItems="center" gap={2}>
-                        <Typography variant="body1">
-                          {step.label}
-                        </Typography>
+                        <Typography variant="body1">{step.label}</Typography>
                         <Chip
                           label={step.status.charAt(0).toUpperCase() + step.status.slice(1)}
                           color={getStepColor(step.status) as any}
@@ -331,7 +344,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
             <Typography variant="h6" gutterBottom>
               Validation Results
             </Typography>
-            
+
             <Box display="flex" gap={2} mb={2}>
               <Chip
                 icon={canProceed ? <CheckCircleIcon /> : <ErrorIcon />}
@@ -419,9 +432,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
         {validationResult && Object.keys(validationResult.system_info).length > 0 && (
           <Box>
             <Box display="flex" alignItems="center" gap={1} mb={2}>
-              <Typography variant="h6">
-                System Information
-              </Typography>
+              <Typography variant="h6">System Information</Typography>
               <IconButton
                 size="small"
                 onClick={() => setShowSystemInfo(!showSystemInfo)}
@@ -432,12 +443,14 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
             </Box>
             <Collapse in={showSystemInfo}>
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                <pre style={{ 
-                  fontSize: '0.875rem', 
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word'
-                }}>
+                <pre
+                  style={{
+                    fontSize: '0.875rem',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
                   {validationResult.system_info.system_details || 'No system details available'}
                 </pre>
               </Paper>
@@ -447,14 +460,10 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
       </DialogContent>
 
       <DialogActions>
-        <Button
-          onClick={handleClose}
-          disabled={isValidating}
-          data-testid="cancel-validation"
-        >
+        <Button onClick={handleClose} disabled={isValidating} data-testid="cancel-validation">
           Cancel
         </Button>
-        
+
         {validationResult && !canProceed && (
           <Button
             onClick={startValidation}
@@ -465,7 +474,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
             Retry Validation
           </Button>
         )}
-        
+
         <Button
           onClick={onProceed}
           variant="contained"

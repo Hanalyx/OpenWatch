@@ -1,6 +1,6 @@
 /**
  * Unified Authentication Headers Hook
- * 
+ *
  * Consolidates authentication token access patterns across the application.
  * Replaces 52+ instances of direct localStorage.getItem('auth_token') calls
  * with a centralized, consistent approach.
@@ -11,7 +11,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 
 interface AuthHeaders {
-  'Authorization'?: string;
+  Authorization?: string;
   'Content-Type': string;
   [key: string]: string | undefined;
 }
@@ -24,13 +24,13 @@ interface AuthHeadersResult {
 
 /**
  * Hook for getting authenticated headers for API requests
- * 
+ *
  * @returns Object containing headers, authentication status, and token
  */
 export const useAuthHeaders = (): AuthHeadersResult => {
   // Try to get token from Redux store first (preferred)
   const storeToken = useSelector((state: RootState) => state.auth?.token);
-  
+
   // Fallback to localStorage for backwards compatibility
   const localToken = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -45,7 +45,7 @@ export const useAuthHeaders = (): AuthHeadersResult => {
 
   const headers = useMemo((): AuthHeaders => {
     const baseHeaders: AuthHeaders = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     if (token) {
@@ -58,7 +58,7 @@ export const useAuthHeaders = (): AuthHeadersResult => {
   return {
     headers,
     isAuthenticated,
-    token
+    token,
   };
 };
 
@@ -75,7 +75,7 @@ export const getAuthHeaders = (): Record<string, string> => {
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   };
 
   if (token) {

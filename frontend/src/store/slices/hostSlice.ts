@@ -32,13 +32,10 @@ export const fetchHosts = createAsyncThunk('hosts/fetchHosts', async () => {
   return response.data;
 });
 
-export const createHost = createAsyncThunk(
-  'hosts/createHost',
-  async (hostData: Partial<Host>) => {
-    const response = await api.post('/hosts', hostData);
-    return response.data;
-  }
-);
+export const createHost = createAsyncThunk('hosts/createHost', async (hostData: Partial<Host>) => {
+  const response = await api.post('/hosts', hostData);
+  return response.data;
+});
 
 export const updateHost = createAsyncThunk(
   'hosts/updateHost',
@@ -48,13 +45,10 @@ export const updateHost = createAsyncThunk(
   }
 );
 
-export const deleteHost = createAsyncThunk(
-  'hosts/deleteHost',
-  async (id: string) => {
-    await api.delete(`/hosts/${id}`);
-    return id;
-  }
-);
+export const deleteHost = createAsyncThunk('hosts/deleteHost', async (id: string) => {
+  await api.delete(`/hosts/${id}`);
+  return id;
+});
 
 const hostSlice = createSlice({
   name: 'hosts',

@@ -96,11 +96,7 @@ interface TabPanelProps {
 const TabPanel = React.memo<TabPanelProps>(({ children, value, index }) => {
   const isVisible = value === index;
   return (
-    <div
-      role="tabpanel"
-      aria-hidden={!isVisible}
-      style={{ display: isVisible ? 'block' : 'none' }}
-    >
+    <div role="tabpanel" aria-hidden={!isVisible} style={{ display: isVisible ? 'block' : 'none' }}>
       <Box sx={{ py: 3 }}>{children}</Box>
     </div>
   );
@@ -165,14 +161,23 @@ const OView: React.FC = () => {
       setEvents(newEvents);
       setTotalEvents(response.total || 0);
       setLastUpdated(new Date());
-
     } catch (err: any) {
       setError('Failed to load audit events');
       console.error('Error loading audit events:', err);
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, debouncedSearchQuery, actionFilter, resourceFilter, severityFilter, userFilter, dateFrom, dateTo]);
+  }, [
+    page,
+    rowsPerPage,
+    debouncedSearchQuery,
+    actionFilter,
+    resourceFilter,
+    severityFilter,
+    userFilter,
+    dateFrom,
+    dateTo,
+  ]);
 
   // Memoized loadAuditStats to prevent unnecessary re-creations
   const loadAuditStats = useCallback(async () => {
@@ -219,7 +224,7 @@ const OView: React.FC = () => {
     if (!autoRefreshEnabled) return;
 
     const interval = setInterval(() => {
-      const currentTab = activeTabRef.current;  // Use ref to get CURRENT tab value
+      const currentTab = activeTabRef.current; // Use ref to get CURRENT tab value
       if (currentTab === 0) {
         // Security Audit tab - refresh events and stats
         loadAuditEventsRef.current();
@@ -230,7 +235,7 @@ const OView: React.FC = () => {
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [autoRefreshEnabled]);  // Remove activeTab from deps - we use ref instead
+  }, [autoRefreshEnabled]); // Remove activeTab from deps - we use ref instead
 
   const handleRefresh = async () => {
     // Context-aware refresh based on active tab
@@ -258,7 +263,7 @@ const OView: React.FC = () => {
   // Update the "Updated Xs ago" display every second
   useEffect(() => {
     const timer = setInterval(() => {
-      setTick(t => t + 1);
+      setTick((t) => t + 1);
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -314,27 +319,39 @@ const OView: React.FC = () => {
   };
 
   // Memoized StatCard to prevent unnecessary re-renders
-  const StatCard = React.memo<{ title: string; value: number; icon: React.ReactNode; color?: string }>(
-    ({ title, value, icon, color = 'primary' }) => (
-      <Card sx={{ height: '100%' }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box>
-              <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: `${color}.main` }}>
-                {value.toLocaleString()}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {title}
-              </Typography>
-            </Box>
-            <Avatar sx={{ bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1), color: `${color}.main` }}>
-              {icon}
-            </Avatar>
+  const StatCard = React.memo<{
+    title: string;
+    value: number;
+    icon: React.ReactNode;
+    color?: string;
+  }>(({ title, value, icon, color = 'primary' }) => (
+    <Card sx={{ height: '100%' }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography
+              variant="h4"
+              component="div"
+              sx={{ fontWeight: 'bold', color: `${color}.main` }}
+            >
+              {value.toLocaleString()}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {title}
+            </Typography>
           </Box>
-        </CardContent>
-      </Card>
-    )
-  );
+          <Avatar
+            sx={{
+              bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1),
+              color: `${color}.main`,
+            }}
+          >
+            {icon}
+          </Avatar>
+        </Box>
+      </CardContent>
+    </Card>
+  ));
   StatCard.displayName = 'StatCard';
 
   return (
@@ -357,12 +374,22 @@ const OView: React.FC = () => {
               </Typography>
             )}
             {activeTab === 1 && (
-              <Typography variant="caption" color="warning.main" sx={{ mr: 1, fontStyle: 'italic' }}>
+              <Typography
+                variant="caption"
+                color="warning.main"
+                sx={{ mr: 1, fontStyle: 'italic' }}
+              >
                 Manual refresh only
               </Typography>
             )}
             {activeTab === 0 && (
-              <Tooltip title={autoRefreshEnabled ? "Pause auto-refresh (Security Audit only)" : "Resume auto-refresh (Security Audit only)"}>
+              <Tooltip
+                title={
+                  autoRefreshEnabled
+                    ? 'Pause auto-refresh (Security Audit only)'
+                    : 'Resume auto-refresh (Security Audit only)'
+                }
+              >
                 <IconButton onClick={toggleAutoRefresh} color="primary" size="small">
                   {autoRefreshEnabled ? <Pause /> : <PlayArrow />}
                 </IconButton>
@@ -409,238 +436,272 @@ const OView: React.FC = () => {
         <TabPanel value={activeTab} index={0}>
           {/* Original audit dashboard content */}
 
-        {/* Statistics Cards */}
-        {stats && (
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Total Events" value={stats.total_events} icon={<Security />} color="primary" />
+          {/* Statistics Cards */}
+          {stats && (
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Total Events"
+                  value={stats.total_events}
+                  icon={<Security />}
+                  color="primary"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Login Attempts"
+                  value={stats.login_attempts}
+                  icon={<Login />}
+                  color="info"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Failed Logins"
+                  value={stats.failed_logins}
+                  icon={<ErrorIcon />}
+                  color="error"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Scan Operations"
+                  value={stats.scan_operations}
+                  icon={<Scanner />}
+                  color="success"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Admin Actions"
+                  value={stats.admin_actions}
+                  icon={<Settings />}
+                  color="warning"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Security Events"
+                  value={stats.security_events}
+                  icon={<Warning />}
+                  color="error"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Unique Users"
+                  value={stats.unique_users}
+                  icon={<Person />}
+                  color="info"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  title="Unique IPs"
+                  value={stats.unique_ips}
+                  icon={<Computer />}
+                  color="secondary"
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Login Attempts" value={stats.login_attempts} icon={<Login />} color="info" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Failed Logins" value={stats.failed_logins} icon={<ErrorIcon />} color="error" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Scan Operations" value={stats.scan_operations} icon={<Scanner />} color="success" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Admin Actions" value={stats.admin_actions} icon={<Settings />} color="warning" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Security Events" value={stats.security_events} icon={<Warning />} color="error" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Unique Users" value={stats.unique_users} icon={<Person />} color="info" />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard title="Unique IPs" value={stats.unique_ips} icon={<Computer />} color="secondary" />
-            </Grid>
-          </Grid>
-        )}
-
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Search events..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Action</InputLabel>
-                <Select
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                  label="Action"
-                >
-                  <MenuItem value="">All Actions</MenuItem>
-                  <MenuItem value="LOGIN">Login</MenuItem>
-                  <MenuItem value="SCAN">Scan</MenuItem>
-                  <MenuItem value="ADMIN">Admin</MenuItem>
-                  <MenuItem value="USER">User</MenuItem>
-                  <MenuItem value="HOST">Host</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Resource</InputLabel>
-                <Select
-                  value={resourceFilter}
-                  onChange={(e) => setResourceFilter(e.target.value)}
-                  label="Resource"
-                >
-                  <MenuItem value="">All Resources</MenuItem>
-                  <MenuItem value="auth">Authentication</MenuItem>
-                  <MenuItem value="scan">Scans</MenuItem>
-                  <MenuItem value="host">Hosts</MenuItem>
-                  <MenuItem value="user">Users</MenuItem>
-                  <MenuItem value="system">System</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Severity</InputLabel>
-                <Select
-                  value={severityFilter}
-                  onChange={(e) => setSeverityFilter(e.target.value)}
-                  label="Severity"
-                >
-                  <MenuItem value="">All Severities</MenuItem>
-                  <MenuItem value="info">Info</MenuItem>
-                  <MenuItem value="warning">Warning</MenuItem>
-                  <MenuItem value="error">Error</MenuItem>
-                  <MenuItem value="critical">Critical</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Filter by user..."
-                value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
-              />
-            </Grid>
-          </Grid>
-        </Paper>
-
-        {/* Events Table */}
-        <Paper>
-          {error && (
-            <Alert severity="error" sx={{ m: 2 }}>
-              {error}
-            </Alert>
           )}
-          
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Timestamp</TableCell>
-                  <TableCell>Severity</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>User</TableCell>
-                  <TableCell>Resource</TableCell>
-                  <TableCell>IP Address</TableCell>
-                  <TableCell>Details</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
+
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search events..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Action</InputLabel>
+                  <Select
+                    value={actionFilter}
+                    onChange={(e) => setActionFilter(e.target.value)}
+                    label="Action"
+                  >
+                    <MenuItem value="">All Actions</MenuItem>
+                    <MenuItem value="LOGIN">Login</MenuItem>
+                    <MenuItem value="SCAN">Scan</MenuItem>
+                    <MenuItem value="ADMIN">Admin</MenuItem>
+                    <MenuItem value="USER">User</MenuItem>
+                    <MenuItem value="HOST">Host</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Resource</InputLabel>
+                  <Select
+                    value={resourceFilter}
+                    onChange={(e) => setResourceFilter(e.target.value)}
+                    label="Resource"
+                  >
+                    <MenuItem value="">All Resources</MenuItem>
+                    <MenuItem value="auth">Authentication</MenuItem>
+                    <MenuItem value="scan">Scans</MenuItem>
+                    <MenuItem value="host">Hosts</MenuItem>
+                    <MenuItem value="user">Users</MenuItem>
+                    <MenuItem value="system">System</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Severity</InputLabel>
+                  <Select
+                    value={severityFilter}
+                    onChange={(e) => setSeverityFilter(e.target.value)}
+                    label="Severity"
+                  >
+                    <MenuItem value="">All Severities</MenuItem>
+                    <MenuItem value="info">Info</MenuItem>
+                    <MenuItem value="warning">Warning</MenuItem>
+                    <MenuItem value="error">Error</MenuItem>
+                    <MenuItem value="critical">Critical</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Filter by user..."
+                  value={userFilter}
+                  onChange={(e) => setUserFilter(e.target.value)}
+                />
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Events Table */}
+          <Paper>
+            {error && (
+              <Alert severity="error" sx={{ m: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <TableContainer>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                      <CircularProgress />
-                    </TableCell>
+                    <TableCell>Timestamp</TableCell>
+                    <TableCell>Severity</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>User</TableCell>
+                    <TableCell>Resource</TableCell>
+                    <TableCell>IP Address</TableCell>
+                    <TableCell>Details</TableCell>
+                    <TableCell align="center">Actions</TableCell>
                   </TableRow>
-                ) : events.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">
-                        No audit events found
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  events.map((event) => (
-                    <TableRow key={event.id} hover>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {formatTimestamp(event.timestamp)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          icon={getSeverityIcon(event.severity)}
-                          label={event.severity.toUpperCase()}
-                          color={getSeverityColor(event.severity) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {getActionIcon(event.action)}
-                          <Typography variant="body2">
-                            {event.action}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {event.username || 'System'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {event.resource_type}
-                          {event.resource_id && (
-                            <Typography variant="caption" display="block" color="text.secondary">
-                              ID: {event.resource_id}
-                            </Typography>
-                          )}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {event.ip_address}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {event.details || '-'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="View Details">
-                          <IconButton size="small">
-                            <Visibility />
-                          </IconButton>
-                        </Tooltip>
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        <CircularProgress />
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 50, 100]}
-            component="div"
-            count={totalEvents}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-          />
-        </Paper>
+                  ) : events.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        <Typography color="text.secondary">No audit events found</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    events.map((event) => (
+                      <TableRow key={event.id} hover>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {formatTimestamp(event.timestamp)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            icon={getSeverityIcon(event.severity)}
+                            label={event.severity.toUpperCase()}
+                            color={getSeverityColor(event.severity) as any}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {getActionIcon(event.action)}
+                            <Typography variant="body2">{event.action}</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{event.username || 'System'}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {event.resource_type}
+                            {event.resource_id && (
+                              <Typography variant="caption" display="block" color="text.secondary">
+                                ID: {event.resource_id}
+                              </Typography>
+                            )}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontFamily="monospace">
+                            {event.ip_address}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          >
+                            {event.details || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="View Details">
+                            <IconButton size="small">
+                              <Visibility />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              component="div"
+              count={totalEvents}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+            />
+          </Paper>
         </TabPanel>
 
         {/* WEEK 2 PHASE 2: Tab Panel 1 - Host Monitoring (NEW) */}
         <TabPanel value={activeTab} index={1}>
-          <HostMonitoringTab
-            ref={hostMonitoringRef}
-            onLastUpdated={handleLastUpdated}
-          />
+          <HostMonitoringTab ref={hostMonitoringRef} onLastUpdated={handleLastUpdated} />
         </TabPanel>
       </Box>
     </Container>

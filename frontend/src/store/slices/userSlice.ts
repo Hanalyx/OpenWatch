@@ -31,13 +31,10 @@ export const fetchUsers = createAsyncThunk('users/fetchUsers', async () => {
   return response.data;
 });
 
-export const createUser = createAsyncThunk(
-  'users/createUser',
-  async (userData: Partial<User>) => {
-    const response = await api.post('/users', userData);
-    return response.data;
-  }
-);
+export const createUser = createAsyncThunk('users/createUser', async (userData: Partial<User>) => {
+  const response = await api.post('/users', userData);
+  return response.data;
+});
 
 export const updateUser = createAsyncThunk(
   'users/updateUser',
@@ -47,13 +44,10 @@ export const updateUser = createAsyncThunk(
   }
 );
 
-export const deleteUser = createAsyncThunk(
-  'users/deleteUser',
-  async (id: string) => {
-    await api.delete(`/users/${id}`);
-    return id;
-  }
-);
+export const deleteUser = createAsyncThunk('users/deleteUser', async (id: string) => {
+  await api.delete(`/users/${id}`);
+  return id;
+});
 
 export const toggleUserStatus = createAsyncThunk(
   'users/toggleUserStatus',

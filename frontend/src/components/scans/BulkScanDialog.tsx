@@ -25,7 +25,7 @@ import {
   Grid,
   Slider,
   IconButton,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Computer,
@@ -37,7 +37,7 @@ import {
   Info,
   CheckCircle,
   AutoAwesome,
-  Timer
+  Timer,
 } from '@mui/icons-material';
 
 interface Host {
@@ -74,7 +74,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
   onClose,
   selectedHosts,
   onScanStarted,
-  onError
+  onError,
 }) => {
   const [templateId, setTemplateId] = useState('auto');
   const [namePrefix, setNamePrefix] = useState('Bulk Scan');
@@ -87,11 +87,36 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const templates = [
-    { id: 'auto', name: 'Smart Scan (AI-Recommended)', description: 'Intelligent profile selection per host', icon: '🤖' },
-    { id: 'essential', name: 'Essential Security', description: 'Quick security baseline', icon: '⚡' },
-    { id: 'xccdf_org.ssgproject.content_profile_cui', name: 'CUI Compliance', description: 'Controlled Unclassified Information', icon: '🛡️' },
-    { id: 'xccdf_org.ssgproject.content_profile_stig', name: 'STIG Security', description: 'Security Technical Implementation Guide', icon: '🔒' },
-    { id: 'xccdf_org.ssgproject.content_profile_cis', name: 'CIS Benchmark', description: 'Center for Internet Security', icon: '🎯' }
+    {
+      id: 'auto',
+      name: 'Smart Scan (AI-Recommended)',
+      description: 'Intelligent profile selection per host',
+      icon: '🤖',
+    },
+    {
+      id: 'essential',
+      name: 'Essential Security',
+      description: 'Quick security baseline',
+      icon: '⚡',
+    },
+    {
+      id: 'xccdf_org.ssgproject.content_profile_cui',
+      name: 'CUI Compliance',
+      description: 'Controlled Unclassified Information',
+      icon: '🛡️',
+    },
+    {
+      id: 'xccdf_org.ssgproject.content_profile_stig',
+      name: 'STIG Security',
+      description: 'Security Technical Implementation Guide',
+      icon: '🔒',
+    },
+    {
+      id: 'xccdf_org.ssgproject.content_profile_cis',
+      name: 'CIS Benchmark',
+      description: 'Center for Internet Security',
+      icon: '🎯',
+    },
   ];
 
   useEffect(() => {
@@ -109,35 +134,48 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       const mockAnalysis: FeasibilityAnalysis = {
         feasible: selectedHosts.length <= 50,
         total_hosts: selectedHosts.length,
-        estimated_time_minutes: Math.ceil(selectedHosts.length * 10 / 3), // Assuming 3 parallel scans
+        estimated_time_minutes: Math.ceil((selectedHosts.length * 10) / 3), // Assuming 3 parallel scans
         max_parallel_scans: Math.min(5, selectedHosts.length),
-        os_groups: selectedHosts.reduce((acc, host) => {
-          const os = host.operating_system || 'Unknown';
-          acc[os] = (acc[os] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        environment_groups: selectedHosts.reduce((acc, host) => {
-          const env = host.environment || 'Unknown';
-          acc[env] = (acc[env] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        recommendations: []
+        os_groups: selectedHosts.reduce(
+          (acc, host) => {
+            const os = host.operating_system || 'Unknown';
+            acc[os] = (acc[os] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>
+        ),
+        environment_groups: selectedHosts.reduce(
+          (acc, host) => {
+            const env = host.environment || 'Unknown';
+            acc[env] = (acc[env] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>
+        ),
+        recommendations: [],
       };
 
       // Add recommendations based on analysis
       if (selectedHosts.length > 20) {
-        mockAnalysis.recommendations.push('Large batch detected - consider splitting into smaller groups');
+        mockAnalysis.recommendations.push(
+          'Large batch detected - consider splitting into smaller groups'
+        );
       }
 
       const osTypes = Object.keys(mockAnalysis.os_groups).length;
       if (osTypes > 3) {
-        mockAnalysis.recommendations.push('Multiple OS types detected - scans will be optimized per OS');
+        mockAnalysis.recommendations.push(
+          'Multiple OS types detected - scans will be optimized per OS'
+        );
       }
 
-      const hasProductionAndOthers = mockAnalysis.environment_groups['production'] && 
+      const hasProductionAndOthers =
+        mockAnalysis.environment_groups['production'] &&
         Object.keys(mockAnalysis.environment_groups).length > 1;
       if (hasProductionAndOthers) {
-        mockAnalysis.recommendations.push('Production and non-production hosts mixed - consider separate scans');
+        mockAnalysis.recommendations.push(
+          'Production and non-production hosts mixed - consider separate scans'
+        );
       }
 
       if (mockAnalysis.recommendations.length === 0) {
@@ -149,7 +187,6 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       }
 
       setFeasibility(mockAnalysis);
-
     } catch (err: any) {
       setError(err.message || 'Failed to analyze bulk scan feasibility');
     } finally {
@@ -162,21 +199,21 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      const hostIds = selectedHosts.map(host => host.id);
+      const hostIds = selectedHosts.map((host) => host.id);
 
       const response = await fetch('/api/scans/bulk-scan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           host_ids: hostIds,
           template_id: templateId,
           priority,
           name_prefix: namePrefix,
-          stagger_delay: staggerDelay
-        })
+          stagger_delay: staggerDelay,
+        }),
       });
 
       if (response.ok) {
@@ -240,88 +277,86 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
               <Typography>Analyzing scan feasibility...</Typography>
             </CardContent>
           </Card>
-        ) : feasibility && (
-          <Card sx={{ mb: 2 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <AutoAwesome color={feasibility.feasible ? 'success' : 'error'} />
-                <Typography variant="h6">
-                  Feasibility Analysis
-                </Typography>
-                <Chip
-                  label={feasibility.feasible ? 'Optimal' : 'Issues Found'}
-                  color={feasibility.feasible ? 'success' : 'error'}
-                  size="small"
-                />
-              </Box>
-
-              <Grid container spacing={2}>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="primary">
-                      {feasibility.total_hosts}
-                    </Typography>
-                    <Typography variant="caption">Total Hosts</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="success.main">
-                      {feasibility.max_parallel_scans}
-                    </Typography>
-                    <Typography variant="caption">Parallel Scans</Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="warning.main">
-                      {formatEstimatedTime(feasibility.estimated_time_minutes)}
-                    </Typography>
-                    <Typography variant="caption">Estimated Duration</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              {Object.keys(feasibility.os_groups).length > 1 && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Operating Systems:
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {Object.entries(feasibility.os_groups).map(([os, count]) => (
-                      <Chip key={os} label={`${os} (${count})`} size="small" variant="outlined" />
-                    ))}
-                  </Box>
+        ) : (
+          feasibility && (
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <AutoAwesome color={feasibility.feasible ? 'success' : 'error'} />
+                  <Typography variant="h6">Feasibility Analysis</Typography>
+                  <Chip
+                    label={feasibility.feasible ? 'Optimal' : 'Issues Found'}
+                    color={feasibility.feasible ? 'success' : 'error'}
+                    size="small"
+                  />
                 </Box>
-              )}
 
-              {feasibility.recommendations.length > 0 && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Recommendations:
-                  </Typography>
-                  <List dense>
-                    {feasibility.recommendations.map((rec, index) => (
-                      <ListItem key={index} sx={{ py: 0 }}>
-                        <ListItemIcon sx={{ minWidth: 32 }}>
-                          <Info fontSize="small" color="info" />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={<Typography variant="body2">{rec}</Typography>}
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
-                </Box>
-              )}
+                <Grid container spacing={2}>
+                  <Grid item xs={6} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="primary">
+                        {feasibility.total_hosts}
+                      </Typography>
+                      <Typography variant="caption">Total Hosts</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="success.main">
+                        {feasibility.max_parallel_scans}
+                      </Typography>
+                      <Typography variant="caption">Parallel Scans</Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h4" color="warning.main">
+                        {formatEstimatedTime(feasibility.estimated_time_minutes)}
+                      </Typography>
+                      <Typography variant="caption">Estimated Duration</Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
 
-              {!feasibility.feasible && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {feasibility.reason}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+                {Object.keys(feasibility.os_groups).length > 1 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Operating Systems:
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {Object.entries(feasibility.os_groups).map(([os, count]) => (
+                        <Chip key={os} label={`${os} (${count})`} size="small" variant="outlined" />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {feasibility.recommendations.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Recommendations:
+                    </Typography>
+                    <List dense>
+                      {feasibility.recommendations.map((rec, index) => (
+                        <ListItem key={index} sx={{ py: 0 }}>
+                          <ListItemIcon sx={{ minWidth: 32 }}>
+                            <Info fontSize="small" color="info" />
+                          </ListItemIcon>
+                          <ListItemText primary={<Typography variant="body2">{rec}</Typography>} />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Box>
+                )}
+
+                {!feasibility.feasible && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    {feasibility.reason}
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )
         )}
 
         {/* Scan Configuration */}
@@ -359,11 +394,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
 
           <FormControl fullWidth>
             <InputLabel>Priority</InputLabel>
-            <Select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              label="Priority"
-            >
+            <Select value={priority} onChange={(e) => setPriority(e.target.value)} label="Priority">
               <MenuItem value="low">Low</MenuItem>
               <MenuItem value="normal">Normal</MenuItem>
               <MenuItem value="high">High</MenuItem>
@@ -371,9 +402,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
           </FormControl>
 
           <Box>
-            <Typography gutterBottom>
-              Stagger Delay: {staggerDelay} seconds
-            </Typography>
+            <Typography gutterBottom>Stagger Delay: {staggerDelay} seconds</Typography>
             <Slider
               value={staggerDelay}
               onChange={(_, value) => setStaggerDelay(value as number)}
@@ -385,7 +414,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
                 { value: 10, label: '10s' },
                 { value: 30, label: '30s' },
                 { value: 60, label: '1m' },
-                { value: 120, label: '2m' }
+                { value: 120, label: '2m' },
               ]}
             />
             <Typography variant="caption" color="text.secondary">
@@ -395,10 +424,7 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
 
           <FormControlLabel
             control={
-              <Switch
-                checked={emailNotify}
-                onChange={(e) => setEmailNotify(e.target.checked)}
-              />
+              <Switch checked={emailNotify} onChange={(e) => setEmailNotify(e.target.checked)} />
             }
             label="Email notification when all scans complete"
           />

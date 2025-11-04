@@ -69,9 +69,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({
         value={selectedFrameworkData || null}
         onChange={handleFrameworkChange}
         disabled={disabled}
-        renderInput={(params) => (
-          <TextField {...params} label="Framework" required />
-        )}
+        renderInput={(params) => <TextField {...params} label="Framework" required />}
       />
 
       {selectedFramework && selectedFrameworkData && (
@@ -81,9 +79,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({
           value={selectedVersion || null}
           onChange={handleVersionChange}
           disabled={disabled}
-          renderInput={(params) => (
-            <TextField {...params} label="Version" required />
-          )}
+          renderInput={(params) => <TextField {...params} label="Version" required />}
         />
       )}
     </Box>

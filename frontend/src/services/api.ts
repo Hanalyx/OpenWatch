@@ -38,7 +38,7 @@ class ApiClient {
       async (config) => {
         // Get token from localStorage first, then fall back to Redux store if available
         let token = localStorage.getItem('auth_token');
-        
+
         // Try Redux store if localStorage token not found
         if (!token && typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
           const store = (window as any).__REDUX_STORE__;
@@ -53,26 +53,29 @@ class ApiClient {
             const loginResponse = await fetch('/api/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: 'admin', password: 'admin123' })
+              body: JSON.stringify({ username: 'admin', password: 'admin123' }),
             });
-            
+
             if (loginResponse.ok) {
               const loginData = await loginResponse.json();
               token = loginData.access_token;
-              
+
               // Store token for future requests
               localStorage.setItem('auth_token', token || '');
               localStorage.setItem('refresh_token', loginData.refresh_token);
               localStorage.setItem('auth_user', JSON.stringify(loginData.user));
-              localStorage.setItem('session_expiry', (Date.now() + loginData.expires_in * 1000).toString());
-              
+              localStorage.setItem(
+                'session_expiry',
+                (Date.now() + loginData.expires_in * 1000).toString()
+              );
+
               console.log('[DEV] Auto-login successful');
             }
           } catch (loginError) {
             console.warn('[DEV] Auto-login failed:', loginError);
           }
         }
-        
+
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -99,7 +102,9 @@ class ApiClient {
       async (error: AxiosError) => {
         // Network error (no response)
         if (!error.response) {
-          const networkError = new Error('Unable to connect to the server. Please check your network connection.');
+          const networkError = new Error(
+            'Unable to connect to the server. Please check your network connection.'
+          );
           (networkError as any).code = 'NETWORK_ERROR';
           (networkError as any).isNetworkError = true;
           return Promise.reject(networkError);
@@ -120,7 +125,7 @@ class ApiClient {
         (enhancedError as any).response = error.response;
         (enhancedError as any).status = error.response?.status;
         (enhancedError as any).statusText = error.response?.statusText;
-        
+
         return Promise.reject(enhancedError);
       }
     );
