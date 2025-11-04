@@ -2,7 +2,6 @@
 Host Management Routes
 """
 
-import json
 import logging
 import uuid
 from datetime import datetime
@@ -19,7 +18,7 @@ from ..config import get_settings
 from ..database import get_db
 
 # NOTE: json and base64 imports removed - using centralized auth service
-from ..services.unified_ssh_service import extract_ssh_key_metadata, format_validation_message, validate_ssh_key
+from ..services.unified_ssh_service import validate_ssh_key
 from ..utils.logging_security import sanitize_id_for_log
 from ..utils.query_builder import QueryBuilder
 
@@ -75,10 +74,7 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
         # Log detailed error server-side for debugging
         logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
         # Return generic error to client (security best practice)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid host ID format"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
 
 
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
@@ -384,58 +380,24 @@ async def create_host(
         # Use display_name if provided, otherwise use hostname
         display_name = host.display_name or host.hostname
 
-        # NEW: Handle credentials using unified_credentials system (Phase 5)
-        encrypted_creds = None  # Keep NULL for unified system
-        if host.auth_method and host.auth_method != "system_default":
-            if host.password or host.ssh_key:
-                from ..services.auth_service import (
-                    AuthMethod,
-                    CredentialData,
-                    CredentialMetadata,
-                    CredentialScope,
-                    get_auth_service,
-                )
+        # Phase 2: Use HostCredentialHandler service for credential validation
+        from ..services.host_credential_handler import HostCredentialHandler
 
-                # Validate SSH key if provided
-                if host.ssh_key:
-                    logger.info(f"Validating SSH key for host '{host.hostname}'")
-                    validation_result = validate_ssh_key(host.ssh_key)
+        credential_handler = HostCredentialHandler(db)
+        host_uuid = uuid.UUID(host_id)
 
-                    if not validation_result.is_valid:
-                        logger.error(
-                            f"SSH key validation failed for host '{host.hostname}': {validation_result.error_message}"
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Invalid SSH key: {validation_result.error_message}",
-                        )
+        # Validate and prepare credentials (if provided)
+        credential_info = credential_handler.validate_and_prepare_credential(
+            hostname=host.hostname,
+            auth_method=host.auth_method,
+            username=host.username,
+            password=host.password,
+            ssh_key=host.ssh_key,
+            host_id=host_uuid,
+        )
 
-                    if validation_result.warnings:
-                        logger.warning(
-                            f"SSH key warnings for host '{host.hostname}': {'; '.join(validation_result.warnings)}"
-                        )
-
-                # Create credential data for unified system
-                credential_data = CredentialData(
-                    username=host.username,
-                    auth_method=AuthMethod(host.auth_method),
-                    password=(host.password if host.auth_method in ["password", "both"] else None),
-                    private_key=(host.ssh_key if host.auth_method in ["ssh_key", "both"] else None),
-                    private_key_passphrase=None,
-                )
-
-                # Create metadata
-                metadata = CredentialMetadata(
-                    name=f"{host.hostname} credential",
-                    description=f"Host-specific credential for {host.hostname}",
-                    scope=CredentialScope.HOST,
-                    target_id=host_id,  # Link to host we're creating
-                    is_default=False,
-                )
-
-                # Store in unified_credentials after host is created
-                # (will be done after the INSERT below)
-                logger.info(f"Preparing host-specific credential for {host.hostname} in unified_credentials")
+        # Keep NULL in hosts.encrypted_credentials (unified system uses unified_credentials table)
+        encrypted_creds = None
 
         db.execute(
             text(
@@ -465,34 +427,23 @@ async def create_host(
 
         db.commit()
 
-        # NEW: Store host-specific credential in unified_credentials if provided (Phase 5)
-        if host.auth_method and host.auth_method != "system_default":
-            if host.password or host.ssh_key:
-                try:
-                    auth_service = get_auth_service(db)
+        # Phase 2: Store credential in unified_credentials using service
+        if credential_info:
+            # Get user UUID for audit trail
+            user_id_result = db.execute(
+                text("SELECT id FROM users WHERE id = :user_id"),
+                {"user_id": current_user.get("id")},
+            )
+            user_row = user_id_result.fetchone()
+            user_uuid = str(user_row[0]) if user_row else None
 
-                    # Get user UUID for created_by field
-                    user_id_result = db.execute(
-                        text("SELECT id FROM users WHERE id = :user_id"),
-                        {"user_id": current_user.get("id")},
-                    )
-                    user_row = user_id_result.fetchone()
-                    user_uuid = str(user_row[0]) if user_row else None
-
-                    # Store credential in unified_credentials
-                    cred_id = auth_service.store_credential(
-                        credential_data=credential_data,
-                        metadata=metadata,
-                        created_by=user_uuid,
-                    )
-                    logger.info(
-                        f"Stored host-specific credential for {host.hostname} in unified_credentials (id: {cred_id})"
-                    )
-
-                except Exception as e:
-                    logger.error(f"Failed to store host-specific credential for {host.hostname}: {e}")
-                    # Don't fail the host creation, just log the error
-                    # Host will fall back to system default
+            # Store credential (gracefully handles failures)
+            credential_handler.store_host_credential(
+                credential_data=credential_info["credential_data"],
+                metadata=credential_info["metadata"],
+                created_by=user_uuid,
+                hostname=host.hostname,
+            )
 
         new_host = Host(
             id=host_id,
