@@ -130,11 +130,22 @@ jobs:
 
       - name: Prepare GitHub Pages
         run: |
+          # Debug: List artifacts structure
+          echo "=== Artifacts structure ==="
+          ls -la
+
           mkdir -p public
-          cp -r user-documentation/* public/
+
+          # Copy user documentation (site/)
+          if [ -d "user-documentation" ]; then
+            cp -r user-documentation/* public/
+          fi
+
+          # Copy API documentation
           mkdir -p public/api
-          cp -r api-documentation/backend/docs/build/* public/api/
-          cp api-documentation/backend/openapi.json public/api/
+          if [ -d "api-documentation" ]; then
+            cp -r api-documentation/* public/api/
+          fi
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
