@@ -4,17 +4,16 @@ Handles user CRUD operations with role-based access control
 """
 
 import logging
-from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, pwd_context
 from ..database import get_db
-from ..rbac import Permission, RBACManager, UserRole, require_admin, require_permission, require_super_admin
+from ..rbac import Permission, RBACManager, UserRole, require_permission
 from ..utils.logging_security import sanitize_id_for_log
 from ..utils.user_helpers import format_user_not_found_error, serialize_user_row
 
@@ -246,6 +245,7 @@ async def create_user(
         # Phase 3: Create synthetic row object for serialization helper
         # Since we're combining request data with database result, we create a simple namespace
         from types import SimpleNamespace
+
         synthetic_row = SimpleNamespace(
             id=row.id,
             username=user_data.username,

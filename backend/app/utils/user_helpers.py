@@ -39,12 +39,9 @@ Created: 2025-11-04 (Phase 3 of QueryBuilder migration)
 """
 
 import logging
-from datetime import datetime
 from typing import Optional
 
 from fastapi import HTTPException, status
-
-from ..schemas import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +83,8 @@ def validate_user_id(user_id_str: str) -> int:
     try:
         return int(user_id_str)
     except (ValueError, TypeError) as e:
-        logger.error(
-            f"Invalid user ID format: {user_id_str[:50]} - {type(e).__name__}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
-        )
+        logger.error(f"Invalid user ID format: {user_id_str[:50]} - {type(e).__name__}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format")
 
 
 def serialize_user_row(row, include_sensitive: bool = False) -> dict:
@@ -141,9 +133,7 @@ def serialize_user_row(row, include_sensitive: bool = False) -> dict:
         user_data["failed_login_attempts"] = row.failed_login_attempts
 
     if hasattr(row, "locked_until"):
-        user_data["locked_until"] = (
-            row.locked_until.isoformat() if row.locked_until else None
-        )
+        user_data["locked_until"] = row.locked_until.isoformat() if row.locked_until else None
 
     # Only include sensitive fields if explicitly requested
     if include_sensitive and hasattr(row, "password_hash"):
@@ -174,10 +164,7 @@ def format_user_not_found_error(user_id: Optional[int] = None) -> HTTPException:
     """
     if user_id:
         logger.warning(f"User not found: {user_id}")
-    return HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="User not found"
-    )
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
 
 def format_validation_error(message: str, field: Optional[str] = None) -> HTTPException:
@@ -199,7 +186,4 @@ def format_validation_error(message: str, field: Optional[str] = None) -> HTTPEx
     if field:
         detail["field"] = field
 
-    return HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=detail
-    )
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
