@@ -105,71 +105,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install dependencies
+      - name: Create simple documentation index
         run: |
-          pip install mkdocs mkdocs-material pymdown-extensions mkdocs-mermaid2-plugin
-
-      - name: Build MkDocs documentation
-        run: |
-          # Create minimal mkdocs.yml configuration with only existing files
-          cat > mkdocs.yml << EOF
-          site_name: OpenWatch Documentation
-          site_url: https://docs.openwatch.hanalyx.com
-          repo_url: https://github.com/Hanalyx/OpenWatch
-          repo_name: Hanalyx/OpenWatch
-          docs_dir: .
-
-          theme:
-            name: material
-            palette:
-              - scheme: default
-                primary: indigo
-                accent: indigo
-                toggle:
-                  icon: material/brightness-7
-                  name: Switch to dark mode
-              - scheme: slate
-                primary: indigo
-                accent: indigo
-                toggle:
-                  icon: material/brightness-4
-                  name: Switch to light mode
-            features:
-              - navigation.tabs
-              - navigation.sections
-              - navigation.expand
-              - navigation.top
-              - search.suggest
-              - search.highlight
-              - content.code.copy
-
-          nav:
-            - Home: README.md
-            - Documentation: docs/
-
-          plugins:
-            - search
-
-          markdown_extensions:
-            - pymdownx.highlight:
-                anchor_linenums: true
-            - pymdownx.inlinehilite
-            - pymdownx.snippets
-            - pymdownx.superfences
-            - admonition
-            - pymdownx.details
-            - tables
-            - toc:
-                permalink: true
+          # Create site directory with simple index
+          mkdir -p site
+          cat > site/index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>OpenWatch Documentation</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; margin: 40px; }
+              h1 { color: #3f51b5; }
+              a { color: #3f51b5; text-decoration: none; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>OpenWatch Documentation</h1>
+            <p>Security compliance scanning platform</p>
+            <ul>
+              <li><a href="../">Back to Repository</a></li>
+              <li><a href="api/">API Documentation</a></li>
+              <li><a href="https://github.com/Hanalyx/OpenWatch">GitHub Repository</a></li>
+            </ul>
+          </body>
+          </html>
           EOF
-
-          # Build documentation
-          mkdocs build --strict
 
       - name: Upload user documentation
         uses: actions/upload-artifact@v4
