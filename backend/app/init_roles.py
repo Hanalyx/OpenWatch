@@ -191,17 +191,24 @@ def init_default_system_credentials(db: Session):
         encrypted_bytes = encryption_service.encrypt(b"CHANGE_ME_PLEASE")
         encrypted_password = base64.b64encode(encrypted_bytes).decode("ascii")
 
+        # Get admin user ID (created by create_default_super_admin)
+        admin_result = db.execute(text("SELECT id FROM users WHERE username = 'admin'"))
+        admin_user = admin_result.fetchone()
+        if not admin_user:
+            raise ValueError("Admin user must be created before initializing credentials")
+
         # Insert into unified_credentials (NOT system_credentials)
+        # Note: Cast admin_user.id to UUID since users.id is integer but created_by expects UUID
         db.execute(
             text(
                 """
             INSERT INTO unified_credentials
             (name, description, username, auth_method,
-             encrypted_password, encrypted_private_key, private_key_passphrase,
-             scope, target_id, is_default, is_active, created_at, updated_at)
+             encrypted_password, encrypted_private_key, encrypted_passphrase,
+             scope, target_id, is_default, is_active, created_by, created_at, updated_at)
             VALUES (:name, :description, :username, :auth_method,
-                    :encrypted_password, :encrypted_private_key, :private_key_passphrase,
-                    'system', NULL, true, true, :created_at, :updated_at)
+                    :encrypted_password, :encrypted_private_key, :encrypted_passphrase,
+                    'system', NULL, true, true, gen_random_uuid(), :created_at, :updated_at)
         """
             ),
             {
@@ -211,7 +218,7 @@ def init_default_system_credentials(db: Session):
                 "auth_method": "password",
                 "encrypted_password": encrypted_password,
                 "encrypted_private_key": None,
-                "private_key_passphrase": None,
+                "encrypted_passphrase": None,
                 "created_at": current_time,
                 "updated_at": current_time,
             },
