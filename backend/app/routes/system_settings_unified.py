@@ -257,14 +257,24 @@ async def create_system_credential(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_system_credential(
     request: Request,
-    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
+    credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Get specific system credential by ID"""
     try:
-        # WEEK 2 MIGRATION: credential_id is now UUID string
-        uuid_id = credential_id
+        # Convert integer ID from frontend to UUID
+        try:
+            external_id = int(credential_id)
+            uuid_id = find_uuid_by_int(db, external_id)
+            if not uuid_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Credential not found for ID {credential_id}",
+                )
+        except ValueError:
+            # If it's already a UUID string, use it directly
+            uuid_id = credential_id
 
         # Get credential using unified service
         encryption_service: EncryptionService = request.app.state.encryption_service
@@ -347,15 +357,25 @@ async def get_default_system_credential(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def update_system_credential(
     request: Request,
-    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
+    credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     credential_update: SystemCredentialsUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Update system credential (Note: Currently creates new due to unified credentials architecture)"""
     try:
-        # WEEK 2 MIGRATION: credential_id is now UUID string from v2 API
-        uuid_id = credential_id
+        # Convert integer ID from frontend to UUID
+        try:
+            external_id = int(credential_id)
+            uuid_id = find_uuid_by_int(db, external_id)
+            if not uuid_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Credential not found for ID {credential_id}",
+                )
+        except ValueError:
+            # If it's already a UUID string, use it directly
+            uuid_id = credential_id
 
         encryption_service: EncryptionService = request.app.state.encryption_service
         auth_service = get_auth_service(db, encryption_service)
@@ -498,14 +518,24 @@ async def update_system_credential(
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credential(
     request: Request,
-    credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
+    credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Delete system credential"""
     try:
-        # WEEK 2 MIGRATION: credential_id is now UUID string from v2 API
-        uuid_id = credential_id
+        # Convert integer ID from frontend to UUID
+        try:
+            external_id = int(credential_id)
+            uuid_id = find_uuid_by_int(db, external_id)
+            if not uuid_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Credential not found for ID {credential_id}",
+                )
+        except ValueError:
+            # If it's already a UUID string, use it directly
+            uuid_id = credential_id
 
         # Delete using unified service
         encryption_service: EncryptionService = request.app.state.encryption_service
