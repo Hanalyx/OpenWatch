@@ -365,7 +365,7 @@ async def update_user(
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
 
-        updates.append("updated_at = CURRENT_TIMESTAMP")
+        # Note: users table does not have updated_at column, only created_at
         # Security Fix: Use parameterized query construction
         update_query = "UPDATE users SET " + ", ".join(updates) + " WHERE id = :user_id"
 
@@ -403,11 +403,12 @@ async def delete_user(
             raise HTTPException(status_code=404, detail="User not found")
 
         # Soft delete (deactivate) instead of hard delete to preserve audit trails
+        # Note: users table does not have updated_at column, only created_at
         db.execute(
             text(
                 """
             UPDATE users
-            SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            SET is_active = false
             WHERE id = :user_id
         """
             ),
@@ -454,11 +455,12 @@ async def change_password(
         new_hashed = pwd_context.hash(password_data.new_password)
 
         # Update password
+        # Note: users table does not have updated_at column, only created_at
         db.execute(
             text(
                 """
             UPDATE users
-            SET hashed_password = :password, updated_at = CURRENT_TIMESTAMP
+            SET hashed_password = :password
             WHERE id = :user_id
         """
             ),
