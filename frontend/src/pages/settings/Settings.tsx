@@ -486,28 +486,19 @@ const Settings: React.FC = () => {
             </Button>
           </Box>
 
-          {/* Warning for placeholder credentials */}
-          {credentials.length > 0 && credentials.some(cred => cred.name.includes("Setup Required")) && (
-            <Alert severity="warning" sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Action Required: Update Default SSH Credentials
-              </Typography>
-              <Typography variant="body2">
-                Default placeholder credentials were created during system initialization. 
-                Please update these credentials with your actual SSH username, password, or SSH key to enable remote scanning and host monitoring.
-              </Typography>
-            </Alert>
-          )}
-
-          {/* Info for empty credentials */}
+          {/* Helpful info for empty credentials */}
           {credentials.length === 0 && (
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="subtitle2" gutterBottom>
-                SSH Credentials Required
+                No System Credentials Configured (Optional)
               </Typography>
-              <Typography variant="body2">
-                Configure SSH credentials to enable remote scanning and host monitoring. 
-                These credentials will be used when individual hosts don't have specific credentials configured.
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                System credentials provide a default SSH credential set for all hosts. This is optional - you can:
+              </Typography>
+              <Typography variant="body2" component="ul" sx={{ ml: 2, mb: 0 }}>
+                <li>Add system credentials here to use as defaults for all hosts</li>
+                <li>Configure individual credentials per host (under Hosts → Edit Host)</li>
+                <li>Use a combination of both (host-specific credentials override system defaults)</li>
               </Typography>
             </Alert>
           )}

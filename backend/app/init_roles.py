@@ -152,9 +152,13 @@ def create_default_super_admin(db: Session):
 
 def init_default_system_credentials(db: Session):
     """
-    Initialize default system SSH credentials for frictionless onboarding
+    Check for system credentials existence (no longer creates placeholder)
 
-    Uses unified_credentials table (system_credentials removed 2025-11-03)
+    System credentials are optional - hosts can have their own credentials.
+    Users should create system credentials via Settings UI if they want
+    a default credential set for all hosts.
+
+    Updated 2025-11-04: Removed placeholder credential creation for cleaner UX
     """
     try:
         # Check if system-level credentials exist in unified_credentials
@@ -171,68 +175,15 @@ def init_default_system_credentials(db: Session):
         existing_count = result.fetchone().count
 
         if existing_count > 0:
-            logger.info(f"Found {existing_count} existing system credentials, skipping initialization")
-            return
-
-        logger.info("No system credentials found - creating placeholder in unified_credentials")
-
-        # Create placeholder credentials that guide users to configure actual credentials
-        placeholder_description = (
-            "Default placeholder credentials - PLEASE UPDATE with your actual SSH credentials. "
-            "This entry provides a starting point for SSH-based scanning and monitoring. "
-            "Update the username, password, or SSH key to match your environment."
-        )
-
-        current_time = datetime.utcnow()
-
-        # Encrypt placeholder password using new encryption service
-        settings = get_settings()
-        encryption_service = create_encryption_service(master_key=settings.master_key)
-        encrypted_bytes = encryption_service.encrypt(b"CHANGE_ME_PLEASE")
-        encrypted_password = base64.b64encode(encrypted_bytes).decode("ascii")
-
-        # Get admin user ID (created by create_default_super_admin)
-        admin_result = db.execute(text("SELECT id FROM users WHERE username = 'admin'"))
-        admin_user = admin_result.fetchone()
-        if not admin_user:
-            raise ValueError("Admin user must be created before initializing credentials")
-
-        # Insert into unified_credentials (NOT system_credentials)
-        # Note: Cast admin_user.id to UUID since users.id is integer but created_by expects UUID
-        db.execute(
-            text(
-                """
-            INSERT INTO unified_credentials
-            (name, description, username, auth_method,
-             encrypted_password, encrypted_private_key, encrypted_passphrase,
-             scope, target_id, is_default, is_active, created_by, created_at, updated_at)
-            VALUES (:name, :description, :username, :auth_method,
-                    :encrypted_password, :encrypted_private_key, :encrypted_passphrase,
-                    'system', NULL, true, true, gen_random_uuid(), :created_at, :updated_at)
-        """
-            ),
-            {
-                "name": "Setup Required - Default SSH Credentials",
-                "description": placeholder_description,
-                "username": "root",
-                "auth_method": "password",
-                "encrypted_password": encrypted_password,
-                "encrypted_private_key": None,
-                "encrypted_passphrase": None,
-                "created_at": current_time,
-                "updated_at": current_time,
-            },
-        )
-
-        db.commit()
-
-        logger.info("Created placeholder system credentials in unified_credentials - users should update these in Settings")
-        logger.warning(
-            "SECURITY NOTICE: Default SSH credentials created with placeholder password. Users must update these credentials in Settings before performing SSH operations."
-        )
+            logger.info(f"Found {existing_count} existing system credentials")
+        else:
+            logger.info(
+                "No system credentials configured - users can create them in Settings if needed. "
+                "Hosts can use individual credentials without system defaults."
+            )
 
     except Exception as e:
-        logger.error(f"Error creating default system credentials: {e}")
+        logger.error(f"Error checking system credentials: {e}")
         db.rollback()
         raise
 
