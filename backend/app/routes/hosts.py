@@ -29,6 +29,58 @@ security = HTTPBearer(auto_error=False)
 router = APIRouter()
 
 
+# =============================================================================
+# Helper Functions
+# =============================================================================
+# Following DRY principle from CLAUDE.md - eliminate duplicate code
+
+
+def validate_host_uuid(host_id: str) -> uuid.UUID:
+    """
+    Validate and convert host ID string to UUID.
+
+    This helper eliminates duplicate validation logic that was repeated across
+    4 endpoints (GET, PUT, DELETE, DELETE /ssh-key). Follows DRY (Don't Repeat
+    Yourself) principle from CLAUDE.md coding standards.
+
+    Why this helper exists:
+    - Reduces code duplication from 4 locations to 1
+    - Ensures consistent error handling across all endpoints
+    - Centralizes security logging for invalid UUIDs
+    - Makes code more maintainable (one place to update logic)
+
+    Args:
+        host_id: String representation of host UUID from API request
+
+    Returns:
+        uuid.UUID: Validated UUID object
+
+    Raises:
+        HTTPException: 400 Bad Request if host_id is not a valid UUID format
+
+    Example:
+        >>> host_uuid = validate_host_uuid("550e8400-e29b-41d4-a716-446655440000")
+        >>> assert isinstance(host_uuid, uuid.UUID)
+
+        >>> validate_host_uuid("invalid-uuid")  # Raises HTTPException 400
+
+    Security:
+        - Logs sanitized ID for audit trail (uses sanitize_id_for_log)
+        - Returns generic error message to client (no information disclosure)
+        - Detailed error logged server-side for debugging
+    """
+    try:
+        return uuid.UUID(host_id)
+    except (ValueError, TypeError) as e:
+        # Log detailed error server-side for debugging
+        logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
+        # Return generic error to client (security best practice)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid host ID format"
+        )
+
+
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
 
 
@@ -475,12 +527,8 @@ async def get_host(
     settings = get_settings()
 
     try:
-        # Validate and convert host_id to UUID
-        try:
-            host_uuid = uuid.UUID(host_id)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
+        # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
+        host_uuid = validate_host_uuid(host_id)
 
         # OW-REFACTOR-001B: Feature flag for QueryBuilder
         if settings.use_query_builder:
@@ -575,12 +623,8 @@ async def update_host(
 ):
     """Update host information"""
     try:
-        # Validate and convert host_id to UUID
-        try:
-            host_uuid = uuid.UUID(host_id)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
+        # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
+        host_uuid = validate_host_uuid(host_id)
 
         # Check if host exists
         result = db.execute(
@@ -832,12 +876,8 @@ async def delete_host(
 ):
     """Remove host from management"""
     try:
-        # Validate and convert host_id to UUID
-        try:
-            host_uuid = uuid.UUID(host_id)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
+        # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
+        host_uuid = validate_host_uuid(host_id)
 
         # Check if host exists
         result = db.execute(
@@ -922,12 +962,8 @@ async def delete_host_ssh_key(
 ):
     """Delete SSH key from host"""
     try:
-        # Validate and convert host_id to UUID
-        try:
-            host_uuid = uuid.UUID(host_id)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
+        # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
+        host_uuid = validate_host_uuid(host_id)
 
         # Check if host exists and has SSH key
         result = db.execute(
