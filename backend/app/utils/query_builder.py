@@ -89,7 +89,9 @@ class QueryBuilder:
         self._joins.append(f"{join_type} JOIN {table} ON {on}")
         return self
 
-    def where(self, condition: str, value: Any = None, param_name: Optional[str] = None) -> "QueryBuilder":
+    def where(
+        self, condition: str, value: Any = None, param_name: Optional[str] = None
+    ) -> "QueryBuilder":
         """
         Add WHERE condition with parameterization
 

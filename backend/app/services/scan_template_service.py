@@ -149,7 +149,9 @@ class ScanTemplateService:
         if is_public is not None:
             query["is_public"] = is_public
 
-        templates = await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
+        templates = (
+            await ScanTemplate.find(query).sort("-created_at").skip(skip).limit(limit).to_list()
+        )
 
         return templates
 
@@ -331,7 +333,9 @@ class ScanTemplateService:
             ScanTemplate.is_default == True,
         )
 
-    async def clone_template(self, template_id: str, new_name: str, created_by: str) -> ScanTemplate:
+    async def clone_template(
+        self, template_id: str, new_name: str, created_by: str
+    ) -> ScanTemplate:
         """
         Clone existing template with new name.
 

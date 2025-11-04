@@ -34,7 +34,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
     def __init__(self):
         super().__init__(ComplianceRule)
 
-    async def find_by_framework(self, framework: str, version: Optional[str] = None) -> List[ComplianceRule]:
+    async def find_by_framework(
+        self, framework: str, version: Optional[str] = None
+    ) -> List[ComplianceRule]:
         """
         Find rules by framework and optional version.
 
@@ -59,7 +61,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
         return await self.find_many(query)
 
-    async def find_by_platform(self, platform: str, version: Optional[str] = None) -> List[ComplianceRule]:
+    async def find_by_platform(
+        self, platform: str, version: Optional[str] = None
+    ) -> List[ComplianceRule]:
         """
         Find rules by platform and optional version.
 
@@ -84,7 +88,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
         return await self.find_many(query)
 
-    async def search_by_title(self, search_term: str, case_sensitive: bool = False) -> List[ComplianceRule]:
+    async def search_by_title(
+        self, search_term: str, case_sensitive: bool = False
+    ) -> List[ComplianceRule]:
         """
         Search rules by title (supports regex).
 
@@ -106,7 +112,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"title": {"$regex": search_term, "$options": options}}
         return await self.find_many(query)
 
-    async def search_by_description(self, search_term: str, case_sensitive: bool = False) -> List[ComplianceRule]:
+    async def search_by_description(
+        self, search_term: str, case_sensitive: bool = False
+    ) -> List[ComplianceRule]:
         """
         Search rules by description (supports regex).
 
@@ -177,7 +185,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"$or": or_conditions}
         return await self.find_many(query)
 
-    async def find_by_framework_and_platform(self, framework: str, platform: str) -> List[ComplianceRule]:
+    async def find_by_framework_and_platform(
+        self, framework: str, platform: str
+    ) -> List[ComplianceRule]:
         """
         Find rules that apply to both a framework and platform.
 

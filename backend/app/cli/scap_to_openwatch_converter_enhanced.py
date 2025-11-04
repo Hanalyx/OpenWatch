@@ -111,7 +111,9 @@ class EnhancedSCAPConverter:
         Args:
             output_format: 'json' or 'bson'
         """
-        logger.info(f"Starting {'dry-run ' if self.dry_run else ''}conversion from {self.scap_content_path}")
+        logger.info(
+            f"Starting {'dry-run ' if self.dry_run else ''}conversion from {self.scap_content_path}"
+        )
 
         # Find all rule.yml files
         rule_files = self._find_rule_files()
@@ -188,7 +190,9 @@ class EnhancedSCAPConverter:
         elif output_format == "bson":
             self._write_bson_rule(openwatch_rule, rule_id)
 
-    def _build_openwatch_rule(self, rule_data: Dict[str, Any], rule_file: Path, rule_id: str) -> Dict[str, Any]:
+    def _build_openwatch_rule(
+        self, rule_data: Dict[str, Any], rule_file: Path, rule_id: str
+    ) -> Dict[str, Any]:
         """Build OpenWatch rule structure (from original converter)"""
         # Base rule structure
         rule = {
@@ -345,7 +349,9 @@ class EnhancedSCAPConverter:
 
             shutil.rmtree(temp_dir)
 
-    async def compare_with_mongodb(self, local_dir: Path, mongodb_url: str, db_name: str) -> List[ComparisonResult]:
+    async def compare_with_mongodb(
+        self, local_dir: Path, mongodb_url: str, db_name: str
+    ) -> List[ComparisonResult]:
         """Compare local rules with MongoDB rules
 
         Args:
@@ -417,7 +423,9 @@ class EnhancedSCAPConverter:
         modified_count = sum(1 for r in results if r.status == "modified")
         unchanged_count = sum(1 for r in results if r.status == "unchanged")
 
-        logger.info(f"Comparison complete: {new_count} new, {modified_count} modified, {unchanged_count} unchanged")
+        logger.info(
+            f"Comparison complete: {new_count} new, {modified_count} modified, {unchanged_count} unchanged"
+        )
 
         return results
 
@@ -508,7 +516,9 @@ class EnhancedSCAPConverter:
         template = rule_data.get("template")
         if not template:
             return {}
-        return self.template_processor.process_template(template.get("name", ""), template.get("vars", {}))
+        return self.template_processor.process_template(
+            template.get("name", ""), template.get("vars", {})
+        )
 
     def _extract_cce_id(self, rule_data: Dict) -> str:
         identifiers = rule_data.get("identifiers", {})
@@ -556,7 +566,9 @@ def main():
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules_converted",
     )
     convert_parser.add_argument("--format", choices=["json", "bson"], default="json")
-    convert_parser.add_argument("--dry-run", action="store_true", help="Show what would be converted")
+    convert_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be converted"
+    )
     convert_parser.add_argument(
         "--extract-variables",
         action="store_true",
@@ -576,7 +588,9 @@ def main():
 
     # Bundle command
     bundle_parser = subparsers.add_parser("bundle", help="Create bundle from existing rules")
-    bundle_parser.add_argument("--source", required=True, help="Source directory with JSON/BSON files")
+    bundle_parser.add_argument(
+        "--source", required=True, help="Source directory with JSON/BSON files"
+    )
     bundle_parser.add_argument("--output", required=True, help="Output bundle path (tar.gz)")
     bundle_parser.add_argument("--version", default="0.0.1", help="Bundle version")
 
@@ -603,7 +617,10 @@ def main():
 
         # Create bundle if requested
         if args.create_bundle and not args.dry_run:
-            bundle_path = Path(args.output_path).parent / f"openwatch-rules-bundle_v{args.bundle_version}.tar.gz"
+            bundle_path = (
+                Path(args.output_path).parent
+                / f"openwatch-rules-bundle_v{args.bundle_version}.tar.gz"
+            )
             converter.create_bundle(Path(args.output_path), bundle_path, args.bundle_version)
 
     elif args.command == "bundle":
@@ -612,7 +629,9 @@ def main():
 
     elif args.command == "compare":
         converter = EnhancedSCAPConverter("", "", False)
-        results = asyncio.run(converter.compare_with_mongodb(Path(args.local), args.mongodb_url, args.database))
+        results = asyncio.run(
+            converter.compare_with_mongodb(Path(args.local), args.mongodb_url, args.database)
+        )
 
         # Print results
         for result in results:

@@ -53,7 +53,12 @@ def log_audit_event(
             logger.warning(f"Invalid user_id parameter type: dict {user_id}. Expected int or None.")
 
             # Special SSH-specific automatic fix
-            if isinstance(user_id, dict) and "policy" in user_id and isinstance(action, str) and "SSH" in action:
+            if (
+                isinstance(user_id, dict)
+                and "policy" in user_id
+                and isinstance(action, str)
+                and "SSH" in action
+            ):
                 logger.warning("🔐 DETECTED SSH LEGACY AUDIT CONFLICT - BLOCKING")
                 logger.warning("SSH events should use enhanced audit system only")
                 logger.warning(f"Blocked action: {action}")
@@ -77,7 +82,9 @@ def log_audit_event(
 
         if not isinstance(ip_address, str):
             logger.error(f"AUDIT IP ADDRESS CONFLICT DETECTED!")
-            logger.error(f"Invalid ip_address parameter type: {type(ip_address)} {ip_address}. Expected str.")
+            logger.error(
+                f"Invalid ip_address parameter type: {type(ip_address)} {ip_address}. Expected str."
+            )
             logger.error(f"Action: {action}, Resource: {resource_type}, User ID: {user_id}")
             import traceback
 
@@ -138,7 +145,11 @@ def log_login_event(
 ) -> bool:
     """Log login attempt to database"""
     action = "LOGIN_SUCCESS" if success else "LOGIN_FAILED"
-    details = f"User {username} logged in successfully" if success else f"Failed login attempt for {username}"
+    details = (
+        f"User {username} logged in successfully"
+        if success
+        else f"Failed login attempt for {username}"
+    )
     if failure_reason and not success:
         details += f" - Reason: {failure_reason}"
 

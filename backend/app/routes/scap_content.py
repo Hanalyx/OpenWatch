@@ -37,7 +37,9 @@ framework_mapper = ComplianceFrameworkMapper()
 
 
 @router.get("/")
-async def list_scap_content(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_scap_content(
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """List all uploaded SCAP content"""
     try:
         result = db.execute(
@@ -90,7 +92,9 @@ async def list_scap_content(db: Session = Depends(get_db), current_user: dict = 
 
 
 @router.get("/statistics")
-async def get_scap_content_stats(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def get_scap_content_stats(
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """Get SCAP content statistics"""
     try:
         # Get content counts - simplified since we don't have os_family, status, etc. columns
@@ -453,7 +457,9 @@ async def delete_scap_content(
                     except Exception:
                         pass
             except Exception as e:
-                logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
+                logger.warning(
+                    f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
+                )
 
         # Delete from database
         db.execute(
@@ -478,13 +484,17 @@ async def delete_scap_content(
         error_msg = str(e.orig) if hasattr(e, "orig") else str(e)
 
         if "foreign key constraint" in error_msg.lower():
-            logger.warning(f"Foreign key constraint violation when deleting SCAP content {content_id}: {error_msg}")
+            logger.warning(
+                f"Foreign key constraint violation when deleting SCAP content {content_id}: {error_msg}"
+            )
             raise HTTPException(
                 status_code=409,
                 detail="Cannot delete SCAP content because it is referenced by existing scan results. Please delete associated scans first.",
             )
         else:
-            logger.error(f"Database integrity error when deleting SCAP content {content_id}: {error_msg}")
+            logger.error(
+                f"Database integrity error when deleting SCAP content {content_id}: {error_msg}"
+            )
             raise HTTPException(
                 status_code=500,
                 detail="Database constraint violation prevented deletion. Please contact an administrator.",
@@ -729,7 +739,9 @@ async def validate_datastream_content(
 
 
 @router.get("/framework-mappings")
-async def get_framework_mappings(framework: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_framework_mappings(
+    framework: Optional[str] = None, current_user: dict = Depends(get_current_user)
+):
     """Get compliance framework mappings"""
     try:
         # This would query the database for framework mappings
@@ -738,7 +750,9 @@ async def get_framework_mappings(framework: Optional[str] = None, current_user: 
             "frameworks": list(framework_mapper.control_families.keys()),
             "mappings_available": len(framework_mapper.framework_mappings),
             "supported_platforms": ["rhel8", "rhel9", "ubuntu20", "ubuntu22"],
-            "framework_info": (framework_mapper.control_families.get(framework) if framework else None),
+            "framework_info": (
+                framework_mapper.control_families.get(framework) if framework else None
+            ),
         }
 
     except Exception as e:

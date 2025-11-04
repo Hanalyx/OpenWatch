@@ -81,7 +81,9 @@ class FrameworkMapper:
             "hipaa": {"pattern": r"hipaa", "versions": {"default": "current"}},
         }
 
-    def map_references_to_frameworks(self, references: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
+    def map_references_to_frameworks(
+        self, references: Dict[str, Any]
+    ) -> Dict[str, Dict[str, List[str]]]:
         """Convert SCAP references to OpenWatch framework structure"""
         frameworks = {}
 
@@ -304,7 +306,9 @@ class SCAPToOpenWatchConverter:
                 self.stats.successfully_converted += 1
 
                 if self.stats.successfully_converted % 50 == 0:
-                    logger.info(f"Converted {self.stats.successfully_converted}/{self.stats.total_rules_found} rules")
+                    logger.info(
+                        f"Converted {self.stats.successfully_converted}/{self.stats.total_rules_found} rules"
+                    )
 
             except Exception as e:
                 logger.error(f"Error converting {rule_file}: {e}")
@@ -552,7 +556,9 @@ class SCAPToOpenWatchConverter:
 def main():
     """Main CLI interface"""
     parser = argparse.ArgumentParser(description="SCAP to OpenWatch Compliance Rules Converter")
-    parser.add_argument("command", choices=["convert", "validate", "stats"], help="Command to execute")
+    parser.add_argument(
+        "command", choices=["convert", "validate", "stats"], help="Command to execute"
+    )
     parser.add_argument(
         "--scap-path",
         default="/home/rracine/hanalyx/scap_content/content",

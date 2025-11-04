@@ -92,7 +92,9 @@ async def discover_host_compliance_infrastructure(
         discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results[
+            "discovery_timestamp"
+        ].isoformat()
 
         logger.info(
             f"Compliance discovery completed for host {host.hostname}: "
@@ -168,7 +170,9 @@ async def bulk_discover_compliance_infrastructure(
             discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results[
+                "discovery_timestamp"
+            ].isoformat()
 
             results[host_id] = ComplianceDiscoveryResponse(**discovery_results)
 
@@ -311,7 +315,9 @@ async def get_supported_compliance_frameworks(current_user=Depends(get_current_u
     return frameworks
 
 
-def _assess_compliance_capabilities(host: Host, discovery_results: Dict[str, Any]) -> ComplianceCapabilityAssessment:
+def _assess_compliance_capabilities(
+    host: Host, discovery_results: Dict[str, Any]
+) -> ComplianceCapabilityAssessment:
     """Assess host's compliance capabilities based on discovery results"""
 
     # Assess SCAP capability

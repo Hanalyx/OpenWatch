@@ -82,7 +82,9 @@ async def deliver_webhook(
         return False
 
     # Create webhook headers with signature
-    headers = create_webhook_headers(event_data, event_data.get("event_type", "unknown"), delivery_id)
+    headers = create_webhook_headers(
+        event_data, event_data.get("event_type", "unknown"), delivery_id
+    )
 
     # Get webhook client
     webhook_client = await get_webhook_client()

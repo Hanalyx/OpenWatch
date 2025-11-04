@@ -146,7 +146,11 @@ class VersionRegistry:
 
     def get_latest_stable(self) -> APIVersion:
         """Get latest stable version"""
-        stable_versions = [v for v in self.versions.values() if v.status == VersionStatus.STABLE and v.is_supported()]
+        stable_versions = [
+            v
+            for v in self.versions.values()
+            if v.status == VersionStatus.STABLE and v.is_supported()
+        ]
         if stable_versions:
             return max(stable_versions, key=lambda x: x.release_date)
         return self.versions[self.default_version]
@@ -261,7 +265,9 @@ class VersionMiddleware:
                 content={
                     "error": "unsupported_api_version",
                     "message": f"API version '{version}' is not supported",
-                    "supported_versions": [v.version for v in self.registry.get_supported_versions()],
+                    "supported_versions": [
+                        v.version for v in self.registry.get_supported_versions()
+                    ],
                 },
             )
 
@@ -272,9 +278,13 @@ class VersionMiddleware:
                 content={
                     "error": "api_version_sunset",
                     "message": f"API version '{version}' is no longer supported",
-                    "sunset_date": (api_version.sunset_date.isoformat() if api_version.sunset_date else None),
+                    "sunset_date": (
+                        api_version.sunset_date.isoformat() if api_version.sunset_date else None
+                    ),
                     "migration_guide": api_version.migration_guide_url,
-                    "supported_versions": [v.version for v in self.registry.get_supported_versions()],
+                    "supported_versions": [
+                        v.version for v in self.registry.get_supported_versions()
+                    ],
                 },
             )
 
@@ -297,11 +307,15 @@ class VersionMiddleware:
             if api_version.sunset_date:
                 response.headers["Sunset"] = api_version.sunset_date.isoformat()
             if api_version.migration_guide_url:
-                response.headers["Link"] = f'<{api_version.migration_guide_url}>; rel="migration-guide"'
+                response.headers["Link"] = (
+                    f'<{api_version.migration_guide_url}>; rel="migration-guide"'
+                )
 
             # Add warning header (RFC 7234)
             warning_date = datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
-            response.headers["Warning"] = f'299 - "API version {version} is deprecated" "{warning_date}"'
+            response.headers["Warning"] = (
+                f'299 - "API version {version} is deprecated" "{warning_date}"'
+            )
 
         return response
 

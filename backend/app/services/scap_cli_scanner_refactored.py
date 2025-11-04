@@ -71,7 +71,9 @@ class SCAPCLIScanner(BaseSCAPScanner):
 
             if hostname in ["localhost", "127.0.0.1", "::1"]:
                 # Local scan
-                return await self._execute_local_scan_async(content_path, profile_id, scan_id, rule_id)
+                return await self._execute_local_scan_async(
+                    content_path, profile_id, scan_id, rule_id
+                )
             else:
                 # Remote scan
                 return await self._execute_remote_scan_async(
@@ -125,7 +127,9 @@ class SCAPCLIScanner(BaseSCAPScanner):
 
             async def scan_with_semaphore(host_config):
                 async with semaphore:
-                    return await self.scan_single_host(host_config, profile_id, content_path, rule_id)
+                    return await self.scan_single_host(
+                        host_config, profile_id, content_path, rule_id
+                    )
 
             # Create tasks for all hosts
             tasks = [scan_with_semaphore(host_config) for host_config in hosts_configs]
@@ -234,7 +238,9 @@ class SCAPCLIScanner(BaseSCAPScanner):
                 "timestamp": datetime.now().isoformat(),
             }
 
-    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
+    def execute_local_scan(
+        self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None
+    ) -> Dict:
         """Execute SCAP scan on local system - delegates to base implementation"""
         try:
             logger.info(f"CLI local scan: {scan_id}")
@@ -244,13 +250,17 @@ class SCAPCLIScanner(BaseSCAPScanner):
             xml_result, html_report, arf_result = self.get_scan_file_paths(scan_dir)
 
             # Build command using base class method
-            cmd = self.build_oscap_command(profile_id, xml_result, html_report, arf_result, content_path, rule_id)
+            cmd = self.build_oscap_command(
+                profile_id, xml_result, html_report, arf_result, content_path, rule_id
+            )
 
             logger.info(f"CLI executing: {' '.join(cmd)}")
 
             import subprocess
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 minutes timeout
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=1800
+            )  # 30 minutes timeout
 
             # Basic result structure for CLI scanner
             scan_results = {
@@ -277,7 +287,9 @@ class SCAPCLIScanner(BaseSCAPScanner):
                     root = tree.getroot()
 
                     # Count rules by result type (simplified)
-                    rule_results = root.findall(".//{http://checklists.nist.gov/xccdf/1.2}rule-result")
+                    rule_results = root.findall(
+                        ".//{http://checklists.nist.gov/xccdf/1.2}rule-result"
+                    )
                     rules_total = len(rule_results)
 
                     rules_passed = len(
@@ -285,7 +297,8 @@ class SCAPCLIScanner(BaseSCAPScanner):
                             r
                             for r in rule_results
                             if r.find("{http://checklists.nist.gov/xccdf/1.2}result") is not None
-                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text == "pass"
+                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text
+                            == "pass"
                         ]
                     )
 
@@ -294,7 +307,8 @@ class SCAPCLIScanner(BaseSCAPScanner):
                             r
                             for r in rule_results
                             if r.find("{http://checklists.nist.gov/xccdf/1.2}result") is not None
-                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text == "fail"
+                            and r.find("{http://checklists.nist.gov/xccdf/1.2}result").text
+                            == "fail"
                         ]
                     )
 
@@ -337,7 +351,9 @@ class SCAPCLIScanner(BaseSCAPScanner):
             logger.info(f"CLI remote scan: {scan_id} on {hostname}")
 
             # Test connection first using base class method
-            connection_test = self.test_ssh_connection(hostname, port, username, auth_method, credential)
+            connection_test = self.test_ssh_connection(
+                hostname, port, username, auth_method, credential
+            )
             if not connection_test["success"]:
                 raise ScanExecutionError(f"SSH connection failed: {connection_test['message']}")
 

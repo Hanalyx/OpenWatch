@@ -132,8 +132,12 @@ class VerificationJob(Document):
     target_rules: List[str] = Field(..., description="Rules to verify")
 
     # Timing configuration
-    delay_before_verification_seconds: int = Field(default=120, description="Wait time before verification")
-    verification_timeout_minutes: int = Field(default=60, description="Timeout for entire verification process")
+    delay_before_verification_seconds: int = Field(
+        default=120, description="Wait time before verification"
+    )
+    verification_timeout_minutes: int = Field(
+        default=60, description="Timeout for entire verification process"
+    )
 
     # Execution status
     status: VerificationStatus = VerificationStatus.PENDING
@@ -185,7 +189,9 @@ class ContinuousComplianceMonitor(Document):
 
     # Monitoring schedule
     scan_frequency_hours: int = Field(default=24, ge=1, le=168, description="How often to scan")
-    verification_delay_minutes: int = Field(default=30, ge=1, le=1440, description="Wait time after remediation")
+    verification_delay_minutes: int = Field(
+        default=30, ge=1, le=1440, description="Wait time after remediation"
+    )
 
     # Actions on non-compliance
     auto_remediate: bool = Field(default=False, description="Automatically trigger remediation")
@@ -293,7 +299,9 @@ class PostRemediationVerificationService:
         # Schedule the verification execution
         asyncio.create_task(self._execute_verification_after_delay(verification))
 
-        logger.info(f"Scheduled verification job: {verification.verification_id} for bulk job: {bulk_job_id}")
+        logger.info(
+            f"Scheduled verification job: {verification.verification_id} for bulk job: {bulk_job_id}"
+        )
         return verification
 
     async def execute_verification_now(
@@ -348,7 +356,12 @@ class PostRemediationVerificationService:
         if triggered_by:
             query["triggered_by"] = triggered_by
 
-        return await VerificationJob.find(query).sort(-VerificationJob.created_at).limit(limit).to_list()
+        return (
+            await VerificationJob.find(query)
+            .sort(-VerificationJob.created_at)
+            .limit(limit)
+            .to_list()
+        )
 
     async def cancel_verification(self, verification_id: str) -> bool:
         """Cancel a pending or running verification job"""
@@ -367,7 +380,9 @@ class PostRemediationVerificationService:
         verification.completed_at = datetime.utcnow()
 
         if verification.started_at:
-            verification.duration_seconds = (verification.completed_at - verification.started_at).total_seconds()
+            verification.duration_seconds = (
+                verification.completed_at - verification.started_at
+            ).total_seconds()
 
         await verification.save()
 
@@ -409,12 +424,16 @@ class PostRemediationVerificationService:
         logger.info(f"Created continuous compliance monitor: {monitor.monitor_id} ({name})")
         return monitor
 
-    async def get_continuous_monitor(self, monitor_id: str) -> Optional[ContinuousComplianceMonitor]:
+    async def get_continuous_monitor(
+        self, monitor_id: str
+    ) -> Optional[ContinuousComplianceMonitor]:
         """Get continuous monitor by ID"""
         if monitor_id in self.continuous_monitors:
             return self.continuous_monitors[monitor_id]
 
-        return await ContinuousComplianceMonitor.find_one(ContinuousComplianceMonitor.monitor_id == monitor_id)
+        return await ContinuousComplianceMonitor.find_one(
+            ContinuousComplianceMonitor.monitor_id == monitor_id
+        )
 
     async def list_continuous_monitors(
         self,
@@ -457,7 +476,9 @@ class PostRemediationVerificationService:
             logger.info(f"Starting verification execution: {verification.verification_id}")
 
             # Get pre-remediation scan results
-            bulk_job = await self.bulk_remediation_service.get_bulk_job_status(verification.bulk_job_id)
+            bulk_job = await self.bulk_remediation_service.get_bulk_job_status(
+                verification.bulk_job_id
+            )
             if not bulk_job:
                 raise ValueError(f"Bulk remediation job not found: {verification.bulk_job_id}")
 
@@ -465,7 +486,9 @@ class PostRemediationVerificationService:
             host_results = []
             for host_id in verification.target_hosts:
                 try:
-                    host_result = await self._verify_single_host(host_id, verification.target_rules, verification)
+                    host_result = await self._verify_single_host(
+                        host_id, verification.target_rules, verification
+                    )
                     host_results.append(host_result)
 
                     if host_result.verification_outcome in [
@@ -485,7 +508,9 @@ class PostRemediationVerificationService:
 
             # Calculate overall success rate
             if verification.hosts_verified > 0:
-                verification.overall_success_rate = verification.hosts_with_improvements / verification.hosts_verified
+                verification.overall_success_rate = (
+                    verification.hosts_with_improvements / verification.hosts_verified
+                )
 
             # Determine overall status
             verification.status = VerificationStatus.COMPLETED
@@ -502,7 +527,9 @@ class PostRemediationVerificationService:
         finally:
             verification.completed_at = datetime.utcnow()
             if verification.started_at:
-                verification.duration_seconds = (verification.completed_at - verification.started_at).total_seconds()
+                verification.duration_seconds = (
+                    verification.completed_at - verification.started_at
+                ).total_seconds()
 
             await verification.save()
 
@@ -596,7 +623,9 @@ class PostRemediationVerificationService:
                 rules_with_errors=rules_with_errors,
                 verification_started=verification_started,
                 verification_completed=datetime.utcnow(),
-                verification_duration_seconds=(datetime.utcnow() - verification_started).total_seconds(),
+                verification_duration_seconds=(
+                    datetime.utcnow() - verification_started
+                ).total_seconds(),
                 post_scan_id=post_scan_id,
             )
 
@@ -609,7 +638,9 @@ class PostRemediationVerificationService:
                 rule_results=[],
                 verification_started=verification_started,
                 verification_completed=datetime.utcnow(),
-                verification_duration_seconds=(datetime.utcnow() - verification_started).total_seconds(),
+                verification_duration_seconds=(
+                    datetime.utcnow() - verification_started
+                ).total_seconds(),
                 verification_errors=[str(e)],
             )
 
@@ -675,7 +706,9 @@ class PostRemediationVerificationService:
         now = datetime.utcnow()
 
         # Get active monitors that are due for scanning
-        monitors = await ContinuousComplianceMonitor.find({"is_active": True, "next_scan_at": {"$lte": now}}).to_list()
+        monitors = await ContinuousComplianceMonitor.find(
+            {"is_active": True, "next_scan_at": {"$lte": now}}
+        ).to_list()
 
         for monitor in monitors:
             try:

@@ -51,7 +51,8 @@ class RemediationExecutorFactory:
 
         if not executor_class:
             raise ValueError(
-                f"Unknown executor type: {executor_type}. " f"Available: {', '.join(cls._executors.keys())}"
+                f"Unknown executor type: {executor_type}. "
+                f"Available: {', '.join(cls._executors.keys())}"
             )
 
         # Instantiate executor (may raise ExecutorNotAvailableError)

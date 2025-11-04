@@ -35,7 +35,9 @@ async def get_openapi_spec_json(
         # Generate enhanced OpenAPI spec
         openapi_spec = _generate_enhanced_openapi_spec(include_internal)
 
-        logger.debug(f"OpenAPI JSON spec requested by user {current_user.get('user_id', 'unknown')}")
+        logger.debug(
+            f"OpenAPI JSON spec requested by user {current_user.get('user_id', 'unknown')}"
+        )
 
         return openapi_spec
 
@@ -65,7 +67,9 @@ async def get_openapi_spec_yaml(
         # Convert to YAML
         yaml_content = yaml.dump(openapi_spec, default_flow_style=False, sort_keys=False)
 
-        logger.debug(f"OpenAPI YAML spec requested by user {current_user.get('user_id', 'unknown')}")
+        logger.debug(
+            f"OpenAPI YAML spec requested by user {current_user.get('user_id', 'unknown')}"
+        )
 
         return Response(
             content=yaml_content,
@@ -94,7 +98,9 @@ async def get_postman_collection(
     try:
         collection = _generate_postman_collection()
 
-        logger.debug(f"Postman collection requested by user {current_user.get('user_id', 'unknown')}")
+        logger.debug(
+            f"Postman collection requested by user {current_user.get('user_id', 'unknown')}"
+        )
 
         return collection
 
@@ -120,7 +126,9 @@ async def get_sdk_examples(
     try:
         examples = _generate_sdk_examples(language)
 
-        logger.debug(f"SDK examples ({language}) requested by user {current_user.get('user_id', 'unknown')}")
+        logger.debug(
+            f"SDK examples ({language}) requested by user {current_user.get('user_id', 'unknown')}"
+        )
 
         return examples
 
@@ -358,7 +366,9 @@ def _generate_postman_collection() -> Dict[str, Any]:
                             "header": [{"key": "Content-Type", "value": "application/json"}],
                             "body": {
                                 "mode": "raw",
-                                "raw": json.dumps({"username": "admin", "password": "your_password"}),
+                                "raw": json.dumps(
+                                    {"username": "admin", "password": "your_password"}
+                                ),
                             },
                             "url": {
                                 "raw": "{{base_url}}/../auth/login",

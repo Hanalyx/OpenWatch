@@ -47,7 +47,9 @@ async def generate_benchmark(
     try:
         db = mongo_service.mongo_manager.database
 
-        logger.info(f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}")
+        logger.info(
+            f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}"
+        )
 
         # Create generator service
         generator = XCCDFGeneratorService(db)
@@ -123,7 +125,9 @@ async def generate_tailoring(
     try:
         db = mongo_service.mongo_manager.database
 
-        logger.info(f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}")
+        logger.info(
+            f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}"
+        )
 
         # Create generator service
         generator = XCCDFGeneratorService(db)

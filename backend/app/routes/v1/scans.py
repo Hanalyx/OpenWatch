@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from ...auth import get_current_user
-from ..scans import router as scans_router  # Import existing functionality from the main scans router
+from ..scans import (
+    router as scans_router,
+)  # Import existing functionality from the main scans router
 
 logger = logging.getLogger(__name__)
 

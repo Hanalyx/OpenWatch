@@ -40,7 +40,9 @@ class TracingConfig:
         self.jaeger_endpoint = jaeger_endpoint or os.getenv(
             "JAEGER_ENDPOINT", "http://secureops-jaeger:14268/api/traces"
         )
-        self.otlp_endpoint = otlp_endpoint or os.getenv("OTLP_ENDPOINT", "http://secureops-jaeger:14250")
+        self.otlp_endpoint = otlp_endpoint or os.getenv(
+            "OTLP_ENDPOINT", "http://secureops-jaeger:14250"
+        )
 
         self.tracer_provider = None
         self.tracer = None
@@ -96,7 +98,9 @@ class TracingConfig:
 
         # OTLP exporter
         try:
-            otlp_exporter = OTLPSpanExporter(endpoint=self.otlp_endpoint, insecure=True)  # Use TLS in production
+            otlp_exporter = OTLPSpanExporter(
+                endpoint=self.otlp_endpoint, insecure=True
+            )  # Use TLS in production
             exporters.append(otlp_exporter)
             logger.info("OTLP exporter configured")
         except Exception as e:

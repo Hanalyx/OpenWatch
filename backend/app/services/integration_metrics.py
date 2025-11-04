@@ -128,7 +128,9 @@ class IntegrationMetricsCollector:
             while self.metrics and self.metrics[0].timestamp < cutoff_time:
                 self.metrics.popleft()
 
-    def get_metrics_summary(self, operation: Optional[str] = None, hours: int = 1) -> Dict[str, MetricsSummary]:
+    def get_metrics_summary(
+        self, operation: Optional[str] = None, hours: int = 1
+    ) -> Dict[str, MetricsSummary]:
         """Get aggregated metrics summary"""
         with self.lock:
             self.cleanup_old_metrics()
@@ -165,7 +167,9 @@ class IntegrationMetricsCollector:
                         average_duration=sum(durations) / len(durations),
                         min_duration=min(durations),
                         max_duration=max(durations),
-                        p95_duration=(durations[p95_index] if p95_index < len(durations) else max(durations)),
+                        p95_duration=(
+                            durations[p95_index] if p95_index < len(durations) else max(durations)
+                        ),
                         error_rate=(len(failed) / len(metrics_list)) * 100,
                     )
 
@@ -203,7 +207,9 @@ class IntegrationMetricsCollector:
                 if metric.timestamp >= cutoff_time:
                     operation_counts[metric.operation] += 1
 
-            stats["top_operations"] = dict(sorted(operation_counts.items(), key=lambda x: x[1], reverse=True)[:10])
+            stats["top_operations"] = dict(
+                sorted(operation_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+            )
 
             return stats
 
@@ -223,7 +229,9 @@ class IntegrationMetricsCollector:
                 lines.append(
                     f"integration_{safe_op}_duration_seconds_sum {summary.average_duration * summary.total_requests}"
                 )
-                lines.append(f"integration_{safe_op}_duration_seconds_count {summary.total_requests}")
+                lines.append(
+                    f"integration_{safe_op}_duration_seconds_count {summary.total_requests}"
+                )
 
                 lines.append(f"# HELP integration_{safe_op}_error_rate Error rate percentage")
                 lines.append(f"# TYPE integration_{safe_op}_error_rate gauge")
@@ -251,7 +259,9 @@ def record_webhook_delivery(success: bool, duration: float, target_service: str,
     )
 
 
-def record_api_call(operation: str, success: bool, duration: float, service: str, error: str = None):
+def record_api_call(
+    operation: str, success: bool, duration: float, service: str, error: str = None
+):
     """Record API call metrics"""
     metrics_collector.record_metric(
         metric_type="duration",
@@ -263,7 +273,9 @@ def record_api_call(operation: str, success: bool, duration: float, service: str
     )
 
 
-def record_remediation_job(job_id: str, status: str, duration: float, rules_count: int, success_count: int):
+def record_remediation_job(
+    job_id: str, status: str, duration: float, rules_count: int, success_count: int
+):
     """Record remediation job metrics"""
     metrics_collector.record_metric(
         metric_type="duration",
@@ -280,8 +292,12 @@ def record_remediation_job(job_id: str, status: str, duration: float, rules_coun
 
 
 # Context managers for easy timing
-time_webhook_delivery = lambda target: metrics_collector.time_operation("webhook_delivery", {"target": target})
+time_webhook_delivery = lambda target: metrics_collector.time_operation(
+    "webhook_delivery", {"target": target}
+)
 time_api_call = lambda operation, service: metrics_collector.time_operation(
     f"api_call_{operation}", {"service": service}
 )
-time_remediation = lambda job_id: metrics_collector.time_operation("remediation_execution", {"job_id": job_id})
+time_remediation = lambda job_id: metrics_collector.time_operation(
+    "remediation_execution", {"job_id": job_id}
+)

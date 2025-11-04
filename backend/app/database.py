@@ -184,14 +184,18 @@ class Host(Base):
     tags = Column(String(500), nullable=True)  # Added for bulk import (comma-separated)
     owner = Column(String(100), nullable=True)  # Added for bulk import
     is_active = Column(Boolean, default=True, nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
+    created_by = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )  # Made optional for development
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Host monitoring fields
     last_check = Column(DateTime, nullable=True)  # Last monitoring check timestamp
     next_check_time = Column(DateTime, nullable=True)  # When next check is scheduled
-    check_priority = Column(Integer, default=5, nullable=False)  # Priority 1-10 (higher = more urgent)
+    check_priority = Column(
+        Integer, default=5, nullable=False
+    )  # Priority 1-10 (higher = more urgent)
     response_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
     last_state_change = Column(DateTime, nullable=True)  # When status last changed
 
@@ -232,24 +236,34 @@ class Scan(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)  # Native UUID
     name = Column(String(100), nullable=False)
-    host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)  # Updated to match Host.id
+    host_id = Column(
+        UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False
+    )  # Updated to match Host.id
     content_id = Column(Integer, ForeignKey("scap_content.id"), nullable=False)
     profile_id = Column(String(100), nullable=False)
-    status = Column(String(20), default="pending", nullable=False)  # pending, running, completed, failed
+    status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, running, completed, failed
     progress = Column(Integer, default=0, nullable=False)  # 0-100
     result_file = Column(String(500), nullable=True)
     report_file = Column(String(500), nullable=True)
     error_message = Column(Text, nullable=True)
     scan_options = Column(Text, nullable=True)  # JSON options
-    started_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made optional for development
+    started_by = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )  # Made optional for development
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     celery_task_id = Column(String(100), nullable=True)
 
     # AEGIS Integration Fields
     remediation_requested = Column(Boolean, default=False, nullable=False)
-    aegis_remediation_id = Column(UUID(as_uuid=True), nullable=True)  # Link to AEGIS remediation job
-    verification_scan = Column(Boolean, default=False, nullable=False)  # True if this is a verification scan
+    aegis_remediation_id = Column(
+        UUID(as_uuid=True), nullable=True
+    )  # Link to AEGIS remediation job
+    verification_scan = Column(
+        Boolean, default=False, nullable=False
+    )  # True if this is a verification scan
     remediation_status = Column(String(20), nullable=True)  # completed, failed, partial
     remediation_completed_at = Column(DateTime, nullable=True)
     scan_metadata = Column(JSON, nullable=True)  # Additional metadata including remediation results
@@ -437,7 +451,9 @@ class WebhookDelivery(Base):
     webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False)
     event_type = Column(String(50), nullable=False)
     event_data = Column(JSON, nullable=False)
-    delivery_status = Column(String(20), default="pending", nullable=False)  # pending, delivered, failed
+    delivery_status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending, delivered, failed
     http_status_code = Column(Integer, nullable=True)
     response_body = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
@@ -591,7 +607,9 @@ class DatabaseManager:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_user(self, username: str, email: str, hashed_password: str, role: str = "user") -> User:
+    def create_user(
+        self, username: str, email: str, hashed_password: str, role: str = "user"
+    ) -> User:
         """Create new user with audit logging"""
         user = User(username=username, email=email, hashed_password=hashed_password, role=role)
         self.db.add(user)

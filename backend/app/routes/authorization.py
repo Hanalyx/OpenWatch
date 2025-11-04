@@ -49,7 +49,9 @@ class PermissionGrantRequest(BaseModel):
     role_name: Optional[str] = None
     host_id: Optional[str] = None
     host_group_id: Optional[str] = None
-    actions: Set[str] = Field(..., description="List of actions: read, write, execute, delete, manage, scan")
+    actions: Set[str] = Field(
+        ..., description="List of actions: read, write, execute, delete, manage, scan"
+    )
     effect: str = Field(default="allow", description="Permission effect: allow or deny")
     expires_at: Optional[datetime] = None
     conditions: Dict = Field(default_factory=dict)
@@ -442,7 +444,11 @@ async def check_bulk_permissions(
                 "resource_type": res.resource_type.value,
                 "resource_id": res.resource_id,
                 "reason": next(
-                    (r.reason for r in result.individual_results if r.resource.resource_id == res.resource_id),
+                    (
+                        r.reason
+                        for r in result.individual_results
+                        if r.resource.resource_id == res.resource_id
+                    ),
                     "Access denied",
                 ),
             }
@@ -548,7 +554,9 @@ async def get_authorization_audit_log(
                     "resource_id": row.resource_id,
                     "action": row.action,
                     "decision": row.decision,
-                    "policies_evaluated": (row.policies_evaluated.split(",") if row.policies_evaluated else []),
+                    "policies_evaluated": (
+                        row.policies_evaluated.split(",") if row.policies_evaluated else []
+                    ),
                     "context": row.context,
                     "ip_address": row.ip_address,
                     "user_agent": row.user_agent,
@@ -594,7 +602,9 @@ async def get_authorization_audit_log(
 
 @router.get("/summary")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_authorization_summary(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_authorization_summary(
+    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """
     Get authorization system summary and statistics
     """
@@ -665,9 +675,13 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
                 "avg_evaluation_time_ms": (
                     float(audit_stats.avg_evaluation_time) if audit_stats.avg_evaluation_time else 0
                 ),
-                "avg_risk_score": (float(audit_stats.avg_risk_score) if audit_stats.avg_risk_score else 0),
+                "avg_risk_score": (
+                    float(audit_stats.avg_risk_score) if audit_stats.avg_risk_score else 0
+                ),
             },
-            "most_active_users": [{"username": row.username, "check_count": row.check_count} for row in active_users],
+            "most_active_users": [
+                {"username": row.username, "check_count": row.check_count} for row in active_users
+            ],
         }
 
     except Exception as e:

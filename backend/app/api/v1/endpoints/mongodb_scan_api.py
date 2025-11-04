@@ -31,8 +31,12 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
-    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
+    rule_ids: Optional[List[str]] = Field(
+        None, description="Specific rule IDs to scan (from wizard selection)"
+    )
+    connection_params: Optional[Dict[str, Any]] = Field(
+        None, description="SSH connection parameters"
+    )
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -239,7 +243,9 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
+            target_frameworks = (
+                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
+            )
 
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
@@ -405,7 +411,11 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    "platforms": (
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 }
             )
 

@@ -42,7 +42,9 @@ def get_client_ip(request: Request) -> str:
 
 
 @router.websocket("/api/hosts/{host_id}/terminal")
-async def host_terminal_websocket(websocket: WebSocket, host_id: str, db: Session = Depends(get_db)):
+async def host_terminal_websocket(
+    websocket: WebSocket, host_id: str, db: Session = Depends(get_db)
+):
     """
     WebSocket endpoint for SSH terminal access to a specific host
 
@@ -119,7 +121,9 @@ async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
         }
 
         # Check for active sessions
-        active_sessions = [key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")]
+        active_sessions = [
+            key for key in terminal_service.active_sessions.keys() if key.startswith(f"{host_id}_")
+        ]
 
         return {
             "host_id": host_id,

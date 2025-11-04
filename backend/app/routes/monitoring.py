@@ -68,7 +68,9 @@ async def check_host_status(
 
         # Create encryption service
         settings = get_settings()
-        encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key, config=EncryptionConfig()
+        )
 
         # Create host monitor with dependencies
         monitor = get_host_monitor(db, encryption_service)
@@ -121,7 +123,9 @@ async def check_all_hosts_status(
         async def monitor_with_encryption():
             # Create encryption service
             settings = get_settings()
-            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+            encryption_service = create_encryption_service(
+                master_key=settings.master_key, config=EncryptionConfig()
+            )
             # Create host monitor with dependencies
             monitor = get_host_monitor(db, encryption_service)
             await monitor.monitor_all_hosts(db)
@@ -137,7 +141,9 @@ async def check_all_hosts_status(
 
 
 @router.get("/hosts/status")
-async def get_hosts_status_summary(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def get_hosts_status_summary(
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """
     Get summary of all host statuses with monitoring statistics
     """
@@ -180,7 +186,9 @@ async def get_hosts_status_summary(db: Session = Depends(get_db), current_user: 
         )
         avg_response_row = avg_response_result.fetchone()
         avg_response_time = (
-            round(avg_response_row.avg_response) if avg_response_row and avg_response_row.avg_response else 0
+            round(avg_response_row.avg_response)
+            if avg_response_row and avg_response_row.avg_response
+            else 0
         )
 
         # Count monitoring checks performed today
@@ -201,7 +209,9 @@ async def get_hosts_status_summary(db: Session = Depends(get_db), current_user: 
         return {
             "total_hosts": total,
             "status_breakdown": status_counts,
-            "online_percentage": round((status_counts.get("online", 0) / total * 100) if total > 0 else 0, 1),
+            "online_percentage": round(
+                (status_counts.get("online", 0) / total * 100) if total > 0 else 0, 1
+            ),
             "avg_response_time_ms": avg_response_time,
             "checks_today": checks_today,
         }
@@ -316,7 +326,9 @@ async def jit_connectivity_check(
 
         # Create encryption service
         settings = get_settings()
-        encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+        encryption_service = create_encryption_service(
+            master_key=settings.master_key, config=EncryptionConfig()
+        )
 
         # Perform comprehensive check (ping → port → SSH)
         monitor = get_host_monitor(db, encryption_service)
@@ -449,7 +461,9 @@ async def get_host_monitoring_state(
             "ssh_consecutive_failures": host.ssh_consecutive_failures,
             "ssh_consecutive_successes": host.ssh_consecutive_successes,
             "next_check_time": (host.next_check_time.isoformat() if host.next_check_time else None),
-            "last_state_change": (host.last_state_change.isoformat() if host.last_state_change else None),
+            "last_state_change": (
+                host.last_state_change.isoformat() if host.last_state_change else None
+            ),
             "check_priority": host.check_priority,
             "response_time_ms": host.response_time_ms,
             "last_check": host.last_check.isoformat() if host.last_check else None,

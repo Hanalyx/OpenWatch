@@ -7,7 +7,16 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, validator
 
@@ -112,7 +121,9 @@ class TrustedKeyAddRequest(BaseModel):
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.tar.gz, .zip, .owplugin)"),
     verify_signature: bool = Query(True, description="Verify plugin signature"),
-    trust_level_override: Optional[PluginTrustLevel] = Query(None, description="Override trust level (admin only)"),
+    trust_level_override: Optional[PluginTrustLevel] = Query(
+        None, description="Override trust level (admin only)"
+    ),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
 ):
@@ -138,7 +149,9 @@ async def import_plugin_from_file(
 
         # Validate file type
         if not file.filename:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
+            )
 
         allowed_extensions = {".tar.gz", ".tgz", ".zip", ".owplugin"}
         file_extension = "".join(file.filename.lower().split(".")[1:])
@@ -281,7 +294,11 @@ async def list_plugins(
         # Get paginated results
         skip = (page - 1) * page_size
         plugins = (
-            await InstalledPlugin.find(query).skip(skip).limit(page_size).sort(-InstalledPlugin.imported_at).to_list()
+            await InstalledPlugin.find(query)
+            .skip(skip)
+            .limit(page_size)
+            .sort(-InstalledPlugin.imported_at)
+            .to_list()
         )
 
         # Format response
@@ -355,7 +372,9 @@ async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_cu
             "security_checks": len(plugin.security_checks),
             "checks_passed": len([c for c in plugin.security_checks if c.passed]),
             "last_security_scan": (
-                max([c.timestamp for c in plugin.security_checks]).isoformat() if plugin.security_checks else None
+                max([c.timestamp for c in plugin.security_checks]).isoformat()
+                if plugin.security_checks
+                else None
             ),
         }
 
@@ -492,7 +511,9 @@ async def uninstall_plugin(
         if remove_from_rules and plugin.applied_to_rules:
             # This would integrate with the compliance rules system
             # For now, just log the action
-            logger.info(f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules")
+            logger.info(
+                f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules"
+            )
 
         # Delete plugin
         await plugin.delete()

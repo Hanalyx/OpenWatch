@@ -69,12 +69,18 @@ class Settings(BaseSettings):
 
     # Allowed hosts for CORS (configurable via environment)
     allowed_origins: List[str] = Field(
-        default_factory=lambda: os.getenv("OPENWATCH_ALLOWED_ORIGINS", "https://localhost:3001").split(",")
+        default_factory=lambda: os.getenv(
+            "OPENWATCH_ALLOWED_ORIGINS", "https://localhost:3001"
+        ).split(",")
     )
 
     # Container Runtime Configuration
-    container_runtime: str = Field(default="auto", description="Container runtime to use (docker, podman, auto)")
-    container_socket: Optional[str] = Field(default=None, description="Custom container socket path")
+    container_runtime: str = Field(
+        default="auto", description="Container runtime to use (docker, podman, auto)"
+    )
+    container_socket: Optional[str] = Field(
+        default=None, description="Custom container socket path"
+    )
 
     # File upload limits
     max_upload_size: int = 100 * 1024 * 1024  # 100MB

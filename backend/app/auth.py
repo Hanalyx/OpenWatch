@@ -73,7 +73,9 @@ class FIPSJWTManager:
                     )
 
                 with open(public_key_path, "rb") as f:
-                    self.public_key = serialization.load_pem_public_key(f.read(), backend=default_backend())
+                    self.public_key = serialization.load_pem_public_key(
+                        f.read(), backend=default_backend()
+                    )
                 logger.info("Loaded existing RSA keys for JWT signing")
             else:
                 # Generate new FIPS-compliant RSA keys
@@ -87,7 +89,9 @@ class FIPSJWTManager:
         """Generate FIPS-compliant RSA-2048 key pair"""
         try:
             # Generate RSA-2048 key pair (FIPS approved)
-            self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+            self.private_key = rsa.generate_private_key(
+                public_exponent=65537, key_size=2048, backend=default_backend()
+            )
             self.public_key = self.private_key.public_key()
 
             # Ensure directory exists
@@ -122,7 +126,9 @@ class FIPSJWTManager:
             logger.error(f"Failed to generate RSA keys: {e}")
             raise
 
-    def create_access_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """Create JWT access token with RSA-PSS signature"""
         to_encode = data.copy()
 
@@ -150,7 +156,9 @@ class FIPSJWTManager:
                 detail="Could not create access token",
             )
 
-    def create_refresh_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_refresh_token(
+        self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """Create JWT refresh token with longer expiration"""
         to_encode = data.copy()
 
@@ -184,7 +192,9 @@ class FIPSJWTManager:
             payload = jwt.decode(token, self.public_key, algorithms=["RS256"])
             return payload
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+            )
         except jwt.InvalidTokenError as e:
             logger.warning(f"Invalid token: {e}")
             raise HTTPException(
@@ -206,7 +216,9 @@ class FIPSJWTManager:
         """Validate refresh token specifically"""
         payload = self.verify_token(token)
         if payload.get("type") != "refresh":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+            )
         return payload
 
 
@@ -251,7 +263,9 @@ class SecurityAuditLogger:
 
     def log_scan_action(self, username: str, action: str, target: str, ip_address: str):
         """Log scan-related actions"""
-        self.audit_logger.info(f"SCAN_{action} - User: {username}, Target: {target}, IP: {ip_address}")
+        self.audit_logger.info(
+            f"SCAN_{action} - User: {username}, Target: {target}, IP: {ip_address}"
+        )
 
     def log_security_event(self, event_type: str, details: str, ip_address: str):
         """Log security events"""
@@ -267,7 +281,8 @@ class SecurityAuditLogger:
     ):
         """Log API key related actions"""
         self.audit_logger.info(
-            f"API_KEY_{action} - User: {user_id}, Key: {api_key_name} ({api_key_id}), " f"Details: {details or {}}"
+            f"API_KEY_{action} - User: {user_id}, Key: {api_key_name} ({api_key_id}), "
+            f"Details: {details or {}}"
         )
 
 
@@ -296,7 +311,11 @@ def get_current_user(
                 key_hash = hashlib.sha256(token.encode()).hexdigest()
 
                 # Find the API key in database
-                api_key = db.query(ApiKey).filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True).first()
+                api_key = (
+                    db.query(ApiKey)
+                    .filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+                    .first()
+                )
 
                 if not api_key:
                     raise HTTPException(
@@ -434,5 +453,7 @@ def require_admin(
 ) -> Dict[str, Any]:
     """Require admin role for protected endpoints"""
     if current_user.get("role") != UserRole.SUPER_ADMIN.value:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
+        )
     return current_user

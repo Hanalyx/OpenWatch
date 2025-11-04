@@ -66,7 +66,9 @@ class WebhookSecurity:
 
         return f"sha256={signature}"
 
-    def verify_signature(self, payload: Union[Dict[str, Any], str, bytes], received_signature: str) -> bool:
+    def verify_signature(
+        self, payload: Union[Dict[str, Any], str, bytes], received_signature: str
+    ) -> bool:
         """
         Verify HMAC-SHA256 signature for webhook payload
 
@@ -299,10 +301,14 @@ def create_scan_completed_payload(scan_id: str, scan_data: Dict[str, Any]) -> Di
     Returns:
         Standardized webhook payload
     """
-    return get_webhook_security().create_event_payload("scan.completed", {"scan_id": scan_id, **scan_data})
+    return get_webhook_security().create_event_payload(
+        "scan.completed", {"scan_id": scan_id, **scan_data}
+    )
 
 
-def create_scan_failed_payload(scan_id: str, scan_data: Dict[str, Any], error_message: str) -> Dict[str, Any]:
+def create_scan_failed_payload(
+    scan_id: str, scan_data: Dict[str, Any], error_message: str
+) -> Dict[str, Any]:
     """
     Create scan.failed webhook payload
 

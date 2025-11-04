@@ -314,7 +314,9 @@ async def update_user(
     """Update user (admin only, or users can update themselves)"""
     try:
         # Check if user exists
-        result = db.execute(text("SELECT id, role FROM users WHERE id = :user_id"), {"user_id": user_id})
+        result = db.execute(
+            text("SELECT id, role FROM users WHERE id = :user_id"), {"user_id": user_id}
+        )
         existing_user = result.fetchone()
         if not existing_user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -397,7 +399,9 @@ async def delete_user(
             raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
         # Check if user exists
-        result = db.execute(text("SELECT username FROM users WHERE id = :user_id"), {"user_id": user_id})
+        result = db.execute(
+            text("SELECT username FROM users WHERE id = :user_id"), {"user_id": user_id}
+        )
         user = result.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -483,7 +487,9 @@ async def change_password(
 
 
 @router.get("/me/profile", response_model=UserResponse)
-async def get_my_profile(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_my_profile(
+    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """Get current user's profile"""
     return await get_user(current_user.get("id"), current_user, db)
 

@@ -368,7 +368,9 @@ class PluginLifecycleService:
 
         # Validate target version
         available_versions = await self.get_available_versions(plugin_id)
-        target_version_info = next((v for v in available_versions if v.version == target_version), None)
+        target_version_info = next(
+            (v for v in available_versions if v.version == target_version), None
+        )
 
         if not target_version_info:
             raise ValueError(f"Version {target_version} not available for plugin {plugin_id}")
@@ -421,7 +423,9 @@ class PluginLifecycleService:
         if compatibility_issues:
             logger.warning(f"Compatibility issues detected for update plan: {compatibility_issues}")
 
-        logger.info(f"Created update plan for {plugin_id}: {plugin.version} -> {target_version} ({strategy.value})")
+        logger.info(
+            f"Created update plan for {plugin_id}: {plugin.version} -> {target_version} ({strategy.value})"
+        )
         return update_plan
 
     async def execute_plugin_update(self, update_plan: PluginUpdatePlan) -> PluginUpdateExecution:
@@ -536,16 +540,25 @@ class PluginLifecycleService:
 
         return versions
 
-    async def get_update_history(self, plugin_id: Optional[str] = None, limit: int = 50) -> List[PluginUpdateExecution]:
+    async def get_update_history(
+        self, plugin_id: Optional[str] = None, limit: int = 50
+    ) -> List[PluginUpdateExecution]:
         """Get plugin update execution history"""
 
         query = {}
         if plugin_id:
             query["update_plan.plugin_id"] = plugin_id
 
-        return await PluginUpdateExecution.find(query).sort(-PluginUpdateExecution.started_at).limit(limit).to_list()
+        return (
+            await PluginUpdateExecution.find(query)
+            .sort(-PluginUpdateExecution.started_at)
+            .limit(limit)
+            .to_list()
+        )
 
-    async def get_plugin_health_history(self, plugin_id: str, hours: int = 24) -> List[PluginHealthCheck]:
+    async def get_plugin_health_history(
+        self, plugin_id: str, hours: int = 24
+    ) -> List[PluginHealthCheck]:
         """Get plugin health check history"""
 
         # In production, this would query stored health check results
@@ -603,7 +616,9 @@ class PluginLifecycleService:
                 and plan.rollback_enabled
             ):
 
-                await self._trigger_automatic_rollback(execution, "Health check failed after update")
+                await self._trigger_automatic_rollback(
+                    execution, "Health check failed after update"
+                )
             else:
                 execution.status = UpdateStatus.COMPLETED
                 execution.success = True
@@ -620,14 +635,18 @@ class PluginLifecycleService:
         finally:
             execution.completed_at = datetime.utcnow()
             if execution.started_at:
-                execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+                execution.duration_seconds = (
+                    execution.completed_at - execution.started_at
+                ).total_seconds()
 
             await execution.save()
 
             # Remove from active updates
             self.active_updates.pop(execution.execution_id, None)
 
-            logger.info(f"Update execution completed: {execution.execution_id} - {execution.status.value}")
+            logger.info(
+                f"Update execution completed: {execution.execution_id} - {execution.status.value}"
+            )
 
     async def _start_plugin_health_monitor(self, plugin_id: str):
         """Start continuous health monitoring for a plugin"""
@@ -680,7 +699,9 @@ class PluginLifecycleService:
         except Exception:
             return False
 
-    async def _check_plugin_resources(self, plugin: InstalledPlugin) -> Tuple[bool, Optional[float], Optional[float]]:
+    async def _check_plugin_resources(
+        self, plugin: InstalledPlugin
+    ) -> Tuple[bool, Optional[float], Optional[float]]:
         """Check plugin resource usage"""
         try:
             # This would check actual resource usage
@@ -696,7 +717,9 @@ class PluginLifecycleService:
         except Exception:
             return False, None, None
 
-    async def _check_plugin_performance(self, plugin: InstalledPlugin) -> Tuple[bool, Optional[float], Optional[float]]:
+    async def _check_plugin_performance(
+        self, plugin: InstalledPlugin
+    ) -> Tuple[bool, Optional[float], Optional[float]]:
         """Check plugin performance metrics"""
         try:
             # This would check actual performance metrics
@@ -712,7 +735,9 @@ class PluginLifecycleService:
         except Exception:
             return False, None, None
 
-    async def _analyze_health_issues(self, plugin: InstalledPlugin, health_check: PluginHealthCheck):
+    async def _analyze_health_issues(
+        self, plugin: InstalledPlugin, health_check: PluginHealthCheck
+    ):
         """Analyze health check results and provide recommendations"""
 
         if not health_check.connectivity_check:
@@ -725,8 +750,12 @@ class PluginLifecycleService:
 
         if not health_check.resource_check:
             if health_check.memory_usage_mb and health_check.memory_usage_mb > 512:
-                health_check.issues.append(f"High memory usage: {health_check.memory_usage_mb:.1f}MB")
-                health_check.remediation_suggestions.append("Consider increasing memory limits or optimize plugin")
+                health_check.issues.append(
+                    f"High memory usage: {health_check.memory_usage_mb:.1f}MB"
+                )
+                health_check.remediation_suggestions.append(
+                    "Consider increasing memory limits or optimize plugin"
+                )
 
             if health_check.cpu_usage_percent and health_check.cpu_usage_percent > 50:
                 health_check.issues.append(f"High CPU usage: {health_check.cpu_usage_percent:.1f}%")
@@ -734,14 +763,18 @@ class PluginLifecycleService:
 
         if not health_check.performance_check:
             if health_check.response_time_ms and health_check.response_time_ms > 1000:
-                health_check.issues.append(f"Slow response time: {health_check.response_time_ms:.1f}ms")
+                health_check.issues.append(
+                    f"Slow response time: {health_check.response_time_ms:.1f}ms"
+                )
                 health_check.remediation_suggestions.append("Optimize plugin performance")
 
             if health_check.error_rate and health_check.error_rate > 0.05:
                 health_check.issues.append(f"High error rate: {health_check.error_rate:.1%}")
                 health_check.remediation_suggestions.append("Review plugin logs for errors")
 
-    async def _check_version_compatibility(self, plugin: InstalledPlugin, target_version: PluginVersion) -> List[str]:
+    async def _check_version_compatibility(
+        self, plugin: InstalledPlugin, target_version: PluginVersion
+    ) -> List[str]:
         """Check compatibility issues for version update"""
         issues = []
 
@@ -758,7 +791,9 @@ class PluginLifecycleService:
 
         return issues
 
-    async def _add_execution_step(self, execution: PluginUpdateExecution, step_name: str, status: str):
+    async def _add_execution_step(
+        self, execution: PluginUpdateExecution, step_name: str, status: str
+    ):
         """Add an execution step to the update record"""
         step = {
             "step": step_name,
@@ -770,7 +805,9 @@ class PluginLifecycleService:
         execution.current_step = step_name
         await execution.save()
 
-    async def _run_validation_steps(self, validation_steps: List[str], execution: PluginUpdateExecution):
+    async def _run_validation_steps(
+        self, validation_steps: List[str], execution: PluginUpdateExecution
+    ):
         """Run validation steps"""
         for step in validation_steps:
             try:
@@ -781,25 +818,33 @@ class PluginLifecycleService:
                 execution.execution_errors.append(f"Validation step {step} failed: {str(e)}")
                 raise
 
-    async def _execute_immediate_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
+    async def _execute_immediate_update(
+        self, plan: PluginUpdatePlan, execution: PluginUpdateExecution
+    ):
         """Execute immediate update strategy"""
         # This would perform the actual plugin update
         logger.info(f"Executing immediate update for {plan.plugin_id}")
         await asyncio.sleep(5)  # Simulate update time
 
-    async def _execute_rolling_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
+    async def _execute_rolling_update(
+        self, plan: PluginUpdatePlan, execution: PluginUpdateExecution
+    ):
         """Execute rolling update strategy"""
         # This would perform rolling update with gradual deployment
         logger.info(f"Executing rolling update for {plan.plugin_id}")
         await asyncio.sleep(10)  # Simulate update time
 
-    async def _execute_blue_green_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
+    async def _execute_blue_green_update(
+        self, plan: PluginUpdatePlan, execution: PluginUpdateExecution
+    ):
         """Execute blue-green update strategy"""
         # This would perform blue-green deployment
         logger.info(f"Executing blue-green update for {plan.plugin_id}")
         await asyncio.sleep(15)  # Simulate update time
 
-    async def _execute_canary_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
+    async def _execute_canary_update(
+        self, plan: PluginUpdatePlan, execution: PluginUpdateExecution
+    ):
         """Execute canary update strategy"""
         # This would perform canary deployment with gradual traffic shift
         logger.info(f"Executing canary update for {plan.plugin_id}")
@@ -807,7 +852,9 @@ class PluginLifecycleService:
 
     async def _trigger_automatic_rollback(self, execution: PluginUpdateExecution, reason: str):
         """Trigger automatic rollback due to failure"""
-        logger.warning(f"Triggering automatic rollback for {execution.update_plan.plugin_id}: {reason}")
+        logger.warning(
+            f"Triggering automatic rollback for {execution.update_plan.plugin_id}: {reason}"
+        )
 
         execution.rollback_performed = True
         execution.rollback_reason = reason

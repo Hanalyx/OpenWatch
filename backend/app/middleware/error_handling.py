@@ -264,7 +264,9 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         if "timeout" in exc_name:
             return status.HTTP_504_GATEWAY_TIMEOUT
 
-        if any(service_type in exc_name for service_type in ["connection", "service", "unavailable"]):
+        if any(
+            service_type in exc_name for service_type in ["connection", "service", "unavailable"]
+        ):
             return status.HTTP_503_SERVICE_UNAVAILABLE
 
         # Default to internal server error
@@ -417,7 +419,9 @@ def raise_not_found_error(resource: str, identifier: Optional[str] = None):
     )
 
 
-def raise_service_error(message: str, service: Optional[str] = None, retry_after: Optional[int] = None):
+def raise_service_error(
+    message: str, service: Optional[str] = None, retry_after: Optional[int] = None
+):
     """Raise standardized service error"""
     headers = {}
     if retry_after:
@@ -435,7 +439,9 @@ def raise_service_error(message: str, service: Optional[str] = None, retry_after
     )
 
 
-def raise_authorization_error(message: str = "Insufficient permissions", required_permission: Optional[str] = None):
+def raise_authorization_error(
+    message: str = "Insufficient permissions", required_permission: Optional[str] = None
+):
     """Raise standardized authorization error"""
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

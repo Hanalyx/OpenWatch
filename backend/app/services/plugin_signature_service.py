@@ -82,13 +82,17 @@ class PluginSignatureService:
                 check_name="signature_verification",
                 passed=not require_trusted_signature,
                 severity="critical" if require_trusted_signature else "warning",
-                message=("No signature provided" if require_trusted_signature else "Package not signed"),
+                message=(
+                    "No signature provided" if require_trusted_signature else "Package not signed"
+                ),
                 details={"signed": False},
             )
 
         try:
             # Verify signature authenticity
-            verification_result = await self._verify_signature_authenticity(package, package.signature)
+            verification_result = await self._verify_signature_authenticity(
+                package, package.signature
+            )
 
             if not verification_result["valid"]:
                 return SecurityCheckResult(
@@ -132,7 +136,9 @@ class PluginSignatureService:
                 message=f"Signature verification failed: {str(e)}",
             )
 
-    async def _verify_signature_authenticity(self, package: PluginPackage, signature: PluginSignature) -> Dict:
+    async def _verify_signature_authenticity(
+        self, package: PluginPackage, signature: PluginSignature
+    ) -> Dict:
         """Verify the cryptographic signature"""
         try:
             # Get signing data (package content without signature)

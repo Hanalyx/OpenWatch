@@ -10,8 +10,19 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from ...models.scan_models import RuleResult, RuleResultStatus, ScanResultSummary, ScanTarget, ScanTargetType
-from .base_scanner import BaseScanner, ScannerExecutionError, ScannerNotAvailableError, UnsupportedTargetError
+from ...models.scan_models import (
+    RuleResult,
+    RuleResultStatus,
+    ScanResultSummary,
+    ScanTarget,
+    ScanTargetType,
+)
+from .base_scanner import (
+    BaseScanner,
+    ScannerExecutionError,
+    ScannerNotAvailableError,
+    UnsupportedTargetError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +223,9 @@ class KubernetesScanner(BaseScanner):
                 scanner_type="kubernetes",
             )
 
-    async def _query_resource(self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str) -> Any:
+    async def _query_resource(
+        self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str
+    ) -> Any:
         """
         Query Kubernetes resource using kubectl and JSONPath
 
