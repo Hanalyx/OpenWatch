@@ -5,20 +5,20 @@ Updated to use the unified credentials system while maintaining API compatibilit
 
 import hashlib
 import logging
-import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..database import get_db
+from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
 from ..services.auth_service import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
-from ..services.unified_ssh_service import extract_ssh_key_metadata, format_validation_message, validate_ssh_key
+from ..services.unified_ssh_service import extract_ssh_key_metadata, validate_ssh_key
 from ..tasks.monitoring_tasks import setup_host_monitoring_scheduler
 
 logger = logging.getLogger(__name__)
@@ -94,10 +94,13 @@ def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
 
 @router.get("/credentials", response_model=List[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
-async def list_system_credentials(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_system_credentials(
+    request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """List all system credentials using unified credentials system"""
     try:
-        auth_service = get_auth_service(db)
+        encryption_service: EncryptionService = request.app.state.encryption_service
+        auth_service = get_auth_service(db, encryption_service)
 
         # Get all system-scoped credentials from unified table
         credentials_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
@@ -139,12 +142,14 @@ async def list_system_credentials(db: Session = Depends(get_db), current_user: d
 @router.post("/credentials", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def create_system_credential(
+    request: Request,
     credential: SystemCredentialsCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Create new system credential using unified credentials system"""
     try:
+        encryption_service: EncryptionService = request.app.state.encryption_service
         # Validate auth method
         valid_methods = ["ssh_key", "password", "both"]
         if credential.auth_method not in valid_methods:
@@ -198,7 +203,7 @@ async def create_system_credential(
         )
 
         # Store using unified credentials service
-        auth_service = get_auth_service(db)
+        auth_service = get_auth_service(db, encryption_service)
         # Convert integer user ID to UUID format for unified credentials
         user_uuid = f"00000000-0000-0000-0000-{current_user['id']:012d}"
         credential_id = auth_service.store_credential(
@@ -251,6 +256,7 @@ async def create_system_credential(
 @router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_system_credential(
+    request: Request,
     credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -261,7 +267,8 @@ async def get_system_credential(
         uuid_id = credential_id
 
         # Get credential using unified service
-        auth_service = get_auth_service(db)
+        encryption_service: EncryptionService = request.app.state.encryption_service
+        auth_service = get_auth_service(db, encryption_service)
         credentials_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
 
         credential = next((c for c in credentials_list if c["id"] == uuid_id), None)
@@ -296,10 +303,13 @@ async def get_system_credential(
 
 @router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
-async def get_default_system_credential(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def get_default_system_credential(
+    request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """Get default system credential"""
     try:
-        auth_service = get_auth_service(db)
+        encryption_service: EncryptionService = request.app.state.encryption_service
+        auth_service = get_auth_service(db, encryption_service)
         credentials_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
 
         # Find default credential
@@ -336,6 +346,7 @@ async def get_default_system_credential(db: Session = Depends(get_db), current_u
 @router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def update_system_credential(
+    request: Request,
     credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     credential_update: SystemCredentialsUpdate,
     db: Session = Depends(get_db),
@@ -346,7 +357,8 @@ async def update_system_credential(
         # WEEK 2 MIGRATION: credential_id is now UUID string from v2 API
         uuid_id = credential_id
 
-        auth_service = get_auth_service(db)
+        encryption_service: EncryptionService = request.app.state.encryption_service
+        auth_service = get_auth_service(db, encryption_service)
         credentials_list = auth_service.list_credentials(scope=CredentialScope.SYSTEM)
 
         # Get existing credential
@@ -485,6 +497,7 @@ async def update_system_credential(
 @router.delete("/credentials/{credential_id}")
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credential(
+    request: Request,
     credential_id: str,  # WEEK 2 MIGRATION: Changed from int to str (UUID)
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -495,7 +508,8 @@ async def delete_system_credential(
         uuid_id = credential_id
 
         # Delete using unified service
-        auth_service = get_auth_service(db)
+        encryption_service: EncryptionService = request.app.state.encryption_service
+        auth_service = get_auth_service(db, encryption_service)
         success = auth_service.delete_credential(uuid_id)
 
         if not success:
