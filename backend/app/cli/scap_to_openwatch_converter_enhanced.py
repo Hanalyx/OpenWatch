@@ -30,7 +30,9 @@ import json
 import logging
 import os
 import re
+import shutil
 import tarfile
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -306,9 +308,9 @@ class EnhancedSCAPConverter:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Create temporary directory for bundle contents
-        temp_dir = Path(f"/tmp/bundle_{version}")
-        temp_dir.mkdir(exist_ok=True)
+        # Create secure temporary directory for bundle contents
+        temp_dir_raw = tempfile.mkdtemp(prefix=f"bundle_{version}_")
+        temp_dir = Path(temp_dir_raw)
         rules_dir = temp_dir / "rules"
         rules_dir.mkdir(exist_ok=True)
 
@@ -345,8 +347,6 @@ class EnhancedSCAPConverter:
 
         finally:
             # Cleanup temp directory
-            import shutil
-
             shutil.rmtree(temp_dir)
 
     async def compare_with_mongodb(

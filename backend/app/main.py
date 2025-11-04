@@ -612,7 +612,7 @@ if __name__ == "__main__":
     # Development server configuration
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # nosec B104 - Intentional for Docker container binding
         port=8000,
         ssl_keyfile=settings.tls_key_file if settings.require_https else None,
         ssl_certfile=settings.tls_cert_file if settings.require_https else None,

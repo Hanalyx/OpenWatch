@@ -174,8 +174,9 @@ class PluginSecurityService:
         try:
             if package_format == "tar.gz":
                 with tarfile.open(fileobj=BytesIO(package_data), mode="r:gz") as tar:
-                    # Check for path traversal
+                    # Safe extraction with path validation
                     for member in tar.getmembers():
+                        # Check for path traversal
                         if self._is_path_traversal(member.name):
                             return {
                                 "check": SecurityCheckResult(
@@ -187,13 +188,27 @@ class PluginSecurityService:
                                 "path": None,
                             }
 
-                    # Safe extraction
-                    tar.extractall(temp_extract_dir)
+                        # Extract each member individually after validation
+                        # This is safer than extractall() as it ensures path is resolved
+                        member_path = temp_extract_dir / member.name
+                        if not member_path.resolve().is_relative_to(temp_extract_dir.resolve()):
+                            return {
+                                "check": SecurityCheckResult(
+                                    check_name="path_traversal_check",
+                                    passed=False,
+                                    severity="critical",
+                                    message=f"Path escapes extraction directory: {member.name}",
+                                ),
+                                "path": None,
+                            }
+
+                        tar.extract(member, temp_extract_dir)
 
             elif package_format == "zip":
                 with zipfile.ZipFile(BytesIO(package_data), "r") as zip_file:
-                    # Check for path traversal
+                    # Safe extraction with path validation
                     for name in zip_file.namelist():
+                        # Check for path traversal
                         if self._is_path_traversal(name):
                             return {
                                 "check": SecurityCheckResult(
@@ -205,8 +220,21 @@ class PluginSecurityService:
                                 "path": None,
                             }
 
-                    # Safe extraction
-                    zip_file.extractall(temp_extract_dir)
+                        # Extract each file individually after validation
+                        # This is safer than extractall() as it ensures path is resolved
+                        member_path = temp_extract_dir / name
+                        if not member_path.resolve().is_relative_to(temp_extract_dir.resolve()):
+                            return {
+                                "check": SecurityCheckResult(
+                                    check_name="path_traversal_check",
+                                    passed=False,
+                                    severity="critical",
+                                    message=f"Path escapes extraction directory: {name}",
+                                ),
+                                "path": None,
+                            }
+
+                        zip_file.extract(name, temp_extract_dir)
 
             else:
                 return {

@@ -19,7 +19,7 @@ def log_audit_event(
     resource_type: str,
     resource_id: Optional[str] = None,
     user_id: Optional[int] = None,
-    ip_address: str = "0.0.0.0",
+    ip_address: str = "0.0.0.0",  # nosec B104 - Default placeholder when IP unknown
     user_agent: Optional[str] = None,
     details: Optional[str] = None,
 ) -> bool:
