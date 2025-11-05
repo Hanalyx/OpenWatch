@@ -518,6 +518,122 @@ encrypted = cipher.encrypt(data)  # No key rotation, no versioning!
 - Nonce: 96-bit random (never reused)
 - Authentication: GCM provides authenticated encryption
 
+#### QueryBuilder (PostgreSQL Query Construction)
+**Location**: `backend/app/utils/query_builder.py`
+
+**Purpose**: Safe, fluent interface for building SQL queries with automatic parameterization.
+
+**MANDATORY for all new PostgreSQL queries**: OpenWatch has standardized on QueryBuilder for 94% of database queries to eliminate SQL injection risks and maintain consistency.
+
+```python
+# CORRECT - Use QueryBuilder
+from backend.app.utils.query_builder import QueryBuilder
+from sqlalchemy import text
+
+def list_users(db: Session, search: str = None, page: int = 1, per_page: int = 20):
+    """List users with optional search and pagination."""
+    builder = (
+        QueryBuilder("users")
+        .select("id", "username", "email", "role", "is_active")
+        .order_by("created_at", "DESC")
+        .paginate(page=page, per_page=per_page)
+    )
+
+    # Add optional search filter
+    if search:
+        builder.where("(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search")
+
+    query, params = builder.build()
+    result = db.execute(text(query), params)
+    return [dict(row._mapping) for row in result]
+
+# WRONG - Raw SQL string construction
+def list_users_unsafe(db: Session, search: str = None):
+    # DO NOT DO THIS!
+    query = f"SELECT * FROM users WHERE username ILIKE '%{search}%'"
+    return db.execute(text(query)).fetchall()
+```
+
+**QueryBuilder Benefits**:
+- **Security**: Automatic SQL injection protection via parameterization
+- **Readability**: Fluent interface is self-documenting
+- **Maintainability**: Easy to add filters, pagination, joins
+- **Consistency**: 94% of OpenWatch endpoints use this pattern
+- **Testing**: Easy to mock and unit test
+
+**Common Patterns**:
+
+```python
+# Conditional filtering
+builder = QueryBuilder("hosts").select("*")
+if status:
+    builder.where("status = :status", status, "status")
+if group_id:
+    builder.where("group_id = :group_id", group_id, "group_id")
+
+# Joins
+builder = (
+    QueryBuilder("scans s")
+    .select("s.id", "s.status", "h.hostname")
+    .join("hosts h", "s.host_id = h.id", "LEFT")
+    .where("s.status = :status", "completed", "status")
+)
+
+# Pagination
+builder = (
+    QueryBuilder("users")
+    .select("*")
+    .order_by("created_at", "DESC")
+    .paginate(page=1, per_page=20)  # Automatic LIMIT/OFFSET
+)
+
+# Count queries
+count_builder = QueryBuilder("users")
+count_query, count_params = count_builder.count_query()
+total = db.execute(text(count_query), count_params).fetchone().total
+
+# INSERT
+insert_builder = QueryBuilder("users").insert({
+    "username": "newuser",
+    "email": "user@example.com",
+    "role": "analyst",
+    "is_active": True
+})
+query, params = insert_builder.build()
+db.execute(text(query), params)
+
+# UPDATE
+update_builder = (
+    QueryBuilder("users")
+    .update({"is_active": False})
+    .where("id = :id", user_id, "id")
+)
+query, params = update_builder.build()
+db.execute(text(query), params)
+
+# DELETE
+delete_builder = (
+    QueryBuilder("users")
+    .delete()
+    .where("id = :id", user_id, "id")
+)
+query, params = delete_builder.build()
+db.execute(text(query), params)
+```
+
+**Migration Status** (as of 2025-11-04):
+- **Phase 1**: Hosts GET endpoint (1 endpoint)
+- **Phase 2**: Hosts CRUD endpoints (4 endpoints)
+- **Phase 3**: Scans endpoints (5 endpoints, 100% coverage)
+- **Phase 4**: Users endpoints (6 endpoints, 100% coverage)
+- **Total**: 16/17 endpoints (94%)
+- **Documentation**: `docs/QUERYBUILDER_EXPLANATION.md`
+
+**When NOT to use QueryBuilder**:
+- PostgreSQL-specific features like LATERAL JOIN (use raw SQL with parameterization)
+- Very complex queries requiring CTEs or window functions (use raw SQL with parameterization)
+- ORM operations requiring full model instances with relationships (use SQLAlchemy ORM)
+
 ---
 
 ## 🧩 Modular Code Architecture
@@ -2021,14 +2137,50 @@ class HostCreateRequest(BaseModel):
 
 ### SQL Injection Prevention (Defense Layer 2)
 
-**MANDATORY**: NEVER use raw SQL. Use ORM only.
+**MANDATORY**: Use QueryBuilder or SQLAlchemy ORM. NEVER use raw SQL strings.
+
+#### Preferred: QueryBuilder Pattern (94% of OpenWatch endpoints)
+
+**Why QueryBuilder**: OpenWatch has standardized on QueryBuilder for all PostgreSQL queries. It provides:
+- Automatic SQL injection protection through parameterization
+- Fluent, readable interface
+- Consistent patterns across the codebase
+- Easy to test and maintain
 
 ```python
-# CORRECT - SQLAlchemy ORM (parameterized)
+# BEST PRACTICE - QueryBuilder (OpenWatch standard)
+from backend.app.utils.query_builder import QueryBuilder
+from sqlalchemy import text
+
+def get_hosts_by_group(db: Session, group_name: str) -> List[dict]:
+    """
+    Get hosts filtered by group using QueryBuilder.
+
+    Why QueryBuilder: Consistent with 94% of OpenWatch endpoints,
+    automatic parameterization, easy to read and maintain.
+    """
+    builder = (
+        QueryBuilder("hosts h")
+        .select("h.id", "h.hostname", "h.ip_address", "h.status")
+        .join("host_group_memberships hgm", "h.id = hgm.host_id", "LEFT")
+        .join("host_groups hg", "hg.id = hgm.group_id", "LEFT")
+        .where("hg.name = :group_name", group_name, "group_name")
+    )
+    query, params = builder.build()
+    result = db.execute(text(query), params)
+    return [dict(row._mapping) for row in result]
+
+# ACCEPTABLE - SQLAlchemy ORM (for complex relationships)
 from sqlalchemy import select
 from backend.app.models import Host
 
-async def get_hosts_by_group(db: AsyncSession, group_name: str) -> List[Host]:
+async def get_hosts_by_group_orm(db: AsyncSession, group_name: str) -> List[Host]:
+    """
+    Use ORM when you need full model instances with relationships.
+
+    Why ORM: Good for complex object graphs, but QueryBuilder is
+    preferred for most query operations in OpenWatch.
+    """
     result = await db.execute(
         select(Host)
         .join(Host.groups)
@@ -2037,12 +2189,19 @@ async def get_hosts_by_group(db: AsyncSession, group_name: str) -> List[Host]:
     return result.scalars().all()
 
 # WRONG - Raw SQL (vulnerable to injection)
-async def get_hosts_by_group(db: AsyncSession, group_name: str) -> List[Host]:
-    # DO NOT DO THIS!
+def get_hosts_by_group_unsafe(db: Session, group_name: str) -> List[dict]:
+    # DO NOT DO THIS! NO RAW SQL STRINGS!
     query = f"SELECT * FROM hosts WHERE group_name = '{group_name}'"
-    result = await db.execute(query)
+    result = db.execute(text(query))  # ← SQL INJECTION VULNERABILITY!
     return result.fetchall()
 ```
+
+**Migration Status** (as of 2025-11-04):
+- 16 out of 17 endpoints (94%) use QueryBuilder
+- Hosts: 5/6 endpoints (83%)
+- Scans: 5/5 endpoints (100%)
+- Users: 6/6 endpoints (100%)
+- See `docs/QUERYBUILDER_EXPLANATION.md` for full details
 
 ### Command Injection Prevention (Defense Layer 3)
 
