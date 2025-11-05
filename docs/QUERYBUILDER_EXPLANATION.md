@@ -2,7 +2,7 @@
 
 **Created**: 2025-10-19
 **Last Updated**: 2025-11-04
-**Status**: Phase 1, 2 & 3 Complete - 10 Endpoints Migrated
+**Status**: Phase 1, 2, 3 & 4 Complete - 16 Endpoints Migrated
 **Related PRs**: #115 (Infrastructure), #116 (Phase 1), #121 (Phase 2), #122 (Phase 3)
 
 ## What is QueryBuilder?
@@ -220,8 +220,9 @@ async def get_host(
 | **Phase 1 (GET Hosts)** | ✅ Complete | Feature flag removed (commit ae5d4a3) |
 | **Phase 2 (POST/PUT/DELETE Hosts)** | ✅ Complete | PR #121 merged |
 | **Phase 3 (Scan Endpoints)** | ✅ Complete | Issue #122 closed (commit d469046) |
+| **Phase 4 (User Endpoints)** | ✅ Complete | Commit 3e6f240 merged |
 | **Feature Flag** | ⚠️ DEPRECATED | Marked deprecated in config.py (commit 644b2c9) |
-| **Production Status** | ✅ Active | 10 endpoints using QueryBuilder (91%) |
+| **Production Status** | ✅ Active | 16 endpoints using QueryBuilder (94%) |
 
 ### Feature Flag (DEPRECATED)
 
@@ -257,7 +258,18 @@ async def get_host(
 | `/{scan_id}` | PATCH | ✅ Active | Phase 3 (commit d469046) |
 | `/{scan_id}` | DELETE | ✅ Active | Phase 3 (commit d469046) |
 
-**Overall**: 10 out of 11 endpoints using QueryBuilder (91%)
+**✅ Users Endpoints - Using QueryBuilder (6/6 = 100%)**:
+
+| Endpoint | Method | Status | Migration |
+|----------|--------|--------|-----------|
+| `/roles` | GET | ✅ Active | Phase 4 (commit 3e6f240) |
+| `/` | GET | ✅ Active | Phase 4 (commit 3e6f240) |
+| `/` | POST | ✅ Active | Phase 4 (commit 3e6f240) |
+| `/{user_id}` | GET | ✅ Active | Phase 4 (commit 3e6f240) |
+| `/{user_id}` | PUT | ✅ Active | Phase 4 (commit 3e6f240) |
+| `/{user_id}` | DELETE | ✅ Active | Phase 4 (commit 3e6f240) |
+
+**Overall**: 16 out of 17 endpoints using QueryBuilder (94%)
 
 ---
 
@@ -468,12 +480,27 @@ query = (QueryBuilder("hosts")
 **Issue**: #122 (closed)
 **Approach**: Direct migration (no feature flag)
 
-### Phase 4: Additional Endpoints (Future)
+### ✅ Phase 4: User Management Endpoints (Complete - 2025-11-04)
+
+**Status**: All 6 user management endpoints migrated
+
+**Endpoints Migrated**:
+1. ✅ `GET /api/users/roles` - List roles (complex CASE ORDER BY)
+2. ✅ `GET /api/users` - List users (pagination + filtering)
+3. ✅ `POST /api/users` - Create user (existence check + INSERT)
+4. ✅ `GET /api/users/{user_id}` - Get user by ID
+5. ✅ `PUT /api/users/{user_id}` - Update user (conditional UPDATE)
+6. ✅ `DELETE /api/users/{user_id}` - Soft delete user (deactivation)
+
+**Commits**: 3e6f240
+**Approach**: Direct migration (no feature flag)
+
+### Phase 5: Additional Endpoints (Future)
 
 **Other Candidates**:
 1. `GET /api/content/` - SCAP content listing
-2. `GET /api/users/` - User management
-3. `GET /api/audit/` - Audit logs with search
+2. `GET /api/audit/` - Audit logs with search
+3. Other route files with raw SQL queries
 
 **Not Suitable for QueryBuilder**:
 - `GET /api/hosts/` - Uses PostgreSQL LATERAL JOIN (too complex for QueryBuilder)
@@ -635,10 +662,11 @@ QueryBuilder provides OpenWatch with:
 - ✅ **Better tested** query logic
 
 **Current Status** (2025-11-04):
-- Phase 1, 2 & 3 complete - 10 endpoints migrated (91%)
+- Phase 1, 2, 3 & 4 complete - 16 endpoints migrated (94%)
 - Feature flag removed - QueryBuilder always active
 - Production-proven and stable
 - Scans endpoints 100% migrated
+- Users endpoints 100% migrated
 - Hosts endpoints 83% migrated (1 remaining uses LATERAL JOIN)
 
 ---
