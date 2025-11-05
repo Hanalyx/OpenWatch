@@ -411,15 +411,11 @@ async def create_host(
         # Keep NULL in hosts.encrypted_credentials (unified system uses unified_credentials table)
         encrypted_creds = None
 
-        db.execute(
-            text(
-                """
-            INSERT INTO hosts (id, hostname, ip_address, display_name, operating_system, status, port,
-                             username, auth_method, encrypted_credentials, is_active, created_at, updated_at)
-            VALUES (:id, :hostname, :ip_address, :display_name, :operating_system, :status, :port,
-                    :username, :auth_method, :encrypted_credentials, :is_active, :created_at, :updated_at)
-        """
-            ),
+        # OW-REFACTOR-001B: Use QueryBuilder for INSERT
+        from ..utils.query_builder import QueryBuilder
+
+        query_builder = QueryBuilder("hosts")
+        insert_query = query_builder.insert(
             {
                 "id": host_id,
                 "hostname": host.hostname,
@@ -434,18 +430,18 @@ async def create_host(
                 "is_active": True,
                 "created_at": current_time,
                 "updated_at": current_time,
-            },
+            }
         )
+
+        db.execute(text(insert_query.query), insert_query.params)
 
         db.commit()
 
         # Phase 2: Store credential in unified_credentials using service
         if credential_info:
-            # Get user UUID for audit trail
-            user_id_result = db.execute(
-                text("SELECT id FROM users WHERE id = :user_id"),
-                {"user_id": current_user.get("id")},
-            )
+            # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+            user_query = QueryBuilder("users").select(["id"]).where("id = :user_id")
+            user_id_result = db.execute(text(user_query.query), {"user_id": current_user.get("id")})
             user_row = user_id_result.fetchone()
             user_uuid = str(user_row[0]) if user_row else None
 
@@ -593,30 +589,33 @@ async def update_host(
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
-        # Check if host exists
-        result = db.execute(
-            text(
-                """
-            SELECT id FROM hosts WHERE id = :id
-        """
-            ),
-            {"id": host_uuid},
-        )
+        # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+        from ..utils.query_builder import QueryBuilder
+
+        check_query = QueryBuilder("hosts").select(["id"]).where("id = :id")
+        result = db.execute(text(check_query.query), {"id": host_uuid})
 
         if not result.fetchone():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
-        # Get current host data for partial updates
-        current_host_result = db.execute(
-            text(
-                """
-            SELECT hostname, ip_address, display_name, operating_system, port,
-                   username, auth_method, description
-            FROM hosts WHERE id = :id
-        """
-            ),
-            {"id": host_uuid},
+        # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+        current_host_query = (
+            QueryBuilder("hosts")
+            .select(
+                [
+                    "hostname",
+                    "ip_address",
+                    "display_name",
+                    "operating_system",
+                    "port",
+                    "username",
+                    "auth_method",
+                    "description",
+                ]
+            )
+            .where("id = :id")
         )
+        current_host_result = db.execute(text(current_host_query.query), {"id": host_uuid})
 
         current_host = current_host_result.fetchone()
         if not current_host:
@@ -714,10 +713,10 @@ async def update_host(
                         scope=CredentialScope.HOST, target_id=str(host_uuid)
                     )
 
-                    # Get user UUID for created_by field
+                    # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+                    user_query = QueryBuilder("users").select(["id"]).where("id = :user_id")
                     user_id_result = db.execute(
-                        text("SELECT id FROM users WHERE id = :user_id"),
-                        {"user_id": current_user.get("id")},
+                        text(user_query.query), {"user_id": current_user.get("id")}
                     )
                     user_row = user_id_result.fetchone()
                     user_uuid = str(user_row[0]) if user_row else None
@@ -776,57 +775,45 @@ async def update_host(
             "updated_at": current_time,
         }
 
-        # Build SQL query with optional encrypted_credentials
+        # OW-REFACTOR-001B: Use QueryBuilder for UPDATE
+        # Conditionally include encrypted_credentials
         if encrypted_creds is not None or (host_update.auth_method == "system_default"):
-            update_query = """
-                UPDATE hosts
-                SET hostname = :hostname,
-                    ip_address = :ip_address,
-                    display_name = :display_name,
-                    operating_system = :operating_system,
-                    port = :port,
-                    username = :username,
-                    auth_method = :auth_method,
-                    description = :description,
-                    encrypted_credentials = :encrypted_credentials,
-                    updated_at = :updated_at
-                WHERE id = :id
-            """
             update_params["encrypted_credentials"] = encrypted_creds
-        else:
-            update_query = """
-                UPDATE hosts
-                SET hostname = :hostname,
-                    ip_address = :ip_address,
-                    display_name = :display_name,
-                    operating_system = :operating_system,
-                    port = :port,
-                    username = :username,
-                    auth_method = :auth_method,
-                    description = :description,
-                    updated_at = :updated_at
-                WHERE id = :id
-            """
 
-        db.execute(text(update_query), update_params)
+        update_query_builder = QueryBuilder("hosts").update(update_params).where("id = :id")
+
+        db.execute(text(update_query_builder.query), update_query_builder.params)
 
         db.commit()
 
-        # Get updated host with group information
-        result = db.execute(
-            text(
-                """
-            SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
-                   h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
-                   hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
-            FROM hosts h
-            LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
-            LEFT JOIN host_groups hg ON hg.id = hgm.group_id
-            WHERE h.id = :id
-        """
-            ),
-            {"id": host_uuid},
+        # OW-REFACTOR-001B: Use QueryBuilder for SELECT with LEFT JOINs
+        select_query = (
+            QueryBuilder("hosts h")
+            .select(
+                [
+                    "h.id",
+                    "h.hostname",
+                    "h.ip_address",
+                    "h.display_name",
+                    "h.operating_system",
+                    "h.status",
+                    "h.port",
+                    "h.username",
+                    "h.auth_method",
+                    "h.created_at",
+                    "h.updated_at",
+                    "h.description",
+                    "hg.id as group_id",
+                    "hg.name as group_name",
+                    "hg.description as group_description",
+                    "hg.color as group_color",
+                ]
+            )
+            .join("LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id")
+            .join("LEFT JOIN host_groups hg ON hg.id = hgm.group_id")
+            .where("h.id = :id")
         )
+        result = db.execute(text(select_query.query), {"id": host_uuid})
 
         row = result.fetchone()
         updated_host = Host(
@@ -876,64 +863,41 @@ async def delete_host(
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
-        # Check if host exists
-        result = db.execute(
-            text(
-                """
-            SELECT id FROM hosts WHERE id = :id
-        """
-            ),
-            {"id": host_uuid},
-        )
+        # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+        from ..utils.query_builder import QueryBuilder
+
+        check_query = QueryBuilder("hosts").select(["id"]).where("id = :id")
+        result = db.execute(text(check_query.query), {"id": host_uuid})
 
         if not result.fetchone():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
-        # Check if host has any scans (optional - you might want to prevent deletion)
-        scan_result = db.execute(
-            text(
-                """
-            SELECT COUNT(*) as count FROM scans WHERE host_id = :host_id
-        """
-            ),
-            {"host_id": host_uuid},
+        # OW-REFACTOR-001B: Use QueryBuilder for COUNT
+        count_query = (
+            QueryBuilder("scans").select(["COUNT(*) as count"]).where("host_id = :host_id")
         )
+        scan_result = db.execute(text(count_query.query), {"host_id": host_uuid})
 
         scan_count = scan_result.fetchone().count
         if scan_count > 0:
-            # You can either delete the scans or prevent deletion
-            # For now, we'll delete the scans too
-            db.execute(
-                text(
-                    """
-                DELETE FROM scan_results WHERE scan_id IN (
-                    SELECT id FROM scans WHERE host_id = :host_id
-                )
-            """
-                ),
-                {"host_id": host_uuid},
+            # OW-REFACTOR-001B: Use QueryBuilder for DELETE
+            # Delete scan_results first (FK constraint)
+            delete_results_query = (
+                QueryBuilder("scan_results")
+                .delete()
+                .where("scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)")
             )
+            db.execute(text(delete_results_query.query), {"host_id": host_uuid})
 
-            db.execute(
-                text(
-                    """
-                DELETE FROM scans WHERE host_id = :host_id
-            """
-                ),
-                {"host_id": host_uuid},
-            )
+            # Then delete scans
+            delete_scans_query = QueryBuilder("scans").delete().where("host_id = :host_id")
+            db.execute(text(delete_scans_query.query), {"host_id": host_uuid})
 
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
 
-        # Delete the host
-        db.execute(
-            text(
-                """
-            DELETE FROM hosts WHERE id = :id
-        """
-            ),
-            {"id": host_uuid},
-        )
+        # OW-REFACTOR-001B: Use QueryBuilder for DELETE
+        delete_host_query = QueryBuilder("hosts").delete().where("id = :id")
+        db.execute(text(delete_host_query.query), {"id": host_uuid})
 
         db.commit()
 
@@ -962,16 +926,15 @@ async def delete_host_ssh_key(
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
-        # Check if host exists and has SSH key
-        result = db.execute(
-            text(
-                """
-            SELECT id, auth_method, ssh_key_fingerprint FROM hosts
-            WHERE id = :id
-        """
-            ),
-            {"id": host_uuid},
+        # OW-REFACTOR-001B: Use QueryBuilder for SELECT
+        from ..utils.query_builder import QueryBuilder
+
+        select_query = (
+            QueryBuilder("hosts")
+            .select(["id", "auth_method", "ssh_key_fingerprint"])
+            .where("id = :id")
         )
+        result = db.execute(text(select_query.query), {"id": host_uuid})
 
         row = result.fetchone()
         if not row:
@@ -983,21 +946,21 @@ async def delete_host_ssh_key(
                 detail="No SSH key found to delete",
             )
 
-        # Update host to remove SSH key
-        db.execute(
-            text(
-                """
-            UPDATE hosts SET
-                ssh_key_fingerprint = NULL,
-                ssh_key_type = NULL,
-                ssh_key_bits = NULL,
-                ssh_key_comment = NULL,
-                updated_at = :updated_at
-            WHERE id = :id
-        """
-            ),
-            {"id": host_uuid, "updated_at": datetime.utcnow()},
+        # OW-REFACTOR-001B: Use QueryBuilder for UPDATE
+        update_query = (
+            QueryBuilder("hosts")
+            .update(
+                {
+                    "ssh_key_fingerprint": None,
+                    "ssh_key_type": None,
+                    "ssh_key_bits": None,
+                    "ssh_key_comment": None,
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+            .where("id = :id")
         )
+        db.execute(text(update_query.query), {"id": host_uuid, **update_query.params})
 
         db.commit()
 
