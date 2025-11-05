@@ -14,7 +14,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
-from ..config import get_settings
 from ..database import get_db
 
 # NOTE: json and base64 imports removed - using centralized auth service
@@ -482,63 +481,41 @@ async def get_host(
     current_user: dict = Depends(get_current_user),
 ):
     """Get host details by ID"""
-    settings = get_settings()
-
     try:
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
-        # OW-REFACTOR-001B: Feature flag for QueryBuilder
-        if settings.use_query_builder:
-            logger.info(
-                f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs
+        # Why: Consistent with Phase 2 pattern, eliminates dual code paths, maintains SQL injection protection
+        logger.info(
+            f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
+        )
+        builder = (
+            QueryBuilder("hosts h")
+            .select(
+                "h.id",
+                "h.hostname",
+                "h.ip_address",
+                "h.display_name",
+                "h.operating_system",
+                "h.status",
+                "h.port",
+                "h.username",
+                "h.auth_method",
+                "h.created_at",
+                "h.updated_at",
+                "h.description",
+                "hg.id as group_id",
+                "hg.name as group_name",
+                "hg.description as group_description",
+                "hg.color as group_color",
             )
-            # Build query using QueryBuilder
-            builder = (
-                QueryBuilder("hosts h")
-                .select(
-                    "h.id",
-                    "h.hostname",
-                    "h.ip_address",
-                    "h.display_name",
-                    "h.operating_system",
-                    "h.status",
-                    "h.port",
-                    "h.username",
-                    "h.auth_method",
-                    "h.created_at",
-                    "h.updated_at",
-                    "h.description",
-                    "hg.id as group_id",
-                    "hg.name as group_name",
-                    "hg.description as group_description",
-                    "hg.color as group_color",
-                )
-                .join("host_group_memberships hgm", "hgm.host_id = h.id", "LEFT")
-                .join("host_groups hg", "hg.id = hgm.group_id", "LEFT")
-                .where("h.id = :id", host_uuid, "id")
-            )
-            query, params = builder.build()
-            result = db.execute(text(query), params)
-        else:
-            # Original SQL implementation (default)
-            logger.info(
-                f"Using original SQL for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
-            )
-            result = db.execute(
-                text(
-                    """
-                SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
-                       h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
-                       hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
-                FROM hosts h
-                LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
-                LEFT JOIN host_groups hg ON hg.id = hgm.group_id
-                WHERE h.id = :id
-            """
-                ),
-                {"id": host_uuid},
-            )
+            .join("host_group_memberships hgm", "hgm.host_id = h.id", "LEFT")
+            .join("host_groups hg", "hg.id = hgm.group_id", "LEFT")
+            .where("h.id = :id", host_uuid, "id")
+        )
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         row = result.fetchone()
         if not row:
