@@ -2,8 +2,8 @@
 
 **Created**: 2025-10-19
 **Last Updated**: 2025-11-04
-**Status**: Phase 1 & 2 Complete - Feature Flag Removed
-**Related PRs**: #115 (Infrastructure), #116 (Phase 1), #121 (Phase 2)
+**Status**: Phase 1, 2 & 3 Complete - 10 Endpoints Migrated
+**Related PRs**: #115 (Infrastructure), #116 (Phase 1), #121 (Phase 2), #122 (Phase 3)
 
 ## What is QueryBuilder?
 
@@ -217,10 +217,11 @@ async def get_host(
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Infrastructure** | ✅ Deployed | PR #115 merged |
-| **Phase 1 (GET)** | ✅ Complete | Feature flag removed (commit ae5d4a3) |
-| **Phase 2 (POST/PUT/DELETE)** | ✅ Complete | PR #121 merged |
+| **Phase 1 (GET Hosts)** | ✅ Complete | Feature flag removed (commit ae5d4a3) |
+| **Phase 2 (POST/PUT/DELETE Hosts)** | ✅ Complete | PR #121 merged |
+| **Phase 3 (Scan Endpoints)** | ✅ Complete | Issue #122 closed (commit d469046) |
 | **Feature Flag** | ⚠️ DEPRECATED | Marked deprecated in config.py (commit 644b2c9) |
-| **Production Status** | ✅ Active | All endpoints using QueryBuilder |
+| **Production Status** | ✅ Active | 10 endpoints using QueryBuilder (91%) |
 
 ### Feature Flag (DEPRECATED)
 
@@ -235,7 +236,7 @@ async def get_host(
 
 ### Endpoints Status
 
-**✅ Using QueryBuilder (Active in Production)**:
+**✅ Hosts Endpoints - Using QueryBuilder (5/6 = 83%)**:
 
 | Endpoint | Method | Status | Migration |
 |----------|--------|--------|-----------|
@@ -244,13 +245,19 @@ async def get_host(
 | `/{host_id}` | PUT | ✅ Active | Phase 2 (commit ac8376b) |
 | `/{host_id}` | DELETE | ✅ Active | Phase 2 (commit ac8376b) |
 | `/{host_id}/ssh-key` | DELETE | ✅ Active | Phase 2 (commit ac8376b) |
+| `/` | GET | ❌ Raw SQL | Uses PostgreSQL LATERAL JOIN (complexity) |
 
-**❌ Not Using QueryBuilder**:
+**✅ Scans Endpoints - Using QueryBuilder (5/5 = 100%)**:
 
-| Endpoint | Method | Reason |
-|----------|--------|--------|
-| `/` | GET | Uses PostgreSQL LATERAL JOIN (complexity) |
-| `/api/hosts/search` | GET | Does not exist in codebase |
+| Endpoint | Method | Status | Migration |
+|----------|--------|--------|-----------|
+| `/` | GET | ✅ Active | Phase 3 (commit d469046) |
+| `/` | POST | ✅ Active | Phase 3 (commit d469046) |
+| `/{scan_id}` | GET | ✅ Active | Phase 3 (commit d469046) |
+| `/{scan_id}` | PATCH | ✅ Active | Phase 3 (commit d469046) |
+| `/{scan_id}` | DELETE | ✅ Active | Phase 3 (commit d469046) |
+
+**Overall**: 10 out of 11 endpoints using QueryBuilder (91%)
 
 ---
 
@@ -446,14 +453,20 @@ query = (QueryBuilder("hosts")
 
 ## Future Roadmap
 
-### Phase 3: Scan Management Endpoints (Next)
+### ✅ Phase 3: Scan Management Endpoints (Complete - 2025-11-04)
 
-**Candidates for Refactoring** (Issue #122):
-1. `GET /api/scans/` - List scans with filters
-2. `POST /api/scans/` - Create scan
-3. `GET /api/scans/{scan_id}` - Get scan details
-4. `PUT /api/scans/{scan_id}` - Update scan
-5. `DELETE /api/scans/{scan_id}` - Delete scan
+**Status**: All 5 scan endpoints migrated (Issue #122 closed)
+
+**Endpoints Migrated**:
+1. ✅ `GET /api/scans/` - List scans with filters (complex 3-table JOIN)
+2. ✅ `POST /api/scans/` - Create scan (with validation queries)
+3. ✅ `GET /api/scans/{scan_id}` - Get scan details (2 INNER JOINs)
+4. ✅ `PATCH /api/scans/{scan_id}` - Update scan (conditional UPDATE)
+5. ✅ `DELETE /api/scans/{scan_id}` - Delete scan (cascade deletion)
+
+**Commits**: d469046
+**Issue**: #122 (closed)
+**Approach**: Direct migration (no feature flag)
 
 ### Phase 4: Additional Endpoints (Future)
 
@@ -622,10 +635,11 @@ QueryBuilder provides OpenWatch with:
 - ✅ **Better tested** query logic
 
 **Current Status** (2025-11-04):
-- Phase 1 & 2 complete - 5 endpoints migrated
+- Phase 1, 2 & 3 complete - 10 endpoints migrated (91%)
 - Feature flag removed - QueryBuilder always active
 - Production-proven and stable
-- Ready for Phase 3 (scan endpoints)
+- Scans endpoints 100% migrated
+- Hosts endpoints 83% migrated (1 remaining uses LATERAL JOIN)
 
 ---
 
@@ -636,4 +650,4 @@ QueryBuilder provides OpenWatch with:
 - `backend/docs/development/README.md`
 **Related Issues**:
 - Issue #121: Phase 2 migration (closed)
-- Issue #122: Phase 3 scan endpoints (open)
+- Issue #122: Phase 3 scan endpoints (closed)
