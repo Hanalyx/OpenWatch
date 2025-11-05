@@ -15,6 +15,7 @@ from ..auth import get_current_user, pwd_context
 from ..database import get_db
 from ..rbac import Permission, RBACManager, UserRole, require_permission
 from ..utils.logging_security import sanitize_id_for_log
+from ..utils.query_builder import QueryBuilder
 from ..utils.user_helpers import format_user_not_found_error, serialize_user_row
 
 logger = logging.getLogger(__name__)
@@ -80,14 +81,14 @@ async def list_roles(current_user: dict = Depends(get_current_user), db: Session
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
-        result = db.execute(
-            text(
-                """
-            SELECT name, display_name, description, permissions
-            FROM roles
-            WHERE is_active = true
-            ORDER BY
-                CASE name
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with complex ORDER BY
+        # Why: Eliminates manual SQL construction, consistent with Phase 1-3 pattern
+        builder = (
+            QueryBuilder("roles")
+            .select("name", "display_name", "description", "permissions")
+            .where("is_active = :is_active", True, "is_active")
+            .order_by(
+                """CASE name
                     WHEN 'super_admin' THEN 1
                     WHEN 'security_admin' THEN 2
                     WHEN 'security_analyst' THEN 3
@@ -95,10 +96,12 @@ async def list_roles(current_user: dict = Depends(get_current_user), db: Session
                     WHEN 'auditor' THEN 5
                     WHEN 'guest' THEN 6
                     ELSE 7
-                END
-        """
+                END""",
+                "ASC",
             )
         )
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         roles = []
         for row in result:
@@ -134,52 +137,55 @@ async def list_users(
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
-        # Build query conditions
-        conditions = ["1=1"]
-        params = {}
+        # OW-REFACTOR-001B: Use QueryBuilder for count query with conditional filtering
+        # Why: Eliminates manual query string construction, consistent with Phase 1-3 pattern
+        count_builder = QueryBuilder("users")
 
+        # Add search filter (username OR email)
         if search:
-            conditions.append("(username ILIKE :search OR email ILIKE :search)")
-            params["search"] = f"%{search}%"
+            count_builder.where("(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search")
 
+        # Add role filter
         if role:
-            conditions.append("role = :role")
-            params["role"] = role.value
+            count_builder.where("role = :role", role.value, "role")
 
+        # Add is_active filter
         if is_active is not None:
-            conditions.append("is_active = :is_active")
-            params["is_active"] = is_active
+            count_builder.where("is_active = :is_active", is_active, "is_active")
 
-        where_clause = " AND ".join(conditions)
-
-        # Get total count
-        count_result = db.execute(
-            text(
-                f"""
-            SELECT COUNT(*) as total FROM users WHERE {where_clause}
-        """
-            ),
-            params,
-        )
+        count_query, count_params = count_builder.count_query()
+        count_result = db.execute(text(count_query), count_params)
         total = count_result.fetchone().total
 
-        # Get paginated results
-        offset = (page - 1) * page_size
-        params.update({"limit": page_size, "offset": offset})
-
-        result = db.execute(
-            text(
-                f"""
-            SELECT id, username, email, role, is_active, created_at,
-                   last_login, failed_login_attempts, locked_until
-            FROM users
-            WHERE {where_clause}
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-        """
-            ),
-            params,
+        # OW-REFACTOR-001B: Use QueryBuilder for main query with same filters and pagination
+        # Why: Reduces SQL injection risk, improves maintainability
+        builder = QueryBuilder("users").select(
+            "id",
+            "username",
+            "email",
+            "role",
+            "is_active",
+            "created_at",
+            "last_login",
+            "failed_login_attempts",
+            "locked_until",
         )
+
+        # Apply same filters as count query
+        if search:
+            builder.where("(username ILIKE :search OR email ILIKE :search)", f"%{search}%", "search")
+
+        if role:
+            builder.where("role = :role", role.value, "role")
+
+        if is_active is not None:
+            builder.where("is_active = :is_active", is_active, "is_active")
+
+        # Add ordering and pagination
+        builder.order_by("created_at", "DESC").paginate(page=page, per_page=page_size)
+
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         # Phase 3: Use centralized serialization helper
         users = []
@@ -203,13 +209,13 @@ async def create_user(
 ):
     """Create a new user (super admin only)"""
     try:
-        # Check if username or email already exists
+        # OW-REFACTOR-001B: Use QueryBuilder for existence check
+        # Why: Consistent with Phase 1-3 pattern, reduces SQL injection risk
+        check_builder = QueryBuilder("users").select("id").where("username = :username OR email = :email", None, None)
+        # Note: QueryBuilder doesn't support OR with different param values, use custom params
+        query, _ = check_builder.build()
         result = db.execute(
-            text(
-                """
-            SELECT id FROM users WHERE username = :username OR email = :email
-        """
-            ),
+            text(query.replace(":username OR email = :email", ":username OR email = :email")),
             {"username": user_data.username, "email": user_data.email},
         )
 
@@ -219,23 +225,24 @@ async def create_user(
         # Hash password
         hashed_password = pwd_context.hash(user_data.password)
 
-        # Create user
-        insert_result = db.execute(
-            text(
-                """
-            INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
-            VALUES (:username, :email, :password, :role, :is_active, CURRENT_TIMESTAMP, 0, false)
-            RETURNING id, created_at
-        """
-            ),
+        # OW-REFACTOR-001B: Use QueryBuilder for INSERT with RETURNING
+        # Why: Eliminates manual SQL construction, maintains consistency
+        insert_builder = QueryBuilder("users").insert(
             {
                 "username": user_data.username,
                 "email": user_data.email,
-                "password": hashed_password,
+                "hashed_password": hashed_password,
                 "role": user_data.role.value,
                 "is_active": user_data.is_active,
-            },
+                "created_at": "CURRENT_TIMESTAMP",  # SQL function, not parameterized
+                "failed_login_attempts": 0,
+                "mfa_enabled": False,
+            }
         )
+        query, params = insert_builder.build()
+        # Add RETURNING clause (QueryBuilder doesn't support RETURNING yet)
+        query += " RETURNING id, created_at"
+        insert_result = db.execute(text(query), params)
 
         row = insert_result.fetchone()
         db.commit()
@@ -277,16 +284,25 @@ async def get_user(
 ):
     """Get user by ID"""
     try:
-        result = db.execute(
-            text(
-                """
-            SELECT id, username, email, role, is_active, created_at,
-                   last_login, failed_login_attempts, locked_until
-            FROM users WHERE id = :user_id
-        """
-            ),
-            {"user_id": user_id},
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT
+        # Why: Consistent with Phase 1-3 pattern, eliminates manual SQL construction
+        builder = (
+            QueryBuilder("users")
+            .select(
+                "id",
+                "username",
+                "email",
+                "role",
+                "is_active",
+                "created_at",
+                "last_login",
+                "failed_login_attempts",
+                "locked_until",
+            )
+            .where("id = :user_id", user_id, "user_id")
         )
+        query, params = builder.build()
+        result = db.execute(text(query), params)
 
         row = result.fetchone()
         if not row:
@@ -313,10 +329,11 @@ async def update_user(
 ):
     """Update user (admin only, or users can update themselves)"""
     try:
-        # Check if user exists
-        result = db.execute(
-            text("SELECT id, role FROM users WHERE id = :user_id"), {"user_id": user_id}
-        )
+        # OW-REFACTOR-001B: Use QueryBuilder for existence check
+        # Why: Consistent with Phase 1-3 pattern
+        check_builder = QueryBuilder("users").select("id", "role").where("id = :user_id", user_id, "user_id")
+        query, params = check_builder.build()
+        result = db.execute(text(query), params)
         existing_user = result.fetchone()
         if not existing_user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -331,47 +348,32 @@ async def update_user(
             if user_data.role and user_data.role != UserRole(existing_user.role):
                 raise HTTPException(status_code=403, detail="Cannot change your own role")
 
-        # Build update query with secure column mapping
-        updates = []
-        params = {"user_id": user_id}
-
-        # Security Fix: Use explicit column mapping instead of f-string concatenation
-        allowed_columns = {
-            "username": "username = :username",
-            "email": "email = :email",
-            "role": "role = :role",
-            "is_active": "is_active = :is_active",
-            "password": "hashed_password = :password",
-        }
+        # OW-REFACTOR-001B: Use QueryBuilder for conditional UPDATE
+        # Why: Eliminates manual SQL construction, maintains security through parameterization
+        update_data = {}
 
         if user_data.username:
-            updates.append(allowed_columns["username"])
-            params["username"] = user_data.username
+            update_data["username"] = user_data.username
 
         if user_data.email:
-            updates.append(allowed_columns["email"])
-            params["email"] = user_data.email
+            update_data["email"] = user_data.email
 
         if user_data.role:
-            updates.append(allowed_columns["role"])
-            params["role"] = user_data.role.value
+            update_data["role"] = user_data.role.value
 
         if user_data.is_active is not None:
-            updates.append(allowed_columns["is_active"])
-            params["is_active"] = user_data.is_active
+            update_data["is_active"] = user_data.is_active
 
         if user_data.password:
-            updates.append(allowed_columns["password"])
-            params["password"] = pwd_context.hash(user_data.password)
+            update_data["hashed_password"] = pwd_context.hash(user_data.password)
 
-        if not updates:
+        if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
         # Note: users table does not have updated_at column, only created_at
-        # Security Fix: Use parameterized query construction
-        update_query = "UPDATE users SET " + ", ".join(updates) + " WHERE id = :user_id"
-
-        db.execute(text(update_query), params)
+        update_builder = QueryBuilder("users").update(update_data).where("id = :user_id", user_id, "user_id")
+        query, params = update_builder.build()
+        db.execute(text(query), params)
         db.commit()
 
         # Return updated user
@@ -398,27 +400,21 @@ async def delete_user(
         if current_user.get("id") == user_id:
             raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-        # Check if user exists
-        result = db.execute(
-            text("SELECT username FROM users WHERE id = :user_id"), {"user_id": user_id}
-        )
+        # OW-REFACTOR-001B: Use QueryBuilder for existence check
+        # Why: Consistent with Phase 1-3 pattern
+        check_builder = QueryBuilder("users").select("username").where("id = :user_id", user_id, "user_id")
+        query, params = check_builder.build()
+        result = db.execute(text(query), params)
         user = result.fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Soft delete (deactivate) instead of hard delete to preserve audit trails
+        # OW-REFACTOR-001B: Use QueryBuilder for soft delete (deactivation)
+        # Why: Soft delete preserves audit trails, QueryBuilder maintains security through parameterization
         # Note: users table does not have updated_at column, only created_at
-        db.execute(
-            text(
-                """
-            UPDATE users
-            SET is_active = false
-            WHERE id = :user_id
-        """
-            ),
-            {"user_id": user_id},
-        )
-
+        update_builder = QueryBuilder("users").update({"is_active": False}).where("id = :user_id", user_id, "user_id")
+        query, params = update_builder.build()
+        db.execute(text(query), params)
         db.commit()
 
         logger.info(f"User {user.username} deactivated by {current_user.get('username')}")
@@ -487,9 +483,7 @@ async def change_password(
 
 
 @router.get("/me/profile", response_model=UserResponse)
-async def get_my_profile(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
-):
+async def get_my_profile(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get current user's profile"""
     return await get_user(current_user.get("id"), current_user, db)
 
