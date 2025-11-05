@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from backend.app.models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from backend.app.repositories import ComplianceRuleRepository
 from backend.app.services.mongo_integration_service import MongoIntegrationService
 from backend.app.services.scap_parser_service import SCAPParserService
 from backend.app.services.scap_transformation_service import SCAPTransformationService
@@ -257,7 +258,9 @@ class SCAPImportService:
         rule_id = rule_data["rule_id"]
 
         # Check if rule already exists
-        existing_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = ComplianceRuleRepository()
+        existing_rule = await repo.find_one({"rule_id": rule_id})
 
         if existing_rule:
             if deduplication_strategy == "skip_existing":
@@ -425,12 +428,12 @@ class SCAPImportService:
         file_hash = self.parser._calculate_file_hash(file_path)
 
         # Count rules from this file
-        rule_count = await ComplianceRule.count(ComplianceRule.source_hash == file_hash)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = ComplianceRuleRepository()
+        rule_count = await repo.count({"source_hash": file_hash})
 
         # Get sample rules
-        sample_rules = (
-            await ComplianceRule.find(ComplianceRule.source_hash == file_hash).limit(5).to_list()
-        )
+        sample_rules = await repo.find_many({"source_hash": file_hash}, limit=5)
 
         return {
             "file_path": file_path,

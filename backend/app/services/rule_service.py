@@ -19,14 +19,8 @@ from backend.app.models.mongo_models import (
 from backend.app.services.platform_capability_service import PlatformCapabilityService
 from backend.app.services.rule_cache_service import RuleCacheService
 
-# OW-REFACTOR-002: Import Repository Pattern and config
-try:
-    from backend.app.config import get_settings
-    from backend.app.repositories import ComplianceRuleRepository
-
-    REPOSITORY_AVAILABLE = True
-except ImportError:
-    REPOSITORY_AVAILABLE = False
+# OW-REFACTOR-002: Repository Pattern (MANDATORY)
+from backend.app.repositories import ComplianceRuleRepository
 
 logger = logging.getLogger(__name__)
 
@@ -122,17 +116,12 @@ class RuleService:
             )
 
             # Execute query with proper indexing
-            # OW-REFACTOR-002: Use Repository Pattern if enabled
-            settings = get_settings() if REPOSITORY_AVAILABLE else None
-            if REPOSITORY_AVAILABLE and settings and settings.use_repository_pattern:
-                logger.info(
-                    f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})"
-                )
-                repo = ComplianceRuleRepository()
-                rules = await repo.find_many(query_filter)
-            else:
-                logger.debug(f"Using direct MongoDB find for get_rules_by_platform ({platform})")
-                rules = await ComplianceRule.find(query_filter).to_list()
+            # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+            logger.debug(
+                f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})"
+            )
+            repo = ComplianceRuleRepository()
+            rules = await repo.find_many(query_filter)
 
             # Resolve inheritance for each rule
             resolved_rules = []
@@ -180,19 +169,12 @@ class RuleService:
             return cached
 
         # Get base rule
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        settings = get_settings() if REPOSITORY_AVAILABLE else None
-        if REPOSITORY_AVAILABLE and settings and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})"
-            )
-            repo = ComplianceRuleRepository()
-            rule = await repo.find_one({"rule_id": rule_id})
-        else:
-            logger.debug(
-                f"Using direct MongoDB find_one for get_rule_with_dependencies ({rule_id})"
-            )
-            rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        logger.debug(
+            f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})"
+        )
+        repo = ComplianceRuleRepository()
+        rule = await repo.find_one({"rule_id": rule_id})
 
         if not rule:
             raise ValueError(f"Rule not found: {rule_id}")
@@ -341,7 +323,9 @@ class RuleService:
     async def get_rule_statistics(self) -> Dict[str, Any]:
         """Get comprehensive rule statistics"""
         # Basic counts
-        total_rules = await ComplianceRule.count()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = ComplianceRuleRepository()
+        total_rules = await repo.count()
         total_intelligence = await RuleIntelligence.count()
         total_scripts = await RemediationScript.count()
 
@@ -452,21 +436,12 @@ class RuleService:
             return rule_data
 
         # Get parent rule
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        settings = get_settings() if REPOSITORY_AVAILABLE else None
-        if REPOSITORY_AVAILABLE and settings and settings.use_repository_pattern:
-            logger.debug(
-                f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})"
-            )
-            repo = ComplianceRuleRepository()
-            parent_rule = await repo.find_one({"rule_id": rule.inherits_from})
-        else:
-            logger.debug(
-                f"Using direct MongoDB find_one for _resolve_rule_inheritance ({rule.inherits_from})"
-            )
-            parent_rule = await ComplianceRule.find_one(
-                ComplianceRule.rule_id == rule.inherits_from
-            )
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        logger.debug(
+            f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})"
+        )
+        repo = ComplianceRuleRepository()
+        parent_rule = await repo.find_one({"rule_id": rule.inherits_from})
 
         if not parent_rule:
             logger.warning(f"Parent rule not found: {rule.inherits_from}")
@@ -615,17 +590,12 @@ class RuleService:
 
         result = {"requires": [], "conflicts": [], "related": []}
 
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        settings = get_settings() if REPOSITORY_AVAILABLE else None
-        use_repo = REPOSITORY_AVAILABLE and settings and settings.use_repository_pattern
-        repo = ComplianceRuleRepository() if use_repo else None
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        repo = ComplianceRuleRepository()
 
         # Process required dependencies
         for dep_id in dependencies.get("requires", []):
-            if use_repo:
-                dep_rule = await repo.find_one({"rule_id": dep_id})
-            else:
-                dep_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == dep_id)
+            dep_rule = await repo.find_one({"rule_id": dep_id})
 
             if dep_rule:
                 dep_data = await self._resolve_rule_inheritance(dep_rule)
@@ -638,12 +608,7 @@ class RuleService:
         # Process conflicts if requested
         if include_conflicts:
             for conflict_id in dependencies.get("conflicts", []):
-                if use_repo:
-                    conflict_rule = await repo.find_one({"rule_id": conflict_id})
-                else:
-                    conflict_rule = await ComplianceRule.find_one(
-                        ComplianceRule.rule_id == conflict_id
-                    )
+                conflict_rule = await repo.find_one({"rule_id": conflict_id})
 
                 if conflict_rule:
                     conflict_data = await self._resolve_rule_inheritance(conflict_rule)
@@ -656,10 +621,7 @@ class RuleService:
 
         # Process related rules
         for related_id in dependencies.get("related", []):
-            if use_repo:
-                related_rule = await repo.find_one({"rule_id": related_id})
-            else:
-                related_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == related_id)
+            related_rule = await repo.find_one({"rule_id": related_id})
 
             if related_rule:
                 related_data = await self._resolve_rule_inheritance(related_rule)

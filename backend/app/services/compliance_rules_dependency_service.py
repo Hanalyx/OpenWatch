@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from ..models.mongo_models import ComplianceRule
+from ..repositories import ComplianceRuleRepository
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,9 @@ class RuleDependencyGraph:
         logger.info("Building dependency graph from MongoDB...")
 
         try:
-            all_rules = await ComplianceRule.find_all().to_list()
+            # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
 
             for rule in all_rules:
                 self.add_rule(rule)
@@ -645,7 +648,9 @@ class InheritanceResolver:
 
             try:
                 # Get child rule from database
-                child_rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+                # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+                repo = ComplianceRuleRepository()
+                child_rule = await repo.find_one({"rule_id": rule_id})
 
                 if not child_rule:
                     results["failed"] += 1

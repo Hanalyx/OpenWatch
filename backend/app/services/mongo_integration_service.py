@@ -255,24 +255,16 @@ fi
         if not self.initialized:
             await self.initialize()
 
-        settings = get_settings()
-
         # MongoDB query for platform-specific rules
         query_field = f"platform_implementations.{platform}.versions"
         query = {query_field: version}
 
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})"
-            )
-            repo = ComplianceRuleRepository()
-            rules = await repo.find_many(query)
-        else:
-            logger.debug(
-                f"Using direct MongoDB find for query_rules_by_platform ({platform} {version})"
-            )
-            rules = await ComplianceRule.find(query).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        logger.debug(
+            f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})"
+        )
+        repo = ComplianceRuleRepository()
+        rules = await repo.find_many(query)
 
         logger.info(f"Found {len(rules)} rules for {platform} {version}")
         return rules
@@ -284,24 +276,16 @@ fi
         if not self.initialized:
             await self.initialize()
 
-        settings = get_settings()
-
         # MongoDB query for framework-specific rules
         query_field = f"frameworks.{framework}.{version}"
         query = {query_field: {"$exists": True}}
 
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})"
-            )
-            repo = ComplianceRuleRepository()
-            rules = await repo.find_many(query)
-        else:
-            logger.debug(
-                f"Using direct MongoDB find for query_rules_by_framework ({framework} {version})"
-            )
-            rules = await ComplianceRule.find(query).to_list()
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        logger.debug(
+            f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})"
+        )
+        repo = ComplianceRuleRepository()
+        rules = await repo.find_many(query)
 
         logger.info(f"Found {len(rules)} rules for {framework} {version}")
         return rules
@@ -313,21 +297,13 @@ fi
         if not self.initialized:
             await self.initialize()
 
-        settings = get_settings()
-
         # Get the rule
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info(
-                f"Using ComplianceRuleRepository for get_rule_with_intelligence ({rule_id})"
-            )
-            repo = ComplianceRuleRepository()
-            rule = await repo.find_one({"rule_id": rule_id})
-        else:
-            logger.debug(
-                f"Using direct MongoDB find_one for get_rule_with_intelligence ({rule_id})"
-            )
-            rule = await ComplianceRule.find_one(ComplianceRule.rule_id == rule_id)
+        # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+        logger.debug(
+            f"Using ComplianceRuleRepository for get_rule_with_intelligence ({rule_id})"
+        )
+        repo = ComplianceRuleRepository()
+        rule = await repo.find_one({"rule_id": rule_id})
 
         if not rule:
             return {"error": "Rule not found"}
@@ -350,7 +326,9 @@ fi
             return
 
         # Delete test rules
-        await ComplianceRule.find(ComplianceRule.rule_id.regex("^ow-test-")).delete()
+        # OW-REFACTOR-002: Repository Pattern for deletions
+        repo = ComplianceRuleRepository()
+        await repo.delete_many({"rule_id": {"$regex": "^ow-test-"}})
         await RuleIntelligence.find(RuleIntelligence.rule_id.regex("^ow-test-")).delete()
         await RemediationScript.find(RemediationScript.rule_id.regex("^ow-test-")).delete()
 
@@ -422,8 +400,10 @@ fi
             # Test 7: Index Performance Test
             start_time = datetime.utcnow()
             # Perform multiple queries to test indexes
+            # OW-REFACTOR-002: Repository Pattern for queries
+            repo = ComplianceRuleRepository()
             for _ in range(10):
-                await ComplianceRule.find(ComplianceRule.severity == "high").limit(100).to_list()
+                await repo.find_many({"severity": "high"}, limit=100)
 
             end_time = datetime.utcnow()
             query_duration_ms = (end_time - start_time).total_seconds() * 1000
@@ -457,8 +437,6 @@ fi
         Returns statistical breakdown of rules by platform
         OW-REFACTOR-002: Supports Repository Pattern
         """
-        settings = get_settings()
-
         try:
             # MongoDB aggregation pipeline for platform statistics
             pipeline = [
@@ -499,17 +477,12 @@ fi
 
             # Execute aggregation (fallback to manual processing if aggregation fails)
             try:
-                # OW-REFACTOR-002: Use Repository Pattern if enabled
-                if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-                    logger.info(
-                        "Using ComplianceRuleRepository for get_platform_statistics aggregation"
-                    )
-                    repo = ComplianceRuleRepository()
-                    aggregation_results = await repo.aggregate(pipeline)
-                else:
-                    logger.debug("Using direct MongoDB aggregation for get_platform_statistics")
-                    cursor = ComplianceRule.aggregate(pipeline)
-                    aggregation_results = await cursor.to_list()
+                # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+                logger.debug(
+                    "Using ComplianceRuleRepository for get_platform_statistics aggregation"
+                )
+                repo = ComplianceRuleRepository()
+                aggregation_results = await repo.aggregate(pipeline)
 
                 if aggregation_results:
                     # Process aggregation results
@@ -569,14 +542,10 @@ fi
                 )
 
             # Fallback: Manual processing of all rules
-            # OW-REFACTOR-002: Use Repository Pattern if enabled
-            if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-                logger.info("Using ComplianceRuleRepository for get_platform_statistics fallback")
-                repo = ComplianceRuleRepository()
-                all_rules = await repo.find_many({})
-            else:
-                logger.debug("Using direct MongoDB find for get_platform_statistics fallback")
-                all_rules = await ComplianceRule.find().to_list()
+            # OW-REFACTOR-002: Repository Pattern (MANDATORY)
+            logger.debug("Using ComplianceRuleRepository for get_platform_statistics fallback")
+            repo = ComplianceRuleRepository()
+            all_rules = await repo.find_many({})
 
             platform_analysis = {}
 

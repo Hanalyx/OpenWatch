@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..models.mongo_models import ComplianceRule, RuleIntelligence, UploadHistory
+from ..repositories import ComplianceRuleRepository
 from .compliance_rules_bson_parser import BSONParserService
 from .compliance_rules_deduplication_service import DeduplicationStrategy, SmartDeduplicationService
 from .compliance_rules_dependency_service import InheritanceResolver, RuleDependencyGraph
@@ -341,9 +342,11 @@ class ComplianceRulesUploadService:
 
         try:
             # Find all rules with inherits_from (child rules)
-            child_rules = await ComplianceRule.find(
+            # Repository Pattern: Use find_many() for bulk queries
+            repo = ComplianceRuleRepository()
+            child_rules = await repo.find_many(
                 {"inherits_from": {"$ne": None}, "is_latest": True}
-            ).to_list()
+            )
 
             if not child_rules:
                 logger.debug(
@@ -358,11 +361,13 @@ class ComplianceRulesUploadService:
                 inheritance_map[parent_id].append(child.rule_id)
 
             # Update parent rules with derived_rules list
+            # Repository Pattern: Use update_one() for individual updates
             update_count = 0
             for parent_id, child_ids in inheritance_map.items():
-                result = await ComplianceRule.find_one(
-                    {"rule_id": parent_id, "is_latest": True}
-                ).update({"$set": {"derived_rules": sorted(child_ids)}})
+                result = await repo.update_one(
+                    query={"rule_id": parent_id, "is_latest": True},
+                    update={"$set": {"derived_rules": sorted(child_ids)}}
+                )
                 if result:
                     update_count += 1
 
@@ -588,9 +593,11 @@ class ComplianceRulesUploadService:
                 rule_data = self._clean_empty_framework_fields(rule_data)
 
                 # Check if latest version of rule exists (immutable versioning)
+                # Repository Pattern: Use find_one() for single record queries
                 rule_id = rule_data.get("rule_id")
-                existing_rule = await ComplianceRule.find_one(
-                    ComplianceRule.rule_id == rule_id, ComplianceRule.is_latest == True
+                repo = ComplianceRuleRepository()
+                existing_rule = await repo.find_one(
+                    {"rule_id": rule_id, "is_latest": True}
                 )
 
                 # Process with smart deduplication
@@ -721,8 +728,11 @@ class ComplianceRulesUploadService:
         now = datetime.utcnow()
 
         # Step 1: Mark existing version as superseded (update is_latest flag only)
-        await ComplianceRule.find_one(ComplianceRule.id == existing_rule.id).update(
-            {
+        # Repository Pattern: Use update_one() for targeted updates with MongoDB _id
+        repo = ComplianceRuleRepository()
+        await repo.update_one(
+            query={"_id": existing_rule.id},
+            update={
                 "$set": {
                     "is_latest": False,
                     "effective_until": now,
