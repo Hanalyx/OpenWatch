@@ -92,10 +92,12 @@ class Settings(BaseSettings):
     audit_log_file: str = "/app/logs/audit.log"
 
     # Feature Flags
-    # OW-REFACTOR-001B: QueryBuilder pattern for SQL operations
+    # OW-REFACTOR-001B: QueryBuilder pattern for SQL operations (DEPRECATED)
+    # Why deprecated: All hosts.py endpoints now use QueryBuilder by default (Phase 1 & 2 complete)
+    # This flag is no longer checked by any code and can be safely removed in a future cleanup
     use_query_builder: bool = Field(
-        default=False,
-        description="Enable QueryBuilder for hosts.py endpoints (OW-REFACTOR-001B)",
+        default=True,  # Changed to True since QueryBuilder is now always used
+        description="[DEPRECATED] Previously controlled QueryBuilder for hosts.py endpoints. Now always enabled.",
     )
 
     # OW-REFACTOR-002: MongoDB Repository pattern
