@@ -2,7 +2,7 @@
 
 > **Purpose**: This file provides comprehensive guidance to AI assistants (Claude Code, GitHub Copilot, etc.) when working with the OpenWatch compliance scanning platform.
 
-**Last Updated**: 2025-11-04
+**Last Updated**: 2025-11-05
 **Working Directory**: `/home/rracine/hanalyx/openwatch/`
 
 ---
@@ -281,28 +281,230 @@ rules = await ComplianceRule.find({"framework": "nist_800_53"})
 
 **MANDATORY**: All MongoDB access MUST use repository pattern.
 
-**Base Repository**: `backend/app/repositories/base_repository.py`
-- Generic CRUD with type safety
-- Automatic performance logging (warns on >1s queries)
-- Pagination support
-- Aggregation pipeline helpers
+**Location**: `backend/app/repositories/`
 
-**Example Repository**:
+**Purpose**: Centralized abstraction layer for MongoDB operations with automatic performance monitoring, consistent error handling, and type safety.
+
+**MANDATORY for all MongoDB operations**: OpenWatch is migrating to Repository Pattern (OW-REFACTOR-002) to eliminate direct Beanie ODM calls in service/route layers and maintain consistency with proven QueryBuilder pattern (94% PostgreSQL adoption).
+
+**Current Migration Status** (as of 2025-11-05):
+- **Phase 0**: Foundation & Planning - ✅ COMPLETE
+- **Phase 1**: API Endpoints (2 files) - 🔄 IN PROGRESS
+- **Phase 2**: Service Layer (5 files) - Planned Week 3
+- **Phase 3**: CLI Tools (2 files) - Planned Week 4
+- **Phase 4**: Cleanup & Documentation - Planned Week 5
+- **Current Adoption**: 0% → Target: 100%
+- **Documentation**: `docs/REPOSITORY_PATTERN_IMPLEMENTATION_PLAN.md`, `docs/REPOSITORY_MIGRATION_AUDIT.md`
+
+```python
+# CORRECT - Use Repository
+from backend.app.repositories.compliance_repository import ComplianceRuleRepository
+
+async def get_compliance_rules(framework: str, severity: str = None):
+    """Get compliance rules using Repository Pattern."""
+    repo = ComplianceRuleRepository()
+
+    # Framework-based query
+    rules = await repo.find_by_framework(framework)
+
+    # Optional severity filter
+    if severity:
+        rules = await repo.find_by_severity(severity)
+
+    return rules
+
+# WRONG - Direct Beanie ODM access
+from backend.app.models.mongo_models import ComplianceRule
+
+async def get_compliance_rules_unsafe(framework: str):
+    # DO NOT DO THIS!
+    query = {f"frameworks.{framework}": {"$exists": True}}
+    rules = await ComplianceRule.find(query).to_list()
+    return rules
+```
+
+**Repository Pattern Benefits**:
+- **Performance Monitoring**: Automatic slow query detection (>1s threshold) with logging
+- **Type Safety**: Generic[T] support for IDE autocomplete and type checking
+- **Consistency**: Single source of truth for all MongoDB operations
+- **Testability**: Easy to mock repositories for unit tests
+- **Maintainability**: Query logic centralized, not scattered across services
+- **Observability**: Built-in query performance metrics and logging
+
+**Base Repository** (`backend/app/repositories/base_repository.py`):
+
+Generic repository with full CRUD operations:
+
 ```python
 from backend.app.repositories.base_repository import BaseRepository
 from backend.app.models.mongo_models import ComplianceRule
+from typing import List, Optional, Dict, Any
 
 class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
+    """Repository for ComplianceRule collection."""
+
+    def __init__(self):
+        super().__init__(ComplianceRule)
+
+    # Specialized query methods
     async def find_by_severity(self, severity: str) -> List[ComplianceRule]:
+        """Find rules by severity level."""
         return await self.find_many({"severity": severity})
 ```
 
-**Benefits**:
-- Centralized query logging and monitoring
-- Consistent error handling
-- Easy to add caching layer
-- Testable (mock repositories)
-- Performance metrics included
+**Common Repository Patterns**:
+
+```python
+# 1. Simple queries
+repo = ComplianceRuleRepository()
+
+# Find one document
+rule = await repo.find_one({"rule_id": "xccdf_org.ssgproject.content_rule_accounts_password_minlen_login_defs"})
+
+# Find many documents
+critical_rules = await repo.find_many({"severity": "critical"})
+
+# Count documents
+total = await repo.count({"severity": "high"})
+
+# 2. Pagination with metadata
+rules, total, total_pages = await repo.find_with_pagination(
+    query={"severity": "high"},
+    page=1,
+    per_page=20,
+    sort=[("title", 1)]
+)
+
+# 3. Framework-specific queries (specialized methods)
+cis_rules = await repo.find_by_framework("CIS", version="2.0.0")
+rhel_rules = await repo.find_by_platform("RHEL", version="8")
+
+# 4. Search operations
+password_rules = await repo.search_by_title("password", case_sensitive=False)
+auth_rules = await repo.search_by_description("authentication")
+
+# 5. Complex queries (multiple frameworks)
+multi_framework_rules = await repo.find_by_multiple_frameworks(["CIS", "NIST", "PCI_DSS"])
+
+# 6. Statistics and aggregations
+stats = await repo.get_statistics()
+# Returns: {
+#     "total_rules": 2013,
+#     "by_severity": {"critical": 45, "high": 234, ...},
+#     "by_framework": {"CIS": 567, "NIST": 890, ...},
+#     "by_platform": {"RHEL": 1234, "Ubuntu": 456, ...}
+# }
+
+# 7. CRUD operations
+# Create
+new_rule = ComplianceRule(rule_id="test-rule", ...)
+created = await repo.create(new_rule)
+
+# Update
+updated = await repo.update_one(
+    query={"rule_id": "test-rule"},
+    update={"$set": {"severity": "high"}}
+)
+
+# Delete
+deleted = await repo.delete_one({"rule_id": "test-rule"})
+
+# 8. Bulk operations (Phase 2)
+# Note: bulk_upsert method will be added in Phase 2
+result = await repo.bulk_upsert(rules, batch_size=100)
+# Returns: {"inserted": 1234, "updated": 567, "skipped": 89}
+
+# 9. Aggregation pipelines
+pipeline = [
+    {"$match": {"severity": "critical"}},
+    {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+    {"$sort": {"count": -1}}
+]
+results = await repo.aggregate(pipeline)
+```
+
+**Available Repositories**:
+
+1. **ComplianceRuleRepository** (`backend/app/repositories/compliance_repository.py`)
+   - 11 specialized methods for compliance rules
+   - Framework/platform queries
+   - Search and filtering
+   - Statistics and aggregations
+
+2. **BaseRepository** (`backend/app/repositories/base_repository.py`)
+   - Generic CRUD operations
+   - Pagination support
+   - Aggregation helpers
+   - Performance monitoring
+   - Use as base class for new repositories
+
+**Creating New Repositories**:
+
+```python
+from backend.app.repositories.base_repository import BaseRepository
+from backend.app.models.mongo_models import YourModel
+from typing import List
+
+class YourModelRepository(BaseRepository[YourModel]):
+    """Repository for YourModel collection."""
+
+    def __init__(self):
+        super().__init__(YourModel)
+
+    # Add specialized query methods
+    async def find_by_custom_field(self, value: str) -> List[YourModel]:
+        """Custom query method."""
+        return await self.find_many({"custom_field": value})
+```
+
+**Performance Monitoring** (Automatic):
+
+All repository operations automatically log performance metrics:
+
+```python
+# Slow query warning (>1s threshold)
+repo = ComplianceRuleRepository()
+rules = await repo.find_many({"severity": "high"})
+
+# Automatic log output:
+# WARNING: Slow MongoDB query detected!
+# Operation: find_many
+# Collection: compliance_rules
+# Query: {"severity": "high"}
+# Duration: 1.234s
+# Results: 234 documents
+```
+
+**When NOT to use Repository Pattern**:
+- MongoDB-specific features like `$lookup` with complex pipelines (use aggregation helpers)
+- Very complex aggregations requiring multiple stages (use `aggregate()` method)
+- Direct access needed for testing/debugging (use MongoDB shell)
+- One-off admin scripts not part of application code
+
+**Migration from Direct Beanie ODM**:
+
+```python
+# BEFORE (direct Beanie ODM - to be removed)
+from backend.app.models.mongo_models import ComplianceRule
+
+query = {"severity": "high"}
+rules = await ComplianceRule.find(query).to_list()
+
+# AFTER (Repository Pattern - target pattern)
+from backend.app.repositories.compliance_repository import ComplianceRuleRepository
+
+repo = ComplianceRuleRepository()
+rules = await repo.find_by_severity("high")
+```
+
+**Why Repository Pattern Over Direct ODM**:
+- ✅ Centralized query logic (single source of truth)
+- ✅ Automatic performance monitoring and slow query detection
+- ✅ Consistent error handling across all MongoDB operations
+- ✅ Easy to add caching layer without changing service code
+- ✅ Testable with mock repositories (no MongoDB needed)
+- ✅ Type-safe with Generic[T] support
+- ✅ Matches proven QueryBuilder pattern (94% PostgreSQL adoption)
 
 ### Authentication & Authorization Flow
 

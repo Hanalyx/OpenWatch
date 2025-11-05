@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 try:
-    from ....config import get_settings
     from ....models.mongo_models import ComplianceRule
     from ....repositories import ComplianceRuleRepository
     from ....services.mongo_integration_service import MongoIntegrationService, get_mongo_service
@@ -248,26 +247,17 @@ async def get_compliance_rules(
 
         # Get total count and rules (fallback if MongoDB not available)
         if MONGO_AVAILABLE:
-            settings = get_settings()
+            # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+            # Why: Centralized query logic, automatic performance monitoring, type safety
+            # Consistent with CLAUDE.md best practices for MongoDB access
+            logger.info(f"Using ComplianceRuleRepository for get_compliance_rules endpoint")
+            repo = ComplianceRuleRepository()
 
-            # OW-REFACTOR-002: Feature flag for Repository Pattern
-            if settings.use_repository_pattern:
-                logger.info(f"Using ComplianceRuleRepository for get_compliance_rules endpoint")
-                repo = ComplianceRuleRepository()
+            # Get total count using repository
+            total_count = await repo.count(query)
 
-                # Get total count using repository
-                total_count = await repo.count(query)
-
-                # Get paginated results using repository
-                rules = await repo.find_many(query, skip=offset, limit=limit)
-            else:
-                # Original MongoDB queries (default)
-                logger.info(f"Using original MongoDB queries for get_compliance_rules endpoint")
-                total_count = await ComplianceRule.find(query).count()
-
-                # Get paginated results
-                rules_cursor = ComplianceRule.find(query).skip(offset).limit(limit)
-                rules = await rules_cursor.to_list()
+            # Get paginated results using repository
+            rules = await repo.find_many(query, skip=offset, limit=limit)
         else:
             # Return mock rules if MongoDB not available
             mock_rules = [

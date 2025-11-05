@@ -3,7 +3,7 @@ Health monitoring service for collecting and managing health metrics.
 
 This service handles both service health (operational) and content health
 (compliance effectiveness) data collection and storage.
-OW-REFACTOR-002: Migrating to Repository Pattern
+OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
 """
 
 import asyncio
@@ -32,20 +32,10 @@ from ..models.health_models import (
     ServiceStatus,
 )
 from ..models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from ..repositories import ComplianceRuleRepository
 from ..services.mongo_integration_service import get_mongo_service
 
 logger = logging.getLogger(__name__)
-from ..config import get_settings
-
-# OW-REFACTOR-002: Import Repository Pattern
-try:
-    from ..repositories import ComplianceRuleRepository
-
-    REPOSITORY_AVAILABLE = True
-except ImportError:
-    REPOSITORY_AVAILABLE = False
-
-settings = get_settings()
 
 
 class HealthMonitoringService:
@@ -392,19 +382,16 @@ class HealthMonitoringService:
 
     async def _collect_framework_health(self) -> Dict[str, FrameworkHealth]:
         """Collect health metrics for compliance frameworks
-        OW-REFACTOR-002: Supports Repository Pattern
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
         """
         frameworks = {}
 
-        # Get all rules
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info("Using ComplianceRuleRepository for _collect_framework_health")
-            repo = ComplianceRuleRepository()
-            all_rules = await repo.find_many({})
-        else:
-            logger.debug("Using direct MongoDB find for _collect_framework_health")
-            all_rules = await ComplianceRule.find().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        # Why: Centralized query logic, automatic performance monitoring, type safety
+        # Consistent with CLAUDE.md best practices for MongoDB access
+        logger.info("Using ComplianceRuleRepository for _collect_framework_health")
+        repo = ComplianceRuleRepository()
+        all_rules = await repo.find_many({})
 
         # Analyze framework coverage
         framework_configs = {
@@ -453,19 +440,16 @@ class HealthMonitoringService:
 
     async def _collect_benchmark_health(self) -> Dict[str, BenchmarkHealth]:
         """Collect health metrics for benchmarks
-        OW-REFACTOR-002: Supports Repository Pattern
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
         """
         benchmarks = {}
 
-        # Get all rules
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info("Using ComplianceRuleRepository for _collect_benchmark_health")
-            repo = ComplianceRuleRepository()
-            all_rules = await repo.find_many({})
-        else:
-            logger.debug("Using direct MongoDB find for _collect_benchmark_health")
-            all_rules = await ComplianceRule.find().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        # Why: Centralized query logic, automatic performance monitoring, type safety
+        # Consistent with CLAUDE.md best practices for MongoDB access
+        logger.info("Using ComplianceRuleRepository for _collect_benchmark_health")
+        repo = ComplianceRuleRepository()
+        all_rules = await repo.find_many({})
 
         # Analyze benchmark coverage
         benchmark_configs = {
@@ -516,16 +500,14 @@ class HealthMonitoringService:
 
     async def _collect_rule_statistics(self) -> Dict[str, Any]:
         """Collect rule distribution statistics
-        OW-REFACTOR-002: Supports Repository Pattern
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
         """
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info("Using ComplianceRuleRepository for _collect_rule_statistics")
-            repo = ComplianceRuleRepository()
-            all_rules = await repo.find_many({})
-        else:
-            logger.debug("Using direct MongoDB find for _collect_rule_statistics")
-            all_rules = await ComplianceRule.find().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        # Why: Centralized query logic, automatic performance monitoring, type safety
+        # Consistent with CLAUDE.md best practices for MongoDB access
+        logger.info("Using ComplianceRuleRepository for _collect_rule_statistics")
+        repo = ComplianceRuleRepository()
+        all_rules = await repo.find_many({})
 
         remediation_scripts = await RemediationScript.count()
 
@@ -570,16 +552,14 @@ class HealthMonitoringService:
 
     async def _check_content_integrity(self) -> Dict[str, Any]:
         """Check content integrity and consistency
-        OW-REFACTOR-002: Supports Repository Pattern
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
         """
-        # OW-REFACTOR-002: Use Repository Pattern if enabled
-        if REPOSITORY_AVAILABLE and settings.use_repository_pattern:
-            logger.info("Using ComplianceRuleRepository for _check_content_integrity")
-            repo = ComplianceRuleRepository()
-            all_rules = await repo.find_many({})
-        else:
-            logger.debug("Using direct MongoDB find for _check_content_integrity")
-            all_rules = await ComplianceRule.find().to_list()
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        # Why: Centralized query logic, automatic performance monitoring, type safety
+        # Consistent with CLAUDE.md best practices for MongoDB access
+        logger.info("Using ComplianceRuleRepository for _check_content_integrity")
+        repo = ComplianceRuleRepository()
+        all_rules = await repo.find_many({})
 
         # Check for issues
         duplicate_ids = []
