@@ -3,6 +3,8 @@
 OpenWatch Compliance Rules Loader
 Loads JSON compliance rules into MongoDB for the OpenWatch platform
 
+OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
+
 Usage:
     python -m backend.app.cli.load_compliance_rules load --source /path/to/rules
     python -m backend.app.cli.load_compliance_rules validate
@@ -18,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..models.mongo_models import ComplianceRule, mongo_manager
+from ..repositories import ComplianceRuleRepository
 from ..services.mongo_integration_service import MongoIntegrationService
 
 # Setup logging
@@ -30,6 +33,7 @@ class ComplianceRulesLoader:
 
     def __init__(self):
         self.mongo_service = None
+        self.repo = None  # OW-REFACTOR-002: Repository Pattern
         self.loaded_count = 0
         self.error_count = 0
         self.skipped_count = 0
@@ -53,6 +57,10 @@ class ComplianceRulesLoader:
 
             # Initialize mongo service
             self.mongo_service = MongoIntegrationService()
+
+            # OW-REFACTOR-002: Initialize Repository Pattern (MANDATORY per CLAUDE.md)
+            self.repo = ComplianceRuleRepository()
+            logger.info("ComplianceRuleRepository initialized")
 
             logger.info("MongoDB connection initialized successfully")
             return True
@@ -112,8 +120,9 @@ class ComplianceRulesLoader:
         if not rule_id:
             raise ValueError(f"Rule missing rule_id in {json_file}")
 
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
         # Check if rule already exists
-        existing_rule = await ComplianceRule.find_one({"rule_id": rule_id})
+        existing_rule = await self.repo.find_by_rule_id(rule_id)
         if existing_rule and not replace_existing:
             logger.debug(f"Rule {rule_id} already exists, skipping")
             self.skipped_count += 1
@@ -124,15 +133,16 @@ class ComplianceRulesLoader:
 
         if existing_rule and replace_existing:
             # Update existing rule
-            for key, value in compliance_rule_data.items():
-                setattr(existing_rule, key, value)
-            existing_rule.updated_at = datetime.utcnow()
-            await existing_rule.save()
+            compliance_rule_data["updated_at"] = datetime.utcnow()
+            await self.repo.update_one(
+                query={"rule_id": rule_id},
+                update={"$set": compliance_rule_data}
+            )
             logger.debug(f"Updated rule: {rule_id}")
         else:
             # Create new rule
             compliance_rule = ComplianceRule(**compliance_rule_data)
-            await compliance_rule.save()
+            await self.repo.create(compliance_rule)
             logger.debug(f"Created rule: {rule_id}")
 
     def _transform_to_mongodb_format(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -204,16 +214,20 @@ class ComplianceRulesLoader:
         return mongodb_data
 
     async def validate_loaded_rules(self) -> Dict[str, Any]:
-        """Validate loaded rules in MongoDB"""
+        """
+        Validate loaded rules in MongoDB
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
+        """
         logger.info("Validating loaded compliance rules...")
 
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
         # Get basic statistics
-        total_rules = await ComplianceRule.count()
+        total_rules = await self.repo.count({})
 
         # Count rules by severity
         severity_counts = {}
         for severity in ["low", "medium", "high", "critical"]:
-            count = await ComplianceRule.find({"severity": severity}).count()
+            count = await self.repo.count({"severity": severity})
             severity_counts[severity] = count
 
         # Count rules by category
@@ -222,22 +236,22 @@ class ComplianceRulesLoader:
             {"$sort": {"count": -1}},
             {"$limit": 10},
         ]
-        category_results = await ComplianceRule.aggregate(category_pipeline).to_list()
+        category_results = await self.repo.aggregate(category_pipeline)
 
         # Count framework mappings
         framework_counts = {}
         for framework in ["nist", "cis", "stig", "pci_dss", "iso27001"]:
-            count = await ComplianceRule.find(
+            count = await self.repo.count(
                 {f"frameworks.{framework}": {"$exists": True, "$ne": {}}}
-            ).count()
+            )
             framework_counts[framework] = count
 
         # Count platform implementations
         platform_counts = {}
         for platform in ["rhel", "ubuntu", "windows", "centos"]:
-            count = await ComplianceRule.find(
+            count = await self.repo.count(
                 {f"platform_implementations.{platform}": {"$exists": True}}
-            ).count()
+            )
             platform_counts[platform] = count
 
         validation_results = {
@@ -252,7 +266,10 @@ class ComplianceRulesLoader:
         return validation_results
 
     async def get_platform_statistics(self) -> Dict[str, Any]:
-        """Generate platform statistics for the frontend"""
+        """
+        Generate platform statistics for the frontend
+        OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
+        """
         logger.info("Generating platform statistics...")
 
         platform_stats = []
@@ -271,10 +288,11 @@ class ComplianceRulesLoader:
         for platform_info in platforms:
             platform_key = platform_info["key"]
 
+            # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
             # Count total rules for this platform
-            rule_count = await ComplianceRule.find(
+            rule_count = await self.repo.count(
                 {f"platform_implementations.{platform_key}": {"$exists": True}}
-            ).count()
+            )
 
             if rule_count == 0:
                 continue
@@ -285,7 +303,7 @@ class ComplianceRulesLoader:
                 {"$group": {"_id": "$category", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
             ]
-            category_results = await ComplianceRule.aggregate(category_pipeline).to_list()
+            category_results = await self.repo.aggregate(category_pipeline)
 
             # Calculate percentages
             categories = []
@@ -301,12 +319,12 @@ class ComplianceRulesLoader:
             # Get framework support
             frameworks = []
             for framework in ["nist", "cis", "stig"]:
-                count = await ComplianceRule.find(
+                count = await self.repo.count(
                     {
                         f"platform_implementations.{platform_key}": {"$exists": True},
                         f"frameworks.{framework}": {"$exists": True, "$ne": {}},
                     }
-                ).count()
+                )
                 if count > 0:
                     frameworks.append(framework)
 
@@ -324,10 +342,11 @@ class ComplianceRulesLoader:
 
             platform_stats.append(platform_stat)
 
+        # OW-REFACTOR-002: Use Repository Pattern for final count
         result = {
             "platforms": platform_stats,
             "total_platforms": len(platform_stats),
-            "total_rules_analyzed": await ComplianceRule.count(),
+            "total_rules_analyzed": await self.repo.count({}),
             "source": "mongodb_loaded",
         }
 

@@ -312,7 +312,9 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             logger.error(f"Error getting platform versions for {platform}: {e}")
             raise
 
-    async def bulk_upsert(self, rules: List[ComplianceRule], batch_size: int = 100) -> Dict[str, int]:
+    async def bulk_upsert(
+        self, rules: List[ComplianceRule], batch_size: int = 100, progress_callback=None
+    ) -> Dict[str, int]:
         """
         Bulk upsert compliance rules with deduplication.
 
@@ -324,6 +326,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         Args:
             rules: List of ComplianceRule objects to upsert
             batch_size: Number of rules to process per batch (default: 100)
+            progress_callback: Optional callback function(processed, total, stats) for progress updates
 
         Returns:
             Dictionary with operation statistics:
@@ -333,9 +336,16 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             - errors: Number of rules that failed
 
         Example:
+            # Basic usage
             rules = [ComplianceRule(...), ComplianceRule(...)]
             result = await repo.bulk_upsert(rules, batch_size=100)
             # Returns: {"inserted": 1234, "updated": 567, "skipped": 89, "errors": 0}
+
+            # With progress callback for CLI
+            def progress(processed, total, stats):
+                print(f"Progress: {processed}/{total} - {stats}")
+
+            result = await repo.bulk_upsert(rules, batch_size=100, progress_callback=progress)
         """
         import time
         from datetime import datetime
@@ -378,6 +388,11 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
                 batch_duration = time.time() - batch_start
                 logger.debug(f"Processed batch {i // batch_size + 1}: " f"{len(batch)} rules in {batch_duration:.2f}s")
+
+                # Call progress callback if provided
+                if progress_callback:
+                    processed = min(i + batch_size, len(rules))
+                    progress_callback(processed, len(rules), stats.copy())
 
             duration = time.time() - start_time
             logger.info(
