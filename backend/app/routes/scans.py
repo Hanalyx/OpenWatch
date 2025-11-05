@@ -25,6 +25,7 @@ from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceServ
 from ..services.scap_scanner import SCAPScanner
 from ..tasks.scan_tasks import execute_scan_task
 from ..utils.logging_security import sanitize_path_for_log
+from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -881,47 +882,66 @@ async def list_scans(
 ):
     """List scans with optional filtering"""
     try:
-        # Quick fix: Check if there are any scans at all
-        scan_count_result = db.execute(text("SELECT COUNT(*) as count FROM scans")).fetchone()
-        if scan_count_result.count == 0:
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs and filtering
+        # Why: Eliminates manual query string construction, consistent with Phase 1 & 2 pattern
+
+        # Quick check: Return empty if no scans exist
+        count_check = QueryBuilder("scans")
+        count_query, count_params = count_check.count_query()
+        scan_count_result = db.execute(text(count_query), count_params).fetchone()
+        if scan_count_result.total == 0:
             return {"scans": [], "total": 0, "limit": limit, "offset": offset}
 
-        # Build query without mixing string formatting and parameter binding
-        base_query = """
-            SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status,
-                   s.progress, s.started_at, s.completed_at, s.started_by,
-                   s.error_message, s.result_file, s.report_file,
-                   h.display_name as host_name, h.hostname, h.ip_address, h.operating_system,
-                   h.status as host_status, h.last_check,
-                   c.name as content_name, c.filename as content_filename,
-                   sr.total_rules, sr.passed_rules, sr.failed_rules, sr.error_rules,
-                   sr.score, sr.severity_high, sr.severity_medium, sr.severity_low
-            FROM scans s
-            LEFT JOIN hosts h ON s.host_id = h.id
-            LEFT JOIN scap_content c ON s.content_id = c.id
-            LEFT JOIN scan_results sr ON sr.scan_id = s.id
-        """
+        # Build main query with QueryBuilder
+        builder = (
+            QueryBuilder("scans s")
+            .select(
+                "s.id",
+                "s.name",
+                "s.host_id",
+                "s.content_id",
+                "s.profile_id",
+                "s.status",
+                "s.progress",
+                "s.started_at",
+                "s.completed_at",
+                "s.started_by",
+                "s.error_message",
+                "s.result_file",
+                "s.report_file",
+                "h.display_name as host_name",
+                "h.hostname",
+                "h.ip_address",
+                "h.operating_system",
+                "h.status as host_status",
+                "h.last_check",
+                "c.name as content_name",
+                "c.filename as content_filename",
+                "sr.total_rules",
+                "sr.passed_rules",
+                "sr.failed_rules",
+                "sr.error_rules",
+                "sr.score",
+                "sr.severity_high",
+                "sr.severity_medium",
+                "sr.severity_low",
+            )
+            .join("hosts h", "s.host_id = h.id", "LEFT")
+            .join("scap_content c", "s.content_id = c.id", "LEFT")
+            .join("scan_results sr", "sr.scan_id = s.id", "LEFT")
+        )
 
-        # Build WHERE conditions and parameters
-        where_conditions = []
-        params = {"limit": limit, "offset": offset}
-
+        # Add optional filters
         if host_id:
-            where_conditions.append("s.host_id = :host_id")
-            params["host_id"] = host_id
+            builder.where("s.host_id = :host_id", host_id, "host_id")
 
         if status:
-            where_conditions.append("s.status = :status")
-            params["status"] = status
+            builder.where("s.status = :status", status, "status")
 
-        # Complete the query
-        if where_conditions:
-            query = base_query + " WHERE " + " AND ".join(where_conditions)
-        else:
-            query = base_query
+        # Add ordering and pagination
+        builder.order_by("s.started_at", "DESC").paginate(page=offset // limit + 1, per_page=limit)
 
-        query += " ORDER BY s.started_at DESC LIMIT :limit OFFSET :offset"
-
+        query, params = builder.build()
         result = db.execute(text(query), params)
 
         scans = []
@@ -971,20 +991,22 @@ async def list_scans(
 
             scans.append(scan_data)
 
-        # Get total count
-        count_base_query = """
-            SELECT COUNT(*) as total
-            FROM scans s
-            LEFT JOIN hosts h ON s.host_id = h.id
-            LEFT JOIN scap_content c ON s.content_id = c.id
-        """
+        # Get total count using QueryBuilder
+        count_builder = (
+            QueryBuilder("scans s")
+            .join("hosts h", "s.host_id = h.id", "LEFT")
+            .join("scap_content c", "s.content_id = c.id", "LEFT")
+        )
 
-        if where_conditions:
-            count_query = count_base_query + " WHERE " + " AND ".join(where_conditions)
-        else:
-            count_query = count_base_query
+        # Apply same filters as main query
+        if host_id:
+            count_builder.where("s.host_id = :host_id", host_id, "host_id")
 
-        total_result = db.execute(text(count_query), params).fetchone()
+        if status:
+            count_builder.where("s.status = :status", status, "status")
+
+        count_query, count_params = count_builder.count_query()
+        total_result = db.execute(text(count_query), count_params).fetchone()
 
         return {
             "scans": scans,
@@ -1007,29 +1029,38 @@ async def create_scan(
 ):
     """Create and start a new SCAP scan"""
     try:
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT validation queries
+        # Why: Consistent with Phase 1 & 2 pattern, eliminates manual SQL construction
+
         # Validate host exists
-        host_result = db.execute(
-            text(
-                """
-            SELECT id, display_name, hostname, port, username, auth_method, encrypted_credentials
-            FROM hosts WHERE id = :id AND is_active = true
-        """
-            ),
-            {"id": scan_request.host_id},
-        ).fetchone()
+        host_builder = (
+            QueryBuilder("hosts")
+            .select(
+                "id",
+                "display_name",
+                "hostname",
+                "port",
+                "username",
+                "auth_method",
+                "encrypted_credentials",
+            )
+            .where("id = :id", scan_request.host_id, "id")
+            .where("is_active = :is_active", True, "is_active")
+        )
+        query, params = host_builder.build()
+        host_result = db.execute(text(query), params).fetchone()
 
         if not host_result:
             raise HTTPException(status_code=404, detail="Host not found or inactive")
 
         # Validate SCAP content exists
-        content_result = db.execute(
-            text(
-                """
-            SELECT id, name, file_path, profiles FROM scap_content WHERE id = :id
-        """
-            ),
-            {"id": scan_request.content_id},
-        ).fetchone()
+        content_builder = (
+            QueryBuilder("scap_content")
+            .select("id", "name", "file_path", "profiles")
+            .where("id = :id", scan_request.content_id, "id")
+        )
+        query, params = content_builder.build()
+        content_result = db.execute(text(query), params).fetchone()
 
         if not content_result:
             raise HTTPException(status_code=404, detail="SCAP content not found")
@@ -1045,19 +1076,10 @@ async def create_scan(
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
-        # Create scan record with UUID primary key
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized INSERT
+        # Why: Eliminates manual SQL string construction, reduces SQL injection risk
         scan_id = str(uuid.uuid4())
-        db.execute(
-            text(
-                """
-            INSERT INTO scans
-            (id, name, host_id, content_id, profile_id, status, progress,
-             scan_options, started_by, started_at, remediation_requested, verification_scan)
-            VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
-                    :progress, :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan)
-            RETURNING id
-        """
-            ),
+        insert_builder = QueryBuilder("scans").insert(
             {
                 "id": scan_id,
                 "name": scan_request.name,
@@ -1071,8 +1093,10 @@ async def create_scan(
                 "started_at": datetime.utcnow(),
                 "remediation_requested": False,
                 "verification_scan": False,
-            },
+            }
         )
+        query, params = insert_builder.build()
+        db.execute(text(query), params)
 
         # Commit the scan record
         db.commit()
@@ -1131,23 +1155,37 @@ async def get_scan(
 ):
     """Get scan details"""
     try:
-        result = db.execute(
-            text(
-                """
-            SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status,
-                   s.progress, s.result_file, s.report_file, s.error_message,
-                   s.scan_options, s.started_at, s.completed_at, s.started_by,
-                   s.celery_task_id,
-                   h.display_name as host_name, h.hostname,
-                   c.name as content_name, c.filename as content_filename
-            FROM scans s
-            JOIN hosts h ON s.host_id = h.id
-            JOIN scap_content c ON s.content_id = c.id
-            WHERE s.id = :id
-        """
-            ),
-            {"id": scan_id},
-        ).fetchone()
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs
+        # Why: Consistent with Phase 1 & 2 pattern, maintains SQL injection protection
+        builder = (
+            QueryBuilder("scans s")
+            .select(
+                "s.id",
+                "s.name",
+                "s.host_id",
+                "s.content_id",
+                "s.profile_id",
+                "s.status",
+                "s.progress",
+                "s.result_file",
+                "s.report_file",
+                "s.error_message",
+                "s.scan_options",
+                "s.started_at",
+                "s.completed_at",
+                "s.started_by",
+                "s.celery_task_id",
+                "h.display_name as host_name",
+                "h.hostname",
+                "c.name as content_name",
+                "c.filename as content_filename",
+            )
+            .join("hosts h", "s.host_id = h.id")
+            .join("scap_content c", "s.content_id = c.id")
+            .where("s.id = :id", scan_id, "id")
+        )
+        query, params = builder.build()
+        result = db.execute(text(query), params).fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Scan not found")
@@ -1227,41 +1265,37 @@ async def update_scan(
 ):
     """Update scan status (internal use)"""
     try:
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT and UPDATE
+        # Why: Eliminates manual query string construction, consistent with Phase 1 & 2
+
         # Check if scan exists
-        existing = db.execute(
-            text(
-                """
-            SELECT id FROM scans WHERE id = :id
-        """
-            ),
-            {"id": scan_id},
-        ).fetchone()
+        check_builder = QueryBuilder("scans").select("id").where("id = :id", scan_id, "id")
+        query, params = check_builder.build()
+        existing = db.execute(text(query), params).fetchone()
 
         if not existing:
             raise HTTPException(status_code=404, detail="Scan not found")
 
-        # Build update query
-        updates = []
-        params = {"id": scan_id}
+        # Build update data
+        update_data = {}
 
         if scan_update.status is not None:
-            updates.append("status = :status")
-            params["status"] = scan_update.status
+            update_data["status"] = scan_update.status
 
         if scan_update.progress is not None:
-            updates.append("progress = :progress")
-            params["progress"] = scan_update.progress
+            update_data["progress"] = scan_update.progress
 
         if scan_update.error_message is not None:
-            updates.append("error_message = :error_message")
-            params["error_message"] = scan_update.error_message
+            update_data["error_message"] = scan_update.error_message
 
         if scan_update.status == "completed":
-            updates.append("completed_at = :completed_at")
-            params["completed_at"] = datetime.utcnow()
+            update_data["completed_at"] = datetime.utcnow()
 
-        if updates:
-            query = "UPDATE scans SET {} WHERE id = :id".format(", ".join(updates))
+        if update_data:
+            update_builder = (
+                QueryBuilder("scans").update(update_data).where("id = :id", scan_id, "id")
+            )
+            query, params = update_builder.build()
             db.execute(text(query), params)
             db.commit()
 
@@ -1282,15 +1316,17 @@ async def delete_scan(
 ):
     """Delete scan and its results"""
     try:
+        # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT and DELETE
+        # Why: Consistent with Phase 1 & 2, handles foreign key cascade deletion
+
         # Check if scan exists and get status
-        result = db.execute(
-            text(
-                """
-            SELECT status, result_file, report_file FROM scans WHERE id = :id
-        """
-            ),
-            {"id": scan_id},
-        ).fetchone()
+        check_builder = (
+            QueryBuilder("scans")
+            .select("status", "result_file", "report_file")
+            .where("id = :id", scan_id, "id")
+        )
+        query, params = check_builder.build()
+        result = db.execute(text(query), params).fetchone()
 
         if not result:
             raise HTTPException(status_code=404, detail="Scan not found")
@@ -1312,24 +1348,16 @@ async def delete_scan(
                     )
 
         # Delete scan results first (foreign key constraint)
-        db.execute(
-            text(
-                """
-            DELETE FROM scan_results WHERE scan_id = :scan_id
-        """
-            ),
-            {"scan_id": scan_id},
+        results_delete_builder = (
+            QueryBuilder("scan_results").delete().where("scan_id = :scan_id", scan_id, "scan_id")
         )
+        query, params = results_delete_builder.build()
+        db.execute(text(query), params)
 
         # Delete scan record
-        db.execute(
-            text(
-                """
-            DELETE FROM scans WHERE id = :id
-        """
-            ),
-            {"id": scan_id},
-        )
+        scan_delete_builder = QueryBuilder("scans").delete().where("id = :id", scan_id, "id")
+        query, params = scan_delete_builder.build()
+        db.execute(text(query), params)
 
         db.commit()
 
