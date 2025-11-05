@@ -69,18 +69,12 @@ class Settings(BaseSettings):
 
     # Allowed hosts for CORS (configurable via environment)
     allowed_origins: List[str] = Field(
-        default_factory=lambda: os.getenv(
-            "OPENWATCH_ALLOWED_ORIGINS", "https://localhost:3001"
-        ).split(",")
+        default_factory=lambda: os.getenv("OPENWATCH_ALLOWED_ORIGINS", "https://localhost:3001").split(",")
     )
 
     # Container Runtime Configuration
-    container_runtime: str = Field(
-        default="auto", description="Container runtime to use (docker, podman, auto)"
-    )
-    container_socket: Optional[str] = Field(
-        default=None, description="Custom container socket path"
-    )
+    container_runtime: str = Field(default="auto", description="Container runtime to use (docker, podman, auto)")
+    container_socket: Optional[str] = Field(default=None, description="Custom container socket path")
 
     # File upload limits
     max_upload_size: int = 100 * 1024 * 1024  # 100MB
@@ -92,19 +86,9 @@ class Settings(BaseSettings):
     audit_log_file: str = "/app/logs/audit.log"
 
     # Feature Flags
-    # OW-REFACTOR-001B: QueryBuilder pattern for SQL operations (DEPRECATED)
-    # Why deprecated: All hosts.py endpoints now use QueryBuilder by default (Phase 1 & 2 complete)
-    # This flag is no longer checked by any code and can be safely removed in a future cleanup
-    use_query_builder: bool = Field(
-        default=True,  # Changed to True since QueryBuilder is now always used
-        description="[DEPRECATED] Previously controlled QueryBuilder for hosts.py endpoints. Now always enabled.",
-    )
-
-    # OW-REFACTOR-002: MongoDB Repository pattern
-    use_repository_pattern: bool = Field(
-        default=False,
-        description="Enable Repository pattern for MongoDB operations (OW-REFACTOR-002)",
-    )
+    # NOTE: All feature flags have been removed as their corresponding refactorings are complete:
+    # - OW-REFACTOR-001B (QueryBuilder): Completed, all SQL operations use QueryBuilder
+    # - OW-REFACTOR-002 (Repository Pattern): Completed, all MongoDB operations use repositories
 
     @validator("secret_key")
     def secret_key_must_be_strong(cls, v):
