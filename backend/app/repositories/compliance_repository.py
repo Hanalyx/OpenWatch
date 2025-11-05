@@ -34,9 +34,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
     def __init__(self):
         super().__init__(ComplianceRule)
 
-    async def find_by_framework(
-        self, framework: str, version: Optional[str] = None
-    ) -> List[ComplianceRule]:
+    async def find_by_framework(self, framework: str, version: Optional[str] = None) -> List[ComplianceRule]:
         """
         Find rules by framework and optional version.
 
@@ -61,9 +59,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
         return await self.find_many(query)
 
-    async def find_by_platform(
-        self, platform: str, version: Optional[str] = None
-    ) -> List[ComplianceRule]:
+    async def find_by_platform(self, platform: str, version: Optional[str] = None) -> List[ComplianceRule]:
         """
         Find rules by platform and optional version.
 
@@ -88,9 +84,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
         return await self.find_many(query)
 
-    async def search_by_title(
-        self, search_term: str, case_sensitive: bool = False
-    ) -> List[ComplianceRule]:
+    async def search_by_title(self, search_term: str, case_sensitive: bool = False) -> List[ComplianceRule]:
         """
         Search rules by title (supports regex).
 
@@ -112,9 +106,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"title": {"$regex": search_term, "$options": options}}
         return await self.find_many(query)
 
-    async def search_by_description(
-        self, search_term: str, case_sensitive: bool = False
-    ) -> List[ComplianceRule]:
+    async def search_by_description(self, search_term: str, case_sensitive: bool = False) -> List[ComplianceRule]:
         """
         Search rules by description (supports regex).
 
@@ -185,9 +177,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"$or": or_conditions}
         return await self.find_many(query)
 
-    async def find_by_framework_and_platform(
-        self, framework: str, platform: str
-    ) -> List[ComplianceRule]:
+    async def find_by_framework_and_platform(self, framework: str, platform: str) -> List[ComplianceRule]:
         """
         Find rules that apply to both a framework and platform.
 
@@ -322,9 +312,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             logger.error(f"Error getting platform versions for {platform}: {e}")
             raise
 
-    async def bulk_upsert(
-        self, rules: List[ComplianceRule], batch_size: int = 100
-    ) -> Dict[str, int]:
+    async def bulk_upsert(self, rules: List[ComplianceRule], batch_size: int = 100) -> Dict[str, int]:
         """
         Bulk upsert compliance rules with deduplication.
 
@@ -377,9 +365,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                             # Update the rule
                             update_data = rule.dict(exclude={"id"})
                             update_data["updated_at"] = datetime.utcnow()
-                            await self.update_one(
-                                query={"rule_id": rule.rule_id}, update={"$set": update_data}
-                            )
+                            await self.update_one(query={"rule_id": rule.rule_id}, update={"$set": update_data})
                             stats["updated"] += 1
                         else:
                             # Insert new rule
@@ -391,10 +377,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                         stats["errors"] += 1
 
                 batch_duration = time.time() - batch_start
-                logger.debug(
-                    f"Processed batch {i // batch_size + 1}: "
-                    f"{len(batch)} rules in {batch_duration:.2f}s"
-                )
+                logger.debug(f"Processed batch {i // batch_size + 1}: " f"{len(batch)} rules in {batch_duration:.2f}s")
 
             duration = time.time() - start_time
             logger.info(
@@ -405,10 +388,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
             # Warn on slow operations
             if duration > 10:
-                logger.warning(
-                    f"Slow bulk upsert: {len(rules)} rules took {duration:.2f}s "
-                    f"(>{10}s threshold)"
-                )
+                logger.warning(f"Slow bulk upsert: {len(rules)} rules took {duration:.2f}s " f"(>{10}s threshold)")
 
             return stats
 
@@ -467,9 +447,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         query = {"source_hash": source_hash}
         return await self.find_one(query)
 
-    async def update_by_id(
-        self, rule_id: str, update_data: Dict[str, Any]
-    ) -> Optional[ComplianceRule]:
+    async def update_by_id(self, rule_id: str, update_data: Dict[str, Any]) -> Optional[ComplianceRule]:
         """
         Update a rule by its MongoDB _id or rule_id.
 

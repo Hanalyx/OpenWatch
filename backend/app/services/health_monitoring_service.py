@@ -6,15 +6,14 @@ This service handles both service health (operational) and content health
 OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
 """
 
-import asyncio
 import logging
 import platform
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import psutil
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from ..config import get_settings
 from ..models.health_models import (
     AlertSeverity,
     BenchmarkHealth,
@@ -23,15 +22,13 @@ from ..models.health_models import (
     ContentHealthDocument,
     DatabaseHealth,
     FrameworkHealth,
-    FreshnessStatus,
     HealthStatus,
     HealthSummaryDocument,
     OperationalAlert,
     ServiceComponent,
     ServiceHealthDocument,
-    ServiceStatus,
 )
-from ..models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from ..models.mongo_models import ComplianceRule, RemediationScript
 from ..repositories import ComplianceRuleRepository
 from ..services.mongo_integration_service import get_mongo_service
 
@@ -45,6 +42,7 @@ class HealthMonitoringService:
         self.scanner_id = f"openwatch_{platform.node()}"
         self.start_time = datetime.utcnow()
         self._initialized = False
+        self.settings = get_settings()
 
     async def initialize(self):
         """Initialize health monitoring service"""
@@ -116,7 +114,7 @@ class HealthMonitoringService:
         # Scanner engine health
         services["scanner_engine"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
-            version=settings.app_version,
+            version=self.settings.app_version,
             started_at=self.start_time,
             last_heartbeat=datetime.utcnow(),
             memory_usage_mb=psutil.Process().memory_info().rss / 1024 / 1024,
@@ -125,12 +123,12 @@ class HealthMonitoringService:
         )
 
         # Rule processor health
-        mongo_service = await get_mongo_service()
+        await get_mongo_service()  # Ensure MongoDB is initialized
         rule_count = await ComplianceRule.count()
 
         services["rule_processor"] = ServiceComponent(
             status=HealthStatus.HEALTHY,
-            version=settings.app_version,
+            version=self.settings.app_version,
             custom_metrics={
                 "rules_loaded": rule_count,
                 "processing_queue_length": 0,  # TODO: Implement queue tracking
@@ -167,11 +165,11 @@ class HealthMonitoringService:
                 connection_pool=ConnectionPool(
                     active_connections=5,  # TODO: Get actual metrics
                     idle_connections=15,
-                    max_connections=settings.mongodb_max_pool_size,
+                    max_connections=self.settings.mongodb_max_pool_size,
                     wait_queue_length=0,
                 ),
-                host=settings.mongodb_url,
-                database_name=settings.mongodb_database,
+                host=self.settings.mongodb_url,
+                database_name=self.settings.mongodb_database,
                 storage_size_mb=0.0,  # TODO: Calculate actual size
                 performance_metrics={
                     "average_query_time_ms": 12.3,  # TODO: Track actual metrics
@@ -180,7 +178,7 @@ class HealthMonitoringService:
             )
 
         # Redis health (if configured)
-        if hasattr(settings, "redis_url") and settings.redis_url:
+        if hasattr(self.settings, "redis_url") and self.settings.redis_url:
             # TODO: Implement Redis health check
             services["redis"] = DatabaseHealth(
                 status=HealthStatus.HEALTHY,
@@ -190,7 +188,7 @@ class HealthMonitoringService:
                     max_connections=10,
                     wait_queue_length=0,
                 ),
-                host=settings.redis_url,
+                host=self.settings.redis_url,
                 database_name="0",
                 storage_size_mb=128.0,
                 performance_metrics={
@@ -244,7 +242,9 @@ class HealthMonitoringService:
                 "memory_usage_percent": memory.percent,
                 "cpu_cores": psutil.cpu_count(),
                 "cpu_usage_percent": cpu_percent,
-                "load_average": (list(psutil.getloadavg()) if hasattr(psutil, "getloadavg") else [0, 0, 0]),
+                "load_average": (
+                    list(psutil.getloadavg()) if hasattr(psutil, "getloadavg") else [0, 0, 0]
+                ),
             },
             "storage": {
                 "app_directory": {
@@ -273,7 +273,9 @@ class HealthMonitoringService:
             },
         }
 
-    async def _check_operational_alerts(self, health_data: ServiceHealthDocument) -> List[OperationalAlert]:
+    async def _check_operational_alerts(
+        self, health_data: ServiceHealthDocument
+    ) -> List[OperationalAlert]:
         """Check for operational issues and generate alerts"""
         alerts = []
 
@@ -363,7 +365,9 @@ class HealthMonitoringService:
             health_data.performance_metrics = await self._collect_content_performance()
 
             # Generate alerts and recommendations
-            health_data.alerts_and_recommendations = await self._generate_content_alerts(health_data)
+            health_data.alerts_and_recommendations = await self._generate_content_alerts(
+                health_data
+            )
 
             return health_data
 
@@ -424,7 +428,8 @@ class HealthMonitoringService:
                     ),
                     total_controls=config["total_controls"],
                     implemented_controls=len(implemented_controls),
-                    coverage_percentage=(len(implemented_controls) / config["total_controls"]) * 100,
+                    coverage_percentage=(len(implemented_controls) / config["total_controls"])
+                    * 100,
                     rule_count=len(framework_rules),
                     benchmark_dependencies=[],  # TODO: Extract from mappings
                 )
@@ -462,11 +467,15 @@ class HealthMonitoringService:
 
         for benchmark_id, config in benchmark_configs.items():
             # Count rules for this benchmark
-            benchmark_rules = [r for r in all_rules if benchmark_id in str(getattr(r, "compliance_mappings", {}))]
+            benchmark_rules = [
+                r for r in all_rules if benchmark_id in str(getattr(r, "compliance_mappings", {}))
+            ]
 
             if benchmark_rules:
                 # Calculate freshness
-                last_update = max((r.updated_at for r in benchmark_rules), default=datetime.utcnow())
+                last_update = max(
+                    (r.updated_at for r in benchmark_rules), default=datetime.utcnow()
+                )
                 days_since_update = (datetime.utcnow() - last_update).days
 
                 benchmarks[benchmark_id] = BenchmarkHealth(
@@ -516,16 +525,20 @@ class HealthMonitoringService:
 
             # Platform
             platforms = getattr(rule, "platform_implementations", {})
-            for platform in platforms.keys():
-                platform_counts[platform] = platform_counts.get(platform, 0) + 1
+            for plat in platforms.keys():
+                platform_counts[plat] = platform_counts.get(plat, 0) + 1
 
         return {
             "summary": {
                 "total_rules": len(all_rules),
-                "active_rules": len([r for r in all_rules if getattr(r, "abstract", False) is False]),
+                "active_rules": len(
+                    [r for r in all_rules if getattr(r, "abstract", False) is False]
+                ),
                 "deprecated_rules": 0,  # TODO: Track deprecated rules
                 "rules_with_remediation": remediation_scripts,
-                "rules_with_plugin_support": len([r for r in all_rules if getattr(r, "fix_extension", False)]),
+                "rules_with_plugin_support": len(
+                    [r for r in all_rules if getattr(r, "fix_extension", False)]
+                ),
                 "last_import": max((r.imported_at for r in all_rules), default=datetime.utcnow()),
             },
             "rule_distribution": {
@@ -588,7 +601,9 @@ class HealthMonitoringService:
             },
         }
 
-    async def _generate_content_alerts(self, health_data: ContentHealthDocument) -> List[ContentAlert]:
+    async def _generate_content_alerts(
+        self, health_data: ContentHealthDocument
+    ) -> List[ContentAlert]:
         """Generate content-related alerts and recommendations"""
         alerts = []
 
@@ -596,11 +611,12 @@ class HealthMonitoringService:
         for benchmark_id, benchmark in health_data.benchmarks.items():
             freshness = benchmark.content_freshness
             if freshness.get("freshness_status") == "stale":
+                days_old = freshness.get('days_since_update')
                 alerts.append(
                     ContentAlert(
                         type="warning",
                         category="content_freshness",
-                        message=f"{benchmark_id} is {freshness.get('days_since_update')} days old - update recommended",
+                        message=f"{benchmark_id} is {days_old} days old - update recommended",
                         rule_impact=benchmark.implemented_rules,
                         recommended_action=f"Update {benchmark_id} to latest version",
                         urgency="medium",
@@ -610,11 +626,12 @@ class HealthMonitoringService:
         # Check for low framework coverage
         for framework_id, framework in health_data.frameworks.items():
             if framework.coverage_percentage < 80:
+                coverage_pct = framework.coverage_percentage
                 alerts.append(
                     ContentAlert(
                         type="info",
                         category="coverage",
-                        message=f"{framework_id} coverage is only {framework.coverage_percentage:.1f}%",
+                        message=f"{framework_id} coverage is only {coverage_pct:.1f}%",
                         rule_impact=framework.total_controls - framework.implemented_controls,
                         recommended_action=f"Import additional rules for {framework_id}",
                         urgency="low",
@@ -646,16 +663,22 @@ class HealthMonitoringService:
                 last_updated=datetime.utcnow(),
                 service_health_status=service_health.overall_status,
                 content_health_status=content_status,
-                overall_health_status=self._combine_health_statuses(service_health.overall_status, content_status),
+                overall_health_status=self._combine_health_statuses(
+                    service_health.overall_status, content_status
+                ),
                 key_metrics={
                     "uptime_seconds": service_health.uptime_seconds,
-                    "total_rules": content_health.rule_statistics.get("summary", {}).get("total_rules", 0),
+                    "total_rules": content_health.rule_statistics.get("summary", {}).get(
+                        "total_rules", 0
+                    ),
                     "memory_usage_percent": service_health.resource_usage.get("system", {}).get(
                         "memory_usage_percent", 0
                     ),
-                    "active_alerts": len(service_health.alerts) + len(content_health.alerts_and_recommendations),
+                    "active_alerts": len(service_health.alerts)
+                    + len(content_health.alerts_and_recommendations),
                 },
-                active_issues_count=len(service_health.alerts) + len(content_health.alerts_and_recommendations),
+                active_issues_count=len(service_health.alerts)
+                + len(content_health.alerts_and_recommendations),
                 critical_alerts=[
                     alert.message
                     for alert in service_health.alerts
@@ -672,7 +695,9 @@ class HealthMonitoringService:
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-    def _combine_health_statuses(self, service: HealthStatus, content: HealthStatus) -> HealthStatus:
+    def _combine_health_statuses(
+        self, service: HealthStatus, content: HealthStatus
+    ) -> HealthStatus:
         """Combine two health statuses into overall status"""
         status_priority = {
             HealthStatus.UNHEALTHY: 0,
@@ -689,11 +714,15 @@ class HealthMonitoringService:
             return content
 
     # Storage Methods
-    async def save_service_health(self, health_data: ServiceHealthDocument) -> ServiceHealthDocument:
+    async def save_service_health(
+        self, health_data: ServiceHealthDocument
+    ) -> ServiceHealthDocument:
         """Save service health data to MongoDB"""
         return await health_data.save()
 
-    async def save_content_health(self, health_data: ContentHealthDocument) -> ContentHealthDocument:
+    async def save_content_health(
+        self, health_data: ContentHealthDocument
+    ) -> ContentHealthDocument:
         """Save content health data to MongoDB"""
         return await health_data.save()
 

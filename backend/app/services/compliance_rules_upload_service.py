@@ -100,13 +100,9 @@ class ComplianceRulesUploadService:
             self.current_phase = "security_validation"
             result["phase"] = "security_validation"
 
-            is_valid, security_checks, extracted_path = (
-                await self.security_service.validate_archive(archive_data)
-            )
+            is_valid, security_checks, extracted_path = await self.security_service.validate_archive(archive_data)
 
-            result["security_validation"] = self.security_service.get_security_summary(
-                security_checks
-            )
+            result["security_validation"] = self.security_service.get_security_summary(security_checks)
             result["file_hash"] = self.security_service.calculate_archive_hash(archive_data)
 
             if not is_valid:
@@ -159,8 +155,7 @@ class ComplianceRulesUploadService:
                 result["warnings"].extend(parsing_stats["parsing_errors"])
 
             logger.info(
-                f"[{self.upload_id}] Parsed {len(new_rules)} rules "
-                f"({parsing_stats['parsing_errors_count']} errors)"
+                f"[{self.upload_id}] Parsed {len(new_rules)} rules " f"({parsing_stats['parsing_errors_count']} errors)"
             )
 
             self.progress["total_rules"] = len(new_rules)
@@ -193,9 +188,7 @@ class ComplianceRulesUploadService:
             await self.dependency_graph.build_from_database()
 
             # Validate new rules' dependencies
-            dependency_validation = self.dependency_graph.validate_dependencies(
-                new_rules, check_existing_db=True
-            )
+            dependency_validation = self.dependency_graph.validate_dependencies(new_rules, check_existing_db=True)
 
             result["dependency_validation"] = dependency_validation
 
@@ -274,15 +267,10 @@ class ComplianceRulesUploadService:
 
                 if inheritance_updates:
                     # Apply inheritance updates
-                    apply_results = await self.inheritance_resolver.apply_inheritance_updates(
-                        inheritance_updates
-                    )
+                    apply_results = await self.inheritance_resolver.apply_inheritance_updates(inheritance_updates)
 
                     result["inheritance_impact"]["applied_updates"] = apply_results
-                    logger.info(
-                        f"[{self.upload_id}] Applied {apply_results['applied']} "
-                        f"inheritance updates"
-                    )
+                    logger.info(f"[{self.upload_id}] Applied {apply_results['applied']} " f"inheritance updates")
 
             # Populate derived_rules (reverse index for inheritance)
             # This is a computed field that tracks which rules inherit from each parent
@@ -295,8 +283,7 @@ class ComplianceRulesUploadService:
             result["processing_time_seconds"] = (datetime.utcnow() - start_time).total_seconds()
 
             logger.info(
-                f"[{self.upload_id}] Upload completed successfully in "
-                f"{result['processing_time_seconds']:.2f}s"
+                f"[{self.upload_id}] Upload completed successfully in " f"{result['processing_time_seconds']:.2f}s"
             )
 
             return result
@@ -344,14 +331,10 @@ class ComplianceRulesUploadService:
             # Find all rules with inherits_from (child rules)
             # Repository Pattern: Use find_many() for bulk queries
             repo = ComplianceRuleRepository()
-            child_rules = await repo.find_many(
-                {"inherits_from": {"$ne": None}, "is_latest": True}
-            )
+            child_rules = await repo.find_many({"inherits_from": {"$ne": None}, "is_latest": True})
 
             if not child_rules:
-                logger.debug(
-                    f"[{self.upload_id}] No child rules found, skipping derived_rules population"
-                )
+                logger.debug(f"[{self.upload_id}] No child rules found, skipping derived_rules population")
                 return
 
             # Build reverse index: parent_id → [child_id1, child_id2, ...]
@@ -366,7 +349,7 @@ class ComplianceRulesUploadService:
             for parent_id, child_ids in inheritance_map.items():
                 result = await repo.update_one(
                     query={"rule_id": parent_id, "is_latest": True},
-                    update={"$set": {"derived_rules": sorted(child_ids)}}
+                    update={"$set": {"derived_rules": sorted(child_ids)}},
                 )
                 if result:
                     update_count += 1
@@ -449,14 +432,10 @@ class ComplianceRulesUploadService:
                             shutil.copy2(oval_file, dest_file)
                             result["oval_files_copied"] += 1
                         except Exception as e:
-                            result["errors"].append(
-                                f"Failed to copy {platform}/{oval_file.name}: {str(e)}"
-                            )
+                            result["errors"].append(f"Failed to copy {platform}/{oval_file.name}: {str(e)}")
 
                     result["oval_files_found"] += len(platform_oval_files)
-                    logger.info(
-                        f"[{self.upload_id}] Copied {len(platform_oval_files)} OVAL files for {platform}"
-                    )
+                    logger.info(f"[{self.upload_id}] Copied {len(platform_oval_files)} OVAL files for {platform}")
 
                 # Populate oval_filename field - rules will match against their platform tags
                 for rule in new_rules:
@@ -495,14 +474,10 @@ class ComplianceRulesUploadService:
                 # Single-platform bundle: oval/*.xml structure
                 platform = manifest.get("platform", "unknown")
                 if platform == "unknown":
-                    logger.warning(
-                        f"[{self.upload_id}] No platform specified in manifest, cannot organize OVAL files"
-                    )
+                    logger.warning(f"[{self.upload_id}] No platform specified in manifest, cannot organize OVAL files")
                     return result
 
-                logger.info(
-                    f"[{self.upload_id}] Detected single-platform OVAL bundle for {platform}"
-                )
+                logger.info(f"[{self.upload_id}] Detected single-platform OVAL bundle for {platform}")
 
                 # Create storage directory
                 platform_storage = oval_storage_base / platform
@@ -529,9 +504,7 @@ class ComplianceRulesUploadService:
                         result["oval_files_copied"] += 1
                     except Exception as e:
                         result["errors"].append(f"Failed to copy {oval_file.name}: {str(e)}")
-                        logger.error(
-                            f"[{self.upload_id}] Failed to copy OVAL file {oval_file.name}: {e}"
-                        )
+                        logger.error(f"[{self.upload_id}] Failed to copy OVAL file {oval_file.name}: {e}")
 
                 # Populate oval_filename field in rules
                 for rule in new_rules:
@@ -596,14 +569,10 @@ class ComplianceRulesUploadService:
                 # Repository Pattern: Use find_one() for single record queries
                 rule_id = rule_data.get("rule_id")
                 repo = ComplianceRuleRepository()
-                existing_rule = await repo.find_one(
-                    {"rule_id": rule_id, "is_latest": True}
-                )
+                existing_rule = await repo.find_one({"rule_id": rule_id, "is_latest": True})
 
                 # Process with smart deduplication
-                action, details = await self.deduplication_service.process_rule(
-                    rule_data, existing_rule
-                )
+                action, details = await self.deduplication_service.process_rule(rule_data, existing_rule)
 
                 if action == "imported":
                     # Create new rule (version 1)
@@ -657,9 +626,7 @@ class ComplianceRulesUploadService:
         if "frameworks" in rule_data and isinstance(rule_data["frameworks"], dict):
             # Remove None and empty dict values from frameworks
             cleaned_frameworks = {
-                k: v
-                for k, v in rule_data["frameworks"].items()
-                if v is not None and v != {} and v != []
+                k: v for k, v in rule_data["frameworks"].items() if v is not None and v != {} and v != []
             }
             # Set to empty dict (not None) to match API schema expectations
             rule_data["frameworks"] = cleaned_frameworks if cleaned_frameworks else {}
@@ -699,10 +666,7 @@ class ComplianceRulesUploadService:
         rule = ComplianceRule(**versioned_rule)
         await rule.insert()
 
-        logger.info(
-            f"Created new rule: {rule.rule_id} v{rule.version} "
-            f"(hash: {rule.version_hash[:16]}...)"
-        )
+        logger.info(f"Created new rule: {rule.rule_id} v{rule.version} " f"(hash: {rule.version_hash[:16]}...)")
 
         # Create basic rule intelligence (optional)
         await self._create_rule_intelligence(rule)
@@ -738,12 +702,10 @@ class ComplianceRulesUploadService:
                     "effective_until": now,
                     "superseded_by": existing_rule.version + 1,
                 }
-            }
+            },
         )
 
-        logger.debug(
-            f"Marked rule {existing_rule.rule_id} v{existing_rule.version} " f"as superseded"
-        )
+        logger.debug(f"Marked rule {existing_rule.rule_id} v{existing_rule.version} " f"as superseded")
 
         # Step 2: Prepare new version data
         # Remove _id to let MongoDB generate new one
@@ -803,9 +765,7 @@ class ComplianceRulesUploadService:
             rule_id=rule.rule_id,
             business_impact=f"{rule.severity.capitalize()} {rule.category} compliance requirement",
             compliance_importance=self._assess_compliance_importance(rule),
-            implementation_notes=rule.metadata.get(
-                "rationale", "No implementation notes available"
-            ),
+            implementation_notes=rule.metadata.get("rationale", "No implementation notes available"),
             testing_guidance=f"Verify {rule.metadata.get('name', 'rule')} is properly configured",
             scan_duration_avg_ms=100,  # Default estimate
             resource_impact="low",
@@ -838,9 +798,7 @@ class ComplianceRulesUploadService:
         # Boost score if rule maps to multiple frameworks
         if rule.frameworks:
             # Count frameworks that have non-empty mappings (generic, supports all frameworks)
-            framework_count = sum(
-                1 for fw_dict in rule.frameworks.values() if fw_dict and len(fw_dict) > 0
-            )
+            framework_count = sum(1 for fw_dict in rule.frameworks.values() if fw_dict and len(fw_dict) > 0)
 
             if framework_count >= 3:
                 score = min(10, score + 2)
@@ -915,17 +873,13 @@ class ComplianceRulesUploadService:
                 records_to_delete = total_count - 100
 
                 # Get the 100th most recent record's timestamp
-                records = (
-                    await UploadHistory.find().sort("-uploaded_at").skip(99).limit(1).to_list()
-                )
+                records = await UploadHistory.find().sort("-uploaded_at").skip(99).limit(1).to_list()
 
                 if records:
                     cutoff_date = records[0].uploaded_at
 
                     # Delete all records older than the cutoff
-                    result = await UploadHistory.find(
-                        UploadHistory.uploaded_at < cutoff_date
-                    ).delete()
+                    result = await UploadHistory.find(UploadHistory.uploaded_at < cutoff_date).delete()
 
                     if result:
                         logger.info(f"Cleaned up {result.deleted_count} old upload history records")

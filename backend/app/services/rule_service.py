@@ -10,17 +10,12 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from backend.app.models.mongo_models import (
-    ComplianceRule,
-    PlatformImplementation,
-    RemediationScript,
-    RuleIntelligence,
-)
-from backend.app.services.platform_capability_service import PlatformCapabilityService
-from backend.app.services.rule_cache_service import RuleCacheService
+from backend.app.models.mongo_models import ComplianceRule, PlatformImplementation, RemediationScript, RuleIntelligence
 
 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
 from backend.app.repositories import ComplianceRuleRepository
+from backend.app.services.platform_capability_service import PlatformCapabilityService
+from backend.app.services.rule_cache_service import RuleCacheService
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +112,7 @@ class RuleService:
 
             # Execute query with proper indexing
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-            logger.debug(
-                f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})"
-            )
+            logger.debug(f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})")
             repo = ComplianceRuleRepository()
             rules = await repo.find_many(query_filter)
 
@@ -170,9 +163,7 @@ class RuleService:
 
         # Get base rule
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for get_rule_with_dependencies ({rule_id})")
         repo = ComplianceRuleRepository()
         rule = await repo.find_one({"rule_id": rule_id})
 
@@ -180,9 +171,7 @@ class RuleService:
             raise ValueError(f"Rule not found: {rule_id}")
 
         # Resolve dependencies
-        dependency_graph = await self._build_dependency_graph(
-            rule, resolve_depth, include_conflicts
-        )
+        dependency_graph = await self._build_dependency_graph(rule, resolve_depth, include_conflicts)
 
         result = {
             "rule": await self._resolve_rule_inheritance(rule),
@@ -209,9 +198,7 @@ class RuleService:
             platform_version: Platform version
             target_host: Optional target host for remote capability detection
         """
-        return await self.platform_service.detect_capabilities(
-            platform, platform_version, target_host
-        )
+        return await self.platform_service.detect_capabilities(platform, platform_version, target_host)
 
     async def get_applicable_rules(
         self,
@@ -280,9 +267,7 @@ class RuleService:
 
         # Platform filter
         if platform_filter:
-            pipeline.append(
-                {"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}}
-            )
+            pipeline.append({"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}})
 
         # Framework filter
         if framework_filter:
@@ -437,9 +422,7 @@ class RuleService:
 
         # Get parent rule
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})")
         repo = ComplianceRuleRepository()
         parent_rule = await repo.find_one({"rule_id": rule.inherits_from})
 
@@ -455,9 +438,7 @@ class RuleService:
 
         return resolved
 
-    def _merge_rule_properties(
-        self, parent: Dict[str, Any], child: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _merge_rule_properties(self, parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, Any]:
         """Merge parent and child rule properties"""
         merged = parent.copy()
 
@@ -501,9 +482,7 @@ class RuleService:
         """Merge dependency lists from parent and child"""
         merged = {
             "requires": list(set(parent_deps.get("requires", []) + child_deps.get("requires", []))),
-            "conflicts": list(
-                set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))
-            ),
+            "conflicts": list(set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))),
             "related": list(set(parent_deps.get("related", []) + child_deps.get("related", []))),
         }
 
@@ -540,9 +519,7 @@ class RuleService:
 
         return rule_data
 
-    def _apply_override_values(
-        self, rule_data: Dict[str, Any], overrides: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _apply_override_values(self, rule_data: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
         """Apply specific override values to rule data"""
         result = rule_data.copy()
 
