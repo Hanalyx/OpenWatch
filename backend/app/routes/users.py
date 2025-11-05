@@ -225,24 +225,27 @@ async def create_user(
         # Hash password
         hashed_password = pwd_context.hash(user_data.password)
 
-        # OW-REFACTOR-001B: Use QueryBuilder for INSERT with RETURNING
-        # Why: Eliminates manual SQL construction, maintains consistency
-        insert_builder = QueryBuilder("users").insert(
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        query = text("""
+            INSERT INTO users (username, email, hashed_password, role, is_active,
+                             created_at, failed_login_attempts, mfa_enabled)
+            VALUES (:username, :email, :hashed_password, :role, :is_active,
+                    CURRENT_TIMESTAMP, :failed_login_attempts, :mfa_enabled)
+            RETURNING id, created_at
+        """)
+        insert_result = db.execute(
+            query,
             {
                 "username": user_data.username,
                 "email": user_data.email,
                 "hashed_password": hashed_password,
                 "role": user_data.role.value,
                 "is_active": user_data.is_active,
-                "created_at": "CURRENT_TIMESTAMP",  # SQL function, not parameterized
                 "failed_login_attempts": 0,
                 "mfa_enabled": False,
-            }
+            },
         )
-        query, params = insert_builder.build()
-        # Add RETURNING clause (QueryBuilder doesn't support RETURNING yet)
-        query += " RETURNING id, created_at"
-        insert_result = db.execute(text(query), params)
 
         row = insert_result.fetchone()
         db.commit()
@@ -370,10 +373,18 @@ async def update_user(
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
 
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
         # Note: users table does not have updated_at column, only created_at
-        update_builder = QueryBuilder("users").update(update_data).where("id = :user_id", user_id, "user_id")
-        query, params = update_builder.build()
-        db.execute(text(query), params)
+        # Build dynamic SET clause based on update_data
+        set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
+        update_query = text(f"""
+            UPDATE users
+            SET {set_clauses}
+            WHERE id = :user_id
+        """)
+        update_params = {**update_data, "user_id": user_id}
+        db.execute(update_query, update_params)
         db.commit()
 
         # Return updated user
@@ -409,12 +420,16 @@ async def delete_user(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # OW-REFACTOR-001B: Use QueryBuilder for soft delete (deactivation)
-        # Why: Soft delete preserves audit trails, QueryBuilder maintains security through parameterization
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        # Soft delete preserves audit trails
         # Note: users table does not have updated_at column, only created_at
-        update_builder = QueryBuilder("users").update({"is_active": False}).where("id = :user_id", user_id, "user_id")
-        query, params = update_builder.build()
-        db.execute(text(query), params)
+        update_query = text("""
+            UPDATE users
+            SET is_active = :is_active
+            WHERE id = :user_id
+        """)
+        db.execute(update_query, {"is_active": False, "user_id": user_id})
         db.commit()
 
         logger.info(f"User {user.username} deactivated by {current_user.get('username')}")

@@ -1076,10 +1076,21 @@ async def create_scan(
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid SCAP content profiles")
 
-        # OW-REFACTOR-001B: Use QueryBuilder for parameterized INSERT
-        # Why: Eliminates manual SQL string construction, reduces SQL injection risk
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
         scan_id = str(uuid.uuid4())
-        insert_builder = QueryBuilder("scans").insert(
+        insert_query = text("""
+            INSERT INTO scans (
+                id, name, host_id, content_id, profile_id, status, progress,
+                scan_options, started_by, started_at, remediation_requested, verification_scan
+            )
+            VALUES (
+                :id, :name, :host_id, :content_id, :profile_id, :status, :progress,
+                :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan
+            )
+        """)
+        db.execute(
+            insert_query,
             {
                 "id": scan_id,
                 "name": scan_request.name,
@@ -1095,8 +1106,6 @@ async def create_scan(
                 "verification_scan": False,
             }
         )
-        query, params = insert_builder.build()
-        db.execute(text(query), params)
 
         # Commit the scan record
         db.commit()
@@ -1292,11 +1301,17 @@ async def update_scan(
             update_data["completed_at"] = datetime.utcnow()
 
         if update_data:
-            update_builder = (
-                QueryBuilder("scans").update(update_data).where("id = :id", scan_id, "id")
-            )
-            query, params = update_builder.build()
-            db.execute(text(query), params)
+            # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+            # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+            # Build dynamic SET clause based on update_data
+            set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
+            update_query = text(f"""
+                UPDATE scans
+                SET {set_clauses}
+                WHERE id = :id
+            """)
+            update_params = {**update_data, "id": scan_id}
+            db.execute(update_query, update_params)
             db.commit()
 
         return {"message": "Scan updated successfully"}
@@ -1348,16 +1363,20 @@ async def delete_scan(
                     )
 
         # Delete scan results first (foreign key constraint)
-        results_delete_builder = (
-            QueryBuilder("scan_results").delete().where("scan_id = :scan_id", scan_id, "scan_id")
-        )
-        query, params = results_delete_builder.build()
-        db.execute(text(query), params)
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        results_delete_query = text("""
+            DELETE FROM scan_results
+            WHERE scan_id = :scan_id
+        """)
+        db.execute(results_delete_query, {"scan_id": scan_id})
 
         # Delete scan record
-        scan_delete_builder = QueryBuilder("scans").delete().where("id = :id", scan_id, "id")
-        query, params = scan_delete_builder.build()
-        db.execute(text(query), params)
+        scan_delete_query = text("""
+            DELETE FROM scans
+            WHERE id = :id
+        """)
+        db.execute(scan_delete_query, {"id": scan_id})
 
         db.commit()
 

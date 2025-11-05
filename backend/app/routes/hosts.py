@@ -410,10 +410,23 @@ async def create_host(
         # Keep NULL in hosts.encrypted_credentials (unified system uses unified_credentials table)
         encrypted_creds = None
 
-        # OW-REFACTOR-001B: Use QueryBuilder for parameterized INSERT
-        # Why: Eliminates manual SQL string construction, reduces SQL injection risk
-        query_builder = QueryBuilder("hosts")
-        insert_query = query_builder.insert(
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        insert_query = text("""
+            INSERT INTO hosts (
+                id, hostname, ip_address, display_name, operating_system,
+                status, port, username, auth_method, encrypted_credentials,
+                is_active, created_at, updated_at
+            )
+            VALUES (
+                :id, :hostname, :ip_address, :display_name, :operating_system,
+                :status, :port, :username, :auth_method, :encrypted_credentials,
+                :is_active, :created_at, :updated_at
+            )
+        """)
+
+        db.execute(
+            insert_query,
             {
                 "id": host_id,
                 "hostname": host.hostname,
@@ -430,8 +443,6 @@ async def create_host(
                 "updated_at": current_time,
             }
         )
-
-        db.execute(text(insert_query.query), insert_query.params)
 
         db.commit()
 
@@ -750,13 +761,27 @@ async def update_host(
         }
 
         # Build UPDATE query with conditional encrypted_credentials field
-        # Why: Simplifies conditional SQL construction vs manual string building
         if encrypted_creds is not None or (host_update.auth_method == "system_default"):
             update_params["encrypted_credentials"] = encrypted_creds
 
-        update_query_builder = QueryBuilder("hosts").update(update_params).where("id = :id")
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        update_query = text("""
+            UPDATE hosts
+            SET hostname = :hostname,
+                ip_address = :ip_address,
+                display_name = :display_name,
+                operating_system = :operating_system,
+                port = :port,
+                username = :username,
+                auth_method = :auth_method,
+                description = :description,
+                encrypted_credentials = :encrypted_credentials,
+                updated_at = :updated_at
+            WHERE id = :id
+        """)
 
-        db.execute(text(update_query_builder.query), update_query_builder.params)
+        db.execute(update_query, update_params)
 
         db.commit()
 
@@ -854,22 +879,29 @@ async def delete_host(
         if scan_count > 0:
             # Cascade delete: Remove scan_results first (foreign key constraint)
             # Why: Must delete child records before parent to avoid FK violation
-            delete_results_query = (
-                QueryBuilder("scan_results")
-                .delete()
-                .where("scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)")
-            )
-            db.execute(text(delete_results_query.query), {"host_id": host_uuid})
+            # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+            # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+            delete_results_query = text("""
+                DELETE FROM scan_results
+                WHERE scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)
+            """)
+            db.execute(delete_results_query, {"host_id": host_uuid})
 
             # Then delete scans
-            delete_scans_query = QueryBuilder("scans").delete().where("host_id = :host_id")
-            db.execute(text(delete_scans_query.query), {"host_id": host_uuid})
+            delete_scans_query = text("""
+                DELETE FROM scans
+                WHERE host_id = :host_id
+            """)
+            db.execute(delete_scans_query, {"host_id": host_uuid})
 
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
 
         # Delete the host record
-        delete_host_query = QueryBuilder("hosts").delete().where("id = :id")
-        db.execute(text(delete_host_query.query), {"id": host_uuid})
+        delete_host_query = text("""
+            DELETE FROM hosts
+            WHERE id = :id
+        """)
+        db.execute(delete_host_query, {"id": host_uuid})
 
         db.commit()
 
