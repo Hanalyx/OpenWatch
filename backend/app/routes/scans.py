@@ -1013,7 +1013,6 @@ async def list_scans(
         count_builder = (
             QueryBuilder("scans s")
             .join("hosts h", "s.host_id = h.id", "LEFT")
-            .join("scap_content c", "s.content_id = c.id", "LEFT")
         )
 
         # Apply same filters as main query
