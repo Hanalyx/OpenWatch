@@ -355,22 +355,60 @@ const Scans: React.FC = () => {
         return;
       }
 
-      // Use most recent scan configuration for one-click rescan
-      const mostRecentScan = hostGroup.mostRecentScan;
-      const payload = {
-        host_id: hostGroup.host_id, // Now guaranteed to exist
-        content_id: mostRecentScan.profile_id, // Assuming this maps to content
-        profile_id: mostRecentScan.profile_id,
-        name: `Rescan - ${hostGroup.host_name} - ${new Date().toISOString()}`,
-      };
+      setLoading(true);
+      setError(null);
 
-      await api.post('/api/scans/', payload);
+      // Fetch host details to get platform information
+      const hostData = await api.get(`/api/v1/hosts/${hostGroup.host_id}`);
+
+      if (!hostData || !hostData.platform || !hostData.platform_version) {
+        setError(
+          'Cannot rescan: Host platform information is missing. Please update host details.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Use most recent scan to get framework (from profile_id)
+      const mostRecentScan = hostGroup.mostRecentScan;
+      const framework = mostRecentScan.profile_id || 'disa_stig'; // Default to DISA STIG if not available
+
+      // Call MongoDB scan API
+      const response = await fetch('/api/v1/mongodb-scans/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          host_id: hostGroup.host_id,
+          hostname: hostGroup.host_name,
+          platform: hostData.platform,
+          platform_version: hostData.platform_version,
+          framework: framework,
+          include_enrichment: true,
+          generate_report: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to start rescan');
+      }
+
+      const result = await response.json();
+
+      // Show success message with scan ID
+      setError(null);
+      console.log(`Rescan started successfully. Scan ID: ${result.scan_id}`);
 
       // Refresh scans list to show new scan
-      fetchScans();
-    } catch (error) {
+      await fetchScans();
+    } catch (error: any) {
       console.error('Failed to start rescan:', error);
-      setError('Failed to start rescan');
+      setError(error.message || 'Failed to start rescan');
+    } finally {
+      setLoading(false);
     }
   };
 

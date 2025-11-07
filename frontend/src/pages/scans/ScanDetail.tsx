@@ -516,24 +516,60 @@ const ScanDetail: React.FC = () => {
 
     try {
       showSnackbar('Initiating new scan with same configuration...', 'info');
+      setIsLoading(true);
 
-      const result = await api.post('/api/scans/', {
-        name: `${scan.name} - Rescan ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
-        host_id: scan.host_id,
-        content_id: scan.content_id,
-        profile_id: scan.profile_id,
-        scan_options: scan.scan_options || {},
+      // Fetch host details to get platform information
+      const hostData = await api.get(`/api/v1/hosts/${scan.host_id}`);
+
+      if (!hostData || !hostData.platform || !hostData.platform_version) {
+        showSnackbar(
+          'Cannot rescan: Host platform information is missing. Please update host details.',
+          'error'
+        );
+        setIsLoading(false);
+        handleMenuClose();
+        return;
+      }
+
+      // Use profile_id as framework (e.g., 'disa_stig', 'cis', etc.)
+      const framework = scan.profile_id || 'disa_stig';
+
+      // Call MongoDB scan API
+      const response = await fetch('/api/v1/mongodb-scans/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          host_id: scan.host_id,
+          hostname: scan.host_name || hostData.hostname,
+          platform: hostData.platform,
+          platform_version: hostData.platform_version,
+          framework: framework,
+          include_enrichment: true,
+          generate_report: true,
+        }),
       });
 
-      showSnackbar('New scan started successfully!', 'success');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to start rescan');
+      }
+
+      const result = await response.json();
+
+      showSnackbar(`New scan started successfully! Scan ID: ${result.scan_id}`, 'success');
 
       // Navigate to new scan after a short delay
       setTimeout(() => {
-        navigate(`/scans/${result.id}`);
+        navigate(`/scans/${result.scan_id}`);
       }, 1500);
-    } catch (error) {
-      showSnackbar('Failed to start new scan', 'error');
+    } catch (error: any) {
+      console.error('Failed to start rescan:', error);
+      showSnackbar(error.message || 'Failed to start new scan', 'error');
     } finally {
+      setIsLoading(false);
       handleMenuClose();
     }
   };
