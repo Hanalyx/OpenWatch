@@ -358,20 +358,54 @@ const Scans: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch host details to get platform information
+      // Fetch host details
       const hostData = await api.get(`/api/v1/hosts/${hostGroup.host_id}`);
 
-      if (!hostData || !hostData.platform || !hostData.platform_version) {
+      // Get platform information from host data OR infer from previous scan
+      const mostRecentScan = hostGroup.mostRecentScan;
+      let platform = hostData?.platform;
+      let platformVersion = hostData?.platform_version;
+
+      // If platform info not in host data, try to infer from scan name
+      if (!platform || !platformVersion) {
+        // Try to extract platform/version from scan name (e.g., "MongoDB Scan - rhel 8 - disa_stig")
+        const scanName = mostRecentScan.name.toLowerCase();
+
+        // Platform detection patterns
+        if (scanName.includes('rhel') || scanName.includes('red hat')) {
+          platform = 'rhel';
+          // Try to extract version (7, 8, 9)
+          const versionMatch = scanName.match(/rhel\s*(\d+)|red\s*hat\s*(\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1] || versionMatch[2];
+          }
+        } else if (scanName.includes('ubuntu')) {
+          platform = 'ubuntu';
+          // Try to extract version (20.04, 22.04, 24.04)
+          const versionMatch = scanName.match(/ubuntu\s*(\d+\.\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1];
+          }
+        } else if (scanName.includes('debian')) {
+          platform = 'debian';
+          const versionMatch = scanName.match(/debian\s*(\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1];
+          }
+        }
+      }
+
+      // If still no platform info, provide helpful error with navigation to host edit
+      if (!platform || !platformVersion) {
         setError(
-          'Cannot rescan: Host platform information is missing. Please update host details.'
+          `Cannot rescan: Host platform information is missing. Please update the host details to include platform (e.g., rhel, ubuntu) and platform version (e.g., 8, 22.04).`
         );
         setLoading(false);
         return;
       }
 
-      // Use most recent scan to get framework (from profile_id)
-      const mostRecentScan = hostGroup.mostRecentScan;
-      const framework = mostRecentScan.profile_id || 'disa_stig'; // Default to DISA STIG if not available
+      // Use profile_id from previous scan as framework
+      const framework = mostRecentScan.profile_id || 'disa_stig';
 
       // Call MongoDB scan API
       const response = await fetch('/api/v1/mongodb-scans/start', {
@@ -383,8 +417,8 @@ const Scans: React.FC = () => {
         body: JSON.stringify({
           host_id: hostGroup.host_id,
           hostname: hostGroup.host_name,
-          platform: hostData.platform,
-          platform_version: hostData.platform_version,
+          platform: platform,
+          platform_version: platformVersion,
           framework: framework,
           include_enrichment: true,
           generate_report: true,
@@ -400,7 +434,9 @@ const Scans: React.FC = () => {
 
       // Show success message with scan ID
       setError(null);
-      console.log(`Rescan started successfully. Scan ID: ${result.scan_id}`);
+      console.log(
+        `Rescan started successfully. Scan ID: ${result.scan_id} (Platform: ${platform} ${platformVersion}, Framework: ${framework})`
+      );
 
       // Refresh scans list to show new scan
       await fetchScans();

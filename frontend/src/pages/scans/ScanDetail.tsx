@@ -518,12 +518,43 @@ const ScanDetail: React.FC = () => {
       showSnackbar('Initiating new scan with same configuration...', 'info');
       setIsLoading(true);
 
-      // Fetch host details to get platform information
+      // Fetch host details
       const hostData = await api.get(`/api/v1/hosts/${scan.host_id}`);
 
-      if (!hostData || !hostData.platform || !hostData.platform_version) {
+      // Get platform information from host data OR infer from scan name
+      let platform = hostData?.platform;
+      let platformVersion = hostData?.platform_version;
+
+      // If platform info not in host data, try to infer from scan name
+      if (!platform || !platformVersion) {
+        const scanName = scan.name.toLowerCase();
+
+        // Platform detection patterns
+        if (scanName.includes('rhel') || scanName.includes('red hat')) {
+          platform = 'rhel';
+          const versionMatch = scanName.match(/rhel\s*(\d+)|red\s*hat\s*(\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1] || versionMatch[2];
+          }
+        } else if (scanName.includes('ubuntu')) {
+          platform = 'ubuntu';
+          const versionMatch = scanName.match(/ubuntu\s*(\d+\.\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1];
+          }
+        } else if (scanName.includes('debian')) {
+          platform = 'debian';
+          const versionMatch = scanName.match(/debian\s*(\d+)/i);
+          if (versionMatch) {
+            platformVersion = versionMatch[1];
+          }
+        }
+      }
+
+      // If still no platform info, provide helpful error
+      if (!platform || !platformVersion) {
         showSnackbar(
-          'Cannot rescan: Host platform information is missing. Please update host details.',
+          'Cannot rescan: Host platform information is missing. Please update host details to include platform and version.',
           'error'
         );
         setIsLoading(false);
@@ -531,7 +562,7 @@ const ScanDetail: React.FC = () => {
         return;
       }
 
-      // Use profile_id as framework (e.g., 'disa_stig', 'cis', etc.)
+      // Use profile_id as framework
       const framework = scan.profile_id || 'disa_stig';
 
       // Call MongoDB scan API
@@ -544,8 +575,8 @@ const ScanDetail: React.FC = () => {
         body: JSON.stringify({
           host_id: scan.host_id,
           hostname: scan.host_name || hostData.hostname,
-          platform: hostData.platform,
-          platform_version: hostData.platform_version,
+          platform: platform,
+          platform_version: platformVersion,
           framework: framework,
           include_enrichment: true,
           generate_report: true,
@@ -559,7 +590,10 @@ const ScanDetail: React.FC = () => {
 
       const result = await response.json();
 
-      showSnackbar(`New scan started successfully! Scan ID: ${result.scan_id}`, 'success');
+      showSnackbar(
+        `New scan started successfully! Scan ID: ${result.scan_id} (${platform} ${platformVersion})`,
+        'success'
+      );
 
       // Navigate to new scan after a short delay
       setTimeout(() => {
