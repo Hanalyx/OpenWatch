@@ -30,6 +30,7 @@ import {
   Close,
   Info,
 } from '@mui/icons-material';
+import { ScanService } from '../../services/scanService';
 
 interface ScanTemplate {
   id: string;
@@ -37,8 +38,10 @@ interface ScanTemplate {
   description: string;
   icon: React.ReactNode;
   color: 'primary' | 'success' | 'warning' | 'error';
-  contentId: number;
-  profileId: string;
+  // MongoDB scan fields
+  platform: string;
+  platformVersion: string;
+  framework: string;
   estimatedDuration: string;
   ruleCount?: number;
 }
@@ -70,8 +73,9 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       description: 'Essential compliance checks for regulatory requirements',
       icon: <CheckCircle />,
       color: 'success',
-      contentId: 1,
-      profileId: 'xccdf_org.ssgproject.content_profile_cui',
+      platform: 'rhel',
+      platformVersion: '8',
+      framework: 'nist_800_53',
       estimatedDuration: '5-10 min',
       ruleCount: 120,
     },
@@ -81,8 +85,9 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       description: 'Comprehensive security configuration review',
       icon: <Security />,
       color: 'error',
-      contentId: 1,
-      profileId: 'xccdf_org.ssgproject.content_profile_stig',
+      platform: 'rhel',
+      platformVersion: '8',
+      framework: 'stig',
       estimatedDuration: '15-25 min',
       ruleCount: 340,
     },
@@ -92,8 +97,9 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       description: 'Scan for known security vulnerabilities',
       icon: <BugReport />,
       color: 'warning',
-      contentId: 1,
-      profileId: 'xccdf_org.ssgproject.content_profile_cis',
+      platform: 'rhel',
+      platformVersion: '8',
+      framework: 'cis',
       estimatedDuration: '10-15 min',
       ruleCount: 200,
     },
@@ -124,33 +130,17 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/scans/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        body: JSON.stringify({
-          name: customName || `${template.name} - ${hostName}`,
-          host_id: hostId,
-          content_id: template.contentId,
-          profile_id: template.profileId,
-          scan_options: {
-            template_id: template.id,
-            quick_scan: true,
-            email_notify: emailNotify,
-          },
-        }),
-      });
+      // Use the new MongoDB scan API via ScanService
+      const result = await ScanService.startMongoDBScan(
+        hostId,
+        hostName,
+        template.platform,
+        template.platformVersion,
+        template.framework
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        onScanStarted(data.scan_id);
-        onClose();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to start scan');
-      }
+      onScanStarted(result.scan_id);
+      onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to start scan');
     } finally {
