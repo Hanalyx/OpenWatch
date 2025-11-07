@@ -14,7 +14,8 @@ Part of Phase 1, Issue #3: XCCDF Data-Stream Generator from MongoDB
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 from xml.dom import minidom
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -99,6 +100,11 @@ class XCCDFGeneratorService:
             value_elem = self._create_xccdf_value(var_def)
             benchmark.append(value_elem)
 
+        # Create Profile elements FIRST (XCCDF 1.2 schema requires profiles before groups)
+        profiles = self._create_profiles(rules, framework, framework_version)
+        for profile in profiles:
+            benchmark.append(profile)
+
         # Group rules by category for better organization
         rules_by_category = self._group_rules_by_category(rules)
 
@@ -106,11 +112,6 @@ class XCCDFGeneratorService:
         for category, category_rules in rules_by_category.items():
             group = self._create_xccdf_group(category, category_rules)
             benchmark.append(group)
-
-        # Create Profile elements (one per framework version)
-        profiles = self._create_profiles(rules, framework, framework_version)
-        for profile in profiles:
-            benchmark.append(profile)
 
         # Convert to pretty-printed XML string
         return self._prettify_xml(benchmark)
@@ -194,6 +195,217 @@ class XCCDFGeneratorService:
             set_value.text = str(var_value)
 
         return self._prettify_xml(tailoring)
+
+    async def generate_oval_definitions_file(
+        self,
+        rules: List[Dict[str, Any]],
+        platform: str,
+        output_path: Path,
+    ) -> Optional[Path]:
+        """
+        Aggregate individual OVAL XML files into single oval-definitions.xml file
+
+        This method reads individual OVAL files from /app/data/oval_definitions/{platform}/
+        and combines them into a single OVAL document that OSCAP can consume.
+
+        Args:
+            rules: List of ComplianceRule documents (must have oval_filename field)
+            platform: Platform identifier (rhel8, rhel9, ubuntu2204, etc.)
+            output_path: Where to write the aggregated oval-definitions.xml
+
+        Returns:
+            Path to generated oval-definitions.xml, or None if no OVAL files found
+
+        Example:
+            >>> rules = await repo.find_by_platform("rhel8")
+            >>> output_path = Path("/tmp/oval-definitions.xml")
+            >>> result = await xccdf_gen.generate_oval_definitions_file(rules, "rhel8", output_path)
+            >>> print(f"Created {result} with {len(rules)} definitions")
+        """
+        logger.info(f"Generating aggregated OVAL definitions file for platform: {platform}")
+
+        oval_base_dir = Path("/app/data/oval_definitions")
+
+        # Collect unique OVAL filenames from rules
+        oval_filenames: Set[str] = set()
+        for rule in rules:
+            oval_filename = rule.get("oval_filename")
+            if oval_filename and oval_filename.startswith(f"{platform}/"):
+                oval_filenames.add(oval_filename)
+
+        if not oval_filenames:
+            logger.warning(f"No OVAL files found for platform {platform}")
+            return None
+
+        logger.info(f"Found {len(oval_filenames)} unique OVAL files for aggregation")
+
+        # OVAL 5.11 namespaces
+        oval_def_ns = "http://oval.mitre.org/XMLSchema/oval-definitions-5"
+        oval_common_ns = "http://oval.mitre.org/XMLSchema/oval-common-5"
+
+        ET.register_namespace("oval-def", oval_def_ns)
+        ET.register_namespace("oval", oval_common_ns)
+
+        # Create root oval_definitions element
+        root = ET.Element(
+            f"{{{oval_def_ns}}}oval_definitions",
+            {
+                f"{{{self.NAMESPACES['xsi']}}}schemaLocation":
+                    "http://oval.mitre.org/XMLSchema/oval-definitions-5 "
+                    "oval-definitions-schema.xsd "
+                    "http://oval.mitre.org/XMLSchema/oval-common-5 "
+                    "oval-common-schema.xsd"
+            }
+        )
+
+        # Create generator section (uses oval-common namespace per OVAL 5.11 spec)
+        generator = ET.SubElement(root, f"{{{oval_def_ns}}}generator")
+        product_name = ET.SubElement(generator, f"{{{oval_common_ns}}}product_name")
+        product_name.text = "OpenWatch OVAL Aggregator"
+        product_version = ET.SubElement(generator, f"{{{oval_common_ns}}}product_version")
+        product_version.text = "1.0.0"
+        schema_version = ET.SubElement(generator, f"{{{oval_common_ns}}}schema_version")
+        schema_version.text = "5.11"
+        timestamp = ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp")
+        timestamp.text = datetime.now(timezone.utc).isoformat()
+
+        # Create container sections
+        definitions_section = ET.SubElement(root, f"{{{oval_def_ns}}}definitions")
+        tests_section = ET.SubElement(root, f"{{{oval_def_ns}}}tests")
+        objects_section = ET.SubElement(root, f"{{{oval_def_ns}}}objects")
+        states_section = ET.SubElement(root, f"{{{oval_def_ns}}}states")
+        variables_section = ET.SubElement(root, f"{{{oval_def_ns}}}variables")
+
+        # Track unique IDs to prevent duplicates
+        seen_def_ids: Set[str] = set()
+        seen_test_ids: Set[str] = set()
+        seen_obj_ids: Set[str] = set()
+        seen_state_ids: Set[str] = set()
+        seen_var_ids: Set[str] = set()
+
+        # Process each OVAL file
+        processed_count = 0
+        skipped_count = 0
+
+        for oval_filename in sorted(oval_filenames):
+            oval_file_path = oval_base_dir / oval_filename
+
+            if not oval_file_path.exists():
+                logger.warning(f"OVAL file not found: {oval_file_path}")
+                skipped_count += 1
+                continue
+
+            try:
+                # Parse individual OVAL file
+                tree = ET.parse(oval_file_path)
+                oval_root = tree.getroot()
+
+                # Extract and append definitions (with deduplication)
+                for definition in oval_root.findall(f".//{{{oval_def_ns}}}definition"):
+                    def_id = definition.get("id")
+                    if def_id and def_id not in seen_def_ids:
+                        definitions_section.append(definition)
+                        seen_def_ids.add(def_id)
+
+                # Extract and append tests (with deduplication)
+                for test in oval_root.findall(f".//{{{oval_def_ns}}}tests/*"):
+                    test_id = test.get("id")
+                    if test_id and test_id not in seen_test_ids:
+                        tests_section.append(test)
+                        seen_test_ids.add(test_id)
+
+                # Extract and append objects (with deduplication)
+                for obj in oval_root.findall(f".//{{{oval_def_ns}}}objects/*"):
+                    obj_id = obj.get("id")
+                    if obj_id and obj_id not in seen_obj_ids:
+                        objects_section.append(obj)
+                        seen_obj_ids.add(obj_id)
+
+                # Extract and append states (with deduplication)
+                for state in oval_root.findall(f".//{{{oval_def_ns}}}states/*"):
+                    state_id = state.get("id")
+                    if state_id and state_id not in seen_state_ids:
+                        states_section.append(state)
+                        seen_state_ids.add(state_id)
+
+                # Extract and append variables (with deduplication - FIX FOR DUPLICATE VARIABLES)
+                for variable in oval_root.findall(f".//{{{oval_def_ns}}}variables/*"):
+                    var_id = variable.get("id")
+                    if var_id and var_id not in seen_var_ids:
+                        variables_section.append(variable)
+                        seen_var_ids.add(var_id)
+
+                processed_count += 1
+
+            except ET.ParseError as e:
+                logger.error(f"Failed to parse OVAL file {oval_filename}: {e}")
+                skipped_count += 1
+                continue
+
+        # Remove empty sections (OVAL 5.11 allows empty sections, but cleaner without)
+        if len(tests_section) == 0:
+            root.remove(tests_section)
+        if len(objects_section) == 0:
+            root.remove(objects_section)
+        if len(states_section) == 0:
+            root.remove(states_section)
+        if len(variables_section) == 0:
+            root.remove(variables_section)
+
+        # Write aggregated OVAL file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, "wb") as f:
+            f.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
+            tree = ET.ElementTree(root)
+            tree.write(f, encoding="utf-8", xml_declaration=False)
+
+        logger.info(
+            f"OVAL aggregation complete: {processed_count} files processed, "
+            f"{skipped_count} skipped, output: {output_path}"
+        )
+
+        return output_path if processed_count > 0 else None
+
+    def _read_oval_definition_id(self, oval_filename: str) -> Optional[str]:
+        """
+        Read OVAL XML file and extract definition ID
+
+        Args:
+            oval_filename: Relative path like "rhel8/accounts_password_minlen_login_defs.xml"
+
+        Returns:
+            OVAL definition ID (e.g., "oval:ssg-accounts_password_minlen_login_defs:def:1")
+            or None if file not found or parsing fails
+
+        Example:
+            >>> oval_id = self._read_oval_definition_id("rhel8/accounts_tmout.xml")
+            >>> print(oval_id)
+            oval:ssg-accounts_tmout:def:1
+        """
+        oval_base_dir = Path("/app/data/oval_definitions")
+        oval_file_path = oval_base_dir / oval_filename
+
+        if not oval_file_path.exists():
+            logger.warning(f"OVAL file not found: {oval_file_path}")
+            return None
+
+        try:
+            tree = ET.parse(oval_file_path)
+            oval_ns = "http://oval.mitre.org/XMLSchema/oval-definitions-5"
+
+            # Find first definition element
+            definition = tree.find(f".//{{{oval_ns}}}definition")
+
+            if definition is not None:
+                return definition.get("id")
+            else:
+                logger.warning(f"No definition element found in {oval_filename}")
+                return None
+
+        except ET.ParseError as e:
+            logger.error(f"Failed to parse OVAL file {oval_filename}: {e}")
+            return None
 
     def _create_benchmark_element(
         self, benchmark_id: str, title: str, description: str, version: str
@@ -368,27 +580,53 @@ class XCCDFGeneratorService:
             ident_elem.text = ident_value
 
         # Add check reference (OVAL or custom)
+        oval_filename = rule.get("oval_filename")
         scanner_type = rule.get("scanner_type", "oscap")
 
-        if scanner_type == "oscap":
+        # If rule has OVAL definition, use OVAL check system
+        if oval_filename:
             check_system = "http://oval.mitre.org/XMLSchema/oval-definitions-5"
-        elif scanner_type == "kubernetes":
-            check_system = "http://openwatch.hanalyx.com/scanner/kubernetes"
+
+            # Read OVAL definition ID from file
+            oval_def_id = self._read_oval_definition_id(oval_filename)
+
+            check = ET.SubElement(
+                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
+            )
+
+            # Reference aggregated oval-definitions.xml file
+            check_ref_attrs = {"href": "oval-definitions.xml"}
+
+            # Add name attribute if we successfully extracted OVAL ID
+            if oval_def_id:
+                check_ref_attrs["name"] = oval_def_id
+
+            check_ref = ET.SubElement(
+                check,
+                f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
+                check_ref_attrs,
+            )
         else:
-            check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
+            # Fallback to legacy scanner-specific check
+            if scanner_type == "oscap":
+                check_system = "http://oval.mitre.org/XMLSchema/oval-definitions-5"
+            elif scanner_type == "kubernetes":
+                check_system = "http://openwatch.hanalyx.com/scanner/kubernetes"
+            else:
+                check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
 
-        check = ET.SubElement(
-            rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-        )
+            check = ET.SubElement(
+                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
+            )
 
-        check_ref = ET.SubElement(
-            check,
-            f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
-            {
-                "href": f"{scanner_type}-definitions.xml",
-                "name": rule.get("scap_rule_id", rule["rule_id"]),
-            },
-        )
+            check_ref = ET.SubElement(
+                check,
+                f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
+                {
+                    "href": f"{scanner_type}-definitions.xml",
+                    "name": rule.get("scap_rule_id", rule["rule_id"]),
+                },
+            )
 
         # Add variable exports if rule has variables
         if rule.get("xccdf_variables"):

@@ -134,8 +134,14 @@ const NewScapScan: React.FC = () => {
 
   const fetchScapContent = async () => {
     try {
-      const data = await api.get('/api/scap-content/');
-      setScapContent(data.scap_content || []);
+      // ⚠️ BROKEN: This endpoint doesn't exist!
+      // TODO: Replace with: GET /api/v1/compliance-rules/frameworks
+      // See: docs/MONGODB_SCANNING_ARCHITECTURE.md for correct API usage
+      //
+      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
+      const data = await api.get('/api/v1/compliance-rules/?view_mode=bundles');
+      // Note: MongoDB returns bundles in 'bundles' field, not 'scap_content'
+      setScapContent(data.bundles || []);
     } catch (error) {
       showSnackbar('Failed to load SCAP content', 'error');
     }

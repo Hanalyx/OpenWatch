@@ -88,14 +88,18 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   const loadScapContents = async () => {
     try {
-      const response = await fetch('/api/scap-content/', {
+      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
+      const response = await fetch('/api/v1/compliance-rules/?view_mode=bundles', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
       });
       if (response.ok) {
         const data = await response.json();
-        setScapContents(Array.isArray(data) ? data : []);
+        // MongoDB returns bundles in 'bundles' field
+        setScapContents(
+          Array.isArray(data.bundles) ? data.bundles : Array.isArray(data) ? data : []
+        );
       } else {
         setScapContents([]);
         showAlert('Failed to load SCAP content', 'error');
@@ -109,17 +113,13 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   const loadProfiles = async (contentId: number) => {
     try {
-      const response = await fetch(`/api/scap-content/${contentId}/profiles`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      // Get profiles from the selected bundle (bundles include profiles array)
+      const selectedContent = scapContents.find((content) => content.id === contentId);
+      if (selectedContent && selectedContent.profiles) {
+        setProfiles(Array.isArray(selectedContent.profiles) ? selectedContent.profiles : []);
       } else {
         setProfiles([]);
-        showAlert('Failed to load profiles', 'error');
+        showAlert('No profiles found for selected content', 'warning');
       }
     } catch (error) {
       console.error('Failed to load profiles:', error);

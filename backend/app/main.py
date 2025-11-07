@@ -44,7 +44,6 @@ from .routes import (
     rule_scanning,
     scan_templates,
     scans,
-    scap_content,
     ssh_debug,
     ssh_settings,
     users,
@@ -537,7 +536,6 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
 app.include_router(hosts.router, prefix="/api/hosts", tags=["Host Management"])
 app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
-app.include_router(scap_content.router, prefix="/api", tags=["SCAP Content"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])

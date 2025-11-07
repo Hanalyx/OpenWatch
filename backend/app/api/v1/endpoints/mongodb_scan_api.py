@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from ....auth import get_current_user
@@ -76,13 +76,20 @@ enrichment_service = None
 compliance_reporter = None
 
 
-async def get_mongodb_scanner() -> MongoDBSCAPScanner:
+async def get_mongodb_scanner(request: Request) -> MongoDBSCAPScanner:
     """Get or initialize MongoDB scanner"""
     global mongodb_scanner
     try:
         if not mongodb_scanner:
             logger.info("Initializing MongoDB scanner for the first time")
-            mongodb_scanner = MongoDBSCAPScanner()
+            # Get encryption service from app state
+            encryption_service = getattr(request.app.state, "encryption_service", None)
+            if not encryption_service:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Encryption service not available"
+                )
+            mongodb_scanner = MongoDBSCAPScanner(encryption_service=encryption_service)
             await mongodb_scanner.initialize()
             logger.info("MongoDB scanner initialized successfully")
         return mongodb_scanner

@@ -31,11 +31,12 @@ logger = logging.getLogger(__name__)
 class MongoDBSCAPScanner(SCAPScanner):
     """Enhanced SCAP Scanner that integrates with MongoDB rules"""
 
-    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None):
+    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None, encryption_service=None):
         super().__init__(content_dir, results_dir)
         self.mongo_service: Optional[MongoIntegrationService] = None
         self.rule_service: Optional[RuleService] = None
         self.platform_service: Optional[PlatformCapabilityService] = None
+        self.encryption_service = encryption_service  # Store encryption service for auth
         self._initialized = False
 
     async def initialize(self):
@@ -346,18 +347,17 @@ class MongoDBSCAPScanner(SCAPScanner):
             ET.register_namespace("unix", unix_ns)
             ET.register_namespace("ind", ind_ns)
 
-            # Create root oval_definitions element
+            # Create root oval_definitions element (no schemaVersion attribute - not allowed in OVAL 5.11)
             root = ET.Element(
                 f"{{{oval_ns}}}oval_definitions",
-                attrib={f"{{{oval_ns}}}schemaVersion": "5.11"},
             )
 
-            # Add generator info
-            generator = ET.SubElement(root, "generator")
-            ET.SubElement(generator, "product_name").text = "OpenWatch MongoDB SCAP Scanner"
-            ET.SubElement(generator, "product_version").text = "1.0.0"
-            ET.SubElement(generator, "schema_version").text = "5.11"
-            ET.SubElement(generator, "timestamp").text = datetime.utcnow().isoformat() + "Z"
+            # Add generator info (use oval-common namespace per OVAL 5.11 spec)
+            generator = ET.SubElement(root, f"{{{oval_ns}}}generator")
+            ET.SubElement(generator, f"{{{oval_common_ns}}}product_name").text = "OpenWatch MongoDB SCAP Scanner"
+            ET.SubElement(generator, f"{{{oval_common_ns}}}product_version").text = "1.0.0"
+            ET.SubElement(generator, f"{{{oval_common_ns}}}schema_version").text = "5.11"
+            ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp").text = datetime.utcnow().isoformat() + "Z"
 
             # Create definitions container
             definitions = ET.SubElement(root, "definitions")
@@ -368,8 +368,12 @@ class MongoDBSCAPScanner(SCAPScanner):
             states = ET.SubElement(root, "states")
             variables = ET.SubElement(root, "variables")
 
-            # Process each OVAL file and extract definitions
+            # Process each OVAL file and extract definitions (with deduplication)
             definition_ids_added = set()
+            test_ids_added = set()
+            object_ids_added = set()
+            state_ids_added = set()
+            variable_ids_added = set()
             # Map rule_id -> actual OVAL definition ID for XCCDF generation
             rule_to_oval_id_map = {}
 
@@ -379,7 +383,7 @@ class MongoDBSCAPScanner(SCAPScanner):
                     tree = ET.parse(oval_info["oval_path"])
                     oval_root = tree.getroot()
 
-                    # Extract all definition elements
+                    # Extract all definition elements (with deduplication)
                     for definition in oval_root.findall(
                         ".//{http://oval.mitre.org/XMLSchema/oval-definitions-5}definition"
                     ):
@@ -390,41 +394,41 @@ class MongoDBSCAPScanner(SCAPScanner):
                             # Store mapping: rule_id -> OVAL definition ID
                             rule_to_oval_id_map[oval_info["rule_id"]] = def_id
 
-                    # Extract tests
+                    # Extract tests (with deduplication - FIX FOR DUPLICATE TESTS)
                     for test in oval_root.findall(
-                        ".//{http://oval.mitre.org/XMLSchema/oval-definitions-5}*[@id]"
+                        f".//{{{oval_ns}}}tests/*"
                     ):
-                        if "test" in test.tag.lower():
-                            test_id = test.get("id")
-                            if test_id:
-                                tests.append(test)
+                        test_id = test.get("id")
+                        if test_id and test_id not in test_ids_added:
+                            tests.append(test)
+                            test_ids_added.add(test_id)
 
-                    # Extract objects
+                    # Extract objects (with deduplication - FIX FOR DUPLICATE OBJECTS)
                     for obj in oval_root.findall(
-                        ".//{http://oval.mitre.org/XMLSchema/oval-definitions-5}*[@id]"
+                        f".//{{{oval_ns}}}objects/*"
                     ):
-                        if "object" in obj.tag.lower():
-                            obj_id = obj.get("id")
-                            if obj_id:
-                                objects.append(obj)
+                        obj_id = obj.get("id")
+                        if obj_id and obj_id not in object_ids_added:
+                            objects.append(obj)
+                            object_ids_added.add(obj_id)
 
-                    # Extract states
+                    # Extract states (with deduplication - FIX FOR DUPLICATE STATES)
                     for state in oval_root.findall(
-                        ".//{http://oval.mitre.org/XMLSchema/oval-definitions-5}*[@id]"
+                        f".//{{{oval_ns}}}states/*"
                     ):
-                        if "state" in state.tag.lower():
-                            state_id = state.get("id")
-                            if state_id:
-                                states.append(state)
+                        state_id = state.get("id")
+                        if state_id and state_id not in state_ids_added:
+                            states.append(state)
+                            state_ids_added.add(state_id)
 
-                    # Extract variables
+                    # Extract variables (with deduplication - FIX FOR DUPLICATE VARIABLES)
                     for variable in oval_root.findall(
-                        ".//{http://oval.mitre.org/XMLSchema/oval-definitions-5}*[@id]"
+                        f".//{{{oval_ns}}}variables/*"
                     ):
-                        if "variable" in variable.tag.lower():
-                            var_id = variable.get("id")
-                            if var_id:
-                                variables.append(variable)
+                        var_id = variable.get("id")
+                        if var_id and var_id not in variable_ids_added:
+                            variables.append(variable)
+                            variable_ids_added.add(var_id)
 
                 except Exception as e:
                     logger.error(f"Failed to parse OVAL file {oval_info['oval_path']}: {e}")
@@ -702,8 +706,12 @@ class MongoDBSCAPScanner(SCAPScanner):
 
                     logger.info(f"Host auth_method: {host_auth_method}, use_default: {use_default}")
 
+                    # Ensure encryption service is available
+                    if not self.encryption_service:
+                        raise ScanExecutionError("MongoDBSCAPScanner requires encryption_service to be set")
+
                     # Use CentralizedAuthService to resolve credentials
-                    auth_service = get_auth_service(db)
+                    auth_service = get_auth_service(db, self.encryption_service)
                     credential_data = auth_service.resolve_credential(
                         target_id=target_id, use_default=use_default
                     )

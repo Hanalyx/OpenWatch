@@ -201,7 +201,8 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       setScapContentLoading(true);
       setScapContentError(null);
 
-      const response = await fetch('/api/scap-content/', {
+      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
+      const response = await fetch('/api/v1/compliance-rules/?view_mode=bundles', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -214,16 +215,13 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       const data = await response.json();
       console.log('SCAP Content API Response:', data);
 
-      // Handle different possible response structures
+      // MongoDB returns bundles in 'bundles' field
       let contentList: SCAPContent[] = [];
-      if (Array.isArray(data)) {
+      if (Array.isArray(data.bundles)) {
+        contentList = data.bundles;
+      } else if (Array.isArray(data)) {
+        // Fallback for array response
         contentList = data;
-      } else if (data.scap_content && Array.isArray(data.scap_content)) {
-        contentList = data.scap_content;
-      } else if (data.content && Array.isArray(data.content)) {
-        contentList = data.content;
-      } else if (data.data && Array.isArray(data.data)) {
-        contentList = data.data;
       }
 
       console.log('Parsed SCAP Content List:', contentList);

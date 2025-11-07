@@ -1,6 +1,20 @@
 """
 Host Groups API Routes
 Handles host group creation, management, and host assignment with smart validation
+
+⚠️ WARNING: This file contains references to removed scap_content_id field.
+Migration: backend/alembic/versions/20250106_remove_scap_content_table.py (applied 2025-01-06)
+
+The host_groups.scap_content_id column was dropped. Host groups should now reference
+framework + framework_version instead.
+
+📚 REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
+
+TODO:
+1. Remove scap_content_id from HostGroupCreate, HostGroupUpdate, HostGroupResponse models (lines 34, 49, 69)
+2. Add framework and framework_version fields instead
+3. Update group configuration logic to use MongoDB compliance rules
+4. Remove ScapContent import (line 18)
 """
 
 import json

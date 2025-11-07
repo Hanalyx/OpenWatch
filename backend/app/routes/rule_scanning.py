@@ -3,6 +3,12 @@ import json
 """
 Rule-Specific Scanning API Routes
 Handles targeted scanning of specific SCAP rules
+
+⚠️ WARNING: This file may contain references to removed scap_content.
+Migration: backend/alembic/versions/20250106_remove_scap_content_table.py (applied 2025-01-06)
+
+📚 REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
+All rule scanning should now use MongoDB compliance_rules collection directly.
 """
 
 import logging

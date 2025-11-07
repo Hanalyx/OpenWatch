@@ -169,7 +169,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
 
   const fetchScapContent = async () => {
     try {
-      const response = await fetch('/api/scap-content/', {
+      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
+      const response = await fetch('/api/v1/compliance-rules/?view_mode=bundles', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -177,8 +178,9 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        const contentList = Array.isArray(data.scap_content)
-          ? data.scap_content
+        // MongoDB returns bundles in 'bundles' field
+        const contentList = Array.isArray(data.bundles)
+          ? data.bundles
           : Array.isArray(data)
             ? data
             : [];
