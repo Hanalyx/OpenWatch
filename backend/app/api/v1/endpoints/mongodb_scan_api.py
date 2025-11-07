@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -34,12 +33,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -143,9 +138,7 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
@@ -199,7 +192,7 @@ async def start_mongodb_scan(
                     "status": "running",
                     "progress": 0,
                     "scan_options": f'{{"platform": "{scan_request.platform}", "platform_version": "{scan_request.platform_version}", "framework": "{scan_request.framework}"}}',
-                    "started_by": current_user.get("id"),
+                    "started_by": int(current_user.get("id")) if current_user.get("id") else None,
                     "started_at": started_at,
                     "remediation_requested": False,
                     "verification_scan": False,
@@ -393,9 +386,7 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = (
-                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
-            )
+            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
 
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
@@ -561,11 +552,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 
