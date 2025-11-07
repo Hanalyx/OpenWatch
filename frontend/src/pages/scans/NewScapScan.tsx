@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
+import { ScanService } from '../../services/scanService';
 import PreFlightValidationDialog from '../../components/errors/PreFlightValidationDialog';
 import ErrorClassificationDisplay, {
   ClassifiedError,
@@ -48,23 +49,32 @@ interface Host {
   hostname: string;
   operating_system: string;
   status: string;
+  platform?: string; // e.g., 'rhel', 'ubuntu'
+  platform_version?: string; // e.g., '8', '22.04'
 }
 
-interface ScapContent {
-  id: number;
-  name: string;
-  filename: string;
-  content_type: string;
-  profiles: Profile[];
-}
-
-interface Profile {
+interface Framework {
   id: string;
-  title: string;
+  name: string;
   description: string;
 }
 
-const steps = ['Select Host', 'Choose Content', 'Configure Scan', 'Review & Start'];
+const steps = ['Select Host', 'Choose Framework', 'Configure Scan', 'Review & Start'];
+
+// Available platforms and frameworks for MongoDB scanning
+const PLATFORMS = [
+  { id: 'rhel', name: 'Red Hat Enterprise Linux', versions: ['7', '8', '9'] },
+  { id: 'ubuntu', name: 'Ubuntu', versions: ['20.04', '22.04', '24.04'] },
+  { id: 'debian', name: 'Debian', versions: ['10', '11', '12'] },
+];
+
+const FRAMEWORKS = [
+  { id: 'nist_800_53', name: 'NIST 800-53', description: 'NIST Security Controls' },
+  { id: 'cis', name: 'CIS Benchmarks', description: 'Center for Internet Security' },
+  { id: 'pci_dss', name: 'PCI DSS', description: 'Payment Card Industry Data Security' },
+  { id: 'hipaa', name: 'HIPAA', description: 'Health Insurance Portability' },
+  { id: 'stig', name: 'DISA STIG', description: 'Security Technical Implementation Guide' },
+];
 
 const NewScapScan: React.FC = () => {
   const navigate = useNavigate();
@@ -73,12 +83,12 @@ const NewScapScan: React.FC = () => {
   // Form data
   const [scanName, setScanName] = useState('');
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
-  const [selectedContent, setSelectedContent] = useState<ScapContent | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState('');
+  const [selectedPlatformVersion, setSelectedPlatformVersion] = useState('');
+  const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
 
   // Data
   const [hosts, setHosts] = useState<Host[]>([]);
-  const [scapContent, setScapContent] = useState<ScapContent[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -104,16 +114,17 @@ const NewScapScan: React.FC = () => {
 
   useEffect(() => {
     fetchHosts();
-    fetchScapContent();
   }, []);
 
   useEffect(() => {
-    // Generate default scan name when host and content are selected
-    if (selectedHost && selectedContent && selectedProfile) {
+    // Generate default scan name when host and framework are selected
+    if (selectedHost && selectedFramework && selectedPlatform && selectedPlatformVersion) {
       const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      setScanName(`${selectedHost.name} - ${selectedProfile.title} - ${timestamp}`);
+      setScanName(
+        `${selectedHost.name} - ${selectedFramework.name} - ${selectedPlatform} ${selectedPlatformVersion} - ${timestamp}`
+      );
     }
-  }, [selectedHost, selectedContent, selectedProfile]);
+  }, [selectedHost, selectedFramework, selectedPlatform, selectedPlatformVersion]);
 
   const fetchHosts = async () => {
     try {
@@ -132,21 +143,6 @@ const NewScapScan: React.FC = () => {
     }
   };
 
-  const fetchScapContent = async () => {
-    try {
-      // ⚠️ BROKEN: This endpoint doesn't exist!
-      // TODO: Replace with: GET /api/v1/compliance-rules/frameworks
-      // See: docs/MONGODB_SCANNING_ARCHITECTURE.md for correct API usage
-      //
-      // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
-      const data = await api.get('/api/v1/compliance-rules/?view_mode=bundles');
-      // Note: MongoDB returns bundles in 'bundles' field, not 'scap_content'
-      setScapContent(data.bundles || []);
-    } catch (error) {
-      showSnackbar('Failed to load SCAP content', 'error');
-    }
-  };
-
   const handleNext = () => {
     setActiveStep((prev) => prev + 1);
   };
@@ -160,9 +156,11 @@ const NewScapScan: React.FC = () => {
       case 0:
         return selectedHost !== null;
       case 1:
-        return selectedContent !== null;
+        return (
+          selectedPlatform !== '' && selectedPlatformVersion !== '' && selectedFramework !== null
+        );
       case 2:
-        return selectedProfile !== null;
+        return true; // Configure scan step is optional
       case 3:
         return scanName.trim() !== '';
       default:
@@ -171,7 +169,13 @@ const NewScapScan: React.FC = () => {
   };
 
   const startScan = async () => {
-    if (!selectedHost || !selectedContent || !selectedProfile || !scanName.trim()) {
+    if (
+      !selectedHost ||
+      !selectedPlatform ||
+      !selectedPlatformVersion ||
+      !selectedFramework ||
+      !scanName.trim()
+    ) {
       showSnackbar('Please complete all required fields', 'error');
       return;
     }
@@ -184,26 +188,27 @@ const NewScapScan: React.FC = () => {
   };
 
   const handlePreFlightComplete = async () => {
-    if (!selectedHost || !selectedContent || !selectedProfile) return;
+    if (!selectedHost || !selectedPlatform || !selectedPlatformVersion || !selectedFramework)
+      return;
 
     try {
       setStarting(true);
       setShowPreFlightDialog(false);
 
-      const scanRequest = {
-        name: scanName.trim(),
-        host_id: selectedHost.id,
-        content_id: selectedContent.id,
-        profile_id: selectedProfile.id,
-        scan_options: {},
-      };
+      // Use the new MongoDB scan API
+      const result = await ScanService.startMongoDBScan(
+        selectedHost.id,
+        selectedHost.hostname,
+        selectedPlatform,
+        selectedPlatformVersion,
+        selectedFramework.id
+      );
 
-      const result = await api.post('/api/scans/', scanRequest);
       showSnackbar('Scan started successfully!', 'success');
 
       // Navigate to scan detail page after a short delay
       setTimeout(() => {
-        navigate(`/scans/${result.id}`);
+        navigate(`/scans/${result.scan_id}`);
       }, 1500);
     } catch (error: any) {
       console.error('Scan creation failed:', error);
@@ -240,12 +245,14 @@ const NewScapScan: React.FC = () => {
   };
 
   const getValidationRequest = () => {
-    if (!selectedHost || !selectedContent || !selectedProfile) return null;
+    if (!selectedHost || !selectedPlatform || !selectedPlatformVersion || !selectedFramework)
+      return null;
 
     return {
       host_id: selectedHost.id,
-      content_id: selectedContent.id,
-      profile_id: selectedProfile.id,
+      platform: selectedPlatform,
+      platform_version: selectedPlatformVersion,
+      framework: selectedFramework.id,
     };
   };
 
@@ -314,62 +321,92 @@ const NewScapScan: React.FC = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Choose Content
+              Choose Framework & Platform
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select the SCAP content to use for compliance checking.
+              Select the compliance framework and platform configuration for the scan.
             </Typography>
 
-            <Grid container spacing={2}>
-              {scapContent.map((content) => (
-                <Grid item xs={12} key={content.id}>
-                  <Card
-                    sx={{
-                      cursor: 'pointer',
-                      border: selectedContent?.id === content.id ? 2 : 1,
-                      borderColor: selectedContent?.id === content.id ? 'primary.main' : 'divider',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        boxShadow: 1,
-                      },
-                    }}
-                    onClick={() => setSelectedContent(content)}
+            {/* Platform Selection */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Platform
+              </Typography>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Platform</InputLabel>
+                <Select
+                  value={selectedPlatform}
+                  label="Platform"
+                  onChange={(e) => {
+                    setSelectedPlatform(e.target.value);
+                    setSelectedPlatformVersion(''); // Reset version when platform changes
+                  }}
+                >
+                  {PLATFORMS.map((platform) => (
+                    <MenuItem key={platform.id} value={platform.id}>
+                      {platform.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {selectedPlatform && (
+                <FormControl fullWidth>
+                  <InputLabel>Platform Version</InputLabel>
+                  <Select
+                    value={selectedPlatformVersion}
+                    label="Platform Version"
+                    onChange={(e) => setSelectedPlatformVersion(e.target.value)}
                   >
-                    <CardContent>
-                      <Box display="flex" alignItems="center" gap={2}>
-                        <SecurityIcon color="primary" />
-                        <Box flex={1}>
-                          <Typography variant="subtitle1" fontWeight="medium">
-                            {content.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {content.filename}
-                          </Typography>
-                          <Box display="flex" gap={1} mt={1}>
-                            <Chip
-                              label={content.content_type.toUpperCase()}
-                              size="small"
-                              color="primary"
-                            />
-                            <Chip
-                              label={`${content.profiles.length} profiles`}
-                              size="small"
-                              variant="outlined"
-                            />
+                    {PLATFORMS.find((p) => p.id === selectedPlatform)?.versions.map((version) => (
+                      <MenuItem key={version} value={version}>
+                        {version}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Box>
+
+            {/* Framework Selection */}
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Compliance Framework
+              </Typography>
+              <Grid container spacing={2}>
+                {FRAMEWORKS.map((framework) => (
+                  <Grid item xs={12} sm={6} key={framework.id}>
+                    <Card
+                      sx={{
+                        cursor: 'pointer',
+                        border: selectedFramework?.id === framework.id ? 2 : 1,
+                        borderColor:
+                          selectedFramework?.id === framework.id ? 'primary.main' : 'divider',
+                        '&:hover': {
+                          borderColor: 'primary.main',
+                          boxShadow: 1,
+                        },
+                      }}
+                      onClick={() => setSelectedFramework(framework)}
+                    >
+                      <CardContent>
+                        <Box display="flex" alignItems="center" gap={2}>
+                          <SecurityIcon color="primary" />
+                          <Box flex={1}>
+                            <Typography variant="subtitle1" fontWeight="medium">
+                              {framework.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {framework.description}
+                            </Typography>
                           </Box>
                         </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-
-            {scapContent.length === 0 && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                No SCAP content available. Please upload SCAP content before creating scans.
-              </Alert>
-            )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
           </Box>
         );
 
@@ -377,40 +414,26 @@ const NewScapScan: React.FC = () => {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Configure Scan
+              Configure Scan (Optional)
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Select the compliance profile to apply during the scan.
+              Additional scan configuration options will be available in future updates. For now,
+              MongoDB scans will use all available rules for the selected framework and platform.
             </Typography>
 
-            {selectedContent?.profiles.map((profile) => (
-              <Card
-                key={profile.id}
-                sx={{
-                  mb: 2,
-                  cursor: 'pointer',
-                  border: selectedProfile?.id === profile.id ? 2 : 1,
-                  borderColor: selectedProfile?.id === profile.id ? 'primary.main' : 'divider',
-                  '&:hover': {
-                    borderColor: 'primary.main',
-                    boxShadow: 1,
-                  },
-                }}
-                onClick={() => setSelectedProfile(profile)}
-              >
-                <CardContent>
-                  <Typography variant="subtitle1" fontWeight="medium">
-                    {profile.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {profile.description}
-                  </Typography>
-                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                    Profile ID: {profile.id}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Scan Configuration Summary
+              </Typography>
+              <Typography variant="body2">
+                Platform: {PLATFORMS.find((p) => p.id === selectedPlatform)?.name}{' '}
+                {selectedPlatformVersion}
+                <br />
+                Framework: {selectedFramework?.name}
+                <br />
+                Scan Type: Full compliance scan (all applicable rules)
+              </Typography>
+            </Alert>
           </Box>
         );
 
@@ -442,13 +465,19 @@ const NewScapScan: React.FC = () => {
                   <ListItemIcon>
                     <SecurityIcon />
                   </ListItemIcon>
-                  <ListItemText primary="Content" secondary={selectedContent?.name} />
+                  <ListItemText
+                    primary="Platform"
+                    secondary={`${PLATFORMS.find((p) => p.id === selectedPlatform)?.name} ${selectedPlatformVersion}`}
+                  />
                 </ListItem>
                 <ListItem disablePadding>
                   <ListItemIcon>
                     <CheckCircleIcon />
                   </ListItemIcon>
-                  <ListItemText primary="Compliance Profile" secondary={selectedProfile?.title} />
+                  <ListItemText
+                    primary="Compliance Framework"
+                    secondary={selectedFramework?.name}
+                  />
                 </ListItem>
               </List>
             </Paper>

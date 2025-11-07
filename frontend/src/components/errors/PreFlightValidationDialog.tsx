@@ -41,8 +41,13 @@ import ErrorClassificationDisplay, { ClassifiedError } from './ErrorClassificati
 
 export interface ValidationRequest {
   host_id: string;
-  content_id: number;
-  profile_id: string;
+  // Legacy SCAP content scanning fields
+  content_id?: number;
+  profile_id?: string;
+  // MongoDB scanning fields
+  platform?: string;
+  platform_version?: string;
+  framework?: string;
 }
 
 export interface ValidationResult {

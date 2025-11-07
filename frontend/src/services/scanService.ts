@@ -130,7 +130,60 @@ class ScanService {
   }
 
   /**
-   * Start an individual scan for a single host
+   * Start a MongoDB-based compliance scan for a single host
+   *
+   * This is the NEW scan API that uses MongoDB compliance rules.
+   * Use this method for all new scan creation workflows.
+   *
+   * @param hostId - UUID of the host to scan
+   * @param hostname - Hostname for display purposes
+   * @param platform - Platform identifier (e.g., 'rhel', 'ubuntu')
+   * @param platformVersion - Platform version (e.g., '8', '22.04')
+   * @param framework - Compliance framework (e.g., 'nist_800_53', 'cis')
+   * @param ruleIds - Optional array of specific rule IDs to scan
+   * @returns Scan response with scan_id and status
+   */
+  static async startMongoDBScan(
+    hostId: string,
+    hostname: string,
+    platform: string,
+    platformVersion: string,
+    framework: string,
+    ruleIds?: string[]
+  ): Promise<any> {
+    const response = await fetch('/api/v1/mongodb-scans/start', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        host_id: hostId,
+        hostname: hostname,
+        platform: platform,
+        platform_version: platformVersion,
+        framework: framework,
+        rule_ids: ruleIds,
+        include_enrichment: true,
+        generate_report: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to start MongoDB scan');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Start an individual scan for a single host (LEGACY)
+   *
+   * @deprecated Use startMongoDBScan() instead.
+   * This method uses the old SCAP content file-based API which is being phased out.
+   *
+   * @param hostId - UUID of the host to scan
+   * @param contentId - SCAP content file ID (deprecated)
+   * @param profileId - SCAP profile ID
+   * @returns Scan response
    */
   static async startHostScan(hostId: string, contentId: number, profileId: string): Promise<any> {
     const response = await fetch('/api/scans/', {
