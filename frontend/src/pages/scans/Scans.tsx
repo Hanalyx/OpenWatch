@@ -23,6 +23,9 @@ import {
   Menu,
   MenuItem,
   Divider,
+  Avatar,
+  Stack,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,6 +36,11 @@ import {
   Visibility as VisibilityIcon,
   GetApp as ExportIcon,
   PlayArrow as PlayIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Cancel as CancelIcon,
+  Flag as FlagIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -100,6 +108,10 @@ const Scans: React.FC = () => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [selectedHostForExport, setSelectedHostForExport] = useState<string>('');
   const scansRef = useRef<Scan[]>([]);
+
+  // Phase 1 UX Improvements: Filter state
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
 
   // Transform backend scan data to frontend format
   const transformScanData = (
@@ -282,6 +294,48 @@ const Scans: React.FC = () => {
     return () => clearInterval(interval);
   }, []); // Empty dependency array - only run once
 
+  // Phase 1 UX Improvements: Helper functions for visual health indicators
+  const getHealthColor = (successRate: number): string => {
+    if (successRate >= 90) return 'success.main';
+    if (successRate >= 70) return 'warning.main';
+    return 'error.main';
+  };
+
+  const getHealthIcon = (successRate: number): JSX.Element => {
+    if (successRate >= 90) return <CheckCircleIcon />;
+    if (successRate >= 70) return <WarningIcon />;
+    return <ErrorIcon />;
+  };
+
+  // Phase 1 UX Improvements: Filter logic
+  const getFilteredHostGroups = (): HostWithScans[] => {
+    let filtered = [...hostGroups];
+
+    // Apply status filter
+    if (statusFilter === 'failed') {
+      filtered = filtered.filter((host) => host.scans.some((scan) => scan.status === 'failed'));
+    } else if (statusFilter === 'running') {
+      filtered = filtered.filter((host) =>
+        host.scans.some((scan) => scan.status === 'running' || scan.status === 'pending')
+      );
+    } else if (statusFilter === 'completed') {
+      filtered = filtered.filter((host) => host.scans.some((scan) => scan.status === 'completed'));
+    }
+
+    // Apply severity filter (critical issues)
+    if (severityFilter === 'critical') {
+      // Filter hosts that have scans with low success rate (indicating critical issues)
+      filtered = filtered.filter((host) => {
+        const successRate = host.totalCount > 0 ? (host.completedCount / host.totalCount) * 100 : 0;
+        return successRate < 70; // Less than 70% success rate = critical
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredHostGroups = getFilteredHostGroups();
+
   // Host-level action handlers
   const handleToggleHost = (hostName: string) => {
     const newExpanded = new Set(expandedHosts);
@@ -431,6 +485,61 @@ const Scans: React.FC = () => {
         </Button>
       </Box>
 
+      {/* Phase 1 UX Improvement: Quick Filters */}
+      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Chip
+          label="All Scans"
+          color={statusFilter === 'all' ? 'primary' : 'default'}
+          onClick={() => setStatusFilter('all')}
+          variant={statusFilter === 'all' ? 'filled' : 'outlined'}
+        />
+        <Chip
+          label="Failed Only"
+          color={statusFilter === 'failed' ? 'error' : 'default'}
+          onClick={() => setStatusFilter('failed')}
+          icon={<CancelIcon />}
+          variant={statusFilter === 'failed' ? 'filled' : 'outlined'}
+        />
+        <Chip
+          label="Critical Issues"
+          color={severityFilter === 'critical' ? 'error' : 'default'}
+          onClick={() => {
+            setSeverityFilter(severityFilter === 'critical' ? 'all' : 'critical');
+            setStatusFilter('all'); // Reset status filter when applying severity filter
+          }}
+          icon={<FlagIcon />}
+          variant={severityFilter === 'critical' ? 'filled' : 'outlined'}
+        />
+        <Chip
+          label="In Progress"
+          color={statusFilter === 'running' ? 'primary' : 'default'}
+          onClick={() => setStatusFilter('running')}
+          icon={<PlayIcon />}
+          variant={statusFilter === 'running' ? 'filled' : 'outlined'}
+        />
+        <Chip
+          label="Completed"
+          color={statusFilter === 'completed' ? 'success' : 'default'}
+          onClick={() => setStatusFilter('completed')}
+          icon={<CheckCircleIcon />}
+          variant={statusFilter === 'completed' ? 'filled' : 'outlined'}
+        />
+        {(statusFilter !== 'all' || severityFilter !== 'all') && (
+          <Chip
+            label="Clear Filters"
+            onClick={() => {
+              setStatusFilter('all');
+              setSeverityFilter('all');
+            }}
+            onDelete={() => {
+              setStatusFilter('all');
+              setSeverityFilter('all');
+            }}
+            size="small"
+          />
+        )}
+      </Stack>
+
       {/* Error Display */}
       {error && (
         <Alert
@@ -461,24 +570,28 @@ const Scans: React.FC = () => {
               <LinearProgress sx={{ width: '100%' }} />
             </Box>
           </Paper>
-        ) : hostGroups.length === 0 ? (
+        ) : filteredHostGroups.length === 0 ? (
           <Paper sx={{ p: 4 }}>
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body1" color="text.secondary" gutterBottom>
-                No scans found in the last 30 days
+                {statusFilter !== 'all' || severityFilter !== 'all'
+                  ? 'No scans match the selected filters'
+                  : 'No scans found in the last 30 days'}
               </Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => navigate('/scans/compliance')}
-              >
-                Create Your First Scan
-              </Button>
+              {statusFilter === 'all' && severityFilter === 'all' && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => navigate('/scans/compliance')}
+                >
+                  Create Your First Scan
+                </Button>
+              )}
             </Box>
           </Paper>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {hostGroups.map((hostGroup) => (
+            {filteredHostGroups.map((hostGroup) => (
               <Accordion
                 key={hostGroup.host_name}
                 expanded={expandedHosts.has(hostGroup.host_name)}
@@ -513,13 +626,38 @@ const Scans: React.FC = () => {
                       pr: 2,
                     }}
                   >
-                    {/* Host Icon and Name */}
+                    {/* Host Icon and Name - Phase 1: Added Critical Findings Badge */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <ComputerIcon color="primary" />
                       <Box>
-                        <Typography variant="h6" fontWeight="medium">
-                          {hostGroup.host_name}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="h6" fontWeight="medium">
+                            {hostGroup.host_name}
+                          </Typography>
+                          {(() => {
+                            const successRate =
+                              hostGroup.totalCount > 0
+                                ? (hostGroup.completedCount / hostGroup.totalCount) * 100
+                                : 0;
+                            const failedCount = hostGroup.totalCount - hostGroup.completedCount;
+
+                            // Phase 1: Critical Findings Badge
+                            if (successRate < 70 && failedCount > 0) {
+                              return (
+                                <Chip
+                                  icon={<WarningIcon />}
+                                  label={`${failedCount} Critical`}
+                                  color="error"
+                                  size="small"
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
+                          {hostGroup.scans.some(
+                            (scan) => scan.status === 'running' || scan.status === 'pending'
+                          ) && <Chip label="Scanning" color="primary" size="small" />}
+                        </Box>
                         {hostGroup.ip_address && (
                           <Typography variant="body2" color="text.secondary">
                             {hostGroup.ip_address}
@@ -528,16 +666,48 @@ const Scans: React.FC = () => {
                       </Box>
                     </Box>
 
-                    {/* Success Ratio and Metrics */}
+                    {/* Success Ratio and Metrics - Phase 1: Added Visual Health Indicator */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      {/* Success Ratio */}
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="h6" fontWeight="bold" color="primary">
-                          {hostGroup.completedCount}/{hostGroup.totalCount}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Success Ratio
-                        </Typography>
+                      {/* Phase 1: Visual Health Indicator with Icon */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {(() => {
+                          const successRate =
+                            hostGroup.totalCount > 0
+                              ? (hostGroup.completedCount / hostGroup.totalCount) * 100
+                              : 0;
+                          return (
+                            <Tooltip title={`${successRate.toFixed(1)}% Compliance Rate`}>
+                              <Avatar
+                                sx={{
+                                  bgcolor: getHealthColor(successRate),
+                                  width: 32,
+                                  height: 32,
+                                }}
+                              >
+                                {getHealthIcon(successRate)}
+                              </Avatar>
+                            </Tooltip>
+                          );
+                        })()}
+                        <Box sx={{ textAlign: 'left' }}>
+                          <Typography variant="h6" fontWeight="bold">
+                            {hostGroup.completedCount}/{hostGroup.totalCount}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color={(() => {
+                              const successRate =
+                                hostGroup.totalCount > 0
+                                  ? (hostGroup.completedCount / hostGroup.totalCount) * 100
+                                  : 0;
+                              return getHealthColor(successRate);
+                            })()}
+                          >
+                            {hostGroup.totalCount > 0
+                              ? `${((hostGroup.completedCount / hostGroup.totalCount) * 100).toFixed(1)}% Compliant`
+                              : 'No Data'}
+                          </Typography>
+                        </Box>
                       </Box>
 
                       {/* Most Recent Scan Date */}

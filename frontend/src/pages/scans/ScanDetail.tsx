@@ -1022,6 +1022,80 @@ const ScanDetail: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Phase 1 UX Improvement: Quick Action Bar */}
+      {scan.status === 'completed' && scan.results && (
+        <Paper
+          sx={{
+            p: 2,
+            mb: 3,
+            borderRadius: 2,
+            boxShadow: 2,
+            bgcolor: scan.results.failed_rules > 0 ? 'error.50' : 'success.50',
+          }}
+        >
+          <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              {scan.results.failed_rules > 0 ? (
+                <>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    size="large"
+                    startIcon={<BuildIcon />}
+                    onClick={() => setTabValue(3)}
+                  >
+                    Remediate {scan.results.failed_rules} Failed Rules
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<FilterIcon />}
+                    onClick={() => setTabValue(1)}
+                  >
+                    View Failures
+                  </Button>
+                </>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <CheckCircleIcon color="success" sx={{ fontSize: 40 }} />
+                  <Box>
+                    <Typography variant="h6" color="success.main" fontWeight="bold">
+                      All Checks Passed!
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      System is compliant with the selected profile
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Export report">
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={handleMenuOpen}
+                  size="medium"
+                >
+                  Export
+                </Button>
+              </Tooltip>
+              <Tooltip title="Run new scan with same configuration">
+                <Button
+                  variant="outlined"
+                  startIcon={<RefreshIcon />}
+                  onClick={handleRescan}
+                  size="medium"
+                >
+                  Rescan
+                </Button>
+              </Tooltip>
+            </Box>
+          </Stack>
+        </Paper>
+      )}
+
       {/* Scan Info Cards */}
       <Grid container spacing={3} mb={3}>
         <Grid item xs={12} md={6} lg={3}>
