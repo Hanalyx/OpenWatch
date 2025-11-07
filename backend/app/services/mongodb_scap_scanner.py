@@ -591,10 +591,26 @@ class MongoDBSCAPScanner(SCAPScanner):
                 )
 
             if not rules:
+                error_message = f"No compliance rules found for platform {platform} {platform_version}"
+                if framework:
+                    error_message += f" with framework '{framework}'"
+                error_message += (
+                    ". This may indicate that compliance rules have not been imported into MongoDB yet. "
+                    "Please import compliance bundles using the admin interface or CLI tools."
+                )
+                logger.warning(
+                    f"{error_message} (scan_id: {scan_id}, platform: {platform}, version: {platform_version}, framework: {framework})"
+                )
                 return {
                     "success": False,
-                    "error": f"No rules found for platform {platform} {platform_version}",
+                    "error": error_message,
                     "scan_id": scan_id,
+                    "details": {
+                        "platform": platform,
+                        "platform_version": platform_version,
+                        "framework": framework,
+                        "suggestion": "Import compliance rules using: ./scripts/build_compliance_rules.sh",
+                    },
                 }
 
             # Step 2: Resolve rule inheritance

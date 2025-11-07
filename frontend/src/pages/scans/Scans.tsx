@@ -45,6 +45,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import StatusChip from '../../components/design-system/StatusChip';
+import { DEFAULT_FRAMEWORK } from '../../constants/complianceFrameworks';
 
 interface Scan {
   id: string;
@@ -405,7 +406,8 @@ const Scans: React.FC = () => {
       }
 
       // Use profile_id from previous scan as framework
-      const framework = mostRecentScan.profile_id || 'disa_stig';
+      // Only use DEFAULT_FRAMEWORK if profile_id is genuinely missing (should rarely happen)
+      const framework = mostRecentScan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
       const response = await fetch('/api/v1/mongodb-scans/start', {

@@ -42,6 +42,7 @@ import ErrorClassificationDisplay, {
   ClassifiedError,
 } from '../../components/errors/ErrorClassificationDisplay';
 import { errorService } from '../../services/errorService';
+import { SUPPORTED_PLATFORMS, SUPPORTED_FRAMEWORKS } from '../../constants/complianceFrameworks';
 
 interface Host {
   id: string; // Changed to string to handle UUID
@@ -53,28 +54,7 @@ interface Host {
   platform_version?: string; // e.g., '8', '22.04'
 }
 
-interface Framework {
-  id: string;
-  name: string;
-  description: string;
-}
-
 const steps = ['Select Host', 'Choose Framework', 'Configure Scan', 'Review & Start'];
-
-// Available platforms and frameworks for MongoDB scanning
-const PLATFORMS = [
-  { id: 'rhel', name: 'Red Hat Enterprise Linux', versions: ['7', '8', '9'] },
-  { id: 'ubuntu', name: 'Ubuntu', versions: ['20.04', '22.04', '24.04'] },
-  { id: 'debian', name: 'Debian', versions: ['10', '11', '12'] },
-];
-
-const FRAMEWORKS = [
-  { id: 'nist_800_53', name: 'NIST 800-53', description: 'NIST Security Controls' },
-  { id: 'cis', name: 'CIS Benchmarks', description: 'Center for Internet Security' },
-  { id: 'pci_dss', name: 'PCI DSS', description: 'Payment Card Industry Data Security' },
-  { id: 'hipaa', name: 'HIPAA', description: 'Health Insurance Portability' },
-  { id: 'stig', name: 'DISA STIG', description: 'Security Technical Implementation Guide' },
-];
 
 const NewScapScan: React.FC = () => {
   const navigate = useNavigate();
@@ -85,7 +65,9 @@ const NewScapScan: React.FC = () => {
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [selectedPlatformVersion, setSelectedPlatformVersion] = useState('');
-  const [selectedFramework, setSelectedFramework] = useState<Framework | null>(null);
+  const [selectedFramework, setSelectedFramework] = useState<
+    (typeof SUPPORTED_FRAMEWORKS)[0] | null
+  >(null);
 
   // Data
   const [hosts, setHosts] = useState<Host[]>([]);
@@ -342,7 +324,7 @@ const NewScapScan: React.FC = () => {
                     setSelectedPlatformVersion(''); // Reset version when platform changes
                   }}
                 >
-                  {PLATFORMS.map((platform) => (
+                  {SUPPORTED_PLATFORMS.map((platform) => (
                     <MenuItem key={platform.id} value={platform.id}>
                       {platform.name}
                     </MenuItem>
@@ -358,11 +340,13 @@ const NewScapScan: React.FC = () => {
                     label="Platform Version"
                     onChange={(e) => setSelectedPlatformVersion(e.target.value)}
                   >
-                    {PLATFORMS.find((p) => p.id === selectedPlatform)?.versions.map((version) => (
-                      <MenuItem key={version} value={version}>
-                        {version}
-                      </MenuItem>
-                    ))}
+                    {SUPPORTED_PLATFORMS.find((p) => p.id === selectedPlatform)?.versions.map(
+                      (version) => (
+                        <MenuItem key={version} value={version}>
+                          {version}
+                        </MenuItem>
+                      )
+                    )}
                   </Select>
                 </FormControl>
               )}
@@ -374,7 +358,7 @@ const NewScapScan: React.FC = () => {
                 Compliance Framework
               </Typography>
               <Grid container spacing={2}>
-                {FRAMEWORKS.map((framework) => (
+                {SUPPORTED_FRAMEWORKS.map((framework) => (
                   <Grid item xs={12} sm={6} key={framework.id}>
                     <Card
                       sx={{
@@ -426,7 +410,7 @@ const NewScapScan: React.FC = () => {
                 Scan Configuration Summary
               </Typography>
               <Typography variant="body2">
-                Platform: {PLATFORMS.find((p) => p.id === selectedPlatform)?.name}{' '}
+                Platform: {SUPPORTED_PLATFORMS.find((p) => p.id === selectedPlatform)?.name}{' '}
                 {selectedPlatformVersion}
                 <br />
                 Framework: {selectedFramework?.name}
@@ -467,7 +451,7 @@ const NewScapScan: React.FC = () => {
                   </ListItemIcon>
                   <ListItemText
                     primary="Platform"
-                    secondary={`${PLATFORMS.find((p) => p.id === selectedPlatform)?.name} ${selectedPlatformVersion}`}
+                    secondary={`${SUPPORTED_PLATFORMS.find((p) => p.id === selectedPlatform)?.name} ${selectedPlatformVersion}`}
                   />
                 </ListItem>
                 <ListItem disablePadding>

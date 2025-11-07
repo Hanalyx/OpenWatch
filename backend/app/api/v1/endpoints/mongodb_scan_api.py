@@ -14,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ....auth import get_current_user
+from ....constants import is_framework_supported
 from ....database import User, get_db
 from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
 from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
@@ -149,20 +150,11 @@ async def start_mongodb_scan(
         except Exception as log_err:
             logger.warning(f"Could not log request details: {log_err}")
 
-        # Validate platform and framework
-        if scan_request.framework and scan_request.framework not in [
-            "nist",
-            "cis",
-            "stig",
-            "pci",
-            "disa_stig",
-            "nist_800_53",
-            "pci_dss",
-            "cis-csc",
-        ]:
+        # Validate framework using centralized constants
+        if scan_request.framework and not is_framework_supported(scan_request.framework):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported framework: {scan_request.framework}",
+                detail=f"Unsupported framework: {scan_request.framework}. Framework must be one of the supported compliance frameworks.",
             )
 
         # Create initial PostgreSQL scan record (status: running)

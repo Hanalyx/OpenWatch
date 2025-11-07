@@ -94,6 +94,7 @@ import {
 } from 'recharts';
 import RemediationPanel from '../../components/remediation/RemediationPanel';
 import { api } from '../../services/api';
+import { DEFAULT_FRAMEWORK } from '../../constants/complianceFrameworks';
 
 interface ScanDetails {
   id: number;
@@ -563,7 +564,8 @@ const ScanDetail: React.FC = () => {
       }
 
       // Use profile_id as framework
-      const framework = scan.profile_id || 'disa_stig';
+      // Only use DEFAULT_FRAMEWORK if profile_id is genuinely missing (should rarely happen)
+      const framework = scan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
       const response = await fetch('/api/v1/mongodb-scans/start', {

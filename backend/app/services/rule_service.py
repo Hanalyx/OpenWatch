@@ -385,12 +385,18 @@ class RuleService:
         query = {}
 
         # Platform implementation filter
-        platform_key = f"platform_implementations.{platform}"
-        query[platform_key] = {"$exists": True}
-
-        # Platform version filter
+        # MongoDB compliance rules use combined platform+version keys (e.g., "rhel8", "ubuntu2204")
+        # NOT separate platform and version fields
         if platform_version:
-            query[f"{platform_key}.versions"] = platform_version
+            # Construct combined platform identifier (rhel8, ubuntu2204, etc.)
+            combined_platform = f"{platform}{platform_version.replace('.', '')}"
+            platform_key = f"platform_implementations.{combined_platform}"
+            query[platform_key] = {"$exists": True}
+        else:
+            # No version specified - query all versions of this platform
+            # This requires checking multiple keys (rhel7, rhel8, rhel9, etc.)
+            platform_key = f"platform_implementations.{platform}"
+            query[platform_key] = {"$exists": True}
 
         # Framework filter
         if framework:
