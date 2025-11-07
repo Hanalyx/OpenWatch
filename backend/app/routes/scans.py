@@ -2,34 +2,34 @@
 SCAP Scanning API Routes
 Handles scan job creation, monitoring, and results
 
-⚠️ WARNING: This file is currently BROKEN due to PostgreSQL scap_content table removal.
-Migration: backend/alembic/versions/20250106_remove_scap_content_table.py (applied 2025-01-06)
+NOTE: This file contains LEGACY SCAP content-based scanning endpoints.
+MongoDB-based scanning is now available at /api/v1/mongodb-scans/.
 
-This file contains 40+ references to the removed scap_content table and needs major refactoring
-to use MongoDB-based scanning architecture.
+Migration Status (2025-11-07):
+- Scan list endpoint: FIXED (removed scap_content JOINs)
+- Scan detail endpoint: FIXED (removed content_id references)
+- Scan recovery endpoint: FIXED
+- Get failed rules endpoint: FIXED
+- Rule rescan endpoint: DISABLED (MongoDB scans don't support rule rescanning)
 
-📚 REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md for:
-- Complete MongoDB scanning flow documentation
-- Database schema changes (scans table now uses framework/framework_version)
-- Code refactoring examples
-- Migration guide from PostgreSQL scap_content to MongoDB compliance_rules
+Active MongoDB Endpoints:
+- /api/v1/mongodb-scans/start - Create new MongoDB-based scan
+- /api/scans/ (GET) - List all scans (works with both legacy and MongoDB scans)
+- /api/scans/{scan_id} (GET) - Get scan details (works with both types)
 
-TODO: Refactor all endpoints in this file to:
-1. Remove all scap_content table queries (lines 181, 339, 920, 988, 1048, 1185, 1506, 1662, 1786, 1910)
-2. Update ScanRequest model: Replace content_id with framework + framework_version
-3. Use MongoDBSCAPScanner instead of file-based scanning
-4. Query MongoDB compliance_rules collection for rule selection
-5. Remove content_id from all INSERT INTO scans statements
+Legacy SCAP Content Endpoints (still available for backward compatibility):
+- /api/scans/ (POST) - Create legacy SCAP content-based scan
+- /api/scans/validate - Validate legacy scan parameters
+- Most other endpoints in this file
 """
 
-import asyncio
 import json
 import logging
 import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models.error_models import ValidationResultResponse
 from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
-from ..services.error_classification import AutomatedFix, ErrorClassificationService
+from ..services.error_classification import ErrorClassificationService
 from ..services.error_sanitization import get_error_sanitization_service
 from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceService
 from ..services.scap_scanner import SCAPScanner
@@ -743,7 +743,7 @@ async def recover_scan(
         scan_result = db.execute(
             text(
                 """
-            SELECT s.id, s.name, s.host_id, s.content_id, s.profile_id, s.status, s.error_message,
+            SELECT s.id, s.name, s.host_id, s.profile_id, s.status, s.error_message,
                    h.hostname, h.port, h.username, h.auth_method
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
@@ -1010,10 +1010,7 @@ async def list_scans(
             scans.append(scan_data)
 
         # Get total count using QueryBuilder
-        count_builder = (
-            QueryBuilder("scans s")
-            .join("hosts h", "s.host_id = h.id", "LEFT")
-        )
+        count_builder = QueryBuilder("scans s").join("hosts h", "s.host_id = h.id", "LEFT")
 
         # Apply same filters as main query
         if host_id:
@@ -1191,7 +1188,6 @@ async def get_scan(
                 "s.id",
                 "s.name",
                 "s.host_id",
-                "s.content_id",
                 "s.profile_id",
                 "s.status",
                 "s.progress",
@@ -1205,11 +1201,8 @@ async def get_scan(
                 "s.celery_task_id",
                 "h.display_name as host_name",
                 "h.hostname",
-                "c.name as content_name",
-                "c.filename as content_filename",
             )
             .join("hosts h", "s.host_id = h.id")
-            .join("scap_content c", "s.content_id = c.id")
             .where("s.id = :id", scan_id, "id")
         )
         query, params = builder.build()
@@ -1680,13 +1673,11 @@ async def get_scan_failed_rules(
         scan_result = db.execute(
             text(
                 """
-            SELECT s.id, s.name, s.host_id, s.status, s.result_file, s.content_id, s.profile_id,
+            SELECT s.id, s.name, s.host_id, s.status, s.result_file, s.profile_id,
                    h.hostname, h.ip_address, h.display_name as host_name,
-                   c.name as content_name, c.filename as content_filename,
                    sr.failed_rules, sr.total_rules, sr.score
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
-            JOIN scap_content c ON s.content_id = c.id
             LEFT JOIN scan_results sr ON sr.scan_id = s.id
             WHERE s.id = :scan_id
         """
@@ -1833,7 +1824,7 @@ async def create_verification_scan(
         # Generate scan name
         scan_name = verification_request.name or f"Verification Scan - {host_result.hostname}"
         if verification_request.original_scan_id:
-            scan_name += f" (Post-Remediation)"
+            scan_name += " (Post-Remediation)"
 
         # Create verification scan record
         scan_options = {
@@ -1929,12 +1920,10 @@ async def rescan_rule(
         result = db.execute(
             text(
                 """
-            SELECT s.id, s.host_id, s.content_id, s.profile_id, s.name,
-                   h.hostname, h.ip_address, h.port, h.username, h.auth_method, h.encrypted_credentials,
-                   c.file_path, c.filename
+            SELECT s.id, s.host_id, s.profile_id, s.name,
+                   h.hostname, h.ip_address, h.port, h.username, h.auth_method, h.encrypted_credentials
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
-            JOIN scap_content c ON s.content_id = c.id
             WHERE s.id = :scan_id
         """
             ),
@@ -1949,71 +1938,12 @@ async def rescan_rule(
         if not scan_data.encrypted_credentials:
             raise HTTPException(status_code=400, detail="Host credentials not available")
 
-        # Validate that the SCAP content file exists
-        if not scan_data.file_path:
-            raise HTTPException(status_code=400, detail="SCAP content file not found")
-
-        # Create a new scan record for the rule rescan
-        scan_name = rescan_request.name or f"Rule Rescan: {rescan_request.rule_id}"
-
-        result = db.execute(
-            text(
-                """
-            INSERT INTO scans (name, host_id, content_id, profile_id, status, progress,
-                             started_by, started_at, scan_options)
-            VALUES (:name, :host_id, :content_id, :profile_id, :status, :progress,
-                    :started_by, :started_at, :scan_options)
-            RETURNING id
-        """
-            ),
-            {
-                "name": scan_name,
-                "host_id": scan_data.host_id,
-                "content_id": scan_data.content_id,
-                "profile_id": scan_data.profile_id,
-                "status": "pending",
-                "progress": 0,
-                "started_by": current_user["id"],
-                "started_at": datetime.utcnow(),
-                "scan_options": json.dumps({"rule_id": rescan_request.rule_id, "rescan_type": "rule"}),
-            },
+        # NOTE: Rule rescanning is a legacy SCAP feature that's no longer supported
+        # with MongoDB-based scanning. For MongoDB scans, simply create a new full scan.
+        raise HTTPException(
+            status_code=400,
+            detail="Rule rescanning is not supported for MongoDB-based scans. Please create a new scan instead.",
         )
-
-        new_scan_id = result.fetchone()[0]
-
-        db.commit()
-
-        # Prepare host data for scan execution
-        host_data = {
-            "id": scan_data.host_id,
-            "hostname": scan_data.hostname,
-            "ip_address": scan_data.ip_address,
-            "port": scan_data.port,
-            "username": scan_data.username,
-            "auth_method": scan_data.auth_method,
-            "encrypted_credentials": scan_data.encrypted_credentials,  # This will be decrypted by the task
-        }
-
-        # Execute the rule-specific scan as background task
-        scan_options = {"rule_id": rescan_request.rule_id, "rescan_type": "rule"}
-        background_tasks.add_task(
-            execute_scan_task,
-            str(new_scan_id),
-            host_data,
-            scan_data.file_path,
-            scan_data.profile_id,
-            scan_options,
-        )
-
-        logger.info(f"Rule rescan task scheduled: {new_scan_id}")
-
-        return {
-            "message": "Rule rescan initiated successfully",
-            "scan_id": str(new_scan_id),
-            "status": "pending",
-            "rule_id": rescan_request.rule_id,
-            "original_scan_id": scan_id,
-        }
 
     except HTTPException:
         raise
