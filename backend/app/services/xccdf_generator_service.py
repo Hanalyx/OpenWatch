@@ -189,9 +189,7 @@ class XCCDFGeneratorService:
 
         # Add variable overrides
         for var_id, var_value in variable_overrides.items():
-            set_value = ET.SubElement(
-                profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id}
-            )
+            set_value = ET.SubElement(profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id})
             set_value.text = str(var_value)
 
         return self._prettify_xml(tailoring)
@@ -250,12 +248,11 @@ class XCCDFGeneratorService:
         root = ET.Element(
             f"{{{oval_def_ns}}}oval_definitions",
             {
-                f"{{{self.NAMESPACES['xsi']}}}schemaLocation":
-                    "http://oval.mitre.org/XMLSchema/oval-definitions-5 "
-                    "oval-definitions-schema.xsd "
-                    "http://oval.mitre.org/XMLSchema/oval-common-5 "
-                    "oval-common-schema.xsd"
-            }
+                f"{{{self.NAMESPACES['xsi']}}}schemaLocation": "http://oval.mitre.org/XMLSchema/oval-definitions-5 "
+                "oval-definitions-schema.xsd "
+                "http://oval.mitre.org/XMLSchema/oval-common-5 "
+                "oval-common-schema.xsd"
+            },
         )
 
         # Create generator section (uses oval-common namespace per OVAL 5.11 spec)
@@ -407,9 +404,7 @@ class XCCDFGeneratorService:
             logger.error(f"Failed to parse OVAL file {oval_filename}: {e}")
             return None
 
-    def _create_benchmark_element(
-        self, benchmark_id: str, title: str, description: str, version: str
-    ) -> ET.Element:
+    def _create_benchmark_element(self, benchmark_id: str, title: str, description: str, version: str) -> ET.Element:
         """Create root Benchmark element with metadata"""
         # XCCDF 1.2 requires benchmark IDs to follow xccdf_<reverse-DNS>_benchmark_<name>
         if not benchmark_id.startswith("xccdf_"):
@@ -590,9 +585,7 @@ class XCCDFGeneratorService:
             # Read OVAL definition ID from file
             oval_def_id = self._read_oval_definition_id(oval_filename)
 
-            check = ET.SubElement(
-                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-            )
+            check = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system})
 
             # Reference aggregated oval-definitions.xml file
             check_ref_attrs = {"href": "oval-definitions.xml"}
@@ -615,9 +608,7 @@ class XCCDFGeneratorService:
             else:
                 check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
 
-            check = ET.SubElement(
-                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-            )
+            check = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system})
 
             check_ref = ET.SubElement(
                 check,
@@ -696,10 +687,7 @@ class XCCDFGeneratorService:
         """Create a single XCCDF Profile for a framework"""
         # Filter rules that belong to this framework version
         matching_rules = [
-            r
-            for r in rules
-            if framework in r.get("frameworks", {})
-            and framework_version in r["frameworks"][framework]
+            r for r in rules if framework in r.get("frameworks", {}) and framework_version in r["frameworks"][framework]
         ]
 
         if not matching_rules:
