@@ -225,7 +225,9 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -318,7 +320,9 @@ async def quick_scan(
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
-        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
+        logger.info(
+            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
+        )
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -374,7 +378,9 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
+                        logger.warning(
+                            f"Requested profile not found, using fallback: {template_id}"
+                        )
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -401,7 +407,9 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if credential_data:
                 # Queue async validation
@@ -572,7 +580,9 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
+            estimated_completion=(
+                session.estimated_completion.timestamp() if session.estimated_completion else 0
+            ),
             scan_ids=session.scan_ids or [],
         )
 
@@ -902,13 +912,14 @@ async def list_scans(
             return {"scans": [], "total": 0, "limit": limit, "offset": offset}
 
         # Build main query with QueryBuilder
+        # NOTE: Removed scap_content JOIN (table deleted in migration 20250106)
+        # MongoDB scans use profile_id to store framework instead of content_id
         builder = (
             QueryBuilder("scans s")
             .select(
                 "s.id",
                 "s.name",
                 "s.host_id",
-                "s.content_id",
                 "s.profile_id",
                 "s.status",
                 "s.progress",
@@ -918,14 +929,13 @@ async def list_scans(
                 "s.error_message",
                 "s.result_file",
                 "s.report_file",
+                "s.scan_metadata",
                 "h.display_name as host_name",
                 "h.hostname",
                 "h.ip_address",
                 "h.operating_system",
                 "h.status as host_status",
                 "h.last_check",
-                "c.name as content_name",
-                "c.filename as content_filename",
                 "sr.total_rules",
                 "sr.passed_rules",
                 "sr.failed_rules",
@@ -936,7 +946,6 @@ async def list_scans(
                 "sr.severity_low",
             )
             .join("hosts h", "s.host_id = h.id", "LEFT")
-            .join("scap_content c", "s.content_id = c.id", "LEFT")
             .join("scan_results sr", "sr.scan_id = s.id", "LEFT")
         )
 
@@ -955,6 +964,20 @@ async def list_scans(
 
         scans = []
         for row in result:
+            # Parse scan_metadata if available (JSON column)
+            scan_metadata = {}
+            if hasattr(row, "scan_metadata") and row.scan_metadata:
+                import json
+
+                try:
+                    scan_metadata = (
+                        json.loads(row.scan_metadata)
+                        if isinstance(row.scan_metadata, str)
+                        else row.scan_metadata
+                    )
+                except (ValueError, TypeError):
+                    scan_metadata = {}
+
             scan_data = {
                 "id": row.id,
                 "name": row.name,
@@ -968,9 +991,6 @@ async def list_scans(
                     "status": row.host_status,
                     "last_check": (row.last_check.isoformat() if row.last_check else None),
                 },
-                "content_id": row.content_id,
-                "content_name": row.content_name,
-                "content_filename": row.content_filename,
                 "profile_id": row.profile_id,
                 "status": row.status,
                 "progress": row.progress,
@@ -980,6 +1000,7 @@ async def list_scans(
                 "error_message": row.error_message,
                 "result_file": row.result_file,
                 "report_file": row.report_file,
+                "scan_metadata": scan_metadata,
             }
 
             # Add results if available
@@ -1349,7 +1370,9 @@ async def delete_scan(
 
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
+            QueryBuilder("scans")
+            .select("status", "result_file", "report_file")
+            .where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -1369,7 +1392,9 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
+                    logger.warning(
+                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
+                    )
 
         # Delete scan results first (foreign key constraint)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
@@ -1425,7 +1450,9 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
+            raise HTTPException(
+                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
+            )
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -1540,14 +1567,18 @@ async def get_scan_json_report(
                     from ..services.scap_scanner import SCAPScanner
 
                     scanner = SCAPScanner()
-                    enhanced_results = scanner._parse_scan_results(scan_data["result_file"], content_file)
+                    enhanced_results = scanner._parse_scan_results(
+                        scan_data["result_file"], content_file
+                    )
                 else:
                     enhanced_results = {}
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
+                    logger.info(
+                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
+                    )
                 else:
                     # Fallback to basic parsing for backward compatibility
                     import os
@@ -1695,7 +1726,11 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
+        if (
+            not scan_result.result_file
+            or not scan_result.failed_rules
+            or scan_result.failed_rules == 0
+        ):
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),
@@ -1967,7 +2002,9 @@ async def rescan_rule(
                 "progress": 0,
                 "started_by": current_user["id"],
                 "started_at": datetime.utcnow(),
-                "scan_options": json.dumps({"rule_id": rescan_request.rule_id, "rescan_type": "rule"}),
+                "scan_options": json.dumps(
+                    {"rule_id": rescan_request.rule_id, "rescan_type": "rule"}
+                ),
             },
         )
 

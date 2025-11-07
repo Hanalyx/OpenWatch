@@ -11,8 +11,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from ....auth import get_current_user
-from ....database import User
+from ....database import User, get_db
 from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
 from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
 from ....services.result_enrichment_service import ResultEnrichmentService
@@ -31,8 +34,12 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
-    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
+    rule_ids: Optional[List[str]] = Field(
+        None, description="Specific rule IDs to scan (from wizard selection)"
+    )
+    connection_params: Optional[Dict[str, Any]] = Field(
+        None, description="SSH connection parameters"
+    )
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -82,7 +89,8 @@ async def get_mongodb_scanner(request: Request) -> MongoDBSCAPScanner:
             encryption_service = getattr(request.app.state, "encryption_service", None)
             if not encryption_service:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Encryption service not available"
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Encryption service not available",
                 )
             mongodb_scanner = MongoDBSCAPScanner(encryption_service=encryption_service)
             await mongodb_scanner.initialize()
@@ -118,6 +126,7 @@ async def get_compliance_reporter() -> ComplianceFrameworkReporter:
 async def start_mongodb_scan(
     scan_request: MongoDBScanRequest,
     background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
 ):
@@ -126,11 +135,17 @@ async def start_mongodb_scan(
 
     This endpoint initiates a scan using rules selected from MongoDB based on
     the target platform and compliance framework requirements.
+
+    Creates records in PostgreSQL scans and scan_results tables for UI integration.
     """
     logger.info(f"=== ENDPOINT CALLED: start_mongodb_scan for host {scan_request.hostname} ===")
     try:
-        scan_id = f"mongodb_scan_{uuid.uuid4().hex[:8]}"
-        logger.info(f"Starting MongoDB scan {scan_id} for host {scan_request.hostname}")
+        # Generate UUID for scan (compatible with PostgreSQL scans table)
+        scan_uuid = uuid.uuid4()
+        scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
+        logger.info(
+            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
+        )
 
         # Log request details safely
         try:
@@ -157,6 +172,50 @@ async def start_mongodb_scan(
                 detail=f"Unsupported framework: {scan_request.framework}",
             )
 
+        # Create initial PostgreSQL scan record (status: running)
+        scan_name = f"MongoDB Scan - {scan_request.platform} {scan_request.platform_version} - {scan_request.framework or 'all frameworks'}"
+        started_at = datetime.utcnow()
+
+        try:
+            insert_scan_query = text(
+                """
+                INSERT INTO scans (
+                    id, name, host_id, profile_id, status, progress,
+                    scan_options, started_by, started_at, remediation_requested, verification_scan, scan_metadata
+                )
+                VALUES (
+                    :id, :name, :host_id, :profile_id, :status, :progress,
+                    :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan, :scan_metadata
+                )
+            """
+            )
+            db.execute(
+                insert_scan_query,
+                {
+                    "id": str(scan_uuid),
+                    "name": scan_name,
+                    "host_id": scan_request.host_id,
+                    "profile_id": scan_request.framework or "mongodb_custom",
+                    "status": "running",
+                    "progress": 0,
+                    "scan_options": f'{{"platform": "{scan_request.platform}", "platform_version": "{scan_request.platform_version}", "framework": "{scan_request.framework}"}}',
+                    "started_by": current_user.get("id"),
+                    "started_at": started_at,
+                    "remediation_requested": False,
+                    "verification_scan": False,
+                    "scan_metadata": f'{{"scan_type": "mongodb", "rule_count": {len(scan_request.rule_ids) if scan_request.rule_ids else 0}}}',
+                },
+            )
+            db.commit()
+            logger.info(f"Created PostgreSQL scan record {scan_uuid}")
+        except Exception as db_error:
+            logger.error(f"Failed to create scan record: {db_error}", exc_info=True)
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create scan record: {str(db_error)}",
+            )
+
         # Start the scan process
         logger.info(f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}")
         try:
@@ -179,10 +238,99 @@ async def start_mongodb_scan(
 
         if not scan_result.get("success"):
             logger.error(f"Scan failed with result: {scan_result}")
+            # Update PostgreSQL scan record to failed status
+            try:
+                update_scan_query = text(
+                    """
+                    UPDATE scans
+                    SET status = :status, progress = :progress, completed_at = :completed_at, error_message = :error_message
+                    WHERE id = :id
+                """
+                )
+                db.execute(
+                    update_scan_query,
+                    {
+                        "id": str(scan_uuid),
+                        "status": "failed",
+                        "progress": 100,
+                        "completed_at": datetime.utcnow(),
+                        "error_message": scan_result.get("error", "Unknown error"),
+                    },
+                )
+                db.commit()
+            except Exception as update_error:
+                logger.error(f"Failed to update scan status to failed: {update_error}")
+                db.rollback()
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Scan execution failed: {scan_result.get('error', 'Unknown error')}",
             )
+
+        # Update PostgreSQL scan record to completed status
+        completed_at = datetime.utcnow()
+        try:
+            update_scan_query = text(
+                """
+                UPDATE scans
+                SET status = :status, progress = :progress, completed_at = :completed_at,
+                    result_file = :result_file, report_file = :report_file
+                WHERE id = :id
+            """
+            )
+            db.execute(
+                update_scan_query,
+                {
+                    "id": str(scan_uuid),
+                    "status": "completed",
+                    "progress": 100,
+                    "completed_at": completed_at,
+                    "result_file": scan_result.get("result_file", ""),
+                    "report_file": scan_result.get("report_file", ""),
+                },
+            )
+
+            # Create scan_results record
+            # Parse XCCDF results to get pass/fail counts (simplified - you may want more detailed parsing)
+            rules_used = scan_result.get("mongodb_rules_used", 0)
+            insert_results_query = text(
+                """
+                INSERT INTO scan_results (
+                    scan_id, total_rules, passed_rules, failed_rules, error_rules,
+                    unknown_rules, not_applicable_rules, score,
+                    severity_high, severity_medium, severity_low, created_at
+                )
+                VALUES (
+                    :scan_id, :total_rules, :passed_rules, :failed_rules, :error_rules,
+                    :unknown_rules, :not_applicable_rules, :score,
+                    :severity_high, :severity_medium, :severity_low, :created_at
+                )
+            """
+            )
+            db.execute(
+                insert_results_query,
+                {
+                    "scan_id": str(scan_uuid),
+                    "total_rules": rules_used,
+                    "passed_rules": 0,  # TODO: Parse XCCDF results for actual counts
+                    "failed_rules": 0,  # TODO: Parse XCCDF results for actual counts
+                    "error_rules": 0,
+                    "unknown_rules": 0,
+                    "not_applicable_rules": 0,
+                    "score": "0%",  # TODO: Calculate actual score
+                    "severity_high": 0,
+                    "severity_medium": 0,
+                    "severity_low": 0,
+                    "created_at": completed_at,
+                },
+            )
+
+            db.commit()
+            logger.info(f"Updated PostgreSQL scan record {scan_uuid} to completed with results")
+        except Exception as db_error:
+            logger.error(f"Failed to update scan completion: {db_error}", exc_info=True)
+            db.rollback()
+            # Don't raise - scan succeeded, just logging failed
 
         # Prepare response data
         response_data = MongoDBScanResponse(
@@ -245,7 +393,9 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
+            target_frameworks = (
+                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
+            )
 
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
@@ -411,7 +561,11 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    "platforms": (
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 }
             )
 
