@@ -386,6 +386,12 @@ class RuleService:
         """Build optimized MongoDB query for platform rules"""
         query = {}
 
+        # CRITICAL: Filter by is_latest=True to get only active rule versions
+        # MongoDB uses deduplication system with versioning (7221 total, 2013 latest)
+        # Without this filter: rhel8+disa_stig returns 1581 rules (includes old versions)
+        # With this filter: rhel8+disa_stig returns 402 rules (correct, deduplicated)
+        query["is_latest"] = True
+
         # Platform implementation filter
         # MongoDB compliance rules use combined platform+version keys (e.g., "rhel8", "ubuntu2204")
         # NOT separate platform and version fields
