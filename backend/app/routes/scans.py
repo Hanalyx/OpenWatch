@@ -1244,7 +1244,9 @@ async def get_scan(
                     """
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
-                       severity_high, severity_medium, severity_low
+                       severity_high, severity_medium, severity_low,
+                       xccdf_score, xccdf_score_max, xccdf_score_system,
+                       risk_score, risk_level
                 FROM scan_results WHERE scan_id = :scan_id
             """
                 ),
@@ -1263,6 +1265,11 @@ async def get_scan(
                     "severity_high": results.severity_high,
                     "severity_medium": results.severity_medium,
                     "severity_low": results.severity_low,
+                    "xccdf_score": results.xccdf_score,
+                    "xccdf_score_max": results.xccdf_score_max,
+                    "xccdf_score_system": results.xccdf_score_system,
+                    "risk_score": results.risk_score,
+                    "risk_level": results.risk_level,
                 }
 
         return scan_data
