@@ -135,8 +135,7 @@ class ComplianceRulesLoader:
             # Update existing rule
             compliance_rule_data["updated_at"] = datetime.utcnow()
             await self.repo.update_one(
-                query={"rule_id": rule_id},
-                update={"$set": compliance_rule_data}
+                query={"rule_id": rule_id}, update={"$set": compliance_rule_data}
             )
             logger.debug(f"Updated rule: {rule_id}")
         else:
@@ -241,9 +240,7 @@ class ComplianceRulesLoader:
         # Count framework mappings
         framework_counts = {}
         for framework in ["nist", "cis", "stig", "pci_dss", "iso27001"]:
-            count = await self.repo.count(
-                {f"frameworks.{framework}": {"$exists": True, "$ne": {}}}
-            )
+            count = await self.repo.count({f"frameworks.{framework}": {"$exists": True, "$ne": {}}})
             framework_counts[framework] = count
 
         # Count platform implementations

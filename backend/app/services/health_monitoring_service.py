@@ -611,7 +611,7 @@ class HealthMonitoringService:
         for benchmark_id, benchmark in health_data.benchmarks.items():
             freshness = benchmark.content_freshness
             if freshness.get("freshness_status") == "stale":
-                days_old = freshness.get('days_since_update')
+                days_old = freshness.get("days_since_update")
                 alerts.append(
                     ContentAlert(
                         type="warning",

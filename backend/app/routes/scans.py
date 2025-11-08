@@ -225,7 +225,9 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -318,7 +320,9 @@ async def quick_scan(
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
-        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
+        logger.info(
+            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
+        )
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -374,7 +378,9 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
+                        logger.warning(
+                            f"Requested profile not found, using fallback: {template_id}"
+                        )
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -401,7 +407,9 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if credential_data:
                 # Queue async validation
@@ -572,7 +580,9 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
+            estimated_completion=(
+                session.estimated_completion.timestamp() if session.estimated_completion else 0
+            ),
             scan_ids=session.scan_ids or [],
         )
 
@@ -961,7 +971,9 @@ async def list_scans(
 
                 try:
                     scan_metadata = (
-                        json.loads(row.scan_metadata) if isinstance(row.scan_metadata, str) else row.scan_metadata
+                        json.loads(row.scan_metadata)
+                        if isinstance(row.scan_metadata, str)
+                        else row.scan_metadata
                     )
                 except (ValueError, TypeError):
                     scan_metadata = {}
@@ -1354,7 +1366,9 @@ async def delete_scan(
 
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
+            QueryBuilder("scans")
+            .select("status", "result_file", "report_file")
+            .where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -1374,7 +1388,9 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
+                    logger.warning(
+                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
+                    )
 
         # Delete scan results first (foreign key constraint)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
@@ -1430,7 +1446,9 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
+            raise HTTPException(
+                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
+            )
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -1545,14 +1563,18 @@ async def get_scan_json_report(
                     from ..services.scap_scanner import SCAPScanner
 
                     scanner = SCAPScanner()
-                    enhanced_results = scanner._parse_scan_results(scan_data["result_file"], content_file)
+                    enhanced_results = scanner._parse_scan_results(
+                        scan_data["result_file"], content_file
+                    )
                 else:
                     enhanced_results = {}
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
+                    logger.info(
+                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
+                    )
                 else:
                     # Fallback to basic parsing for backward compatibility
                     import os
@@ -1698,7 +1720,11 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
+        if (
+            not scan_result.result_file
+            or not scan_result.failed_rules
+            or scan_result.failed_rules == 0
+        ):
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),

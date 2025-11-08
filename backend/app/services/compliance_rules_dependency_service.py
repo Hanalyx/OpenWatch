@@ -35,7 +35,9 @@ class RuleDependencyGraph:
 
         # Dependency relationships
         self.requirements: Dict[str, List[str]] = defaultdict(list)  # rule → [required_rules]
-        self.required_by: Dict[str, List[str]] = defaultdict(list)  # rule → [rules_that_require_this]
+        self.required_by: Dict[str, List[str]] = defaultdict(
+            list
+        )  # rule → [rules_that_require_this]
 
         # Conflict relationships
         self.conflicts: Dict[str, List[str]] = defaultdict(list)  # rule → [conflicting_rules]
@@ -274,7 +276,9 @@ class RuleDependencyGraph:
 
         return impact
 
-    def validate_dependencies(self, new_rules: List[Dict[str, Any]], check_existing_db: bool = True) -> Dict[str, Any]:
+    def validate_dependencies(
+        self, new_rules: List[Dict[str, Any]], check_existing_db: bool = True
+    ) -> Dict[str, Any]:
         """
         Validate that all dependencies are satisfied for new rules
 
@@ -306,7 +310,9 @@ class RuleDependencyGraph:
             # Validate parent exists
             parent = rule.get("inherits_from")
             if parent:
-                parent_exists = parent in new_rule_ids or (check_existing_db and parent in self.rules)
+                parent_exists = parent in new_rule_ids or (
+                    check_existing_db and parent in self.rules
+                )
 
                 if not parent_exists:
                     validation["valid"] = False
@@ -324,7 +330,9 @@ class RuleDependencyGraph:
             dependencies = rule.get("dependencies", {})
             requires = dependencies.get("requires", [])
             for required in requires:
-                required_exists = required in new_rule_ids or (check_existing_db and required in self.rules)
+                required_exists = required in new_rule_ids or (
+                    check_existing_db and required in self.rules
+                )
 
                 if not required_exists:
                     validation["valid"] = False
@@ -341,7 +349,9 @@ class RuleDependencyGraph:
             # Warn about conflicts
             conflicts = dependencies.get("conflicts", [])
             for conflict in conflicts:
-                conflict_exists = conflict in new_rule_ids or (check_existing_db and conflict in self.rules)
+                conflict_exists = conflict in new_rule_ids or (
+                    check_existing_db and conflict in self.rules
+                )
 
                 if conflict_exists:
                     validation["warnings"].append(
@@ -450,7 +460,9 @@ class RuleDependencyGraph:
             "total_rules": len(self.rules),
             "rules_with_parents": len(self.inheritance_parents),
             "abstract_rules": sum(
-                1 for rule in self.rules.values() if isinstance(rule, ComplianceRule) and rule.abstract
+                1
+                for rule in self.rules.values()
+                if isinstance(rule, ComplianceRule) and rule.abstract
             ),
             "root_rules": len(self.rules) - len(self.inheritance_parents),
             "total_inheritance_relationships": len(self.inheritance_parents),
@@ -461,7 +473,10 @@ class RuleDependencyGraph:
                 default=0,
             ),
             "rules_with_most_children": sorted(
-                ((rule_id, len(children)) for rule_id, children in self.inheritance_children.items()),
+                (
+                    (rule_id, len(children))
+                    for rule_id, children in self.inheritance_children.items()
+                ),
                 key=lambda x: x[1],
                 reverse=True,
             )[:5],
@@ -526,7 +541,9 @@ class InheritanceResolver:
         # Get all descendants (children, grandchildren, etc.)
         descendants = self.graph.get_descendants(parent_rule_id)
 
-        logger.info(f"Analyzing inheritance impact: {parent_rule_id} has " f"{len(descendants)} descendants")
+        logger.info(
+            f"Analyzing inheritance impact: {parent_rule_id} has " f"{len(descendants)} descendants"
+        )
 
         for child_id in descendants:
             child_rule = self.graph.rules.get(child_id)
@@ -637,7 +654,9 @@ class InheritanceResolver:
 
                 if not child_rule:
                     results["failed"] += 1
-                    results["errors"].append({"rule_id": rule_id, "error": "Rule not found in database"})
+                    results["errors"].append(
+                        {"rule_id": rule_id, "error": "Rule not found in database"}
+                    )
                     continue
 
                 # Apply updates
