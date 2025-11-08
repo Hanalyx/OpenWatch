@@ -114,7 +114,9 @@ class RuleService:
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)
             logger.debug(f"Using ComplianceRuleRepository for get_rules_by_platform ({platform})")
             repo = ComplianceRuleRepository()
-            rules = await repo.find_many(query_filter)
+            # Retrieve all matching rules (limit=10000 to handle large rule sets)
+            # For compliance scans, we need ALL applicable rules, not just first 100
+            rules = await repo.find_many(query_filter, limit=10000)
 
             # Resolve inheritance for each rule
             resolved_rules = []
