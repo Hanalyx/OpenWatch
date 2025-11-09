@@ -52,12 +52,9 @@ const Content: React.FC = () => {
   };
 
   return (
-    <Container
-      maxWidth="xl"
-      sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', pb: 4 }}
-    >
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h4" gutterBottom>
           Content Library
         </Typography>
@@ -132,7 +129,7 @@ const Content: React.FC = () => {
           <UploadSyncRules />
         </TabPanel>
       </Box>
-    </Container>
+    </Box>
   );
 };
 

@@ -535,9 +535,9 @@ const Scans: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Box>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Compliance Scans
         </Typography>
@@ -972,7 +972,7 @@ const Scans: React.FC = () => {
           <MenuItem onClick={() => handleExportScans('failed')}>Export Failed Scans</MenuItem>
         </Menu>
       </Box>
-    </Container>
+    </Box>
   );
 };
 

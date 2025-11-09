@@ -1449,9 +1449,9 @@ const HostsEnhanced: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Box>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Host Management
         </Typography>
@@ -2073,7 +2073,7 @@ const HostsEnhanced: React.FC = () => {
           onClick={() => setEnhancedImportDialogOpen(true)}
         />
       </SpeedDial>
-    </Container>
+    </Box>
   );
 };
 

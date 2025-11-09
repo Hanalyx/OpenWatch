@@ -240,7 +240,7 @@ const Users: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" gutterBottom>
           <PersonIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -512,7 +512,7 @@ const Users: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 };
 
