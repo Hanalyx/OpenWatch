@@ -61,7 +61,7 @@ export interface PlatformCapabilitiesResponse {
 }
 
 class RuleService {
-  private readonly baseUrl = '/api/v1/rules';
+  private readonly baseUrl = '/api/rules';
 
   async getRules(
     params: {
@@ -88,7 +88,7 @@ class RuleService {
       if (params.framework) queryParams.append('framework', params.framework);
       if (params.search) queryParams.append('search', params.search);
 
-      const response = await fetch(`/api/v1/compliance-rules/?${queryParams.toString()}`);
+      const response = await fetch(`/api/compliance-rules/?${queryParams.toString()}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -565,7 +565,7 @@ class RuleService {
         offset: searchRequest.offset || 0,
       };
 
-      const response = await api.get('/api/v1/compliance-rules/', {
+      const response = await api.get('/api/compliance-rules/', {
         params,
         headers: getAuthHeaders(),
       });
@@ -600,7 +600,7 @@ class RuleService {
   async getRuleDetails(ruleId: string, includeInheritance = true): Promise<RuleDetailsResponse> {
     try {
       // Use the MongoDB compliance rules endpoint with centralized auth
-      const response = await api.get(`/api/v1/compliance-rules/${ruleId}`, {
+      const response = await api.get(`/api/compliance-rules/${ruleId}`, {
         params: { include_inheritance: includeInheritance },
         headers: getAuthHeaders(),
       });

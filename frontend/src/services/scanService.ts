@@ -151,7 +151,7 @@ class ScanService {
     framework: string,
     ruleIds?: string[]
   ): Promise<any> {
-    const response = await fetch('/api/v1/mongodb-scans/start', {
+    const response = await fetch('/api/mongodb-scans/start', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({

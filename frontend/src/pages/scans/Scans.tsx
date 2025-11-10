@@ -369,7 +369,7 @@ const Scans: React.FC = () => {
       setError(null);
 
       // Fetch host details
-      const hostData = await api.get(`/api/v1/hosts/${hostGroup.host_id}`);
+      const hostData = await api.get(`/api/hosts/${hostGroup.host_id}`);
 
       // Get platform information from host data OR infer from previous scan
       const mostRecentScan = hostGroup.mostRecentScan;
@@ -419,7 +419,7 @@ const Scans: React.FC = () => {
       const framework = mostRecentScan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
-      const response = await fetch('/api/v1/mongodb-scans/start', {
+      const response = await fetch('/api/mongodb-scans/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

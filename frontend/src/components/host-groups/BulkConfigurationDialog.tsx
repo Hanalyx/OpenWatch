@@ -88,7 +88,7 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
   const fetchScapContent = async () => {
     try {
       // MongoDB compliance rules endpoint - returns bundles that can be used for scanning
-      const response = await fetch('/api/v1/compliance-rules/?view_mode=bundles', {
+      const response = await fetch('/api/compliance-rules/?view_mode=bundles', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },

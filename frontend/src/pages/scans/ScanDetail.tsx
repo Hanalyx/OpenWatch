@@ -526,7 +526,7 @@ const ScanDetail: React.FC = () => {
       setIsLoading(true);
 
       // Fetch host details
-      const hostData = await api.get(`/api/v1/hosts/${scan.host_id}`);
+      const hostData = await api.get(`/api/hosts/${scan.host_id}`);
 
       // Get platform information from host data OR infer from scan name
       let platform = hostData?.platform;
@@ -574,7 +574,7 @@ const ScanDetail: React.FC = () => {
       const framework = scan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
-      const response = await fetch('/api/v1/mongodb-scans/start', {
+      const response = await fetch('/api/mongodb-scans/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

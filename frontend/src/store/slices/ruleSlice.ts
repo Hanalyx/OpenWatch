@@ -204,7 +204,7 @@ export const fetchRules = createAsyncThunk(
       }
     });
 
-    const response = await api.get(`/api/v1/rules?${queryParams.toString()}`);
+    const response = await api.get(`/api/rules?${queryParams.toString()}`);
     return response.data;
   }
 );
@@ -212,7 +212,7 @@ export const fetchRules = createAsyncThunk(
 export const searchRules = createAsyncThunk(
   'rules/searchRules',
   async (searchRequest: SearchRequest) => {
-    const response = await api.post('/api/v1/rules/search', searchRequest);
+    const response = await api.post('/api/rules/search', searchRequest);
     return response.data;
   }
 );
@@ -221,7 +221,7 @@ export const fetchRuleDetails = createAsyncThunk(
   'rules/fetchRuleDetails',
   async ({ ruleId, includeInheritance }: { ruleId: string; includeInheritance?: boolean }) => {
     const params = includeInheritance ? '?include_inheritance=true' : '';
-    const response = await api.get(`/api/v1/rules/${ruleId}${params}`);
+    const response = await api.get(`/api/rules/${ruleId}${params}`);
     return response.data;
   }
 );
@@ -237,7 +237,7 @@ export const fetchRuleDependencies = createAsyncThunk(
     includeTransitive?: boolean;
     maxDepth?: number;
   }) => {
-    const response = await api.post('/api/v1/rules/dependencies', {
+    const response = await api.post('/api/rules/dependencies', {
       rule_ids: ruleIds,
       include_transitive: includeTransitive,
       max_depth: maxDepth,
@@ -255,7 +255,7 @@ export const detectPlatformCapabilities = createAsyncThunk(
     compareBaseline?: boolean;
     capabilityTypes?: string[];
   }) => {
-    const response = await api.post('/api/v1/rules/platform-capabilities', {
+    const response = await api.post('/api/rules/platform-capabilities', {
       platform: params.platform,
       platform_version: params.platformVersion,
       target_host: params.targetHost,
@@ -277,7 +277,7 @@ export const exportRules = createAsyncThunk(
     format: 'json' | 'csv' | 'xml';
     includeMetadata?: boolean;
   }) => {
-    const response = await api.post('/api/v1/rules/export', {
+    const response = await api.post('/api/rules/export', {
       rule_ids: ruleIds,
       format,
       include_metadata: includeMetadata,
