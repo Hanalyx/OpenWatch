@@ -2119,7 +2119,7 @@ async def validate_bulk_readiness(
         bulk_request = BulkReadinessRequest(**request)
 
         # Get hosts to validate
-        from backend.app.models import Host
+        from backend.app.database import Host
 
         if bulk_request.host_ids:
             hosts = db.query(Host).filter(Host.id.in_(bulk_request.host_ids)).all()
@@ -2293,7 +2293,7 @@ async def pre_flight_check(
         host_id = UUID(scan_result[1])
 
         # Get host
-        from backend.app.models import Host
+        from backend.app.database import Host
 
         host = db.query(Host).filter(Host.id == host_id).first()
         if not host:
