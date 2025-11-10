@@ -583,7 +583,7 @@ const Scans: React.FC = () => {
             variant="outlined"
             color="primary"
             startIcon={<FactCheckIcon />}
-            onClick={() => navigate('/hosts')}
+            onClick={() => navigate('/scans/validate-readiness')}
             size="large"
           >
             Validate Readiness
