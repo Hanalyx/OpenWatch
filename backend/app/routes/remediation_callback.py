@@ -3,19 +3,17 @@ AEGIS Remediation Callback Routes
 Handles remediation completion notifications from AEGIS
 """
 
-import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import UUID4, BaseModel, Field
-from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from ..audit_db import log_audit_event
 from ..config import get_settings
-from ..database import Host, Scan, get_db
+from ..database import Scan, get_db
 from ..services.webhook_security import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
@@ -45,7 +43,7 @@ class RemediationCallbackRequest(BaseModel):
     completed_at: datetime
 
 
-@router.post("/api/webhooks/remediation-complete")
+@router.post("/webhooks/remediation-complete")
 async def handle_remediation_callback(
     request: Request,
     callback: RemediationCallbackRequest,
