@@ -103,7 +103,7 @@ class ReadinessRepository:
                 .where("host_id = :host_id", str(host_id), "host_id")
                 .where("completed_at >= :cutoff_time", cutoff_time, "cutoff_time")
                 .order_by("completed_at", "DESC")
-                .limit(1)
+                .paginate(page=1, per_page=1)
             )
 
             query, params = builder.build()
@@ -117,7 +117,7 @@ class ReadinessRepository:
             validation_run_id = row[0]
 
             # Get host details
-            from backend.app.models import Host
+            from backend.app.database import Host
 
             host = self.db.query(Host).filter(Host.id == host_id).first()
             if not host:
