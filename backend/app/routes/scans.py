@@ -23,11 +23,14 @@ Legacy SCAP Content Endpoints (still available for backward compatibility):
 - Most other endpoints in this file
 """
 
+import asyncio
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -2039,3 +2042,301 @@ async def start_remediation(
     except Exception as e:
         logger.error(f"Error starting remediation for scan {scan_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to start remediation job")
+
+
+# ============================================================================
+# Host Readiness Validation Endpoints
+# ============================================================================
+
+
+@router.post("/readiness/validate-bulk", response_model=dict)
+async def validate_bulk_readiness(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Validate readiness for multiple hosts (bulk operation).
+
+    This endpoint validates that hosts meet all requirements for SCAP scanning:
+    - OpenSCAP scanner installed (CRITICAL)
+    - Sufficient disk space (500MB+ for SCAP content)
+    - Network connectivity (SFTP capability, /tmp writable)
+    - Passwordless sudo access (for root-level checks)
+    - Adequate memory (200MB+ available)
+    - OS detection and compatibility
+    - SELinux status check
+
+    Smart Caching:
+    - Results cached for 24 hours by default (configurable)
+    - Reduces SSH overhead for recently-validated hosts
+    - Skips redundant checks on large host inventories
+
+    Use Cases:
+    - Pre-scan validation for 300+ server environments
+    - Batch readiness assessment before scheduled scans
+    - Identifying hosts with missing prerequisites
+
+    Request Body:
+        {
+            "host_ids": ["uuid1", "uuid2", ...],  # Empty = all hosts
+            "check_types": ["oscap_installation", "disk_space", ...],  # Optional
+            "parallel": true,  # Run validations concurrently (default: true)
+            "use_cache": true,  # Use cached results within TTL (default: true)
+            "cache_ttl_hours": 24  # Cache TTL in hours (default: 24)
+        }
+
+    Response:
+        {
+            "total_hosts": 10,
+            "ready_hosts": 7,
+            "not_ready_hosts": 2,
+            "degraded_hosts": 1,
+            "hosts": [
+                {
+                    "host_id": "uuid",
+                    "hostname": "server01",
+                    "status": "ready",
+                    "checks": [...]
+                }
+            ],
+            "common_failures": {
+                "oscap_installation": 2,
+                "disk_space": 1
+            }
+        }
+
+    Raises:
+        401: Unauthorized (missing/invalid token)
+        403: Forbidden (insufficient permissions)
+        500: Internal server error
+    """
+    try:
+        from backend.app.models.readiness_models import BulkReadinessRequest
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+
+        # Parse request
+        bulk_request = BulkReadinessRequest(**request)
+
+        # Get hosts to validate
+        from backend.app.models import Host
+
+        if bulk_request.host_ids:
+            hosts = db.query(Host).filter(Host.id.in_(bulk_request.host_ids)).all()
+        else:
+            # Empty list = validate all hosts
+            hosts = db.query(Host).all()
+
+        if not hosts:
+            raise HTTPException(status_code=404, detail="No hosts found to validate")
+
+        # Initialize validator service
+        validator = ReadinessValidatorService(db)
+
+        # Execute validations
+        start_time = time.time()
+        validation_results = []
+
+        user_id = current_user.get("sub")
+
+        if bulk_request.parallel:
+            # Parallel execution (faster for many hosts)
+            tasks = [
+                validator.validate_host(
+                    host_id=host.id,
+                    check_types=bulk_request.check_types,
+                    use_cache=bulk_request.use_cache,
+                    cache_ttl_hours=bulk_request.cache_ttl_hours,
+                    user_id=user_id,
+                )
+                for host in hosts
+            ]
+            validation_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Filter out exceptions
+            successful_results = []
+            for i, result in enumerate(validation_results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        f"Validation failed for host {hosts[i].id}: {result}",
+                        extra={"host_id": str(hosts[i].id), "user_id": user_id},
+                    )
+                else:
+                    successful_results.append(result)
+            validation_results = successful_results
+        else:
+            # Sequential execution (slower but more predictable)
+            for host in hosts:
+                try:
+                    result = await validator.validate_host(
+                        host_id=host.id,
+                        check_types=bulk_request.check_types,
+                        use_cache=bulk_request.use_cache,
+                        cache_ttl_hours=bulk_request.cache_ttl_hours,
+                        user_id=user_id,
+                    )
+                    validation_results.append(result)
+                except Exception as e:
+                    logger.error(
+                        f"Validation failed for host {host.id}: {e}",
+                        extra={"host_id": str(host.id), "user_id": user_id},
+                    )
+
+        # Aggregate statistics
+        total_hosts = len(validation_results)
+        ready_hosts = sum(1 for r in validation_results if r.status == "ready")
+        not_ready_hosts = sum(1 for r in validation_results if r.status == "not_ready")
+        degraded_hosts = sum(1 for r in validation_results if r.status == "degraded")
+
+        # Identify common failures
+        common_failures = {}
+        for result in validation_results:
+            for check in result.checks:
+                if not check.passed:
+                    check_type = check.check_type.value
+                    common_failures[check_type] = common_failures.get(check_type, 0) + 1
+
+        # Calculate total duration
+        total_duration_ms = (time.time() - start_time) * 1000
+
+        # Build remediation priorities (top 5 most common failures)
+        remediation_priorities = []
+        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[:5]:
+            remediation_priorities.append(
+                {
+                    "check_type": check_type,
+                    "affected_hosts": count,
+                    "priority": "critical" if check_type == "oscap_installation" else "high",
+                }
+            )
+
+        logger.info(
+            f"Bulk readiness validation completed: {total_hosts} hosts, "
+            f"{ready_hosts} ready, {not_ready_hosts} not ready, {degraded_hosts} degraded",
+            extra={"user_id": user_id, "total_hosts": total_hosts},
+        )
+
+        return {
+            "total_hosts": total_hosts,
+            "ready_hosts": ready_hosts,
+            "not_ready_hosts": not_ready_hosts,
+            "degraded_hosts": degraded_hosts,
+            "hosts": [r.dict() for r in validation_results],
+            "common_failures": common_failures,
+            "remediation_priorities": remediation_priorities,
+            "total_duration_ms": total_duration_ms,
+            "completed_at": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk readiness validation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to execute bulk readiness validation")
+
+
+@router.get("/{scan_id}/pre-flight-check", response_model=dict)
+async def pre_flight_check(
+    scan_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Quick pre-flight readiness check before executing a scan.
+
+    This endpoint performs a rapid validation of critical prerequisites
+    before starting a SCAP scan. Only runs essential checks:
+    - OpenSCAP installation (CRITICAL)
+    - Disk space availability
+    - Network connectivity
+
+    Use Case:
+    - Just-in-time validation before scan execution
+    - Prevents scan failures due to missing prerequisites
+    - Integrated into scan workflow
+
+    Cache TTL: 1 hour (shorter than bulk validation)
+
+    Response:
+        {
+            "scan_id": "uuid",
+            "host_id": "uuid",
+            "hostname": "server01",
+            "ready": true,
+            "checks": [
+                {
+                    "check_type": "oscap_installation",
+                    "passed": true,
+                    "message": "OSCAP scanner installed"
+                }
+            ]
+        }
+
+    Raises:
+        404: Scan not found
+        401: Unauthorized
+        500: Internal server error
+    """
+    try:
+        from backend.app.models.readiness_models import ReadinessCheckType
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+
+        # Get scan
+        scan_result = db.execute(
+            text("SELECT id, host_id FROM scans WHERE id = :scan_id"),
+            {"scan_id": scan_id},
+        ).fetchone()
+
+        if not scan_result:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        host_id = UUID(scan_result[1])
+
+        # Get host
+        from backend.app.models import Host
+
+        host = db.query(Host).filter(Host.id == host_id).first()
+        if not host:
+            raise HTTPException(status_code=404, detail="Host not found")
+
+        # Initialize validator
+        validator = ReadinessValidatorService(db)
+
+        # Run critical checks only (quick check)
+        critical_checks = [
+            ReadinessCheckType.OSCAP_INSTALLATION,
+            ReadinessCheckType.DISK_SPACE,
+            ReadinessCheckType.NETWORK_CONNECTIVITY,
+        ]
+
+        user_id = current_user.get("sub")
+
+        # Execute validation with 1-hour cache
+        result = await validator.validate_host(
+            host_id=host_id,
+            check_types=critical_checks,
+            use_cache=True,
+            cache_ttl_hours=1,  # Shorter TTL for pre-flight checks
+            user_id=user_id,
+        )
+
+        logger.info(
+            f"Pre-flight check completed for scan {scan_id}: {result.status}",
+            extra={"scan_id": scan_id, "host_id": str(host_id), "user_id": user_id},
+        )
+
+        return {
+            "scan_id": scan_id,
+            "host_id": str(result.host_id),
+            "hostname": result.hostname,
+            "ready": result.overall_passed,
+            "status": result.status,
+            "checks": [c.dict() for c in result.checks],
+            "validation_duration_ms": result.validation_duration_ms,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pre-flight check error for scan {scan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to execute pre-flight check")
