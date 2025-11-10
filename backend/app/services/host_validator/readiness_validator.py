@@ -26,7 +26,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from backend.app.encryption import EncryptionService, create_encryption_service
+from backend.app.config import get_settings
+from backend.app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
 from backend.app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckType, ReadinessStatus
 from backend.app.repositories.readiness_repository import ReadinessRepository
 from backend.app.services.auth_service import CentralizedAuthService
@@ -78,7 +79,12 @@ class ReadinessValidatorService:
 
         # Create auth_service if not provided (requires encryption_service)
         if auth_service is None:
-            enc_service = encryption_service or create_encryption_service()
+            if encryption_service is None:
+                # Load master key from settings (environment variable)
+                settings = get_settings()
+                enc_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+            else:
+                enc_service = encryption_service
             self.auth_service = CentralizedAuthService(db, enc_service)
         else:
             self.auth_service = auth_service
