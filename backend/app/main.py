@@ -307,7 +307,7 @@ async def audit_middleware(request: Request, call_next):
             "/api/scans": "SCAN_OPERATION",
             "/api/hosts": "HOST_OPERATION",
             "/api/users": "USER_OPERATION",
-            "/api/v1/webhooks": "WEBHOOK_OPERATION",
+            "/api/webhooks": "WEBHOOK_OPERATION",
         }
 
         # Log based on path prefix
