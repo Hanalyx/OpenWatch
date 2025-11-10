@@ -9,7 +9,7 @@ Architecture:
 - Uses UnifiedSSHService for SSH operations (follows OpenWatch pattern)
 - Executes modular checks from host_validator/checks/
 - Stores results in PostgreSQL for audit trail and smart caching
-- Integrates with existing AuthService for credential resolution
+- Integrates with CentralizedAuthService for credential resolution
 
 Smart Caching:
 - Queries recent validation runs (default 24h TTL)
@@ -26,9 +26,10 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
+from backend.app.encryption import EncryptionService, create_encryption_service
 from backend.app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckType, ReadinessStatus
 from backend.app.repositories.readiness_repository import ReadinessRepository
-from backend.app.services.auth_service import AuthService
+from backend.app.services.auth_service import CentralizedAuthService
 from backend.app.services.unified_ssh_service import UnifiedSSHService
 
 # Import check modules
@@ -58,8 +59,9 @@ class ReadinessValidatorService:
         self,
         db: Session,
         ssh_service: Optional[UnifiedSSHService] = None,
-        auth_service: Optional[AuthService] = None,
+        auth_service: Optional[CentralizedAuthService] = None,
         repository: Optional[ReadinessRepository] = None,
+        encryption_service: Optional[EncryptionService] = None,
     ):
         """
         Initialize the readiness validator service.
@@ -67,12 +69,20 @@ class ReadinessValidatorService:
         Args:
             db: Database session (synchronous)
             ssh_service: Optional UnifiedSSHService instance (created if not provided)
-            auth_service: Optional AuthService instance (created if not provided)
+            auth_service: Optional CentralizedAuthService instance (created if not provided)
             repository: Optional ReadinessRepository instance (created if not provided)
+            encryption_service: Optional EncryptionService instance (created if not provided, needed for auth_service)
         """
         self.db = db
         self.ssh_service = ssh_service or UnifiedSSHService()
-        self.auth_service = auth_service or AuthService(db)
+
+        # Create auth_service if not provided (requires encryption_service)
+        if auth_service is None:
+            enc_service = encryption_service or create_encryption_service()
+            self.auth_service = CentralizedAuthService(db, enc_service)
+        else:
+            self.auth_service = auth_service
+
         self.repository = repository or ReadinessRepository(db)
 
         # Define all available checks
