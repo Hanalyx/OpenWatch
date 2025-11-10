@@ -54,6 +54,7 @@ from .routes import (
     monitoring,
     plugin_management,
     remediation_callback,
+    remediation_provider,
     rule_scanning,
     scan_templates,
     scans,
@@ -63,7 +64,6 @@ from .routes import (
     webhooks,
 )
 from .routes.system_settings_unified import router as system_settings_router
-from .routes.v1 import remediation as v1_remediation
 
 # Import security routes only if available
 try:
@@ -541,8 +541,8 @@ app.include_router(remediation_api.router, prefix="/api/remediation-engine", tag
 app.include_router(scan_config_api.router, prefix="/api/scan-config", tags=["Scan Configuration"])
 app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
 
-# Remediation provider (consolidated from v1)
-app.include_router(v1_remediation.router, prefix="/api/remediation", tags=["Remediation Provider"])
+# Remediation provider (moved from v1)
+app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
 
 # Core API routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
