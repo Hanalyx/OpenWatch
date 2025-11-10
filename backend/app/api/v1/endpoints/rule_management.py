@@ -20,7 +20,7 @@ from ....services.platform_capability_service import PlatformCapabilityService
 from ....services.rule_cache_service import RuleCacheService
 from ....services.rule_service import ParameterResolution, QueryPriority, RuleService
 
-router = APIRouter(prefix="/api/v1/rules", tags=["Enhanced Rule Management"])
+router = APIRouter(prefix="/rules", tags=["Enhanced Rule Management"])
 
 # Initialize services (singleton pattern)
 rule_service = None
@@ -54,16 +54,10 @@ async def get_platform_service() -> PlatformCapabilityService:
 class RuleQuery(BaseModel):
     """Rule query parameters with advanced filtering"""
 
-    platform: Optional[str] = Field(
-        None, description="Target platform (rhel, ubuntu, windows, etc.)"
-    )
+    platform: Optional[str] = Field(None, description="Target platform (rhel, ubuntu, windows, etc.)")
     platform_version: Optional[str] = Field(None, description="Platform version (8, 20.04, etc.)")
-    framework: Optional[str] = Field(
-        None, description="Compliance framework (nist, cis, stig, etc.)"
-    )
-    framework_version: Optional[str] = Field(
-        None, description="Framework version (800-53r5, v8, etc.)"
-    )
+    framework: Optional[str] = Field(None, description="Compliance framework (nist, cis, stig, etc.)")
+    framework_version: Optional[str] = Field(None, description="Framework version (800-53r5, v8, etc.)")
     severity: Optional[List[str]] = Field(None, description="Severity levels to include")
     category: Optional[List[str]] = Field(None, description="Rule categories to include")
     priority: QueryPriority = Field(QueryPriority.NORMAL, description="Query priority for caching")
@@ -291,9 +285,7 @@ async def get_rule_detail(
     try:
         if include_dependencies:
             # Get rule with full dependency graph
-            result = await service.get_rule_with_dependencies(
-                rule_id=rule_id, resolve_depth=3, include_conflicts=True
-            )
+            result = await service.get_rule_with_dependencies(rule_id=rule_id, resolve_depth=3, include_conflicts=True)
 
             rule_data = result["rule"]
             dependency_data = RuleDependencyGraph(

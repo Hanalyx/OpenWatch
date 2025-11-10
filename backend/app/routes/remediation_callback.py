@@ -45,7 +45,7 @@ class RemediationCallbackRequest(BaseModel):
     completed_at: datetime
 
 
-@router.post("/api/v1/webhooks/remediation-complete")
+@router.post("/api/webhooks/remediation-complete")
 async def handle_remediation_callback(
     request: Request,
     callback: RemediationCallbackRequest,
@@ -59,9 +59,7 @@ async def handle_remediation_callback(
     signature = x_openwatch_signature or x_hub_signature_256
     if not signature:
         logger.warning("Remediation callback received without signature")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing webhook signature")
 
     # Get webhook secret from environment (AEGIS integration not currently implemented)
     # When AEGIS integration is activated, webhook_secret should be configured in settings
@@ -81,9 +79,7 @@ async def handle_remediation_callback(
 
     if not verify_webhook_signature(body.decode(), webhook_secret, signature):
         logger.error("Invalid webhook signature for remediation callback")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 
     try:
         # Find the original scan
@@ -98,9 +94,7 @@ async def handle_remediation_callback(
 
         # Verify host matches
         if str(scan.host_id) != str(callback.openwatch_host_id):
-            logger.error(
-                f"Host mismatch in remediation callback: {scan.host_id} != {callback.openwatch_host_id}"
-            )
+            logger.error(f"Host mismatch in remediation callback: {scan.host_id} != {callback.openwatch_host_id}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host ID mismatch")
 
         # Update scan with remediation information
