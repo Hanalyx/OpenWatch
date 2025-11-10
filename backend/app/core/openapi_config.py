@@ -3,8 +3,7 @@ Enhanced OpenAPI Configuration for OpenWatch
 Provides comprehensive API documentation with examples, security schemes, and version management
 """
 
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
@@ -344,7 +343,7 @@ def add_openapi_examples(schema: Dict[str, Any]) -> Dict[str, Any]:
                     ],
                     "error_id": "abc12345",
                     "timestamp": "2024-01-01T12:00:00Z",
-                    "path": "/api/v1/rules",
+                    "path": "/api/rules",
                     "method": "GET",
                 },
             },
