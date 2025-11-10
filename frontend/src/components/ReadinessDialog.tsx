@@ -118,7 +118,7 @@ const ReadinessDialog: React.FC<ReadinessDialogProps> = ({ open, onClose, hostId
             cache_ttl_hours: 1,
           };
 
-      const response = await api.post('/api/v1/scans/readiness/validate-bulk', requestBody);
+      const response = await api.post('/api/scans/readiness/validate-bulk', requestBody);
 
       if (response.hosts && response.hosts.length > 0) {
         // For single host validation, show the first result
