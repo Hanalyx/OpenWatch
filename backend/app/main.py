@@ -15,6 +15,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 
+# Import v1 endpoint routers (consolidated from v1/api.py)
+from .api.v1.endpoints import (
+    compliance_rules_api,
+    health_monitoring,
+    mongodb_scan_api,
+    mongodb_test,
+    remediation_api,
+    rule_management,
+    scan_config_api,
+    scans_api,
+    scap_import,
+    xccdf_api,
+)
 from .auth import audit_logger, jwt_manager, require_admin
 from .config import SECURITY_HEADERS, get_settings
 from .database import create_tables, engine, get_db
@@ -50,6 +63,7 @@ from .routes import (
     webhooks,
 )
 from .routes.system_settings_unified import router as system_settings_router
+from .routes.v1 import remediation as v1_remediation
 
 # Import security routes only if available
 try:
@@ -67,7 +81,6 @@ except ImportError:
 from .audit_db import log_security_event
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes.v1 import api as v1_api
 from .services.prometheus_metrics import get_metrics_instance
 
 # Configure logging
@@ -510,11 +523,28 @@ async def metrics():
     return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
-# Include API routes - Unified API Façade
-# API v1 - Primary versioned API
-app.include_router(v1_api.router, prefix="/api/v1", tags=["API v1"])
+# Include API routes - Unified API at /api prefix
+# Capabilities and system information
+app.include_router(capabilities.router, prefix="/api", tags=["System Capabilities"])
 
-# Legacy API routes (for backward compatibility)
+# MongoDB and SCAP endpoints (consolidated from v1)
+app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB Integration Test"])
+app.include_router(scap_import.router, prefix="/api", tags=["SCAP Import"])
+app.include_router(rule_management.router, prefix="/api", tags=["Enhanced Rule Management"])
+app.include_router(compliance_rules_api.router, prefix="/api", tags=["MongoDB Compliance Rules"])
+app.include_router(mongodb_scan_api.router, prefix="/api", tags=["MongoDB Scanning"])
+
+# XCCDF and scanning services (consolidated from v1)
+app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
+app.include_router(scans_api.router, prefix="/api/scan-execution", tags=["Scan Execution"])
+app.include_router(remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"])
+app.include_router(scan_config_api.router, prefix="/api/scan-config", tags=["Scan Configuration"])
+app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
+
+# Remediation provider (consolidated from v1)
+app.include_router(v1_remediation.router, prefix="/api/remediation", tags=["Remediation Provider"])
+
+# Core API routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
 app.include_router(hosts.router, prefix="/api/hosts", tags=["Host Management"])
@@ -527,7 +557,7 @@ app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
 app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
 app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
-app.include_router(webhooks.router, prefix="/api/v1", tags=["Webhooks"])
+app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
 app.include_router(credentials.router, tags=["Credential Sharing"])
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
@@ -538,7 +568,7 @@ app.include_router(
 )
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-app.include_router(compliance.router, prefix="/api/v1/compliance", tags=["Compliance Intelligence"])
+app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
 app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
 app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
