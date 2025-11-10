@@ -181,7 +181,7 @@ const ValidateReadiness: React.FC = () => {
       }
 
       // Call bulk validation API
-      const response = await api.post('/api/v1/scans/readiness/validate-bulk', {
+      const response = await api.post('/api/scans/readiness/validate-bulk', {
         host_ids: hostIdsToValidate,
         parallel: true,
         use_cache: true,
