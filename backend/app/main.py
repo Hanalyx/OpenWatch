@@ -5,12 +5,11 @@ Main application with comprehensive security middleware
 
 import asyncio
 import logging
-import os
 import time
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -28,9 +27,9 @@ from .api.v1.endpoints import (
     scap_import,
     xccdf_api,
 )
-from .auth import audit_logger, jwt_manager, require_admin
+from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
-from .database import create_tables, engine, get_db
+from .database import get_db
 from .routes import (
     adaptive_scheduler,
     api_keys,
@@ -205,7 +204,7 @@ async def lifespan(app: FastAPI):
     try:
         from .services.mongo_integration_service import get_mongo_service
 
-        mongo_service = await get_mongo_service()
+        _ = await get_mongo_service()  # Initialize but don't store reference
         logger.info("MongoDB integration service initialized successfully")
 
         # Health monitoring models are initialized with other Beanie models
@@ -558,9 +557,9 @@ app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
 app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
 app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
 app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
-app.include_router(credentials.router, tags=["Credential Sharing"])
+app.include_router(credentials.router, prefix="/api", tags=["Credential Sharing"])
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
-app.include_router(remediation_callback.router, tags=["AEGIS Integration"])
+app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
 app.include_router(
     integration_metrics.router,
     prefix="/api/integration/metrics",
@@ -577,19 +576,19 @@ app.include_router(group_compliance.router, prefix="/api", tags=["Group Complian
 app.include_router(host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"])
 app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
 app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
-app.include_router(plugin_management.router, tags=["Plugin Management"])
-app.include_router(bulk_remediation_routes.router, tags=["Bulk Remediation"])
+app.include_router(plugin_management.router, prefix="/api", tags=["Plugin Management"])
+app.include_router(bulk_remediation_routes.router, prefix="/api", tags=["Bulk Remediation"])
 
 # QueryBuilder validation endpoints (temporary testing) - DISABLED: module not available
 # app.include_router(test_querybuilder.router, prefix="/api", tags=["QueryBuilder Validation"])
 
 # Register security routes if available
 if automated_fixes:
-    app.include_router(automated_fixes.router, tags=["Secure Automated Fixes"])
+    app.include_router(automated_fixes.router, prefix="/api", tags=["Secure Automated Fixes"])
 if authorization:
-    app.include_router(authorization.router, tags=["Authorization Management"])
+    app.include_router(authorization.router, prefix="/api", tags=["Authorization Management"])
 if security_config:
-    app.include_router(security_config.router, tags=["Security Configuration"])
+    app.include_router(security_config.router, prefix="/api", tags=["Security Configuration"])
 
 
 # Global Exception Handler
