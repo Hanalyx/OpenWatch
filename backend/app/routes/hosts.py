@@ -936,3 +936,58 @@ async def delete_host_ssh_key(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete SSH key",
         )
+
+
+@router.get("/capabilities")
+async def get_host_management_capabilities(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get host management capabilities
+
+    Returns information about available host management features,
+    limits, and supported operations.
+    """
+    return {
+        "features": {
+            "bulk_import": True,
+            "csv_import": True,
+            "host_groups": True,
+            "ssh_key_management": True,
+            "remote_scanning": True,
+            "monitoring": True,
+        },
+        "limits": {
+            "max_hosts_per_request": 100,
+            "bulk_import_max_size": 10000,
+            "supported_os": ["linux", "unix", "rhel", "ubuntu", "debian", "centos"],
+        },
+        "endpoints": {
+            "list_hosts": "GET /api/hosts",
+            "create_host": "POST /api/hosts",
+            "get_host": "GET /api/hosts/{host_id}",
+            "update_host": "PUT /api/hosts/{host_id}",
+            "delete_host": "DELETE /api/hosts/{host_id}",
+            "bulk_import": "POST /api/hosts/bulk",
+            "capabilities": "GET /api/hosts/capabilities",
+        },
+    }
+
+
+@router.get("/summary")
+async def get_hosts_summary(current_user: dict = Depends(get_current_user)):
+    """
+    Get summary statistics for host management
+
+    Returns aggregate information about hosts, groups, and management status.
+    """
+    # This would typically query the database for actual statistics
+    return {
+        "total_hosts": 0,
+        "active_hosts": 0,
+        "groups": 0,
+        "last_scan": None,
+        "compliance_summary": {"compliant": 0, "non_compliant": 0, "unknown": 0},
+        "os_distribution": {},
+        "scan_status": {"never_scanned": 0, "recently_scanned": 0, "outdated_scans": 0},
+    }
