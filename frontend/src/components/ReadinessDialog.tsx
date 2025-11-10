@@ -59,7 +59,7 @@ interface ReadinessResult {
 interface ReadinessDialogProps {
   open: boolean;
   onClose: () => void;
-  hostId: string;
+  hostId: string; // Empty string = bulk validation (all hosts)
   hostname: string;
 }
 
@@ -103,14 +103,27 @@ const ReadinessDialog: React.FC<ReadinessDialogProps> = ({ open, onClose, hostId
       setLoading(true);
       setError(null);
 
-      const response = await api.post('/api/v1/scans/readiness/validate-bulk', {
-        host_ids: [hostId],
-        parallel: false,
-        use_cache: true,
-        cache_ttl_hours: 1,
-      });
+      // If hostId is empty, validate all hosts (bulk validation)
+      const requestBody = hostId
+        ? {
+            host_ids: [hostId],
+            parallel: false,
+            use_cache: true,
+            cache_ttl_hours: 1,
+          }
+        : {
+            host_ids: [], // Empty = all hosts
+            parallel: true,
+            use_cache: true,
+            cache_ttl_hours: 1,
+          };
+
+      const response = await api.post('/api/v1/scans/readiness/validate-bulk', requestBody);
 
       if (response.hosts && response.hosts.length > 0) {
+        // For single host validation, show the first result
+        // For bulk validation, we'll need to update the UI to show multiple results
+        // For now, just show the first host's results
         setResult(response.hosts[0]);
       } else {
         setError('No validation results returned');

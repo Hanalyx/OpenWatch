@@ -570,14 +570,25 @@ const Scans: React.FC = () => {
 
       {/* Actions Bar */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/scans/compliance')}
-          size="large"
-        >
-          New Scan
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/scans/compliance')}
+            size="large"
+          >
+            New Scan
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<FactCheckIcon />}
+            onClick={() => navigate('/hosts')}
+            size="large"
+          >
+            Validate Readiness
+          </Button>
+        </Box>
         <Button variant="text" disabled sx={{ color: 'text.secondary' }}>
           Start All Pending
         </Button>
