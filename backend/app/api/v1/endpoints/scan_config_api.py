@@ -232,9 +232,7 @@ async def validate_variables(
 
     service = FrameworkMetadataService(db)
 
-    valid, errors = await service.validate_variables(
-        framework=framework, version=version, variables=request.variables
-    )
+    valid, errors = await service.validate_variables(framework=framework, version=version, variables=request.variables)
 
     return ValidationResult(valid=valid, errors=errors)
 
@@ -524,7 +522,7 @@ async def apply_template(
     ```
 
     **Returns:**
-    - ScanConfiguration dict ready for `/api/v1/scans/execute`
+    - ScanConfiguration dict ready for `/api/scan-execution/execute`
 
     **Errors:**
     - 404: Template not found
@@ -631,9 +629,7 @@ async def set_default_template(
         raise HTTPException(status_code=403, detail="Only template owner can set as default")
 
     # Set default
-    updated = await service.set_as_default(
-        template_id=template_id, created_by=current_user.get("username")
-    )
+    updated = await service.set_as_default(template_id=template_id, created_by=current_user.get("username"))
 
     return updated
 

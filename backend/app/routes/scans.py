@@ -3,7 +3,7 @@ SCAP Scanning API Routes
 Handles scan job creation, monitoring, and results
 
 NOTE: This file contains LEGACY SCAP content-based scanning endpoints.
-MongoDB-based scanning is now available at /api/v1/mongodb-scans/.
+MongoDB-based scanning is now available at /api/mongodb-scans/.
 
 Migration Status (2025-11-07):
 - Scan list endpoint: FIXED (removed scap_content JOINs)
@@ -13,7 +13,7 @@ Migration Status (2025-11-07):
 - Rule rescan endpoint: DISABLED (MongoDB scans don't support rule rescanning)
 
 Active MongoDB Endpoints:
-- /api/v1/mongodb-scans/start - Create new MongoDB-based scan
+- /api/mongodb-scans/start - Create new MongoDB-based scan
 - /api/scans/ (GET) - List all scans (works with both legacy and MongoDB scans)
 - /api/scans/{scan_id} (GET) - Get scan details (works with both types)
 
