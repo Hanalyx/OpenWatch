@@ -1586,7 +1586,7 @@ const HostsEnhanced: React.FC = () => {
           <LinearProgress sx={{ mb: 3 }} />
           <Grid container spacing={3}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Grid item xs={12} sm={6} md={4} key={i}>
+              <Grid item xs={12} sm={6} md={3} key={i}>
                 <Skeleton variant="rectangular" height={200} />
               </Grid>
             ))}
@@ -1620,7 +1620,7 @@ const HostsEnhanced: React.FC = () => {
                   <Collapse in={expandedGroups.includes(groupName)}>
                     <Grid container spacing={3}>
                       {hosts.map((host) => (
-                        <Grid item xs={12} sm={6} md={4} key={host.id}>
+                        <Grid item xs={12} sm={6} md={3} key={host.id}>
                           <HostCard host={host} viewMode={viewMode} />
                         </Grid>
                       ))}
@@ -1635,7 +1635,7 @@ const HostsEnhanced: React.FC = () => {
               {Object.values(processedHosts)
                 .flat()
                 .map((host) => (
-                  <Grid item xs={12} sm={6} md={4} key={host.id}>
+                  <Grid item xs={12} sm={6} md={3} key={host.id}>
                     <HostCard host={host} viewMode={viewMode} />
                   </Grid>
                 ))}
