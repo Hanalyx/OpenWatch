@@ -434,7 +434,7 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 2 }}>
+    <Box>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" gutterBottom>
           Settings
@@ -1175,7 +1175,7 @@ const Settings: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 };
 

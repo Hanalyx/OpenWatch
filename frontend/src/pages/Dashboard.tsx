@@ -436,9 +436,9 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ maxWidth: '100%', px: { xs: 2, sm: 3 }, overflow: 'visible' }}>
+    <Box>
       {/* Header */}
-      <Box sx={{ mb: 4, overflow: 'visible' }}>
+      <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
           component="h1"
@@ -621,7 +621,7 @@ const Dashboard: React.FC = () => {
           navigate(`/scans/${scanId}`);
         }}
       />
-    </Container>
+    </Box>
   );
 };
 

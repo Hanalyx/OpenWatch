@@ -236,7 +236,7 @@ async def list_remediations(
 
     **Example:**
     ```
-    GET /api/v1/remediation/?status=completed&limit=10
+    GET /api/remediation-engine/jobs?status=completed&limit=10
     ```
     """
     db = mongo_service.mongo_manager.database

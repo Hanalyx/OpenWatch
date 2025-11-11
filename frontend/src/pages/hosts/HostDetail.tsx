@@ -311,7 +311,7 @@ const HostDetail: React.FC = () => {
   const runningScan = scans.find((scan) => scan.status === 'running' || scan.status === 'pending');
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
+    <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <IconButton onClick={() => navigate('/hosts')} sx={{ mr: 2 }}>
@@ -710,7 +710,7 @@ const HostDetail: React.FC = () => {
           <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>
       </TabPanel>
-    </Container>
+    </Box>
   );
 };
 

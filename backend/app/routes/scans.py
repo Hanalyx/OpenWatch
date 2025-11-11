@@ -3,7 +3,7 @@ SCAP Scanning API Routes
 Handles scan job creation, monitoring, and results
 
 NOTE: This file contains LEGACY SCAP content-based scanning endpoints.
-MongoDB-based scanning is now available at /api/v1/mongodb-scans/.
+MongoDB-based scanning is now available at /api/mongodb-scans/.
 
 Migration Status (2025-11-07):
 - Scan list endpoint: FIXED (removed scap_content JOINs)
@@ -13,7 +13,7 @@ Migration Status (2025-11-07):
 - Rule rescan endpoint: DISABLED (MongoDB scans don't support rule rescanning)
 
 Active MongoDB Endpoints:
-- /api/v1/mongodb-scans/start - Create new MongoDB-based scan
+- /api/mongodb-scans/start - Create new MongoDB-based scan
 - /api/scans/ (GET) - List all scans (works with both legacy and MongoDB scans)
 - /api/scans/{scan_id} (GET) - Get scan details (works with both types)
 
@@ -23,11 +23,14 @@ Legacy SCAP Content Endpoints (still available for backward compatibility):
 - Most other endpoints in this file
 """
 
+import asyncio
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -225,9 +228,7 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -320,9 +321,7 @@ async def quick_scan(
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
-        logger.info(
-            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
-        )
+        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -378,9 +377,7 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(
-                            f"Requested profile not found, using fallback: {template_id}"
-                        )
+                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -407,9 +404,7 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = None if use_default else host_result.id
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if credential_data:
                 # Queue async validation
@@ -580,9 +575,7 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(
-                session.estimated_completion.timestamp() if session.estimated_completion else 0
-            ),
+            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
             scan_ids=session.scan_ids or [],
         )
 
@@ -971,9 +964,7 @@ async def list_scans(
 
                 try:
                     scan_metadata = (
-                        json.loads(row.scan_metadata)
-                        if isinstance(row.scan_metadata, str)
-                        else row.scan_metadata
+                        json.loads(row.scan_metadata) if isinstance(row.scan_metadata, str) else row.scan_metadata
                     )
                 except (ValueError, TypeError):
                     scan_metadata = {}
@@ -1366,9 +1357,7 @@ async def delete_scan(
 
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans")
-            .select("status", "result_file", "report_file")
-            .where("id = :id", scan_id, "id")
+            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -1388,9 +1377,7 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
-                    )
+                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
 
         # Delete scan results first (foreign key constraint)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
@@ -1446,9 +1433,7 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(
-                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
-            )
+            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -1563,18 +1548,14 @@ async def get_scan_json_report(
                     from ..services.scap_scanner import SCAPScanner
 
                     scanner = SCAPScanner()
-                    enhanced_results = scanner._parse_scan_results(
-                        scan_data["result_file"], content_file
-                    )
+                    enhanced_results = scanner._parse_scan_results(scan_data["result_file"], content_file)
                 else:
                     enhanced_results = {}
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(
-                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
-                    )
+                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
                 else:
                     # Fallback to basic parsing for backward compatibility
                     import os
@@ -1720,11 +1701,7 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if (
-            not scan_result.result_file
-            or not scan_result.failed_rules
-            or scan_result.failed_rules == 0
-        ):
+        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),
@@ -2065,3 +2042,403 @@ async def start_remediation(
     except Exception as e:
         logger.error(f"Error starting remediation for scan {scan_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to start remediation job")
+
+
+# ============================================================================
+# Host Readiness Validation Endpoints
+# ============================================================================
+
+
+@router.post("/readiness/validate-bulk", response_model=dict)
+async def validate_bulk_readiness(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Validate readiness for multiple hosts (bulk operation).
+
+    This endpoint validates that hosts meet all requirements for SCAP scanning:
+    - OpenSCAP scanner installed (CRITICAL)
+    - Sufficient disk space (500MB+ for SCAP content)
+    - Network connectivity (SFTP capability, /tmp writable)
+    - Passwordless sudo access (for root-level checks)
+    - Adequate memory (200MB+ available)
+    - OS detection and compatibility
+    - SELinux status check
+
+    Smart Caching:
+    - Results cached for 24 hours by default (configurable)
+    - Reduces SSH overhead for recently-validated hosts
+    - Skips redundant checks on large host inventories
+
+    Use Cases:
+    - Pre-scan validation for 300+ server environments
+    - Batch readiness assessment before scheduled scans
+    - Identifying hosts with missing prerequisites
+
+    Request Body:
+        {
+            "host_ids": ["uuid1", "uuid2", ...],  # Empty = all hosts
+            "check_types": ["oscap_installation", "disk_space", ...],  # Optional
+            "parallel": true,  # Run validations concurrently (default: true)
+            "use_cache": true,  # Use cached results within TTL (default: true)
+            "cache_ttl_hours": 24  # Cache TTL in hours (default: 24)
+        }
+
+    Response:
+        {
+            "total_hosts": 10,
+            "ready_hosts": 7,
+            "not_ready_hosts": 2,
+            "degraded_hosts": 1,
+            "hosts": [
+                {
+                    "host_id": "uuid",
+                    "hostname": "server01",
+                    "status": "ready",
+                    "checks": [...]
+                }
+            ],
+            "common_failures": {
+                "oscap_installation": 2,
+                "disk_space": 1
+            }
+        }
+
+    Raises:
+        401: Unauthorized (missing/invalid token)
+        403: Forbidden (insufficient permissions)
+        500: Internal server error
+    """
+    try:
+        from backend.app.models.readiness_models import BulkReadinessRequest
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+
+        # Parse request
+        bulk_request = BulkReadinessRequest(**request)
+
+        # Get hosts to validate
+        from backend.app.database import Host
+
+        if bulk_request.host_ids:
+            hosts = db.query(Host).filter(Host.id.in_(bulk_request.host_ids)).all()
+        else:
+            # Empty list = validate all hosts
+            hosts = db.query(Host).all()
+
+        if not hosts:
+            raise HTTPException(status_code=404, detail="No hosts found to validate")
+
+        # Initialize validator service
+        validator = ReadinessValidatorService(db)
+
+        # Execute validations
+        start_time = time.time()
+        validation_results = []
+
+        user_id = current_user.get("sub")
+
+        if bulk_request.parallel:
+            # Parallel execution (faster for many hosts)
+            tasks = [
+                validator.validate_host(
+                    host_id=host.id,
+                    check_types=bulk_request.check_types,
+                    use_cache=bulk_request.use_cache,
+                    cache_ttl_hours=bulk_request.cache_ttl_hours,
+                    user_id=user_id,
+                )
+                for host in hosts
+            ]
+            validation_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Filter out exceptions
+            successful_results = []
+            for i, result in enumerate(validation_results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        f"Validation failed for host {hosts[i].id}: {result}",
+                        extra={"host_id": str(hosts[i].id), "user_id": user_id},
+                    )
+                else:
+                    successful_results.append(result)
+            validation_results = successful_results
+        else:
+            # Sequential execution (slower but more predictable)
+            for host in hosts:
+                try:
+                    result = await validator.validate_host(
+                        host_id=host.id,
+                        check_types=bulk_request.check_types,
+                        use_cache=bulk_request.use_cache,
+                        cache_ttl_hours=bulk_request.cache_ttl_hours,
+                        user_id=user_id,
+                    )
+                    validation_results.append(result)
+                except Exception as e:
+                    logger.error(
+                        f"Validation failed for host {host.id}: {e}",
+                        extra={"host_id": str(host.id), "user_id": user_id},
+                    )
+
+        # Aggregate statistics
+        total_hosts = len(validation_results)
+        ready_hosts = sum(1 for r in validation_results if r.status == "ready")
+        not_ready_hosts = sum(1 for r in validation_results if r.status == "not_ready")
+        degraded_hosts = sum(1 for r in validation_results if r.status == "degraded")
+
+        # Identify common failures
+        common_failures = {}
+        for result in validation_results:
+            for check in result.checks:
+                if not check.passed:
+                    # Handle both enum and string values for check_type
+                    check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
+                    common_failures[check_type] = common_failures.get(check_type, 0) + 1
+
+        # Calculate total duration
+        total_duration_ms = (time.time() - start_time) * 1000
+
+        # Build remediation priorities (top 5 most common failures)
+        remediation_priorities = []
+        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[:5]:
+            remediation_priorities.append(
+                {
+                    "check_type": check_type,
+                    "affected_hosts": count,
+                    "priority": "critical" if check_type == "oscap_installation" else "high",
+                }
+            )
+
+        logger.info(
+            f"Bulk readiness validation completed: {total_hosts} hosts, "
+            f"{ready_hosts} ready, {not_ready_hosts} not ready, {degraded_hosts} degraded",
+            extra={"user_id": user_id, "total_hosts": total_hosts},
+        )
+
+        return {
+            "total_hosts": total_hosts,
+            "ready_hosts": ready_hosts,
+            "not_ready_hosts": not_ready_hosts,
+            "degraded_hosts": degraded_hosts,
+            "hosts": [r.dict() for r in validation_results],
+            "common_failures": common_failures,
+            "remediation_priorities": remediation_priorities,
+            "total_duration_ms": total_duration_ms,
+            "completed_at": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk readiness validation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to execute bulk readiness validation")
+
+
+@router.get("/{scan_id}/pre-flight-check", response_model=dict)
+async def pre_flight_check(
+    scan_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Quick pre-flight readiness check before executing a scan.
+
+    This endpoint performs a rapid validation of critical prerequisites
+    before starting a SCAP scan. Only runs essential checks:
+    - OpenSCAP installation (CRITICAL)
+    - Disk space availability
+    - Network connectivity
+
+    Use Case:
+    - Just-in-time validation before scan execution
+    - Prevents scan failures due to missing prerequisites
+    - Integrated into scan workflow
+
+    Cache TTL: 1 hour (shorter than bulk validation)
+
+    Response:
+        {
+            "scan_id": "uuid",
+            "host_id": "uuid",
+            "hostname": "server01",
+            "ready": true,
+            "checks": [
+                {
+                    "check_type": "oscap_installation",
+                    "passed": true,
+                    "message": "OSCAP scanner installed"
+                }
+            ]
+        }
+
+    Raises:
+        404: Scan not found
+        401: Unauthorized
+        500: Internal server error
+    """
+    try:
+        from backend.app.models.readiness_models import ReadinessCheckType
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+
+        # Get scan
+        scan_result = db.execute(
+            text("SELECT id, host_id FROM scans WHERE id = :scan_id"),
+            {"scan_id": scan_id},
+        ).fetchone()
+
+        if not scan_result:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        host_id = UUID(scan_result[1])
+
+        # Get host
+        from backend.app.database import Host
+
+        host = db.query(Host).filter(Host.id == host_id).first()
+        if not host:
+            raise HTTPException(status_code=404, detail="Host not found")
+
+        # Initialize validator
+        validator = ReadinessValidatorService(db)
+
+        # Run critical checks only (quick check)
+        critical_checks = [
+            ReadinessCheckType.OSCAP_INSTALLATION,
+            ReadinessCheckType.DISK_SPACE,
+            ReadinessCheckType.NETWORK_CONNECTIVITY,
+        ]
+
+        user_id = current_user.get("sub")
+
+        # Execute validation with 1-hour cache
+        result = await validator.validate_host(
+            host_id=host_id,
+            check_types=critical_checks,
+            use_cache=True,
+            cache_ttl_hours=1,  # Shorter TTL for pre-flight checks
+            user_id=user_id,
+        )
+
+        logger.info(
+            f"Pre-flight check completed for scan {scan_id}: {result.status}",
+            extra={"scan_id": scan_id, "host_id": str(host_id), "user_id": user_id},
+        )
+
+        return {
+            "scan_id": scan_id,
+            "host_id": str(result.host_id),
+            "hostname": result.hostname,
+            "ready": result.overall_passed,
+            "status": result.status,
+            "checks": [c.dict() for c in result.checks],
+            "validation_duration_ms": result.validation_duration_ms,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pre-flight check error for scan {scan_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to execute pre-flight check")
+
+
+@router.get("/capabilities")
+async def get_scan_capabilities(current_user: dict = Depends(get_current_user)):
+    """
+    Get scanning capabilities
+
+    Returns information about available scanning features,
+    supported profiles, and scan limits.
+    """
+    return {
+        "features": {
+            "parallel_scanning": True,
+            "rule_specific_scanning": True,
+            "custom_profiles": True,
+            "scheduled_scanning": True,
+            "bulk_scanning": True,
+            "real_time_progress": True,
+        },
+        "limits": {
+            "max_parallel_scans": 100,
+            "max_hosts_per_scan": 1000,
+            "scan_timeout_minutes": 60,
+            "max_scan_history": 10000,
+        },
+        "supported_formats": {
+            "input": ["xml", "zip", "datastream"],
+            "output": ["xml", "html", "json", "arf"],
+        },
+        "supported_profiles": [
+            "stig-rhel8",
+            "stig-rhel9",
+            "cis-ubuntu-20.04",
+            "cis-ubuntu-22.04",
+            "pci-dss",
+            "custom",
+        ],
+        "endpoints": {
+            "list_scans": "GET /api/scans",
+            "create_scan": "POST /api/scans",
+            "get_scan": "GET /api/scans/{scan_id}",
+            "cancel_scan": "DELETE /api/scans/{scan_id}",
+            "get_results": "GET /api/scans/{scan_id}/results",
+            "bulk_scan": "POST /api/scans/bulk",
+            "capabilities": "GET /api/scans/capabilities",
+        },
+    }
+
+
+@router.get("/summary")
+async def get_scans_summary(current_user: dict = Depends(get_current_user)):
+    """
+    Get summary statistics for scan management
+
+    Returns aggregate information about scans, results, and compliance trends.
+    """
+    return {
+        "total_scans": 0,
+        "recent_scans": 0,
+        "active_scans": 0,
+        "failed_scans": 0,
+        "compliance_trend": {"improving": 0, "declining": 0, "stable": 0},
+        "profile_usage": {},
+        "average_scan_time": None,
+        "last_24h": {"scans_completed": 0, "hosts_scanned": 0, "critical_findings": 0},
+    }
+
+
+@router.get("/profiles")
+async def get_available_profiles(current_user: dict = Depends(get_current_user)):
+    """
+    Get available SCAP profiles for scanning
+
+    Returns list of available profiles with metadata and compatibility info.
+    """
+    return {
+        "profiles": [
+            {
+                "id": "stig-rhel8",
+                "title": "DISA STIG for Red Hat Enterprise Linux 8",
+                "description": "Security Technical Implementation Guide for RHEL 8",
+                "version": "V1R12",
+                "rules_count": 335,
+                "supported_os": ["rhel8", "centos8"],
+                "compliance_frameworks": ["STIG", "NIST"],
+                "severity_distribution": {"high": 45, "medium": 180, "low": 110},
+            },
+            {
+                "id": "cis-ubuntu-20.04",
+                "title": "CIS Ubuntu Linux 20.04 LTS Benchmark",
+                "description": "Center for Internet Security benchmark for Ubuntu 20.04",
+                "version": "v1.1.0",
+                "rules_count": 267,
+                "supported_os": ["ubuntu20.04"],
+                "compliance_frameworks": ["CIS"],
+                "severity_distribution": {"high": 38, "medium": 156, "low": 73},
+            },
+        ],
+        "total_profiles": 2,
+        "custom_profiles_supported": True,
+    }

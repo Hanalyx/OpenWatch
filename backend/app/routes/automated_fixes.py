@@ -38,7 +38,7 @@ from ..services.secure_automated_fixes import SecureAutomatedFixExecutor
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/automated-fixes", tags=["Automated Fixes"])
+router = APIRouter(prefix="/automated-fixes", tags=["Automated Fixes"])
 
 # Initialize the secure fix executor
 secure_fix_executor = SecureAutomatedFixExecutor()
@@ -116,9 +116,7 @@ async def evaluate_fix_options(
             "secure_options": secure_options,
             "total_options": len(secure_options),
             "safe_options": len([opt for opt in secure_options if opt.get("is_safe", False)]),
-            "blocked_options": len(
-                [opt for opt in secure_options if opt.get("security_level") == "blocked"]
-            ),
+            "blocked_options": len([opt for opt in secure_options if opt.get("security_level") == "blocked"]),
             "evaluation_timestamp": datetime.utcnow().isoformat(),
         }
 
@@ -199,9 +197,7 @@ async def approve_fix_request(
         if result["success"]:
             logger.info(f"Fix request approved: {request_id} by {current_user.get('username')}")
         else:
-            logger.warning(
-                f"Fix approval failed: {request_id} - {sanitize_for_log(result['message'])}"
-            )
+            logger.warning(f"Fix approval failed: {request_id} - {sanitize_for_log(result['message'])}")
 
         return result
 
@@ -236,9 +232,7 @@ async def execute_approved_fix(
         if result["success"]:
             logger.info(f"Fix executed successfully: {request_id}")
         else:
-            logger.warning(
-                f"Fix execution failed: {request_id} - {sanitize_for_log(result['message'])}"
-            )
+            logger.warning(f"Fix execution failed: {request_id} - {sanitize_for_log(result['message'])}")
 
         return result
 
@@ -276,13 +270,9 @@ async def rollback_fix(
         )
 
         if result["success"]:
-            logger.info(
-                f"Fix rolled back successfully: {request_id} by {current_user.get('username')}"
-            )
+            logger.info(f"Fix rolled back successfully: {request_id} by {current_user.get('username')}")
         else:
-            logger.warning(
-                f"Fix rollback failed: {request_id} - {sanitize_for_log(result['message'])}"
-            )
+            logger.warning(f"Fix rollback failed: {request_id} - {sanitize_for_log(result['message'])}")
 
         return result
 
@@ -315,9 +305,7 @@ async def get_fix_status(
         status_info = await secure_fix_executor.get_fix_status(request_id)
 
         if not status_info:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Fix request not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fix request not found")
 
         return status_info
 
@@ -387,9 +375,7 @@ async def get_secure_command_catalog(
             "secure_commands": commands,
             "total_commands": len(commands),
             "safe_commands": len([cmd for cmd in commands if cmd["security_level"] == "safe"]),
-            "privileged_commands": len(
-                [cmd for cmd in commands if cmd["security_level"] == "privileged"]
-            ),
+            "privileged_commands": len([cmd for cmd in commands if cmd["security_level"] == "privileged"]),
             "catalog_timestamp": datetime.utcnow().isoformat(),
         }
 
@@ -418,16 +404,12 @@ async def cleanup_old_requests(
         # Check permissions - admin only
         user_roles = current_user.get("roles", [])
         if "admin" not in user_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
         # Clean up old requests
         await secure_fix_executor.cleanup_old_requests(max_age_days=max_age_days)
 
-        logger.info(
-            f"Cleaned up old fix requests (max_age_days={max_age_days}) by {current_user.get('username')}"
-        )
+        logger.info(f"Cleaned up old fix requests (max_age_days={max_age_days}) by {current_user.get('username')}")
 
         return {
             "success": True,

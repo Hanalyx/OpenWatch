@@ -44,7 +44,7 @@ export const useFrameworkStatistics = (): UseFrameworkStatisticsReturn => {
       setError(null);
 
       // Use MongoDB compliance rules API endpoint
-      const response = await fetch('/api/v1/compliance-rules/?view_mode=framework_statistics');
+      const response = await fetch('/api/compliance-rules/?view_mode=framework_statistics');
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

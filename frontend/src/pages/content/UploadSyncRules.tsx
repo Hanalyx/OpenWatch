@@ -163,7 +163,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
       // Call upload API
       setUploadProgress(10);
       const response = await fetch(
-        '/api/v1/compliance/upload-rules?deduplication_strategy=skip_unchanged_update_changed',
+        '/api/compliance/upload-rules?deduplication_strategy=skip_unchanged_update_changed',
         {
           method: 'POST',
           headers: {
@@ -248,7 +248,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
         return;
       }
 
-      const response = await fetch('/api/v1/compliance/upload-history?limit=100', {
+      const response = await fetch('/api/compliance/upload-history?limit=100', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -288,7 +288,7 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
         return;
       }
 
-      const response = await fetch(`/api/v1/compliance/upload-history/${uploadId}/export`, {
+      const response = await fetch(`/api/compliance/upload-history/${uploadId}/export`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

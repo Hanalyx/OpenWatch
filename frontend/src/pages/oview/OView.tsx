@@ -355,7 +355,7 @@ const OView: React.FC = () => {
   StatCard.displayName = 'StatCard';
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box>
       <Box sx={{ mb: 3 }}>
         {/* WEEK 2 PHASE 2: Updated header with tabbed navigation */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -704,7 +704,7 @@ const OView: React.FC = () => {
           <HostMonitoringTab ref={hostMonitoringRef} onLastUpdated={handleLastUpdated} />
         </TabPanel>
       </Box>
-    </Container>
+    </Box>
   );
 };
 

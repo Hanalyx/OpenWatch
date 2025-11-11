@@ -136,7 +136,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
                     pass
 
             # Integration metrics
-            elif path.startswith("/api/v1/webhooks") or "integration" in path:
+            elif path.startswith("/api/webhooks") or "integration" in path:
                 self.metrics.record_integration_call(
                     target="webhook",
                     endpoint=path,

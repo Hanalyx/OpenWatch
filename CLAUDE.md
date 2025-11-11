@@ -2,7 +2,7 @@
 
 > **Purpose**: This file provides comprehensive guidance to AI assistants (Claude Code, GitHub Copilot, etc.) when working with the OpenWatch compliance scanning platform.
 
-**Last Updated**: 2025-11-05
+**Last Updated**: 2025-11-10
 **Working Directory**: `/home/rracine/hanalyx/openwatch/`
 
 ---
@@ -227,6 +227,39 @@ Security controls aligned with FedRAMP Moderate requirements:
 - **Orchestration**: Docker Compose
 - **Reverse Proxy**: Nginx (TLS termination)
 - **Monitoring**: Custom health monitoring with MongoDB storage
+
+### API Architecture
+
+**OpenWatch uses a unified `/api` prefix for all REST endpoints.**
+
+#### Endpoint Organization
+
+All API routes are registered in `backend/app/main.py` with the `/api` prefix:
+
+**System & Capabilities**
+- `/api/capabilities` - Feature discovery and system information
+
+**MongoDB & SCAP Integration**
+- `/api/mongodb/*` - MongoDB integration testing
+- `/api/scap-import` - SCAP content import
+- `/api/rules` - Enhanced rule management
+- `/api/compliance-rules/*` - MongoDB-backed compliance rules
+- `/api/mongodb-scanning` - MongoDB scan operations
+
+**XCCDF & Scanning Services**
+- `/api/xccdf/*` - XCCDF content generation
+- `/api/scan-execution/*` - Scan execution engine
+- `/api/remediation-engine/*` - ORSA remediation
+- `/api/scan-config/*` - Scan configuration
+- `/api/health-monitoring/*` - Health monitoring
+
+**Core Application Routes**
+- `/api/auth/*` - Authentication & authorization
+- `/api/hosts/*` - Host inventory management
+- `/api/scans/*` - Security scan operations
+- `/api/compliance/*` - Compliance intelligence
+
+**Note on API Versioning**: OpenWatch previously used `/api/v1` prefixes during early development. This infrastructure was removed in November 2025 as part of an API standardization effort. The application now uses a single unified `/api` prefix. Future versioning (if needed) will use header-based versioning rather than URL-based versioning.
 
 ### Dual Database Architecture
 
@@ -514,7 +547,7 @@ rules = await repo.find_by_severity("high")
 │   Client    │
 │  (Browser)  │
 └──────┬──────┘
-       │ 1. POST /api/v1/auth/login
+       │ 1. POST /api/auth/login
        │    {username, password, totp_code}
        ↓
 ┌──────────────────────────────────────┐
@@ -580,7 +613,7 @@ const token = localStorage.getItem('token');
 └─────────────────────────────────────────────────────────────────┘
 
 1. API Request
-   POST /api/v1/scans
+   POST /api/scans
    {
      "host_id": "uuid",
      "profile": "xccdf_org.ssgproject.content_profile_stig",
@@ -2043,13 +2076,13 @@ interface HostResponse {
 }
 
 async function fetchHost(id: string): Promise<HostResponse> {
-  const response = await api.get<HostResponse>(`/api/v1/hosts/${id}`);
+  const response = await api.get<HostResponse>(`/api/hosts/${id}`);
   return response.data;
 }
 
 // WRONG - Implicit any
 async function fetchHost(id) {
-  const response = await api.get(`/api/v1/hosts/${id}`);
+  const response = await api.get(`/api/hosts/${id}`);
   return response.data;
 }
 ```
@@ -2551,7 +2584,7 @@ audit_log(
 audit_log(
     event_type="AUTH_PERMISSION_DENIED",
     user_id=current_user.id,
-    resource=f"/api/v1/hosts/{host_id}",
+    resource=f"/api/hosts/{host_id}",
     action="delete",
     reason="missing_permission",
     ip_address=request.client.host
@@ -2684,7 +2717,7 @@ git commit -m "feat: Add vulnerability management UI"
    flake8 backend/app/services/vulnerability_service.py
 
 3. Manual smoke test
-   curl http://localhost:8000/api/v1/vulnerabilities
+   curl http://localhost:8000/api/vulnerabilities
 
 4. Commit if passing
    git add .
@@ -2815,8 +2848,8 @@ class HostRepository(BaseRepository): pass
 class ScanRepository(BaseRepository): pass
 
 # API endpoints: kebab-case
-@router.get("/api/v1/compliance-rules")
-@router.post("/api/v1/scans/execute")
+@router.get("/api/compliance-rules")
+@router.post("/api/scans/execute")
 
 # Functions: snake_case verbs
 async def create_scan(...): pass
@@ -2961,7 +2994,7 @@ host = await db.get(Host, host_id)
 
 # Frontend: UUIDs are strings
 const hostId: string = "550e8400-e29b-41d4-a716-446655440000";
-await api.get(`/api/v1/hosts/${hostId}`);
+await api.get(`/api/hosts/${hostId}`);
 ```
 
 ### Database Connection Errors

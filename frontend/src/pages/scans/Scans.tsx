@@ -41,11 +41,13 @@ import {
   Error as ErrorIcon,
   Cancel as CancelIcon,
   Flag as FlagIcon,
+  FactCheck as FactCheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import StatusChip from '../../components/design-system/StatusChip';
 import { DEFAULT_FRAMEWORK } from '../../constants/complianceFrameworks';
+import ReadinessDialog from '../../components/ReadinessDialog';
 
 interface Scan {
   id: string;
@@ -113,6 +115,13 @@ const Scans: React.FC = () => {
   // Phase 1 UX Improvements: Filter state
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
+
+  // Readiness validation state
+  const [readinessDialogOpen, setReadinessDialogOpen] = useState(false);
+  const [selectedHostForReadiness, setSelectedHostForReadiness] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Transform backend scan data to frontend format
   const transformScanData = (
@@ -360,7 +369,7 @@ const Scans: React.FC = () => {
       setError(null);
 
       // Fetch host details
-      const hostData = await api.get(`/api/v1/hosts/${hostGroup.host_id}`);
+      const hostData = await api.get(`/api/hosts/${hostGroup.host_id}`);
 
       // Get platform information from host data OR infer from previous scan
       const mostRecentScan = hostGroup.mostRecentScan;
@@ -410,7 +419,7 @@ const Scans: React.FC = () => {
       const framework = mostRecentScan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
-      const response = await fetch('/api/v1/mongodb-scans/start', {
+      const response = await fetch('/api/mongodb-scans/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -453,6 +462,19 @@ const Scans: React.FC = () => {
   const handleViewHostDetails = (hostGroup: HostWithScans) => {
     // host_id is now guaranteed to exist due to interface change
     navigate(`/hosts/${hostGroup.host_id}`);
+  };
+
+  const handleValidateReadiness = (hostGroup: HostWithScans) => {
+    setSelectedHostForReadiness({
+      id: hostGroup.host_id,
+      name: hostGroup.host_name,
+    });
+    setReadinessDialogOpen(true);
+  };
+
+  const handleCloseReadinessDialog = () => {
+    setReadinessDialogOpen(false);
+    setSelectedHostForReadiness(null);
   };
 
   const handleExportReports = (event: React.MouseEvent<HTMLElement>, hostName: string) => {
@@ -535,9 +557,9 @@ const Scans: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Box>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Compliance Scans
         </Typography>
@@ -548,14 +570,25 @@ const Scans: React.FC = () => {
 
       {/* Actions Bar */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/scans/compliance')}
-          size="large"
-        >
-          New Scan
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/scans/compliance')}
+            size="large"
+          >
+            New Scan
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<FactCheckIcon />}
+            onClick={() => navigate('/scans/validate-readiness')}
+            size="large"
+          >
+            Validate Readiness
+          </Button>
+        </Box>
         <Button variant="text" disabled sx={{ color: 'text.secondary' }}>
           Start All Pending
         </Button>
@@ -850,6 +883,18 @@ const Scans: React.FC = () => {
                     <Button
                       size="small"
                       variant="outlined"
+                      color="primary"
+                      startIcon={<FactCheckIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleValidateReadiness(hostGroup);
+                      }}
+                    >
+                      Validate Readiness
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
                       startIcon={<VisibilityIcon />}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -972,7 +1017,17 @@ const Scans: React.FC = () => {
           <MenuItem onClick={() => handleExportScans('failed')}>Export Failed Scans</MenuItem>
         </Menu>
       </Box>
-    </Container>
+
+      {/* Readiness Validation Dialog */}
+      {selectedHostForReadiness && (
+        <ReadinessDialog
+          open={readinessDialogOpen}
+          onClose={handleCloseReadinessDialog}
+          hostId={selectedHostForReadiness.id}
+          hostname={selectedHostForReadiness.name}
+        />
+      )}
+    </Box>
   );
 };
 

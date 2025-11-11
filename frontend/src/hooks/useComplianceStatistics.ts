@@ -25,7 +25,7 @@ export const useComplianceStatistics = (): UseComplianceStatisticsReturn => {
       setError(null);
 
       // Use MongoDB compliance rules API endpoint
-      const response = await fetch('/api/v1/compliance-rules/?view_mode=platform_statistics');
+      const response = await fetch('/api/compliance-rules/?view_mode=platform_statistics');
 
       if (!response.ok) {
         console.warn('Platform statistics endpoint not available, using fallback data');

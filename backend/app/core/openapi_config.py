@@ -3,8 +3,7 @@ Enhanced OpenAPI Configuration for OpenWatch
 Provides comprehensive API documentation with examples, security schemes, and version management
 """
 
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
@@ -113,10 +112,9 @@ OpenWatch supports webhooks for real-time notifications:
 
     # Add comprehensive server information
     schema["servers"] = [
-        {"url": "/api/v1", "description": "Version 1 API (Stable)"},
-        {"url": "/api/v2", "description": "Version 2 API (Enhanced Rule Management)"},
-        {"url": "https://api.openwatch.io/v1", "description": "Production API"},
-        {"url": "https://staging.openwatch.io/v1", "description": "Staging API"},
+        {"url": "/api", "description": "OpenWatch API (Unified)"},
+        {"url": "https://api.openwatch.io", "description": "Production API"},
+        {"url": "https://staging.openwatch.io", "description": "Staging API"},
     ]
 
     # Enhanced security schemes
@@ -345,7 +343,7 @@ def add_openapi_examples(schema: Dict[str, Any]) -> Dict[str, Any]:
                     ],
                     "error_id": "abc12345",
                     "timestamp": "2024-01-01T12:00:00Z",
-                    "path": "/api/v1/rules",
+                    "path": "/api/rules",
                     "method": "GET",
                 },
             },
@@ -379,10 +377,8 @@ def create_custom_swagger_ui(
     swagger_ui_html = get_swagger_ui_html(
         openapi_url=openapi_url,
         title=title,
-        swagger_js_url=swagger_js_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url=swagger_css_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        swagger_js_url=swagger_js_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url=swagger_css_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
     ).body.decode()
 
     # Add custom CSS and branding
@@ -428,21 +424,8 @@ def create_custom_swagger_ui(
     <script>
         // Add version selector
         window.addEventListener('DOMContentLoaded', function() {
-            const topbar = document.querySelector('.topbar');
-            if (topbar) {
-                const versionSelector = document.createElement('div');
-                versionSelector.innerHTML = `
-                    <select id="version-selector" style="margin-left: 20px; padding: 5px;">
-                        <option value="/api/v1/openapi.json">API v1</option>
-                        <option value="/api/v2/openapi.json">API v2</option>
-                    </select>
-                `;
-                topbar.appendChild(versionSelector);
-
-                document.getElementById('version-selector').addEventListener('change', function(e) {
-                    window.location.href = `/docs?url=${e.target.value}`;
-                });
-            }
+            // Version selector removed - OpenWatch now uses unified /api prefix
+            // No URL-based versioning needed
         });
     </script>
     """
@@ -463,8 +446,7 @@ def create_custom_redoc(
     redoc_html = get_redoc_html(
         openapi_url=openapi_url,
         title=title,
-        redoc_js_url=redoc_js_url
-        or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
+        redoc_js_url=redoc_js_url or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
     ).body.decode()
 
     # Add custom ReDoc configuration
@@ -526,8 +508,6 @@ def setup_openapi_docs(app: FastAPI):
 
     @app.get("/redoc", include_in_schema=False)
     async def custom_redoc_html():
-        return create_custom_redoc(
-            openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation"
-        )
+        return create_custom_redoc(openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation")
 
     return app

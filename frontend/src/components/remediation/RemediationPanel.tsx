@@ -130,7 +130,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
       setActiveStep(1);
 
       // Send remediation request to AEGIS
-      const response = await fetch('http://localhost:8001/api/v1/remediation/jobs', {
+      const response = await fetch('http://localhost:8000/api/remediation/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +171,7 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   const pollRemediationStatus = async (jobId: string) => {
     const poll = async () => {
       try {
-        const response = await fetch(`http://localhost:8001/api/v1/remediation/jobs/${jobId}`, {
+        const response = await fetch(`http://localhost:8000/api/remediation/jobs/${jobId}`, {
           headers: {
             Authorization: `Bearer ${tokenService.getToken()}`,
           },

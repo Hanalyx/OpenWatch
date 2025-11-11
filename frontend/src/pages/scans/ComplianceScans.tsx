@@ -104,7 +104,7 @@ const ComplianceScans: React.FC = () => {
 
   const loadAvailableFrameworks = async () => {
     try {
-      const response = await api.get('/api/v1/compliance-rules/frameworks/available');
+      const response = await api.get('/api/compliance-rules/frameworks/available');
       setAvailableFrameworks(response.frameworks || []);
     } catch (error) {
       console.error('Failed to load available frameworks:', error);
@@ -147,7 +147,7 @@ const ComplianceScans: React.FC = () => {
       if (frameworkFilter) params.framework = frameworkFilter;
       if (severityFilter) params.business_impact = severityFilter;
 
-      const response = await api.get('/api/v1/compliance-rules/semantic-rules', { params });
+      const response = await api.get('/api/compliance-rules/semantic-rules', { params });
 
       // Transform the response to match our interface
       const transformedRules = (response.rules || []).map((rule: any) => ({
@@ -264,7 +264,7 @@ const ComplianceScans: React.FC = () => {
               };
             }
 
-            const response = await api.post('/api/v1/mongodb-scans/start', {
+            const response = await api.post('/api/mongodb-scans/start', {
               host_id: hostId,
               hostname: host.ip_address || host.hostname, // Prefer IP for DNS resolution
               platform: platform,

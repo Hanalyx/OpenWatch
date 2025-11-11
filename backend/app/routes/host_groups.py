@@ -8,7 +8,7 @@ Migration: backend/alembic/versions/20250106_remove_scap_content_table.py (appli
 The host_groups.scap_content_id column was dropped. Host groups should now reference
 framework + framework_version instead.
 
-📚 REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
+REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
 
 TODO:
 1. Remove scap_content_id from HostGroupCreate, HostGroupUpdate, HostGroupResponse models (lines 34, 49, 69)
@@ -117,9 +117,7 @@ class CompatibilityValidationResponse(BaseModel):
 
 
 @router.get("/", response_model=List[HostGroupResponse])
-async def list_host_groups(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_host_groups(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List all host groups with host counts"""
     try:
         result = db.execute(
@@ -127,18 +125,16 @@ async def list_host_groups(
                 """
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
-                hg.os_family, hg.os_version_pattern, hg.architecture, hg.scap_content_id,
+                hg.os_family, hg.os_version_pattern, hg.architecture,
                 hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
                 hg.scan_schedule, hg.validation_rules,
-                COALESCE(COUNT(hgm.host_id), 0) as host_count,
-                sc.name as scap_content_name
+                COALESCE(COUNT(hgm.host_id), 0) as host_count
             FROM host_groups hg
             LEFT JOIN host_group_memberships hgm ON hg.id = hgm.group_id
-            LEFT JOIN scap_content sc ON hg.scap_content_id = sc.id
             GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
-                     hg.scap_content_id, hg.default_profile_id, hg.compliance_framework,
-                     hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules, sc.name
+                     hg.default_profile_id, hg.compliance_framework,
+                     hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
             ORDER BY hg.name
         """
             )
@@ -146,9 +142,7 @@ async def list_host_groups(
 
         groups = []
         for row in result:
-            logger.info(
-                f"Raw row data for group {row.id}: scap_content_id={row.scap_content_id}, default_profile_id={row.default_profile_id}"
-            )
+            logger.info(f"Raw row data for group {row.id}: default_profile_id={row.default_profile_id}")
             group_data = {
                 "id": row.id,
                 "name": row.name,
@@ -161,21 +155,15 @@ async def list_host_groups(
                 "os_family": row.os_family,
                 "os_version_pattern": row.os_version_pattern,
                 "architecture": row.architecture,
-                "scap_content_id": row.scap_content_id,
+                "scap_content_id": None,  # Removed - column no longer exists
                 "default_profile_id": row.default_profile_id,
                 "compliance_framework": row.compliance_framework,
-                "auto_scan_enabled": (
-                    row.auto_scan_enabled if row.auto_scan_enabled is not None else False
-                ),
+                "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
                 "scan_schedule": row.scan_schedule,
-                "validation_rules": (
-                    json.loads(row.validation_rules) if row.validation_rules else None
-                ),
-                "scap_content_name": row.scap_content_name,
+                "validation_rules": (json.loads(row.validation_rules) if row.validation_rules else None),
+                "scap_content_name": None,  # Removed - column no longer exists
             }
-            logger.info(
-                f"Group data includes SCAP fields: scap_content_id={group_data.get('scap_content_id')}, default_profile_id={group_data.get('default_profile_id')}"
-            )
+            logger.info(f"Group data includes SCAP fields: default_profile_id={group_data.get('default_profile_id')}")
             groups.append(group_data)
 
         return groups
@@ -198,19 +186,17 @@ async def get_host_group(
                 """
             SELECT
                 hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at, hg.updated_at,
-                hg.os_family, hg.os_version_pattern, hg.architecture, hg.scap_content_id,
+                hg.os_family, hg.os_version_pattern, hg.architecture,
                 hg.default_profile_id, hg.compliance_framework, hg.auto_scan_enabled,
                 hg.scan_schedule, hg.validation_rules,
-                COALESCE(COUNT(hgm.host_id), 0) as host_count,
-                sc.name as scap_content_name
+                COALESCE(COUNT(hgm.host_id), 0) as host_count
             FROM host_groups hg
             LEFT JOIN host_group_memberships hgm ON hg.id = hgm.group_id
-            LEFT JOIN scap_content sc ON hg.scap_content_id = sc.id
             WHERE hg.id = :group_id
             GROUP BY hg.id, hg.name, hg.description, hg.color, hg.created_by, hg.created_at,
                      hg.updated_at, hg.os_family, hg.os_version_pattern, hg.architecture,
-                     hg.scap_content_id, hg.default_profile_id, hg.compliance_framework,
-                     hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules, sc.name
+                     hg.default_profile_id, hg.compliance_framework,
+                     hg.auto_scan_enabled, hg.scan_schedule, hg.validation_rules
         """
             ),
             {"group_id": group_id},
@@ -233,17 +219,13 @@ async def get_host_group(
             "os_family": row.os_family,
             "os_version_pattern": row.os_version_pattern,
             "architecture": row.architecture,
-            "scap_content_id": row.scap_content_id,
+            "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": row.default_profile_id,
             "compliance_framework": row.compliance_framework,
-            "auto_scan_enabled": (
-                row.auto_scan_enabled if row.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
             "scan_schedule": row.scan_schedule,
-            "validation_rules": (
-                json.loads(row.validation_rules) if row.validation_rules else None
-            ),
-            "scap_content_name": row.scap_content_name,
+            "validation_rules": (json.loads(row.validation_rules) if row.validation_rules else None),
+            "scap_content_name": None,  # Removed - column no longer exists
         }
 
     except HTTPException:
@@ -274,19 +256,8 @@ async def create_host_group(
         if existing:
             raise HTTPException(status_code=400, detail="Group name already exists")
 
-        # Validate SCAP content if provided
-        if group_data.scap_content_id:
-            scap_check = db.execute(
-                text(
-                    """
-                SELECT id, name FROM scap_content WHERE id = :content_id
-            """
-                ),
-                {"content_id": group_data.scap_content_id},
-            ).fetchone()
-
-            if not scap_check:
-                raise HTTPException(status_code=400, detail="Invalid SCAP content ID")
+        # Note: scap_content_id validation removed - column no longer exists
+        # Groups now use framework + framework_version instead
 
         # Create the group
         result = db.execute(
@@ -294,18 +265,18 @@ async def create_host_group(
                 """
             INSERT INTO host_groups (
                 name, description, color, created_by, created_at, updated_at,
-                os_family, os_version_pattern, architecture, scap_content_id,
+                os_family, os_version_pattern, architecture,
                 default_profile_id, compliance_framework, auto_scan_enabled,
                 scan_schedule, validation_rules
             )
             VALUES (
                 :name, :description, :color, :created_by, :created_at, :updated_at,
-                :os_family, :os_version_pattern, :architecture, :scap_content_id,
+                :os_family, :os_version_pattern, :architecture,
                 :default_profile_id, :compliance_framework, :auto_scan_enabled,
                 :scan_schedule, :validation_rules
             )
             RETURNING id, name, description, color, created_by, created_at, updated_at,
-                      os_family, os_version_pattern, architecture, scap_content_id,
+                      os_family, os_version_pattern, architecture,
                       default_profile_id, compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
         """
@@ -320,14 +291,11 @@ async def create_host_group(
                 "os_family": group_data.os_family,
                 "os_version_pattern": group_data.os_version_pattern,
                 "architecture": group_data.architecture,
-                "scap_content_id": group_data.scap_content_id,
                 "default_profile_id": group_data.default_profile_id,
                 "compliance_framework": group_data.compliance_framework,
                 "auto_scan_enabled": group_data.auto_scan_enabled or False,
                 "scan_schedule": group_data.scan_schedule,
-                "validation_rules": (
-                    json.dumps(group_data.validation_rules) if group_data.validation_rules else None
-                ),
+                "validation_rules": (json.dumps(group_data.validation_rules) if group_data.validation_rules else None),
             },
         )
 
@@ -346,16 +314,13 @@ async def create_host_group(
             "os_family": group.os_family,
             "os_version_pattern": group.os_version_pattern,
             "architecture": group.architecture,
-            "scap_content_id": group.scap_content_id,
+            "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (
-                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (
-                json.loads(group.validation_rules) if group.validation_rules else None
-            ),
+            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
+            "scap_content_name": None,  # Removed - column no longer exists
         }
 
     except HTTPException:
@@ -401,19 +366,7 @@ async def update_host_group(
             if name_conflict:
                 raise HTTPException(status_code=400, detail="Group name already exists")
 
-        # Validate SCAP content if provided
-        if group_data.scap_content_id is not None:
-            scap_check = db.execute(
-                text(
-                    """
-                SELECT id FROM scap_content WHERE id = :content_id
-            """
-                ),
-                {"content_id": group_data.scap_content_id},
-            ).fetchone()
-
-            if not scap_check:
-                raise HTTPException(status_code=400, detail="Invalid SCAP content ID")
+        # Note: scap_content_id validation removed - column no longer exists
 
         # Build update query dynamically
         update_fields = []
@@ -443,9 +396,7 @@ async def update_host_group(
             update_fields.append("architecture = :architecture")
             update_params["architecture"] = group_data.architecture
 
-        if group_data.scap_content_id is not None:
-            update_fields.append("scap_content_id = :scap_content_id")
-            update_params["scap_content_id"] = group_data.scap_content_id
+        # Note: scap_content_id field removed - column no longer exists
 
         if group_data.default_profile_id is not None:
             update_fields.append("default_profile_id = :default_profile_id")
@@ -481,7 +432,7 @@ async def update_host_group(
             UPDATE host_groups SET {', '.join(update_fields)}
             WHERE id = :group_id
             RETURNING id, name, description, color, created_by, created_at, updated_at,
-                      os_family, os_version_pattern, architecture, scap_content_id,
+                      os_family, os_version_pattern, architecture,
                       default_profile_id, compliance_framework, auto_scan_enabled,
                       scan_schedule, validation_rules
         """
@@ -503,20 +454,7 @@ async def update_host_group(
         )
         host_count = count_result.fetchone().host_count
 
-        # Get SCAP content name if applicable
-        scap_content_name = None
-        if group.scap_content_id:
-            scap_result = db.execute(
-                text(
-                    """
-                SELECT name FROM scap_content WHERE id = :content_id
-            """
-                ),
-                {"content_id": group.scap_content_id},
-            )
-            scap_row = scap_result.fetchone()
-            if scap_row:
-                scap_content_name = scap_row.name
+        # Note: SCAP content name lookup removed - column no longer exists
 
         return {
             "id": group.id,
@@ -530,17 +468,13 @@ async def update_host_group(
             "os_family": group.os_family,
             "os_version_pattern": group.os_version_pattern,
             "architecture": group.architecture,
-            "scap_content_id": group.scap_content_id,
+            "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (
-                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (
-                json.loads(group.validation_rules) if group.validation_rules else None
-            ),
-            "scap_content_name": scap_content_name,
+            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
+            "scap_content_name": None,  # Removed - column no longer exists
         }
 
     except HTTPException:
@@ -760,14 +694,11 @@ async def create_smart_group(
             # Create the group with recommended settings
             group_data = HostGroupCreate(
                 name=request.group_name,
-                description=request.description
-                or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
+                description=request.description or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
                 os_family=recommendations.get("os_family"),
                 os_version_pattern=recommendations.get("os_version_pattern"),
                 scap_content_id=(
-                    recommendations.get("scap_content", {}).get("id")
-                    if "scap_content" in recommendations
-                    else None
+                    recommendations.get("scap_content", {}).get("id") if "scap_content" in recommendations else None
                 ),
                 compliance_framework=(
                     recommendations.get("scap_content", {}).get("compliance_framework")
@@ -864,9 +795,7 @@ async def validate_and_assign_hosts(
 
             # If force_assignment is True, only assign compatible hosts
             hosts_to_assign = (
-                [h["id"] for h in validation_results["compatible"]]
-                if request.force_assignment
-                else request.host_ids
+                [h["id"] for h in validation_results["compatible"]] if request.force_assignment else request.host_ids
             )
         else:
             hosts_to_assign = request.host_ids
