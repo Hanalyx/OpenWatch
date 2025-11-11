@@ -39,44 +39,44 @@ jobs:
     name: Analyze Dependency Changes
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
-    
+
     outputs:
       update-type: ${{ steps.analyze.outputs.update-type }}
       security-update: ${{ steps.analyze.outputs.security-update }}
       risk-level: ${{ steps.analyze.outputs.risk-level }}
       auto-merge-eligible: ${{ steps.analyze.outputs.auto-merge-eligible }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
-      
+
       - name: Install analysis tools
         run: |
           npm install -g npm-check-updates audit-ci
           pip install safety pip-audit
-      
+
       - name: Analyze dependency update
         id: analyze
         run: |
           # Extract PR title to determine update type
           PR_TITLE="${{ github.event.pull_request.title }}"
-          
+
           # Determine update type
           if [[ "$PR_TITLE" == *"security"* ]] || [[ "$PR_TITLE" == *"CVE"* ]]; then
             UPDATE_TYPE="security"
@@ -95,85 +95,93 @@ jobs:
             SECURITY_UPDATE="false"
             RISK_LEVEL="low"
           fi
-          
+
           # Determine auto-merge eligibility
           if [[ "$SECURITY_UPDATE" == "true" ]] || [[ "$UPDATE_TYPE" == "patch" ]]; then
             AUTO_MERGE_ELIGIBLE="true"
           else
             AUTO_MERGE_ELIGIBLE="false"
           fi
-          
+
           echo "update-type=$UPDATE_TYPE" >> $GITHUB_OUTPUT
           echo "security-update=$SECURITY_UPDATE" >> $GITHUB_OUTPUT
           echo "risk-level=$RISK_LEVEL" >> $GITHUB_OUTPUT
           echo "auto-merge-eligible=$AUTO_MERGE_ELIGIBLE" >> $GITHUB_OUTPUT
-          
+
           # Create analysis comment
           cat > analysis.md << EOF
           ## Dependency Update Analysis
-          
+
           **Update Type:** \`$UPDATE_TYPE\`
           **Security Update:** \`$SECURITY_UPDATE\`
           **Risk Level:** \`$RISK_LEVEL\`
           **Auto-merge Eligible:** \`$AUTO_MERGE_ELIGIBLE\`
-          
+
           ### Analysis Details
           - PR Title: $PR_TITLE
           - Updated by: ${{ github.actor }}
           - Branch: ${{ github.head_ref }}
           EOF
-          
+
       - name: Security audit
         id: security-audit
         continue-on-error: true
         run: |
           echo "## Security Audit Results" >> analysis.md
-          
+
           # Frontend security audit
           if [ -f "frontend/package.json" ]; then
             echo "### Frontend (npm audit)" >> analysis.md
             cd frontend
             npm audit --audit-level=moderate --format=json > ../npm-audit.json || true
-            
-            if [ -s ../npm-audit.json ]; then
-              VULNERABILITIES=$(jq '.metadata.vulnerabilities | to_entries | map(select(.value > 0)) | length' ../npm-audit.json)
+
+            # Validate JSON before parsing
+            if [ -s ../npm-audit.json ] && jq empty ../npm-audit.json 2>/dev/null; then
+              VULNERABILITIES=$(jq '.metadata.vulnerabilities | to_entries | map(select(.value > 0)) | length' ../npm-audit.json 2>/dev/null || echo "0")
               if [ "$VULNERABILITIES" -gt 0 ]; then
-                echo "⚠️ **$VULNERABILITIES vulnerability types found**" >> ../analysis.md
+                echo "WARNING - $VULNERABILITIES vulnerability types found" >> ../analysis.md
                 echo "security-issues=true" >> $GITHUB_OUTPUT
               else
-                echo "✅ **No vulnerabilities found**" >> ../analysis.md
+                echo "PASS - No vulnerabilities found" >> ../analysis.md
                 echo "security-issues=false" >> $GITHUB_OUTPUT
               fi
+            else
+              echo "INFO - Unable to parse npm audit results" >> ../analysis.md
+              echo "security-issues=unknown" >> $GITHUB_OUTPUT
             fi
             cd ..
           fi
-          
+
           # Backend security audit
           if [ -f "backend/requirements.txt" ]; then
             echo "### Backend (safety check)" >> analysis.md
             cd backend
             safety check --json > ../safety-report.json || true
-            
-            if [ -s ../safety-report.json ]; then
-              SAFETY_ISSUES=$(jq '. | length' ../safety-report.json)
+
+            # Validate JSON before parsing
+            if [ -s ../safety-report.json ] && jq empty ../safety-report.json 2>/dev/null; then
+              SAFETY_ISSUES=$(jq '. | length' ../safety-report.json 2>/dev/null || echo "0")
               if [ "$SAFETY_ISSUES" -gt 0 ]; then
-                echo "⚠️ **$SAFETY_ISSUES security issues found**" >> ../analysis.md
+                echo "WARNING - $SAFETY_ISSUES security issues found" >> ../analysis.md
                 echo "backend-security-issues=true" >> $GITHUB_OUTPUT
               else
-                echo "✅ **No security issues found**" >> ../analysis.md
+                echo "PASS - No security issues found" >> ../analysis.md
                 echo "backend-security-issues=false" >> $GITHUB_OUTPUT
               fi
+            else
+              echo "INFO - Unable to parse safety check results" >> ../analysis.md
+              echo "backend-security-issues=unknown" >> $GITHUB_OUTPUT
             fi
             cd ..
           fi
-      
+
       - name: Comment analysis results
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const analysis = fs.readFileSync('analysis.md', 'utf8');
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -186,15 +194,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: analyze-dependencies
     if: github.actor == 'dependabot[bot]'
-    
+
     strategy:
       matrix:
         test-suite: [frontend, backend, integration]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         if: matrix.test-suite == 'frontend' || matrix.test-suite == 'integration'
         uses: actions/setup-node@v4
@@ -202,7 +210,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Set up Python
         if: matrix.test-suite == 'backend' || matrix.test-suite == 'integration'
         uses: actions/setup-python@v4
@@ -210,7 +218,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
-      
+
       - name: Frontend tests
         if: matrix.test-suite == 'frontend'
         run: |
@@ -218,70 +226,70 @@ jobs:
           npm ci
           npm run lint
           npm run build
-          
+
           # Test critical paths
-          echo "✅ Frontend build successful"
-          
+          echo "PASS - Frontend build successful"
+
           # Lighthouse performance audit on build
           npm install -g @lhci/cli
           lhci autorun --collect.staticDistDir=dist --collect.url=http://localhost:3001 || true
-      
+
       - name: Backend tests
         if: matrix.test-suite == 'backend'
         run: |
           cd backend
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          
+
           # Lint and security checks
           bandit -r . -ll || true
           python -m pytest tests/ || echo "No tests found"
-          
+
           # Test import and basic functionality
           python -c "
           import sys
           sys.path.append('.')
           from app.main import app
-          print('✅ Backend imports successful')
+          print('PASS - Backend imports successful')
           "
-      
+
       - name: Integration tests
         if: matrix.test-suite == 'integration'
         run: |
           # Docker compose validation
           if command -v docker-compose &> /dev/null; then
             docker-compose -f docker-compose.yml config
-            echo "✅ Docker compose configuration valid"
+            echo "PASS - Docker compose configuration valid"
           fi
-          
+
           # Environment validation
           cd frontend && npm ci && npm run build && cd ..
           cd backend && pip install -r requirements.txt && cd ..
-          echo "✅ Full stack build successful"
+          echo "PASS - Full stack build successful"
 
   auto-merge:
     name: Auto-merge Eligible Updates
     runs-on: ubuntu-latest
     needs: [analyze-dependencies, test-changes]
     if: |
-      github.actor == 'dependabot[bot]' && 
+      github.actor == 'dependabot[bot]' &&
       needs.analyze-dependencies.outputs.auto-merge-eligible == 'true' &&
       github.event.inputs.merge_strategy != 'manual' &&
       success()
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Enable auto-merge
         uses: actions/github-script@v7
         with:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.issue.number;
-            
+
             // Add auto-merge label
             await github.rest.issues.addLabels({
               owner,
@@ -289,7 +297,7 @@ jobs:
               issue_number: pull_number,
               labels: ['dependencies', 'auto-merge-eligible']
             });
-            
+
             // Enable auto-merge
             try {
               await github.rest.pulls.merge({
@@ -299,50 +307,50 @@ jobs:
                 commit_title: `Auto-merge: ${context.payload.pull_request.title}`,
                 commit_message: `
                 Automatically merged ${needs.analyze-dependencies.outputs.update-type} dependency update.
-                
+
                 Update Type: ${needs.analyze-dependencies.outputs.update-type}
                 Risk Level: ${needs.analyze-dependencies.outputs.risk-level}
                 Security Update: ${needs.analyze-dependencies.outputs.security-update}
-                
-                Tests passed: ✅
-                Security audit: ✅
-                Auto-merge criteria met: ✅
+
+                Tests passed: PASS
+                Security audit: PASS
+                Auto-merge criteria met: PASS
                 `,
                 merge_method: 'squash'
               });
-              
-              console.log('✅ Auto-merge completed successfully');
-              
+
+              console.log('PASS - Auto-merge completed successfully');
+
               // Post success comment
               await github.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number: pull_number,
-                body: `🎉 **Auto-merge completed successfully**
-                
+                body: `**Auto-merge completed successfully**
+
                 This ${needs.analyze-dependencies.outputs.update-type} update has been automatically merged after passing all checks:
-                - ✅ Security audit passed
-                - ✅ Build tests passed
-                - ✅ Integration tests passed
-                - ✅ Risk level acceptable (${needs.analyze-dependencies.outputs.risk-level})
+                - PASS Security audit passed
+                - PASS Build tests passed
+                - PASS Integration tests passed
+                - PASS Risk level acceptable (${needs.analyze-dependencies.outputs.risk-level})
                 `
               });
-              
+
             } catch (error) {
-              console.log('❌ Auto-merge failed:', error.message);
-              
+              console.log('ERROR - Auto-merge failed:', error.message);
+
               // Post failure comment
               await github.rest.issues.createComment({
                 owner,
                 repo,
                 issue_number: pull_number,
-                body: `⚠️ **Auto-merge failed**
-                
+                body: `**Auto-merge failed**
+
                 This update met auto-merge criteria but the merge failed:
                 \`\`\`
                 ${error.message}
                 \`\`\`
-                
+
                 Manual review and merge required.
                 `
               });
@@ -353,11 +361,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [analyze-dependencies, test-changes]
     if: |
-      github.actor == 'dependabot[bot]' && 
+      github.actor == 'dependabot[bot]' &&
       (needs.analyze-dependencies.outputs.auto-merge-eligible == 'false' ||
        github.event.inputs.merge_strategy == 'manual' ||
        failure())
-    
+
     steps:
       - name: Label for manual review
         uses: actions/github-script@v7
@@ -365,53 +373,53 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.issue.number;
-            
+
             const labels = ['dependencies', 'manual-review-required'];
-            
+
             // Add risk-level specific labels
             const riskLevel = '${{ needs.analyze-dependencies.outputs.risk-level }}';
             if (riskLevel) {
               labels.push(`risk-${riskLevel}`);
             }
-            
+
             const updateType = '${{ needs.analyze-dependencies.outputs.update-type }}';
             if (updateType) {
               labels.push(`update-${updateType}`);
             }
-            
+
             await github.rest.issues.addLabels({
               owner,
               repo,
               issue_number: pull_number,
               labels
             });
-            
+
             // Create review requirement comment
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: pull_number,
-              body: `📋 **Manual Review Required**
-              
+              body: `**Manual Review Required**
+
               This dependency update requires manual review:
-              
+
               **Reason:**
               - Update Type: \`${updateType}\`
               - Risk Level: \`${riskLevel}\`
               - Auto-merge Eligible: \`${{ needs.analyze-dependencies.outputs.auto-merge-eligible }}\`
-              
+
               **Review Checklist:**
               - [ ] Review changelog for breaking changes
               - [ ] Test critical application paths
               - [ ] Verify security implications
               - [ ] Check for API compatibility
               - [ ] Validate configuration changes
-              
+
               **Next Steps:**
               1. Review the changes thoroughly
               2. Test locally if needed
               3. Approve and merge when ready
-              
+
               cc: @maintainers
               `
             });
@@ -420,36 +428,36 @@ jobs:
     name: Weekly Dependency Audit
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
-      
+
       - name: Install audit tools
         run: |
           npm install -g npm-check-updates
           pip install pip-audit safety
-      
+
       - name: Run comprehensive audit
         run: |
           echo "# Weekly Dependency Audit Report" > audit-report.md
           echo "Generated: $(date)" >> audit-report.md
           echo "" >> audit-report.md
-          
+
           # Frontend audit
           echo "## Frontend Dependencies" >> audit-report.md
           cd frontend
@@ -471,7 +479,7 @@ jobs:
 
           echo "**$OUTDATED_COUNT packages have updates available**" >> ../audit-report.md
           echo "" >> ../audit-report.md
-          
+
           # Security vulnerabilities
           echo "### Security Vulnerabilities" >> ../audit-report.md
           npm audit --audit-level=low --format=json > ../frontend-audit.json || true
@@ -484,34 +492,34 @@ jobs:
           fi
           echo "**$VULN_COUNT total vulnerabilities found**" >> ../audit-report.md
           echo "" >> ../audit-report.md
-          
+
           cd ..
-          
+
           # Backend audit
           echo "## Backend Dependencies" >> audit-report.md
           cd backend
           echo "### Security Issues" >> ../audit-report.md
-          
+
           pip-audit --format=json --output=../backend-audit.json || true
           BACKEND_ISSUES=$(jq '. | length' ../backend-audit.json || echo "0")
           echo "**$BACKEND_ISSUES security issues found**" >> ../audit-report.md
           echo "" >> ../audit-report.md
-          
+
           cd ..
-          
+
           # Recommendations
           echo "## Recommendations" >> audit-report.md
           echo "- Review and update outdated packages" >> audit-report.md
           echo "- Address security vulnerabilities immediately" >> audit-report.md
           echo "- Consider enabling auto-updates for patch versions" >> audit-report.md
-      
+
       - name: Create issue for audit results
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const auditReport = fs.readFileSync('audit-report.md', 'utf8');
-            
+
             // Check if there's already an open audit issue
             const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -520,7 +528,7 @@ jobs:
               labels: 'weekly-audit',
               per_page: 1
             });
-            
+
             if (issues.data.length > 0) {
               // Update existing issue
               await github.rest.issues.update({
