@@ -792,6 +792,18 @@ docs/HOST_STATUS*.md
 CLAUDE.md
 MONGODB_INDEX_MIGRATION_PLAN.md
 
+# Dependency upgrade analysis documents (generated during updates)
+DEPENDENCY_UPGRADES_STATUS.md
+NPM_GROUPS_UPGRADE_VERIFICATION.md
+VITEST_4_UPGRADE_VERIFICATION.md
+UNTESTED_DEPENDENCY_UPGRADES.md
+REDIS_7_UPGRADE_*.md
+
+# Test/verification scripts with credentials (security risk)
+test_phase*.sh
+verify_deployment.py
+monitor_ssh_validation.py
+
 # ======================================
 # STANDALONE TOOLS - DO NOT COMMIT
 # ======================================
