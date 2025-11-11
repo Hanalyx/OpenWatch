@@ -85,7 +85,11 @@ async def check_oscap_installation(
 
         # Parse oscap version from output
         oscap_path = result.stdout.split("\n")[0].strip() if result.stdout else "unknown"
-        oscap_version = result.stdout.split("\n")[1].strip() if len(result.stdout.split("\n")) > 1 else "unknown"
+        oscap_version = (
+            result.stdout.split("\n")[1].strip()
+            if len(result.stdout.split("\n")) > 1
+            else "unknown"
+        )
 
         logger.info(
             f"OSCAP check passed for host {host.hostname}: {oscap_version}",
