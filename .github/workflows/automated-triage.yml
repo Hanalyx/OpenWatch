@@ -56,14 +56,22 @@ jobs:
       - name: Display Risk Summary
         if: steps.fetch-alerts.outputs.alert_count > 0
         run: |
-          echo "📊 Risk Assessment Summary"
-          echo "=========================="
-          jq -r '.[] | "Alert #\(.number): \(.risk_assessment.level) risk"' low_risk_alerts.json medium_risk_alerts.json high_risk_alerts.json
+          echo "Risk Assessment Summary"
+          echo "======================="
+          if [ -f low_risk_alerts.json ]; then
+            jq -r '.[] | "Alert #\(.number): \(.risk_assessment.level) risk"' low_risk_alerts.json || true
+          fi
+          if [ -f medium_risk_alerts.json ]; then
+            jq -r '.[] | "Alert #\(.number): \(.risk_assessment.level) risk"' medium_risk_alerts.json || true
+          fi
+          if [ -f high_risk_alerts.json ]; then
+            jq -r '.[] | "Alert #\(.number): \(.risk_assessment.level) risk"' high_risk_alerts.json || true
+          fi
 
       - name: Auto-Approve Low Risk PRs
         if: steps.risk.outputs.has_low_risk == 'true' && github.event.inputs.dry_run != 'true'
         run: |
-          echo "🤖 Auto-approving low-risk Dependabot PRs..."
+          echo "Auto-approving low-risk Dependabot PRs..."
 
           # Get PR numbers from low risk alerts
           jq -r '.[] | .number' low_risk_alerts.json | while read alert_num; do
@@ -108,7 +116,7 @@ jobs:
       - name: Create Issues for High Risk
         if: steps.risk.outputs.has_high_risk == 'true'
         run: |
-          echo "🚨 Creating issues for high-risk alerts..."
+          echo "Creating issues for high-risk alerts..."
 
           jq -r '.[] | @base64' high_risk_alerts.json | while read encoded_alert; do
             ALERT=$(echo "$encoded_alert" | base64 --decode)
@@ -188,15 +196,15 @@ jobs:
           echo "**Total Alerts:** ${{ steps.fetch-alerts.outputs.alert_count }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          LOW_COUNT=$(jq 'length' low_risk_alerts.json)
-          MED_COUNT=$(jq 'length' medium_risk_alerts.json)
-          HIGH_COUNT=$(jq 'length' high_risk_alerts.json)
+          LOW_COUNT=$(jq 'length' low_risk_alerts.json 2>/dev/null || echo "0")
+          MED_COUNT=$(jq 'length' medium_risk_alerts.json 2>/dev/null || echo "0")
+          HIGH_COUNT=$(jq 'length' high_risk_alerts.json 2>/dev/null || echo "0")
 
           echo "| Risk Level | Count | Action |" >> $GITHUB_STEP_SUMMARY
           echo "|------------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🟢 LOW | $LOW_COUNT | Auto-fix |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🟡 MEDIUM | $MED_COUNT | Claude PR |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔴 HIGH | $HIGH_COUNT | Human review |" >> $GITHUB_STEP_SUMMARY
+          echo "| LOW | ${LOW_COUNT} | Auto-fix |" >> $GITHUB_STEP_SUMMARY
+          echo "| MEDIUM | ${MED_COUNT} | Claude PR |" >> $GITHUB_STEP_SUMMARY
+          echo "| HIGH | ${HIGH_COUNT} | Human review |" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Code Scanning Assessment
         if: always()

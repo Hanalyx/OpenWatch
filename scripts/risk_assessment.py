@@ -247,7 +247,7 @@ def main():
     medium_risk = []
     high_risk = []
 
-    print("🎯 Risk Assessment Results:")
+    print("Risk Assessment Results:")
     print("=" * 70)
 
     for i, alert in enumerate(alerts, 1):
@@ -289,22 +289,29 @@ def main():
 
     # Summary
     total = len(alerts)
-    print(f"\n📊 Risk Assessment Summary:")
+    print(f"\nRisk Assessment Summary:")
     print(f"  Total Alerts:  {total}")
-    print(f"  LOW Risk:      {len(low_risk)} ({len(low_risk)/total*100:.1f}%) → Auto-fix")
-    print(f"  MEDIUM Risk:   {len(medium_risk)} ({len(medium_risk)/total*100:.1f}%) → Claude creates PR")
-    print(f"  HIGH Risk:     {len(high_risk)} ({len(high_risk)/total*100:.1f}%) → Human review required")
 
-    # GitHub Actions outputs
+    if total > 0:
+        print(f"  LOW Risk:      {len(low_risk)} ({len(low_risk)/total*100:.1f}%) → Auto-fix")
+        print(f"  MEDIUM Risk:   {len(medium_risk)} ({len(medium_risk)/total*100:.1f}%) → Claude creates PR")
+        print(f"  HIGH Risk:     {len(high_risk)} ({len(high_risk)/total*100:.1f}%) → Human review required")
+    else:
+        print("  No alerts to assess")
+
+    # GitHub Actions outputs (using modern GITHUB_OUTPUT file syntax)
     if os.getenv("GITHUB_ACTIONS"):
-        print(f"::set-output name=has_low_risk::{len(low_risk) > 0}")
-        print(f"::set-output name=has_medium_risk::{len(medium_risk) > 0}")
-        print(f"::set-output name=has_high_risk::{len(high_risk) > 0}")
-        print(f"::set-output name=low_risk_count::{len(low_risk)}")
-        print(f"::set-output name=medium_risk_count::{len(medium_risk)}")
-        print(f"::set-output name=high_risk_count::{len(high_risk)}")
+        github_output = os.getenv("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, 'a') as f:
+                f.write(f"has_low_risk={str(len(low_risk) > 0).lower()}\n")
+                f.write(f"has_medium_risk={str(len(medium_risk) > 0).lower()}\n")
+                f.write(f"has_high_risk={str(len(high_risk) > 0).lower()}\n")
+                f.write(f"low_risk_count={len(low_risk)}\n")
+                f.write(f"medium_risk_count={len(medium_risk)}\n")
+                f.write(f"high_risk_count={len(high_risk)}\n")
 
-    print(f"\n✅ Output files created in: {output_dir}/")
+    print(f"\nOutput files created in: {output_dir}/")
 
 
 if __name__ == "__main__":
