@@ -317,14 +317,18 @@ class ReadinessRepository:
             from uuid import uuid4
 
             for result in check_results:
+                # Handle both enum and string values for check_type and severity
+                check_type_str = result.check_type if isinstance(result.check_type, str) else result.check_type.value
+                severity_str = result.severity if isinstance(result.severity, str) else result.severity.value
+
                 check_record = HostReadinessCheck(
                     id=uuid4(),
                     host_id=host_id,
                     validation_run_id=validation_run_id,
-                    check_type=result.check_type.value,
+                    check_type=check_type_str,
                     check_name=result.check_name,
                     passed=result.passed,
-                    severity=result.severity.value,
+                    severity=severity_str,
                     message=result.message,
                     details=result.details,
                     check_duration_ms=result.check_duration_ms,

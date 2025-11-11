@@ -2193,7 +2193,8 @@ async def validate_bulk_readiness(
         for result in validation_results:
             for check in result.checks:
                 if not check.passed:
-                    check_type = check.check_type.value
+                    # Handle both enum and string values for check_type
+                    check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
                     common_failures[check_type] = common_failures.get(check_type, 0) + 1
 
         # Calculate total duration

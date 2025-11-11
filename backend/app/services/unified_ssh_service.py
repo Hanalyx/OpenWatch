@@ -962,6 +962,114 @@ class UnifiedSSHService:
                 "command": command,
             }
 
+    async def execute_command_async(
+        self, host, credentials, command: str, timeout: int = 30  # pragma: allowlist secret
+    ):
+        """
+        Async wrapper for execute_command for use by readiness check modules.
+
+        Creates a temporary SSH connection, executes command, returns result.
+        This is a compatibility layer for the readiness check modules.
+
+        Args:
+            host: Host model instance
+            credentials: CredentialData from AuthService  # pragma: allowlist secret
+            command: Command to execute
+            timeout: Command timeout in seconds
+
+        Returns:
+            Object with exit_code, stdout, stderr attributes
+        """
+        import asyncio
+        from types import SimpleNamespace
+
+        def _execute_sync():
+            """Synchronous SSH execution"""
+            temp_service = UnifiedSSHService()
+
+            # Create temporary SSHClient
+            temp_client = paramiko.SSHClient()
+            temp_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            try:
+                # Build connection parameters
+                hostname = host.ip_address or host.hostname
+                port = host.port if hasattr(host, "port") else 22
+
+                # Connect based on auth method
+                # Handle both enum and string values for auth_method
+                auth_method_str = (
+                    credentials.auth_method
+                    if isinstance(credentials.auth_method, str)
+                    else credentials.auth_method.value
+                )
+                if (
+                    auth_method_str == "ssh_key" and credentials.private_key
+                ):  # pragma: allowlist secret
+                    # Use SSH key authentication
+                    import io
+
+                    key_file = io.StringIO(credentials.private_key)  # pragma: allowlist secret
+
+                    # Determine key type and load
+                    try:
+                        pkey = paramiko.RSAKey.from_private_key(key_file)
+                    except Exception:
+                        key_file.seek(0)
+                        try:
+                            pkey = paramiko.Ed25519Key.from_private_key(key_file)
+                        except Exception:
+                            key_file.seek(0)
+                            pkey = paramiko.ECDSAKey.from_private_key(key_file)
+
+                    temp_client.connect(
+                        hostname=hostname,
+                        port=port,
+                        username=credentials.username,  # pragma: allowlist secret
+                        pkey=pkey,
+                        timeout=timeout,
+                        look_for_keys=False,
+                        allow_agent=False,
+                    )
+                else:
+                    # Use password authentication
+                    temp_client.connect(
+                        hostname=hostname,
+                        port=port,
+                        username=credentials.username,  # pragma: allowlist secret
+                        password=credentials.password,  # pragma: allowlist secret
+                        timeout=timeout,
+                        look_for_keys=False,
+                        allow_agent=False,
+                    )
+
+                # Execute command
+                stdin, stdout, stderr = temp_client.exec_command(command, timeout=timeout)
+
+                # Read output
+                stdout_data = stdout.read().decode("utf-8", errors="ignore")
+                stderr_data = stderr.read().decode("utf-8", errors="ignore")
+                exit_code = stdout.channel.recv_exit_status()
+
+                return SimpleNamespace(
+                    exit_code=exit_code,
+                    stdout=stdout_data,
+                    stderr=stderr_data,
+                    success=(exit_code == 0),
+                )
+
+            except Exception as e:
+                logger.error(f"SSH command execution failed: {e}")
+                return SimpleNamespace(exit_code=-1, stdout="", stderr=str(e), success=False)
+            finally:
+                if temp_client:
+                    temp_client.close()
+
+        # Run synchronous SSH in thread pool to avoid blocking async event loop
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _execute_sync)
+        return result
+
     def is_connected(self) -> bool:
         """Check if SSH connection is active"""
         try:
@@ -1309,7 +1417,7 @@ class UnifiedSSHService:
                             )
                             auth_method_used = "private_key"
                             logger.info(
-                                f"✅ SSH key authentication successful for {username}@{hostname} (both method)"
+                                f"SSH key authentication successful for {username}@{hostname} (both method)"
                             )
                         except paramiko.AuthenticationException as e:
                             logger.warning(
@@ -1352,7 +1460,7 @@ class UnifiedSSHService:
                             )
                             auth_method_used = "password"
                             logger.info(
-                                f"✅ Password authentication successful for {username}@{hostname} (both method fallback)"
+                                f"Password authentication successful for {username}@{hostname} (both method fallback)"
                             )
                         except paramiko.AuthenticationException as e:
                             if client:

@@ -6,23 +6,29 @@ Checks SELinux configuration which may affect some compliance checks.
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
 
 async def check_selinux_status(
-    host, credentials, ssh_service, user_id: Optional[str] = None
-) -> ReadinessCheckResult:  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
+) -> ReadinessCheckResult:
     """
     Check SELinux status.
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
@@ -31,10 +37,8 @@ async def check_selinux_status(
     start_time = time.time()
 
     try:
-        # Check if SELinux is enabled
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Check if SELinux is enabled using existing SSH connection
+        result = await ssh_context.execute_command(
             command="getenforce 2>/dev/null || echo 'Not installed'",
             timeout=10,
         )

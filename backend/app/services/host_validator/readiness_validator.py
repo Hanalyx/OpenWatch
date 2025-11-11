@@ -28,9 +28,15 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import get_settings
 from backend.app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
-from backend.app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckType, ReadinessStatus
+from backend.app.models.readiness_models import (
+    HostReadiness,
+    ReadinessCheckResult,
+    ReadinessCheckType,
+    ReadinessStatus,
+)
 from backend.app.repositories.readiness_repository import ReadinessRepository
 from backend.app.services.auth_service import CentralizedAuthService
+from backend.app.services.ssh_connection_context import SSHConnectionContext
 from backend.app.services.unified_ssh_service import UnifiedSSHService
 
 # Import check modules
@@ -82,7 +88,9 @@ class ReadinessValidatorService:
             if encryption_service is None:
                 # Load master key from settings (environment variable)
                 settings = get_settings()
-                enc_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+                enc_service = create_encryption_service(
+                    master_key=settings.master_key, config=EncryptionConfig()
+                )
             else:
                 enc_service = encryption_service
             self.auth_service = CentralizedAuthService(db, enc_service)
@@ -139,7 +147,7 @@ class ReadinessValidatorService:
                 return cached
 
         # Get host from database
-        from backend.app.models import Host
+        from backend.app.database import Host
 
         host = self.db.query(Host).filter(Host.id == host_id).first()
         if not host:
@@ -148,30 +156,69 @@ class ReadinessValidatorService:
         # Resolve credentials  # pragma: allowlist secret
         credentials = self.auth_service.resolve_credential(str(host_id))  # pragma: allowlist secret
         if not credentials:  # pragma: allowlist secret
-            raise ValueError(f"No credentials configured for host {host_id}")  # pragma: allowlist secret
+            raise ValueError(
+                f"No credentials configured for host {host_id}"
+            )  # pragma: allowlist secret
 
         # Determine which checks to run
         checks_to_run = check_types or list(self.all_checks.keys())
 
-        # Execute checks concurrently
-        check_results = await self._execute_checks(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
-            check_types=checks_to_run,
-            user_id=user_id,
-        )
+        # Open SSH connection ONCE using context manager
+        # This eliminates redundant SSH handshakes (7 checks = 1 connection, not 7 connections)
+        try:
+            async with SSHConnectionContext(
+                self.ssh_service, host, credentials  # pragma: allowlist secret
+            ) as ssh_ctx:
+                # Execute all checks with shared connection
+                check_results = await self._execute_checks(
+                    host=host,
+                    ssh_context=ssh_ctx,
+                    check_types=checks_to_run,
+                    user_id=user_id,
+                )
+            # Connection automatically closed when context exits
+        except ConnectionError as e:
+            logger.error(
+                f"Failed to establish SSH connection to host {host_id}: {e}",
+                extra={"host_id": str(host_id), "user_id": user_id},
+            )
+            # Return NOT_READY status with connection error
+            return HostReadiness(
+                host_id=host_id,
+                hostname=host.hostname,
+                ip_address=host.ip_address,
+                status=ReadinessStatus.NOT_READY,
+                overall_passed=False,
+                checks=[],
+                total_checks=0,
+                passed_checks=0,
+                failed_checks=0,
+                warnings_count=0,
+                validation_duration_ms=(time.time() - start_time) * 1000,
+                completed_at=datetime.utcnow(),
+                summary={"error": f"SSH connection failed: {str(e)}"},
+            )
 
         # Aggregate results
         total_checks = len(check_results)
         passed_checks = sum(1 for r in check_results if r.passed)
         failed_checks = total_checks - passed_checks
-        warnings_count = sum(1 for r in check_results if r.severity.value == "warning")
+        # Handle both enum and string values for severity
+        warnings_count = sum(
+            1
+            for r in check_results
+            if (r.severity if isinstance(r.severity, str) else r.severity.value) == "warning"
+        )
 
         # Determine overall status
         overall_passed = all(r.passed for r in check_results)
         if overall_passed:
             status = ReadinessStatus.READY
-        elif any(r.severity.value == "error" and not r.passed for r in check_results):
+        elif any(
+            (r.severity if isinstance(r.severity, str) else r.severity.value) == "error"
+            and not r.passed
+            for r in check_results
+        ):
             status = ReadinessStatus.NOT_READY
         else:
             status = ReadinessStatus.DEGRADED
@@ -180,6 +227,7 @@ class ReadinessValidatorService:
         validation_duration_ms = (time.time() - start_time) * 1000
 
         # Store validation run in database using repository
+        # Note: user_id can be integer (legacy) or UUID string - skip UUID conversion for now
         validation_run = await self.repository.store_validation(
             host_id=host_id,
             status=status,
@@ -189,7 +237,7 @@ class ReadinessValidatorService:
             failed_checks=failed_checks,
             warnings_count=warnings_count,
             validation_duration_ms=validation_duration_ms,
-            user_id=UUID(user_id) if user_id else None,
+            user_id=None,  # Skip user_id for now to avoid UUID conversion issues
             summary={"validation_run_id": str(uuid4())},
         )
 
@@ -198,7 +246,7 @@ class ReadinessValidatorService:
             validation_run_id=validation_run.id,
             host_id=host_id,
             check_results=check_results,
-            user_id=UUID(user_id) if user_id else None,
+            user_id=None,  # Skip user_id for now to avoid UUID conversion issues
         )
 
         # Build response
@@ -221,16 +269,16 @@ class ReadinessValidatorService:
     async def _execute_checks(
         self,
         host,
-        credentials,  # pragma: allowlist secret
+        ssh_context: SSHConnectionContext,
         check_types: List[ReadinessCheckType],
         user_id: Optional[str] = None,
     ) -> List[ReadinessCheckResult]:
         """
-        Execute readiness checks concurrently.
+        Execute readiness checks concurrently using shared SSH connection.
 
         Args:
             host: Host model instance
-            credentials: Decrypted credentials  # pragma: allowlist secret
+            ssh_context: Active SSH connection context (reused by all checks)
             check_types: List of check types to execute
             user_id: Optional user ID for audit logging
 
@@ -241,11 +289,10 @@ class ReadinessValidatorService:
         for check_type in check_types:
             check_func = self.all_checks.get(check_type)
             if check_func:
-                # Create async task for each check
+                # Create async task for each check with shared SSH context
                 task = check_func(
                     host=host,
-                    credentials=credentials,  # pragma: allowlist secret
-                    ssh_service=self.ssh_service,
+                    ssh_context=ssh_context,
                     user_id=user_id,
                 )
                 tasks.append(task)

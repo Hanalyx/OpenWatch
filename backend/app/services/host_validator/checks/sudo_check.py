@@ -7,23 +7,29 @@ Many compliance checks require root privileges.
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
 
 async def check_sudo_access(
-    host, credentials, ssh_service, user_id: Optional[str] = None
-) -> ReadinessCheckResult:  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
+) -> ReadinessCheckResult:
     """
     Check if user has passwordless sudo access.  # pragma: allowlist secret
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
@@ -32,10 +38,8 @@ async def check_sudo_access(
     start_time = time.time()
 
     try:
-        # Test sudo without password  # pragma: allowlist secret
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Test sudo without password using existing SSH connection  # pragma: allowlist secret
+        result = await ssh_context.execute_command(
             command="sudo -n whoami",
             timeout=10,
         )

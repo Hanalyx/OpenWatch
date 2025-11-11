@@ -4,20 +4,27 @@ OSCAP Installation Check
 Verifies that OpenSCAP scanner is installed and accessible on target host.
 This is a CRITICAL check - without oscap, compliance scans cannot run.
 
-Security: Uses UnifiedSSHService for secure SSH command execution.
+Security: Uses SSHConnectionContext for efficient SSH connection reuse.
 """
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
 
 async def check_oscap_installation(
-    host, credentials, ssh_service, user_id: Optional[str] = None  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
 ) -> ReadinessCheckResult:
     """
     Check if oscap command is installed and get version.
@@ -27,26 +34,24 @@ async def check_oscap_installation(
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials from CentralizedAuthService  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
         ReadinessCheckResult with pass/fail status and details
 
     Example:
-        >>> result = await check_oscap_installation(host, creds, ssh_service)
-        >>> if not result.passed:
-        ...     print(f"OSCAP missing: {result.message}")
-        ...     print(f"Remediation: {result.details['remediation']}")
+        >>> async with SSHConnectionContext(...) as ssh_ctx:
+        ...     result = await check_oscap_installation(host, ssh_ctx)
+        ...     if not result.passed:
+        ...         print(f"OSCAP missing: {result.message}")
+        ...         print(f"Remediation: {result.details['remediation']}")
     """
     start_time = time.time()
 
     try:
-        # Execute command to check oscap installation and version
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Execute command using existing SSH connection (NO new connection created)
+        result = await ssh_context.execute_command(
             command="which oscap && oscap --version | head -1",
             timeout=10,
         )

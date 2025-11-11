@@ -7,9 +7,16 @@ XCCDF and OVAL files can be 50-100MB, need buffer space.
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +24,14 @@ REQUIRED_SPACE_MB = 500  # Minimum 500MB free space
 
 
 async def check_disk_space(
-    host, credentials, ssh_service, user_id: Optional[str] = None
-) -> ReadinessCheckResult:  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
+) -> ReadinessCheckResult:
     """
     Check available disk space in /tmp directory.
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
@@ -34,10 +40,8 @@ async def check_disk_space(
     start_time = time.time()
 
     try:
-        # Get disk space in /tmp (output in MB)
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Get disk space in /tmp (output in MB) using existing SSH connection
+        result = await ssh_context.execute_command(
             command="df -BM /tmp | awk 'NR==2 {print $4}' | sed 's/M//'",
             timeout=10,
         )

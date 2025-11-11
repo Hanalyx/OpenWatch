@@ -3,6 +3,12 @@ OpenWatch Models Package
 Enhanced MongoDB models for unified compliance architecture
 """
 
+# Import Host from database module to make it available at package level
+import sys
+
+sys.path.insert(0, "/app")
+from backend.app.database import Host
+
 from .authorization_models import *
 from .enhanced_mongo_models import (
     CheckContent,
@@ -43,6 +49,8 @@ from .readiness_models import (
 from .system_models import *
 
 __all__ = [
+    # Database models
+    "Host",
     # Original models
     "ComplianceRule",
     "RuleIntelligence",

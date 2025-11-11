@@ -8,29 +8,35 @@ OpenWatch transfers XCCDF and OVAL files to hosts during scans.
 import logging
 import time
 import uuid
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
 
 async def check_network_connectivity(
-    host, credentials, ssh_service, user_id: Optional[str] = None  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
 ) -> ReadinessCheckResult:
     """
     Check network connectivity for SCAP file transfers.
 
     OpenWatch transfers XCCDF and OVAL files to hosts during scans,
     so we verify:
-    1. SSH connectivity (already established)
+    1. SSH connectivity (already established via context)
     2. SFTP capability for file transfers
     3. Write permissions on /tmp
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
@@ -39,12 +45,10 @@ async def check_network_connectivity(
     start_time = time.time()
 
     try:
-        # Check if /tmp is writable
+        # Check if /tmp is writable using existing SSH connection
         test_file = f"/tmp/.openwatch_sftp_test_{uuid.uuid4().hex[:8]}"
 
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        result = await ssh_context.execute_command(
             command='test -w /tmp && echo "WRITABLE" || echo "NOT_WRITABLE"',
             timeout=5,
         )
@@ -64,10 +68,8 @@ async def check_network_connectivity(
                 check_duration_ms=duration_ms,
             )
 
-        # Test file write/read/delete
-        write_result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Test file write/read/delete using existing SSH connection
+        write_result = await ssh_context.execute_command(
             command=f'echo "test" > {test_file} && cat {test_file} && rm -f {test_file}',
             timeout=10,
         )

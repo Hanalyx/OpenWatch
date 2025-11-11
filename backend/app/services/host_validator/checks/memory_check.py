@@ -7,9 +7,16 @@ OSCAP scans can consume 200MB+ of memory.
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
+from backend.app.models.readiness_models import (
+    ReadinessCheckResult,
+    ReadinessCheckSeverity,
+    ReadinessCheckType,
+)
+
+if TYPE_CHECKING:
+    from backend.app.services.ssh_connection_context import SSHConnectionContext
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +24,14 @@ REQUIRED_MEMORY_MB = 200  # Minimum 200MB free memory
 
 
 async def check_memory(
-    host, credentials, ssh_service, user_id: Optional[str] = None
-) -> ReadinessCheckResult:  # pragma: allowlist secret
+    host, ssh_context: "SSHConnectionContext", user_id: Optional[str] = None
+) -> ReadinessCheckResult:
     """
     Check available memory on target host.
 
     Args:
         host: Host model instance
-        credentials: Decrypted credentials  # pragma: allowlist secret
-        ssh_service: UnifiedSSHService instance
+        ssh_context: Active SSH connection context (reuses existing connection)
         user_id: Optional user ID for audit logging
 
     Returns:
@@ -34,10 +40,8 @@ async def check_memory(
     start_time = time.time()
 
     try:
-        # Get available memory in MB
-        result = await ssh_service.execute_command(
-            host=host,
-            credentials=credentials,  # pragma: allowlist secret
+        # Get available memory in MB using existing SSH connection
+        result = await ssh_context.execute_command(
             command="free -m | awk 'NR==2 {print $7}'",
             timeout=10,
         )
