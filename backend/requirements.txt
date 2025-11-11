@@ -1,25 +1,25 @@
 # OpenWatch Backend Dependencies
 # Core web framework
-fastapi==0.120.1  # Latest stable (Nov 2025), supports starlette 0.49.1+
-uvicorn[standard]==0.32.1
-starlette==0.49.1  # Security: CVE-2025-62727 fixed (O(n²) DoS via HTTP Range header)
-python-multipart==0.0.18
+fastapi==0.121.1  # Latest stable (Nov 2025), supports starlette 0.49.1+
+uvicorn[standard]==0.38.0
+starlette==0.50.0  # Security: CVE-2025-62727 fixed (O(n²) DoS via HTTP Range header)
+python-multipart==0.0.20
 
 # Database
-SQLAlchemy==2.0.35
-alembic==1.14.0
-psycopg2-binary==2.9.10
+SQLAlchemy==2.0.44
+alembic==1.17.1
+psycopg2-binary==2.9.11
 asyncpg==0.30.0
 
 # MongoDB / Beanie ODM
-motor==3.6.0
-pymongo==4.9.2
+motor==3.7.1
+pymongo==4.15.3
 beanie==1.26.0
 
 # Redis & Celery
 redis==7.0.1
-celery==5.4.0
-kombu==5.5.4
+celery==5.5.3
+kombu==5.6.0
 amqp==5.3.1
 
 # Authentication & Security
@@ -27,10 +27,10 @@ PyJWT==2.10.1  # Security: CVE-2024-33663 fixed
 passlib==1.7.4
 bcrypt==5.0.0
 argon2-cffi==23.1.0
-python-multipart==0.0.18
+python-multipart==0.0.20
 pyotp==2.9.0
 qrcode==7.4.2
-cryptography==46.0.2  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
+cryptography==46.0.3  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
 
 # SSH / Remote execution
 paramiko==3.5.0
@@ -38,26 +38,26 @@ paramiko==3.5.0
 # HTTP Client
 requests==2.32.5  # Security: CVE-2024-35195 fixed
 httpx==0.28.1
-aiohttp==3.12.14
+aiohttp==3.13.2
 
 # Data Validation
-pydantic==2.10.4
-pydantic-settings==2.8.0
+pydantic==2.12.4
+pydantic-settings==2.12.0
 email-validator==2.3.0
 
 # Configuration
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 PyYAML==6.0.3  # Security: CVE-2024-11167 fixed
 Jinja2==3.1.6  # Security: CVE-2024-34064 (XSS) fixed
 
 # Observability & Monitoring
-opentelemetry-api==1.21.0
-opentelemetry-sdk==1.21.0
-opentelemetry-instrumentation-fastapi==0.42b0
-opentelemetry-instrumentation-sqlalchemy==0.42b0
-opentelemetry-instrumentation-redis==0.42b0
-opentelemetry-exporter-otlp==1.21.0
-prometheus-client==0.19.0
+opentelemetry-api==1.38.0
+opentelemetry-sdk==1.38.0
+opentelemetry-instrumentation-fastapi==0.59b0
+opentelemetry-instrumentation-sqlalchemy==0.59b0
+opentelemetry-instrumentation-redis==0.59b0
+opentelemetry-exporter-otlp==1.38.0
+prometheus-client==0.23.1
 
 # File handling
 aiofiles==24.1.0
@@ -69,8 +69,8 @@ lxml==5.3.0
 aiosmtplib==3.0.1
 
 # Task scheduling
-APScheduler==3.10.4
-schedule==1.2.0
+APScheduler==3.11.1
+schedule==1.2.2
 
 # XML processing
 xmltodict==0.13.0
