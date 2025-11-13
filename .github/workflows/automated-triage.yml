@@ -12,7 +12,7 @@ on:
         default: 'true'
 
 permissions:
-  contents: write
+  contents: read
   issues: write
   pull-requests: write
   security-events: read
@@ -32,16 +32,25 @@ jobs:
 
       - name: Fetch Dependabot Alerts
         id: fetch-alerts
+        continue-on-error: true
         run: |
           echo "Fetching Dependabot alerts..."
-          gh api /repos/${{ github.repository }}/dependabot/alerts \
+
+          # Try to fetch alerts, handle 403 gracefully
+          if gh api /repos/${{ github.repository }}/dependabot/alerts \
             --paginate \
             --jq 'map(select(.state == "open"))' \
-            > dependabot_alerts.json
+            > dependabot_alerts.json 2>/dev/null; then
 
-          ALERT_COUNT=$(jq 'length' dependabot_alerts.json)
-          echo "Found $ALERT_COUNT open Dependabot alerts"
-          echo "alert_count=$ALERT_COUNT" >> $GITHUB_OUTPUT
+            ALERT_COUNT=$(jq 'length' dependabot_alerts.json 2>/dev/null || echo "0")
+            echo "Found $ALERT_COUNT open Dependabot alerts"
+            echo "alert_count=$ALERT_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "WARNING: Unable to fetch Dependabot alerts (permission denied or feature not enabled)"
+            echo "This may require Dependabot to be enabled or additional repository permissions"
+            echo "[]" > dependabot_alerts.json
+            echo "alert_count=0" >> $GITHUB_OUTPUT
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -183,6 +192,8 @@ jobs:
 
       - name: Risk Assessment
         if: steps.fetch-alerts.outputs.alert_count > 0
+        id: risk-assessment
+        continue-on-error: true
         run: |
           python scripts/risk_assessment.py \
             --type=codeql \
@@ -196,6 +207,11 @@ jobs:
           echo "**Total Alerts:** ${{ steps.fetch-alerts.outputs.alert_count }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # Check if risk assessment files exist, create empty arrays if not
+          [ -f low_risk_alerts.json ] || echo "[]" > low_risk_alerts.json
+          [ -f medium_risk_alerts.json ] || echo "[]" > medium_risk_alerts.json
+          [ -f high_risk_alerts.json ] || echo "[]" > high_risk_alerts.json
+
           LOW_COUNT=$(jq 'length' low_risk_alerts.json 2>/dev/null || echo "0")
           MED_COUNT=$(jq 'length' medium_risk_alerts.json 2>/dev/null || echo "0")
           HIGH_COUNT=$(jq 'length' high_risk_alerts.json 2>/dev/null || echo "0")
@@ -205,6 +221,12 @@ jobs:
           echo "| LOW | ${LOW_COUNT} | Auto-fix |" >> $GITHUB_STEP_SUMMARY
           echo "| MEDIUM | ${MED_COUNT} | Claude PR |" >> $GITHUB_STEP_SUMMARY
           echo "| HIGH | ${HIGH_COUNT} | Human review |" >> $GITHUB_STEP_SUMMARY
+
+          # Add risk assessment status
+          if [ "${{ steps.risk-assessment.outcome }}" != "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Note:** Risk assessment encountered an error. Manual review of all alerts recommended." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload Code Scanning Assessment
         if: always()
