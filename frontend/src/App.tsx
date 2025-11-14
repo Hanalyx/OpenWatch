@@ -24,7 +24,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import MFASetup from './pages/auth/MFASetup';
 import Dashboard from './pages/Dashboard';
-import HostsEnhanced from './pages/hosts/HostsEnhanced';
+import Hosts from './pages/hosts/Hosts';
 import HostDetail from './pages/hosts/HostDetail';
 import AddHost from './pages/hosts/AddHost';
 import ComplianceGroups from './pages/host-groups/ComplianceGroups';
@@ -85,7 +85,7 @@ function App() {
             <Route element={<PrivateRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/hosts" element={<HostsEnhanced />} />
+                <Route path="/hosts" element={<Hosts />} />
                 <Route path="/hosts/add-host" element={<AddHost />} />
                 <Route path="/hosts/:id" element={<HostDetail />} />
                 <Route path="/host-groups" element={<ComplianceGroups />} />
