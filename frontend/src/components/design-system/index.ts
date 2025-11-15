@@ -2,6 +2,7 @@
 export { default as StatCard } from './StatCard';
 export { default as StatusChip } from './StatusChip';
 export { default as ComplianceRing } from './ComplianceRing';
+export { default as SeverityRiskBars } from './SeverityRiskBars';
 export { default as SSHKeyDisplay } from './SSHKeyDisplay';
 
 // Layout Components
@@ -15,6 +16,7 @@ export { default as EmptyState } from './patterns/EmptyState';
 
 // Re-export types for external use
 export type { StatusType } from './StatusChip';
+export type { SeverityRiskBarsProps } from './SeverityRiskBars';
 export type { ViewMode, GroupBy } from './patterns/FilterToolbar';
 export type { DataGridItem, DataGridGroup } from './patterns/DataGrid';
 export type { EmptyStateType } from './patterns/EmptyState';

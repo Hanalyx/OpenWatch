@@ -228,7 +228,7 @@ const Hosts: React.FC = () => {
 
   // Auto-refresh state
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(10000); // 10 seconds default
+  const [refreshInterval, setRefreshInterval] = useState(300000); // 5 minutes default
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [editFormData, setEditFormData] = useState({
     hostname: '',
@@ -1180,19 +1180,19 @@ const Hosts: React.FC = () => {
             <Chip label={host.operatingSystem} size="small" variant="outlined" />
           </Box>
 
-          {/* Compliance Score - Only show if available */}
+          {/* Compliance Score - Concentric Rings */}
           {host.complianceScore !== null && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ mb: 2 }}>
               <ComplianceRing
                 score={host.complianceScore}
-                size="medium"
-                trend={host.complianceTrend}
+                size="large"
+                showLabel={false}
+                criticalIssues={host.criticalIssues || 0}
+                highIssues={host.highIssues || 0}
+                mediumIssues={host.mediumIssues || 0}
+                lowIssues={host.lowIssues || 0}
+                tooltip={`${host.complianceScore}% compliant - ${host.passedRules || 0} passed, ${(host.totalRules || 0) - (host.passedRules || 0)} failed`}
               />
-              <Box sx={{ ml: 2, flexGrow: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Compliance Score
-                </Typography>
-              </Box>
             </Box>
           )}
 
