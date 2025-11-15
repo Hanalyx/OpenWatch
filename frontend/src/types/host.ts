@@ -144,17 +144,43 @@ export interface Host {
   /** ISO 8601 timestamp of next scheduled scan or null */
   nextScan: string | null;
 
-  /** Number of critical severity findings */
+  /** Number of critical severity failures */
   criticalIssues: number;
 
-  /** Number of high severity findings */
+  /** Number of high severity failures */
   highIssues: number;
 
-  /** Number of medium severity findings */
+  /** Number of medium severity failures */
   mediumIssues: number;
 
-  /** Number of low severity findings */
+  /** Number of low severity failures */
   lowIssues: number;
+
+  // Per-severity pass/fail breakdown for accurate compliance visualization
+  // NIST SP 800-137 Continuous Monitoring granular tracking
+  /** Number of passed critical severity rules (CVSS >= 9.0) */
+  criticalPassed?: number;
+
+  /** Number of failed critical severity rules (CVSS >= 9.0) */
+  criticalFailed?: number;
+
+  /** Number of passed high severity rules (CVSS 7.0-8.9) */
+  highPassed?: number;
+
+  /** Number of failed high severity rules (CVSS 7.0-8.9) */
+  highFailed?: number;
+
+  /** Number of passed medium severity rules (CVSS 4.0-6.9) */
+  mediumPassed?: number;
+
+  /** Number of failed medium severity rules (CVSS 4.0-6.9) */
+  mediumFailed?: number;
+
+  /** Number of passed low severity rules (CVSS 0.1-3.9) */
+  lowPassed?: number;
+
+  /** Number of failed low severity rules (CVSS 0.1-3.9) */
+  lowFailed?: number;
 
   // Latest Scan Details (optional)
   /** UUID of most recent scan or null */
@@ -249,19 +275,22 @@ export interface Host {
  * }
  */
 export function isHostStatus(value: unknown): value is HostStatus {
-  return typeof value === 'string' && [
-    'online',
-    'degraded',
-    'critical',
-    'down',
-    'offline',
-    'maintenance',
-    'scanning',
-    'reachable',
-    'ping_only',
-    'error',
-    'unknown',
-  ].includes(value);
+  return (
+    typeof value === 'string' &&
+    [
+      'online',
+      'degraded',
+      'critical',
+      'down',
+      'offline',
+      'maintenance',
+      'scanning',
+      'reachable',
+      'ping_only',
+      'error',
+      'unknown',
+    ].includes(value)
+  );
 }
 
 /**
@@ -276,11 +305,8 @@ export function isHostStatus(value: unknown): value is HostStatus {
  * }
  */
 export function isAuthMethod(value: unknown): value is AuthMethod {
-  return typeof value === 'string' && [
-    'password',
-    'ssh_key',
-    'none',
-    'default',
-    'system_default',
-  ].includes(value);
+  return (
+    typeof value === 'string' &&
+    ['password', 'ssh_key', 'none', 'default', 'system_default'].includes(value)
+  );
 }

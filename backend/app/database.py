@@ -283,9 +283,75 @@ class ScanResult(Base):
     unknown_rules = Column(Integer, nullable=False)
     not_applicable_rules = Column(Integer, nullable=False)
     score = Column(String(10), nullable=True)  # Overall compliance score
+
+    # NIST SP 800-30 Risk Management Guide requires separate tracking
+    # of critical severity findings (CVSS >= 9.0) for risk scoring
+    # Total failed rule counts by severity
+    severity_critical = Column(Integer, default=0, nullable=False)
     severity_high = Column(Integer, default=0, nullable=False)
     severity_medium = Column(Integer, default=0, nullable=False)
     severity_low = Column(Integer, default=0, nullable=False)
+
+    # Per-severity pass/fail breakdown for accurate risk visualization
+    # NIST SP 800-137 Continuous Monitoring requires granular severity tracking
+    # to enable accurate compliance ring visualization and drift detection
+    #
+    # Critical severity (CVSS >= 9.0)
+    severity_critical_passed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of passed critical severity rules (CVSS >= 9.0)",
+    )
+    severity_critical_failed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of failed critical severity rules (CVSS >= 9.0)",
+    )
+
+    # High severity (CVSS 7.0-8.9)
+    severity_high_passed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of passed high severity rules (CVSS 7.0-8.9)",
+    )
+    severity_high_failed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of failed high severity rules (CVSS 7.0-8.9)",
+    )
+
+    # Medium severity (CVSS 4.0-6.9)
+    severity_medium_passed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of passed medium severity rules (CVSS 4.0-6.9)",
+    )
+    severity_medium_failed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of failed medium severity rules (CVSS 4.0-6.9)",
+    )
+
+    # Low severity (CVSS 0.1-3.9)
+    severity_low_passed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of passed low severity rules (CVSS 0.1-3.9)",
+    )
+    severity_low_failed = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Count of failed low severity rules (CVSS 0.1-3.9)",
+    )
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 

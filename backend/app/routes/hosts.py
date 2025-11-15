@@ -118,11 +118,24 @@ class Host(BaseModel):
     scan_progress: Optional[int] = None
     failed_rules: Optional[int] = None
     passed_rules: Optional[int] = None
+
+    # Failed rule counts by severity
     critical_issues: Optional[int] = None
     high_issues: Optional[int] = None
     medium_issues: Optional[int] = None
     low_issues: Optional[int] = None
     total_rules: Optional[int] = None
+
+    # Per-severity pass/fail breakdown for accurate compliance visualization
+    # NIST SP 800-137 Continuous Monitoring granular tracking
+    critical_passed: Optional[int] = None
+    critical_failed: Optional[int] = None
+    high_passed: Optional[int] = None
+    high_failed: Optional[int] = None
+    medium_passed: Optional[int] = None
+    medium_failed: Optional[int] = None
+    low_passed: Optional[int] = None
+    low_failed: Optional[int] = None
 
     # Group information
     group_id: Optional[int] = None
@@ -279,8 +292,12 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
                    s.id as latest_scan_id, s.name as latest_scan_name, s.status as scan_status,
                    s.progress as scan_progress, s.started_at as scan_started_at, s.completed_at as scan_completed_at,
                    sr.score as compliance_score, sr.failed_rules as failed_rules, sr.passed_rules as passed_rules,
-                   sr.severity_high as high_issues, sr.severity_medium as medium_issues,
-                   sr.severity_low as low_issues, sr.total_rules,
+                   sr.severity_critical as critical_issues, sr.severity_high as high_issues,
+                   sr.severity_medium as medium_issues, sr.severity_low as low_issues, sr.total_rules,
+                   sr.severity_critical_passed, sr.severity_critical_failed,
+                   sr.severity_high_passed, sr.severity_high_failed,
+                   sr.severity_medium_passed, sr.severity_medium_failed,
+                   sr.severity_low_passed, sr.severity_low_failed,
                    hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
             FROM hosts h
             LEFT JOIN LATERAL (
@@ -300,9 +317,6 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
 
         hosts = []
         for row in result:
-            # Calculate critical issues (high severity issues)
-            critical_issues = row.high_issues or 0
-
             # Parse compliance score
             compliance_score = None
             if row.compliance_score:
@@ -358,11 +372,24 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
                 host_data.compliance_score = compliance_score
                 host_data.failed_rules = row.failed_rules or 0
                 host_data.passed_rules = row.passed_rules or 0
-                host_data.critical_issues = critical_issues
+
+                # NIST SP 800-30 severity tracking (CVSS-based)
+                host_data.critical_issues = row.critical_issues or 0  # CVSS >= 9.0
                 host_data.high_issues = row.high_issues or 0
                 host_data.medium_issues = row.medium_issues or 0
                 host_data.low_issues = row.low_issues or 0
                 host_data.total_rules = row.total_rules or 0
+
+                # NIST SP 800-137 per-severity pass/fail breakdown
+                # Enables accurate ComplianceRing visualization with real data
+                host_data.critical_passed = row.severity_critical_passed or 0
+                host_data.critical_failed = row.severity_critical_failed or 0
+                host_data.high_passed = row.severity_high_passed or 0
+                host_data.high_failed = row.severity_high_failed or 0
+                host_data.medium_passed = row.severity_medium_passed or 0
+                host_data.medium_failed = row.severity_medium_failed or 0
+                host_data.low_passed = row.severity_low_passed or 0
+                host_data.low_failed = row.severity_low_failed or 0
 
             hosts.append(host_data)
 

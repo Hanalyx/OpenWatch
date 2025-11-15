@@ -1109,43 +1109,33 @@ const Hosts: React.FC = () => {
             <Chip label={host.operatingSystem} size="small" variant="outlined" />
           </Box>
 
-          {/* Compliance Score - Concentric Rings */}
-          {host.complianceScore !== null && (
-            <Box sx={{ mb: 2 }}>
-              <ComplianceRing
-                score={host.complianceScore}
-                size="large"
-                showLabel={false}
-                criticalIssues={host.criticalIssues || 0}
-                highIssues={host.highIssues || 0}
-                mediumIssues={host.mediumIssues || 0}
-                lowIssues={host.lowIssues || 0}
-                tooltip={`${host.complianceScore}% compliant - ${host.passedRules || 0} passed, ${(host.totalRules || 0) - (host.passedRules || 0)} failed`}
-              />
-            </Box>
-          )}
-
-          {/* Issues Summary - Only show if there are actual issues */}
-          {(host.criticalIssues > 0 || host.highIssues > 0 || host.mediumIssues > 0) && (
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-              {host.criticalIssues > 0 && (
-                <Chip label={`${host.criticalIssues} Critical`} size="small" color="error" />
-              )}
-              {host.highIssues > 0 && (
-                <Chip
-                  label={`${host.highIssues} High`}
-                  size="small"
-                  sx={{
-                    bgcolor: alpha(theme.palette.warning.main, 0.1),
-                    color: theme.palette.warning.dark,
-                  }}
-                />
-              )}
-              {host.mediumIssues > 0 && (
-                <Chip label={`${host.mediumIssues} Medium`} size="small" variant="outlined" />
-              )}
-            </Box>
-          )}
+          {/* Compliance Score - Always show (empty ring if no data) */}
+          <Box sx={{ mb: 2 }}>
+            <ComplianceRing
+              score={host.complianceScore || 0}
+              size="large"
+              showLabel={false}
+              // Failed rule counts by severity
+              criticalIssues={host.criticalIssues || 0}
+              highIssues={host.highIssues || 0}
+              mediumIssues={host.mediumIssues || 0}
+              lowIssues={host.lowIssues || 0}
+              // Per-severity pass/fail breakdown for accurate visualization
+              criticalPassed={host.criticalPassed}
+              criticalFailed={host.criticalFailed}
+              highPassed={host.highPassed}
+              highFailed={host.highFailed}
+              mediumPassed={host.mediumPassed}
+              mediumFailed={host.mediumFailed}
+              lowPassed={host.lowPassed}
+              lowFailed={host.lowFailed}
+              tooltip={
+                host.complianceScore !== null
+                  ? `${host.complianceScore}% compliant - ${host.passedRules || 0} passed, ${(host.totalRules || 0) - (host.passedRules || 0)} failed`
+                  : 'No scan data available'
+              }
+            />
+          </Box>
 
           {/* System Resources - Only show if data is available */}
           {(host.cpuUsage !== null || host.diskUsage !== null) && (
@@ -1740,9 +1730,7 @@ const Hosts: React.FC = () => {
                   multiline
                   rows={6}
                   helperText={
-                    sshKeyValidated
-                      ? 'SSH key is valid'
-                      : 'Paste your SSH private key content here'
+                    sshKeyValidated ? 'SSH key is valid' : 'Paste your SSH private key content here'
                   }
                   error={editFormData.sshKey.length > 0 && !sshKeyValidated}
                   InputProps={{
