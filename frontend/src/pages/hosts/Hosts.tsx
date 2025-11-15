@@ -138,6 +138,8 @@ import QuickScanDialog from '../../components/scans/QuickScanDialog';
 import type { Host } from '../../types/host';
 import { REFRESH_INTERVALS } from '../../constants/refresh';
 import { COMPLIANCE_THRESHOLDS } from '../../constants/compliance';
+import { validateSshKey } from '../../utils/hostValidation';
+import { getStatusIcon, getComplianceScoreColor } from '../../utils/hostStatus';
 
 const Hosts: React.FC = () => {
   const theme = useTheme();
@@ -766,52 +768,32 @@ const Hosts: React.FC = () => {
     }
   };
 
+  /**
+   * Validate SSH key format for edit dialog.
+   *
+   * Uses imported validateSshKey utility from utils/hostValidation.ts.
+   * Sets validation state for SSH key input field.
+   *
+   * @param keyContent - SSH private key content to validate
+   */
   const validateSshKeyForEdit = (keyContent: string) => {
     if (!keyContent.trim()) {
       setSshKeyValidated(false);
       return;
     }
 
-    // Basic validation - check for valid SSH key headers
-    const validKeyHeaders = [
-      '-----BEGIN OPENSSH PRIVATE KEY-----',  // pragma: allowlist secret
-      '-----BEGIN RSA PRIVATE KEY-----',      // pragma: allowlist secret
-      '-----BEGIN EC PRIVATE KEY-----',       // pragma: allowlist secret
-      '-----BEGIN DSA PRIVATE KEY-----',      // pragma: allowlist secret
-    ];
-
-    const hasValidHeader = validKeyHeaders.some((header) => keyContent.trim().startsWith(header));
-    setSshKeyValidated(hasValidHeader);
+    const isValid = validateSshKey(keyContent);
+    setSshKeyValidated(isValid);
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'online':
-        return <CheckCircle color="success" />;
-      case 'offline':
-        return <HighlightOff color="error" />;
-      case 'maintenance':
-        return <Build color="warning" />;
-      case 'scanning':
-        return <Scanner color="info" />;
-      case 'reachable':
-        return <Warning sx={{ color: '#ff9800' }} />;
-      case 'ping_only':
-        return <NetworkCheck sx={{ color: '#607d8b' }} />;
-      case 'error':
-        return <ErrorIcon color="error" />;
-      default:
-        return <Info />;
-    }
-  };
-
-  const getComplianceColor = (score: number | null) => {
-    // Compliance thresholds per CLAUDE.md and constants/compliance.ts
-    if (score === null) return theme.palette.grey[500]; // Gray for no data
-    if (score >= COMPLIANCE_THRESHOLDS.COMPLIANT) return theme.palette.success.main; // 95%+: Compliant
-    if (score >= COMPLIANCE_THRESHOLDS.NEAR_COMPLIANT) return theme.palette.warning.main; // 75-94%: Near Compliant
-    return theme.palette.error.main; // <75%: Non-Compliant
-  };
+  /**
+   * NOTE: getStatusIcon and getComplianceScoreColor are now imported from utils/
+   * - getStatusIcon: utils/hostStatus.ts (status icon components)
+   * - getComplianceScoreColor: utils/hostStatus.ts (compliance score colors)
+   *
+   * These utilities are reusable across the application for consistent
+   * status visualization and compliance scoring.
+   */
 
   const HostCard: React.FC<{ host: Host; viewMode?: ViewMode }> = ({ host, viewMode = 'grid' }) => {
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -849,8 +831,8 @@ const Hosts: React.FC = () => {
               />
               <Avatar
                 sx={{
-                  bgcolor: alpha(getComplianceColor(host.complianceScore), 0.1),
-                  color: getComplianceColor(host.complianceScore),
+                  bgcolor: alpha(getComplianceScoreColor(host.complianceScore, theme), 0.1),
+                  color: getComplianceScoreColor(host.complianceScore, theme),
                   mr: 1,
                   width: 32,
                   height: 32,
@@ -920,8 +902,8 @@ const Hosts: React.FC = () => {
           />
           <Avatar
             sx={{
-              bgcolor: alpha(getComplianceColor(host.complianceScore), 0.1),
-              color: getComplianceColor(host.complianceScore),
+              bgcolor: alpha(getComplianceScoreColor(host.complianceScore, theme), 0.1),
+              color: getComplianceScoreColor(host.complianceScore, theme),
               mr: 2,
             }}
           >
@@ -1043,8 +1025,8 @@ const Hosts: React.FC = () => {
             />
             <Avatar
               sx={{
-                bgcolor: alpha(getComplianceColor(host.complianceScore), 0.1),
-                color: getComplianceColor(host.complianceScore),
+                bgcolor: alpha(getComplianceScoreColor(host.complianceScore, theme), 0.1),
+                color: getComplianceScoreColor(host.complianceScore, theme),
                 mr: 1,
               }}
             >
