@@ -586,9 +586,11 @@ const Hosts: React.FC = () => {
       password: '',
     };
 
-    console.log('📝 Initializing edit form with host data:', host);
-    console.log('🔑 Initial auth method:', host.authMethod);
-    console.log('📋 Form data being set:', initialFormData);
+    if (import.meta.env.DEV) {
+      console.debug('Initializing edit form with host data:', host);
+      console.debug('Initial auth method:', host.authMethod);
+      console.debug('Form data being set:', initialFormData);
+    }
 
     setEditFormData(initialFormData);
     setSshKeyValidated(false);
@@ -679,8 +681,10 @@ const Hosts: React.FC = () => {
         password: editFormData.password,
       };
 
-      console.log('🚀 Sending edit host request:', requestData);
-      console.log('🔑 Auth method being sent:', editFormData.authMethod);
+      if (import.meta.env.DEV) {
+        console.debug('Sending edit host request:', requestData);
+        console.debug('Auth method being sent:', editFormData.authMethod);
+      }
 
       const updatedHost = await api.put(`/api/hosts/${editDialog.host.id}`, requestData);
 
@@ -702,12 +706,12 @@ const Hosts: React.FC = () => {
 
       // Compliance-focused status messages with accurate diagnostics
       const statusMessages = {
-        online: '✅ Host is online and ready for scans',
-        reachable: '🟡 Host is reachable but SSH authentication failed',
-        ping_only: '🟡 Host responds to ping but SSH port is closed',
-        offline: '🔴 Host is completely unreachable',
-        error: '❌ Error occurred while checking host status',
-        maintenance: '🔧 Host is in maintenance mode',
+        online: 'Host is online and ready for scans',
+        reachable: 'Host is reachable but SSH authentication failed',
+        ping_only: 'Host responds to ping but SSH port is closed',
+        offline: 'Host is completely unreachable',
+        error: 'Error occurred while checking host status',
+        maintenance: 'Host is in maintenance mode',
       };
 
       const baseMessage =
@@ -719,17 +723,17 @@ const Hosts: React.FC = () => {
 
       // Show granular diagnostics
       if (result.diagnostics) {
-        detailedMessage += `🔍 Diagnostic Results:\n`;
-        detailedMessage += `• Ping: ${result.diagnostics.ping_success ? '✅ Success' : '❌ Failed'}\n`;
-        detailedMessage += `• Port 22: ${result.diagnostics.port_open ? '✅ Open' : '❌ Closed'}\n`;
-        detailedMessage += `• SSH Auth: ${result.diagnostics.ssh_accessible ? '✅ Success' : '❌ Failed'}\n`;
+        detailedMessage += `Diagnostic Results:\n`;
+        detailedMessage += `• Ping: ${result.diagnostics.ping_success ? 'Success' : 'Failed'}\n`;
+        detailedMessage += `• Port 22: ${result.diagnostics.port_open ? 'Open' : 'Closed'}\n`;
+        detailedMessage += `• SSH Auth: ${result.diagnostics.ssh_accessible ? 'Success' : 'Failed'}\n`;
         if (result.diagnostics.ssh_credentials_source) {
           detailedMessage += `• Credentials: ${result.diagnostics.ssh_credentials_source}\n`;
         }
         detailedMessage += `\n`;
       }
 
-      detailedMessage += `📊 Connectivity Details:\n`;
+      detailedMessage += `Connectivity Details:\n`;
       detailedMessage += `• Status: ${result.current_status}\n`;
       detailedMessage += `• Response Time: ${result.response_time_ms || 'N/A'}ms\n`;
       detailedMessage += `• Last Check: ${result.last_check ? new Date(result.last_check).toLocaleString() : 'Just now'}\n\n`;
@@ -737,24 +741,24 @@ const Hosts: React.FC = () => {
       // Add specific troubleshooting guidance based on diagnostic results
       const isReady = result.current_status === 'online';
       if (isReady) {
-        detailedMessage += `🚀 Status: Host is ready for compliance scans!`;
+        detailedMessage += `Status: Host is ready for compliance scans!`;
       } else if (result.current_status === 'ping_only') {
-        detailedMessage += `⚠️ Troubleshooting: Host responds to ping but SSH port 22 is closed.\n`;
+        detailedMessage += `Troubleshooting: Host responds to ping but SSH port 22 is closed.\n`;
         detailedMessage += `• Check if SSH service is running\n`;
         detailedMessage += `• Verify firewall rules allow port 22\n`;
         detailedMessage += `• Confirm SSH is listening on port 22`;
       } else if (result.current_status === 'reachable') {
-        detailedMessage += `⚠️ Troubleshooting: SSH port is open but authentication failed.\n`;
+        detailedMessage += `Troubleshooting: SSH port is open but authentication failed.\n`;
         detailedMessage += `• Verify SSH credentials are correct\n`;
         detailedMessage += `• Check SSH key permissions and format\n`;
         detailedMessage += `• Review host's /var/log/auth.log for details`;
       } else if (result.current_status === 'offline') {
-        detailedMessage += `⚠️ Troubleshooting: Host is completely unreachable.\n`;
+        detailedMessage += `Troubleshooting: Host is completely unreachable.\n`;
         detailedMessage += `• Verify host is powered on\n`;
         detailedMessage += `• Check network connectivity\n`;
         detailedMessage += `• Confirm IP address is correct`;
       } else {
-        detailedMessage += `⚠️ Host is not ready for scans.\n`;
+        detailedMessage += `Host is not ready for scans.\n`;
         if (result.error_message) {
           detailedMessage += `Error: ${result.error_message}`;
         }
@@ -827,10 +831,10 @@ const Hosts: React.FC = () => {
 
     // Basic validation - check for valid SSH key headers
     const validKeyHeaders = [
-      '-----BEGIN OPENSSH PRIVATE KEY-----',
-      '-----BEGIN RSA PRIVATE KEY-----',
-      '-----BEGIN EC PRIVATE KEY-----',
-      '-----BEGIN DSA PRIVATE KEY-----',
+      '-----BEGIN OPENSSH PRIVATE KEY-----',  // pragma: allowlist secret
+      '-----BEGIN RSA PRIVATE KEY-----',      // pragma: allowlist secret
+      '-----BEGIN EC PRIVATE KEY-----',       // pragma: allowlist secret
+      '-----BEGIN DSA PRIVATE KEY-----',      // pragma: allowlist secret
     ];
 
     const hasValidHeader = validKeyHeaders.some((header) => keyContent.trim().startsWith(header));
@@ -1812,7 +1816,7 @@ const Hosts: React.FC = () => {
                   rows={6}
                   helperText={
                     sshKeyValidated
-                      ? '✅ SSH key is valid'
+                      ? 'SSH key is valid'
                       : 'Paste your SSH private key content here'
                   }
                   error={editFormData.sshKey.length > 0 && !sshKeyValidated}
