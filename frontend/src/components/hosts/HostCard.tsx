@@ -1,3 +1,26 @@
+/**
+ * HostCard Component
+ *
+ * Reusable host card component for displaying host information in different view modes.
+ * Supports grid, list, and compact layouts with consistent styling and functionality.
+ *
+ * Uses CLAUDE.md compliant utilities from Phase 2 and Phase 3:
+ * - Host type from types/host.ts
+ * - Compliance thresholds from constants/compliance.ts
+ * - Status icons from utils/hostStatus.tsx
+ * - Formatters from utils/hostFormatters.ts
+ *
+ * Used by:
+ * - Bulk import preview dialogs
+ * - Standalone host management components
+ * - Dashboard host summaries
+ *
+ * Note: Hosts.tsx has its own inline HostCard for tighter state integration.
+ * This component is for reusable, stateless host display.
+ *
+ * @module components/hosts/HostCard
+ */
+
 import React from 'react';
 import {
   Card,
@@ -16,95 +39,64 @@ import {
   ListItemText,
   Divider,
   Badge,
+  useTheme,
 } from '@mui/material';
 import {
   Computer,
   MoreVert,
-  CheckCircle,
-  Warning,
-  Error as ErrorIcon,
   Schedule,
   Edit,
   Delete,
   NetworkCheck,
   PlayArrow,
-  Stop,
   Assessment,
   Security,
-  Wifi,
-  WifiOff,
 } from '@mui/icons-material';
 import { QuickScanDropdown } from '../scans';
+import type { Host } from '../../types/host';
+import { COMPLIANCE_THRESHOLDS } from '../../constants/compliance';
+import { getStatusIcon, getComplianceScoreColor } from '../../utils/hostStatus';
+import { formatRelativeTime } from '../../utils/hostFormatters';
 
-interface Host {
-  id: string;
-  hostname: string;
-  displayName: string;
-  ipAddress: string;
-  operatingSystem: string;
-  status:
-    | 'online'
-    | 'degraded'
-    | 'critical'
-    | 'down'
-    | 'offline'
-    | 'maintenance'
-    | 'scanning'
-    | 'reachable'
-    | 'ping_only'
-    | 'error'
-    | 'unknown';
-  complianceScore?: number;
-  complianceTrend?: 'up' | 'down' | 'stable';
-  lastScan?: string;
-  lastCheck?: string;
-  nextScan?: string;
-  criticalIssues: number;
-  highIssues: number;
-  mediumIssues: number;
-  lowIssues: number;
-  tags: string[];
-  group: string;
-  group_id?: number;
-  group_name?: string;
-  group_description?: string;
-  group_color?: string;
-  owner: string;
-  cpuUsage?: number;
-  memoryUsage?: number;
-  diskUsage?: number;
-  uptime?: string;
-  osVersion?: string;
-  lastBackup?: string;
-  sshKey: boolean;
-  agent: 'installed' | 'not_installed' | 'error';
-  profile?: string;
-  port: number;
-  username: string;
-  authMethod: string;
-  ssh_key_fingerprint?: string;
-  ssh_key_type?: string;
-  ssh_key_bits?: number;
-  ssh_key_comment?: string;
-  latestScanId?: string;
-  latestScanName?: string;
-  scanStatus?: 'pending' | 'running' | 'completed' | 'failed';
-  scanProgress?: number;
-  failedRules: number;
-  passedRules: number;
-  totalRules: number;
-}
-
+/**
+ * Props for HostCard component.
+ *
+ * @interface HostCardProps
+ */
 interface HostCardProps {
+  /** Host data to display */
   host: Host;
+  /** Display mode (card=grid view, list=horizontal, compact=minimal) */
   viewMode: 'card' | 'list' | 'compact';
+  /** Whether host is selected (for bulk operations) */
   selected?: boolean;
+  /** Callback when host selection changes */
   onSelect?: (hostId: string) => void;
+  /** Callback when edit action triggered */
   onEdit?: (host: Host) => void;
+  /** Callback when delete action triggered */
   onDelete?: (host: Host) => void;
+  /** Callback when status check requested */
   onCheckStatus?: (hostId: string) => void;
 }
 
+/**
+ * HostCard component for displaying host information.
+ *
+ * Renders a Material-UI card with host details, compliance status,
+ * and action buttons. Supports multiple view modes for different layouts.
+ *
+ * @param props - Component props
+ * @returns React element
+ *
+ * @example
+ * <HostCard
+ *   host={hostData}
+ *   viewMode="card"
+ *   onEdit={(host) => console.log('Edit', host)}
+ *   onDelete={(host) => console.log('Delete', host)}
+ * />
+ */
 const HostCard: React.FC<HostCardProps> = ({
   host,
   viewMode,
@@ -114,82 +106,77 @@ const HostCard: React.FC<HostCardProps> = ({
   onDelete,
   onCheckStatus,
 }) => {
+  const theme = useTheme();
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
 
+  /**
+   * Handle context menu opening.
+   * Prevents event propagation to avoid triggering card click.
+   */
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation();
     setMenuAnchor(event.currentTarget);
   };
 
+  /**
+   * Close context menu.
+   */
   const handleMenuClose = () => {
     setMenuAnchor(null);
   };
 
-  const getStatusColor = () => {
+  /**
+   * Get MUI color name for host status.
+   * Maps HostStatus enum to Material-UI color palette names.
+   *
+   * @returns MUI color name (success, warning, error, etc.)
+   */
+  const getStatusColor = (): string => {
     switch (host.status) {
       case 'online':
         return 'success';
       case 'degraded':
         return 'warning';
       case 'critical':
-        return 'error';
       case 'down':
+      case 'error':
         return 'error';
       case 'scanning':
         return 'primary';
       case 'maintenance':
         return 'info';
-      case 'error':
-        return 'error';
       case 'offline':
-        return 'default';
       default:
         return 'default';
     }
   };
 
-  const getStatusIcon = () => {
-    switch (host.status) {
-      case 'online':
-        return <Wifi color="success" />;
-      case 'degraded':
-        return <Wifi color="warning" />;
-      case 'critical':
-        return <ErrorIcon color="error" />;
-      case 'down':
-        return <ErrorIcon color="error" />;
-      case 'scanning':
-        return <PlayArrow color="primary" />;
-      case 'error':
-        return <ErrorIcon color="error" />;
-      default:
-        return <WifiOff color="disabled" />;
-    }
+  /**
+   * Get MUI color name for compliance score.
+   * Uses CLAUDE.md compliant thresholds (95%, 75%).
+   *
+   * @param score - Compliance score (0-100) or null
+   * @returns MUI color name
+   */
+  const getComplianceChipColor = (score: number | null | undefined): string => {
+    if (score === null || score === undefined) return 'default';
+    if (score >= COMPLIANCE_THRESHOLDS.COMPLIANT) return 'success'; // 95%+
+    if (score >= COMPLIANCE_THRESHOLDS.NEAR_COMPLIANT) return 'warning'; // 75-94%
+    return 'error'; // <75%
   };
 
-  const getComplianceColor = (score?: number) => {
-    if (!score) return 'default';
-    if (score >= 90) return 'success';
-    if (score >= 75) return 'warning';
-    return 'error';
-  };
-
-  const formatLastScan = (lastScan?: string) => {
-    if (!lastScan) return 'Never scanned';
-
-    const date = new Date(lastScan);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return 'Over a week ago';
-  };
-
+  /**
+   * Handle scan started callback.
+   * Logs scan initiation (parent component handles data refresh).
+   *
+   * @param scanId - UUID of started scan
+   * @param scanName - Human-readable scan name
+   */
   const handleScanStarted = (scanId: string, scanName: string) => {
-    console.log(`Scan started for ${host.hostname}: ${scanId} - ${scanName}`);
-    // The parent component will handle refreshing the data
+    if (import.meta.env.DEV) {
+      console.debug(`Scan started for ${host.hostname}: ${scanId} - ${scanName}`);
+    }
+    // Parent component handles data refresh
   };
 
   const cardContent = (
@@ -219,7 +206,7 @@ const HostCard: React.FC<HostCardProps> = ({
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {getStatusIcon()}
+          {getStatusIcon(host.status)}
           <IconButton size="small" onClick={handleMenuClick}>
             <MoreVert />
           </IconButton>
@@ -239,7 +226,7 @@ const HostCard: React.FC<HostCardProps> = ({
             icon={<Security />}
             label={`${host.complianceScore}% Compliant`}
             size="small"
-            color={getComplianceColor(host.complianceScore) as any}
+            color={getComplianceChipColor(host.complianceScore) as any}
             variant="outlined"
           />
         )}
@@ -298,7 +285,7 @@ const HostCard: React.FC<HostCardProps> = ({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Schedule fontSize="small" color="action" />
         <Typography variant="body2" color="text.secondary">
-          Last scan: {formatLastScan(host.lastScan)}
+          Last scan: {formatRelativeTime(host.lastScan, 'Never scanned')}
         </Typography>
       </Box>
 
@@ -318,7 +305,7 @@ const HostCard: React.FC<HostCardProps> = ({
           <LinearProgress
             variant="determinate"
             value={host.complianceScore}
-            color={getComplianceColor(host.complianceScore) as any}
+            color={getComplianceChipColor(host.complianceScore) as any}
             sx={{ height: 6, borderRadius: 3 }}
           />
         </Box>
