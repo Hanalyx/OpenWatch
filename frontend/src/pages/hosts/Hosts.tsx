@@ -135,66 +135,9 @@ import { api } from '../../services/api';
 import HostGroupsDialog from '../../components/host-groups/HostGroupsDialog';
 import AssignHostGroupDialog from '../../components/host-groups/AssignHostGroupDialog';
 import QuickScanDialog from '../../components/scans/QuickScanDialog';
-
-interface Host {
-  id: string;
-  hostname: string;
-  displayName: string;
-  ipAddress: string;
-  operatingSystem: string;
-  status:
-    | 'online'
-    | 'degraded'
-    | 'critical'
-    | 'down'
-    | 'offline'
-    | 'maintenance'
-    | 'scanning'
-    | 'reachable'
-    | 'ping_only'
-    | 'error'
-    | 'unknown';
-  complianceScore: number | null;
-  complianceTrend: 'up' | 'down' | 'stable';
-  lastScan: string | null;
-  lastCheck: string | null;
-  nextScan: string | null;
-  criticalIssues: number;
-  highIssues: number;
-  mediumIssues: number;
-  lowIssues: number;
-  tags: string[];
-  group: string;
-  group_id?: number;
-  group_name?: string;
-  group_description?: string;
-  group_color?: string;
-  owner: string;
-  cpuUsage: number | null;
-  memoryUsage: number | null;
-  diskUsage: number | null;
-  uptime: string | null;
-  osVersion: string;
-  lastBackup: string | null;
-  sshKey: boolean;
-  agent: string;
-  profile: string | null;
-  port?: number;
-  username?: string;
-  authMethod?: 'password' | 'ssh_key' | 'none' | 'default' | 'system_default';
-  ssh_key_fingerprint?: string;
-  ssh_key_type?: string;
-  ssh_key_bits?: number;
-  ssh_key_comment?: string;
-  // New scan fields
-  latestScanId?: string | null;
-  latestScanName?: string | null;
-  scanStatus?: string | null;
-  scanProgress?: number | null;
-  failedRules?: number;
-  passedRules?: number;
-  totalRules?: number;
-}
+import type { Host } from '../../types/host';
+import { REFRESH_INTERVALS } from '../../constants/refresh';
+import { COMPLIANCE_THRESHOLDS } from '../../constants/compliance';
 
 const Hosts: React.FC = () => {
   const theme = useTheme();
@@ -228,7 +171,7 @@ const Hosts: React.FC = () => {
 
   // Auto-refresh state
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(300000); // 5 minutes default
+  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [editFormData, setEditFormData] = useState({
     hostname: '',
@@ -365,8 +308,8 @@ const Hosts: React.FC = () => {
       (host) => host.scanStatus === 'running' || host.scanStatus === 'pending'
     );
 
-    // Use shorter interval if there are running scans
-    const dynamicInterval = hasRunningScan ? 5000 : refreshInterval; // 5 seconds vs normal interval
+    // Use shorter interval if there are running scans (adaptive polling)
+    const dynamicInterval = hasRunningScan ? REFRESH_INTERVALS.ACTIVE_SCAN : refreshInterval;
 
     const intervalId = setInterval(() => {
       // Only refresh if the page is visible (performance optimization)
@@ -863,11 +806,11 @@ const Hosts: React.FC = () => {
   };
 
   const getComplianceColor = (score: number | null) => {
+    // Compliance thresholds per CLAUDE.md and constants/compliance.ts
     if (score === null) return theme.palette.grey[500]; // Gray for no data
-    if (score >= 90) return theme.palette.success.main;
-    if (score >= 75) return theme.palette.warning.main;
-    if (score >= 60) return theme.palette.warning.dark;
-    return theme.palette.error.main;
+    if (score >= COMPLIANCE_THRESHOLDS.COMPLIANT) return theme.palette.success.main; // 95%+: Compliant
+    if (score >= COMPLIANCE_THRESHOLDS.NEAR_COMPLIANT) return theme.palette.warning.main; // 75-94%: Near Compliant
+    return theme.palette.error.main; // <75%: Non-Compliant
   };
 
   const HostCard: React.FC<{ host: Host; viewMode?: ViewMode }> = ({ host, viewMode = 'grid' }) => {
