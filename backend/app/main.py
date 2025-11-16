@@ -406,54 +406,58 @@ async def health_check():
             "fips_mode": settings.fips_mode,
         }
 
-        # Check database connectivity - simplified approach
-        db_healthy = True
-        db = None
-        try:
-            # Simple inline database check
-            from sqlalchemy import text
+        # Helper function for synchronous DB check
+        def check_database_sync():
+            db = None
+            try:
+                from .database import SessionLocal
+                from sqlalchemy import text
 
-            from .database import SessionLocal
+                db = SessionLocal()
+                db.execute(text("SELECT 1"))
+                return True, "healthy"
+            except Exception as e:
+                logger.error(f"Database health check failed - inline version: {e}")
+                return False, "unhealthy"
+            finally:
+                if db:
+                    db.close()
 
-            db = SessionLocal()
-            db.execute(text("SELECT 1"))
-            health_status["database"] = "healthy"
+        # Helper function for synchronous Redis check
+        def check_redis_sync():
+            redis_client = None
+            try:
+                import redis
+                import urllib.parse
+
+                parsed = urllib.parse.urlparse(settings.redis_url)
+                redis_client = redis.Redis(
+                    host=parsed.hostname,
+                    port=parsed.port or 6379,
+                    password=parsed.password,
+                    socket_timeout=5,
+                    socket_connect_timeout=5,
+                )
+                redis_client.ping()
+                return True, "healthy"
+            except Exception as e:
+                logger.error(f"Redis health check failed - inline version: {e}")
+                return False, "unhealthy"
+            finally:
+                if redis_client:
+                    redis_client.close()
+
+        # Run synchronous checks in thread pool to avoid blocking async event loop
+        loop = asyncio.get_event_loop()
+        db_healthy, db_status = await loop.run_in_executor(None, check_database_sync)
+        health_status["database"] = db_status
+        if db_healthy:
             logger.info("Database health check successful - inline version")
-        except Exception as e:
-            logger.error(f"Database health check failed - inline version: {e}")
-            health_status["database"] = "unhealthy"
-            db_healthy = False
-        finally:
-            if db:
-                db.close()
 
-        # Check Redis connectivity - simplified approach
-        redis_healthy = True
-        redis_client = None
-        try:
-            # Simple inline Redis check
-            import urllib.parse
-
-            import redis
-
-            parsed = urllib.parse.urlparse(settings.redis_url)
-            redis_client = redis.Redis(
-                host=parsed.hostname,
-                port=parsed.port or 6379,
-                password=parsed.password,
-                socket_timeout=5,
-                socket_connect_timeout=5,
-            )
-            redis_client.ping()
-            health_status["redis"] = "healthy"
+        redis_healthy, redis_status = await loop.run_in_executor(None, check_redis_sync)
+        health_status["redis"] = redis_status
+        if redis_healthy:
             logger.info("Redis health check successful - inline version")
-        except Exception as e:
-            logger.error(f"Redis health check failed - inline version: {e}")
-            health_status["redis"] = "unhealthy"
-            redis_healthy = False
-        finally:
-            if redis_client:
-                redis_client.close()
 
         # Check MongoDB connectivity
         mongodb_configured = bool(settings.mongodb_url and "mongodb://" in settings.mongodb_url)
