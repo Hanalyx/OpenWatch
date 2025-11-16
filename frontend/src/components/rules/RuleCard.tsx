@@ -28,7 +28,7 @@ import {
   ContentCopy as CopyIcon,
   Launch as LaunchIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 
 interface RuleCardProps {
   rule: Rule;

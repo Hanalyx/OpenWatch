@@ -410,8 +410,9 @@ async def health_check():
         def check_database_sync():
             db = None
             try:
-                from .database import SessionLocal
                 from sqlalchemy import text
+
+                from .database import SessionLocal
 
                 db = SessionLocal()
                 db.execute(text("SELECT 1"))
@@ -427,8 +428,9 @@ async def health_check():
         def check_redis_sync():
             redis_client = None
             try:
-                import redis
                 import urllib.parse
+
+                import redis
 
                 parsed = urllib.parse.urlparse(settings.redis_url)
                 redis_client = redis.Redis(

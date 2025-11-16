@@ -1,10 +1,10 @@
 import { api } from './api';
 import { getAuthHeaders } from '../hooks/useAuthHeaders';
 import {
-  Rule,
-  SearchRequest,
-  PlatformCapability,
-  RuleDependencyGraph,
+  type Rule,
+  type SearchRequest,
+  type PlatformCapability,
+  type RuleDependencyGraph,
 } from '../store/slices/ruleSlice';
 
 export interface RuleListResponse {
@@ -108,7 +108,7 @@ class RuleService {
       return {
         success: true,
         data: {
-          rules: rules,
+          rules,
           total_count: totalCount,
           offset: params.offset || 0,
           limit: params.limit || 25,
@@ -466,8 +466,8 @@ class RuleService {
           source: 'MongoDB Compliance Database',
         },
         abstract: false,
-        severity: severity,
-        category: category,
+        severity,
+        category,
         security_function:
           category === 'authentication'
             ? 'identification_authentication'
@@ -876,11 +876,11 @@ class RuleService {
       };
     } else if (params.format === 'csv') {
       return (
-        'rule_id,name,severity,category\n' +
+        `rule_id,name,severity,category\n${ 
         mockRules
           .filter((rule) => params.ruleIds.includes(rule.rule_id))
           .map((rule) => `${rule.rule_id},${rule.metadata.name},${rule.severity},${rule.category}`)
-          .join('\n')
+          .join('\n')}`
       );
     }
 

@@ -25,7 +25,7 @@ import {
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
+import { type RootState } from '../../store';
 
 interface RuleDependencyDialogProps {
   open: boolean;

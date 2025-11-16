@@ -44,7 +44,7 @@ import {
   Schedule as ScheduleIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 
 interface ScannerRuleSelectionProps {
   open: boolean;

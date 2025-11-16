@@ -1,4 +1,4 @@
-import { Rule } from '../store/slices/ruleSlice';
+import { type Rule } from '../store/slices/ruleSlice';
 
 export interface RuleRecommendation {
   rule: Rule;

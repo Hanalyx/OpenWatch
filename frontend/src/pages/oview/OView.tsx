@@ -54,7 +54,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
-import HostMonitoringTab, { HostMonitoringTabRef } from './HostMonitoringTab';
+import HostMonitoringTab, { type HostMonitoringTabRef } from './HostMonitoringTab';
 
 interface AuditEvent {
   id: number;

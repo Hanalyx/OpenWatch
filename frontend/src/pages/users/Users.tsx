@@ -342,7 +342,7 @@ const Users: React.FC = () => {
                       label={getRoleDisplay(user.role)}
                       size="small"
                       sx={{
-                        backgroundColor: roleColors[user.role] + '20',
+                        backgroundColor: `${roleColors[user.role]  }20`,
                         color: roleColors[user.role],
                         fontWeight: 'medium',
                       }}

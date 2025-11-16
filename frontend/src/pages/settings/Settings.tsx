@@ -46,7 +46,7 @@ import {
 import { api } from '../../services/api';
 import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
+import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 
 interface SystemCredentials {

@@ -38,7 +38,7 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { ruleService } from '../../services/ruleService';
-import { RuleDependencyGraph } from '../../store/slices/ruleSlice';
+import { type RuleDependencyGraph } from '../../store/slices/ruleSlice';
 
 interface EnhancedDependencyDialogProps {
   open: boolean;

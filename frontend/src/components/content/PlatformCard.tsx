@@ -22,7 +22,7 @@ import {
   Assessment as MetricsIcon,
   TrendingUp as TrendingIcon,
 } from '@mui/icons-material';
-import { PlatformStatistics } from '../../types/content.types';
+import { type PlatformStatistics } from '../../types/content.types';
 import { CategoryBreakdown } from './CategoryBreakdown';
 
 interface PlatformCardProps {

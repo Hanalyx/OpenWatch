@@ -367,7 +367,7 @@ const Hosts: React.FC = () => {
 
   // Filter and group hosts
   const processedHosts = useMemo(() => {
-    let filtered = hosts.filter((host) => {
+    const filtered = hosts.filter((host) => {
       const matchesSearch =
         !searchQuery ||
         host.hostname.toLowerCase().includes(searchQuery.toLowerCase()) ||

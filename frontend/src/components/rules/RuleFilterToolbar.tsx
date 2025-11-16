@@ -35,8 +35,8 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useDebounce } from '../../hooks/useDebounce';
-import { FilterState } from '../../store/slices/ruleSlice';
-import EnhancedSearchInput, { SearchSuggestion } from './EnhancedSearchInput';
+import { type FilterState } from '../../store/slices/ruleSlice';
+import EnhancedSearchInput, { type SearchSuggestion } from './EnhancedSearchInput';
 
 interface RuleFilterToolbarProps {
   searchQuery: string;

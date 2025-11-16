@@ -428,9 +428,9 @@ const Scans: React.FC = () => {
         body: JSON.stringify({
           host_id: hostGroup.host_id,
           hostname: hostGroup.host_name,
-          platform: platform,
+          platform,
           platform_version: platformVersion,
-          framework: framework,
+          framework,
           include_enrichment: true,
           generate_report: true,
         }),

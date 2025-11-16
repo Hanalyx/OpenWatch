@@ -23,7 +23,7 @@ import {
   Security as SecurityIcon,
   Assessment as ComplianceIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 import SafeHTMLRenderer from '../common/SafeHTMLRenderer';
 
 interface RuleSidePanelProps {

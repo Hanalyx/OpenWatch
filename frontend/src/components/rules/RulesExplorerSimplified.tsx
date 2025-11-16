@@ -29,14 +29,14 @@ import {
   FilterList as FilterIcon,
   PlayArrow as ScanIcon,
 } from '@mui/icons-material';
-import { Rule, FilterState } from '../../store/slices/ruleSlice';
+import { type Rule, type FilterState } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import RuleCard from './RuleCard';
 import RuleFilterToolbar from './RuleFilterToolbar';
 import RuleDetailDialog from './RuleDetailDialog';
 import EnhancedDependencyDialog from './EnhancedDependencyDialog';
 import EmptyState from '../design-system/patterns/EmptyState';
-import { SearchSuggestion } from './EnhancedSearchInput';
+import { type SearchSuggestion } from './EnhancedSearchInput';
 import ScannerRuleSelection from '../scanner/ScannerRuleSelection';
 import RuleIntelligencePanel from './RuleIntelligencePanel';
 

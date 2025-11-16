@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ClassifiedError } from '../components/errors/ErrorClassificationDisplay';
+import { type ClassifiedError } from '../components/errors/ErrorClassificationDisplay';
 
 export interface ValidationRequest {
   host_id: string;

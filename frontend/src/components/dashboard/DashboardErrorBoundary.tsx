@@ -1,4 +1,4 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, type ReactNode } from 'react';
 import { Box, Alert, Typography, Button } from '@mui/material';
 import { Refresh } from '@mui/icons-material';
 

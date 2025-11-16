@@ -267,7 +267,7 @@ const ComplianceScans: React.FC = () => {
             const response = await api.post('/api/mongodb-scans/start', {
               host_id: hostId,
               hostname: host.ip_address || host.hostname, // Prefer IP for DNS resolution
-              platform: platform,
+              platform,
               platform_version: platformVersion,
               framework: frameworkFilter || undefined,
               rule_ids: selectedRules,

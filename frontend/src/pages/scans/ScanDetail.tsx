@@ -583,9 +583,9 @@ const ScanDetail: React.FC = () => {
         body: JSON.stringify({
           host_id: scan.host_id,
           hostname: scan.host_name || hostData.hostname,
-          platform: platform,
+          platform,
           platform_version: platformVersion,
-          framework: framework,
+          framework,
           include_enrichment: true,
           generate_report: true,
         }),

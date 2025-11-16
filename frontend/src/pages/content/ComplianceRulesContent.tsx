@@ -44,16 +44,16 @@ import {
   Computer as PlatformIcon,
   Category as CategoryIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ViewModeToggle, ViewMode } from '../../components/content/ViewModeToggle';
+import { ViewModeToggle, type ViewMode } from '../../components/content/ViewModeToggle';
 import { PlatformCard } from '../../components/content/PlatformCard';
 import { FrameworkCard } from '../../components/content/FrameworkCard';
 import RuleSidePanel from '../../components/content/RuleSidePanel';
 import { useComplianceStatistics } from '../../hooks/useComplianceStatistics';
 import { useFrameworkStatistics } from '../../hooks/useFrameworkStatistics';
-import { PlatformStatistics } from '../../types/content.types';
+import { type PlatformStatistics } from '../../types/content.types';
 
 interface ComplianceFilters {
   search: string;

@@ -37,7 +37,7 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import ErrorClassificationDisplay, { ClassifiedError } from './ErrorClassificationDisplay';
+import ErrorClassificationDisplay, { type ClassifiedError } from './ErrorClassificationDisplay';
 
 export interface ValidationRequest {
   host_id: string;

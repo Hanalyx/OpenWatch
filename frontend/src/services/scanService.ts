@@ -156,10 +156,10 @@ class ScanService {
       headers: getAuthHeaders(),
       body: JSON.stringify({
         host_id: hostId,
-        hostname: hostname,
-        platform: platform,
+        hostname,
+        platform,
         platform_version: platformVersion,
-        framework: framework,
+        framework,
         rule_ids: ruleIds,
         include_enrichment: true,
         generate_report: true,

@@ -36,11 +36,11 @@ import {
   Refresh as RefreshIcon,
   Speed as PerformanceIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 import {
   ruleIntelligenceService,
-  RuleIntelligenceAnalysis,
-  RuleRecommendation,
+  type RuleIntelligenceAnalysis,
+  type RuleRecommendation,
 } from '../../services/ruleIntelligenceService';
 
 interface RuleIntelligencePanelProps {

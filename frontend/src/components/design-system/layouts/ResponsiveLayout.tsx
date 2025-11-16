@@ -11,7 +11,7 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material';
-import { SxProps, Theme } from '@mui/material/styles';
+import { type SxProps, type Theme } from '@mui/material/styles';
 
 interface ResponsiveLayoutProps {
   title?: string;

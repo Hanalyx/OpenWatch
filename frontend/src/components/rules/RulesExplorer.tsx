@@ -29,7 +29,7 @@ import {
   FilterList as FilterIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../../store';
+import { type RootState, type AppDispatch } from '../../store';
 import {
   selectRule,
   setViewMode,
@@ -42,7 +42,7 @@ import {
   fetchRuleDetails,
   fetchRuleDependencies,
   exportRules,
-  Rule,
+  type Rule,
 } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import RuleCard from './RuleCard';

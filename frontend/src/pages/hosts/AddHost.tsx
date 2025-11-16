@@ -429,7 +429,7 @@ const AddHost: React.FC = () => {
 
         setSshKeyValidation({
           status: 'valid',
-          message: message,
+          message,
           keyType: result.key_type,
           keyBits: result.key_bits,
           securityLevel: result.security_level,

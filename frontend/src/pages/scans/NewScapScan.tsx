@@ -39,7 +39,7 @@ import { api } from '../../services/api';
 import { ScanService } from '../../services/scanService';
 import PreFlightValidationDialog from '../../components/errors/PreFlightValidationDialog';
 import ErrorClassificationDisplay, {
-  ClassifiedError,
+  type ClassifiedError,
 } from '../../components/errors/ErrorClassificationDisplay';
 import { errorService } from '../../services/errorService';
 import { SUPPORTED_PLATFORMS, SUPPORTED_FRAMEWORKS } from '../../constants/complianceFrameworks';

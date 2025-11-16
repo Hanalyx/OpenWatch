@@ -48,7 +48,7 @@ import {
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { ruleService } from '../../services/ruleService';
-import { PlatformCapability } from '../../store/slices/ruleSlice';
+import { type PlatformCapability } from '../../store/slices/ruleSlice';
 
 interface PlatformCapabilityViewProps {
   onRuleFilterChange?: (platform: string, capabilities: string[]) => void;
@@ -116,7 +116,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
       const response = await ruleService.detectPlatformCapabilities({
         platform: selectedPlatform,
         platformVersion: selectedVersion,
-        targetHost: targetHost,
+        targetHost,
         compareBaseline: true,
         capabilityTypes: ['package', 'service', 'security', 'configuration'],
       });
