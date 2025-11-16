@@ -35,12 +35,14 @@ from .routes import (
     api_keys,
     audit,
     auth,
+    baselines,
     bulk_operations,
     bulk_remediation_routes,
     capabilities,
     compliance,
     content,
     credentials,
+    drift_events,
     group_compliance,
     host_compliance_discovery,
     host_discovery,
@@ -83,9 +85,7 @@ from .middleware.rate_limiting import get_rate_limiting_middleware
 from .services.prometheus_metrics import get_metrics_instance
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
@@ -103,15 +103,12 @@ async def lifespan(app: FastAPI):
 
     # Create encryption service with production config
     encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
-    encryption_service = create_encryption_service(
-        master_key=settings.master_key, config=encryption_config
-    )
+    encryption_service = create_encryption_service(master_key=settings.master_key, config=encryption_config)
 
     # Store in app state for dependency injection
     app.state.encryption_service = encryption_service
     logger.info(
-        f"Encryption service initialized "
-        f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
+        f"Encryption service initialized " f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
     )
 
     # Verify FIPS mode if required
@@ -141,9 +138,7 @@ async def lifespan(app: FastAPI):
                 logger.error("Critical database schema initialization failed!")
                 logger.error("Application cannot start without required tables.")
                 if attempt < max_retries - 1:
-                    logger.info(
-                        f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})"
-                    )
+                    logger.info(f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
@@ -199,9 +194,7 @@ async def lifespan(app: FastAPI):
                 await async_sleep_module.sleep(retry_delay)
             else:
                 if settings.debug:
-                    logger.warning(
-                        f"Database connection failed in debug mode, continuing without DB: {e}"
-                    )
+                    logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
                 else:
                     logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                     raise
@@ -350,9 +343,7 @@ async def request_size_limit_middleware(request: Request, call_next):
         )
         return JSONResponse(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            content={
-                "detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"
-            },
+            content={"detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"},
         )
 
     return await call_next(request)
@@ -479,9 +470,7 @@ async def health_check():
                 if mongodb_healthy:
                     logger.info("MongoDB health check successful")
                 else:
-                    logger.warning(
-                        f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}"
-                    )
+                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
             except Exception as e:
                 # Return actual error status
                 health_status["mongodb"] = "unhealthy"
@@ -497,9 +486,7 @@ async def health_check():
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
             health_status["status"] = "degraded"
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status
-            )
+            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
         return health_status
 
@@ -534,9 +521,7 @@ async def metrics():
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
-    return PlainTextResponse(
-        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
-    )
+    return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # Include API routes - Unified API at /api prefix
@@ -553,23 +538,19 @@ app.include_router(mongodb_scan_api.router, prefix="/api", tags=["MongoDB Scanni
 # XCCDF and scanning services (consolidated from v1)
 app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
 app.include_router(scans_api.router, prefix="/api/scan-execution", tags=["Scan Execution"])
-app.include_router(
-    remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"]
-)
+app.include_router(remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"])
 app.include_router(scan_config_api.router, prefix="/api/scan-config", tags=["Scan Configuration"])
-app.include_router(
-    health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"]
-)
+app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
 
 # Remediation provider (moved from v1)
-app.include_router(
-    remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"]
-)
+app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
 
 # Core API routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
 app.include_router(hosts.router, prefix="/api/hosts", tags=["Host Management"])
+app.include_router(baselines.router, tags=["Baseline Management"])
+app.include_router(drift_events.router, tags=["Drift Detection"])
 app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
@@ -596,9 +577,7 @@ app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
 app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
 app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
 app.include_router(group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"])
-app.include_router(
-    host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"]
-)
+app.include_router(host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"])
 app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
 app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
 app.include_router(plugin_management.router, prefix="/api", tags=["Plugin Management"])

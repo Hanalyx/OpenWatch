@@ -85,7 +85,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(initialAutoRefresh);
-  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
+  const [refreshInterval, setRefreshInterval] = useState<number>(REFRESH_INTERVALS.NORMAL);
 
   /**
    * Fetch hosts from API.
@@ -102,7 +102,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
       const apiHosts = response.data;
 
       // Transform API response to match Host interface
-      const transformedHosts: Host[] = apiHosts.map((host: any) => ({
+      const transformedHosts: Host[] = apiHosts.map((host: Record<string, unknown>) => ({
         id: host.id,
         hostname: host.hostname,
         displayName: host.display_name || host.hostname,
