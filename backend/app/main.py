@@ -488,7 +488,7 @@ async def health_check():
             health_status["status"] = "degraded"
             return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
-        return health_status
+        return JSONResponse(status_code=status.HTTP_200_OK, content=health_status)
 
     except Exception as e:
         logger.error(f"Health check failed: {e}")
