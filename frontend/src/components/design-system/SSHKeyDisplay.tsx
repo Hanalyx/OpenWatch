@@ -284,7 +284,7 @@ const SSHKeyDisplay: React.FC<SSHKeyDisplayProps> = ({
                       color="text.secondary"
                       sx={{ fontStyle: 'italic', ml: 1 }}
                     >
-                      "{sshKeyInfo.keyComment}"
+                      {sshKeyInfo.keyComment}
                     </Typography>
                   )}
                 </Box>
