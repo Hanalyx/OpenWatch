@@ -502,14 +502,17 @@ async def health_check():
 @app.get("/security-info")
 async def security_info(current_user: dict = Depends(require_admin)):
     """Provide security configuration information (admin only)"""
-    return {
-        "fips_mode": settings.fips_mode,
-        "https_required": settings.require_https,
-        "jwt_algorithm": "RS256",
-        "encryption": "AES-256-GCM",
-        "hash_algorithm": "Argon2id",
-        "tls_version": "1.3",
-    }
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "fips_mode": settings.fips_mode,
+            "https_required": settings.require_https,
+            "jwt_algorithm": "RS256",
+            "encryption": "AES-256-GCM",
+            "hash_algorithm": "Argon2id",
+            "tls_version": "1.3",
+        },
+    )
 
 
 # Prometheus Metrics Endpoint
