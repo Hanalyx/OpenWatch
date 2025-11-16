@@ -26,6 +26,7 @@ See: COMPLIANCE_ENHANCEMENT_MASTER_PLAN.md for complete architecture details
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "20251115_per_sev_pass_fail"

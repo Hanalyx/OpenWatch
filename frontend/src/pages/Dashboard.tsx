@@ -7,9 +7,10 @@ import { Scanner, AddCircle, Warning, Assessment, Computer } from '@mui/icons-ma
 import SmartAlertBar from '../components/dashboard/SmartAlertBar';
 import QuickActionCard from '../components/dashboard/QuickActionCard';
 import FleetHealthWidget from '../components/dashboard/FleetHealthWidget';
-import ActivityFeed, { ActivityItem } from '../components/dashboard/ActivityFeed';
+import ActivityFeed, { type ActivityItem } from '../components/dashboard/ActivityFeed';
 import ComplianceTrend from '../components/dashboard/ComplianceTrend';
 import PriorityHosts, { PriorityHost } from '../components/dashboard/PriorityHosts';
+import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
 import { EmptyState } from '../components/design-system';
 import { api } from '../services/api';
 import QuickScanDialog from '../components/scans/QuickScanDialog';
@@ -604,9 +605,21 @@ const Dashboard: React.FC = () => {
 
         {/* Right Column - Activity Feed */}
         <Grid item xs={12} lg={4}>
-          <DashboardErrorBoundary onRetry={fetchDashboardData}>
-            <ActivityFeed activities={activities} />
-          </DashboardErrorBoundary>
+          <Grid container spacing={3}>
+            {/* Drift Alerts Widget */}
+            <Grid item xs={12}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
+              </DashboardErrorBoundary>
+            </Grid>
+
+            {/* Activity Feed */}
+            <Grid item xs={12}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <ActivityFeed activities={activities} />
+              </DashboardErrorBoundary>
+            </Grid>
+          </Grid>
         </Grid>
       </Grid>
 

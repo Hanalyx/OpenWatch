@@ -48,6 +48,7 @@ import {
   Info as InfoIcon,
   Settings as SettingsIcon,
   Terminal as TerminalIcon,
+  Flag as FlagIcon,
 } from '@mui/icons-material';
 import {
   StatusChip,
@@ -56,6 +57,8 @@ import {
   type SSHKeyInfo,
 } from '../../components/design-system';
 import HostTerminal from '../../components/terminal/HostTerminal';
+import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
+import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
 import { api } from '../../services/api';
 
 interface Host {
@@ -142,6 +145,7 @@ const HostDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
+  const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchHostDetails();
@@ -326,10 +330,17 @@ const HostDetail: React.FC = () => {
           </Typography>
         </Box>
         <Button
+          variant="outlined"
+          startIcon={<FlagIcon />}
+          onClick={() => setBaselineDialogOpen(true)}
+          sx={{ mr: 1 }}
+        >
+          Establish Baseline
+        </Button>
+        <Button
           variant="contained"
           startIcon={runningScan ? <VisibilityIcon /> : <PlayArrowIcon />}
           onClick={runningScan ? () => navigate(`/scans/${runningScan.id}`) : handleStartScan}
-          sx={{ mr: 1 }}
         >
           {runningScan ? 'View Running Scan' : 'Start New Scan'}
         </Button>
@@ -613,6 +624,20 @@ const HostDetail: React.FC = () => {
             </Button>
           </Alert>
         )}
+
+        {/* Compliance Trend Chart */}
+        {scans.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Compliance Trend
+            </Typography>
+            <Card>
+              <CardContent>
+                <ComplianceTrendChart hostId={host.id} height={300} />
+              </CardContent>
+            </Card>
+          </Box>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
@@ -710,6 +735,18 @@ const HostDetail: React.FC = () => {
           <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>
       </TabPanel>
+
+      {/* Baseline Establish Dialog */}
+      <BaselineEstablishDialog
+        open={baselineDialogOpen}
+        onClose={() => setBaselineDialogOpen(false)}
+        hostId={host.id}
+        hostname={host.hostname}
+        onBaselineEstablished={() => {
+          // Refresh scan data to show updated baseline status
+          fetchHostScans();
+        }}
+      />
     </Box>
   );
 };

@@ -32,10 +32,10 @@
  * @readonly
  */
 export const VALID_SSH_KEY_HEADERS = [
-  '-----BEGIN OPENSSH PRIVATE KEY-----',  // pragma: allowlist secret
-  '-----BEGIN RSA PRIVATE KEY-----',      // pragma: allowlist secret
-  '-----BEGIN EC PRIVATE KEY-----',       // pragma: allowlist secret
-  '-----BEGIN DSA PRIVATE KEY-----',      // pragma: allowlist secret
+  '-----BEGIN OPENSSH PRIVATE KEY-----', // pragma: allowlist secret
+  '-----BEGIN RSA PRIVATE KEY-----', // pragma: allowlist secret
+  '-----BEGIN EC PRIVATE KEY-----', // pragma: allowlist secret
+  '-----BEGIN DSA PRIVATE KEY-----', // pragma: allowlist secret
 ] as const;
 
 /**
@@ -62,7 +62,7 @@ export const VALID_SSH_KEY_HEADERS = [
  * @returns True if key has valid format, false otherwise
  *
  * @example
- * const key = '-----BEGIN OPENSSH PRIVATE KEY-----\nABC123...\n-----END...';
+ * const key = '-----BEGIN OPENSSH PRIVATE KEY-----\nABC123...\n-----END...'; // pragma: allowlist secret
  * const isValid = validateSshKey(key);
  * console.log(isValid); // true
  *
@@ -80,9 +80,7 @@ export function validateSshKey(keyContent: string): boolean {
   const trimmedContent = keyContent.trim();
 
   // Check if content starts with any valid SSH key header
-  return VALID_SSH_KEY_HEADERS.some((header) =>
-    trimmedContent.startsWith(header)
-  );
+  return VALID_SSH_KEY_HEADERS.some((header) => trimmedContent.startsWith(header));
 }
 
 /**
@@ -111,7 +109,8 @@ export function validateHostname(hostname: string): boolean {
   }
 
   // RFC 1123 hostname pattern
-  const hostnamePattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const hostnamePattern =
+    /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
   return hostnamePattern.test(hostname);
 }
 

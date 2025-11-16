@@ -31,10 +31,7 @@
  * formatTimestamp(null); // "Never"
  * formatTimestamp(null, 'Not Available'); // "Not Available"
  */
-export function formatTimestamp(
-  isoTimestamp: string | null,
-  fallback: string = 'Never'
-): string {
+export function formatTimestamp(isoTimestamp: string | null, fallback: string = 'Never'): string {
   if (!isoTimestamp) {
     return fallback;
   }
@@ -212,10 +209,7 @@ export function formatByteSize(
  * formatUptime(172800); // "2d 0h"
  * formatUptime(null); // "Unknown"
  */
-export function formatUptime(
-  uptimeSeconds: number | null,
-  fallback: string = 'Unknown'
-): string {
+export function formatUptime(uptimeSeconds: number | null, fallback: string = 'Unknown'): string {
   if (uptimeSeconds === null || uptimeSeconds === undefined || isNaN(uptimeSeconds)) {
     return fallback;
   }
@@ -251,10 +245,7 @@ export function formatUptime(
  * capitalize(''); // ""
  * capitalize(null); // ""
  */
-export function capitalize(
-  text: string | null,
-  fallback: string = ''
-): string {
+export function capitalize(text: string | null, fallback: string = ''): string {
   if (!text) {
     return fallback;
   }
@@ -308,10 +299,7 @@ export function truncate(
  * formatNumber(1234567); // "1,234,567"
  * formatNumber(null); // "0"
  */
-export function formatNumber(
-  value: number | null,
-  fallback: string = '0'
-): string {
+export function formatNumber(value: number | null, fallback: string = '0'): string {
   if (value === null || value === undefined || isNaN(value)) {
     return fallback;
   }
