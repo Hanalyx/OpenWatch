@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Card,
-  CardContent,
   Tabs,
   Tab,
   Button,
@@ -35,16 +33,13 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Security as SecurityIcon,
-  Schedule as ScheduleIcon,
-  PlayArrow as PlayIcon,
-  Stop as StopIcon,
   VpnKey as VpnKeyIcon,
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
   Policy as PolicyIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import { SSHKeyDisplay } from '../../components/design-system';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';

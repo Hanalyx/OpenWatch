@@ -42,7 +42,7 @@ export function formatTimestamp(isoTimestamp: string | null, fallback: string = 
       return fallback;
     }
     return date.toLocaleString();
-  } catch (error) {
+  } catch {
     return fallback;
   }
 }
@@ -119,7 +119,7 @@ export function formatRelativeTime(
 
     // More than 1 month - show absolute date
     return formatTimestamp(isoTimestamp, fallback);
-  } catch (error) {
+  } catch {
     return fallback;
   }
 }

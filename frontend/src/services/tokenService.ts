@@ -1,5 +1,5 @@
 import { store } from '../store';
-import { refreshTokenSuccess, logout, checkSessionExpiry } from '../store/slices/authSlice';
+import { refreshTokenSuccess, logout } from '../store/slices/authSlice';
 
 class TokenService {
   private refreshTimer: NodeJS.Timeout | null = null;

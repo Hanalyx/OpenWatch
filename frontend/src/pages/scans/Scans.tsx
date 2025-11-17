@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
-  Container,
   Typography,
   Table,
   TableBody,
@@ -32,7 +31,6 @@ import {
   MoreVert as MoreVertIcon,
   ExpandMore as ExpandMoreIcon,
   Computer as ComputerIcon,
-  Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
   GetApp as ExportIcon,
   PlayArrow as PlayIcon,
@@ -103,7 +101,7 @@ interface HostWithScans {
 
 const Scans: React.FC = () => {
   const navigate = useNavigate();
-  const [scans, setScans] = useState<Scan[]>([]);
+  const [_scans, setScans] = useState<Scan[]>([]);
   const [hostGroups, setHostGroups] = useState<HostWithScans[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
