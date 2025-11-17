@@ -33,26 +33,16 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
-  Tooltip,
   LinearProgress,
-  useTheme,
-  alpha,
 } from '@mui/material';
 import {
   ArrowBack,
   Computer,
   Key,
   Password,
-  Token,
-  CloudUpload,
-  Check,
   Error as ErrorIcon,
-  Warning,
-  Info,
   ExpandMore,
   ExpandLess,
-  PlayArrow,
   Schedule,
   Security,
   Group,
@@ -62,36 +52,23 @@ import {
   VpnKey,
   AccountTree,
   Description,
-  ContentCopy,
   Add,
-  Remove,
   Upload,
-  Download,
   Save as SaveIcon,
   CheckCircle,
   Cancel,
   Visibility,
   VisibilityOff,
   Edit,
-  FolderOpen,
-  Terminal,
   Speed,
-  Timer,
-  CloudQueue,
   Storage,
   Settings,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import {
-  StatCard,
-  StatusChip,
-  SSHKeyDisplay,
-  type SSHKeyInfo,
-} from '../../components/design-system';
+import { StatCard, SSHKeyDisplay } from '../../components/design-system';
 import { api } from '../../services/api';
 
 const AddHost: React.FC = () => {
-  const theme = useTheme();
   const navigate = useNavigate();
 
   // Form state
@@ -172,7 +149,8 @@ const AddHost: React.FC = () => {
     postScript: '',
   });
 
-  const steps = [
+  // Step configuration for advanced mode stepper - reserved for future progress indicators
+  const _steps = [
     'Host Connection',
     'Authentication',
     'Classification',
@@ -441,7 +419,7 @@ const AddHost: React.FC = () => {
           message: result.error_message || 'SSH key validation failed.',
         });
       }
-    } catch (error) {
+    } catch {
       setSshKeyValidation({
         status: 'invalid',
         message: 'Error validating SSH key. Please check the format and try again.',
