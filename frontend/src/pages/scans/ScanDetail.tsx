@@ -28,9 +28,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   TextField,
   InputAdornment,
   Menu,
@@ -41,8 +38,6 @@ import {
   DialogContent,
   DialogActions,
   DialogContentText,
-  FormControlLabel,
-  Checkbox,
   Link,
   Stack,
   Stepper,
@@ -58,9 +53,7 @@ import {
   Warning as WarningIcon,
   Info as InfoIcon,
   GetApp as DownloadIcon,
-  Share as ShareIcon,
   Print as PrintIcon,
-  ExpandMore as ExpandMoreIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Security as SecurityIcon,
@@ -71,7 +64,6 @@ import {
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
   PlayArrow as PlayArrowIcon,
-  Flag as FlagIcon,
   FileCopy as FileCopyIcon,
   Terminal as TerminalIcon,
   Code as CodeIcon,
@@ -246,7 +238,7 @@ const ScanDetail: React.FC = () => {
       if (data.status === 'completed' && data.results) {
         await fetchActualRuleResults(quiet);
       }
-    } catch (error) {
+    } catch {
       if (!quiet) {
         showSnackbar('Failed to load scan details', 'error');
       }
@@ -257,7 +249,7 @@ const ScanDetail: React.FC = () => {
 
   const fetchScanDetailsQuiet = () => fetchScanDetails(true);
 
-  const fetchActualRuleResults = async (quiet: boolean = false) => {
+  const fetchActualRuleResults = async (_quiet: boolean = false) => {
     try {
       // Fetch actual rule results from JSON report endpoint
       const data = await api.get(`/api/scans/${id}/report/json`);
@@ -511,7 +503,7 @@ const ScanDetail: React.FC = () => {
       }
 
       showSnackbar(`Report exported successfully as ${format.toUpperCase()}`, 'success');
-    } catch (error) {
+    } catch {
       showSnackbar(`Failed to export report as ${format.toUpperCase()}`, 'error');
     } finally {
       handleMenuClose();
@@ -1023,7 +1015,7 @@ const ScanDetail: React.FC = () => {
 
       showSnackbar(`Rule details exported as ${format.toUpperCase()}`, 'success');
       closeExportRuleDialog();
-    } catch (error) {
+    } catch {
       showSnackbar(`Failed to export rule details as ${format.toUpperCase()}`, 'error');
     }
   };
