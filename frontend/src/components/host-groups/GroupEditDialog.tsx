@@ -11,7 +11,6 @@ import {
   Grid,
   FormControlLabel,
   Switch,
-  Checkbox,
   Alert,
   CircularProgress,
   Autocomplete,
@@ -33,11 +32,8 @@ import {
 import {
   Edit as EditIcon,
   Computer as HostIcon,
-  Security as SecurityIcon,
-  Assessment as ComplianceIcon,
   Add as AddIcon,
   Remove as RemoveIcon,
-  Warning as WarningIcon,
 } from '@mui/icons-material';
 import {
   OS_FAMILY_OPTIONS,
