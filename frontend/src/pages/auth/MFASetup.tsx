@@ -25,21 +25,9 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
-import { QRCodeSVG } from 'qrcode.react';
-import {
-  Security,
-  Smartphone,
-  QrCode,
-  Check,
-  Warning,
-  ContentCopy,
-  Download,
-  VerifiedUser,
-  Key,
-  Shield,
-} from '@mui/icons-material';
+import { Security, ContentCopy, Download, VerifiedUser, Key, Shield } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
-import { useAppSelector, useAppDispatch } from '../../hooks/redux';
+import { useAppSelector } from '../../hooks/redux';
 import { tokenService } from '../../services/tokenService';
 import { announcer } from '../../utils/accessibility';
 
@@ -80,7 +68,6 @@ interface MFASecret {
 
 const MFASetup: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
 
   const [activeStep, setActiveStep] = useState(0);
@@ -94,7 +81,6 @@ const MFASetup: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<MFASetupData>();
 
   useEffect(() => {
@@ -166,7 +152,7 @@ const MFASetup: React.FC = () => {
     try {
       await navigator.clipboard.writeText(text);
       announcer.announce('Copied to clipboard');
-    } catch (err) {
+    } catch {
       console.warn('Failed to copy to clipboard');
     }
   };
@@ -200,7 +186,7 @@ const MFASetup: React.FC = () => {
     announcer.announce('Backup codes downloaded');
   };
 
-  const steps = [
+  const _steps = [
     {
       label: 'Install Authenticator App',
       description: 'Choose and install a compatible authenticator application',
