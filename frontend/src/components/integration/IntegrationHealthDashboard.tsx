@@ -80,7 +80,7 @@ const IntegrationHealthDashboard: React.FC = () => {
   const [performanceData, setPerformanceData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [_refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
   const fetchHealthMetrics = async () => {
     try {

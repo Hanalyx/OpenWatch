@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -25,7 +25,6 @@ import {
   ListItemText,
   IconButton,
   Tooltip,
-  Divider,
   useTheme,
   alpha,
   CircularProgress,
@@ -42,9 +41,6 @@ import {
   Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
   Search as SearchIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
-  Compare as CompareIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { ruleService } from '../../services/ruleService';
@@ -136,7 +132,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
       } else {
         throw new Error('Detection failed');
       }
-    } catch (error) {
+    } catch {
       setDetectionResults((prev) =>
         prev.map((result, index) =>
           index === 0

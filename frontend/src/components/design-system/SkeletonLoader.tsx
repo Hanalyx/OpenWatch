@@ -11,7 +11,7 @@ const shimmer = keyframes`
   }
 `;
 
-const pulse = keyframes`
+const _pulse = keyframes`
   0%, 100% {
     opacity: 1;
   }

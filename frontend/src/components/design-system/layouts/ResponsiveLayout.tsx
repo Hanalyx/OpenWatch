@@ -70,7 +70,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
+  const _isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
 
   // Responsive configuration based on screen size
   const getResponsiveConfig = () => {

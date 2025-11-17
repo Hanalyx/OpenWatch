@@ -107,7 +107,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
   onBack,
 }) => {
   const [mappings, setMappings] = useState<FieldMapping[]>(initialMappings);
-  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
+  const [_hoveredTarget, _setHoveredTarget] = useState<string | null>(null);
 
   useEffect(() => {
     setMappings(initialMappings);
