@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -21,7 +21,6 @@ import {
   AccountTree as TreeIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';

@@ -6,7 +6,6 @@ import {
   Typography,
   Chip,
   Box,
-  IconButton,
   Collapse,
   Tooltip,
   Stack,

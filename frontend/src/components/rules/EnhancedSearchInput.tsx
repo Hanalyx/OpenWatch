@@ -19,7 +19,6 @@ import {
   Tag as TagIcon,
 } from '@mui/icons-material';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ruleService } from '../../services/ruleService';
 
 export interface SearchSuggestion {
   type: 'rule' | 'tag' | 'category' | 'framework' | 'history' | 'saved';

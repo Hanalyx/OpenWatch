@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
-  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -12,29 +11,21 @@ import {
   IconButton,
   Tooltip,
   Badge,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Typography,
   FormControlLabel,
   Checkbox,
   Button,
-  InputAdornment,
   Collapse,
   useTheme,
   alpha,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   FilterList as FilterIcon,
-  ExpandMore as ExpandMoreIcon,
-  Clear as ClearIcon,
   ViewModule as GridIcon,
   ViewList as ListIcon,
   AccountTree as TreeIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { useDebounce } from '../../hooks/useDebounce';
 import { type FilterState } from '../../store/slices/ruleSlice';
 import EnhancedSearchInput, { type SearchSuggestion } from './EnhancedSearchInput';
 

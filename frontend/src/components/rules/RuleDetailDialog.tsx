@@ -30,7 +30,6 @@ import {
 import {
   Close as CloseIcon,
   ContentCopy as CopyIcon,
-  Launch as LaunchIcon,
   Code as CodeIcon,
   Description as DescriptionIcon,
   Security as SecurityIcon,
