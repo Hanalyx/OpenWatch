@@ -19,7 +19,6 @@ import {
   Warning,
   Info,
   Computer,
-  Scanner,
   Security,
   Settings,
   ArrowForward,

@@ -15,16 +15,7 @@ import {
   DialogActions,
   DialogContentText,
 } from '@mui/material';
-import {
-  VpnKey,
-  Security,
-  Warning,
-  Error,
-  Edit,
-  Delete,
-  Info,
-  Schedule,
-} from '@mui/icons-material';
+import { VpnKey, Security, Warning, Error, Edit, Delete, Info } from '@mui/icons-material';
 
 export interface SSHKeyInfo {
   fingerprint?: string | null;

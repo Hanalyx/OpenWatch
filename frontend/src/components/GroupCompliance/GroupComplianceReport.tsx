@@ -26,21 +26,15 @@ import {
   DialogTitle,
   DialogContent,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import {
   Assessment,
   Warning,
   CheckCircle,
   Error,
-  TrendingUp,
-  TrendingDown,
   Download,
   Refresh,
-  FilterList,
-  Security,
   Computer,
-  BugReport,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -98,8 +92,6 @@ const COLORS = {
   info: '#2196f3',
   primary: '#1976d2',
 };
-
-const PIE_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId, groupName }) => {
   const [report, setReport] = useState<ComplianceReport | null>(null);
