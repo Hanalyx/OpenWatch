@@ -22,8 +22,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Collapse,
-  IconButton,
   Grid,
   Card,
   CardContent,
@@ -33,10 +31,8 @@ import {
   PlayArrow as ImportIcon,
   Preview as PreviewIcon,
   CheckCircle as SuccessIcon,
-  Error as ErrorIcon,
   Warning as WarningIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
 

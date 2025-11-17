@@ -20,7 +20,6 @@ import {
   useTheme,
   useMediaQuery,
   Tooltip,
-  styled,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -39,8 +38,6 @@ import {
   ChevronRight,
   DarkMode,
   LightMode,
-  CloudSync,
-  Psychology,
   OpenInNew,
   Launch,
   Download,
@@ -245,8 +242,8 @@ const Layout: React.FC = () => {
         await navigator.clipboard.writeText(fullUrl);
         // You could add a toast notification here for feedback
         console.log('Link copied to clipboard:', fullUrl);
-      } catch (err) {
-        console.error('Failed to copy link to clipboard:', err);
+      } catch {
+        console.error('Failed to copy link to clipboard');
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = fullUrl;

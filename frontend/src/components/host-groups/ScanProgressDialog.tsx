@@ -31,7 +31,6 @@ import {
   Close,
   ExpandMore,
   ExpandLess,
-  Computer,
   Timer,
   Assessment,
 } from '@mui/icons-material';

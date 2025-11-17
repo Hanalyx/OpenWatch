@@ -14,11 +14,6 @@ import {
   StepLabel,
   StepContent,
   Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Dialog,
   DialogTitle,
@@ -37,12 +32,7 @@ import {
   PlayArrow as PlayArrowIcon,
   Build as BuildIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
-  OpenInNew as OpenInNewIcon,
-  Schedule as ScheduleIcon,
-  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { tokenService } from '../../services/tokenService';
 

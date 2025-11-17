@@ -73,7 +73,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       )
     : [];
 
-  const getIcon = (type: ActivityItem['type'], severity?: ActivityItem['severity']) => {
+  const getIcon = (type: ActivityItem['type']) => {
     switch (type) {
       case 'scan_completed':
         return <CheckCircle sx={{ color: theme.palette.success.main }} />;
