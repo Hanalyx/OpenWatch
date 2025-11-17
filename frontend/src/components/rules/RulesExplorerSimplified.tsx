@@ -2,27 +2,18 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Grid,
-  Paper,
-  Typography,
   Skeleton,
   Pagination,
   Alert,
   AlertTitle,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   Snackbar,
   IconButton,
   Fab,
   Stack,
   useTheme,
-  alpha,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon,
   Download as DownloadIcon,
   Close as CloseIcon,
   Search as SearchIcon,
@@ -45,7 +36,7 @@ interface RulesExplorerProps {
   onRuleSelect?: (rule: Rule) => void;
 }
 
-const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }) => {
+const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
   const theme = useTheme();
 
   // Local state
@@ -327,7 +318,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
       window.URL.revokeObjectURL(url);
 
       setSnackbarMessage(`Successfully exported ${ruleIds.length} rules`);
-    } catch (error) {
+    } catch {
       setSnackbarMessage('Failed to export rules');
     } finally {
       setExportLoading(false);
@@ -347,12 +338,12 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
   }, []);
 
   // Handle bulk rule selection for scanning
-  const handleSelectAllForScan = useCallback(() => {
+  const _handleSelectAllForScan = useCallback(() => {
     const currentRules = searchQuery && searchResults.length > 0 ? searchResults : filteredRules;
     setSelectedRulesForScan(currentRules);
   }, [searchQuery, searchResults, filteredRules]);
 
-  const handleClearScanSelection = useCallback(() => {
+  const _handleClearScanSelection = useCallback(() => {
     setSelectedRulesForScan([]);
   }, []);
 
