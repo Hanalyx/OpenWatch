@@ -75,17 +75,17 @@ const VirtualList = <T,>({
   );
 
   // Scroll to top
-  const scrollToTop = useCallback(() => {
+  const _scrollToTop = useCallback(() => {
     scrollToItem(0);
   }, [scrollToItem]);
 
   // Scroll to bottom
-  const scrollToBottom = useCallback(() => {
+  const _scrollToBottom = useCallback(() => {
     scrollToItem(items.length - 1);
   }, [scrollToItem, items.length]);
 
   // Get item index at current scroll position
-  const getItemIndexAtPosition = useCallback(
+  const _getItemIndexAtPosition = useCallback(
     (scrollTop: number) => {
       return Math.floor(scrollTop / itemHeight);
     },
@@ -93,7 +93,7 @@ const VirtualList = <T,>({
   );
 
   // Check if item is visible
-  const isItemVisible = useCallback(
+  const _isItemVisible = useCallback(
     (index: number) => {
       return index >= visibleRange.startIndex && index <= visibleRange.endIndex;
     },
@@ -180,8 +180,8 @@ export interface EnhancedVirtualListProps<T> extends VirtualListProps<T> {
 }
 
 export const EnhancedVirtualList = <T,>({
-  showScrollbar = true,
-  enableSmoothScrolling = true,
+  showScrollbar: _showScrollbar = true,
+  enableSmoothScrolling: _enableSmoothScrolling = true,
   onItemClick,
   selectedIndex,
   highlightSelected = true,

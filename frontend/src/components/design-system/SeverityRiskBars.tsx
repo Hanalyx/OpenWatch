@@ -27,7 +27,7 @@ const SeverityRiskBars: React.FC<SeverityRiskBarsProps> = ({
   mediumIssues = 0,
   lowIssues = 0,
   size = 'medium',
-  variant = 'compact',
+  variant: _variant = 'compact',
 }) => {
   const theme = useTheme();
 

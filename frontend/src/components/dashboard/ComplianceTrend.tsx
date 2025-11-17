@@ -44,7 +44,7 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
   onDataPointClick,
 }) => {
   const theme = useTheme();
-  const [hoveredData, setHoveredData] = useState<ComplianceDataPoint | null>(null);
+  const [hoveredData, _setHoveredData] = useState<ComplianceDataPoint | null>(null);
 
   // Ensure data is valid and properly formatted
   const safeData = Array.isArray(data)

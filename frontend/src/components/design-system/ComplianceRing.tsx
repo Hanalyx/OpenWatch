@@ -148,7 +148,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
     { name: 'Failed', value: 100 - lowPassRate },
   ];
 
-  const getTrendIndicator = () => {
+  const _getTrendIndicator = () => {
     if (!trend) return null;
 
     const trendConfig = {
