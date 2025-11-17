@@ -28,8 +28,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   TrendingUp as TrendingUpIcon,
   Security as SecurityIcon,
-  Computer as PlatformIcon,
-  Assessment as AnalyticsIcon,
   Lightbulb as InsightIcon,
   Star as RecommendationIcon,
   Add as AddIcon,

@@ -195,7 +195,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     });
   };
 
-  const getTemplateIcon = (template: ScanTemplate) => {
+  const _getTemplateIcon = (template: ScanTemplate) => {
     if (template.name.toLowerCase().includes('security')) return <Security />;
     if (template.name.toLowerCase().includes('compliance')) return <CheckCircle />;
     if (template.name.toLowerCase().includes('vulnerability')) return <BugReport />;

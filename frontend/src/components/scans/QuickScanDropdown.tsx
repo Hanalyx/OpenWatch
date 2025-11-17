@@ -9,7 +9,6 @@ import {
   Chip,
   Box,
   Typography,
-  Alert,
   CircularProgress,
   Tooltip,
 } from '@mui/material';
@@ -305,7 +304,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           )}
         </Box>
 
-        {templates.map((template, index) => (
+        {templates.map((template) => (
           <MenuItem
             key={template.id}
             onClick={() => handleScanStart(template.id, template.name)}
