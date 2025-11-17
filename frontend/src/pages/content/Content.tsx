@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { Container, Typography, Box, Tabs, Tab, Paper, useTheme, alpha } from '@mui/material';
+import { Typography, Box, Tabs, Tab } from '@mui/material';
 import {
   Folder as ContentIcon,
   AccountTree as RulesIcon,
   Computer as PlatformIcon,
-  Upload as UploadIcon,
-  Sync as SyncIcon,
   CloudSync as UploadSyncIcon,
 } from '@mui/icons-material';
 import ComplianceRulesContent from './ComplianceRulesContent';
@@ -44,7 +42,6 @@ function a11yProps(index: number) {
 }
 
 const Content: React.FC = () => {
-  const theme = useTheme();
   const [currentTab, setCurrentTab] = useState(0);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
