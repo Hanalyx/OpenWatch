@@ -1,17 +1,10 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import EnhancedBulkImportDialog from '../../components/hosts/EnhancedBulkImportDialog';
-import HostCard from '../../components/hosts/HostCard';
-import {
-  QuickScanDropdown,
-  BulkScanDialog,
-  BulkScanProgress,
-  ScanRecommendationCard,
-} from '../../components/scans';
+import { BulkScanDialog, BulkScanProgress } from '../../components/scans';
 import {
   Box,
   Card,
   CardContent,
-  Container,
   Grid,
   Typography,
   Button,
@@ -29,19 +22,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Fab,
-  Badge,
   LinearProgress,
-  Alert,
   Collapse,
-  ToggleButton,
-  ToggleButtonGroup,
   Divider,
-  List,
-  ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
   Paper,
   SpeedDial,
   SpeedDialAction,
@@ -52,94 +37,49 @@ import {
   FormControl,
   InputLabel,
   Select,
-  FormHelperText,
-  Switch,
-  FormControlLabel,
 } from '@mui/material';
 import {
-  Search,
   Add,
   FilterList,
   MoreVert,
   Computer,
-  Storage,
-  Cloud,
-  DesktopWindows,
   CheckCircle,
-  Warning,
   Error as ErrorIcon,
-  Schedule,
   PlayArrow,
-  Stop,
-  Refresh,
   Delete,
   Edit,
   Groups,
-  Group,
   NetworkCheck,
-  Label,
   Download,
   Security,
   VpnKey,
   Timeline,
   Assessment,
-  Notifications,
-  Settings,
-  ViewList,
-  ViewModule,
-  ViewCompact,
-  ArrowUpward,
-  ArrowDownward,
   ExpandMore,
   ChevronRight,
-  Wifi,
-  WifiOff,
   Memory,
   Storage as StorageIcon,
-  Speed,
   Scanner,
-  Assignment,
-  BugReport,
-  Build,
-  AutoAwesome,
   CloudUpload,
   CheckCircleOutline,
-  HighlightOff,
   Info,
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  Legend,
-} from 'recharts';
+// Recharts imports removed - no longer used in current implementation
 import { useNavigate } from 'react-router-dom';
 import {
   StatCard,
   StatusChip,
   ComplianceRing,
   FilterToolbar,
-  DataGrid,
-  EmptyState,
-  SSHKeyDisplay,
   type ViewMode,
-  type DataGridGroup,
-  type DataGridItem,
-  type SSHKeyInfo,
 } from '../../components/design-system';
 import { api } from '../../services/api';
-import HostGroupsDialog from '../../components/host-groups/HostGroupsDialog';
-import AssignHostGroupDialog from '../../components/host-groups/AssignHostGroupDialog';
-import QuickScanDialog from '../../components/scans/QuickScanDialog';
 import type { Host } from '../../types/host';
 import { REFRESH_INTERVALS } from '../../constants/refresh';
-import { COMPLIANCE_THRESHOLDS } from '../../constants/compliance';
 import { validateSshKey } from '../../utils/hostValidation';
-import { getStatusIcon, getComplianceScoreColor } from '../../utils/hostStatus';
+import { getComplianceScoreColor } from '../../utils/hostStatus';
 
 const Hosts: React.FC = () => {
   const theme = useTheme();
@@ -151,7 +91,8 @@ const Hosts: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<null | HTMLElement>(null);
   const [groupBy, setGroupBy] = useState<'all' | 'none' | 'group' | 'status' | 'compliance'>('all');
-  const [showFilters, setShowFilters] = useState(false);
+  // Filter panel visibility state - reserved for future advanced filtering features
+  const [_showFilters, _setShowFilters] = useState(false);
   const [bulkActionDialog, setBulkActionDialog] = useState(false);
   const [selectedBulkAction, setSelectedBulkAction] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -163,18 +104,19 @@ const Hosts: React.FC = () => {
     open: false,
     host: null,
   });
-  const [hostGroupsDialogOpen, setHostGroupsDialogOpen] = useState(false);
-  const [assignGroupDialogOpen, setAssignGroupDialogOpen] = useState(false);
+  // Host group management dialog states - reserved for future group management features
+  const [_hostGroupsDialogOpen, _setHostGroupsDialogOpen] = useState(false);
+  const [_assignGroupDialogOpen, _setAssignGroupDialogOpen] = useState(false);
   const [quickScanDialog, setQuickScanDialog] = useState<{ open: boolean; host: Host | null }>({
     open: false,
     host: null,
   });
   const [enhancedImportDialogOpen, setEnhancedImportDialogOpen] = useState(false);
 
-  // Auto-refresh state
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  // Auto-refresh state - configuration for future automatic host list refreshing
+  const [autoRefreshEnabled, _setAutoRefreshEnabled] = useState(true);
+  const [refreshInterval, _setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
+  const [_lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [editFormData, setEditFormData] = useState({
     hostname: '',
     displayName: '',
@@ -196,14 +138,15 @@ const Hosts: React.FC = () => {
     sshKeyComment?: string;
   } | null>(null);
   const [editingAuthMethod, setEditingAuthMethod] = useState(false);
-  const [deletingSSHKey, setDeletingSSHKey] = useState(false);
+  // SSH key deletion state - reserved for future host credential management features
+  const [_deletingSSHKey, setDeletingSSHKey] = useState(false);
   const [deletingHost, setDeletingHost] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [complianceFilter, setComplianceFilter] = useState<[number, number]>([0, 100]);
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  // Filter states - reserved for future advanced filtering features
+  const [statusFilter, _setStatusFilter] = useState<string[]>([]);
+  const [complianceFilter, _setComplianceFilter] = useState<[number, number]>([0, 100]);
+  const [tagFilter, _setTagFilter] = useState<string[]>([]);
 
   // Phase 2: Bulk scan states
   const [bulkScanDialog, setBulkScanDialog] = useState(false);
@@ -422,7 +365,8 @@ const Hosts: React.FC = () => {
     setExpandedGroups(allGroupNames);
   }, [processedHosts]);
 
-  const handleSelectAll = (checked: boolean) => {
+  // Bulk host selection handler - reserved for future multi-select operations
+  const _handleSelectAll = (checked: boolean) => {
     if (checked) {
       const allIds = Object.values(processedHosts)
         .flat()
@@ -467,8 +411,8 @@ const Hosts: React.FC = () => {
     setSelectedHosts([]); // Clear selection
   };
 
-  // Phase 2: Handle quick scan start
-  const handleQuickScanStarted = (scanId: string, scanName: string) => {
+  // Quick scan completion handler - reserved for future scan event handling
+  const _handleQuickScanStarted = (scanId: string, scanName: string) => {
     console.log(`Quick scan started: ${scanId} - ${scanName}`);
     // Refresh hosts to show scan status
     setTimeout(() => fetchHosts(true), 1000);
@@ -480,7 +424,7 @@ const Hosts: React.FC = () => {
       // Silent JIT connectivity check (no UI blocking)
       console.log(`Pre-scan validation for ${host.hostname}...`);
 
-      const jitCheck = await api.post(`/api/monitoring/hosts/${host.id}/check-connectivity`);
+      const _jitCheck = await api.post(`/api/monitoring/hosts/${host.id}/check-connectivity`);
 
       // Wait 3 seconds for check to complete
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -578,7 +522,8 @@ const Hosts: React.FC = () => {
     }
   };
 
-  const handleDeleteSSHKey = async () => {
+  // SSH key deletion handler - reserved for future credential management features
+  const _handleDeleteSSHKey = async () => {
     if (!editDialog.host) return;
 
     setDeletingSSHKey(true);
@@ -632,7 +577,7 @@ const Hosts: React.FC = () => {
         console.debug('Auth method being sent:', editFormData.authMethod);
       }
 
-      const updatedHost = await api.put(`/api/hosts/${editDialog.host.id}`, requestData);
+      await api.put(`/api/hosts/${editDialog.host.id}`, requestData);
 
       // Refresh hosts list to get latest data including SSH key metadata
       await fetchHosts();
@@ -723,7 +668,8 @@ const Hosts: React.FC = () => {
     }
   };
 
-  const checkAllHostsStatus = async () => {
+  // Bulk host status check handler - reserved for future monitoring features
+  const _checkAllHostsStatus = async () => {
     try {
       await api.post('/api/monitoring/hosts/check-all');
 
