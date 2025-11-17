@@ -14,7 +14,6 @@ import {
 } from '@mui/material';
 import {
   PlayArrow,
-  Scanner,
   Security,
   BugReport,
   Settings,

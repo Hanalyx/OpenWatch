@@ -24,7 +24,6 @@ import {
   Security,
   CheckCircle,
   BugReport,
-  Settings,
   Schedule,
   PlayArrow,
   Close,

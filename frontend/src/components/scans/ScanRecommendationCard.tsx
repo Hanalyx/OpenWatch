@@ -22,7 +22,6 @@ import {
   Schedule,
   Computer,
   Security,
-  TrendingUp,
   PlayArrow,
   Info,
   Warning,

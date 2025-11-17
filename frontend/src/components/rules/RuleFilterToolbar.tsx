@@ -367,7 +367,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                   <Checkbox
                     checked={filters.abstract === true}
                     indeterminate={filters.abstract === null}
-                    onChange={(e) => {
+                    onChange={() => {
                       if (filters.abstract === null) {
                         handleFilterChange('abstract', false);
                       } else if (filters.abstract === false) {
