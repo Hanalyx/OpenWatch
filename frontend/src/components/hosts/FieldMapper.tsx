@@ -27,6 +27,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   Clear as ClearIcon,
   AutoFixHigh as AutoIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 
 interface FieldMapperProps {

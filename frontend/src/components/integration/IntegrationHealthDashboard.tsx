@@ -17,6 +17,7 @@ import {
   TableRow,
   Paper,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
