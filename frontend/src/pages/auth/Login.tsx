@@ -12,7 +12,7 @@ import {
   InputAdornment,
   CircularProgress,
 } from '@mui/material';
-import { Visibility, VisibilityOff, LockOutlined } from '@mui/icons-material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { loginSuccess, loginFailure, clearError, setLoading } from '../../store/slices/authSlice';
@@ -33,7 +33,6 @@ const Login: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<LoginFormData>();
 
   useEffect(() => {

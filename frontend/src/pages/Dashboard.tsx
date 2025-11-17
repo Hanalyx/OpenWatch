@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Grid, Box, Paper, Skeleton, Alert, Button, Typography } from '@mui/material';
+import { Container, Grid, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Scanner, AddCircle, Warning, Assessment, Computer } from '@mui/icons-material';
+import { Scanner, AddCircle, Warning, Assessment } from '@mui/icons-material';
 
 // Dashboard components
 import SmartAlertBar from '../components/dashboard/SmartAlertBar';
@@ -9,9 +9,8 @@ import QuickActionCard from '../components/dashboard/QuickActionCard';
 import FleetHealthWidget from '../components/dashboard/FleetHealthWidget';
 import ActivityFeed, { type ActivityItem } from '../components/dashboard/ActivityFeed';
 import ComplianceTrend from '../components/dashboard/ComplianceTrend';
-import PriorityHosts, { PriorityHost } from '../components/dashboard/PriorityHosts';
+import PriorityHosts from '../components/dashboard/PriorityHosts';
 import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
-import { EmptyState } from '../components/design-system';
 import { api } from '../services/api';
 import QuickScanDialog from '../components/scans/QuickScanDialog';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
@@ -31,7 +30,7 @@ const Dashboard: React.FC = () => {
   const [downHosts, setDownHosts] = useState(0);
   const [scanningHosts, setScanningHosts] = useState(0);
   const [maintenanceHosts, setMaintenanceHosts] = useState(0);
-  const [totalHosts, setTotalHosts] = useState(0);
+  const [_totalHosts, setTotalHosts] = useState(0);
   const [criticalIssues, setCriticalIssues] = useState(0);
   const [trendData, setTrendData] = useState<any[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
