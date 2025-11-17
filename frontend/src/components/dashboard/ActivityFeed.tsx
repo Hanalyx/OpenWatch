@@ -92,7 +92,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     }
   };
 
-  const getSeverityColor = (severity?: ActivityItem['severity']) => {
+  const _getSeverityColor = (severity?: ActivityItem['severity']) => {
     switch (severity) {
       case 'success':
         return theme.palette.success.main;

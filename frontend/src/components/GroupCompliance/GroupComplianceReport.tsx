@@ -131,7 +131,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
       } else {
         setError('Failed to load compliance report');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load compliance report');
     } finally {
       setLoading(false);

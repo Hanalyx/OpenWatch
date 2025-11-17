@@ -145,7 +145,7 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
     return <ErrorIcon color="error" />;
   };
 
-  const getTrendIcon = (type: string) => {
+  const _getTrendIcon = (type: string) => {
     switch (type) {
       case 'improving':
         return <TrendingUpIcon color="success" />;

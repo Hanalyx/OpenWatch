@@ -281,7 +281,7 @@ const Layout: React.FC = () => {
       if ('external' in window && 'AddSearchProvider' in (window as any).external) {
         try {
           (window as any).external.AddFavorite(fullUrl, contextMenuItem.text);
-        } catch (err) {
+        } catch {
           // Fallback: show instruction to user
           alert(
             `To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`

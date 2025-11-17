@@ -76,7 +76,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({ open, onClo
   };
 
   // Get color for dependency type
-  const getTypeColor = (type: 'requires' | 'conflicts' | 'related') => {
+  const _getTypeColor = (type: 'requires' | 'conflicts' | 'related') => {
     switch (type) {
       case 'requires':
         return theme.palette.success.main;
