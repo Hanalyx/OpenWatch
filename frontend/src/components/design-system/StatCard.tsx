@@ -9,13 +9,7 @@ import {
   useTheme,
   alpha,
 } from '@mui/material';
-import {
-  TrendingUp,
-  TrendingDown,
-  TrendingFlat,
-  MoreVert,
-  InfoOutlined,
-} from '@mui/icons-material';
+import { TrendingUp, TrendingDown, TrendingFlat, MoreVert } from '@mui/icons-material';
 
 interface StatCardProps {
   title: React.ReactNode;

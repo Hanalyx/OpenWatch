@@ -10,8 +10,6 @@ import {
   alpha,
 } from '@mui/material';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,

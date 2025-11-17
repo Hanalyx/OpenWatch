@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box, Typography, LinearProgress, Tooltip, Chip } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { Box, Typography, LinearProgress, Tooltip } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { Circle } from '@mui/icons-material';
 
 export interface SeverityRiskBarsProps {
