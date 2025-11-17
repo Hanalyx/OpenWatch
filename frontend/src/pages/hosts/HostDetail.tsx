@@ -25,37 +25,27 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
   CircularProgress,
   Tooltip,
-  Badge,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Computer as ComputerIcon,
   Storage as StorageIcon,
-  Memory as MemoryIcon,
   NetworkCheck as NetworkCheckIcon,
   Security as SecurityIcon,
   Assessment as AssessmentIcon,
   PlayArrow as PlayArrowIcon,
   Visibility as VisibilityIcon,
-  GetApp as DownloadIcon,
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
   Settings as SettingsIcon,
   Terminal as TerminalIcon,
   Flag as FlagIcon,
 } from '@mui/icons-material';
-import {
-  StatusChip,
-  ComplianceRing,
-  SSHKeyDisplay,
-  type SSHKeyInfo,
-} from '../../components/design-system';
+import { StatusChip, ComplianceRing, SSHKeyDisplay } from '../../components/design-system';
 import HostTerminal from '../../components/terminal/HostTerminal';
 import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
 import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
