@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Card,
@@ -42,8 +41,6 @@ import {
   Error as ErrorIcon,
   Warning,
   Info,
-  CheckCircle,
-  FilterList,
   Refresh,
   Download,
   Visibility,
@@ -108,7 +105,7 @@ const OView: React.FC = () => {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [_statsLoading, setStatsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // WEEK 2 PHASE 2: Tab state for multi-view dashboard
@@ -131,8 +128,8 @@ const OView: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
   const [resourceFilter, setResourceFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [_dateFrom, _setDateFrom] = useState<Date | null>(null);
+  const [_dateTo, _setDateTo] = useState<Date | null>(null);
   const [userFilter, setUserFilter] = useState('');
 
   // Debounced search query to avoid API calls on every keystroke
