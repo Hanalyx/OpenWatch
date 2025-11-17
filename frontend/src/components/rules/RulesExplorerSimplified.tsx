@@ -229,7 +229,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
     async (suggestion: SearchSuggestion) => {
       // Handle different types of search suggestions
       switch (suggestion.type) {
-        case 'rule':
+        case 'rule': {
           // If it's a specific rule, find and select it
           const rule = rules.find(
             (r) =>
@@ -240,6 +240,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
             await handleRuleSelect(rule);
           }
           break;
+        }
 
         case 'tag':
           // Filter by tag

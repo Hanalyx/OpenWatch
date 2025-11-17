@@ -50,9 +50,7 @@ import {
   History as HistoryIcon,
 } from '@mui/icons-material';
 
-interface UploadSyncRulesProps {}
-
-const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
+const UploadSyncRules: React.FC = () => {
   const theme = useTheme();
 
   // State management

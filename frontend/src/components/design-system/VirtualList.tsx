@@ -12,7 +12,7 @@ export interface VirtualListProps<T> {
   onVisibleRangeChange?: (startIndex: number, endIndex: number) => void;
 }
 
-const VirtualList = <T extends any>({
+const VirtualList = <T,>({
   items,
   height,
   itemHeight,
@@ -179,7 +179,7 @@ export interface EnhancedVirtualListProps<T> extends VirtualListProps<T> {
   highlightSelected?: boolean;
 }
 
-export const EnhancedVirtualList = <T extends any>({
+export const EnhancedVirtualList = <T,>({
   showScrollbar = true,
   enableSmoothScrolling = true,
   onItemClick,
@@ -225,7 +225,7 @@ export const EnhancedVirtualList = <T extends any>({
 };
 
 // Specialized virtual list for common use cases
-export const VirtualTable = <T extends any>({
+export const VirtualTable = <T,>({
   items,
   height,
   itemHeight,

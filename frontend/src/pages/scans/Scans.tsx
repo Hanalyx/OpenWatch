@@ -311,7 +311,7 @@ const Scans: React.FC = () => {
     return 'error.main';
   };
 
-  const getHealthIcon = (successRate: number): JSX.Element => {
+  const getHealthIcon = (successRate: number): React.ReactElement => {
     if (successRate >= 90) return <CheckCircleIcon />;
     if (successRate >= 70) return <WarningIcon />;
     return <ErrorIcon />;

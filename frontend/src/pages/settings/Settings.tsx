@@ -467,7 +467,7 @@ const Settings: React.FC = () => {
                 SSH Credentials
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Configure master SSH credentials for hosts. If a host doesn't have specific
+                Configure master SSH credentials for hosts. If a host does not have specific
                 credentials, it will inherit these default settings.
               </Typography>
               {!isSuperAdmin && (

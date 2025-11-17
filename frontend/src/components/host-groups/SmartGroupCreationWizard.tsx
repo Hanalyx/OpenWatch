@@ -532,7 +532,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           valid: selectedHosts.length > 0,
           message: selectedHosts.length === 0 ? 'Please select at least one host' : null,
         };
-      case 1:
+      case 1: {
         const errors = [];
         if (!groupName.trim()) errors.push('Group name is required');
         if (groupName.trim().length < 3) errors.push('Group name must be at least 3 characters');
@@ -543,6 +543,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           valid: errors.length === 0,
           message: errors.length > 0 ? errors[0] : null,
         };
+      }
       case 2:
         return { valid: true, message: null }; // Can always review
       case 3:
@@ -1019,7 +1020,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         </Box>
       ) : (
         <Typography color="text.secondary">
-          Click "Next" to validate the group configuration
+          Click Next to validate the group configuration
         </Typography>
       )}
     </Box>
@@ -1034,7 +1035,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             Ready to Create Group
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Group "{groupName}" will be created with {selectedHosts.length} hosts
+            Group {groupName} will be created with {selectedHosts.length} hosts
           </Typography>
 
           {validation && validation.summary.incompatible_count > 0 && (
@@ -1051,7 +1052,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             Group Created Successfully
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Group "{groupName}" has been created.
+            Group {groupName} has been created.
           </Typography>
 
           {hostAssignmentLoading ? (

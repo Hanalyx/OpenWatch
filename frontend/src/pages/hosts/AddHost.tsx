@@ -1322,7 +1322,7 @@ const AddHost: React.FC = () => {
                   )}
                   renderTags={(value, getTagProps) =>
                     value.map((option, index) => (
-                      <Chip label={option} {...getTagProps({ index })} size="small" />
+                      <Chip key={option} label={option} {...getTagProps({ index })} size="small" />
                     ))
                   }
                 />

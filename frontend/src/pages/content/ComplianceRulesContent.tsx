@@ -330,14 +330,14 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
             <Typography variant="body2" color="text.secondary">
               {viewMode === 'platform'
                 ? platformsLoading
-                  ? '🔄 Loading...'
+                  ? 'Loading...'
                   : `${totalRulesAnalyzed} rules, ${totalPlatforms} platforms`
                 : viewMode === 'framework'
                   ? frameworksLoading
-                    ? '🔄 Loading...'
+                    ? 'Loading...'
                     : `${frameworkTotalRulesAnalyzed} rules, ${totalFrameworks} frameworks`
                   : loading
-                    ? '🔄 Loading...'
+                    ? 'Loading...'
                     : `${pagination.total} rules`}
             </Typography>
           </Box>
@@ -558,7 +558,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                   Platform Overview
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Compliance rules organized by operating system platform. Click "Browse Rules" to
+                  Compliance rules organized by operating system platform. Click Browse Rules to
                   view platform-specific rules.
                 </Typography>
               </Box>

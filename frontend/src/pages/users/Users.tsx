@@ -66,7 +66,7 @@ interface Role {
   permissions: string[];
 }
 
-const roleIcons: Record<string, JSX.Element> = {
+const roleIcons: Record<string, React.ReactElement> = {
   super_admin: <AdminIcon color="error" />,
   security_admin: <SecurityIcon color="warning" />,
   security_analyst: <AnalystIcon color="info" />,
@@ -342,7 +342,7 @@ const Users: React.FC = () => {
                       label={getRoleDisplay(user.role)}
                       size="small"
                       sx={{
-                        backgroundColor: `${roleColors[user.role]  }20`,
+                        backgroundColor: `${roleColors[user.role]}20`,
                         color: roleColors[user.role],
                         fontWeight: 'medium',
                       }}

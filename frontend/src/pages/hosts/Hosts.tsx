@@ -400,13 +400,14 @@ const Hosts: React.FC = () => {
           case 'status':
             key = host.status.charAt(0).toUpperCase() + host.status.slice(1);
             break;
-          case 'compliance':
+          case 'compliance': {
             const score = host.complianceScore ?? 0;
             if (score >= 90) key = 'Excellent (90-100%)';
             else if (score >= 75) key = 'Good (75-89%)';
             else if (score >= 60) key = 'Fair (60-74%)';
             else key = 'Poor (<60%)';
             break;
+          }
         }
         if (!groups[key]) groups[key] = [];
         groups[key].push(host);

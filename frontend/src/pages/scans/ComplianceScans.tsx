@@ -528,7 +528,7 @@ const ComplianceScans: React.FC = () => {
             No compliance rules available
           </Typography>
           <Alert severity="error" sx={{ mt: 3, mb: 2 }}>
-            We don't see compliance rules here because the MongoDB database failed to connect but
+            We do not see compliance rules here because the MongoDB database failed to connect but
             this is the view for step 4
           </Alert>
           <Button

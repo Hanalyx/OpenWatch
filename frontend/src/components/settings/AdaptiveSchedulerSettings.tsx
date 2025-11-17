@@ -427,7 +427,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
                   Skip Checks
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Don't monitor hosts in maintenance mode
+                  Do not monitor hosts in maintenance mode
                 </Typography>
               </Box>
             </MenuItem>
