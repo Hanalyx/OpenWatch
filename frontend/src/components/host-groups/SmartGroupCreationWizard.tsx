@@ -22,7 +22,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Alert,
   CircularProgress,
@@ -31,34 +30,19 @@ import {
   CardContent,
   Grid,
   Switch,
-  Divider,
-  Paper,
-  IconButton,
-  Tooltip,
   FormHelperText,
 } from '@mui/material';
 import {
-  Computer as HostIcon,
-  Security as SecurityIcon,
-  Assessment as ComplianceIcon,
-  Schedule as ScheduleIcon,
-  Warning as WarningIcon,
   CheckCircle as SuccessIcon,
   Group as GroupIcon,
   Add as AddIcon,
-  Remove as RemoveIcon,
   SmartToy as SmartIcon,
-  Settings as SettingsIcon,
-  HelpOutline as HelpIcon,
 } from '@mui/icons-material';
 import {
   OS_FAMILY_OPTIONS,
   ARCHITECTURE_OPTIONS,
   COMPLIANCE_FRAMEWORK_OPTIONS,
   SCAN_SCHEDULE_OPTIONS,
-  getOSFamilyLabel,
-  getArchitectureLabel,
-  getComplianceFrameworkLabel,
 } from '../../constants/formOptions';
 
 interface Host {

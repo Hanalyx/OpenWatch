@@ -18,17 +18,12 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
-  Tooltip,
   IconButton,
 } from '@mui/material';
 import {
   ArrowForward as ArrowIcon,
   CheckCircle as CheckIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
   ArrowBack as BackIcon,
-  Settings as SettingsIcon,
   ExpandMore as ExpandMoreIcon,
   Clear as ClearIcon,
   AutoFixHigh as AutoIcon,

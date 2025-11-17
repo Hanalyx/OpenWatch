@@ -25,20 +25,8 @@ import {
   Grid,
   Slider,
   IconButton,
-  Divider,
 } from '@mui/material';
-import {
-  Computer,
-  Group,
-  Schedule,
-  PlayArrow,
-  Close,
-  Warning,
-  Info,
-  CheckCircle,
-  AutoAwesome,
-  Timer,
-} from '@mui/icons-material';
+import { Computer, PlayArrow, Close, Info, AutoAwesome, Timer } from '@mui/icons-material';
 
 interface Host {
   id: string;

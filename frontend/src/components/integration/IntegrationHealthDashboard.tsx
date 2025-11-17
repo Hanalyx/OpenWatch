@@ -6,10 +6,8 @@ import {
   Typography,
   Grid,
   Chip,
-  LinearProgress,
   Alert,
   Button,
-  IconButton,
   Tooltip,
   Table,
   TableBody,
@@ -19,14 +17,6 @@ import {
   TableRow,
   Paper,
   CircularProgress,
-  Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -38,25 +28,8 @@ import {
   TrendingFlat as TrendingFlatIcon,
   Speed as SpeedIcon,
   Timeline as TimelineIcon,
-  ExpandMore as ExpandMoreIcon,
   Api as ApiIcon,
-  CloudSync as CloudSyncIcon,
-  Security as SecurityIcon,
 } from '@mui/icons-material';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as ChartTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
 
 interface HealthMetrics {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
