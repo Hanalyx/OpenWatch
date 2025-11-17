@@ -22,7 +22,6 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
-  Divider,
   LinearProgress,
 } from '@mui/material';
 import {
@@ -30,8 +29,6 @@ import {
   Security as SecurityIcon,
   PlayArrow as PlayArrowIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Schedule as ScheduleIcon,
   NetworkCheck as NetworkCheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -73,7 +70,7 @@ const NewScapScan: React.FC = () => {
   const [hosts, setHosts] = useState<Host[]>([]);
 
   // UI state
-  const [loading, setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false); // Setter declared but not currently used - may be used for future loading states
   const [starting, setStarting] = useState(false);
   const [showPreFlightDialog, setShowPreFlightDialog] = useState(false);
   const [scanError, setScanError] = useState<ClassifiedError | null>(null);
@@ -120,7 +117,7 @@ const NewScapScan: React.FC = () => {
         status: host.status,
       }));
       setHosts(formattedHosts);
-    } catch (error) {
+    } catch {
       showSnackbar('Failed to load hosts', 'error');
     }
   };
