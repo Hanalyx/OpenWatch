@@ -8,22 +8,13 @@ import {
   Pagination,
   Alert,
   AlertTitle,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   Snackbar,
   IconButton,
   Fab,
-  useTheme,
-  alpha,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Upload as UploadIcon,
   Close as CloseIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
@@ -56,13 +47,11 @@ interface RulesExplorerProps {
   onRuleSelect?: (rule: Rule) => void; // Optional: callback when rule is selected
 }
 
-const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }) => {
-  const theme = useTheme();
+const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
   const dispatch = useDispatch<AppDispatch>();
 
   // Redux state
   const {
-    rules,
     filteredRules,
     selectedRule,
     searchQuery,
@@ -102,7 +91,7 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
   // Load rules function
   const loadRules = async () => {
     try {
-      const rulesData = await ruleService.getRules({
+      await ruleService.getRules({
         offset: pagination.offset,
         limit: pagination.limit,
         ...getFilterParams(),
@@ -135,7 +124,7 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
   // Search function
   const performSearch = async (searchParams: any) => {
     try {
-      const searchResults = await ruleService.searchRules(searchParams);
+      await ruleService.searchRules(searchParams);
       // Handle search results
     } catch (error) {
       console.error('Error searching rules:', error);
@@ -304,7 +293,7 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
       window.URL.revokeObjectURL(url);
 
       setSnackbarMessage(`Successfully exported ${ruleIds.length} rules`);
-    } catch (error) {
+    } catch {
       setSnackbarMessage('Failed to export rules');
     } finally {
       setExportLoading(false);
