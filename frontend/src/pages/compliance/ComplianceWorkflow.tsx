@@ -9,8 +9,6 @@ import {
   Typography,
   Grid,
   Chip,
-  IconButton,
-  TextField,
   Alert,
   Snackbar,
   useTheme,
@@ -21,14 +19,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Tab,
-  Tabs,
-  LinearProgress,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Table,
   TableBody,
   TableCell,
@@ -37,22 +27,14 @@ import {
   TableRow,
 } from '@mui/material';
 import {
-  PlayArrow,
   AutoFixHigh,
   Visibility,
   CheckCircle,
   Error,
   Warning,
-  Info,
   Refresh,
-  Send,
   Timeline,
-  BugReport,
-  Shield,
-  Speed,
-  TrendingUp,
   Assignment,
-  Build,
   VerifiedUser,
   Schedule,
 } from '@mui/icons-material';
@@ -116,11 +98,13 @@ const ComplianceWorkflow: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState(0);
+  // Tab selection state - reserved for future multi-tab workflow views
+  const [_selectedTab, _setSelectedTab] = useState(0);
   const [scans, setScans] = useState<Scan[]>([]);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [failedRules, setFailedRules] = useState<FailedRule[]>([]);
-  const [remediationDialog, setRemediationDialog] = useState(false);
+  // Remediation dialog state - reserved for future inline remediation workflows
+  const [_remediationDialog, _setRemediationDialog] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -199,7 +183,7 @@ const ComplianceWorkflow: React.FC = () => {
   const handleVerificationScan = async (hostId: string) => {
     try {
       // Start verification scan after remediation
-      const response = await api.post('/api/scans/verify', {
+      await api.post('/api/scans/verify', {
         host_id: hostId,
         verification_scan: true,
       });
