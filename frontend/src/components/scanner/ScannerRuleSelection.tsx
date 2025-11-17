@@ -22,7 +22,6 @@ import {
   Stack,
   TextField,
   FormControl,
-  InputLabel,
   Select,
   MenuItem,
   Alert,
@@ -34,14 +33,10 @@ import {
 import {
   Close as CloseIcon,
   PlayArrow as PlayIcon,
-  Stop as StopIcon,
   Refresh as RefreshIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
   Computer as ComputerIcon,
-  Schedule as ScheduleIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { type Rule } from '../../store/slices/ruleSlice';
@@ -564,7 +559,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
 
       <DialogContent sx={{ p: 0 }}>
         <Stepper activeStep={activeStep} orientation="vertical">
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <Step key={step.label} completed={step.completed || false}>
               <StepLabel>{step.label}</StepLabel>
               <StepContent>
