@@ -36,13 +36,19 @@ import {
   Cancel,
 } from '@mui/icons-material';
 
+/**
+ * Scan template configuration
+ * Stores reusable scan configurations for different scopes
+ */
 interface ScanTemplate {
   id: string;
   name: string;
   description: string;
   contentId: number;
   profileId: string;
-  scanOptions: any;
+  // Scan options - flexible configuration object supporting various scan parameters
+  // May include: timeout, retries, notifications, scheduling, custom variables, etc.
+  scanOptions: Record<string, string | number | boolean | string[]>;
   scope: 'system' | 'group' | 'host';
   scopeId?: string;
   isDefault: boolean;
