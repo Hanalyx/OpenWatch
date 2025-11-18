@@ -41,6 +41,57 @@ interface DashboardData {
   activities: ActivityItem[];
 }
 
+/**
+ * Raw host data from backend API
+ * May contain either snake_case or camelCase fields (backend inconsistency)
+ */
+interface RawHostData {
+  id?: string;
+  hostname?: string;
+  display_name?: string;
+  displayName?: string;
+  ip_address?: string;
+  ipAddress?: string;
+  operating_system?: string;
+  operatingSystem?: string;
+  status?: string;
+  critical_issues?: number;
+  criticalIssues?: number;
+  high_issues?: number;
+  highIssues?: number;
+  medium_issues?: number;
+  mediumIssues?: number;
+  low_issues?: number;
+  lowIssues?: number;
+  passed_rules?: number;
+  passedRules?: number;
+  compliance_score?: number | null;
+  complianceScore?: number | null;
+  last_scan?: string;
+  lastScan?: string;
+  // Allow additional fields from backend
+  [key: string]: unknown;
+}
+
+/**
+ * Raw scan data from backend API
+ * May contain either snake_case or camelCase fields (backend inconsistency)
+ */
+interface RawScanData {
+  id?: string;
+  host_name?: string;
+  hostname?: string;
+  status?: string;
+  completed_at?: string;
+  started_at?: string;
+  results?: {
+    score?: number;
+    [key: string]: unknown;
+  };
+  // Allow additional fields from backend
+  [key: string]: unknown;
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -87,27 +138,33 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      let hosts: any[] = [];
-      let scans: any[] = [];
+      // Raw data from backend API (may have inconsistent field naming)
+      let hosts: RawHostData[] = [];
+      let scans: RawScanData[] = [];
 
       try {
         // Attempt to fetch from API using consistent service
         const [hostsData, scansData] = await Promise.all([
-          api.get<any[]>('/api/hosts/'),
-          api.get<{ scans: any[] }>('/api/scans/'),
+          api.get<RawHostData[]>('/api/hosts/'),
+          api.get<{ scans: RawScanData[] }>('/api/scans/'),
         ]);
 
         hosts = hostsData || [];
         scans = scansData.scans || [];
-      } catch (apiError: any) {
+      } catch (apiError) {
+        // Type-safe error handling: check error properties with type guards
         console.error('Failed to fetch dashboard data:', apiError);
 
-        // More specific error messages based on error type
-        if (apiError.code === 'NETWORK_ERROR' || apiError.message?.includes('Network Error')) {
+        // Check for network errors
+        const errorCode = (apiError as { code?: string }).code;
+        const errorMessage = (apiError as { message?: string }).message;
+        const responseStatus = (apiError as { response?: { status?: number } }).response?.status;
+
+        if (errorCode === 'NETWORK_ERROR' || errorMessage?.includes('Network Error')) {
           throw new Error('Unable to connect to the server. Please check your connection.');
-        } else if (apiError.response?.status === 401) {
+        } else if (responseStatus === 401) {
           throw new Error('Authentication required. Please log in again.');
-        } else if (apiError.response?.status === 403) {
+        } else if (responseStatus === 403) {
           throw new Error('Access denied. You do not have permission to view this data.');
         } else {
           throw new Error('Unable to connect to the server. Please check your connection.');
