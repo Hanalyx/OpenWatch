@@ -18,8 +18,12 @@ export const useAuthenticatedFetch = () => {
 
   const get = useCallback((url: string) => authenticatedFetch(url), [authenticatedFetch]);
 
+  /**
+   * HTTP POST request with authenticated fetch
+   * Accepts any JSON-serializable data for request body
+   */
   const post = useCallback(
-    (url: string, data?: any) =>
+    (url: string, data?: Record<string, unknown>) =>
       authenticatedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,8 +32,12 @@ export const useAuthenticatedFetch = () => {
     [authenticatedFetch]
   );
 
+  /**
+   * HTTP PUT request with authenticated fetch
+   * Accepts any JSON-serializable data for request body
+   */
   const put = useCallback(
-    (url: string, data?: any) =>
+    (url: string, data?: Record<string, unknown>) =>
       authenticatedFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
