@@ -172,9 +172,11 @@ const DriftAlertsWidget: React.FC<DriftAlertsWidgetProps> = ({
         }
         action={
           <Tooltip title="Refresh">
-            <IconButton onClick={fetchDriftEvents} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
+            <span>
+              <IconButton onClick={fetchDriftEvents} disabled={loading}>
+                <RefreshIcon />
+              </IconButton>
+            </span>
           </Tooltip>
         }
       />
