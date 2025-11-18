@@ -56,6 +56,17 @@ interface ComplianceReportProps {
   groupName: string;
 }
 
+/**
+ * Framework distribution data - compliance metrics per framework
+ * Contains host count and average compliance score for each framework
+ */
+interface FrameworkDistributionData {
+  hosts: number;
+  avg_score: number;
+  // Additional framework-specific metrics from backend
+  [key: string]: string | number | boolean | undefined;
+}
+
 interface ComplianceReport {
   group_id: number;
   group_name: string;
@@ -66,7 +77,8 @@ interface ComplianceReport {
   total_failed_rules: number;
   high_risk_hosts: number;
   medium_risk_hosts: number;
-  framework_distribution: Record<string, any>;
+  // Maps framework name to compliance metrics for that framework
+  framework_distribution: Record<string, FrameworkDistributionData>;
   compliance_trend: Array<{ date: string; score: number; scan_count: number }>;
   top_failed_rules: Array<{
     rule_id: string;
@@ -177,11 +189,13 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
     return { level: 'High', color: COLORS.error };
   };
 
+  // Format framework distribution data for chart display
+  // Transforms Record<string, FrameworkDistributionData> to array format for Recharts
   const formatFrameworkDistribution = () => {
     if (!report?.framework_distribution) return [];
 
     return Object.entries(report.framework_distribution).map(
-      ([framework, data]: [string, any]) => ({
+      ([framework, data]: [string, FrameworkDistributionData]) => ({
         name: framework,
         hosts: data.hosts,
         score: data.avg_score,
