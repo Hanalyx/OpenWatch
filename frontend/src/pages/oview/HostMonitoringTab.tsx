@@ -39,25 +39,11 @@ import {
   Warning,
   CheckCircle,
   Search,
-  HealthAndSafety,
   ErrorOutline,
   Schedule,
   Speed,
   BuildCircle,
 } from '@mui/icons-material';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Legend,
-  Tooltip as RechartsTooltip,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from 'recharts';
 import { api } from '../../services/api';
 
 interface MonitoringState {
@@ -81,14 +67,6 @@ interface HostStateDetail {
   response_time_ms: number | null;
   last_check: string;
   next_check_time: string | null;
-}
-
-interface StateTransition {
-  check_time: string;
-  state: string;
-  response_time_ms: number;
-  success: boolean;
-  error_message?: string;
 }
 
 export interface HostMonitoringTabRef {
@@ -138,7 +116,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       unknown: theme.palette.grey[500], // Gray - not yet checked
     };
 
-    const stateIcons = {
+    // State icon mapping - reserved for future tooltip and legend features
+    const _stateIcons = {
       online: <CheckCircle sx={{ color: stateColors.online }} />,
       degraded: <Warning sx={{ color: stateColors.degraded }} />,
       critical: <Warning sx={{ color: stateColors.critical }} />,
@@ -147,7 +126,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       unknown: <ErrorOutline sx={{ color: stateColors.unknown }} />,
     };
 
-    const stateDescriptions = {
+    // State description mapping - reserved for future tooltip and help text features
+    const _stateDescriptions = {
       online: 'Can ping AND ssh - fully operational',
       degraded: 'Can ping and ssh, but no elevated privilege',
       critical: 'Can ping but cannot ssh - partial connectivity',
