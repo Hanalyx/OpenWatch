@@ -3,13 +3,19 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } f
 // Use empty string for development (relies on Vite proxy) or explicit URL for production
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : '');
 
+/**
+ * Failed request queue entry for token refresh coordination
+ * Used to queue failed requests while token refresh is in progress
+ */
+interface QueuedRequest {
+  resolve: (token: string) => void;
+  reject: (error: Error) => void;
+}
+
 class ApiClient {
   private instance: AxiosInstance;
   private isRefreshing = false;
-  private failedQueue: Array<{
-    resolve: (token: string) => void;
-    reject: (error: any) => void;
-  }> = [];
+  private failedQueue: QueuedRequest[] = [];
 
   constructor() {
     this.instance = axios.create({
@@ -21,7 +27,11 @@ class ApiClient {
     this.setupInterceptors();
   }
 
-  private processQueue(error: any, token: string | null = null) {
+  /**
+   * Process queued requests after token refresh completes
+   * Either resolves with new token or rejects with error
+   */
+  private processQueue(error: Error | null, token: string | null = null) {
     this.failedQueue.forEach((prom) => {
       if (error) {
         prom.reject(error);
