@@ -21,6 +21,17 @@ import {
   useMediaQuery,
   Tooltip,
 } from '@mui/material';
+
+/**
+ * Window interface extension for legacy browser bookmark APIs
+ * These APIs are deprecated but still exist in some browsers
+ */
+interface WindowWithBookmarkAPI extends Window {
+  external?: {
+    AddSearchProvider?: unknown;
+    AddFavorite?: (url: string, title: string) => void;
+  };
+}
 import {
   Menu as MenuIcon,
   Dashboard,
@@ -272,15 +283,22 @@ const Layout: React.FC = () => {
     handleContextMenuClose();
   };
 
+  // Handle bookmark link using legacy browser API or instruction fallback
   const handleBookmarkLink = () => {
     if (contextMenuItem) {
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${contextMenuItem.path}`;
 
-      // For modern browsers that support the Bookmarks API
-      if ('external' in window && 'AddSearchProvider' in (window as any).external) {
+      // Cast window to type-safe interface for legacy bookmark API
+      const windowWithBookmark = window as WindowWithBookmarkAPI;
+
+      // For legacy browsers that support the AddFavorite API
+      if (
+        'external' in windowWithBookmark &&
+        windowWithBookmark.external?.AddSearchProvider !== undefined
+      ) {
         try {
-          (window as any).external.AddFavorite(fullUrl, contextMenuItem.text);
+          windowWithBookmark.external?.AddFavorite?.(fullUrl, contextMenuItem.text);
         } catch {
           // Fallback: show instruction to user
           alert(
