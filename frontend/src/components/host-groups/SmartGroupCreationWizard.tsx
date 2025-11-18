@@ -70,11 +70,16 @@ interface SCAPContent {
   profiles: Profile[] | string[];
 }
 
+/**
+ * Group validation result from backend analysis
+ * Provides compatibility analysis and recommendations for smart group creation
+ */
 interface GroupValidation {
   compatible: Host[];
   incompatible: Host[];
   warnings: string[];
-  suggestions: Record<string, any>;
+  // Suggestions from validation - recommendations for group configuration
+  suggestions: Record<string, string | number | boolean | string[]>;
   summary: {
     total_hosts: number;
     compatible_count: number;
