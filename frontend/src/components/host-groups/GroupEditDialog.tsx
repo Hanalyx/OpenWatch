@@ -92,7 +92,9 @@ interface HostGroup {
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
-  validation_rules?: any;
+  // Flexible validation rules object from backend - structure varies by validation type
+  // May include: required_fields, pattern_matchers, custom_validators, etc.
+  validation_rules?: Record<string, unknown>;
   scap_content_name?: string;
 }
 
