@@ -250,7 +250,8 @@ const Dashboard: React.FC = () => {
       let totalCompliance = 0;
       let complianceCount = 0;
 
-      normalizedHosts.forEach((host: any) => {
+      // Use NormalizedHost type for type-safe access to compliance metrics
+      normalizedHosts.forEach((host: NormalizedHost) => {
         if (host.complianceScore !== null && host.complianceScore !== undefined) {
           totalCompliance += host.complianceScore;
           complianceCount++;
