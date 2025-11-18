@@ -109,7 +109,8 @@ const DataPreview: React.FC<DataPreviewProps> = ({
   dryRun,
   setDryRun,
 }) => {
-  const [previewData, setPreviewData] = useState<any[]>([]);
+  // CSV rows mapped to target host fields (field names as keys, CSV values as values)
+  const [previewData, setPreviewData] = useState<Record<string, string | number>[]>([]);
   const [showErrors, setShowErrors] = useState(true);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
@@ -138,7 +139,8 @@ const DataPreview: React.FC<DataPreviewProps> = ({
 
       for (let i = 1; i < Math.min(6, lines.length); i++) {
         const values = lines[i].split(',').map((v) => v.trim().replace(/"/g, ''));
-        const mappedRow: any = {};
+        // Mapped row - dynamically built from CSV using field mappings
+        const mappedRow: Record<string, string | number> = {};
 
         // Apply field mappings
         headers.forEach((header, index) => {
