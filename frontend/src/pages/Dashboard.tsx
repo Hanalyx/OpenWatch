@@ -15,11 +15,37 @@ import { api } from '../services/api';
 import QuickScanDialog from '../components/scans/QuickScanDialog';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
 
+/**
+ * Compliance trend data point for dashboard charts
+ * Represents historical compliance metrics across severity levels
+ */
+interface ComplianceTrendData {
+  date: string;
+  overall: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+/**
+ * Aggregated dashboard data from backend
+ * Combined metrics from hosts, scans, and compliance data
+ */
+interface DashboardData {
+  hosts: number;
+  scans: number;
+  complianceScore: number;
+  criticalIssues: number;
+  trendData: ComplianceTrendData[];
+  activities: ActivityItem[];
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [quickScanOpen, setQuickScanOpen] = useState(false);
 
@@ -32,7 +58,7 @@ const Dashboard: React.FC = () => {
   const [maintenanceHosts, setMaintenanceHosts] = useState(0);
   const [_totalHosts, setTotalHosts] = useState(0);
   const [criticalIssues, setCriticalIssues] = useState(0);
-  const [trendData, setTrendData] = useState<any[]>([]);
+  const [trendData, setTrendData] = useState<ComplianceTrendData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [priorityHosts, setPriorityHosts] = useState<
     Array<{
