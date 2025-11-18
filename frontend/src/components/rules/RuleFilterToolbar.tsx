@@ -78,7 +78,9 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
 
   const severityOptions = ['high', 'medium', 'low', 'info'];
 
-  const handleFilterChange = (filterType: keyof FilterState, value: any) => {
+  // Handle filter changes - value type depends on which filter is being changed
+  // Array filters (platforms, severities, etc.) accept string[], abstract accepts boolean | null
+  const handleFilterChange = (filterType: keyof FilterState, value: string[] | boolean | null) => {
     onFiltersChange({ [filterType]: value });
   };
 
