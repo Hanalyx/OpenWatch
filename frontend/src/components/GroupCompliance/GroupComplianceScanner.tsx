@@ -29,6 +29,41 @@ interface ComplianceScanRequest {
   scanTimeout: number;
 }
 
+/**
+ * SCAP content bundle - compliance framework bundle with profiles
+ * Represents a compliance framework bundle loaded from MongoDB
+ */
+interface ScapContentBundle {
+  id: number;
+  name: string;
+  description?: string;
+  profiles: Array<{
+    id: string;
+    title: string;
+    description?: string;
+  }>;
+  // Additional bundle metadata from backend
+  [key: string]: string | number | boolean | object | undefined;
+}
+
+/**
+ * Active compliance scan session data
+ * Tracks progress and status of ongoing group compliance scan
+ */
+interface ScanSessionData {
+  session_id: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  total_hosts?: number;
+  completed_hosts?: number;
+  failed_hosts?: number;
+  progress_percentage?: number;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+  // Additional scan metadata from backend
+  [key: string]: string | number | boolean | undefined;
+}
+
 interface GroupComplianceProps {
   groupId: number;
   groupName: string;
@@ -59,9 +94,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
   onScanStarted,
 }) => {
   const [loading, setLoading] = useState(false);
-  const [scapContents, setScapContents] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [currentScan, setCurrentScan] = useState<any>(null);
+  // SCAP content bundles loaded from MongoDB compliance rules API
+  const [scapContents, setScapContents] = useState<ScapContentBundle[]>([]);
+  // Profiles from selected SCAP content bundle
+  const [profiles, setProfiles] = useState<
+    Array<{ id: string; title: string; description?: string }>
+  >([]);
+  // Current active scan session with progress tracking
+  const [currentScan, setCurrentScan] = useState<ScanSessionData | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'warning' | 'info'>(
     'info'
@@ -206,7 +246,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
         if (response.ok) {
           const progress = await response.json();
-          setCurrentScan((prev: any) => ({ ...prev, ...progress }));
+          // Merge new progress data with existing scan session data
+          setCurrentScan((prev) => (prev ? { ...prev, ...progress } : progress));
 
           if (progress.status === 'completed' || progress.status === 'failed') {
             if (progress.status === 'completed') {
