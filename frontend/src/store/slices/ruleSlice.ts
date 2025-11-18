@@ -2,6 +2,27 @@ import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/tool
 import { api } from '../../services/api';
 
 // Types
+
+/**
+ * Parameter configuration for rule parameter overrides
+ * Contains platform/framework-specific parameter settings
+ */
+export interface ParameterConfig {
+  // Parameter value - can be string, number, or boolean based on parameter type
+  value?: string | number | boolean;
+  // Parameter description
+  description?: string;
+  // Validation constraints
+  constraints?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    choices?: string[];
+  };
+  // Additional metadata
+  [key: string]: string | number | boolean | object | undefined;
+}
+
 export interface Rule {
   rule_id: string;
   scap_rule_id: string;
@@ -42,8 +63,10 @@ export interface Rule {
     overridden_parameters: string[];
     inherited_frameworks: string[];
   };
+  // Platform and framework-specific parameter overrides
+  // Maps parameter name to parameter configuration
   parameter_overrides?: {
-    [key: string]: any;
+    [parameterName: string]: ParameterConfig;
   };
   relevance_score?: number;
   matched_fields?: string[];
