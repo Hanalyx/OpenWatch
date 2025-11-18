@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -72,7 +70,8 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   const theme = useTheme();
 
   // State management
-  const [rules, setRules] = useState<Rule[]>([]);
+  // Rules data state - reserved for future direct rule management features
+  const [_rules, setRules] = useState<Rule[]>([]);
   const [filteredRules, setFilteredRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +88,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
     refetch: refetchPlatforms,
     totalPlatforms,
     totalRulesAnalyzed,
-    source,
+    source: _source, // Data source metadata - reserved for future source attribution display
   } = useComplianceStatistics();
 
   // Framework statistics for framework view
