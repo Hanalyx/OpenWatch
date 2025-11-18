@@ -53,7 +53,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingScan, setLoadingScan] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ScanTemplate[]>([]);
-  const [recommendedProfile, setRecommendedProfile] = useState<any>(null);
+  // Recommended scan profile based on host characteristics
+  const [recommendedProfile, setRecommendedProfile] = useState<ScanTemplate | null>(null);
 
   const open = Boolean(anchorEl);
 
@@ -194,8 +195,9 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           onError(errorMessage);
         }
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Failed to start scan';
+    } catch (error) {
+      // Handle scan execution errors with proper type checking
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start scan';
       if (onError) {
         onError(errorMessage);
       }
