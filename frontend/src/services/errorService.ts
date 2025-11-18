@@ -12,12 +12,30 @@ export interface ValidationRequest {
   framework?: string;
 }
 
+/**
+ * System information collected during validation
+ * Contains common fields with extensibility for additional backend data
+ */
+export interface SystemInfo {
+  // Common validation fields
+  collection_timestamp?: string;
+  openscap_available?: boolean;
+  ssh_available?: boolean;
+  // Resource information
+  memory?: number | string;
+  disk_space?: number | string;
+  // Additional system details (extensible for backend additions)
+  system_details?: Record<string, string | number | boolean>;
+  // Allow any additional fields the backend may return
+  [key: string]: string | number | boolean | Record<string, string | number | boolean> | undefined;
+}
+
 export interface ValidationResult {
   can_proceed: boolean;
   errors: ClassifiedError[];
   warnings: ClassifiedError[];
   pre_flight_duration: number;
-  system_info: Record<string, any>;
+  system_info: SystemInfo;
   validation_checks: Record<string, boolean>;
 }
 
