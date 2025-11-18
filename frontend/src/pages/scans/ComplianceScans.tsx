@@ -26,7 +26,6 @@ import {
   Paper,
   Alert,
   Chip,
-  IconButton,
   CircularProgress,
 } from '@mui/material';
 import { Group, Computer, Search, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material';
@@ -66,10 +65,12 @@ const ComplianceScans: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [targetType, setTargetType] = useState<'hosts' | 'groups' | null>(null);
   const [selectedHosts, setSelectedHosts] = useState<string[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  // Host group selection state - reserved for future multi-group scan functionality
+  const [selectedGroups, _setSelectedGroups] = useState<string[]>([]);
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
   const [hosts, setHosts] = useState<Host[]>([]);
-  const [groups, setGroups] = useState<HostGroup[]>([]);
+  // Host groups data - reserved for future group-based compliance scanning
+  const [_groups, setGroups] = useState<HostGroup[]>([]);
   const [rules, setRules] = useState<ComplianceRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -707,7 +708,7 @@ const ComplianceScans: React.FC = () => {
       {/* Stepper in Paper Container */}
       <Paper sx={{ mb: 3, p: 3 }}>
         <Stepper activeStep={activeStep}>
-          {steps.map((label, index) => (
+          {steps.map((label, _index) => (
             <Step key={label}>
               <StepLabel>{label}</StepLabel>
             </Step>
