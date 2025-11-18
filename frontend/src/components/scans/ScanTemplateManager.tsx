@@ -276,7 +276,9 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
               <Select
                 value={formData.scope}
                 label="Scope"
-                onChange={(e) => setFormData({ ...formData, scope: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({ ...formData, scope: e.target.value as 'system' | 'group' | 'host' })
+                }
               >
                 <MenuItem value="system">System-wide (all hosts)</MenuItem>
                 {groupId && <MenuItem value="group">Group-specific</MenuItem>}
