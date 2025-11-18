@@ -267,7 +267,8 @@ const Dashboard: React.FC = () => {
         complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
 
       // Generate trend data with realistic progression and ensure data integrity
-      const trendDataArray: any[] =
+      // Use ComplianceTrendData interface for type-safe trend chart data
+      const trendDataArray: ComplianceTrendData[] =
         normalizedHosts.length > 0
           ? [
               {
