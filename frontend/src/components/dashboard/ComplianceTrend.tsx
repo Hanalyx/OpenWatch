@@ -21,6 +21,10 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 
+/**
+ * Compliance data point for trend visualization
+ * Represents compliance scores at a specific point in time
+ */
 interface ComplianceDataPoint {
   date: string;
   overall: number;
@@ -28,6 +32,28 @@ interface ComplianceDataPoint {
   high: number;
   medium: number;
   low: number;
+}
+
+/**
+ * Recharts tooltip payload entry
+ * Structure provided by Recharts for each data series in the tooltip
+ */
+interface TooltipPayloadEntry {
+  name: string;
+  value: number;
+  color: string;
+  dataKey: string;
+  payload: ComplianceDataPoint;
+}
+
+/**
+ * Recharts custom tooltip props
+ * Props passed to custom tooltip component by Recharts
+ */
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
 }
 
 interface ComplianceTrendProps {
@@ -53,7 +79,8 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
       )
     : [];
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  // Custom tooltip for Recharts - displays compliance metrics for hovered data point
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <Box
@@ -66,9 +93,9 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
           }}
         >
           <Typography variant="subtitle2" gutterBottom>
-            {format(new Date(label), 'MMM dd, yyyy')}
+            {format(new Date(label || ''), 'MMM dd, yyyy')}
           </Typography>
-          {payload.map((entry: any) => (
+          {payload.map((entry: TooltipPayloadEntry) => (
             <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
               <Box
                 sx={{
