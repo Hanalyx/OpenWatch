@@ -175,8 +175,11 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       }
 
       setFeasibility(mockAnalysis);
-    } catch (err: any) {
-      setError(err.message || 'Failed to analyze bulk scan feasibility');
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to analyze bulk scan feasibility';
+      setError(errorMessage);
     } finally {
       setFeasibilityLoading(false);
     }
@@ -212,8 +215,9 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to start bulk scan');
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to start bulk scan';
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start bulk scan';
       setError(errorMessage);
       if (onError) {
         onError(errorMessage);
