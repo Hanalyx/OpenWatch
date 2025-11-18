@@ -16,13 +16,11 @@ import {
   DialogTitle,
   DialogContent,
   Alert,
-  Fab,
   Tooltip,
   LinearProgress,
   Divider,
   Paper,
   Stack,
-  Avatar,
   Badge,
 } from '@mui/material';
 import {
@@ -97,7 +95,8 @@ const ComplianceGroups: React.FC = () => {
   const [showComplianceReport, setShowComplianceReport] = useState(false);
   const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
 
-  const user = useAppSelector((state) => state.auth.user);
+  // User data from auth state - reserved for future user-specific group permissions
+  const _user = useAppSelector((state) => state.auth.user);
 
   useEffect(() => {
     fetchGroups();
