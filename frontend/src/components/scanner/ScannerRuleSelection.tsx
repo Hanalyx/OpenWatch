@@ -333,7 +333,11 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
         <FormControl fullWidth>
           <Select
             value={scanConfig.scanProfile}
-            onChange={(e) => updateScanConfig({ scanProfile: e.target.value as any })}
+            onChange={(e) =>
+              updateScanConfig({
+                scanProfile: e.target.value as 'quick' | 'standard' | 'comprehensive',
+              })
+            }
           >
             <MenuItem value="quick">
               <Box>
