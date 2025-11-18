@@ -51,13 +51,19 @@ interface Host {
   os_version?: string;
 }
 
+/**
+ * SCAP profile definition from compliance content
+ * Contains profile metadata and rule selection information
+ */
 interface Profile {
   id: string;
   title: string;
   description?: string;
   extends?: string;
-  selected_rules?: any;
-  metadata?: any;
+  // Selected rules - array of rule IDs or rule selection criteria
+  selected_rules?: string[] | Record<string, boolean>;
+  // Profile metadata - extensible key-value pairs from SCAP content
+  metadata?: Record<string, string | number | boolean>;
 }
 
 interface SCAPContent {
