@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import ErrorClassificationDisplay, { type ClassifiedError } from './ErrorClassificationDisplay';
+import type { SystemInfo } from '../../services/errorService';
 
 export interface ValidationRequest {
   host_id: string;
@@ -52,7 +53,8 @@ export interface ValidationResult {
   errors: ClassifiedError[];
   warnings: ClassifiedError[];
   pre_flight_duration: number;
-  system_info: Record<string, any>;
+  // System information collected during validation - see errorService.ts for structure
+  system_info: SystemInfo;
   validation_checks: Record<string, boolean>;
 }
 
