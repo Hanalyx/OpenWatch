@@ -181,7 +181,8 @@ const Dashboard: React.FC = () => {
       }
 
       // Normalize host data to ensure consistent field naming
-      const normalizedHosts = hosts.map((host: any) => ({
+      // Use RawHostData type for backend data that may have inconsistent naming
+      const normalizedHosts = hosts.map((host: RawHostData) => ({
         ...host,
         // Ensure consistent camelCase naming
         criticalIssues: host.critical_issues || host.criticalIssues || 0,
