@@ -91,7 +91,11 @@ const getStepIcon = (status: string, icon: React.ReactNode) => {
   }
 };
 
-const getStepColor = (status: string) => {
+/**
+ * Get MUI Chip color for validation step status
+ * Maps step status to Material-UI color palette values
+ */
+const getStepColor = (status: string): 'success' | 'error' | 'warning' | 'primary' | 'default' => {
   switch (status) {
     case 'success':
       return 'success';
@@ -232,17 +236,19 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
       });
 
       setValidationResult(result);
-    } catch (error: any) {
+    } catch (error) {
+      // Handle validation errors with proper type checking
       console.error('Validation failed:', error);
+
+      // Extract error message from different error formats
+      const errorMessage =
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
+        (error instanceof Error ? error.message : null) ||
+        'Validation failed';
 
       // Mark current step as failed
       if (currentStep >= 0 && currentStep < validationSteps.length) {
-        updateStepStatus(
-          validationSteps[currentStep].id,
-          'error',
-          undefined,
-          error.response?.data?.detail || error.message || 'Validation failed'
-        );
+        updateStepStatus(validationSteps[currentStep].id, 'error', undefined, errorMessage);
       }
 
       // Create a fallback validation result
@@ -322,7 +328,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
                         <Typography variant="body1">{step.label}</Typography>
                         <Chip
                           label={step.status.charAt(0).toUpperCase() + step.status.slice(1)}
-                          color={getStepColor(step.status) as any}
+                          color={getStepColor(step.status)}
                           size="small"
                           variant="outlined"
                         />
