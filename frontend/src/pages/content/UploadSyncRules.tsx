@@ -41,7 +41,6 @@ import {
   Verified as VerifiedIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
-  Close as CloseIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
