@@ -92,6 +92,25 @@ interface RawScanData {
   [key: string]: unknown;
 }
 
+/**
+ * Normalized host data after transformation
+ * Consistent camelCase field naming for frontend use
+ * Extends RawHostData to include all original fields plus normalized fields
+ */
+interface NormalizedHost extends RawHostData {
+  criticalIssues: number;
+  highIssues: number;
+  mediumIssues: number;
+  lowIssues: number;
+  passedRules: number;
+  complianceScore: number | null;
+  displayName: string;
+  ipAddress: string;
+  operatingSystem: string;
+  lastScan?: string;
+  status: string;
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -182,7 +201,7 @@ const Dashboard: React.FC = () => {
 
       // Normalize host data to ensure consistent field naming
       // Use RawHostData type for backend data that may have inconsistent naming
-      const normalizedHosts = hosts.map((host: RawHostData) => ({
+      const normalizedHosts: NormalizedHost[] = hosts.map((host: RawHostData) => ({
         ...host,
         // Ensure consistent camelCase naming
         criticalIssues: host.critical_issues || host.criticalIssues || 0,
@@ -201,17 +220,24 @@ const Dashboard: React.FC = () => {
       }));
 
       // Process data for dashboard using normalized hosts with adaptive monitoring states
+      // Use NormalizedHost type for type-safe access to status field
       const onlineCount = normalizedHosts.filter(
-        (h: any) => h.status === 'online' || h.status === 'reachable'
+        (h: NormalizedHost) => h.status === 'online' || h.status === 'reachable'
       ).length;
-      const degradedCount = normalizedHosts.filter((h: any) => h.status === 'degraded').length;
-      const criticalCount = normalizedHosts.filter((h: any) => h.status === 'critical').length;
+      const degradedCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'degraded'
+      ).length;
+      const criticalCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'critical'
+      ).length;
       const downCount = normalizedHosts.filter(
-        (h: any) => h.status === 'down' || h.status === 'offline'
+        (h: NormalizedHost) => h.status === 'down' || h.status === 'offline'
       ).length;
-      const scanningCount = normalizedHosts.filter((h: any) => h.status === 'scanning').length;
+      const scanningCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'scanning'
+      ).length;
       const maintenanceCount = normalizedHosts.filter(
-        (h: any) => h.status === 'maintenance'
+        (h: NormalizedHost) => h.status === 'maintenance'
       ).length;
       const totalCount = normalizedHosts.length;
 
