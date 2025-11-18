@@ -154,7 +154,11 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  /**
+   * Get MUI Chip color for bulk scan status
+   * Maps scan session status to Material-UI color palette values
+   */
+  const getStatusColor = (status: string): 'success' | 'error' | 'primary' | 'default' => {
     switch (status) {
       case 'completed':
         return 'success';
@@ -257,7 +261,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                   <Typography variant="h6">Overall Progress</Typography>
                   <Chip
                     label={session.status.toUpperCase()}
-                    color={getStatusColor(session.status) as any}
+                    color={getStatusColor(session.status)}
                     size="small"
                   />
                 </Box>
@@ -375,7 +379,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                               <Chip
                                 label={scan.status}
                                 size="small"
-                                color={getStatusColor(scan.status) as any}
+                                color={getStatusColor(scan.status)}
                                 variant="outlined"
                               />
                             </Box>
