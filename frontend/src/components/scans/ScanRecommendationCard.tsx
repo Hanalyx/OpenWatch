@@ -118,13 +118,21 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
     }
   };
 
-  const getConfidenceColor = (confidence: number) => {
+  /**
+   * Get MUI Chip color for AI confidence level
+   * Maps confidence percentage to Material-UI color palette
+   */
+  const getConfidenceColor = (confidence: number): 'success' | 'warning' | 'error' => {
     if (confidence >= 0.8) return 'success';
     if (confidence >= 0.6) return 'warning';
     return 'error';
   };
 
-  const getPriorityColor = (priority: string) => {
+  /**
+   * Get MUI Chip color for scan priority
+   * Maps priority level to Material-UI color palette
+   */
+  const getPriorityColor = (priority: string): 'error' | 'warning' | 'info' => {
     switch (priority) {
       case 'high':
         return 'error';
@@ -203,7 +211,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
           <Chip
             icon={<AutoAwesome />}
             label={`${Math.round(scanRec.confidence * 100)}% Confidence`}
-            color={getConfidenceColor(scanRec.confidence) as any}
+            color={getConfidenceColor(scanRec.confidence)}
             variant="outlined"
           />
         </Box>
@@ -251,7 +259,7 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
             <Chip
               label={scanRec.priority.toUpperCase()}
               size="small"
-              color={getPriorityColor(scanRec.priority) as any}
+              color={getPriorityColor(scanRec.priority)}
               variant="outlined"
             />
           </Box>
