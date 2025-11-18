@@ -17,12 +17,13 @@ import {
   Slider,
   Typography,
 } from '@mui/material';
-import type { VariableDefinition } from '@/types/scanConfig';
+import type { VariableDefinition, VariableDefaultValue } from '@/types/scanConfig';
 
 interface VariableInputProps {
   variable: VariableDefinition;
-  value: any;
-  onChange: (value: any) => void;
+  // Variable value matches the type defined in VariableDefinition (string | number | boolean)
+  value: VariableDefaultValue;
+  onChange: (value: VariableDefaultValue) => void;
   error?: string;
 }
 
