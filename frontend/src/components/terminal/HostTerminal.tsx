@@ -250,7 +250,11 @@ const HostTerminal: React.FC<HostTerminalProps> = ({ hostId, hostname, ipAddress
     }
   };
 
-  const getStatusColor = () => {
+  /**
+   * Get MUI Chip color for terminal connection status
+   * Maps connection status to Material-UI color palette values
+   */
+  const getStatusColor = (): 'success' | 'info' | 'error' | 'warning' | 'default' => {
     switch (connectionStatus.status) {
       case 'connected':
         return 'success';
@@ -299,7 +303,7 @@ const HostTerminal: React.FC<HostTerminalProps> = ({ hostId, hostname, ipAddress
           <Typography variant="h6">SSH Terminal - {hostname}</Typography>
           <Chip
             label={getStatusLabel()}
-            color={getStatusColor() as any}
+            color={getStatusColor()}
             size="small"
             icon={
               connectionStatus.status === 'connecting' ? <CircularProgress size={16} /> : undefined
