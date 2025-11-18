@@ -30,13 +30,19 @@ import {
 } from '@mui/icons-material';
 import { api } from '../services/api';
 
+/**
+ * Readiness check result from backend validation
+ * Contains validation details, metrics, and remediation guidance
+ */
 interface ReadinessCheck {
   check_type: string;
   check_name: string;
   passed: boolean;
   severity: 'info' | 'warning' | 'error';
   message: string;
-  details: Record<string, any>;
+  // Check-specific details from backend validation (varies by check type)
+  // May include: current_value, required_value, remediation, command_output, etc.
+  details: Record<string, string | number | boolean | object>;
   check_duration_ms?: number;
 }
 
@@ -127,9 +133,11 @@ const ReadinessDialog: React.FC<ReadinessDialogProps> = ({ open, onClose, hostId
       } else {
         setError('No validation results returned');
       }
-    } catch (err: any) {
+    } catch (err) {
+      // Handle validation API errors with proper type checking
       console.error('Validation failed:', err);
-      setError(err.message || 'Failed to validate host readiness');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to validate host readiness';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
