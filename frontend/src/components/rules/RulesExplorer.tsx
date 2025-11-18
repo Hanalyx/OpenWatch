@@ -34,6 +34,8 @@ import {
   fetchRuleDependencies,
   exportRules,
   type Rule,
+  type SearchRequest,
+  type FilterState,
 } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import RuleCard from './RuleCard';
@@ -121,8 +123,8 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
     );
   }, [pagination, activeFilters, dispatch]);
 
-  // Search function
-  const performSearch = async (searchParams: any) => {
+  // Search function - accepts structured search request with query and optional filters
+  const performSearch = async (searchParams: SearchRequest) => {
     try {
       await ruleService.searchRules(searchParams);
       // Handle search results
@@ -154,9 +156,9 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
     [activeFilters, dispatch, handleRefresh]
   );
 
-  // Handle filter changes
+  // Handle filter changes - accepts partial filter state for flexible updates
   const handleFilterChange = useCallback(
-    (filters: any) => {
+    (filters: Partial<FilterState>) => {
       dispatch(updateFilters(filters));
       dispatch(setPagination({ offset: 0, limit: pagination.limit }));
 
