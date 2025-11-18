@@ -21,7 +21,7 @@ import {
   PlayArrow as ScanIcon,
 } from '@mui/icons-material';
 import { type Rule, type FilterState } from '../../store/slices/ruleSlice';
-import { ruleService } from '../../services/ruleService';
+import { ruleService, type RuleQueryParams } from '../../services/ruleService';
 import RuleCard from './RuleCard';
 import RuleFilterToolbar from './RuleFilterToolbar';
 import RuleDetailDialog from './RuleDetailDialog';
@@ -30,6 +30,23 @@ import EmptyState from '../design-system/patterns/EmptyState';
 import { type SearchSuggestion } from './EnhancedSearchInput';
 import ScannerRuleSelection from '../scanner/ScannerRuleSelection';
 import RuleIntelligencePanel from './RuleIntelligencePanel';
+
+/**
+ * Scan configuration for rule-based scanning
+ * Matches the structure expected by ScannerRuleSelection component
+ */
+interface ScanConfiguration {
+  targetHosts: string[];
+  scanProfile: 'quick' | 'standard' | 'comprehensive';
+  outputFormats: string[];
+  scanName: string;
+  description?: string;
+  schedule?: {
+    type: 'immediate' | 'scheduled';
+    datetime?: string;
+    recurring?: boolean;
+  };
+}
 
 interface RulesExplorerProps {
   contentId?: string;
@@ -85,9 +102,9 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Load rules
+  // Load rules - accepts query parameters for filtering and pagination
   const loadRules = useCallback(
-    async (params: any = {}) => {
+    async (params: Partial<RuleQueryParams> = {}) => {
       setIsLoading(true);
       setError(null);
 
@@ -347,9 +364,9 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
     setSelectedRulesForScan([]);
   }, []);
 
-  // Handle starting scan
+  // Handle starting scan - receives scan configuration from ScannerRuleSelection dialog
   const handleStartScan = useCallback(
-    async (config: any) => {
+    async (config: ScanConfiguration) => {
       try {
         setSnackbarMessage(`Starting scan with ${selectedRulesForScan.length} rules...`);
 
