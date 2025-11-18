@@ -135,8 +135,8 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     );
   }
 
-  // Default: text input
-  const inputProps: any = {};
+  // Default: text input with optional pattern validation
+  const inputProps: React.InputHTMLAttributes<HTMLInputElement> = {};
   if (variable.constraints?.match) {
     inputProps.pattern = variable.constraints.match;
   }
