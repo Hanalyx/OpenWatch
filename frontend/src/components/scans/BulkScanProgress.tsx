@@ -109,10 +109,12 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
         }
       } else {
         const errorData = await response.json();
-        throw new (Error as any)(errorData.detail || 'Failed to fetch progress');
+        throw new Error(errorData.detail || 'Failed to fetch progress');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch progress');
+    } catch (err) {
+      // Handle progress fetch errors with proper type checking
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch progress';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
