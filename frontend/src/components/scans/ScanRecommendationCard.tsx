@@ -109,8 +109,10 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
       };
 
       setRecommendation(mockRecommendation);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load recommendation');
+    } catch (err) {
+      // Handle recommendation loading errors with proper type checking
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load recommendation';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
