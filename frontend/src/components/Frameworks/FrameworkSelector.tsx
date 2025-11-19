@@ -3,10 +3,10 @@
  * Dropdown for selecting framework and version
  */
 
-import React, { useState, useEffect, SyntheticEvent } from 'react';
+import React, { useState, useEffect, type SyntheticEvent } from 'react';
 import { Box, Autocomplete, TextField, CircularProgress } from '@mui/material';
 import { useFrameworks } from '@/hooks/useFrameworks';
-import { Framework } from '@/types/scanConfig';
+import { type Framework } from '@/types/scanConfig';
 
 interface FrameworkSelectorProps {
   value?: { framework: string; version: string };

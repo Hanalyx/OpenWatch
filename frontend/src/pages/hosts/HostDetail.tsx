@@ -46,6 +46,7 @@ import {
   Flag as FlagIcon,
 } from '@mui/icons-material';
 import { StatusChip, ComplianceRing, SSHKeyDisplay } from '../../components/design-system';
+import type { StatusType } from '../../components/design-system/StatusChip';
 import HostTerminal from '../../components/terminal/HostTerminal';
 import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
 import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
@@ -351,12 +352,7 @@ const HostDetail: React.FC = () => {
               <Typography variant="body1">{host.operating_system}</Typography>
               <Box sx={{ mt: 2 }}>
                 {/* Type-safe status prop - host.status matches StatusType union */}
-                <StatusChip
-                  status={
-                    host.status as import('../../components/design-system/StatusChip').StatusType
-                  }
-                  size="small"
-                />
+                <StatusChip status={host.status as StatusType} size="small" />
               </Box>
             </CardContent>
           </Card>
