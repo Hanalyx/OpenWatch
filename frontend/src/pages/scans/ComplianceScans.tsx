@@ -119,10 +119,13 @@ const ComplianceScans: React.FC = () => {
     }
   }, [targetType]);
 
+  // Load compliance rules when on step 1 or filters change
+  // ESLint disable: loadRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (activeStep === 1) {
       loadRules();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep, frameworkFilter, severityFilter]);
 
   const loadAvailableFrameworks = async () => {

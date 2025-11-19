@@ -137,11 +137,14 @@ const HostDetail: React.FC = () => {
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
 
+  // Fetch host data when component mounts or id changes
+  // ESLint disable: Functions are not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchHostDetails();
     fetchHostScans();
     // Also try to get enhanced host data from hosts list
     fetchEnhancedHostData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchEnhancedHostData = async () => {

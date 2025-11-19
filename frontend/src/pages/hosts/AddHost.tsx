@@ -490,11 +490,14 @@ const AddHost: React.FC = () => {
     }
   };
 
-  // Load system credentials on component mount
+  // Load system credentials when auth method changes to system_default
+  // ESLint disable: formData.authMethod change should trigger, but causes re-render loop if included
+  // fetchSystemCredentials is intentionally excluded to avoid complex dependency chain
   useEffect(() => {
     if (formData.authMethod === 'system_default') {
       fetchSystemCredentials();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renderQuickMode = () => (

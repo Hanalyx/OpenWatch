@@ -295,6 +295,8 @@ const Settings: React.FC = () => {
       // Security tab
       loadLoggingPolicies();
     }
+    // ESLint disable: load* functions are not memoized to avoid complex dependency chains
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabValue, isSuperAdmin, showInactive]); // WEEK 2: Reload when showInactive changes
 
   const handleAddCredential = () => {

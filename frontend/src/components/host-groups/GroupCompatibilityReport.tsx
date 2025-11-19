@@ -100,10 +100,13 @@ const GroupCompatibilityReport: React.FC<GroupCompatibilityReportProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<CompatibilityReport | null>(null);
 
+  // Fetch compatibility report when dialog opens with a selected group
+  // ESLint disable: fetchCompatibilityReport function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && group) {
       fetchCompatibilityReport();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
 
   const fetchCompatibilityReport = async () => {

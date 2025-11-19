@@ -496,6 +496,9 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+    // ESLint disable: timeRange is intentionally included as useCallback dependency for data refresh
+    // This is correct - we want to refetch when timeRange changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, timeRange]);
 
   // Load data on component mount

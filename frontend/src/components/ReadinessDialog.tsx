@@ -143,10 +143,14 @@ const ReadinessDialog: React.FC<ReadinessDialogProps> = ({ open, onClose, hostId
     }
   };
 
+  // Trigger validation when dialog opens and no cached result exists
+  // ESLint disable: handleValidate and result are intentionally excluded from dependencies
+  // to prevent validation from re-running when result updates (would cause infinite loop)
   React.useEffect(() => {
     if (open && !result) {
       handleValidate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const handleClose = () => {

@@ -78,10 +78,12 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   const [activeStep, setActiveStep] = useState(0);
 
   // Load failed rules when scan is completed
+  // ESLint disable: loadFailedRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (scanStatus === 'completed') {
       loadFailedRules();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanId, scanStatus]);
 
   const loadFailedRules = async () => {

@@ -218,6 +218,8 @@ export const EnhancedVirtualList = <T,>({
         </Box>
       );
     },
+    // ESLint disable: props is intentionally excluded - only specific props used are in dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.renderItem, onItemClick, selectedIndex, highlightSelected, theme]
   );
 

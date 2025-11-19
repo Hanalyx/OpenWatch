@@ -146,8 +146,11 @@ const Users: React.FC = () => {
     loadRoles();
   }, []);
 
+  // Load users when pagination or filters change
+  // ESLint disable: loadUsers function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, search, roleFilter, statusFilter]);
 
   const handleAddUser = () => {

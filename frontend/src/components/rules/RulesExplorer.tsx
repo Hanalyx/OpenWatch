@@ -76,9 +76,11 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Initial load
+  // Load rules on component mount
+  // ESLint disable: loadRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper to convert filter state to API params

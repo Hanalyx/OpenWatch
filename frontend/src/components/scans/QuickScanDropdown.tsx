@@ -107,9 +107,11 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
     },
   ];
 
+  // Load intelligent profile recommendation when component mounts or hostId changes
+  // ESLint disable: loadProfileRecommendation function is not memoized to avoid complex dependency chain
   useEffect(() => {
-    // Load intelligent profile recommendation when component mounts
     loadProfileRecommendation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostId]);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {

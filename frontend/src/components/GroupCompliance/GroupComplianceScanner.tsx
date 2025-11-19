@@ -121,9 +121,13 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     setTimeout(() => setAlertMessage(null), 5000);
   };
 
+  // Load SCAP content bundles and check for active scans when component mounts or groupId changes
+  // ESLint disable: Functions loadScapContents and checkActiveScan are not memoized
+  // to avoid complex dependency chains. They only need to run when groupId changes.
   useEffect(() => {
     loadScapContents();
     checkActiveScan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   const loadScapContents = async () => {

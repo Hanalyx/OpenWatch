@@ -80,6 +80,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
     // Refresh stats every 30 seconds
     const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);
+    // ESLint disable: loadConfig and loadStats functions are not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadConfig = async () => {

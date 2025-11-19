@@ -255,8 +255,11 @@ const ScanDetail: React.FC = () => {
   const [reviewedRules, setReviewedRules] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch scan details when component mounts or scan id changes
+  // ESLint disable: fetchScanDetails function is not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchScanDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Auto-polling for running scans with optimized refresh
@@ -275,10 +278,16 @@ const ScanDetail: React.FC = () => {
         clearInterval(interval);
       }
     };
+    // ESLint disable: fetchScanDetailsQuiet and scan are intentionally excluded
+    // Only scan.status change should trigger re-polling setup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scan?.status]);
 
+  // Filter rules when search/filter criteria change
+  // ESLint disable: filterRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     filterRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ruleResults, searchQuery, severityFilter, resultFilter]);
 
   const fetchScanDetails = async (quiet: boolean = false) => {

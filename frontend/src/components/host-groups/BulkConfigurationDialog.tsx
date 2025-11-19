@@ -75,6 +75,8 @@ const BulkConfigurationDialog: React.FC<BulkConfigurationDialogProps> = ({
       // Select all unconfigured groups by default
       setSelectedGroups(unconfiguredGroups.map((g) => g.id));
     }
+    // ESLint disable: unconfiguredGroups is intentionally excluded to prevent re-initialization on every change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {

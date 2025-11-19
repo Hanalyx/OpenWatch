@@ -113,8 +113,11 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
   const [dateRange, setDateRange] = useState<string>('30d');
   const [showHostDetails, setShowHostDetails] = useState(false);
 
+  // Load compliance report when groupId, framework, or date range changes
+  // ESLint disable: loadComplianceReport function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadComplianceReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, selectedFramework, dateRange]);
 
   const loadComplianceReport = async () => {

@@ -105,8 +105,11 @@ const NewScapScan: React.FC = () => {
     setSnackbar({ open: true, message, severity });
   };
 
+  // Fetch hosts on component mount
+  // ESLint disable: fetchHosts function is not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchHosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

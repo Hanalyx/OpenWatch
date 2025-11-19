@@ -114,8 +114,11 @@ const DataPreview: React.FC<DataPreviewProps> = ({
   const [showErrors, setShowErrors] = useState(true);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
+  // Generate preview when CSV data or field mappings change
+  // ESLint disable: generatePreview function is not memoized to avoid complex dependency chain
   useEffect(() => {
     generatePreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [csvData, fieldMappings]);
 
   const generatePreview = () => {

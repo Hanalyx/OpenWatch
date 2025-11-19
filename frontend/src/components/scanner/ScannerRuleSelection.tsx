@@ -150,6 +150,8 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
           : null
       );
     }
+    // ESLint disable: simulateScanProgress function is not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRules, scanConfig, onStartScan]);
 
   // Simulate scan progress for demo

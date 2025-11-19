@@ -78,11 +78,13 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root']));
   const [selectedView, setSelectedView] = useState<'tree' | 'list'>('tree');
 
-  // Load dependency data
+  // Load dependency data when dialog opens with a rule selected
+  // ESLint disable: loadDependencies function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && ruleId) {
       loadDependencies();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ruleId]);
 
   const loadDependencies = async () => {

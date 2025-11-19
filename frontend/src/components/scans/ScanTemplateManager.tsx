@@ -85,10 +85,13 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     isDefault: false,
   });
 
+  // Fetch templates when dialog opens
+  // ESLint disable: fetchTemplates function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open) {
       fetchTemplates();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const fetchTemplates = async () => {

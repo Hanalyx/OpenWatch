@@ -307,6 +307,8 @@ const Scans: React.FC = () => {
     }, 10000); // Refresh every 10 seconds if there are running scans
 
     return () => clearInterval(interval);
+    // ESLint disable: fetchScans function is not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run once
 
   // Phase 1 UX Improvements: Helper functions for visual health indicators

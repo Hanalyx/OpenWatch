@@ -154,9 +154,11 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
     [pagination.offset, pagination.limit, activeFilters]
   );
 
-  // Initial load
+  // Load rules on component mount
+  // ESLint disable: loadRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle search

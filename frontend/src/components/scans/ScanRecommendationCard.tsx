@@ -61,8 +61,11 @@ const ScanRecommendationCard: React.FC<ScanRecommendationCardProps> = ({ hostId,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Load scan recommendation when component mounts or hostId changes
+  // ESLint disable: loadRecommendation function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadRecommendation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostId]);
 
   const loadRecommendation = async () => {

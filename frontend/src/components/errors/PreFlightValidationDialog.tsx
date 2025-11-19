@@ -158,10 +158,13 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
   const [showWarnings, setShowWarnings] = useState(false);
   const [showSystemInfo, setShowSystemInfo] = useState(false);
 
+  // Start validation when dialog opens with valid request
+  // ESLint disable: startValidation function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && validationRequest) {
       startValidation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, validationRequest]);
 
   const updateStepStatus = (

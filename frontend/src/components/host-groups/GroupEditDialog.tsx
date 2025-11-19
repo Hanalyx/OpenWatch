@@ -154,6 +154,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       fetchAvailableHosts();
       resetForm();
     }
+    // ESLint disable: Functions are not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
 
   const resetForm = () => {

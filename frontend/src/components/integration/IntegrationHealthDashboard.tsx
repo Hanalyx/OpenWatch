@@ -135,6 +135,8 @@ const IntegrationHealthDashboard: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
+    // ESLint disable: refreshData function is not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getStatusColor = (status: string) => {

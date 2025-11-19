@@ -60,10 +60,13 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
 
   const open = Boolean(anchorEl);
 
+  // Fetch scan templates when menu opens or hostId changes
+  // ESLint disable: fetchScanTemplates function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open) {
       fetchScanTemplates();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hostId]);
 
   const fetchScanTemplates = async () => {

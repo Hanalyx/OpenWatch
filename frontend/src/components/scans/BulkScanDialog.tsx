@@ -107,10 +107,13 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
     },
   ];
 
+  // Analyze scan feasibility when dialog opens with selected hosts
+  // ESLint disable: analyzeFeasibility function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && selectedHosts.length > 0) {
       analyzeFeasibility();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedHosts]);
 
   const analyzeFeasibility = async () => {
