@@ -51,6 +51,20 @@ interface Host {
   platform_version?: string; // e.g., '8', '22.04'
 }
 
+/**
+ * Raw host data from API response
+ * Contains backend field names before transformation to frontend Host interface
+ */
+interface RawHostData {
+  id: string;
+  hostname: string;
+  display_name?: string;
+  operating_system: string;
+  status: string;
+  platform?: string;
+  platform_version?: string;
+}
+
 const steps = ['Select Host', 'Choose Framework', 'Configure Scan', 'Review & Start'];
 
 const NewScapScan: React.FC = () => {
@@ -108,8 +122,8 @@ const NewScapScan: React.FC = () => {
   const fetchHosts = async () => {
     try {
       const data = await api.get('/api/hosts/');
-      // Convert API data to expected format
-      const formattedHosts = data.map((host: any) => ({
+      // Transform backend host data to frontend Host interface
+      const formattedHosts = data.map((host: RawHostData) => ({
         id: host.id, // Keep as string UUID
         name: host.display_name || host.hostname,
         hostname: host.hostname,
@@ -189,15 +203,15 @@ const NewScapScan: React.FC = () => {
       setTimeout(() => {
         navigate(`/scans/${result.scan_id}`);
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Scan creation failed:', error);
 
-      // Try to classify the error using our error service
+      // Type-safe error classification using errorService
       const classification = errorService.getErrorClassification(error);
       if (classification) {
         setScanError(classification);
       } else {
-        // Fallback to generic error
+        // Fallback to generic error classification
         setScanError(errorService.classifyGenericError(error));
       }
     } finally {
@@ -218,7 +232,8 @@ const NewScapScan: React.FC = () => {
       await errorService.applyAutomatedFix(selectedHost.id, fixId);
       showSnackbar('Fix applied successfully', 'success');
       setScanError(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Type-safe error message extraction using errorService
       showSnackbar(errorService.getUserFriendlyError(error), 'error');
     }
   };
