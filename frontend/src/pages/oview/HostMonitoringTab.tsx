@@ -209,9 +209,25 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         if (onLastUpdatedRef.current) {
           onLastUpdatedRef.current(new Date());
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[HostMonitoringTab] Error fetching monitoring data:', err);
-        setError(err.response?.data?.detail || err.message || 'Failed to load monitoring data');
+        // Type-safe error message extraction - check for axios-like error structure first
+        const errorMessage =
+          err &&
+          typeof err === 'object' &&
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response &&
+          err.response.data &&
+          typeof err.response.data === 'object' &&
+          'detail' in err.response.data &&
+          typeof err.response.data.detail === 'string'
+            ? err.response.data.detail
+            : err instanceof Error
+              ? err.message
+              : 'Failed to load monitoring data';
+        setError(errorMessage);
       } finally {
         // Always clear the in-flight flag and loading state
         setLoading(false);
