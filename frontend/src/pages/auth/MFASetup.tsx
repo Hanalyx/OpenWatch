@@ -142,8 +142,10 @@ const MFASetup: React.FC = () => {
       setSetupComplete(true);
       setActiveStep(2);
       announcer.announce('MFA setup completed successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to verify MFA code');
+    } catch (err: unknown) {
+      // Type-safe error handling - extract message if Error object, fallback otherwise
+      const errorMessage = err instanceof Error ? err.message : 'Failed to verify MFA code';
+      setError(errorMessage);
       announcer.announce('MFA verification failed', 'assertive');
     } finally {
       setLoading(false);
