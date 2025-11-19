@@ -89,9 +89,10 @@ export const clearSensitiveData = (
     // For typed arrays, we can overwrite the data
     data.fill(0);
   } else if (typeof data === 'object' && data !== null) {
-    // For objects, clear all properties
-    Object.keys(data).forEach((key) => {
-      data[key] = null;
+    // For objects, clear all properties - type guard ensures data is Record<string, unknown>
+    const record = data as Record<string, unknown>;
+    Object.keys(record).forEach((key) => {
+      record[key] = null;
     });
   }
 };

@@ -128,6 +128,24 @@ interface ScanDetails {
   };
 }
 
+/**
+ * Raw rule result data from backend JSON report endpoint
+ * Contains SCAP XML parsing results before frontend transformation
+ */
+interface BackendRuleResult {
+  rule_id?: string;
+  title?: string;
+  severity?: string;
+  result?: string;
+  description?: string;
+  rationale?: string;
+  remediation?: string;
+}
+
+/**
+ * Frontend-transformed rule result for display
+ * Normalized and validated version of backend rule data
+ */
 interface RuleResult {
   rule_id: string;
   title: string;
@@ -137,6 +155,40 @@ interface RuleResult {
   rationale?: string;
   remediation?: string;
   markedForReview?: boolean;
+}
+
+/**
+ * SCAP remediation command from XML parsing
+ * Shell commands or scripts for automated remediation
+ */
+interface ScapCommand {
+  description?: string;
+  command: string;
+  type?: string; // 'shell' or other command types
+}
+
+/**
+ * SCAP configuration setting from XML parsing
+ * Configuration file changes for manual remediation
+ */
+interface ScapConfiguration {
+  description?: string;
+  setting: string;
+}
+
+/**
+ * Complete SCAP remediation data structure from XML parsing
+ * Contains all possible remediation guidance fields parsed from SCAP content
+ */
+interface ScapRemediationData {
+  fix_text?: string; // SCAP compliance checker fix text
+  description?: string; // OpenSCAP evaluation remediation
+  detailed_description?: string; // Extended description
+  commands?: ScapCommand[]; // Shell commands for automated fixes
+  configuration?: ScapConfiguration[]; // Configuration file changes
+  steps?: string[]; // Manual remediation steps
+  complexity?: string; // Implementation complexity level
+  disruption?: string; // System disruption level
 }
 
 interface RemediationStep {
@@ -257,7 +309,8 @@ const ScanDetail: React.FC = () => {
 
       // Check if we have actual rule results from XML parsing
       if (data.rule_results && Array.isArray(data.rule_results)) {
-        const actualRules: RuleResult[] = data.rule_results.map((rule: any) => ({
+        // Transform raw backend rule results into validated frontend format
+        const actualRules: RuleResult[] = data.rule_results.map((rule: BackendRuleResult) => ({
           rule_id: rule.rule_id || 'unknown',
           title: rule.title || extractRuleTitle(rule.rule_id) || 'Unknown Rule',
           severity: mapSeverity(rule.severity || 'unknown'),
@@ -600,9 +653,11 @@ const ScanDetail: React.FC = () => {
       setTimeout(() => {
         navigate(`/scans/${result.scan_id}`);
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to start rescan:', error);
-      showSnackbar(error.message || 'Failed to start new scan', 'error');
+      // Type-safe error message extraction
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start new scan';
+      showSnackbar(errorMessage, 'error');
     } finally {
       setIsLoading(false);
       handleMenuClose();
@@ -726,8 +781,9 @@ const ScanDetail: React.FC = () => {
     const steps: RemediationStep[] = [];
 
     // First, try to use real SCAP remediation data if available
+    // Type-safe handling: rule.remediation can be string or ScapRemediationData object
     if (rule.remediation && typeof rule.remediation === 'object') {
-      const scapRemediation = rule.remediation as any;
+      const scapRemediation = rule.remediation as ScapRemediationData;
 
       // Priority 1: Use Fix Text from SCAP compliance checker
       if (scapRemediation.fix_text) {
@@ -763,9 +819,9 @@ const ScanDetail: React.FC = () => {
         });
       }
 
-      // Add SCAP remediation commands if available
+      // Add SCAP remediation commands if available (shell commands from XML)
       if (scapRemediation.commands && Array.isArray(scapRemediation.commands)) {
-        scapRemediation.commands.forEach((cmd: any, index: number) => {
+        scapRemediation.commands.forEach((cmd: ScapCommand, index: number) => {
           steps.push({
             title: cmd.description || `Command ${index + 1}`,
             description: cmd.description || 'Execute the following command:',
@@ -775,9 +831,9 @@ const ScanDetail: React.FC = () => {
         });
       }
 
-      // Add SCAP configuration steps if available
+      // Add SCAP configuration steps if available (config file changes from XML)
       if (scapRemediation.configuration && Array.isArray(scapRemediation.configuration)) {
-        scapRemediation.configuration.forEach((config: any, index: number) => {
+        scapRemediation.configuration.forEach((config: ScapConfiguration, index: number) => {
           steps.push({
             title: config.description || `Configuration ${index + 1}`,
             description: config.description || 'Apply the following configuration:',

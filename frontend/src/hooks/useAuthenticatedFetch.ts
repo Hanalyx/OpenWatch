@@ -20,10 +20,11 @@ export const useAuthenticatedFetch = () => {
 
   /**
    * HTTP POST request with authenticated fetch
-   * Accepts any JSON-serializable data for request body
+   * Accepts any JSON-serializable data for request body (objects, arrays, primitives)
    */
   const post = useCallback(
-    (url: string, data?: Record<string, unknown>) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (url: string, data?: any) =>
       authenticatedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,10 +35,11 @@ export const useAuthenticatedFetch = () => {
 
   /**
    * HTTP PUT request with authenticated fetch
-   * Accepts any JSON-serializable data for request body
+   * Accepts any JSON-serializable data for request body (objects, arrays, primitives)
    */
   const put = useCallback(
-    (url: string, data?: Record<string, unknown>) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (url: string, data?: any) =>
       authenticatedFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
