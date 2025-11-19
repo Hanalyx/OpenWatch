@@ -561,12 +561,25 @@ const Hosts: React.FC = () => {
       // Remove host from local state
       setHosts((prev) => prev.filter((h) => h.id !== deleteDialog.host!.id));
       setDeleteDialog({ open: false, host: null });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting host:', error);
 
-      // Show more specific error message
+      // Type-safe error message extraction for axios errors
       const errorMessage =
-        error?.response?.data?.detail || error?.message || 'Failed to delete host';
+        error &&
+        typeof error === 'object' &&
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object' &&
+        'data' in error.response &&
+        error.response.data &&
+        typeof error.response.data === 'object' &&
+        'detail' in error.response.data &&
+        typeof error.response.data.detail === 'string'
+          ? error.response.data.detail
+          : error instanceof Error
+            ? error.message
+            : 'Failed to delete host';
       alert(`Failed to delete host: ${errorMessage}`);
     } finally {
       setDeletingHost(false);
@@ -737,7 +750,17 @@ const Hosts: React.FC = () => {
     try {
       // Use unified credentials API with scope filter
       const response = await api.get('/api/system/credentials?scope=system');
-      const defaultCredential = response.find((cred: any) => cred.is_default);
+      // Type-safe credential lookup - find default system credential
+      interface SystemCredential {
+        is_default: boolean;
+        name: string;
+        username: string;
+        auth_method: string;
+        ssh_key_type?: string;
+        ssh_key_bits?: number;
+        ssh_key_comment?: string;
+      }
+      const defaultCredential = response.find((cred: SystemCredential) => cred.is_default);
 
       if (defaultCredential) {
         setSystemCredentialInfo({
