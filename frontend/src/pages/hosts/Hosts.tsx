@@ -778,7 +778,11 @@ const Hosts: React.FC = () => {
   };
 
   const handleAuthMethodChange = (newMethod: string) => {
-    setEditFormData((prev) => ({ ...prev, authMethod: newMethod as any }));
+    // Type-safe auth method - newMethod validated by Select component to be one of the allowed values
+    setEditFormData((prev) => ({
+      ...prev,
+      authMethod: newMethod as 'password' | 'ssh_key' | 'none' | 'default' | 'system_default',
+    }));
     setSshKeyValidated(false);
 
     // Fetch system credentials when system_default is selected
@@ -1959,24 +1963,23 @@ const Hosts: React.FC = () => {
       <BulkScanDialog
         open={bulkScanDialog}
         onClose={() => setBulkScanDialog(false)}
-        selectedHosts={
-          selectedHosts
-            .map((hostId) => {
-              const host = hosts.find((h) => h.id === hostId);
-              return host
-                ? {
-                    id: host.id,
-                    hostname: host.hostname,
-                    display_name: host.displayName,
-                    ip_address: host.ipAddress,
-                    operating_system: host.operatingSystem,
-                    environment: host.group || 'production',
-                    last_scan: host.lastScan,
-                  }
-                : null;
-            })
-            .filter(Boolean) as any[]
-        }
+        selectedHosts={selectedHosts
+          .map((hostId) => {
+            const host = hosts.find((h) => h.id === hostId);
+            return host
+              ? {
+                  id: host.id,
+                  hostname: host.hostname,
+                  display_name: host.displayName,
+                  ip_address: host.ipAddress,
+                  operating_system: host.operatingSystem,
+                  environment: host.group || 'production',
+                  last_scan: host.lastScan,
+                }
+              : null;
+          })
+          // Type-safe filter removes null values - result matches BulkScanDialog Host interface
+          .filter((host): host is NonNullable<typeof host> => host !== null)}
         onScanStarted={handleBulkScanStarted}
         onError={(error) => console.error('Bulk scan error:', error)}
       />

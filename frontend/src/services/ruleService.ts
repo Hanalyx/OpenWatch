@@ -705,13 +705,17 @@ class RuleService {
     }
   }
 
+  /**
+   * Export rules in various formats
+   * Returns format-specific export data (string for CSV/XML, object for JSON)
+   */
   async exportRules(params: {
     ruleIds: string[];
     format: 'json' | 'csv' | 'xml';
     includeMetadata?: boolean;
-  }): Promise<any> {
+  }): Promise<string | Record<string, unknown>> {
     try {
-      const response = await api.post(`${this.baseUrl}/export`, {
+      const response = await api.post<string | Record<string, unknown>>(`${this.baseUrl}/export`, {
         rule_ids: params.ruleIds,
         format: params.format,
         include_metadata: params.includeMetadata ?? true,

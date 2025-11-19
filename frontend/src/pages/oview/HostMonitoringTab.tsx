@@ -317,7 +317,11 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
             </Box>
             <Avatar
               sx={{
-                bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1),
+                // Type-safe theme palette access - color is validated to be a MUI palette color key
+                bgcolor: alpha(
+                  (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                  0.1
+                ),
                 color: `${color}.main`,
               }}
             >

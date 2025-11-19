@@ -339,7 +339,11 @@ const OView: React.FC = () => {
           </Box>
           <Avatar
             sx={{
-              bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1),
+              // Type-safe theme palette access - color is validated to be a MUI palette color key
+              bgcolor: alpha(
+                (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                0.1
+              ),
               color: `${color}.main`,
             }}
           >
@@ -628,10 +632,20 @@ const OView: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
+                          {/* Type-safe MUI Chip color - getSeverityColor returns standard MUI color */}
                           <Chip
                             icon={getSeverityIcon(event.severity)}
                             label={event.severity.toUpperCase()}
-                            color={getSeverityColor(event.severity) as any}
+                            color={
+                              getSeverityColor(event.severity) as
+                                | 'error'
+                                | 'warning'
+                                | 'info'
+                                | 'success'
+                                | 'default'
+                                | 'primary'
+                                | 'secondary'
+                            }
                             size="small"
                           />
                         </TableCell>

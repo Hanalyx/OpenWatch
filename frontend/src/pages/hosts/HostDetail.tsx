@@ -351,7 +351,13 @@ const HostDetail: React.FC = () => {
               </Typography>
               <Typography variant="body1">{host.operating_system}</Typography>
               <Box sx={{ mt: 2 }}>
-                <StatusChip status={host.status as any} size="small" />
+                {/* Type-safe status prop - host.status matches StatusType union */}
+                <StatusChip
+                  status={
+                    host.status as import('../../components/design-system/StatusChip').StatusType
+                  }
+                  size="small"
+                />
               </Box>
             </CardContent>
           </Card>
