@@ -154,7 +154,8 @@ const ComplianceIntelligence: React.FC = () => {
       }));
 
       setFrameworkData(mockFrameworkData);
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Failed to load compliance intelligence:', err);
       setError('Failed to load compliance intelligence data');
     } finally {
