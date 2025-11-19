@@ -46,6 +46,29 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 
+/**
+ * API host response structure from backend
+ * Subset of fields needed for host monitoring display
+ * Backend returns PostgreSQL naming (snake_case)
+ */
+interface ApiHostResponse {
+  id: string;
+  hostname: string;
+  ip_address: string;
+  status?: string;
+  ping_consecutive_failures?: number;
+  ssh_consecutive_failures?: number;
+  privilege_consecutive_failures?: number;
+  ping_consecutive_successes?: number;
+  ssh_consecutive_successes?: number;
+  privilege_consecutive_successes?: number;
+  check_priority?: number;
+  response_time_ms?: number | null;
+  last_check?: string;
+  next_check_time?: string | null;
+  updated_at?: string;
+}
+
 interface MonitoringState {
   total_hosts: number;
   status_breakdown: {
@@ -159,7 +182,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
         // CRITICAL FIX: Use data from /api/hosts/ directly instead of N+1 queries
         // This eliminates 7 additional API calls per refresh!
-        const hostDetails = hostsData.map((host: any) => ({
+        const hostDetails = hostsData.map((host: ApiHostResponse) => ({
           host_id: host.id,
           hostname: host.hostname,
           ip_address: host.ip_address,
