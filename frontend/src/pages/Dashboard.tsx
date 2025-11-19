@@ -342,10 +342,11 @@ const Dashboard: React.FC = () => {
             ];
 
       // Generate activity items from recent scans
+      // Use RawScanData type for backend scan data with snake_case/camelCase fields
       const activitiesArray: ActivityItem[] = scans
-        .filter((scan: any) => scan.completed_at)
+        .filter((scan: RawScanData) => scan.completed_at)
         .slice(0, 10)
-        .map((scan: any) => ({
+        .map((scan: RawScanData) => ({
           id: scan.id,
           type: scan.status === 'completed' ? 'scan_completed' : 'scan_failed',
           message: `Scan ${scan.status} for ${scan.host_name || scan.hostname || 'Unknown host'}`,
