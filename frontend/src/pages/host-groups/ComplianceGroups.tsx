@@ -68,7 +68,8 @@ interface HostGroup {
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
-  validation_rules?: any;
+  // Validation rules structure from backend (varies by compliance framework)
+  validation_rules?: unknown;
   scap_content_name?: string;
   compatibility_summary?: {
     total_hosts: number;
