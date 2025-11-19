@@ -68,6 +68,32 @@ import { useNavigate } from 'react-router-dom';
 import { StatCard, SSHKeyDisplay } from '../../components/design-system';
 import { api } from '../../services/api';
 
+/**
+ * SSH connection test results from backend
+ * Contains connectivity, authentication, and system detection results
+ */
+interface ConnectionTestResults {
+  success: boolean;
+  networkConnectivity: boolean;
+  authentication: boolean;
+  detectedOS: string;
+  detectedVersion: string;
+  responseTime: number;
+  sshVersion: string;
+  additionalInfo: string;
+}
+
+/**
+ * Credential object with is_default flag
+ * Used for displaying and selecting credentials in dropdown
+ */
+interface CredentialWithDefault {
+  is_default: boolean;
+  id?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
 const AddHost: React.FC = () => {
   const navigate = useNavigate();
 
@@ -78,7 +104,9 @@ const AddHost: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<
     'idle' | 'testing' | 'success' | 'failed'
   >('idle');
-  const [connectionTestResults, setConnectionTestResults] = useState<any>(null);
+  const [connectionTestResults, setConnectionTestResults] = useState<ConnectionTestResults | null>(
+    null
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -201,7 +229,11 @@ const AddHost: React.FC = () => {
     'container',
   ];
 
-  const handleInputChange = (field: string, value: any) => {
+  /**
+   * Handle form field changes with type-safe value handling
+   * Accepts any JSON-serializable value (string, number, boolean, etc.)
+   */
+  const handleInputChange = (field: string, value: string | number | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -254,7 +286,8 @@ const AddHost: React.FC = () => {
         sshVersion: result.ssh_version || '',
         additionalInfo: result.additional_info || '',
       });
-    } catch (error: any) {
+    } catch (error) {
+      // Type-safe error handling: check if error has message property
       console.error('Connection test failed:', error);
       setTestingConnection(false);
       setConnectionStatus('failed');
@@ -322,8 +355,8 @@ const AddHost: React.FC = () => {
       });
 
       if (response.ok) {
-        const credentials = await response.json();
-        const defaultCredential = credentials.find((cred: any) => cred.is_default);
+        const credentials: CredentialWithDefault[] = await response.json();
+        const defaultCredential = credentials.find((cred) => cred.is_default);
 
         if (defaultCredential) {
           setSystemCredentials({
