@@ -191,8 +191,9 @@ export const colorContrast = {
 export const screenReader = {
   /**
    * Create descriptive text for complex UI elements
+   * State object can contain any serializable UI state data (progress, counts, messages, etc.)
    */
-  createDescription(type: string, state?: Record<string, any>): string {
+  createDescription(type: string, state?: Record<string, unknown>): string {
     const descriptions: Record<string, string> = {
       loading: 'Loading content, please wait',
       error: 'An error occurred',
