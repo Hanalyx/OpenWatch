@@ -394,7 +394,7 @@ const Dashboard: React.FC = () => {
           return false;
         })
         .slice(0, 5)
-        .map((host: any) => {
+        .map((host: NormalizedHost) => {
           let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
             'critical_issues';
           let issue = '';
