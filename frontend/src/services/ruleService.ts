@@ -122,8 +122,7 @@ class RuleService {
   private readonly baseUrl = '/api/rules';
 
   async getRules(params: RuleQueryParams = {}): Promise<RuleListResponse> {
-    console.log('Connecting to MongoDB compliance rules database...');
-
+    // Debug: Connecting to MongoDB compliance rules database
     try {
       // Use our converted rules endpoint instead of MongoDB
       const queryParams = new URLSearchParams();
@@ -150,7 +149,7 @@ class RuleService {
       const rules = result.data.rules || [];
       const totalCount = result.data.total_count || 0;
 
-      console.log(`✅ MongoDB connection successful: Retrieved ${rules.length} rules`);
+      // Debug: MongoDB connection successful, retrieved {rules.length} rules
 
       return {
         success: true,
@@ -167,11 +166,11 @@ class RuleService {
             category: params.category,
           },
         },
-        message: `✅ MongoDB Connected: ${totalCount} compliance rules in database`,
+        message: `MongoDB Connected: ${totalCount} compliance rules in database`,
         timestamp: new Date().toISOString(),
       };
-    } catch {
-      console.error('❌ Rules API connection failed:', error);
+    } catch (error) {
+      console.error('Rules API connection failed:', error);
 
       // Return empty state instead of mock data
       return {
@@ -595,7 +594,7 @@ class RuleService {
           category: params.category,
         },
       },
-      message: `✅ MongoDB Connected: ${filteredRules.length} compliance rules in database (showing ${paginatedRules.length} on this page)`,
+      message: `MongoDB Connected: ${filteredRules.length} compliance rules in database (showing ${paginatedRules.length} on this page)`,
       timestamp: new Date().toISOString(),
     };
   }
