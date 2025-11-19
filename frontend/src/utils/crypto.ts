@@ -70,8 +70,17 @@ export const validatePasswordStrength = (
   };
 };
 
-// Clear sensitive data from memory
-export const clearSensitiveData = (data: any): void => {
+/**
+ * Clear sensitive data from memory (best effort in JavaScript environment)
+ *
+ * Accepts multiple data types for flexible cleanup of cryptographic material:
+ * - string: Removes references (JavaScript cannot directly clear string memory)
+ * - Uint8Array: Overwrites with zeros for secure cleanup
+ * - object: Nullifies all properties to remove sensitive references
+ */
+export const clearSensitiveData = (
+  data: string | Uint8Array | Record<string, unknown> | null
+): void => {
   if (typeof data === 'string') {
     // For strings, we can't directly clear memory in JavaScript
     // But we can at least remove references
