@@ -158,7 +158,7 @@ const OView: React.FC = () => {
       setEvents(newEvents);
       setTotalEvents(response.total || 0);
       setLastUpdated(new Date());
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load audit events');
       console.error('Error loading audit events:', err);
     } finally {
@@ -182,7 +182,7 @@ const OView: React.FC = () => {
       setStatsLoading(true);
       const response = await api.get('/api/audit/stats');
       setStats(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading audit stats:', err);
     } finally {
       setStatsLoading(false);
