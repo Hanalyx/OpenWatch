@@ -106,8 +106,10 @@ const MFASetup: React.FC = () => {
       announcer.announce(
         'MFA setup initialized. Please scan the QR code with your authenticator app.'
       );
-    } catch (err: any) {
-      setError(err.message || 'Failed to initialize MFA setup');
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize MFA setup';
+      setError(errorMessage);
       announcer.announce('Error initializing MFA setup', 'assertive');
     } finally {
       setLoading(false);
