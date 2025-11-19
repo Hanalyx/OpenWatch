@@ -50,7 +50,7 @@ import { PlatformCard } from '../../components/content/PlatformCard';
 import { FrameworkCard } from '../../components/content/FrameworkCard';
 import RuleSidePanel from '../../components/content/RuleSidePanel';
 import { useComplianceStatistics } from '../../hooks/useComplianceStatistics';
-import { useFrameworkStatistics } from '../../hooks/useFrameworkStatistics';
+import { useFrameworkStatistics, type FrameworkData } from '../../hooks/useFrameworkStatistics';
 import { type PlatformStatistics } from '../../types/content.types';
 
 interface ComplianceFilters {
@@ -180,9 +180,11 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
       } else {
         setError('Failed to load compliance rules from database');
       }
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error loading compliance rules:', err);
-      setError(`Error connecting to compliance rules database: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Error connecting to compliance rules database: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -282,8 +284,11 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
     console.log('View metrics for platform:', platform.name);
   };
 
-  // Handle framework card actions
-  const handleBrowseFramework = (framework: any) => {
+  /**
+   * Handle framework card click action
+   * Switches to 'all' view mode and filters by selected framework
+   */
+  const handleBrowseFramework = (framework: FrameworkData) => {
     setViewMode('all');
     handleFilterChange('framework', framework.name.toLowerCase());
     localStorage.setItem('complianceRulesViewMode', 'all');

@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 
-interface FrameworkCategory {
+/**
+ * Framework category statistics
+ * Represents compliance distribution across different rule categories
+ */
+export interface FrameworkCategory {
   name: string;
   count: number;
   percentage: number;
 }
 
-interface FrameworkData {
+/**
+ * Framework metadata and statistics
+ * Contains compliance framework information with rule counts and coverage metrics
+ */
+export interface FrameworkData {
   name: string;
   version: string;
   ruleCount: number;
