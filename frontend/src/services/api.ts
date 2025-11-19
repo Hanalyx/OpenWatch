@@ -12,6 +12,26 @@ interface QueuedRequest {
   reject: (error: Error) => void;
 }
 
+/**
+ * Redux store interface for window extension
+ * Global Redux store attached to window for development/debugging
+ */
+interface ReduxStore {
+  getState: () => {
+    auth?: {
+      token?: string;
+    };
+  };
+}
+
+/**
+ * Extended Window interface with Redux store
+ * Adds __REDUX_STORE__ property for development debugging
+ */
+interface WindowWithRedux extends Window {
+  __REDUX_STORE__?: ReduxStore;
+}
+
 class ApiClient {
   private instance: AxiosInstance;
   private isRefreshing = false;
@@ -50,10 +70,13 @@ class ApiClient {
         let token = localStorage.getItem('auth_token');
 
         // Try Redux store if localStorage token not found
-        if (!token && typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
-          const store = (window as any).__REDUX_STORE__;
-          const state = store.getState();
-          token = state.auth?.token;
+        // Type-safe access to window.__REDUX_STORE__ development extension
+        if (!token && typeof window !== 'undefined') {
+          const windowWithRedux = window as WindowWithRedux;
+          if (windowWithRedux.__REDUX_STORE__) {
+            const state = windowWithRedux.__REDUX_STORE__.getState();
+            token = state.auth?.token;
+          }
         }
 
         // Development helper: auto-login if no token found and we're in development
