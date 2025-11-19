@@ -4,6 +4,7 @@
  */
 
 import { api } from './api';
+import type { VariableDefaultValue } from '../types/scanConfig';
 import type {
   Framework,
   FrameworkDetails,
@@ -38,11 +39,12 @@ export const frameworkService = {
 
   /**
    * Validate variable values against framework constraints
+   * Variables can be string, number, or boolean based on framework definition
    */
   validateVariables: async (
     framework: string,
     version: string,
-    variables: Record<string, any>
+    variables: Record<string, VariableDefaultValue>
   ): Promise<ValidationResult> => {
     const response = await api.post(
       `/api/scan-config/frameworks/${framework}/${version}/validate`,
