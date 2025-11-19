@@ -381,7 +381,8 @@ const Dashboard: React.FC = () => {
         lowIssues: number;
         passedRules: number;
       }> = normalizedHosts
-        .filter((host: any) => {
+        // Use NormalizedHost type for type-safe access to host health metrics
+        .filter((host: NormalizedHost) => {
           // Critical issues
           if (host.criticalIssues > 0) return true;
           // Not scanned in 30 days
