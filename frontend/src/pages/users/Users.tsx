@@ -114,7 +114,7 @@ const Users: React.FC = () => {
     try {
       const response = await api.get('/api/users/roles');
       setRoles(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading roles:', err);
     }
   };
@@ -134,7 +134,7 @@ const Users: React.FC = () => {
       const response = await api.get(`/api/users?${params.toString()}`);
       setUsers(response.users);
       setTotal(response.total);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load users');
       console.error('Error loading users:', err);
     } finally {
@@ -183,7 +183,7 @@ const Users: React.FC = () => {
       await api.delete(`/api/users/${user.id}`);
       setSuccess('User deleted successfully');
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to delete user');
       console.error('Error deleting user:', err);
     }
@@ -194,8 +194,8 @@ const Users: React.FC = () => {
       setLoading(true);
 
       if (editingUser) {
-        // Update existing user
-        const updateData: any = {};
+        // Update existing user - build partial update object with only changed fields
+        const updateData: Partial<typeof formData> = {};
         if (formData.username !== editingUser.username) updateData.username = formData.username;
         if (formData.email !== editingUser.email) updateData.email = formData.email;
         if (formData.role !== editingUser.role) updateData.role = formData.role;
@@ -212,7 +212,7 @@ const Users: React.FC = () => {
 
       setDialogOpen(false);
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(editingUser ? 'Failed to update user' : 'Failed to create user');
       console.error('Error saving user:', err);
     } finally {
@@ -220,7 +220,8 @@ const Users: React.FC = () => {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
+  // Generic form change handler - accepts any form field value type
+  const handleFormChange = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
