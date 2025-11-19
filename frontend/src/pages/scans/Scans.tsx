@@ -46,6 +46,7 @@ import { api } from '../../services/api';
 import StatusChip from '../../components/design-system/StatusChip';
 import { DEFAULT_FRAMEWORK } from '../../constants/complianceFrameworks';
 import ReadinessDialog from '../../components/ReadinessDialog';
+import type { HostStatus } from '../../types/host';
 
 interface Scan {
   id: string;
@@ -208,7 +209,8 @@ const Scans: React.FC = () => {
             host_name: hostName,
             host_id: hostId,
             ip_address: hostInfo?.ip_address,
-            status: (hostInfo?.status as any) || 'offline', // Cast to satisfy TypeScript
+            // Type-safe cast: backend status string to HostStatus union type
+            status: (hostInfo?.status as HostStatus) || 'offline',
             scans: [],
             completedCount: 0,
             totalCount: 0,
