@@ -251,8 +251,7 @@ const Layout: React.FC = () => {
 
       try {
         await navigator.clipboard.writeText(fullUrl);
-        // You could add a toast notification here for feedback
-        console.log('Link copied to clipboard:', fullUrl);
+        // Link successfully copied to clipboard for user
       } catch {
         console.error('Failed to copy link to clipboard');
         // Fallback for older browsers

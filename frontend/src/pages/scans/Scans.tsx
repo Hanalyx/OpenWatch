@@ -452,9 +452,8 @@ const Scans: React.FC = () => {
 
       // Show success message with scan ID
       setError(null);
-      console.log(
-        `Rescan started successfully. Scan ID: ${result.scan_id} (Platform: ${platform} ${platformVersion}, Framework: ${framework})`
-      );
+      // Rescan initiated successfully with MongoDB compliance scanning
+      void result; // Scan result available for tracking
 
       // Refresh scans list to show new scan
       await fetchScans();
@@ -992,8 +991,8 @@ const Scans: React.FC = () => {
                                     size="small"
                                     title="Download Report"
                                     onClick={() => {
-                                      // Implement download functionality
-                                      console.log(`Download report for scan ${scan.id}`);
+                                      // TODO: Implement scan report download functionality
+                                      void scan.id; // Scan ID for report generation
                                     }}
                                   >
                                     <ExportIcon fontSize="small" />

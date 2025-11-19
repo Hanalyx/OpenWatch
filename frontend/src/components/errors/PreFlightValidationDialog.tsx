@@ -286,8 +286,8 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
 
   const handleApplyFix = async (fixId: string) => {
     // This would integrate with the automated fix API
-    console.log('Applying fix:', fixId);
-    // TODO: Implement fix application
+    // TODO: Implement automated fix application for fix ID: ${fixId}
+    void fixId; // Suppress unused parameter warning
   };
 
   const handleClose = () => {

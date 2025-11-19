@@ -372,9 +372,9 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect })
       try {
         setSnackbarMessage(`Starting scan with ${selectedRulesForScan.length} rules...`);
 
-        // In a real implementation, this would call the scan API
-        console.log('Starting scan with config:', config);
-        console.log('Selected rules:', selectedRulesForScan);
+        // In a real implementation, this would call the scan API with the provided config and rules
+        void config; // Suppress unused parameter warning - will be used when API integration is complete
+        void selectedRulesForScan; // Suppress unused parameter warning
 
         // Simulate API call
         await new Promise((resolve) => setTimeout(resolve, 1000));

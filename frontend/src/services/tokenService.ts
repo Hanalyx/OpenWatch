@@ -80,7 +80,7 @@ class TokenService {
         })
       );
 
-      console.log('[SECURITY] Token refreshed successfully');
+      // Security: JWT token refreshed successfully - session extended
       return true;
     } catch (error) {
       console.error('[SECURITY] Token refresh failed:', error);

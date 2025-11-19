@@ -277,11 +277,13 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   };
 
   const handleExportPlatform = (platform: PlatformStatistics) => {
-    console.log('Export rules for platform:', platform.name);
+    // TODO: Implement platform-specific rule export functionality
+    void platform; // Suppress unused parameter warning
   };
 
   const handleViewPlatformMetrics = (platform: PlatformStatistics) => {
-    console.log('View metrics for platform:', platform.name);
+    // TODO: Implement platform metrics visualization
+    void platform; // Suppress unused parameter warning
   };
 
   /**

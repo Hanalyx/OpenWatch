@@ -138,7 +138,9 @@ export const Interactive: Story = {
     subtitle: 'Currently running',
     icon: <Assessment />,
     color: 'info',
-    onClick: () => console.log('StatCard clicked!'),
+    onClick: () => {
+      // StatCard click action handler - hook for interactive functionality
+    },
   },
   parameters: {
     docs: {

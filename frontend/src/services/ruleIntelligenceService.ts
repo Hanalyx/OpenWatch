@@ -162,7 +162,7 @@ class RuleIntelligenceService {
     const cached = this.getCache<RuleIntelligenceAnalysis>(cacheKey);
 
     if (cached) {
-      console.log('Returning cached rule recommendations');
+      // Returning cached rule intelligence recommendations for performance
       return cached;
     }
 

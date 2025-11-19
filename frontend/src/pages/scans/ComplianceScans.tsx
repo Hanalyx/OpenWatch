@@ -243,17 +243,17 @@ const ComplianceScans: React.FC = () => {
             rule_ids: selectedRules,
             scan_name: `Compliance Scan - ${new Date().toISOString()}`,
           });
-          console.log(`Started scan for group ${groupId}:`, response);
+          // Group compliance scan initiated successfully
+          void response; // Scan response available for tracking
         }
         // Navigate to scans list to see all started scans
         navigate('/scans');
       } else {
-        // For individual hosts, use MongoDB scan endpoint
-        console.log(`Starting individual host scans for ${selectedHosts.length} hosts`);
-
+        // For individual hosts, use MongoDB scan endpoint - batch processing
         for (const hostId of selectedHosts) {
           const host = hosts.find((h) => h.id === hostId);
           if (!host) {
+            // Host not found in local cache - skip this entry
             console.error(`Host ${hostId} not found`);
             continue;
           }
@@ -302,8 +302,10 @@ const ComplianceScans: React.FC = () => {
               include_enrichment: true,
               generate_report: true,
             });
-            console.log(`Started MongoDB scan for host ${hostId}:`, response);
+            // MongoDB compliance scan initiated for host
+            void response; // Scan response available for tracking
           } catch (error) {
+            // Scan initiation failed for this host - continue with remaining hosts
             console.error(`Failed to start scan for host ${hostId}:`, error);
           }
         }

@@ -153,19 +153,15 @@ const HostDetail: React.FC = () => {
       // Type-safe host lookup using existing Host interface which includes enhanced scan fields
       const enhancedHost = hosts.find((h: Host) => h.id === id);
       if (enhancedHost) {
-        console.log('Found enhanced host data with scan info:', enhancedHost);
+        // Found enhanced host data including latest scan information
         // Update host with enhanced data
         setHost((prevHost) => ({
           ...prevHost,
           ...enhancedHost,
         }));
 
-        // Log scan information from host data
-        if (enhancedHost.latest_scan_id) {
-          console.log(
-            `Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`
-          );
-        }
+        // Check if host has associated scan data for display
+        void enhancedHost.latest_scan_id; // Available for UI rendering
       }
     } catch (error) {
       console.error('Error fetching enhanced host data:', error);
@@ -186,7 +182,7 @@ const HostDetail: React.FC = () => {
     try {
       // Use trailing slash to avoid redirect
       const data = await api.get(`/api/scans/?host_id=${id}`);
-      console.log(`Fetched ${data.scans?.length || 0} scans for host ${id}`);
+      // Retrieved scan history for host display
       setScans(data.scans || []);
     } catch (error) {
       console.error('Error fetching host scans:', error);

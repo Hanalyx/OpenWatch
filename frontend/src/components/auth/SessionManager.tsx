@@ -108,7 +108,7 @@ const SessionManager: React.FC = () => {
         setExtendError(null);
         // Resume auto-refresh after successful manual extension
         tokenService.resumeAutoRefresh();
-        console.log('Session extended successfully');
+        // Session extension completed - token refresh succeeded
       } else {
         // Security: Failed refresh should force logout
         setExtendError('Failed to extend session. You will be logged out for security.');

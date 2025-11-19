@@ -94,7 +94,7 @@ class ApiClient {
         // Development helper: auto-login if no token found and we're in development
         if (!token && import.meta.env.DEV) {
           try {
-            console.log('[DEV] No auth token found, attempting auto-login...');
+            // Development mode: Auto-login with default credentials for testing
             const loginResponse = await fetch('/api/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -114,7 +114,7 @@ class ApiClient {
                 (Date.now() + loginData.expires_in * 1000).toString()
               );
 
-              console.log('[DEV] Auto-login successful');
+              // Development mode: Auto-login completed successfully
             }
           } catch (loginError) {
             console.warn('[DEV] Auto-login failed:', loginError);

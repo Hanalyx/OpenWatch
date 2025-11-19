@@ -267,7 +267,7 @@ const AddHost: React.FC = () => {
         timeout: 30,
       };
 
-      console.log('Testing connection to:', testData.hostname);
+      // Testing SSH connection to target host
 
       // Make API call to test connection
       const result = await api.post('/api/hosts/test-connection', testData);
@@ -331,11 +331,12 @@ const AddHost: React.FC = () => {
         owner: formData.owner,
       };
 
-      console.log('Submitting host to API:', hostData);
+      // Submitting new host configuration to API
 
       // Make API call to create host
       const newHost = await api.post('/api/hosts/', hostData);
-      console.log('Host created successfully:', newHost);
+      // Host successfully created in database
+      void newHost; // Result logged for debugging
       navigate('/hosts');
     } catch (error) {
       console.error('Error submitting host:', error);

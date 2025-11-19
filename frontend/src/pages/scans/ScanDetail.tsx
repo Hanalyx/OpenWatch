@@ -330,9 +330,7 @@ const ScanDetail: React.FC = () => {
           remediation: rule.remediation || extractRuleDescription(rule.rule_id) || '',
         }));
 
-        console.log(
-          `Using ${actualRules.length} real SCAP rules with${actualRules.some((r) => r.remediation) ? '' : 'out'} remediation data`
-        );
+        // Loaded real SCAP compliance rules with remediation guidance
         setRuleResults(actualRules);
       } else {
         // Fallback to generating placeholder rules if XML parsing failed
@@ -802,7 +800,7 @@ const ScanDetail: React.FC = () => {
           type: 'manual',
           documentation: 'Official SCAP compliance checker remediation',
         });
-        console.log(`Using SCAP Fix Text for rule: ${rule.rule_id}`);
+        // Using official SCAP fix text as primary remediation source
       }
       // Priority 2: Use OpenSCAP Evaluation Report remediation
       else if (scapRemediation.description) {
@@ -812,7 +810,7 @@ const ScanDetail: React.FC = () => {
           type: 'manual',
           documentation: 'OpenSCAP evaluation report guidance',
         });
-        console.log(`Using OpenSCAP remediation for rule: ${rule.rule_id}`);
+        // Using OpenSCAP evaluation report as remediation source
       }
 
       // Add detailed description as separate step if available and different
@@ -874,13 +872,12 @@ const ScanDetail: React.FC = () => {
 
       // If we found real SCAP remediation data, return it
       if (steps.length > 0) {
-        console.log(`Using ${steps.length} real SCAP remediation steps for rule: ${rule.rule_id}`);
+        // Using real SCAP remediation data from compliance content
         return steps;
       }
     }
 
-    // Fallback to pattern-based remediation if no real SCAP data
-    console.log(`Using fallback remediation for rule: ${rule.rule_id}`);
+    // Fallback to pattern-based remediation if no real SCAP data available
     const ruleId = rule.rule_id.toLowerCase();
 
     if (ruleId.includes('package') && ruleId.includes('installed')) {
