@@ -104,7 +104,8 @@ interface ScanDetails {
   result_file?: string;
   report_file?: string;
   error_message?: string;
-  scan_options: any;
+  // Scan configuration options from backend (structure varies by scan type)
+  scan_options: unknown;
   started_at: string;
   completed_at?: string;
   started_by: number;
