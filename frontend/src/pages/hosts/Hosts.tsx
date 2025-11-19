@@ -81,6 +81,57 @@ import { REFRESH_INTERVALS } from '../../constants/refresh';
 import { validateSshKey } from '../../utils/hostValidation';
 import { getComplianceScoreColor } from '../../utils/hostStatus';
 
+/**
+ * API host response structure from backend
+ * Maps snake_case backend fields to frontend Host interface
+ * Backend uses PostgreSQL naming conventions (snake_case)
+ */
+interface ApiHostResponse {
+  id: string;
+  hostname: string;
+  display_name?: string;
+  ip_address: string;
+  operating_system: string;
+  os_version?: string;
+  status?: string;
+  scan_status?: string;
+  compliance_score?: number;
+  last_scan?: string;
+  last_check?: string;
+  critical_issues?: number;
+  high_issues?: number;
+  medium_issues?: number;
+  low_issues?: number;
+  tags?: string[];
+  group?: string;
+  group_id?: number;
+  group_name?: string;
+  group_description?: string;
+  group_color?: string;
+  owner?: string;
+  cpu_usage?: number;
+  memory_usage?: number;
+  disk_usage?: number;
+  uptime?: string;
+  last_backup?: string;
+  ssh_key?: boolean;
+  agent_status?: string;
+  scan_profile?: string;
+  port?: number;
+  username?: string;
+  auth_method?: string;
+  ssh_key_fingerprint?: string;
+  ssh_key_type?: string;
+  ssh_key_bits?: number;
+  ssh_key_comment?: string;
+  latest_scan_id?: string;
+  latest_scan_name?: string;
+  scan_progress?: number;
+  failed_rules?: number;
+  passed_rules?: number;
+  total_rules?: number;
+}
+
 const Hosts: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -168,7 +219,7 @@ const Hosts: React.FC = () => {
       // Auto-refresh completed successfully
 
       // Transform API response to match our Host interface
-      const transformedHosts = apiHosts.map((host: any) => ({
+      const transformedHosts = apiHosts.map((host: ApiHostResponse) => ({
         id: host.id,
         hostname: host.hostname,
         displayName: host.display_name || host.hostname,
