@@ -10,7 +10,27 @@ import type {
   UpdateTemplateRequest,
   ApplyTemplateRequest,
   TemplateStatistics,
+  VariableDefaultValue,
+  RuleFilter,
 } from '@/types/scanConfig';
+
+/**
+ * Applied template response from backend
+ * Contains the resolved scan configuration after applying template to a target
+ */
+interface AppliedTemplateResponse {
+  template_id: string;
+  template_name?: string;
+  framework: string;
+  framework_version: string;
+  target_type: string;
+  target_identifier: string;
+  resolved_variables: Record<string, VariableDefaultValue>;
+  rule_filter?: RuleFilter;
+  rules_count?: number;
+  applied_at?: string;
+  [key: string]: unknown;
+}
 
 export const templateService = {
   /**
@@ -55,7 +75,7 @@ export const templateService = {
   /**
    * Apply a template to a target (returns scan configuration)
    */
-  apply: async (id: string, request: ApplyTemplateRequest): Promise<any> => {
+  apply: async (id: string, request: ApplyTemplateRequest): Promise<AppliedTemplateResponse> => {
     const response = await api.post(`/api/scan-config/templates/${id}/apply`, request);
     return response.data;
   },
