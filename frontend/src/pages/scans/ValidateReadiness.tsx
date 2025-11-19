@@ -174,9 +174,13 @@ const ValidateReadiness: React.FC = () => {
         hostIdsToValidate = selectedHosts;
       } else if (targetType === 'groups') {
         // Fetch hosts from selected groups
+        // Type-safe host ID extraction from group hosts
+        interface GroupHost {
+          id: string;
+        }
         for (const groupId of selectedGroups) {
           const groupHosts = await api.get(`/api/host-groups/${groupId}/hosts`);
-          hostIdsToValidate.push(...groupHosts.map((h: any) => h.id));
+          hostIdsToValidate.push(...groupHosts.map((h: GroupHost) => h.id));
         }
       }
 
@@ -189,9 +193,12 @@ const ValidateReadiness: React.FC = () => {
       });
 
       setValidationResults(response.hosts || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Validation failed:', error);
-      setError(error.message || 'Failed to validate host readiness');
+      // Type-safe error message extraction
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to validate host readiness';
+      setError(errorMessage);
     } finally {
       setValidating(false);
     }
