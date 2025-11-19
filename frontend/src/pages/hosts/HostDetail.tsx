@@ -147,7 +147,8 @@ const HostDetail: React.FC = () => {
   const fetchEnhancedHostData = async () => {
     try {
       const hosts = await api.get('/api/hosts/');
-      const enhancedHost = hosts.find((h: any) => h.id === id);
+      // Type-safe host lookup using existing Host interface which includes enhanced scan fields
+      const enhancedHost = hosts.find((h: Host) => h.id === id);
       if (enhancedHost) {
         console.log('Found enhanced host data with scan info:', enhancedHost);
         // Update host with enhanced data
