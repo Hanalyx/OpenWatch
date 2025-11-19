@@ -275,13 +275,18 @@ const Scans: React.FC = () => {
       setScans(transformedScans); // Keep all transformed scans for periodic refresh logic
       setHostGroups(groupedHosts);
       scansRef.current = transformedScans;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load scans:', error);
 
+      // Type-safe error property access
+      const isNetworkError =
+        error && typeof error === 'object' && 'isNetworkError' in error && error.isNetworkError;
+      const status = error && typeof error === 'object' && 'status' in error ? error.status : null;
+
       // Show user-friendly error message
-      if (error.isNetworkError) {
+      if (isNetworkError) {
         setError('Network error: Unable to connect to server');
-      } else if (error.status === 401) {
+      } else if (status === 401) {
         setError('Authentication required');
       } else {
         setError('Failed to load scans data');
@@ -451,9 +456,11 @@ const Scans: React.FC = () => {
 
       // Refresh scans list to show new scan
       await fetchScans();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to start rescan:', error);
-      setError(error.message || 'Failed to start rescan');
+      // Type-safe error message extraction
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start rescan';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
