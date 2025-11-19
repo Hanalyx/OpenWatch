@@ -95,6 +95,10 @@ export interface SearchRequest {
   offset?: number;
 }
 
+/**
+ * Platform capability detection results from backend
+ * Contains information about what security features/tools are available on a platform
+ */
 export interface PlatformCapability {
   platform: string;
   platform_version: string;
@@ -103,7 +107,9 @@ export interface PlatformCapability {
   capabilities: {
     [type: string]: {
       detected: boolean;
-      results: any;
+      // Detection results - type depends on capability type (version strings, paths, config data)
+      // Use unknown for type safety - consumers should validate structure
+      results: unknown;
     };
   };
   baseline_comparison?: {
