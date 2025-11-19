@@ -37,13 +37,55 @@ export interface CacheEntry<T> {
   key: string;
 }
 
+/**
+ * Scan result data from existing scans
+ * Contains rule evaluation results and metadata
+ */
+export interface ScanResultData {
+  rule_id: string;
+  result: 'pass' | 'fail' | 'error' | 'notapplicable' | 'notchecked';
+  severity?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Analysis context for rule recommendation
+ * Provides environmental and preference data for scoring
+ */
+interface AnalysisContext {
+  currentPlatform?: string;
+  targetEnvironment?: 'production' | 'staging' | 'development';
+  securityBaseline?: string;
+  existingScanResults?: ScanResultData[];
+  userPreferences?: {
+    prioritySeverities?: string[];
+    preferredFrameworks?: string[];
+    avoidedCategories?: string[];
+  };
+}
+
+/**
+ * Usage statistics response structure
+ * Contains aggregated rule usage and distribution metrics
+ */
+interface RuleUsageStatistics {
+  most_common_categories: Array<{ category: string; count: number }>;
+  severity_distribution: Record<string, number>;
+  framework_coverage: Record<string, number>;
+  platform_support: Record<string, number>;
+}
+
 class RuleIntelligenceService {
-  private cache = new Map<string, CacheEntry<any>>();
+  // Cache stores union of possible cached types for flexibility
+  private cache = new Map<string, CacheEntry<RuleIntelligenceAnalysis | RuleUsageStatistics>>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_CACHE_SIZE = 100;
 
-  // Generate cache key from parameters
-  private generateCacheKey(prefix: string, params: Record<string, any>): string {
+  /**
+   * Generate cache key from parameters
+   * Accepts Record with unknown values for flexible parameter types
+   */
+  private generateCacheKey(prefix: string, params: Record<string, unknown>): string {
     const sortedParams = Object.keys(params)
       .sort()
       .map((key) => `${key}:${JSON.stringify(params[key])}`)
@@ -100,13 +142,16 @@ class RuleIntelligenceService {
     });
   }
 
-  // Generate rule recommendations based on various factors
+  /**
+   * Generate rule recommendations based on various factors
+   * Analyzes available rules and provides intelligent suggestions
+   */
   public async generateRecommendations(params: {
     availableRules: Rule[];
     currentPlatform?: string;
     targetEnvironment?: 'production' | 'staging' | 'development';
     securityBaseline?: string;
-    existingScanResults?: any[];
+    existingScanResults?: ScanResultData[];
     userPreferences?: {
       prioritySeverities?: string[];
       preferredFrameworks?: string[];
@@ -186,8 +231,11 @@ class RuleIntelligenceService {
     return analysis;
   }
 
-  // Analyze individual rule for recommendation
-  private analyzeRule(rule: Rule, context: any): RuleRecommendation | null {
+  /**
+   * Analyze individual rule for recommendation
+   * Scores rule based on context and generates recommendation with reasons
+   */
+  private analyzeRule(rule: Rule, context: AnalysisContext): RuleRecommendation | null {
     let score = 0;
     const reasons: string[] = [];
     let category: RuleRecommendation['category'] = 'usage_pattern';
@@ -378,15 +426,13 @@ class RuleIntelligenceService {
     return Math.round((baselineRules.length / rules.length) * 100);
   }
 
-  // Get rule usage statistics
-  public async getRuleUsageStatistics(rules: Rule[]): Promise<{
-    most_common_categories: Array<{ category: string; count: number }>;
-    severity_distribution: Record<string, number>;
-    framework_coverage: Record<string, number>;
-    platform_support: Record<string, number>;
-  }> {
+  /**
+   * Get rule usage statistics
+   * Aggregates and analyzes rule distribution across categories, severity, frameworks
+   */
+  public async getRuleUsageStatistics(rules: Rule[]): Promise<RuleUsageStatistics> {
     const cacheKey = this.generateCacheKey('usage-stats', { rules: rules.map((r) => r.rule_id) });
-    const cached = this.getCache<any>(cacheKey);
+    const cached = this.getCache<RuleUsageStatistics>(cacheKey);
 
     if (cached) {
       return cached;
