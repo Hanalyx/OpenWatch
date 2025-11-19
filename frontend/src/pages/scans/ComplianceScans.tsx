@@ -60,6 +60,28 @@ interface ComplianceRule {
   frameworks?: string[]; // All frameworks this rule belongs to
 }
 
+/**
+ * API request parameters for compliance rules endpoint
+ * Used to filter rules by framework and severity
+ */
+interface RuleQueryParams {
+  framework?: string;
+  business_impact?: string;
+}
+
+/**
+ * Raw compliance rule data from API response
+ * Contains backend field names before transformation to frontend ComplianceRule interface
+ */
+interface RawComplianceRule {
+  id: string;
+  scap_rule_id: string;
+  title: string;
+  compliance_intent: string;
+  risk_level?: string;
+  frameworks?: string[];
+}
+
 const ComplianceScans: React.FC = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
@@ -144,14 +166,15 @@ const ComplianceScans: React.FC = () => {
     try {
       setLoading(true);
       setRulesError(false);
-      const params: any = {};
+      // Type-safe API params for rule filtering
+      const params: RuleQueryParams = {};
       if (frameworkFilter) params.framework = frameworkFilter;
       if (severityFilter) params.business_impact = severityFilter;
 
       const response = await api.get('/api/compliance-rules/semantic-rules', { params });
 
-      // Transform the response to match our interface
-      const transformedRules = (response.rules || []).map((rule: any) => ({
+      // Transform backend rule format to frontend ComplianceRule interface
+      const transformedRules = (response.rules || []).map((rule: RawComplianceRule) => ({
         id: rule.id,
         rule_id: rule.scap_rule_id,
         title: rule.title,
