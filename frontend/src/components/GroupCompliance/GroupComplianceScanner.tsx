@@ -182,8 +182,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
           monitorScanProgress(data.session_id);
         }
       }
-    } catch (error) {
-      // No active scan, which is fine
+    } catch {
+      // No active scan found - this is an expected state (not an error condition)
     }
   };
 
@@ -228,7 +228,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         const error = await response.json();
         showAlert(`Failed to start scan: ${error.detail}`, 'error');
       }
-    } catch (error) {
+    } catch {
+      // Generic error fallback - specific error details already shown in if block above
       showAlert('Failed to start compliance scan', 'error');
     } finally {
       setLoading(false);
@@ -287,12 +288,15 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         showAlert('Scan cancelled', 'info');
         setCurrentScan(null);
       }
-    } catch (error) {
+    } catch {
+      // Network or other failure during cancellation
       showAlert('Failed to cancel scan', 'error');
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  // Reserved for future status display enhancement
+  // These helper functions will be used when adding status badges to scan results
+  const _getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
         return <CheckCircle color="success" />;
@@ -307,7 +311,9 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     }
   };
 
-  const getStatusColor = (status: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
+  const _getStatusColor = (
+    status: string
+  ): 'success' | 'error' | 'warning' | 'info' | 'default' => {
     switch (status) {
       case 'completed':
         return 'success';

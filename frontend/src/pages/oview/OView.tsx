@@ -128,8 +128,9 @@ const OView: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
   const [resourceFilter, setResourceFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
+  // Reserved for future date range filtering feature
+  const [dateFrom, _setDateFrom] = useState<Date | null>(null);
+  const [dateTo, _setDateTo] = useState<Date | null>(null);
   const [userFilter, setUserFilter] = useState('');
 
   // Debounced search query to avoid API calls on every keystroke

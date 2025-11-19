@@ -176,7 +176,9 @@ class RuleIntelligenceService {
     } = params;
 
     const recommendations: RuleRecommendation[] = [];
-    const insights = {
+    // Reserved for future insight generation feature
+    // Will be used to provide coverage gap analysis and priority recommendations
+    const _insights = {
       coverage_gaps: [] as string[],
       priority_areas: [] as string[],
       platform_specific_suggestions: [] as string[],

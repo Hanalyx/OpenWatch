@@ -170,7 +170,7 @@ class RuleService {
         message: `✅ MongoDB Connected: ${totalCount} compliance rules in database`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch {
       console.error('❌ Rules API connection failed:', error);
 
       // Return empty state instead of mock data
@@ -639,8 +639,8 @@ class RuleService {
         message: `Found ${totalCount} rules matching your search`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
-      // Mock response for development
+    } catch {
+      // Mock response for development - error details not needed for fallback
       return this.getMockSearchResponse(searchRequest);
     }
   }
@@ -659,7 +659,7 @@ class RuleService {
         message: `Retrieved rule details for ${ruleId}`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockRuleDetailsResponse(ruleId, includeInheritance);
     }
@@ -677,7 +677,7 @@ class RuleService {
         max_depth: maxDepth,
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockDependenciesResponse(ruleIds[0]);
     }
@@ -699,7 +699,7 @@ class RuleService {
         capability_types: params.capabilityTypes ?? ['package', 'service', 'security'],
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockPlatformCapabilitiesResponse(params);
     }
@@ -721,7 +721,7 @@ class RuleService {
         include_metadata: params.includeMetadata ?? true,
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockExportResponse(params);
     }
