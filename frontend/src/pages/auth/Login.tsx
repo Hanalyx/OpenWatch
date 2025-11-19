@@ -70,8 +70,10 @@ const Login: React.FC = () => {
 
       dispatch(loginSuccess(authData));
       navigate('/');
-    } catch (err: any) {
-      dispatch(loginFailure(err.message || 'Login failed'));
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      dispatch(loginFailure(errorMessage));
     }
   };
 
