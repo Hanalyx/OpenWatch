@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Typography, Box, Card, CardContent, Button, Alert } from '@mui/material';
 import { ArrowBack, Scanner, Settings } from '@mui/icons-material';
 import QuickScanDialog from '../../components/scans/QuickScanDialog';
+import type { Host } from '../../types/host';
 
 interface LocationState {
   hostId?: string;
@@ -16,7 +17,8 @@ const NewScan: React.FC = () => {
   const state = location.state as LocationState;
 
   const [showQuickScanDialog, setShowQuickScanDialog] = useState(false);
-  const [hostData, setHostData] = useState<any>(null);
+  // Host data from API for quick scan display
+  const [hostData, setHostData] = useState<Host | null>(null);
 
   useEffect(() => {
     // If coming from quick scan request, show quick scan dialog
