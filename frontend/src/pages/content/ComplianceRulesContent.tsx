@@ -161,6 +161,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
       const response = await ruleService.getRules({
         offset: (pagination.page - 1) * pagination.rowsPerPage,
         limit: pagination.rowsPerPage,
+        is_latest: true,
         ...(filters.framework && { framework: filters.framework }),
         ...(filters.severity && { severity: filters.severity }),
         ...(filters.category && { category: filters.category }),

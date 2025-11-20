@@ -32,6 +32,7 @@ export interface RuleQueryParams {
   framework?: string;
   abstract?: boolean;
   search?: string;
+  is_latest?: boolean;
 }
 
 /**
@@ -133,6 +134,8 @@ class RuleService {
       if (params.category) queryParams.append('category', params.category);
       if (params.framework) queryParams.append('framework', params.framework);
       if (params.search) queryParams.append('search', params.search);
+      if (params.is_latest !== undefined)
+        queryParams.append('is_latest', params.is_latest.toString());
 
       const response = await fetch(`/api/compliance-rules/?${queryParams.toString()}`);
 
