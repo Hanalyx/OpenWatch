@@ -72,9 +72,7 @@ class DriftEventsListResponse(BaseModel):
 )
 async def list_drift_events(
     host_id: Optional[UUID] = Query(None, description="Filter by host ID"),
-    drift_type: Optional[str] = Query(
-        None, description="Filter by drift type (major, minor, improvement, stable)"
-    ),
+    drift_type: Optional[str] = Query(None, description="Filter by drift type (major, minor, improvement, stable)"),
     exclude_stable: bool = Query(False, description="Exclude stable drift events"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of events to return"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
@@ -128,9 +126,7 @@ async def list_drift_events(
         builder.where("sde.drift_type != :stable", "stable", "stable")
 
     # Get total count
-    count_builder = QueryBuilder("scan_drift_events sde").join(
-        "hosts h", "h.id = sde.host_id", "INNER"
-    )
+    count_builder = QueryBuilder("scan_drift_events sde").join("hosts h", "h.id = sde.host_id", "INNER")
     if host_id:
         count_builder.where("sde.host_id = :host_id", host_id, "host_id")
     if drift_type:
@@ -144,9 +140,13 @@ async def list_drift_events(
     # Apply pagination
     builder.paginate(page=(offset // limit) + 1, per_page=limit)
 
-    # Execute query
+    # Execute query with parameterization
+    # Security: QueryBuilder.build() returns parameterized SQL with separate params dict
+    # All user inputs (host_id, drift_type, limit, offset) are bound as parameters
+    # This prevents SQL injection by avoiding direct string concatenation
+    # Per OWASP SQL Injection Prevention: use parameterized queries
     query, params = builder.build()
-    result = db.execute(text(query), params)
+    result = db.execute(text(query), params)  # nosec B608 (parameterized via QueryBuilder)
     events = []
 
     for row in result:
