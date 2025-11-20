@@ -223,20 +223,11 @@ def detect_key_type(key_content: str) -> Optional[SSHKeyType]:
             except:
                 pass
 
-        if any(
-            marker in content_str
-            for marker in ["ssh-rsa", "BEGIN RSA PRIVATE KEY", "RSA PRIVATE KEY"]
-        ):
+        if any(marker in content_str for marker in ["ssh-rsa", "BEGIN RSA PRIVATE KEY", "RSA PRIVATE KEY"]):
             return SSHKeyType.RSA
-        elif any(
-            marker in content_str
-            for marker in ["ecdsa-sha2-", "BEGIN EC PRIVATE KEY", "EC PRIVATE KEY"]
-        ):
+        elif any(marker in content_str for marker in ["ecdsa-sha2-", "BEGIN EC PRIVATE KEY", "EC PRIVATE KEY"]):
             return SSHKeyType.ECDSA
-        elif any(
-            marker in content_str
-            for marker in ["ssh-dss", "BEGIN DSA PRIVATE KEY", "DSA PRIVATE KEY"]
-        ):
+        elif any(marker in content_str for marker in ["ssh-dss", "BEGIN DSA PRIVATE KEY", "DSA PRIVATE KEY"]):
             return SSHKeyType.DSA
 
         return None
@@ -330,9 +321,7 @@ def get_key_size(pkey: paramiko.PKey) -> Optional[int]:
         return None
 
 
-def assess_key_security(
-    key_type: SSHKeyType, key_size: Optional[int]
-) -> Tuple[SSHKeySecurityLevel, list, list]:
+def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[SSHKeySecurityLevel, list, list]:
     """
     Assess the security level of an SSH key based on type and size.
 
@@ -419,9 +408,7 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
     try:
         # Handle empty input
         if not key_content or not str(key_content).strip():
-            return SSHKeyValidationResult(
-                is_valid=False, error_message="Empty key content provided"
-            )
+            return SSHKeyValidationResult(is_valid=False, error_message="Empty key content provided")
 
         # Let paramiko handle all the complexity of key parsing and validation
         try:
@@ -450,9 +437,7 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
                     continue
 
             if pkey is None:
-                raise paramiko.SSHException(
-                    "Unable to parse SSH key - unsupported format or incorrect passphrase"
-                )
+                raise paramiko.SSHException("Unable to parse SSH key - unsupported format or incorrect passphrase")
 
             # Extract key information using paramiko's methods
             key_name = pkey.get_name()  # e.g., 'ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256'
@@ -489,13 +474,9 @@ def validate_ssh_key(key_content: str, passphrase: Optional[str] = None) -> SSHK
                 error_message="SSH key is encrypted and requires a passphrase",
             )
         except paramiko.SSHException as e:
-            return SSHKeyValidationResult(
-                is_valid=False, error_message=f"Invalid SSH key format: {str(e)}"
-            )
+            return SSHKeyValidationResult(is_valid=False, error_message=f"Invalid SSH key format: {str(e)}")
         except Exception as e:
-            return SSHKeyValidationResult(
-                is_valid=False, error_message=f"SSH key parsing failed: {str(e)}"
-            )
+            return SSHKeyValidationResult(is_valid=False, error_message=f"SSH key parsing failed: {str(e)}")
 
     except Exception as e:
         return SSHKeyValidationResult(is_valid=False, error_message=f"Validation error: {str(e)}")
@@ -602,9 +583,7 @@ def recommend_key_type() -> str:
 # ============================================================================
 
 
-def extract_ssh_key_metadata(
-    key_content: str, passphrase: Optional[str] = None
-) -> Dict[str, Optional[str]]:
+def extract_ssh_key_metadata(key_content: str, passphrase: Optional[str] = None) -> Dict[str, Optional[str]]:
     """
     Extract SSH key metadata for storage and display.
 
@@ -834,9 +813,7 @@ class UnifiedSSHService:
         self._debug_mode = True
         # Enable paramiko debug logging
         paramiko.util.log_to_file("/tmp/paramiko_debug.log")
-        logger.info(
-            "SSH debug mode enabled - detailed logs will be written to /tmp/paramiko_debug.log"
-        )
+        logger.info("SSH debug mode enabled - detailed logs will be written to /tmp/paramiko_debug.log")
 
     def disable_debug_mode(self):
         """Disable SSH debugging"""
@@ -888,9 +865,7 @@ class UnifiedSSHService:
             return True
 
         except Exception as e:
-            logger.error(
-                f"Failed to connect to {hostname if 'hostname' in locals() else 'host'}: {e}"
-            )
+            logger.error(f"Failed to connect to {hostname if 'hostname' in locals() else 'host'}: {e}")
             return False
 
     def disconnect(self):
@@ -946,9 +921,7 @@ class UnifiedSSHService:
                 "command": command,
             }
 
-            logger.debug(
-                f"Command executed: {command} (exit_code: {exit_code}, duration: {duration:.2f}s)"
-            )
+            logger.debug(f"Command executed: {command} (exit_code: {exit_code}, duration: {duration:.2f}s)")
             return result
 
         except Exception as e:
@@ -1003,9 +976,7 @@ class UnifiedSSHService:
                     if isinstance(credentials.auth_method, str)
                     else credentials.auth_method.value
                 )
-                if (
-                    auth_method_str == "ssh_key" and credentials.private_key
-                ):  # pragma: allowlist secret
+                if auth_method_str == "ssh_key" and credentials.private_key:  # pragma: allowlist secret
                     # Use SSH key authentication
                     import io
 
@@ -1143,7 +1114,12 @@ class UnifiedSSHService:
     # ========================================================================
 
     def get_setting(self, key: str, default: Any = None) -> Any:
-        """Get a system setting value with caching"""
+        """
+        Get a system setting value with caching.
+
+        Returns the default value if the system_settings table doesn't exist yet,
+        as this is expected during initial setup or when the feature is not in use.
+        """
         if not self.db:
             logger.warning("No database session available for SSH config service")
             return default
@@ -1152,9 +1128,7 @@ class UnifiedSSHService:
             # Import here to avoid circular imports
             from ..models.system_models import SystemSettings
 
-            setting = (
-                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
-            )
+            setting = self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
 
             if not setting:
                 return default
@@ -1163,26 +1137,28 @@ class UnifiedSSHService:
             if setting.setting_type == "json":
                 return json.loads(setting.setting_value) if setting.setting_value else default
             elif setting.setting_type == "boolean":
-                return (
-                    setting.setting_value.lower() in ("true", "1", "yes")
-                    if setting.setting_value
-                    else default
-                )
+                return setting.setting_value.lower() in ("true", "1", "yes") if setting.setting_value else default
             elif setting.setting_type == "integer":
                 return int(setting.setting_value) if setting.setting_value else default
             else:
                 return setting.setting_value or default
 
         except Exception as e:
-            logger.error(f"Error getting setting {key}: {e}")
+            # Check if error is due to missing table (expected during setup)
+            error_msg = str(e).lower()
+            if "does not exist" in error_msg or "relation" in error_msg:
+                # Table doesn't exist yet - this is expected, use default silently
+                logger.debug(f"system_settings table not found, using default for {key}: {default}")
+            else:
+                # Unexpected error - log it
+                logger.error(f"Error getting setting {key}: {e}")
+
             # Rollback transaction on error to prevent "aborted transaction" state
             if self.db:
                 self.db.rollback()
             return default
 
-    def set_setting(
-        self, key: str, value: Any, setting_type: str, description: str, user_id: int
-    ) -> bool:
+    def set_setting(self, key: str, value: Any, setting_type: str, description: str, user_id: int) -> bool:
         """Set a system setting value"""
         if not self.db:
             logger.warning("No database session available for SSH config service")
@@ -1201,9 +1177,7 @@ class UnifiedSSHService:
                 string_value = str(value)
 
             # Update or create setting
-            setting = (
-                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
-            )
+            setting = self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
 
             if setting:
                 setting.setting_value = string_value
@@ -1393,17 +1367,13 @@ class UnifiedSSHService:
 
             # NEW: Handle "both" authentication with fallback (Phase 3)
             if auth_method == "both":
-                logger.info(
-                    f"Credential has 'both' auth method, attempting SSH key first for {username}@{hostname}"
-                )
+                logger.info(f"Credential has 'both' auth method, attempting SSH key first for {username}@{hostname}")
 
                 # Try SSH key first (faster, more secure)
                 if credential:  # credential contains private key for "both"
                     try:
                         pkey = parse_ssh_key(credential)
-                        logger.debug(
-                            f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}"
-                        )
+                        logger.debug(f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}")
 
                         try:
                             client.connect(
@@ -1416,34 +1386,22 @@ class UnifiedSSHService:
                                 look_for_keys=False,
                             )
                             auth_method_used = "private_key"
-                            logger.info(
-                                f"SSH key authentication successful for {username}@{hostname} (both method)"
-                            )
+                            logger.info(f"SSH key authentication successful for {username}@{hostname} (both method)")
                         except paramiko.AuthenticationException as e:
-                            logger.warning(
-                                f"SSH key authentication failed for {username}@{hostname}: {str(e)}"
-                            )
+                            logger.warning(f"SSH key authentication failed for {username}@{hostname}: {str(e)}")
                             # Close failed connection before retry
                             if client:
                                 client.close()
                                 client = None
                             # Will try password below
                     except SSHKeyError as e:
-                        logger.warning(
-                            f"SSH key parsing failed for {username}@{hostname}: {str(e)}"
-                        )
+                        logger.warning(f"SSH key parsing failed for {username}@{hostname}: {str(e)}")
                         # Will try password below
 
                 # Fallback to password if SSH key didn't succeed
-                if (
-                    not client
-                    or not client.get_transport()
-                    or not client.get_transport().is_active()
-                ):
+                if not client or not client.get_transport() or not client.get_transport().is_active():
                     if password:
-                        logger.info(
-                            f"Falling back to password authentication for {username}@{hostname}"
-                        )
+                        logger.info(f"Falling back to password authentication for {username}@{hostname}")
                         if not client:
                             client = SSHClient()
                             self.configure_ssh_client(client, hostname)
@@ -1465,9 +1423,7 @@ class UnifiedSSHService:
                         except paramiko.AuthenticationException as e:
                             if client:
                                 client.close()
-                            logger.error(
-                                f"Both SSH key and password authentication failed for {username}@{hostname}"
-                            )
+                            logger.error(f"Both SSH key and password authentication failed for {username}@{hostname}")
                             return SSHConnectionResult(
                                 success=False,
                                 error_message=f"Both SSH key and password authentication failed for {username}@{hostname}",
@@ -1502,9 +1458,7 @@ class UnifiedSSHService:
                 try:
                     pkey = parse_ssh_key(credential)
                     # Log key info for debugging (without exposing sensitive data)
-                    logger.debug(
-                        f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}"
-                    )
+                    logger.debug(f"SSH key parsed successfully - Type: {pkey.get_name()}, Bits: {pkey.get_bits()}")
 
                     client.connect(
                         hostname=hostname,
@@ -1565,9 +1519,7 @@ class UnifiedSSHService:
             if client:
                 client.close()
             # Enhanced error logging for authentication failures
-            logger.error(
-                f"SSH authentication failed for {username}@{hostname}:{port} using {auth_method} auth"
-            )
+            logger.error(f"SSH authentication failed for {username}@{hostname}:{port} using {auth_method} auth")
             logger.debug(f"AuthenticationException details: {str(e)}")
 
             # Try to determine specific authentication failure reason
@@ -1603,9 +1555,7 @@ class UnifiedSSHService:
             else:
                 specific_error = f"SSH protocol error: {str(e)}"
 
-            return SSHConnectionResult(
-                success=False, error_message=specific_error, error_type="ssh_error"
-            )
+            return SSHConnectionResult(success=False, error_message=specific_error, error_type="ssh_error")
 
         except socket.timeout:
             if client:
@@ -1694,29 +1644,21 @@ class UnifiedSSHService:
                 error_message=f"Command timed out after {command_timeout} seconds",
             )
         except Exception as e:
-            return SSHCommandResult(
-                success=False, error_message=f"Command execution failed: {str(e)}"
-            )
+            return SSHCommandResult(success=False, error_message=f"Command execution failed: {str(e)}")
 
     # ========================================================================
     # SSH KEY UTILITIES (wrapped from module functions)
     # ========================================================================
 
-    def validate_ssh_key(
-        self, key_content: str, passphrase: Optional[str] = None
-    ) -> SSHKeyValidationResult:
+    def validate_ssh_key(self, key_content: str, passphrase: Optional[str] = None) -> SSHKeyValidationResult:
         """Validate SSH key with security assessment"""
         return validate_ssh_key(key_content, passphrase)
 
-    def extract_ssh_key_metadata(
-        self, key_content: str, passphrase: Optional[str] = None
-    ) -> Dict[str, Optional[str]]:
+    def extract_ssh_key_metadata(self, key_content: str, passphrase: Optional[str] = None) -> Dict[str, Optional[str]]:
         """Extract SSH key metadata for storage and display"""
         return extract_ssh_key_metadata(key_content, passphrase)
 
-    def get_key_fingerprint(
-        self, key_content: str, passphrase: Optional[str] = None
-    ) -> Optional[str]:
+    def get_key_fingerprint(self, key_content: str, passphrase: Optional[str] = None) -> Optional[str]:
         """Generate fingerprint for SSH key"""
         return get_key_fingerprint(key_content, passphrase)
 
@@ -1732,15 +1674,11 @@ class UnifiedSSHService:
         """Extract comment/label from SSH key content"""
         return extract_key_comment(key_content)
 
-    def format_key_display_info(
-        self, fingerprint, key_type, key_bits, key_comment, created_date
-    ) -> str:
+    def format_key_display_info(self, fingerprint, key_type, key_bits, key_comment, created_date) -> str:
         """Format SSH key information for user-friendly display"""
         return format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date)
 
-    def get_key_security_indicator(
-        self, key_type: Optional[str], key_bits: Optional[str]
-    ) -> Tuple[str, str]:
+    def get_key_security_indicator(self, key_type: Optional[str], key_bits: Optional[str]) -> Tuple[str, str]:
         """Get security level indicator for UI display"""
         return get_key_security_indicator(key_type, key_bits)
 
@@ -1870,9 +1808,7 @@ class UnifiedSSHService:
                         "key_type": row.key_type,
                         "fingerprint": row.fingerprint,
                         "first_seen": (row.first_seen.isoformat() if row.first_seen else None),
-                        "last_verified": (
-                            row.last_verified.isoformat() if row.last_verified else None
-                        ),
+                        "last_verified": (row.last_verified.isoformat() if row.last_verified else None),
                         "is_trusted": row.is_trusted,
                         "notes": row.notes,
                     }
@@ -1916,9 +1852,7 @@ class UnifiedSSHService:
 
             key_data = base64.b64decode(public_key.split()[1])
             fingerprint = hashlib.sha256(key_data).hexdigest()
-            fingerprint = (
-                f"SHA256:{base64.b64encode(hashlib.sha256(key_data).digest()).decode().rstrip('=')}"
-            )
+            fingerprint = f"SHA256:{base64.b64encode(hashlib.sha256(key_data).digest()).decode().rstrip('=')}"
 
             self.db.execute(
                 text(
