@@ -127,7 +127,10 @@ class BaselineService:
         db.commit()
         db.refresh(baseline)
 
-        logger.info(f"Established {baseline_type} baseline for host {host_id} " f"(score: {baseline.baseline_score}%)")
+        logger.info(
+            f"Established {baseline_type} baseline for host {host_id} "
+            f"(score: {baseline.baseline_score}%)"
+        )
 
         return baseline
 

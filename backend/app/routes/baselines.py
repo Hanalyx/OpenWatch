@@ -102,10 +102,13 @@ async def establish_baseline(
     """
     # Check user role
     user_role = current_user.get("role", "")
-    logger.info(f"DEBUG establish_baseline: current_user = {current_user}, user_role = '{user_role}'")
+    logger.info(
+        f"DEBUG establish_baseline: current_user = {current_user}, user_role = '{user_role}'"
+    )
     if user_role not in ["scan_manager", "super_admin"]:
         raise HTTPException(
-            status_code=403, detail="Insufficient permissions. Requires scan_manager or super_admin role."
+            status_code=403,
+            detail="Insufficient permissions. Requires scan_manager or super_admin role.",
         )
 
     baseline_service = BaselineService()
@@ -176,7 +179,9 @@ async def establish_baseline(
             exc_info=True,
             extra={"host_id": str(host_id), "scan_id": str(request_body.scan_id)},
         )
-        raise HTTPException(status_code=500, detail="Failed to establish baseline. Check server logs.")
+        raise HTTPException(
+            status_code=500, detail="Failed to establish baseline. Check server logs."
+        )
 
 
 @router.get(
@@ -240,7 +245,9 @@ async def get_active_baseline(
             exc_info=True,
             extra={"host_id": str(host_id)},
         )
-        raise HTTPException(status_code=500, detail="Failed to retrieve baseline. Check server logs.")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve baseline. Check server logs."
+        )
 
 
 @router.delete(
@@ -271,7 +278,8 @@ async def reset_baseline(
     user_role = current_user.get("role", "")
     if user_role not in ["scan_manager", "super_admin"]:
         raise HTTPException(
-            status_code=403, detail="Insufficient permissions. Requires scan_manager or super_admin role."
+            status_code=403,
+            detail="Insufficient permissions. Requires scan_manager or super_admin role.",
         )
 
     baseline_service = BaselineService()
@@ -280,7 +288,9 @@ async def reset_baseline(
         success = baseline_service.reset_baseline(db=db, host_id=host_id)
 
         if not success:
-            raise HTTPException(status_code=404, detail=f"No active baseline found for host {host_id}")
+            raise HTTPException(
+                status_code=404, detail=f"No active baseline found for host {host_id}"
+            )
 
         # Audit log the baseline reset
         audit_logger.info(
