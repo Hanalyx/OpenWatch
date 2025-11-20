@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import lxml.etree as etree
+import lxml.etree as etree  # nosec B410 (secure parser configuration on line 187)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -37,12 +37,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -184,7 +180,16 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
                 "risk_level": None,
             }
 
-        tree = etree.parse(result_file)
+        # Security: Disable XXE (XML External Entity) attacks
+        # Prevents malicious XML from reading arbitrary files or performing SSRF
+        # Per OWASP XXE Prevention: https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
+        parser = etree.XMLParser(
+            resolve_entities=False,  # Disable entity resolution (prevents XXE)
+            no_network=True,  # Disable network access (prevents SSRF)
+            dtd_validation=False,  # Disable DTD validation (prevents billion laughs attack)
+            load_dtd=False,  # Don't load external DTD
+        )
+        tree = etree.parse(result_file, parser)  # nosec B320
         root = tree.getroot()
 
         # XCCDF namespace
@@ -373,9 +378,7 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
@@ -633,18 +636,19 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = (
-                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
-            )
+            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
 
-            _compliance_report = await reporter.generate_compliance_report(
+            compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
                 target_frameworks=target_frameworks,
                 report_format="json",
             )
 
             # Store report (in a real implementation, this would save to database)
-            logger.info(f"Generated compliance report for scan {scan_id}")
+            logger.info(
+                f"Generated compliance report for scan {scan_id} with "
+                f"{len(compliance_report.get('frameworks', {}))} frameworks"
+            )
 
         logger.info(f"Background enrichment completed for scan {scan_id}")
 
@@ -801,11 +805,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 

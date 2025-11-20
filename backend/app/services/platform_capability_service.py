@@ -4,13 +4,10 @@ Detects and manages platform capabilities for rule applicability
 """
 
 import asyncio
-import json
 import logging
-import re
-import subprocess
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -113,9 +110,7 @@ class PlatformCapabilityService:
         # Detect each capability type
         for capability_type in CapabilityType:
             try:
-                capability_data = await self._detect_capability_type(
-                    platform_enum, capability_type, target_host
-                )
+                capability_data = await self._detect_capability_type(platform_enum, capability_type, target_host)
                 capabilities["capabilities"][capability_type.value] = capability_data
             except Exception as e:
                 logger.error(f"Failed to detect {capability_type.value}: {str(e)}")
@@ -170,18 +165,29 @@ class PlatformCapabilityService:
         else:
             return {"detected": False, "reason": "Invalid command specification"}
 
-    async def _execute_single_command(
-        self, command: str, target_host: Optional[str] = None
-    ) -> Dict[str, Any]:
+    async def _execute_single_command(self, command: str, target_host: Optional[str] = None) -> Dict[str, Any]:
         """Execute a single command"""
         try:
+            # Security: Build command as list to prevent command injection
+            # NEVER use create_subprocess_shell with user-provided input
+            # Per OWASP Command Injection Prevention: use argument lists
+
+            # Convert command string to argument list for safe execution
+            import shlex
+
+            cmd_parts = shlex.split(command)
+
             # Prepare command for remote execution if needed
             if target_host:
-                command = f"ssh {target_host} '{command}'"
+                # Build SSH command as argument list (secure)
+                cmd_parts = ["ssh", target_host] + cmd_parts
 
-            # Execute command
-            process = await asyncio.create_subprocess_shell(
-                command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            # Security: Use create_subprocess_exec to prevent command injection
+            # This treats all arguments as literals, preventing shell metacharacter exploitation
+            process = await asyncio.create_subprocess_exec(
+                *cmd_parts,  # Unpack as separate arguments (secure)
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
             stdout, stderr = await process.communicate()
@@ -243,9 +249,7 @@ class PlatformCapabilityService:
             "unattended_upgrades": "systemctl is-active unattended-upgrades",
         }
 
-    async def parse_package_capabilities(
-        self, raw_output: str, platform: PlatformType
-    ) -> Dict[str, Dict[str, str]]:
+    async def parse_package_capabilities(self, raw_output: str, platform: PlatformType) -> Dict[str, Dict[str, str]]:
         """Parse package information from raw command output"""
         packages = {}
 
@@ -263,9 +267,7 @@ class PlatformCapabilityService:
 
         return packages
 
-    async def parse_service_capabilities(
-        self, raw_output: str, platform: PlatformType
-    ) -> Dict[str, Dict[str, str]]:
+    async def parse_service_capabilities(self, raw_output: str, platform: PlatformType) -> Dict[str, Dict[str, str]]:
         """Parse service information from raw command output"""
         services = {}
 
@@ -438,13 +440,10 @@ class PlatformCapabilityService:
 
         # Analysis
         comparison["analysis"] = {
-            "baseline_coverage": len(comparison["matched"])
-            / max(1, len(expected_packages) + len(expected_services)),
+            "baseline_coverage": len(comparison["matched"]) / max(1, len(expected_packages) + len(expected_services)),
             "total_expected": len(expected_packages) + len(expected_services),
             "total_detected": len(detected_packages) + len(detected_services),
-            "missing_critical": [
-                item for item in comparison["missing"] if item in ["systemd", "kernel", "sshd"]
-            ],
+            "missing_critical": [item for item in comparison["missing"] if item in ["systemd", "kernel", "sshd"]],
             "platform_health": "good" if len(comparison["missing"]) < 3 else "degraded",
         }
 
@@ -453,9 +452,7 @@ class PlatformCapabilityService:
     def clear_cache(self, platform: Optional[str] = None):
         """Clear capability cache"""
         if platform:
-            keys_to_remove = [
-                k for k in self.capability_cache.keys() if k.startswith(f"{platform}:")
-            ]
+            keys_to_remove = [k for k in self.capability_cache.keys() if k.startswith(f"{platform}:")]
             for key in keys_to_remove:
                 del self.capability_cache[key]
         else:
