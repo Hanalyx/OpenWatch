@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..services.baseline_service import BaselineService
+from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log, sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 audit_logger = logging.getLogger("openwatch.audit")
@@ -102,8 +103,11 @@ async def establish_baseline(
     """
     # Check user role
     user_role = current_user.get("role", "")
+    # Security: Sanitize user-controlled data before logging to prevent log injection
+    # CWE-117: Prevents attackers from injecting newlines to forge log entries
     logger.info(
-        f"DEBUG establish_baseline: current_user = {current_user}, user_role = '{user_role}'"
+        f"DEBUG establish_baseline: current_user = {sanitize_for_log(str(current_user))}, "
+        f"user_role = '{sanitize_for_log(user_role)}'"
     )
     if user_role not in ["scan_manager", "super_admin"]:
         raise HTTPException(
@@ -124,19 +128,23 @@ async def establish_baseline(
         )
 
         # Audit log the baseline establishment
+        # Security: Sanitize all user-controlled values to prevent log injection (CWE-117)
+        # Protects against CRLF injection that could forge audit log entries
         audit_logger.info(
-            f"BASELINE_ESTABLISHED - User {current_user.get('username')} (ID: {current_user.get('id')}) "
-            f"established {request_body.baseline_type} baseline for host {host_id} "
-            f"from scan {request_body.scan_id} (baseline ID: {baseline.id})",
+            f"BASELINE_ESTABLISHED - User {sanitize_username_for_log(current_user.get('username'))} "
+            f"(ID: {sanitize_id_for_log(current_user.get('id'))}) "
+            f"established {sanitize_for_log(request_body.baseline_type)} baseline for host "
+            f"{sanitize_id_for_log(host_id)} from scan {sanitize_id_for_log(request_body.scan_id)} "
+            f"(baseline ID: {sanitize_id_for_log(baseline.id)})",
             extra={
                 "event_type": "BASELINE_ESTABLISHED",
-                "user_id": str(current_user.get("id")),
-                "username": current_user.get("username"),
-                "host_id": str(host_id),
-                "scan_id": str(request_body.scan_id),
-                "baseline_id": str(baseline.id),
-                "baseline_type": request_body.baseline_type,
-                "ip_address": request.client.host,
+                "user_id": sanitize_id_for_log(current_user.get("id")),
+                "username": sanitize_username_for_log(current_user.get("username")),
+                "host_id": sanitize_id_for_log(host_id),
+                "scan_id": sanitize_id_for_log(request_body.scan_id),
+                "baseline_id": sanitize_id_for_log(baseline.id),
+                "baseline_type": sanitize_for_log(request_body.baseline_type),
+                "ip_address": sanitize_for_log(request.client.host),
             },
         )
 
@@ -166,22 +174,28 @@ async def establish_baseline(
 
     except ValueError as e:
         # Invalid scan or host
+        # Security: Sanitize user-controlled data and error messages to prevent log injection
         logger.warning(
-            f"Failed to establish baseline for host {host_id}: {str(e)}",
-            extra={"host_id": str(host_id), "scan_id": str(request_body.scan_id)},
+            f"Failed to establish baseline for host {sanitize_id_for_log(host_id)}: " f"{sanitize_for_log(str(e))}",
+            extra={
+                "host_id": sanitize_id_for_log(host_id),
+                "scan_id": sanitize_id_for_log(request_body.scan_id),
+            },
         )
         raise HTTPException(status_code=400, detail=str(e))
 
     except Exception as e:
         # Unexpected error
+        # Security: Sanitize user-controlled data and error messages to prevent log injection
         logger.error(
-            f"Error establishing baseline for host {host_id}: {str(e)}",
+            f"Error establishing baseline for host {sanitize_id_for_log(host_id)}: " f"{sanitize_for_log(str(e))}",
             exc_info=True,
-            extra={"host_id": str(host_id), "scan_id": str(request_body.scan_id)},
+            extra={
+                "host_id": sanitize_id_for_log(host_id),
+                "scan_id": sanitize_id_for_log(request_body.scan_id),
+            },
         )
-        raise HTTPException(
-            status_code=500, detail="Failed to establish baseline. Check server logs."
-        )
+        raise HTTPException(status_code=500, detail="Failed to establish baseline. Check server logs.")
 
 
 @router.get(
@@ -240,14 +254,13 @@ async def get_active_baseline(
         )
 
     except Exception as e:
+        # Security: Sanitize user-controlled data and error messages to prevent log injection
         logger.error(
-            f"Error retrieving baseline for host {host_id}: {str(e)}",
+            f"Error retrieving baseline for host {sanitize_id_for_log(host_id)}: " f"{sanitize_for_log(str(e))}",
             exc_info=True,
-            extra={"host_id": str(host_id)},
+            extra={"host_id": sanitize_id_for_log(host_id)},
         )
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve baseline. Check server logs."
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve baseline. Check server logs.")
 
 
 @router.delete(
@@ -288,20 +301,20 @@ async def reset_baseline(
         success = baseline_service.reset_baseline(db=db, host_id=host_id)
 
         if not success:
-            raise HTTPException(
-                status_code=404, detail=f"No active baseline found for host {host_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"No active baseline found for host {host_id}")
 
         # Audit log the baseline reset
+        # Security: Sanitize all user-controlled values to prevent log injection (CWE-117)
         audit_logger.info(
-            f"BASELINE_RESET - User {current_user.get('username')} (ID: {current_user.get('id')}) "
-            f"reset baseline for host {host_id}",
+            f"BASELINE_RESET - User {sanitize_username_for_log(current_user.get('username'))} "
+            f"(ID: {sanitize_id_for_log(current_user.get('id'))}) "
+            f"reset baseline for host {sanitize_id_for_log(host_id)}",
             extra={
                 "event_type": "BASELINE_RESET",
-                "user_id": str(current_user.get("id")),
-                "username": current_user.get("username"),
-                "host_id": str(host_id),
-                "ip_address": request.client.host,
+                "user_id": sanitize_id_for_log(current_user.get("id")),
+                "username": sanitize_username_for_log(current_user.get("username")),
+                "host_id": sanitize_id_for_log(host_id),
+                "ip_address": sanitize_for_log(request.client.host),
             },
         )
 
@@ -316,9 +329,10 @@ async def reset_baseline(
         raise
 
     except Exception as e:
+        # Security: Sanitize user-controlled data and error messages to prevent log injection
         logger.error(
-            f"Error resetting baseline for host {host_id}: {str(e)}",
+            f"Error resetting baseline for host {sanitize_id_for_log(host_id)}: " f"{sanitize_for_log(str(e))}",
             exc_info=True,
-            extra={"host_id": str(host_id)},
+            extra={"host_id": sanitize_id_for_log(host_id)},
         )
         raise HTTPException(status_code=500, detail="Failed to reset baseline. Check server logs.")

@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import ScanBaseline
+from ..utils.logging_security import sanitize_for_log, sanitize_id_for_log
 from ..utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -127,9 +128,10 @@ class BaselineService:
         db.commit()
         db.refresh(baseline)
 
+        # Security: Sanitize user-controlled data to prevent log injection (CWE-117)
         logger.info(
-            f"Established {baseline_type} baseline for host {host_id} "
-            f"(score: {baseline.baseline_score}%)"
+            f"Established {sanitize_for_log(baseline_type)} baseline for host "
+            f"{sanitize_id_for_log(host_id)} (score: {sanitize_for_log(str(baseline.baseline_score))}%)"
         )
 
         return baseline
@@ -200,7 +202,8 @@ class BaselineService:
         db.commit()
 
         if result.rowcount > 0:
-            logger.info(f"Reset baseline for host {host_id}")
+            # Security: Sanitize user-controlled data to prevent log injection (CWE-117)
+            logger.info(f"Reset baseline for host {sanitize_id_for_log(host_id)}")
             return True
 
         return False
