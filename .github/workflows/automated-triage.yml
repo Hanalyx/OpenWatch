@@ -58,9 +58,13 @@ jobs:
         if: steps.fetch-alerts.outputs.alert_count > 0
         id: risk
         run: |
+          # Capture all script output to prevent GitHub Actions from parsing print statements
+          # Only GITHUB_OUTPUT file writes will set actual outputs
           python scripts/risk_assessment.py \
             --type=dependabot \
-            dependabot_alerts.json
+            dependabot_alerts.json 2>&1 | tee risk_assessment.log
+
+          echo "Risk assessment complete. See risk_assessment.log for details."
 
       - name: Display Risk Summary
         if: steps.fetch-alerts.outputs.alert_count > 0
@@ -195,9 +199,13 @@ jobs:
         id: risk-assessment
         continue-on-error: true
         run: |
+          # Capture all script output to prevent GitHub Actions from parsing print statements
+          # Only GITHUB_OUTPUT file writes will set actual outputs
           python scripts/risk_assessment.py \
             --type=codeql \
-            code_scanning_sample.json
+            code_scanning_sample.json 2>&1 | tee risk_assessment.log
+
+          echo "Risk assessment complete. See risk_assessment.log for details."
 
       - name: Summary Report
         if: steps.fetch-alerts.outputs.alert_count > 0
