@@ -15,7 +15,7 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     Sanitize filename to prevent path traversal and other security issues
 
     Security measures:
-    - Removes path separators (/, \)
+    - Removes path separators (/ and backslash)
     - Removes null bytes
     - Removes directory traversal patterns (../)
     - Normalizes unicode characters
@@ -124,9 +124,7 @@ def validate_file_extension(filename: str, allowed_extensions: list[str]) -> boo
     return any(filename_lower.endswith(ext) for ext in allowed_lower)
 
 
-def validate_storage_path(
-    base_path: Union[str, Path], file_path: Union[str, Path], allow_create: bool = False
-) -> Path:
+def validate_storage_path(base_path: Union[str, Path], file_path: Union[str, Path], allow_create: bool = False) -> Path:
     """
     Validate that file_path is within base_path (prevent path traversal)
 
@@ -159,9 +157,7 @@ def validate_storage_path(
     return target
 
 
-def generate_secure_filepath(
-    base_dir: Union[str, Path], filename: str, subdirectory: Optional[str] = None
-) -> Path:
+def generate_secure_filepath(base_dir: Union[str, Path], filename: str, subdirectory: Optional[str] = None) -> Path:
     """
     Generate a secure file path for storage
 
