@@ -483,22 +483,49 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict):
     """Save scan results summary to database"""
     try:
         # Parse failed rules by severity
+        # NIST SP 800-30 requires separate tracking of critical severity (CVSS >= 9.0)
         failed_rules = scan_results.get("failed_rules", [])
+        severity_critical = len([r for r in failed_rules if r.get("severity") == "critical"])
         severity_high = len([r for r in failed_rules if r.get("severity") == "high"])
         severity_medium = len([r for r in failed_rules if r.get("severity") == "medium"])
         severity_low = len([r for r in failed_rules if r.get("severity") == "low"])
 
-        # Insert scan results
+        # Parse passed rules by severity for accurate compliance visualization
+        # NIST SP 800-137 Continuous Monitoring requires granular pass/fail tracking
+        # to enable accurate compliance ring visualization (ComplianceRing component)
+        passed_rules = scan_results.get("passed_rules", [])
+        severity_critical_passed = len([r for r in passed_rules if r.get("severity") == "critical"])
+        severity_high_passed = len([r for r in passed_rules if r.get("severity") == "high"])
+        severity_medium_passed = len([r for r in passed_rules if r.get("severity") == "medium"])
+        severity_low_passed = len([r for r in passed_rules if r.get("severity") == "low"])
+
+        # Failed counts (align naming with database columns)
+        severity_critical_failed = severity_critical
+        severity_high_failed = severity_high
+        severity_medium_failed = severity_medium
+        severity_low_failed = severity_low
+
+        # Insert scan results with granular per-severity pass/fail tracking
         db.execute(
             text(
                 """
             INSERT INTO scan_results
             (scan_id, total_rules, passed_rules, failed_rules, error_rules,
-             unknown_rules, not_applicable_rules, score, severity_high,
-             severity_medium, severity_low, created_at)
+             unknown_rules, not_applicable_rules, score,
+             severity_critical, severity_high, severity_medium, severity_low,
+             severity_critical_passed, severity_critical_failed,
+             severity_high_passed, severity_high_failed,
+             severity_medium_passed, severity_medium_failed,
+             severity_low_passed, severity_low_failed,
+             created_at)
             VALUES (:scan_id, :total_rules, :passed_rules, :failed_rules, :error_rules,
-                    :unknown_rules, :not_applicable_rules, :score, :severity_high,
-                    :severity_medium, :severity_low, :created_at)
+                    :unknown_rules, :not_applicable_rules, :score,
+                    :severity_critical, :severity_high, :severity_medium, :severity_low,
+                    :severity_critical_passed, :severity_critical_failed,
+                    :severity_high_passed, :severity_high_failed,
+                    :severity_medium_passed, :severity_medium_failed,
+                    :severity_low_passed, :severity_low_failed,
+                    :created_at)
         """
             ),
             {
@@ -510,9 +537,20 @@ def _save_scan_results(db: Session, scan_id: str, scan_results: Dict):
                 "unknown_rules": scan_results.get("rules_unknown", 0),
                 "not_applicable_rules": scan_results.get("rules_notapplicable", 0),
                 "score": f"{scan_results.get('score', 0):.1f}%",
+                # Total failed rule counts by severity
+                "severity_critical": severity_critical,
                 "severity_high": severity_high,
                 "severity_medium": severity_medium,
                 "severity_low": severity_low,
+                # Per-severity pass/fail breakdown for accurate compliance visualization
+                "severity_critical_passed": severity_critical_passed,
+                "severity_critical_failed": severity_critical_failed,
+                "severity_high_passed": severity_high_passed,
+                "severity_high_failed": severity_high_failed,
+                "severity_medium_passed": severity_medium_passed,
+                "severity_medium_failed": severity_medium_failed,
+                "severity_low_passed": severity_low_passed,
+                "severity_low_failed": severity_low_failed,
                 "created_at": datetime.utcnow(),
             },
         )

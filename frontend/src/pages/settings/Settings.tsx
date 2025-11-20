@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Card,
-  CardContent,
   Tabs,
   Tab,
   Button,
@@ -35,18 +33,15 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Security as SecurityIcon,
-  Schedule as ScheduleIcon,
-  PlayArrow as PlayIcon,
-  Stop as StopIcon,
   VpnKey as VpnKeyIcon,
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
   Policy as PolicyIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import { SSHKeyDisplay, type SSHKeyInfo } from '../../components/design-system';
+import { SSHKeyDisplay } from '../../components/design-system';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
+import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 
 interface SystemCredentials {
@@ -181,7 +176,7 @@ const Settings: React.FC = () => {
       });
       const response = await api.get(`/api/system/credentials?${params}`);
       setCredentials(response); // API directly returns array
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load system credentials');
       console.error('Error loading credentials:', err);
     } finally {
@@ -195,7 +190,7 @@ const Settings: React.FC = () => {
       setSSHLoading(true);
       const response = await api.get('/api/ssh-settings/policy');
       setSSHPolicy(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load SSH policy');
       console.error('Error loading SSH policy:', err);
     } finally {
@@ -208,7 +203,7 @@ const Settings: React.FC = () => {
       setSSHLoading(true);
       const response = await api.get('/api/ssh-settings/known-hosts');
       setKnownHosts(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load known hosts');
       console.error('Error loading known hosts:', err);
     } finally {
@@ -225,7 +220,7 @@ const Settings: React.FC = () => {
       });
       setSSHPolicy(response);
       setSuccess('SSH policy updated successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to update SSH policy');
       console.error('Error updating SSH policy:', err);
     } finally {
@@ -247,7 +242,7 @@ const Settings: React.FC = () => {
         notes: '',
       });
       await loadKnownHosts();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to add host key');
       console.error('Error adding host key:', err);
     } finally {
@@ -266,7 +261,7 @@ const Settings: React.FC = () => {
       await api.delete(`/api/ssh-settings/known-hosts/${hostname}${params}`);
       setSuccess('Host key removed successfully');
       await loadKnownHosts();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to remove host key');
       console.error('Error removing host key:', err);
     } finally {
@@ -280,7 +275,7 @@ const Settings: React.FC = () => {
       setSecurityLoading(true);
       // This is a placeholder - implement when backend API is available
       setLoggingPolicies([]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load logging policies');
       console.error('Error loading logging policies:', err);
     } finally {
@@ -300,6 +295,8 @@ const Settings: React.FC = () => {
       // Security tab
       loadLoggingPolicies();
     }
+    // ESLint disable: load* functions are not memoized to avoid complex dependency chains
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabValue, isSuperAdmin, showInactive]); // WEEK 2: Reload when showInactive changes
 
   const handleAddCredential = () => {
@@ -346,7 +343,7 @@ const Settings: React.FC = () => {
       await api.delete(`/api/system/credentials/${id}`);
       setSuccess('Credential set deleted successfully');
       loadCredentials();
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage = err.response?.data?.detail || 'Failed to delete credential set';
       setError(errorMessage);
       console.error('Error deleting credential:', err);
@@ -374,7 +371,7 @@ const Settings: React.FC = () => {
 
       setDialogOpen(false);
       loadCredentials();
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Get more specific error message from the response
       let errorMessage = editingCredential
         ? 'Failed to update credential set'
@@ -395,7 +392,8 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
+  // Generic form change handler - accepts any form field value type
+  const handleFormChange = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -424,7 +422,7 @@ const Settings: React.FC = () => {
 
       // Reload credentials to get updated data
       loadCredentials();
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage = err.response?.data?.detail || 'Failed to delete SSH key';
       setError(errorMessage);
       console.error('Error deleting SSH key:', err);
@@ -467,7 +465,7 @@ const Settings: React.FC = () => {
                 SSH Credentials
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Configure master SSH credentials for hosts. If a host doesn't have specific
+                Configure master SSH credentials for hosts. If a host does not have specific
                 credentials, it will inherit these default settings.
               </Typography>
               {!isSuperAdmin && (

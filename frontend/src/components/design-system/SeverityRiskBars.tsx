@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box, Typography, LinearProgress, Tooltip, Chip } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { Box, Typography, LinearProgress, Tooltip } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { Circle } from '@mui/icons-material';
 
 export interface SeverityRiskBarsProps {
@@ -16,7 +16,7 @@ export interface SeverityRiskBarsProps {
 
   // Display options
   size?: 'small' | 'medium' | 'large';
-  variant?: 'full' | 'compact';  // full: multi-bar, compact: single bar + counts
+  variant?: 'full' | 'compact'; // full: multi-bar, compact: single bar + counts
 }
 
 const SeverityRiskBars: React.FC<SeverityRiskBarsProps> = ({
@@ -27,7 +27,7 @@ const SeverityRiskBars: React.FC<SeverityRiskBarsProps> = ({
   mediumIssues = 0,
   lowIssues = 0,
   size = 'medium',
-  variant = 'compact',
+  variant: _variant = 'compact',
 }) => {
   const theme = useTheme();
 
@@ -37,9 +37,9 @@ const SeverityRiskBars: React.FC<SeverityRiskBarsProps> = ({
 
   // Determine overall color based on pass rate thresholds
   const getOverallColor = (rate: number) => {
-    if (rate >= 95) return theme.palette.success.main;    // Green: Compliant (95%+)
-    if (rate >= 75) return theme.palette.warning.main;    // Yellow: Near compliant (75-94%)
-    return theme.palette.error.main;                      // Red: Non-compliant (<75%)
+    if (rate >= 95) return theme.palette.success.main; // Green: Compliant (95%+)
+    if (rate >= 75) return theme.palette.warning.main; // Yellow: Near compliant (75-94%)
+    return theme.palette.error.main; // Red: Non-compliant (<75%)
   };
 
   const getOverallLabel = (rate: number) => {
@@ -71,12 +71,14 @@ const SeverityRiskBars: React.FC<SeverityRiskBarsProps> = ({
       {/* Overall Score Bar */}
       <Box sx={{ mb: 1 }}>
         {/* Label and percentage row */}
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 0.5
-        }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 0.5,
+          }}
+        >
           <Typography
             variant="caption"
             sx={{

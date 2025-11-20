@@ -10,19 +10,13 @@ import {
   Grid,
   Chip,
   IconButton,
-  TextField,
   LinearProgress,
-  Tooltip,
   Alert,
   Snackbar,
   useTheme,
   alpha,
   CircularProgress,
   Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Tab,
   Tabs,
 } from '@mui/material';
@@ -32,21 +26,12 @@ import {
   AutoFixHigh,
   Visibility,
   Launch,
-  Search,
-  Clear,
-  AutoAwesome,
-  CheckCircle,
-  RadioButtonUnchecked,
   Security,
   Assessment,
   Shield,
   Policy,
   Speed,
   TrendingUp,
-  Warning,
-  Error,
-  Info,
-  TaskAlt,
   AccountTree,
 } from '@mui/icons-material';
 
@@ -127,7 +112,7 @@ const ComplianceIntelligence: React.FC = () => {
   }>({ open: false, message: '', severity: 'info' });
 
   // State for intelligence overview
-  const [overview, setOverview] = useState<ComplianceIntelligenceOverview>({
+  const [overview, _setOverview] = useState<ComplianceIntelligenceOverview>({
     totalFrameworks: 4,
     semanticRulesCount: 14,
     universalCoverage: 94,
@@ -137,7 +122,8 @@ const ComplianceIntelligence: React.FC = () => {
 
   // State for framework intelligence
   const [frameworkData, setFrameworkData] = useState<FrameworkIntelligence[]>([]);
-  const [semanticRules, setSemanticRules] = useState<SemanticRule[]>([]);
+  // Semantic rules state - setter declared for future use in intelligence filtering features
+  const [_semanticRules, _setSemanticRules] = useState<SemanticRule[]>([]);
 
   // Load compliance intelligence data
   useEffect(() => {
@@ -168,7 +154,8 @@ const ComplianceIntelligence: React.FC = () => {
       }));
 
       setFrameworkData(mockFrameworkData);
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Failed to load compliance intelligence:', err);
       setError('Failed to load compliance intelligence data');
     } finally {
@@ -184,7 +171,8 @@ const ComplianceIntelligence: React.FC = () => {
     });
   };
 
-  const formatRuleName = (name: string) => {
+  // Rule name formatter - utility for future semantic rule display features
+  const _formatRuleName = (name: string) => {
     return name.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Card,
@@ -24,7 +23,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Alert,
   Snackbar,
   Chip,
@@ -66,7 +64,7 @@ interface Role {
   permissions: string[];
 }
 
-const roleIcons: Record<string, JSX.Element> = {
+const roleIcons: Record<string, React.ReactElement> = {
   super_admin: <AdminIcon color="error" />,
   security_admin: <SecurityIcon color="warning" />,
   security_analyst: <AnalystIcon color="info" />,
@@ -116,7 +114,7 @@ const Users: React.FC = () => {
     try {
       const response = await api.get('/api/users/roles');
       setRoles(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading roles:', err);
     }
   };
@@ -136,7 +134,7 @@ const Users: React.FC = () => {
       const response = await api.get(`/api/users?${params.toString()}`);
       setUsers(response.users);
       setTotal(response.total);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load users');
       console.error('Error loading users:', err);
     } finally {
@@ -148,8 +146,11 @@ const Users: React.FC = () => {
     loadRoles();
   }, []);
 
+  // Load users when pagination or filters change
+  // ESLint disable: loadUsers function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, search, roleFilter, statusFilter]);
 
   const handleAddUser = () => {
@@ -185,7 +186,7 @@ const Users: React.FC = () => {
       await api.delete(`/api/users/${user.id}`);
       setSuccess('User deleted successfully');
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to delete user');
       console.error('Error deleting user:', err);
     }
@@ -196,8 +197,8 @@ const Users: React.FC = () => {
       setLoading(true);
 
       if (editingUser) {
-        // Update existing user
-        const updateData: any = {};
+        // Update existing user - build partial update object with only changed fields
+        const updateData: Partial<typeof formData> = {};
         if (formData.username !== editingUser.username) updateData.username = formData.username;
         if (formData.email !== editingUser.email) updateData.email = formData.email;
         if (formData.role !== editingUser.role) updateData.role = formData.role;
@@ -214,7 +215,7 @@ const Users: React.FC = () => {
 
       setDialogOpen(false);
       loadUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(editingUser ? 'Failed to update user' : 'Failed to create user');
       console.error('Error saving user:', err);
     } finally {
@@ -222,7 +223,8 @@ const Users: React.FC = () => {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
+  // Generic form change handler - accepts any form field value type
+  const handleFormChange = (field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -342,7 +344,7 @@ const Users: React.FC = () => {
                       label={getRoleDisplay(user.role)}
                       size="small"
                       sx={{
-                        backgroundColor: roleColors[user.role] + '20',
+                        backgroundColor: `${roleColors[user.role]}20`,
                         color: roleColors[user.role],
                         fontWeight: 'medium',
                       }}

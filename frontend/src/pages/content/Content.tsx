@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { Container, Typography, Box, Tabs, Tab, Paper, useTheme, alpha } from '@mui/material';
+import { Typography, Box, Tabs, Tab } from '@mui/material';
 import {
   Folder as ContentIcon,
   AccountTree as RulesIcon,
   Computer as PlatformIcon,
-  Upload as UploadIcon,
-  Sync as SyncIcon,
   CloudSync as UploadSyncIcon,
 } from '@mui/icons-material';
 import ComplianceRulesContent from './ComplianceRulesContent';
@@ -44,7 +42,6 @@ function a11yProps(index: number) {
 }
 
 const Content: React.FC = () => {
-  const theme = useTheme();
   const [currentTab, setCurrentTab] = useState(0);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -118,8 +115,9 @@ const Content: React.FC = () => {
             onRuleFilterChange={(platform, capabilities) => {
               // Switch to Rules Explorer tab and apply platform/capability filters
               setCurrentTab(1);
-              // In a real implementation, this would trigger rule filtering
-              console.log('Filter rules by platform:', platform, 'capabilities:', capabilities);
+              // TODO: Implement rule filtering by platform and capabilities
+              void platform; // Suppress unused parameter warning
+              void capabilities; // Suppress unused parameter warning
             }}
           />
         </TabPanel>

@@ -11,7 +11,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  LinearProgress,
   Chip,
   Alert,
   AlertTitle,
@@ -25,10 +24,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Warning as WarningIcon,
-  Schedule as ScheduleIcon,
   NetworkCheck as NetworkIcon,
   Security as SecurityIcon,
-  Build as BuildIcon,
   Storage as StorageIcon,
   Extension as ExtensionIcon,
   PlayArrow as PlayArrowIcon,
@@ -37,7 +34,8 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
-import ErrorClassificationDisplay, { ClassifiedError } from './ErrorClassificationDisplay';
+import ErrorClassificationDisplay, { type ClassifiedError } from './ErrorClassificationDisplay';
+import type { SystemInfo } from '../../services/errorService';
 
 export interface ValidationRequest {
   host_id: string;
@@ -55,7 +53,8 @@ export interface ValidationResult {
   errors: ClassifiedError[];
   warnings: ClassifiedError[];
   pre_flight_duration: number;
-  system_info: Record<string, any>;
+  // System information collected during validation - see errorService.ts for structure
+  system_info: SystemInfo;
   validation_checks: Record<string, boolean>;
 }
 
@@ -92,7 +91,11 @@ const getStepIcon = (status: string, icon: React.ReactNode) => {
   }
 };
 
-const getStepColor = (status: string) => {
+/**
+ * Get MUI Chip color for validation step status
+ * Maps step status to Material-UI color palette values
+ */
+const getStepColor = (status: string): 'success' | 'error' | 'warning' | 'primary' | 'default' => {
   switch (status) {
     case 'success':
       return 'success';
@@ -155,10 +158,13 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
   const [showWarnings, setShowWarnings] = useState(false);
   const [showSystemInfo, setShowSystemInfo] = useState(false);
 
+  // Start validation when dialog opens with valid request
+  // ESLint disable: startValidation function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && validationRequest) {
       startValidation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, validationRequest]);
 
   const updateStepStatus = (
@@ -233,17 +239,19 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
       });
 
       setValidationResult(result);
-    } catch (error: any) {
+    } catch (error) {
+      // Handle validation errors with proper type checking
       console.error('Validation failed:', error);
+
+      // Extract error message from different error formats
+      const errorMessage =
+        (error as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
+        (error instanceof Error ? error.message : null) ||
+        'Validation failed';
 
       // Mark current step as failed
       if (currentStep >= 0 && currentStep < validationSteps.length) {
-        updateStepStatus(
-          validationSteps[currentStep].id,
-          'error',
-          undefined,
-          error.response?.data?.detail || error.message || 'Validation failed'
-        );
+        updateStepStatus(validationSteps[currentStep].id, 'error', undefined, errorMessage);
       }
 
       // Create a fallback validation result
@@ -278,8 +286,8 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
 
   const handleApplyFix = async (fixId: string) => {
     // This would integrate with the automated fix API
-    console.log('Applying fix:', fixId);
-    // TODO: Implement fix application
+    // TODO: Implement automated fix application for fix ID: ${fixId}
+    void fixId; // Suppress unused parameter warning
   };
 
   const handleClose = () => {
@@ -323,7 +331,7 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
                         <Typography variant="body1">{step.label}</Typography>
                         <Chip
                           label={step.status.charAt(0).toUpperCase() + step.status.slice(1)}
-                          color={getStepColor(step.status) as any}
+                          color={getStepColor(step.status)}
                           size="small"
                           variant="outlined"
                         />

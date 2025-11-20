@@ -31,7 +31,6 @@ import {
   Close,
   ExpandMore,
   ExpandLess,
-  Computer,
   Timer,
   Assessment,
 } from '@mui/icons-material';
@@ -110,10 +109,12 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
         }
       } else {
         const errorData = await response.json();
-        throw new (Error as any)(errorData.detail || 'Failed to fetch progress');
+        throw new Error(errorData.detail || 'Failed to fetch progress');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch progress');
+    } catch (err) {
+      // Handle progress fetch errors with proper type checking
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch progress';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -153,7 +154,11 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  /**
+   * Get MUI Chip color for bulk scan status
+   * Maps scan session status to Material-UI color palette values
+   */
+  const getStatusColor = (status: string): 'success' | 'error' | 'primary' | 'default' => {
     switch (status) {
       case 'completed':
         return 'success';
@@ -256,7 +261,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                   <Typography variant="h6">Overall Progress</Typography>
                   <Chip
                     label={session.status.toUpperCase()}
-                    color={getStatusColor(session.status) as any}
+                    color={getStatusColor(session.status)}
                     size="small"
                   />
                 </Box>
@@ -374,7 +379,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                               <Chip
                                 label={scan.status}
                                 size="small"
-                                color={getStatusColor(scan.status) as any}
+                                color={getStatusColor(scan.status)}
                                 variant="outlined"
                               />
                             </Box>

@@ -18,20 +18,16 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
-  Tooltip,
   IconButton,
 } from '@mui/material';
 import {
   ArrowForward as ArrowIcon,
   CheckCircle as CheckIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
   ArrowBack as BackIcon,
-  Settings as SettingsIcon,
   ExpandMore as ExpandMoreIcon,
   Clear as ClearIcon,
   AutoFixHigh as AutoIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 
 interface FieldMapperProps {
@@ -111,7 +107,7 @@ const FieldMapper: React.FC<FieldMapperProps> = ({
   onBack,
 }) => {
   const [mappings, setMappings] = useState<FieldMapping[]>(initialMappings);
-  const [hoveredTarget, setHoveredTarget] = useState<string | null>(null);
+  const [_hoveredTarget, _setHoveredTarget] = useState<string | null>(null);
 
   useEffect(() => {
     setMappings(initialMappings);

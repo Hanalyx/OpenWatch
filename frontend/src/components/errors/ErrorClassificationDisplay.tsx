@@ -13,12 +13,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  IconButton,
-  Link,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
   Paper,
   Typography,
   CircularProgress,
@@ -29,7 +23,6 @@ import {
   Error as ErrorIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
-  CheckCircle as CheckCircleIcon,
   Build as BuildIcon,
   PlayArrow as PlayArrowIcon,
   Refresh as RefreshIcon,
@@ -41,7 +34,10 @@ import {
   Extension as ExtensionIcon,
 } from '@mui/icons-material';
 
-// Type definitions matching Daniel's error classification system
+/**
+ * Automated fix action for remediation
+ * Provides command, safety info, and rollback capability
+ */
 export interface AutomatedFix {
   fix_id: string;
   description: string;
@@ -52,6 +48,10 @@ export interface AutomatedFix {
   rollback_command?: string;
 }
 
+/**
+ * Classified error from backend error classification system
+ * Provides structured error info, user guidance, and remediation options
+ */
 export interface ClassifiedError {
   error_code: string;
   category:
@@ -65,7 +65,8 @@ export interface ClassifiedError {
     | 'configuration';
   severity: 'critical' | 'error' | 'warning' | 'info';
   message: string;
-  technical_details?: Record<string, any>;
+  // Technical details from backend error analysis (stack traces, exit codes, etc.)
+  technical_details?: Record<string, string | number | boolean | object>;
   user_guidance: string;
   automated_fixes: AutomatedFix[];
   can_retry: boolean;
@@ -102,7 +103,13 @@ const getCategoryIcon = (category: string) => {
   }
 };
 
-const getCategoryColor = (category: string) => {
+/**
+ * Get MUI Chip color for error category
+ * Maps error categories to Material-UI color palette
+ */
+const getCategoryColor = (
+  category: string
+): 'info' | 'warning' | 'error' | 'primary' | 'default' => {
   switch (category) {
     case 'network':
       return 'info';
@@ -235,7 +242,7 @@ export const ErrorClassificationDisplay: React.FC<ErrorClassificationDisplayProp
                 <Chip
                   icon={getCategoryIcon(error.category)}
                   label={error.category.charAt(0).toUpperCase() + error.category.slice(1)}
-                  color={getCategoryColor(error.category) as any}
+                  color={getCategoryColor(error.category)}
                   size="small"
                 />
                 <Chip

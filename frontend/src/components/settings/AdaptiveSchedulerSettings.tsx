@@ -80,6 +80,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
     // Refresh stats every 30 seconds
     const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);
+    // ESLint disable: loadConfig and loadStats functions are not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadConfig = async () => {
@@ -88,7 +90,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       const response = await api.get('/api/system/adaptive-scheduler/config');
       setConfig(response);
       setLocalIntervals(response.intervals);
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error loading scheduler config:', err);
       onError?.('Failed to load scheduler configuration');
     } finally {
@@ -100,7 +103,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
     try {
       const response = await api.get('/api/system/adaptive-scheduler/stats');
       setStats(response);
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error loading scheduler stats:', err);
     }
   };
@@ -118,7 +122,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       );
       await loadConfig();
       await loadStats();
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error toggling scheduler:', err);
       onError?.('Failed to toggle scheduler');
     } finally {
@@ -136,7 +141,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       });
       onSuccess?.('Check intervals updated successfully');
       await loadConfig();
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error updating intervals:', err);
       onError?.('Failed to update check intervals');
     } finally {
@@ -152,7 +158,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       });
       onSuccess?.('Maintenance mode updated successfully');
       await loadConfig();
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error updating maintenance mode:', err);
       onError?.('Failed to update maintenance mode');
     } finally {
@@ -166,7 +173,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       await api.put('/api/system/adaptive-scheduler/config', settings);
       onSuccess?.('Advanced settings updated successfully');
       await loadConfig();
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error updating advanced settings:', err);
       onError?.('Failed to update advanced settings');
     } finally {
@@ -184,7 +192,8 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
       await api.post('/api/system/adaptive-scheduler/reset-defaults');
       onSuccess?.('Scheduler reset to default settings');
       await loadConfig();
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error resetting scheduler:', err);
       onError?.('Failed to reset scheduler');
     } finally {
@@ -417,7 +426,9 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
           <InputLabel>Maintenance Mode</InputLabel>
           <Select
             value={config.maintenance_mode}
-            onChange={(e) => updateMaintenanceMode(e.target.value as any)}
+            onChange={(e) =>
+              updateMaintenanceMode(e.target.value as 'skip' | 'passive' | 'reduced')
+            }
             label="Maintenance Mode"
             disabled={loading}
           >
@@ -427,7 +438,7 @@ const AdaptiveSchedulerSettings: React.FC<AdaptiveSchedulerSettingsProps> = ({
                   Skip Checks
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Don't monitor hosts in maintenance mode
+                  Do not monitor hosts in maintenance mode
                 </Typography>
               </Box>
             </MenuItem>

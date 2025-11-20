@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
-  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -12,31 +11,23 @@ import {
   IconButton,
   Tooltip,
   Badge,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Typography,
   FormControlLabel,
   Checkbox,
   Button,
-  InputAdornment,
   Collapse,
   useTheme,
   alpha,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   FilterList as FilterIcon,
-  ExpandMore as ExpandMoreIcon,
-  Clear as ClearIcon,
   ViewModule as GridIcon,
   ViewList as ListIcon,
   AccountTree as TreeIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { useDebounce } from '../../hooks/useDebounce';
-import { FilterState } from '../../store/slices/ruleSlice';
-import EnhancedSearchInput, { SearchSuggestion } from './EnhancedSearchInput';
+import { type FilterState } from '../../store/slices/ruleSlice';
+import EnhancedSearchInput, { type SearchSuggestion } from './EnhancedSearchInput';
 
 interface RuleFilterToolbarProps {
   searchQuery: string;
@@ -87,7 +78,9 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
 
   const severityOptions = ['high', 'medium', 'low', 'info'];
 
-  const handleFilterChange = (filterType: keyof FilterState, value: any) => {
+  // Handle filter changes - value type depends on which filter is being changed
+  // Array filters (platforms, severities, etc.) accept string[], abstract accepts boolean | null
+  const handleFilterChange = (filterType: keyof FilterState, value: string[] | boolean | null) => {
     onFiltersChange({ [filterType]: value });
   };
 
@@ -376,7 +369,7 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
                   <Checkbox
                     checked={filters.abstract === true}
                     indeterminate={filters.abstract === null}
-                    onChange={(e) => {
+                    onChange={() => {
                       if (filters.abstract === null) {
                         handleFilterChange('abstract', false);
                       } else if (filters.abstract === false) {

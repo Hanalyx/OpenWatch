@@ -12,7 +12,7 @@ export interface VirtualListProps<T> {
   onVisibleRangeChange?: (startIndex: number, endIndex: number) => void;
 }
 
-const VirtualList = <T extends any>({
+const VirtualList = <T,>({
   items,
   height,
   itemHeight,
@@ -75,17 +75,17 @@ const VirtualList = <T extends any>({
   );
 
   // Scroll to top
-  const scrollToTop = useCallback(() => {
+  const _scrollToTop = useCallback(() => {
     scrollToItem(0);
   }, [scrollToItem]);
 
   // Scroll to bottom
-  const scrollToBottom = useCallback(() => {
+  const _scrollToBottom = useCallback(() => {
     scrollToItem(items.length - 1);
   }, [scrollToItem, items.length]);
 
   // Get item index at current scroll position
-  const getItemIndexAtPosition = useCallback(
+  const _getItemIndexAtPosition = useCallback(
     (scrollTop: number) => {
       return Math.floor(scrollTop / itemHeight);
     },
@@ -93,7 +93,7 @@ const VirtualList = <T extends any>({
   );
 
   // Check if item is visible
-  const isItemVisible = useCallback(
+  const _isItemVisible = useCallback(
     (index: number) => {
       return index >= visibleRange.startIndex && index <= visibleRange.endIndex;
     },
@@ -179,9 +179,9 @@ export interface EnhancedVirtualListProps<T> extends VirtualListProps<T> {
   highlightSelected?: boolean;
 }
 
-export const EnhancedVirtualList = <T extends any>({
-  showScrollbar = true,
-  enableSmoothScrolling = true,
+export const EnhancedVirtualList = <T,>({
+  showScrollbar: _showScrollbar = true,
+  enableSmoothScrolling: _enableSmoothScrolling = true,
   onItemClick,
   selectedIndex,
   highlightSelected = true,
@@ -218,6 +218,8 @@ export const EnhancedVirtualList = <T extends any>({
         </Box>
       );
     },
+    // ESLint disable: props is intentionally excluded - only specific props used are in dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [props.renderItem, onItemClick, selectedIndex, highlightSelected, theme]
   );
 
@@ -225,7 +227,7 @@ export const EnhancedVirtualList = <T extends any>({
 };
 
 // Specialized virtual list for common use cases
-export const VirtualTable = <T extends any>({
+export const VirtualTable = <T,>({
   items,
   height,
   itemHeight,

@@ -19,7 +19,6 @@ import {
   Tag as TagIcon,
 } from '@mui/icons-material';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ruleService } from '../../services/ruleService';
 
 export interface SearchSuggestion {
   type: 'rule' | 'tag' | 'category' | 'framework' | 'history' | 'saved';
@@ -233,7 +232,8 @@ const EnhancedSearchInput: React.FC<EnhancedSearchInputProps> = ({
     return option.label;
   };
 
-  const renderOption = (props: any, option: SearchSuggestion) => {
+  // Custom render function for Autocomplete dropdown options
+  const renderOption = (props: React.HTMLAttributes<HTMLLIElement>, option: SearchSuggestion) => {
     const getTypeColor = (type: string) => {
       switch (type) {
         case 'rule':

@@ -41,7 +41,6 @@ import {
   Verified as VerifiedIcon,
   Warning as WarningIcon,
   Info as InfoIcon,
-  Close as CloseIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
@@ -50,9 +49,63 @@ import {
   History as HistoryIcon,
 } from '@mui/icons-material';
 
-interface UploadSyncRulesProps {}
+/**
+ * Validation results from SCAP content bundle processing
+ * Contains file hash, rule counts, and validation status
+ */
+interface ValidationResults {
+  fileHash?: string;
+  rulesCount: number;
+  validationPassed: boolean;
+}
 
-const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
+/**
+ * Error or warning message from upload processing
+ * Can be a simple string or an object with a message property
+ */
+interface UploadMessage {
+  message?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Statistics from compliance rule import operation
+ * Tracks imported, updated, and skipped rule counts
+ */
+interface UploadStatistics {
+  imported?: number;
+  updated?: number;
+  skipped?: number;
+}
+
+/**
+ * SCAP content bundle manifest metadata
+ * Contains bundle name, version, and rule count information
+ */
+interface BundleManifest {
+  name: string;
+  version: string;
+  rules_count: number;
+}
+
+/**
+ * Upload history record from backend API
+ * Complete record of a compliance rule bundle upload operation
+ */
+interface UploadHistoryRecord {
+  upload_id: string;
+  file_name: string;
+  timestamp: string;
+  status: string;
+  phase: string;
+  statistics?: UploadStatistics;
+  manifest?: BundleManifest;
+  processing_time_seconds?: number;
+  errors?: UploadMessage[];
+  warnings?: UploadMessage[];
+}
+
+const UploadSyncRules: React.FC = () => {
   const theme = useTheme();
 
   // State management
@@ -66,12 +119,12 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [operationType, setOperationType] = useState<'sync' | 'upload' | null>(null);
-  const [validationResults, setValidationResults] = useState<any>(null);
+  const [validationResults, setValidationResults] = useState<ValidationResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   // Upload history state
-  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [uploadHistory, setUploadHistory] = useState<UploadHistoryRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -129,8 +182,10 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       setLastSyncTime(new Date().toLocaleString());
       setSuccess('Successfully synchronized compliance rules from Hanalyx repository');
-    } catch (err: any) {
-      setError(`Sync failed: ${err.message}`);
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Sync failed: ${errorMessage}`);
     } finally {
       setSyncing(false);
       setSyncProgress(0);
@@ -220,8 +275,10 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
         throw new Error(result.errors?.[0]?.message || 'Upload validation failed');
       }
-    } catch (err: any) {
-      setError(`Upload failed: ${err.message}`);
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Upload failed: ${errorMessage}`);
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -260,9 +317,11 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
 
       const data = await response.json();
       setUploadHistory(data.uploads || []);
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error loading upload history:', err);
-      setError(`Failed to load upload history: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to load upload history: ${errorMessage}`);
     } finally {
       setLoadingHistory(false);
     }
@@ -320,8 +379,10 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
       document.body.removeChild(a);
 
       setSuccess(`Report exported: ${filename}`);
-    } catch (err: any) {
-      setError(`Failed to export report: ${err.message}`);
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to export report: ${errorMessage}`);
     }
   };
 
@@ -873,10 +934,12 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                           <Stack spacing={1}>
                                             {upload.errors
                                               .slice(0, 5)
-                                              .map((error: any, idx: number) => (
+                                              .map((error: UploadMessage | string, idx: number) => (
                                                 <Alert key={idx} severity="error" sx={{ py: 0 }}>
                                                   <Typography variant="body2">
-                                                    {error.message || error}
+                                                    {typeof error === 'string'
+                                                      ? error
+                                                      : error.message || String(error)}
                                                   </Typography>
                                                 </Alert>
                                               ))}
@@ -911,13 +974,21 @@ const UploadSyncRules: React.FC<UploadSyncRulesProps> = () => {
                                           <Stack spacing={1}>
                                             {upload.warnings
                                               .slice(0, 3)
-                                              .map((warning: any, idx: number) => (
-                                                <Alert key={idx} severity="warning" sx={{ py: 0 }}>
-                                                  <Typography variant="body2">
-                                                    {warning.message || warning}
-                                                  </Typography>
-                                                </Alert>
-                                              ))}
+                                              .map(
+                                                (warning: UploadMessage | string, idx: number) => (
+                                                  <Alert
+                                                    key={idx}
+                                                    severity="warning"
+                                                    sx={{ py: 0 }}
+                                                  >
+                                                    <Typography variant="body2">
+                                                      {typeof warning === 'string'
+                                                        ? warning
+                                                        : warning.message || String(warning)}
+                                                    </Typography>
+                                                  </Alert>
+                                                )
+                                              )}
                                             {upload.warnings.length > 3 && (
                                               <Typography variant="caption" color="text.secondary">
                                                 ... and {upload.warnings.length - 3} more warnings

@@ -28,19 +28,17 @@ import {
   ExpandMore as ExpandMoreIcon,
   TrendingUp as TrendingUpIcon,
   Security as SecurityIcon,
-  Computer as PlatformIcon,
-  Assessment as AnalyticsIcon,
   Lightbulb as InsightIcon,
   Star as RecommendationIcon,
   Add as AddIcon,
   Refresh as RefreshIcon,
   Speed as PerformanceIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 import {
   ruleIntelligenceService,
-  RuleIntelligenceAnalysis,
-  RuleRecommendation,
+  type RuleIntelligenceAnalysis,
+  type RuleRecommendation,
 } from '../../services/ruleIntelligenceService';
 
 interface RuleIntelligencePanelProps {
@@ -68,11 +66,13 @@ const RuleIntelligencePanel: React.FC<RuleIntelligencePanelProps> = ({
     new Set(['recommendations', 'insights'])
   );
 
-  // Load intelligence analysis
+  // Load intelligence analysis when available rules or platform changes
+  // ESLint disable: loadIntelligence function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (availableRules.length > 0) {
       loadIntelligence();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableRules, currentPlatform]);
 
   const loadIntelligence = async () => {

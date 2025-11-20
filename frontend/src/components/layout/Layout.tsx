@@ -20,8 +20,18 @@ import {
   useTheme,
   useMediaQuery,
   Tooltip,
-  styled,
 } from '@mui/material';
+
+/**
+ * Window interface extension for legacy browser bookmark APIs
+ * These APIs are deprecated but still exist in some browsers
+ */
+interface WindowWithBookmarkAPI extends Window {
+  external?: {
+    AddSearchProvider?: unknown;
+    AddFavorite?: (url: string, title: string) => void;
+  };
+}
 import {
   Menu as MenuIcon,
   Dashboard,
@@ -39,8 +49,6 @@ import {
   ChevronRight,
   DarkMode,
   LightMode,
-  CloudSync,
-  Psychology,
   OpenInNew,
   Launch,
   Download,
@@ -243,10 +251,9 @@ const Layout: React.FC = () => {
 
       try {
         await navigator.clipboard.writeText(fullUrl);
-        // You could add a toast notification here for feedback
-        console.log('Link copied to clipboard:', fullUrl);
-      } catch (err) {
-        console.error('Failed to copy link to clipboard:', err);
+        // Link successfully copied to clipboard for user
+      } catch {
+        console.error('Failed to copy link to clipboard');
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = fullUrl;
@@ -275,16 +282,23 @@ const Layout: React.FC = () => {
     handleContextMenuClose();
   };
 
+  // Handle bookmark link using legacy browser API or instruction fallback
   const handleBookmarkLink = () => {
     if (contextMenuItem) {
       const baseUrl = window.location.origin;
       const fullUrl = `${baseUrl}${contextMenuItem.path}`;
 
-      // For modern browsers that support the Bookmarks API
-      if ('external' in window && 'AddSearchProvider' in (window as any).external) {
+      // Cast window to type-safe interface for legacy bookmark API
+      const windowWithBookmark = window as WindowWithBookmarkAPI;
+
+      // For legacy browsers that support the AddFavorite API
+      if (
+        'external' in windowWithBookmark &&
+        windowWithBookmark.external?.AddSearchProvider !== undefined
+      ) {
         try {
-          (window as any).external.AddFavorite(fullUrl, contextMenuItem.text);
-        } catch (err) {
+          windowWithBookmark.external?.AddFavorite?.(fullUrl, contextMenuItem.text);
+        } catch {
           // Fallback: show instruction to user
           alert(
             `To bookmark this page, press Ctrl+D (or Cmd+D on Mac) when viewing: ${contextMenuItem.text}`

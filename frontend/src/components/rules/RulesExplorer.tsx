@@ -8,28 +8,19 @@ import {
   Pagination,
   Alert,
   AlertTitle,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   Snackbar,
   IconButton,
   Fab,
-  useTheme,
-  alpha,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon,
   Download as DownloadIcon,
-  Upload as UploadIcon,
   Close as CloseIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../../store';
+import { type RootState, type AppDispatch } from '../../store';
 import {
   selectRule,
   setViewMode,
@@ -42,7 +33,9 @@ import {
   fetchRuleDetails,
   fetchRuleDependencies,
   exportRules,
-  Rule,
+  type Rule,
+  type SearchRequest,
+  type FilterState,
 } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import RuleCard from './RuleCard';
@@ -56,13 +49,11 @@ interface RulesExplorerProps {
   onRuleSelect?: (rule: Rule) => void; // Optional: callback when rule is selected
 }
 
-const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }) => {
-  const theme = useTheme();
+const RulesExplorer: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
   const dispatch = useDispatch<AppDispatch>();
 
   // Redux state
   const {
-    rules,
     filteredRules,
     selectedRule,
     searchQuery,
@@ -85,9 +76,11 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Initial load
+  // Load rules on component mount
+  // ESLint disable: loadRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper to convert filter state to API params
@@ -102,7 +95,7 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
   // Load rules function
   const loadRules = async () => {
     try {
-      const rulesData = await ruleService.getRules({
+      await ruleService.getRules({
         offset: pagination.offset,
         limit: pagination.limit,
         ...getFilterParams(),
@@ -132,10 +125,10 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
     );
   }, [pagination, activeFilters, dispatch]);
 
-  // Search function
-  const performSearch = async (searchParams: any) => {
+  // Search function - accepts structured search request with query and optional filters
+  const performSearch = async (searchParams: SearchRequest) => {
     try {
-      const searchResults = await ruleService.searchRules(searchParams);
+      await ruleService.searchRules(searchParams);
       // Handle search results
     } catch (error) {
       console.error('Error searching rules:', error);
@@ -165,9 +158,9 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
     [activeFilters, dispatch, handleRefresh]
   );
 
-  // Handle filter changes
+  // Handle filter changes - accepts partial filter state for flexible updates
   const handleFilterChange = useCallback(
-    (filters: any) => {
+    (filters: Partial<FilterState>) => {
       dispatch(updateFilters(filters));
       dispatch(setPagination({ offset: 0, limit: pagination.limit }));
 
@@ -304,7 +297,7 @@ const RulesExplorer: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }
       window.URL.revokeObjectURL(url);
 
       setSnackbarMessage(`Successfully exported ${ruleIds.length} rules`);
-    } catch (error) {
+    } catch {
       setSnackbarMessage('Failed to export rules');
     } finally {
       setExportLoading(false);

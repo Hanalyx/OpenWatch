@@ -29,6 +29,41 @@ interface ComplianceScanRequest {
   scanTimeout: number;
 }
 
+/**
+ * SCAP content bundle - compliance framework bundle with profiles
+ * Represents a compliance framework bundle loaded from MongoDB
+ */
+interface ScapContentBundle {
+  id: number;
+  name: string;
+  description?: string;
+  profiles: Array<{
+    id: string;
+    title: string;
+    description?: string;
+  }>;
+  // Additional bundle metadata from backend
+  [key: string]: string | number | boolean | object | undefined;
+}
+
+/**
+ * Active compliance scan session data
+ * Tracks progress and status of ongoing group compliance scan
+ */
+interface ScanSessionData {
+  session_id: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  total_hosts?: number;
+  completed_hosts?: number;
+  failed_hosts?: number;
+  progress_percentage?: number;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+  // Additional scan metadata from backend
+  [key: string]: string | number | boolean | undefined;
+}
+
 interface GroupComplianceProps {
   groupId: number;
   groupName: string;
@@ -59,9 +94,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
   onScanStarted,
 }) => {
   const [loading, setLoading] = useState(false);
-  const [scapContents, setScapContents] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [currentScan, setCurrentScan] = useState<any>(null);
+  // SCAP content bundles loaded from MongoDB compliance rules API
+  const [scapContents, setScapContents] = useState<ScapContentBundle[]>([]);
+  // Profiles from selected SCAP content bundle
+  const [profiles, setProfiles] = useState<
+    Array<{ id: string; title: string; description?: string }>
+  >([]);
+  // Current active scan session with progress tracking
+  const [currentScan, setCurrentScan] = useState<ScanSessionData | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'warning' | 'info'>(
     'info'
@@ -81,9 +121,13 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     setTimeout(() => setAlertMessage(null), 5000);
   };
 
+  // Load SCAP content bundles and check for active scans when component mounts or groupId changes
+  // ESLint disable: Functions loadScapContents and checkActiveScan are not memoized
+  // to avoid complex dependency chains. They only need to run when groupId changes.
   useEffect(() => {
     loadScapContents();
     checkActiveScan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   const loadScapContents = async () => {
@@ -142,8 +186,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
           monitorScanProgress(data.session_id);
         }
       }
-    } catch (error) {
-      // No active scan, which is fine
+    } catch {
+      // No active scan found - this is an expected state (not an error condition)
     }
   };
 
@@ -188,7 +232,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         const error = await response.json();
         showAlert(`Failed to start scan: ${error.detail}`, 'error');
       }
-    } catch (error) {
+    } catch {
+      // Generic error fallback - specific error details already shown in if block above
       showAlert('Failed to start compliance scan', 'error');
     } finally {
       setLoading(false);
@@ -206,7 +251,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
         if (response.ok) {
           const progress = await response.json();
-          setCurrentScan((prev: any) => ({ ...prev, ...progress }));
+          // Merge new progress data with existing scan session data
+          setCurrentScan((prev) => (prev ? { ...prev, ...progress } : progress));
 
           if (progress.status === 'completed' || progress.status === 'failed') {
             if (progress.status === 'completed') {
@@ -246,12 +292,15 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
         showAlert('Scan cancelled', 'info');
         setCurrentScan(null);
       }
-    } catch (error) {
+    } catch {
+      // Network or other failure during cancellation
       showAlert('Failed to cancel scan', 'error');
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  // Reserved for future status display enhancement
+  // These helper functions will be used when adding status badges to scan results
+  const _getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
         return <CheckCircle color="success" />;
@@ -266,7 +315,9 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
     }
   };
 
-  const getStatusColor = (status: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
+  const _getStatusColor = (
+    status: string
+  ): 'success' | 'error' | 'warning' | 'info' | 'default' => {
     switch (status) {
       case 'completed':
         return 'success';

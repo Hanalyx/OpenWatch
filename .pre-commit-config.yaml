@@ -93,17 +93,17 @@ repos:
 
       - id: frontend-lint
         name: ESLint Frontend
-        entry: bash -c 'cd frontend && npm run lint'
+        entry: bash -c 'cd frontend && npx eslint --max-warnings=0 $(echo "$@" | sed "s|frontend/||g")' --
         language: system
         files: ^frontend/src/.*\.(ts|tsx|js|jsx)$
-        pass_filenames: false
+        pass_filenames: true
 
       - id: prettier
         name: Prettier Frontend Formatting
-        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{js,jsx,ts,tsx,css,scss,json}"'
+        entry: bash -c 'cd frontend && npx prettier --check $(echo "$@" | sed "s|frontend/||g")' --
         language: system
         files: ^frontend/src/.*\.(ts|tsx|js|jsx|css|scss|json)$
-        pass_filenames: false
+        pass_filenames: true
 
       - id: frontend-typecheck
         name: TypeScript Type Check

@@ -22,7 +22,6 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
-  Divider,
   LinearProgress,
 } from '@mui/material';
 import {
@@ -30,8 +29,6 @@ import {
   Security as SecurityIcon,
   PlayArrow as PlayArrowIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Schedule as ScheduleIcon,
   NetworkCheck as NetworkCheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -39,7 +36,7 @@ import { api } from '../../services/api';
 import { ScanService } from '../../services/scanService';
 import PreFlightValidationDialog from '../../components/errors/PreFlightValidationDialog';
 import ErrorClassificationDisplay, {
-  ClassifiedError,
+  type ClassifiedError,
 } from '../../components/errors/ErrorClassificationDisplay';
 import { errorService } from '../../services/errorService';
 import { SUPPORTED_PLATFORMS, SUPPORTED_FRAMEWORKS } from '../../constants/complianceFrameworks';
@@ -52,6 +49,20 @@ interface Host {
   status: string;
   platform?: string; // e.g., 'rhel', 'ubuntu'
   platform_version?: string; // e.g., '8', '22.04'
+}
+
+/**
+ * Raw host data from API response
+ * Contains backend field names before transformation to frontend Host interface
+ */
+interface RawHostData {
+  id: string;
+  hostname: string;
+  display_name?: string;
+  operating_system: string;
+  status: string;
+  platform?: string;
+  platform_version?: string;
 }
 
 const steps = ['Select Host', 'Choose Framework', 'Configure Scan', 'Review & Start'];
@@ -73,7 +84,7 @@ const NewScapScan: React.FC = () => {
   const [hosts, setHosts] = useState<Host[]>([]);
 
   // UI state
-  const [loading, setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false); // Setter declared but not currently used - may be used for future loading states
   const [starting, setStarting] = useState(false);
   const [showPreFlightDialog, setShowPreFlightDialog] = useState(false);
   const [scanError, setScanError] = useState<ClassifiedError | null>(null);
@@ -94,8 +105,11 @@ const NewScapScan: React.FC = () => {
     setSnackbar({ open: true, message, severity });
   };
 
+  // Fetch hosts on component mount
+  // ESLint disable: fetchHosts function is not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchHosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -111,8 +125,8 @@ const NewScapScan: React.FC = () => {
   const fetchHosts = async () => {
     try {
       const data = await api.get('/api/hosts/');
-      // Convert API data to expected format
-      const formattedHosts = data.map((host: any) => ({
+      // Transform backend host data to frontend Host interface
+      const formattedHosts = data.map((host: RawHostData) => ({
         id: host.id, // Keep as string UUID
         name: host.display_name || host.hostname,
         hostname: host.hostname,
@@ -120,7 +134,7 @@ const NewScapScan: React.FC = () => {
         status: host.status,
       }));
       setHosts(formattedHosts);
-    } catch (error) {
+    } catch {
       showSnackbar('Failed to load hosts', 'error');
     }
   };
@@ -192,15 +206,15 @@ const NewScapScan: React.FC = () => {
       setTimeout(() => {
         navigate(`/scans/${result.scan_id}`);
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Scan creation failed:', error);
 
-      // Try to classify the error using our error service
+      // Type-safe error classification using errorService
       const classification = errorService.getErrorClassification(error);
       if (classification) {
         setScanError(classification);
       } else {
-        // Fallback to generic error
+        // Fallback to generic error classification
         setScanError(errorService.classifyGenericError(error));
       }
     } finally {
@@ -221,7 +235,8 @@ const NewScapScan: React.FC = () => {
       await errorService.applyAutomatedFix(selectedHost.id, fixId);
       showSnackbar('Fix applied successfully', 'success');
       setScanError(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Type-safe error message extraction using errorService
       showSnackbar(errorService.getUserFriendlyError(error), 'error');
     }
   };

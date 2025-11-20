@@ -25,20 +25,8 @@ import {
   Grid,
   Slider,
   IconButton,
-  Divider,
 } from '@mui/material';
-import {
-  Computer,
-  Group,
-  Schedule,
-  PlayArrow,
-  Close,
-  Warning,
-  Info,
-  CheckCircle,
-  AutoAwesome,
-  Timer,
-} from '@mui/icons-material';
+import { Computer, PlayArrow, Close, Info, AutoAwesome, Timer } from '@mui/icons-material';
 
 interface Host {
   id: string;
@@ -119,10 +107,13 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
     },
   ];
 
+  // Analyze scan feasibility when dialog opens with selected hosts
+  // ESLint disable: analyzeFeasibility function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && selectedHosts.length > 0) {
       analyzeFeasibility();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedHosts]);
 
   const analyzeFeasibility = async () => {
@@ -187,8 +178,11 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
       }
 
       setFeasibility(mockAnalysis);
-    } catch (err: any) {
-      setError(err.message || 'Failed to analyze bulk scan feasibility');
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to analyze bulk scan feasibility';
+      setError(errorMessage);
     } finally {
       setFeasibilityLoading(false);
     }
@@ -224,8 +218,9 @@ const BulkScanDialog: React.FC<BulkScanDialogProps> = ({
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to start bulk scan');
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to start bulk scan';
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start bulk scan';
       setError(errorMessage);
       if (onError) {
         onError(errorMessage);

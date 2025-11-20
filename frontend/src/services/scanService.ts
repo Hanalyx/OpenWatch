@@ -47,6 +47,88 @@ interface ScanProgressResponse {
   }>;
 }
 
+/**
+ * MongoDB-based scan response from backend
+ * Contains scan ID, execution status, and basic scan metadata
+ */
+interface MongoDBScanResponse {
+  scan_id: string;
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  message?: string;
+  host_id?: string;
+  hostname?: string;
+  framework?: string;
+  platform?: string;
+  created_at?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Legacy SCAP scan response from backend
+ * Contains scan ID and basic status information
+ */
+interface LegacyScanResponse {
+  id: string;
+  scan_id?: string;
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  message?: string;
+  host_id?: string;
+  created_at?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Detailed scan information from backend
+ * Includes scan configuration, progress, and result summary
+ */
+interface ScanDetailsResponse {
+  id: string;
+  scan_id?: string;
+  name?: string;
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress?: number;
+  host_id?: string;
+  hostname?: string;
+  profile_id?: string;
+  framework?: string;
+  platform?: string;
+  started_at?: string;
+  completed_at?: string;
+  compliance_score?: number;
+  passed_rules?: number;
+  failed_rules?: number;
+  total_rules?: number;
+  scan_options?: unknown;
+  error_message?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Scan results from backend
+ * Contains compliance findings and rule evaluation results
+ */
+interface ScanResultsResponse {
+  scan_id: string;
+  results?: Array<{
+    rule_id: string;
+    result: 'pass' | 'fail' | 'error' | 'notapplicable' | 'notchecked';
+    severity?: string;
+    title?: string;
+    description?: string;
+    [key: string]: unknown;
+  }>;
+  summary?: {
+    total_rules?: number;
+    passed?: number;
+    failed?: number;
+    errors?: number;
+    not_applicable?: number;
+    compliance_score?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 class ScanService {
   // Use centralized auth headers - no more direct localStorage access
 
@@ -150,16 +232,16 @@ class ScanService {
     platformVersion: string,
     framework: string,
     ruleIds?: string[]
-  ): Promise<any> {
+  ): Promise<MongoDBScanResponse> {
     const response = await fetch('/api/mongodb-scans/start', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
         host_id: hostId,
-        hostname: hostname,
-        platform: platform,
+        hostname,
+        platform,
         platform_version: platformVersion,
-        framework: framework,
+        framework,
         rule_ids: ruleIds,
         include_enrichment: true,
         generate_report: true,
@@ -185,7 +267,11 @@ class ScanService {
    * @param profileId - SCAP profile ID
    * @returns Scan response
    */
-  static async startHostScan(hostId: string, contentId: number, profileId: string): Promise<any> {
+  static async startHostScan(
+    hostId: string,
+    contentId: number,
+    profileId: string
+  ): Promise<LegacyScanResponse> {
     const response = await fetch('/api/scans/', {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -209,7 +295,7 @@ class ScanService {
   /**
    * Get scan details by scan ID
    */
-  static async getScanDetails(scanId: string): Promise<any> {
+  static async getScanDetails(scanId: string): Promise<ScanDetailsResponse> {
     const response = await fetch(`/api/scans/${scanId}`, {
       headers: getAuthHeaders(),
     });
@@ -240,7 +326,7 @@ class ScanService {
   /**
    * Get scan results by scan ID
    */
-  static async getScanResults(scanId: string): Promise<any> {
+  static async getScanResults(scanId: string): Promise<ScanResultsResponse> {
     const response = await fetch(`/api/scans/${scanId}/results`, {
       headers: getAuthHeaders(),
     });

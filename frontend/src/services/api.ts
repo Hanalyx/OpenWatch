@@ -1,15 +1,53 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios';
 
 // Use empty string for development (relies on Vite proxy) or explicit URL for production
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : '');
 
+/**
+ * Failed request queue entry for token refresh coordination
+ * Used to queue failed requests while token refresh is in progress
+ */
+interface QueuedRequest {
+  resolve: (token: string) => void;
+  reject: (error: Error) => void;
+}
+
+/**
+ * Redux store interface for window extension
+ * Global Redux store attached to window for development/debugging
+ */
+interface ReduxStore {
+  getState: () => {
+    auth?: {
+      token?: string;
+    };
+  };
+}
+
+/**
+ * Enhanced network error with additional properties
+ * Standard Error extended with custom error metadata
+ */
+interface NetworkError extends Error {
+  code?: string;
+  isNetworkError?: boolean;
+  response?: unknown;
+  status?: number;
+  statusText?: string;
+}
+
+/**
+ * Extended Window interface with Redux store
+ * Adds __REDUX_STORE__ property for development debugging
+ */
+interface WindowWithRedux extends Window {
+  __REDUX_STORE__?: ReduxStore;
+}
+
 class ApiClient {
   private instance: AxiosInstance;
   private isRefreshing = false;
-  private failedQueue: Array<{
-    resolve: (token: string) => void;
-    reject: (error: any) => void;
-  }> = [];
+  private failedQueue: QueuedRequest[] = [];
 
   constructor() {
     this.instance = axios.create({
@@ -21,7 +59,11 @@ class ApiClient {
     this.setupInterceptors();
   }
 
-  private processQueue(error: any, token: string | null = null) {
+  /**
+   * Process queued requests after token refresh completes
+   * Either resolves with new token or rejects with error
+   */
+  private processQueue(error: Error | null, token: string | null = null) {
     this.failedQueue.forEach((prom) => {
       if (error) {
         prom.reject(error);
@@ -40,16 +82,19 @@ class ApiClient {
         let token = localStorage.getItem('auth_token');
 
         // Try Redux store if localStorage token not found
-        if (!token && typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
-          const store = (window as any).__REDUX_STORE__;
-          const state = store.getState();
-          token = state.auth?.token;
+        // Type-safe access to window.__REDUX_STORE__ development extension
+        if (!token && typeof window !== 'undefined') {
+          const windowWithRedux = window as WindowWithRedux;
+          if (windowWithRedux.__REDUX_STORE__) {
+            const state = windowWithRedux.__REDUX_STORE__.getState();
+            token = state.auth?.token;
+          }
         }
 
         // Development helper: auto-login if no token found and we're in development
         if (!token && import.meta.env.DEV) {
           try {
-            console.log('[DEV] No auth token found, attempting auto-login...');
+            // Development mode: Auto-login with default credentials for testing
             const loginResponse = await fetch('/api/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -69,7 +114,7 @@ class ApiClient {
                 (Date.now() + loginData.expires_in * 1000).toString()
               );
 
-              console.log('[DEV] Auto-login successful');
+              // Development mode: Auto-login completed successfully
             }
           } catch (loginError) {
             console.warn('[DEV] Auto-login failed:', loginError);
@@ -100,13 +145,15 @@ class ApiClient {
     this.instance.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        // Network error (no response)
+        // Network error (no response) - create type-safe enhanced error
         if (!error.response) {
-          const networkError = new Error(
-            'Unable to connect to the server. Please check your network connection.'
+          const networkError: NetworkError = Object.assign(
+            new Error('Unable to connect to the server. Please check your network connection.'),
+            {
+              code: 'NETWORK_ERROR',
+              isNetworkError: true,
+            }
           );
-          (networkError as any).code = 'NETWORK_ERROR';
-          (networkError as any).isNetworkError = true;
           return Promise.reject(networkError);
         }
 
@@ -114,17 +161,22 @@ class ApiClient {
         if (error.response?.status === 401) {
           // Clear tokens from both places
           localStorage.removeItem('auth_token');
-          if (typeof window !== 'undefined' && (window as any).__REDUX_STORE__) {
+          // Type-safe window.__REDUX_STORE__ access
+          if (typeof window !== 'undefined' && (window as WindowWithRedux).__REDUX_STORE__) {
             // Could dispatch logout action here if needed
           }
           window.location.href = '/login';
         }
 
-        // Add additional context to error
-        const enhancedError = new Error(error.message || 'API request failed');
-        (enhancedError as any).response = error.response;
-        (enhancedError as any).status = error.response?.status;
-        (enhancedError as any).statusText = error.response?.statusText;
+        // Add additional context to error - type-safe property assignment
+        const enhancedError: NetworkError = Object.assign(
+          new Error(error.message || 'API request failed'),
+          {
+            response: error.response,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+          }
+        );
 
         return Promise.reject(enhancedError);
       }
@@ -136,34 +188,60 @@ class ApiClient {
     return meta?.getAttribute('content') || '';
   }
 
-  // API methods
-  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  /**
+   * HTTP GET request
+   * Generic T defaults to unknown - callers should specify expected response type
+   */
+  async get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.get<T>(url, config);
     return response.data;
   }
 
-  async post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  /**
+   * HTTP POST request
+   * Accepts any JSON-serializable data, returns typed response
+   */
+  async post<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.post<T>(url, data, config);
     return response.data;
   }
 
-  async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  /**
+   * HTTP PUT request
+   * Accepts any JSON-serializable data, returns typed response
+   */
+  async put<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.put<T>(url, data, config);
     return response.data;
   }
 
-  async patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+  /**
+   * HTTP PATCH request
+   * Accepts any JSON-serializable data, returns typed response
+   */
+  async patch<T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.patch<T>(url, data, config);
     return response.data;
   }
 
-  async delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  /**
+   * HTTP DELETE request
+   * Generic T defaults to unknown - callers should specify expected response type
+   */
+  async delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.delete<T>(url, config);
     return response.data;
   }
 
-  // File upload
-  async uploadFile(url: string, file: File, onProgress?: (progress: number) => void): Promise<any> {
+  /**
+   * File upload with progress tracking
+   * Returns unknown response - callers should specify expected type via generic
+   */
+  async uploadFile(
+    url: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<unknown> {
     const formData = new FormData();
     formData.append('file', file);
 

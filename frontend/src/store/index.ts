@@ -24,9 +24,19 @@ export const store = configureStore({
   },
 });
 
+/**
+ * Extend Window interface to include Redux store for API service access
+ * Allows centralized state access in non-React contexts (e.g., API interceptors)
+ */
+declare global {
+  interface Window {
+    __REDUX_STORE__?: typeof store;
+  }
+}
+
 // Expose store globally for API service access
 if (typeof window !== 'undefined') {
-  (window as any).__REDUX_STORE__ = store;
+  window.__REDUX_STORE__ = store;
 }
 
 export type RootState = ReturnType<typeof store.getState>;

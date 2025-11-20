@@ -26,21 +26,15 @@ import {
   DialogTitle,
   DialogContent,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import {
   Assessment,
   Warning,
   CheckCircle,
   Error,
-  TrendingUp,
-  TrendingDown,
   Download,
   Refresh,
-  FilterList,
-  Security,
   Computer,
-  BugReport,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -62,6 +56,17 @@ interface ComplianceReportProps {
   groupName: string;
 }
 
+/**
+ * Framework distribution data - compliance metrics per framework
+ * Contains host count and average compliance score for each framework
+ */
+interface FrameworkDistributionData {
+  hosts: number;
+  avg_score: number;
+  // Additional framework-specific metrics from backend
+  [key: string]: string | number | boolean | undefined;
+}
+
 interface ComplianceReport {
   group_id: number;
   group_name: string;
@@ -72,7 +77,8 @@ interface ComplianceReport {
   total_failed_rules: number;
   high_risk_hosts: number;
   medium_risk_hosts: number;
-  framework_distribution: Record<string, any>;
+  // Maps framework name to compliance metrics for that framework
+  framework_distribution: Record<string, FrameworkDistributionData>;
   compliance_trend: Array<{ date: string; score: number; scan_count: number }>;
   top_failed_rules: Array<{
     rule_id: string;
@@ -99,8 +105,6 @@ const COLORS = {
   primary: '#1976d2',
 };
 
-const PIE_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
-
 export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId, groupName }) => {
   const [report, setReport] = useState<ComplianceReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,8 +113,11 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
   const [dateRange, setDateRange] = useState<string>('30d');
   const [showHostDetails, setShowHostDetails] = useState(false);
 
+  // Load compliance report when groupId, framework, or date range changes
+  // ESLint disable: loadComplianceReport function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadComplianceReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, selectedFramework, dateRange]);
 
   const loadComplianceReport = async () => {
@@ -139,7 +146,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
       } else {
         setError('Failed to load compliance report');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load compliance report');
     } finally {
       setLoading(false);
@@ -185,11 +192,13 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
     return { level: 'High', color: COLORS.error };
   };
 
+  // Format framework distribution data for chart display
+  // Transforms Record<string, FrameworkDistributionData> to array format for Recharts
   const formatFrameworkDistribution = () => {
     if (!report?.framework_distribution) return [];
 
     return Object.entries(report.framework_distribution).map(
-      ([framework, data]: [string, any]) => ({
+      ([framework, data]: [string, FrameworkDistributionData]) => ({
         name: framework,
         hosts: data.hosts,
         score: data.avg_score,

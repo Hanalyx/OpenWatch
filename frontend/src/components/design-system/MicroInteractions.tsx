@@ -232,12 +232,17 @@ const MicroInteractions: React.FC<MicroInteractionsProps> = ({
   );
 };
 
-// HOC for easy animation wrapping
-export const withAnimation = (
-  WrappedComponent: React.ComponentType<any>,
+/**
+ * Higher-Order Component for animation wrapping
+ * Wraps any component with MicroInteractions animation capabilities
+ * Generic type P represents the props of the wrapped component
+ */
+// HOC for easy animation wrapping - wraps any component with animation capabilities
+export const withAnimation = <P extends object>(
+  WrappedComponent: React.ComponentType<P>,
   animationProps: Partial<MicroInteractionsProps> = {}
 ) => {
-  return React.forwardRef<any, any>((props, ref) => (
+  return React.forwardRef<HTMLElement, P>((props, ref) => (
     <MicroInteractions {...animationProps}>
       <WrappedComponent {...props} ref={ref} />
     </MicroInteractions>

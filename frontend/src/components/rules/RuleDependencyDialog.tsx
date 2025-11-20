@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -21,11 +21,10 @@ import {
   AccountTree as TreeIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
+import { type RootState } from '../../store';
 
 interface RuleDependencyDialogProps {
   open: boolean;
@@ -77,7 +76,7 @@ const RuleDependencyDialog: React.FC<RuleDependencyDialogProps> = ({ open, onClo
   };
 
   // Get color for dependency type
-  const getTypeColor = (type: 'requires' | 'conflicts' | 'related') => {
+  const _getTypeColor = (type: 'requires' | 'conflicts' | 'related') => {
     switch (type) {
       case 'requires':
         return theme.palette.success.main;

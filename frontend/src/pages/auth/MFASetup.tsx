@@ -25,21 +25,9 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
-import { QRCodeSVG } from 'qrcode.react';
-import {
-  Security,
-  Smartphone,
-  QrCode,
-  Check,
-  Warning,
-  ContentCopy,
-  Download,
-  VerifiedUser,
-  Key,
-  Shield,
-} from '@mui/icons-material';
+import { Security, ContentCopy, Download, VerifiedUser, Key, Shield } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
-import { useAppSelector, useAppDispatch } from '../../hooks/redux';
+import { useAppSelector } from '../../hooks/redux';
 import { tokenService } from '../../services/tokenService';
 import { announcer } from '../../utils/accessibility';
 
@@ -80,7 +68,6 @@ interface MFASecret {
 
 const MFASetup: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
 
   const [activeStep, setActiveStep] = useState(0);
@@ -94,7 +81,6 @@ const MFASetup: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<MFASetupData>();
 
   useEffect(() => {
@@ -120,8 +106,10 @@ const MFASetup: React.FC = () => {
       announcer.announce(
         'MFA setup initialized. Please scan the QR code with your authenticator app.'
       );
-    } catch (err: any) {
-      setError(err.message || 'Failed to initialize MFA setup');
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize MFA setup';
+      setError(errorMessage);
       announcer.announce('Error initializing MFA setup', 'assertive');
     } finally {
       setLoading(false);
@@ -154,8 +142,10 @@ const MFASetup: React.FC = () => {
       setSetupComplete(true);
       setActiveStep(2);
       announcer.announce('MFA setup completed successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to verify MFA code');
+    } catch (err: unknown) {
+      // Type-safe error handling - extract message if Error object, fallback otherwise
+      const errorMessage = err instanceof Error ? err.message : 'Failed to verify MFA code';
+      setError(errorMessage);
       announcer.announce('MFA verification failed', 'assertive');
     } finally {
       setLoading(false);
@@ -166,7 +156,7 @@ const MFASetup: React.FC = () => {
     try {
       await navigator.clipboard.writeText(text);
       announcer.announce('Copied to clipboard');
-    } catch (err) {
+    } catch {
       console.warn('Failed to copy to clipboard');
     }
   };
@@ -200,7 +190,7 @@ const MFASetup: React.FC = () => {
     announcer.announce('Backup codes downloaded');
   };
 
-  const steps = [
+  const _steps = [
     {
       label: 'Install Authenticator App',
       description: 'Choose and install a compatible authenticator application',

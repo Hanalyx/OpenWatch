@@ -22,8 +22,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Collapse,
-  IconButton,
   Grid,
   Card,
   CardContent,
@@ -33,10 +31,8 @@ import {
   PlayArrow as ImportIcon,
   Preview as PreviewIcon,
   CheckCircle as SuccessIcon,
-  Error as ErrorIcon,
   Warning as WarningIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
 
@@ -113,12 +109,16 @@ const DataPreview: React.FC<DataPreviewProps> = ({
   dryRun,
   setDryRun,
 }) => {
-  const [previewData, setPreviewData] = useState<any[]>([]);
+  // CSV rows mapped to target host fields (field names as keys, CSV values as values)
+  const [previewData, setPreviewData] = useState<Record<string, string | number>[]>([]);
   const [showErrors, setShowErrors] = useState(true);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
+  // Generate preview when CSV data or field mappings change
+  // ESLint disable: generatePreview function is not memoized to avoid complex dependency chain
   useEffect(() => {
     generatePreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [csvData, fieldMappings]);
 
   const generatePreview = () => {
@@ -142,7 +142,8 @@ const DataPreview: React.FC<DataPreviewProps> = ({
 
       for (let i = 1; i < Math.min(6, lines.length); i++) {
         const values = lines[i].split(',').map((v) => v.trim().replace(/"/g, ''));
-        const mappedRow: any = {};
+        // Mapped row - dynamically built from CSV using field mappings
+        const mappedRow: Record<string, string | number> = {};
 
         // Apply field mappings
         headers.forEach((header, index) => {

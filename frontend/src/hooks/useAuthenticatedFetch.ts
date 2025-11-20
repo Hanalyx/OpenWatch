@@ -18,7 +18,12 @@ export const useAuthenticatedFetch = () => {
 
   const get = useCallback((url: string) => authenticatedFetch(url), [authenticatedFetch]);
 
+  /**
+   * HTTP POST request with authenticated fetch
+   * Accepts any JSON-serializable data for request body (objects, arrays, primitives)
+   */
   const post = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (url: string, data?: any) =>
       authenticatedFetch(url, {
         method: 'POST',
@@ -28,7 +33,12 @@ export const useAuthenticatedFetch = () => {
     [authenticatedFetch]
   );
 
+  /**
+   * HTTP PUT request with authenticated fetch
+   * Accepts any JSON-serializable data for request body (objects, arrays, primitives)
+   */
   const put = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (url: string, data?: any) =>
       authenticatedFetch(url, {
         method: 'PUT',

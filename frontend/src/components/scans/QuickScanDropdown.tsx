@@ -9,7 +9,6 @@ import {
   Chip,
   Box,
   Typography,
-  Alert,
   CircularProgress,
   Tooltip,
 } from '@mui/material';
@@ -54,7 +53,8 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
   const [loading, setLoading] = useState(false);
   const [loadingScan, setLoadingScan] = useState<string | null>(null);
   const [templates, setTemplates] = useState<ScanTemplate[]>([]);
-  const [recommendedProfile, setRecommendedProfile] = useState<any>(null);
+  // Recommended scan profile based on host characteristics
+  const [recommendedProfile, setRecommendedProfile] = useState<ScanTemplate | null>(null);
 
   const open = Boolean(anchorEl);
 
@@ -107,9 +107,11 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
     },
   ];
 
+  // Load intelligent profile recommendation when component mounts or hostId changes
+  // ESLint disable: loadProfileRecommendation function is not memoized to avoid complex dependency chain
   useEffect(() => {
-    // Load intelligent profile recommendation when component mounts
     loadProfileRecommendation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostId]);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -195,8 +197,9 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           onError(errorMessage);
         }
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Failed to start scan';
+    } catch (error) {
+      // Handle scan execution errors with proper type checking
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start scan';
       if (onError) {
         onError(errorMessage);
       }
@@ -305,7 +308,7 @@ const QuickScanDropdown: React.FC<QuickScanDropdownProps> = ({
           )}
         </Box>
 
-        {templates.map((template, index) => (
+        {templates.map((template) => (
           <MenuItem
             key={template.id}
             onClick={() => handleScanStart(template.id, template.name)}

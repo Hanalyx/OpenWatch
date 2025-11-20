@@ -17,12 +17,13 @@ import {
   Slider,
   Typography,
 } from '@mui/material';
-import type { VariableDefinition } from '@/types/scanConfig';
+import type { VariableDefinition, VariableDefaultValue } from '@/types/scanConfig';
 
 interface VariableInputProps {
   variable: VariableDefinition;
-  value: any;
-  onChange: (value: any) => void;
+  // Variable value matches the type defined in VariableDefinition (string | number | boolean)
+  value: VariableDefaultValue;
+  onChange: (value: VariableDefaultValue) => void;
   error?: string;
 }
 
@@ -134,8 +135,8 @@ export const VariableInput: React.FC<VariableInputProps> = ({
     );
   }
 
-  // Default: text input
-  const inputProps: any = {};
+  // Default: text input with optional pattern validation
+  const inputProps: React.InputHTMLAttributes<HTMLInputElement> = {};
   if (variable.constraints?.match) {
     inputProps.pattern = variable.constraints.match;
   }

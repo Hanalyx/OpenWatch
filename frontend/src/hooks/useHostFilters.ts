@@ -23,7 +23,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Host } from '../types/host';
-import type { ViewMode, GroupBy } from '../components/design-system';
+import type { GroupBy } from '../components/design-system';
 
 /**
  * Grouped hosts structure for display.

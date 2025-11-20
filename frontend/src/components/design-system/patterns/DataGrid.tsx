@@ -1,23 +1,17 @@
 import React from 'react';
-import {
-  Box,
-  Grid,
-  Typography,
-  Collapse,
-  IconButton,
-  Chip,
-  useTheme,
-  Stack,
-  List,
-  ListItem,
-} from '@mui/material';
+import { Box, Grid, Typography, Collapse, IconButton, Chip, useTheme, Stack } from '@mui/material';
 import { ExpandMore, ChevronRight } from '@mui/icons-material';
 
 export type ViewMode = 'grid' | 'list' | 'compact';
 
+/**
+ * Base interface for data grid items
+ * Requires id field, allows additional properties with unknown type for type safety
+ */
 export interface DataGridItem {
   id: string;
-  [key: string]: any;
+  // Allow additional properties - consumers should define specific types via generics
+  [key: string]: unknown;
 }
 
 export interface DataGridGroup {

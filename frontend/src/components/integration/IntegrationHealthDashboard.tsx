@@ -6,10 +6,8 @@ import {
   Typography,
   Grid,
   Chip,
-  LinearProgress,
   Alert,
   Button,
-  IconButton,
   Tooltip,
   Table,
   TableBody,
@@ -20,13 +18,6 @@ import {
   Paper,
   CircularProgress,
   Divider,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -38,25 +29,8 @@ import {
   TrendingFlat as TrendingFlatIcon,
   Speed as SpeedIcon,
   Timeline as TimelineIcon,
-  ExpandMore as ExpandMoreIcon,
   Api as ApiIcon,
-  CloudSync as CloudSyncIcon,
-  Security as SecurityIcon,
 } from '@mui/icons-material';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as ChartTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
 
 interface HealthMetrics {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
@@ -106,7 +80,7 @@ const IntegrationHealthDashboard: React.FC = () => {
   const [performanceData, setPerformanceData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [_refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
   const fetchHealthMetrics = async () => {
     try {
@@ -161,6 +135,8 @@ const IntegrationHealthDashboard: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
+    // ESLint disable: refreshData function is not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getStatusColor = (status: string) => {

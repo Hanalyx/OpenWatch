@@ -25,37 +25,31 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
   CircularProgress,
   Tooltip,
-  Badge,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   Computer as ComputerIcon,
   Storage as StorageIcon,
-  Memory as MemoryIcon,
   NetworkCheck as NetworkCheckIcon,
   Security as SecurityIcon,
   Assessment as AssessmentIcon,
   PlayArrow as PlayArrowIcon,
   Visibility as VisibilityIcon,
-  GetApp as DownloadIcon,
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
   Settings as SettingsIcon,
   Terminal as TerminalIcon,
+  Flag as FlagIcon,
 } from '@mui/icons-material';
-import {
-  StatusChip,
-  ComplianceRing,
-  SSHKeyDisplay,
-  type SSHKeyInfo,
-} from '../../components/design-system';
+import { StatusChip, ComplianceRing, SSHKeyDisplay } from '../../components/design-system';
+import type { StatusType } from '../../components/design-system/StatusChip';
 import HostTerminal from '../../components/terminal/HostTerminal';
+import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
+import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
 import { api } from '../../services/api';
 
 interface Host {
@@ -142,32 +136,33 @@ const HostDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
+  const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
 
+  // Fetch host data when component mounts or id changes
+  // ESLint disable: Functions are not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchHostDetails();
     fetchHostScans();
     // Also try to get enhanced host data from hosts list
     fetchEnhancedHostData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchEnhancedHostData = async () => {
     try {
       const hosts = await api.get('/api/hosts/');
-      const enhancedHost = hosts.find((h: any) => h.id === id);
+      // Type-safe host lookup using existing Host interface which includes enhanced scan fields
+      const enhancedHost = hosts.find((h: Host) => h.id === id);
       if (enhancedHost) {
-        console.log('Found enhanced host data with scan info:', enhancedHost);
+        // Found enhanced host data including latest scan information
         // Update host with enhanced data
         setHost((prevHost) => ({
           ...prevHost,
           ...enhancedHost,
         }));
 
-        // Log scan information from host data
-        if (enhancedHost.latest_scan_id) {
-          console.log(
-            `Host has scan data: ${enhancedHost.latest_scan_name}, Score: ${enhancedHost.compliance_score}%`
-          );
-        }
+        // Check if host has associated scan data for display
+        void enhancedHost.latest_scan_id; // Available for UI rendering
       }
     } catch (error) {
       console.error('Error fetching enhanced host data:', error);
@@ -188,7 +183,7 @@ const HostDetail: React.FC = () => {
     try {
       // Use trailing slash to avoid redirect
       const data = await api.get(`/api/scans/?host_id=${id}`);
-      console.log(`Fetched ${data.scans?.length || 0} scans for host ${id}`);
+      // Retrieved scan history for host display
       setScans(data.scans || []);
     } catch (error) {
       console.error('Error fetching host scans:', error);
@@ -326,10 +321,17 @@ const HostDetail: React.FC = () => {
           </Typography>
         </Box>
         <Button
+          variant="outlined"
+          startIcon={<FlagIcon />}
+          onClick={() => setBaselineDialogOpen(true)}
+          sx={{ mr: 1 }}
+        >
+          Establish Baseline
+        </Button>
+        <Button
           variant="contained"
           startIcon={runningScan ? <VisibilityIcon /> : <PlayArrowIcon />}
           onClick={runningScan ? () => navigate(`/scans/${runningScan.id}`) : handleStartScan}
-          sx={{ mr: 1 }}
         >
           {runningScan ? 'View Running Scan' : 'Start New Scan'}
         </Button>
@@ -349,7 +351,8 @@ const HostDetail: React.FC = () => {
               </Typography>
               <Typography variant="body1">{host.operating_system}</Typography>
               <Box sx={{ mt: 2 }}>
-                <StatusChip status={host.status as any} size="small" />
+                {/* Type-safe status prop - host.status matches StatusType union */}
+                <StatusChip status={host.status as StatusType} size="small" />
               </Box>
             </CardContent>
           </Card>
@@ -613,6 +616,20 @@ const HostDetail: React.FC = () => {
             </Button>
           </Alert>
         )}
+
+        {/* Compliance Trend Chart */}
+        {scans.length > 0 && (
+          <Box sx={{ mt: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Compliance Trend
+            </Typography>
+            <Card>
+              <CardContent>
+                <ComplianceTrendChart hostId={host.id} height={300} />
+              </CardContent>
+            </Card>
+          </Box>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
@@ -710,6 +727,18 @@ const HostDetail: React.FC = () => {
           <HostTerminal hostId={host.id} hostname={host.hostname} ipAddress={host.ip_address} />
         </Box>
       </TabPanel>
+
+      {/* Baseline Establish Dialog */}
+      <BaselineEstablishDialog
+        open={baselineDialogOpen}
+        onClose={() => setBaselineDialogOpen(false)}
+        hostId={host.id}
+        hostname={host.hostname}
+        onBaselineEstablished={() => {
+          // Refresh scan data to show updated baseline status
+          fetchHostScans();
+        }}
+      />
     </Box>
   );
 };

@@ -1,5 +1,5 @@
 import { store } from '../store';
-import { refreshTokenSuccess, logout, checkSessionExpiry } from '../store/slices/authSlice';
+import { refreshTokenSuccess, logout } from '../store/slices/authSlice';
 
 class TokenService {
   private refreshTimer: NodeJS.Timeout | null = null;
@@ -80,7 +80,7 @@ class TokenService {
         })
       );
 
-      console.log('[SECURITY] Token refreshed successfully');
+      // Security: JWT token refreshed successfully - session extended
       return true;
     } catch (error) {
       console.error('[SECURITY] Token refresh failed:', error);

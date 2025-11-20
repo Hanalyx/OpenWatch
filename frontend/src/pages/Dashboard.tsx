@@ -1,25 +1,121 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Container, Grid, Box, Paper, Skeleton, Alert, Button, Typography } from '@mui/material';
+import { Container, Grid, Box, Skeleton, Alert, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Scanner, AddCircle, Warning, Assessment, Computer } from '@mui/icons-material';
+import { Scanner, AddCircle, Warning, Assessment } from '@mui/icons-material';
 
 // Dashboard components
 import SmartAlertBar from '../components/dashboard/SmartAlertBar';
 import QuickActionCard from '../components/dashboard/QuickActionCard';
 import FleetHealthWidget from '../components/dashboard/FleetHealthWidget';
-import ActivityFeed, { ActivityItem } from '../components/dashboard/ActivityFeed';
+import ActivityFeed, { type ActivityItem } from '../components/dashboard/ActivityFeed';
 import ComplianceTrend from '../components/dashboard/ComplianceTrend';
-import PriorityHosts, { PriorityHost } from '../components/dashboard/PriorityHosts';
-import { EmptyState } from '../components/design-system';
+import PriorityHosts from '../components/dashboard/PriorityHosts';
+import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
 import { api } from '../services/api';
 import QuickScanDialog from '../components/scans/QuickScanDialog';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
+
+/**
+ * Compliance trend data point for dashboard charts
+ * Represents historical compliance metrics across severity levels
+ */
+interface ComplianceTrendData {
+  date: string;
+  overall: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+/**
+ * Aggregated dashboard data from backend
+ * Combined metrics from hosts, scans, and compliance data
+ */
+interface DashboardData {
+  hosts: number;
+  scans: number;
+  complianceScore: number;
+  criticalIssues: number;
+  trendData: ComplianceTrendData[];
+  activities: ActivityItem[];
+}
+
+/**
+ * Raw host data from backend API
+ * May contain either snake_case or camelCase fields (backend inconsistency)
+ */
+interface RawHostData {
+  id?: string;
+  hostname?: string;
+  display_name?: string;
+  displayName?: string;
+  ip_address?: string;
+  ipAddress?: string;
+  operating_system?: string;
+  operatingSystem?: string;
+  status?: string;
+  critical_issues?: number;
+  criticalIssues?: number;
+  high_issues?: number;
+  highIssues?: number;
+  medium_issues?: number;
+  mediumIssues?: number;
+  low_issues?: number;
+  lowIssues?: number;
+  passed_rules?: number;
+  passedRules?: number;
+  compliance_score?: number | null;
+  complianceScore?: number | null;
+  last_scan?: string;
+  lastScan?: string;
+  // Allow additional fields from backend
+  [key: string]: unknown;
+}
+
+/**
+ * Raw scan data from backend API
+ * May contain either snake_case or camelCase fields (backend inconsistency)
+ */
+interface RawScanData {
+  id?: string;
+  host_name?: string;
+  hostname?: string;
+  status?: string;
+  completed_at?: string;
+  started_at?: string;
+  results?: {
+    score?: number;
+    [key: string]: unknown;
+  };
+  // Allow additional fields from backend
+  [key: string]: unknown;
+}
+
+/**
+ * Normalized host data after transformation
+ * Consistent camelCase field naming for frontend use
+ * Extends RawHostData to include all original fields plus normalized fields
+ */
+interface NormalizedHost extends RawHostData {
+  criticalIssues: number;
+  highIssues: number;
+  mediumIssues: number;
+  lowIssues: number;
+  passedRules: number;
+  complianceScore: number | null;
+  displayName: string;
+  ipAddress: string;
+  operatingSystem: string;
+  lastScan?: string;
+  status: string;
+}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [quickScanOpen, setQuickScanOpen] = useState(false);
 
@@ -30,9 +126,9 @@ const Dashboard: React.FC = () => {
   const [downHosts, setDownHosts] = useState(0);
   const [scanningHosts, setScanningHosts] = useState(0);
   const [maintenanceHosts, setMaintenanceHosts] = useState(0);
-  const [totalHosts, setTotalHosts] = useState(0);
+  const [_totalHosts, setTotalHosts] = useState(0);
   const [criticalIssues, setCriticalIssues] = useState(0);
-  const [trendData, setTrendData] = useState<any[]>([]);
+  const [trendData, setTrendData] = useState<ComplianceTrendData[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [priorityHosts, setPriorityHosts] = useState<
     Array<{
@@ -61,27 +157,33 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      let hosts: any[] = [];
-      let scans: any[] = [];
+      // Raw data from backend API (may have inconsistent field naming)
+      let hosts: RawHostData[] = [];
+      let scans: RawScanData[] = [];
 
       try {
         // Attempt to fetch from API using consistent service
         const [hostsData, scansData] = await Promise.all([
-          api.get<any[]>('/api/hosts/'),
-          api.get<{ scans: any[] }>('/api/scans/'),
+          api.get<RawHostData[]>('/api/hosts/'),
+          api.get<{ scans: RawScanData[] }>('/api/scans/'),
         ]);
 
         hosts = hostsData || [];
         scans = scansData.scans || [];
-      } catch (apiError: any) {
+      } catch (apiError) {
+        // Type-safe error handling: check error properties with type guards
         console.error('Failed to fetch dashboard data:', apiError);
 
-        // More specific error messages based on error type
-        if (apiError.code === 'NETWORK_ERROR' || apiError.message?.includes('Network Error')) {
+        // Check for network errors
+        const errorCode = (apiError as { code?: string }).code;
+        const errorMessage = (apiError as { message?: string }).message;
+        const responseStatus = (apiError as { response?: { status?: number } }).response?.status;
+
+        if (errorCode === 'NETWORK_ERROR' || errorMessage?.includes('Network Error')) {
           throw new Error('Unable to connect to the server. Please check your connection.');
-        } else if (apiError.response?.status === 401) {
+        } else if (responseStatus === 401) {
           throw new Error('Authentication required. Please log in again.');
-        } else if (apiError.response?.status === 403) {
+        } else if (responseStatus === 403) {
           throw new Error('Access denied. You do not have permission to view this data.');
         } else {
           throw new Error('Unable to connect to the server. Please check your connection.');
@@ -98,7 +200,8 @@ const Dashboard: React.FC = () => {
       }
 
       // Normalize host data to ensure consistent field naming
-      const normalizedHosts = hosts.map((host: any) => ({
+      // Use RawHostData type for backend data that may have inconsistent naming
+      const normalizedHosts: NormalizedHost[] = hosts.map((host: RawHostData) => ({
         ...host,
         // Ensure consistent camelCase naming
         criticalIssues: host.critical_issues || host.criticalIssues || 0,
@@ -117,17 +220,24 @@ const Dashboard: React.FC = () => {
       }));
 
       // Process data for dashboard using normalized hosts with adaptive monitoring states
+      // Use NormalizedHost type for type-safe access to status field
       const onlineCount = normalizedHosts.filter(
-        (h: any) => h.status === 'online' || h.status === 'reachable'
+        (h: NormalizedHost) => h.status === 'online' || h.status === 'reachable'
       ).length;
-      const degradedCount = normalizedHosts.filter((h: any) => h.status === 'degraded').length;
-      const criticalCount = normalizedHosts.filter((h: any) => h.status === 'critical').length;
+      const degradedCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'degraded'
+      ).length;
+      const criticalCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'critical'
+      ).length;
       const downCount = normalizedHosts.filter(
-        (h: any) => h.status === 'down' || h.status === 'offline'
+        (h: NormalizedHost) => h.status === 'down' || h.status === 'offline'
       ).length;
-      const scanningCount = normalizedHosts.filter((h: any) => h.status === 'scanning').length;
+      const scanningCount = normalizedHosts.filter(
+        (h: NormalizedHost) => h.status === 'scanning'
+      ).length;
       const maintenanceCount = normalizedHosts.filter(
-        (h: any) => h.status === 'maintenance'
+        (h: NormalizedHost) => h.status === 'maintenance'
       ).length;
       const totalCount = normalizedHosts.length;
 
@@ -140,7 +250,8 @@ const Dashboard: React.FC = () => {
       let totalCompliance = 0;
       let complianceCount = 0;
 
-      normalizedHosts.forEach((host: any) => {
+      // Use NormalizedHost type for type-safe access to compliance metrics
+      normalizedHosts.forEach((host: NormalizedHost) => {
         if (host.complianceScore !== null && host.complianceScore !== undefined) {
           totalCompliance += host.complianceScore;
           complianceCount++;
@@ -156,7 +267,8 @@ const Dashboard: React.FC = () => {
         complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
 
       // Generate trend data with realistic progression and ensure data integrity
-      const trendDataArray: any[] =
+      // Use ComplianceTrendData interface for type-safe trend chart data
+      const trendDataArray: ComplianceTrendData[] =
         normalizedHosts.length > 0
           ? [
               {
@@ -230,10 +342,11 @@ const Dashboard: React.FC = () => {
             ];
 
       // Generate activity items from recent scans
+      // Use RawScanData type for backend scan data with snake_case/camelCase fields
       const activitiesArray: ActivityItem[] = scans
-        .filter((scan: any) => scan.completed_at)
+        .filter((scan: RawScanData) => scan.completed_at)
         .slice(0, 10)
-        .map((scan: any) => ({
+        .map((scan: RawScanData) => ({
           id: scan.id,
           type: scan.status === 'completed' ? 'scan_completed' : 'scan_failed',
           message: `Scan ${scan.status} for ${scan.host_name || scan.hostname || 'Unknown host'}`,
@@ -268,7 +381,8 @@ const Dashboard: React.FC = () => {
         lowIssues: number;
         passedRules: number;
       }> = normalizedHosts
-        .filter((host: any) => {
+        // Use NormalizedHost type for type-safe access to host health metrics
+        .filter((host: NormalizedHost) => {
           // Critical issues
           if (host.criticalIssues > 0) return true;
           // Not scanned in 30 days
@@ -280,7 +394,7 @@ const Dashboard: React.FC = () => {
           return false;
         })
         .slice(0, 5)
-        .map((host: any) => {
+        .map((host: NormalizedHost) => {
           let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
             'critical_issues';
           let issue = '';
@@ -382,6 +496,9 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+    // ESLint disable: timeRange is intentionally included as useCallback dependency for data refresh
+    // This is correct - we want to refetch when timeRange changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, timeRange]);
 
   // Load data on component mount
@@ -604,9 +721,21 @@ const Dashboard: React.FC = () => {
 
         {/* Right Column - Activity Feed */}
         <Grid item xs={12} lg={4}>
-          <DashboardErrorBoundary onRetry={fetchDashboardData}>
-            <ActivityFeed activities={activities} />
-          </DashboardErrorBoundary>
+          <Grid container spacing={3}>
+            {/* Drift Alerts Widget */}
+            <Grid item xs={12}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <DriftAlertsWidget limit={5} autoRefresh={true} refreshInterval={30000} />
+              </DashboardErrorBoundary>
+            </Grid>
+
+            {/* Activity Feed */}
+            <Grid item xs={12}>
+              <DashboardErrorBoundary onRetry={fetchDashboardData}>
+                <ActivityFeed activities={activities} />
+              </DashboardErrorBoundary>
+            </Grid>
+          </Grid>
         </Grid>
       </Grid>
 

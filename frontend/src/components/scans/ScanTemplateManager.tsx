@@ -36,13 +36,19 @@ import {
   Cancel,
 } from '@mui/icons-material';
 
+/**
+ * Scan template configuration
+ * Stores reusable scan configurations for different scopes
+ */
 interface ScanTemplate {
   id: string;
   name: string;
   description: string;
   contentId: number;
   profileId: string;
-  scanOptions: any;
+  // Scan options - flexible configuration object supporting various scan parameters
+  // May include: timeout, retries, notifications, scheduling, custom variables, etc.
+  scanOptions: Record<string, string | number | boolean | string[]>;
   scope: 'system' | 'group' | 'host';
   scopeId?: string;
   isDefault: boolean;
@@ -79,10 +85,13 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     isDefault: false,
   });
 
+  // Fetch templates when dialog opens
+  // ESLint disable: fetchTemplates function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open) {
       fetchTemplates();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const fetchTemplates = async () => {
@@ -195,7 +204,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     });
   };
 
-  const getTemplateIcon = (template: ScanTemplate) => {
+  const _getTemplateIcon = (template: ScanTemplate) => {
     if (template.name.toLowerCase().includes('security')) return <Security />;
     if (template.name.toLowerCase().includes('compliance')) return <CheckCircle />;
     if (template.name.toLowerCase().includes('vulnerability')) return <BugReport />;
@@ -270,7 +279,9 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
               <Select
                 value={formData.scope}
                 label="Scope"
-                onChange={(e) => setFormData({ ...formData, scope: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({ ...formData, scope: e.target.value as 'system' | 'group' | 'host' })
+                }
               >
                 <MenuItem value="system">System-wide (all hosts)</MenuItem>
                 {groupId && <MenuItem value="group">Group-specific</MenuItem>}

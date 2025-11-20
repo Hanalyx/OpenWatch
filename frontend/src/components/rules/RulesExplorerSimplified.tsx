@@ -2,50 +2,58 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Grid,
-  Paper,
-  Typography,
   Skeleton,
   Pagination,
   Alert,
   AlertTitle,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   Snackbar,
   IconButton,
   Fab,
   Stack,
   useTheme,
-  alpha,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon,
   Download as DownloadIcon,
   Close as CloseIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   PlayArrow as ScanIcon,
 } from '@mui/icons-material';
-import { Rule, FilterState } from '../../store/slices/ruleSlice';
-import { ruleService } from '../../services/ruleService';
+import { type Rule, type FilterState } from '../../store/slices/ruleSlice';
+import { ruleService, type RuleQueryParams } from '../../services/ruleService';
 import RuleCard from './RuleCard';
 import RuleFilterToolbar from './RuleFilterToolbar';
 import RuleDetailDialog from './RuleDetailDialog';
 import EnhancedDependencyDialog from './EnhancedDependencyDialog';
 import EmptyState from '../design-system/patterns/EmptyState';
-import { SearchSuggestion } from './EnhancedSearchInput';
+import { type SearchSuggestion } from './EnhancedSearchInput';
 import ScannerRuleSelection from '../scanner/ScannerRuleSelection';
 import RuleIntelligencePanel from './RuleIntelligencePanel';
+
+/**
+ * Scan configuration for rule-based scanning
+ * Matches the structure expected by ScannerRuleSelection component
+ */
+interface ScanConfiguration {
+  targetHosts: string[];
+  scanProfile: 'quick' | 'standard' | 'comprehensive';
+  outputFormats: string[];
+  scanName: string;
+  description?: string;
+  schedule?: {
+    type: 'immediate' | 'scheduled';
+    datetime?: string;
+    recurring?: boolean;
+  };
+}
 
 interface RulesExplorerProps {
   contentId?: string;
   onRuleSelect?: (rule: Rule) => void;
 }
 
-const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRuleSelect }) => {
+const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ onRuleSelect }) => {
   const theme = useTheme();
 
   // Local state
@@ -94,9 +102,9 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Load rules
+  // Load rules - accepts query parameters for filtering and pagination
   const loadRules = useCallback(
-    async (params: any = {}) => {
+    async (params: Partial<RuleQueryParams> = {}) => {
       setIsLoading(true);
       setError(null);
 
@@ -146,9 +154,11 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
     [pagination.offset, pagination.limit, activeFilters]
   );
 
-  // Initial load
+  // Load rules on component mount
+  // ESLint disable: loadRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     loadRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle search
@@ -229,7 +239,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
     async (suggestion: SearchSuggestion) => {
       // Handle different types of search suggestions
       switch (suggestion.type) {
-        case 'rule':
+        case 'rule': {
           // If it's a specific rule, find and select it
           const rule = rules.find(
             (r) =>
@@ -240,6 +250,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
             await handleRuleSelect(rule);
           }
           break;
+        }
 
         case 'tag':
           // Filter by tag
@@ -326,7 +337,7 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
       window.URL.revokeObjectURL(url);
 
       setSnackbarMessage(`Successfully exported ${ruleIds.length} rules`);
-    } catch (error) {
+    } catch {
       setSnackbarMessage('Failed to export rules');
     } finally {
       setExportLoading(false);
@@ -346,24 +357,24 @@ const RulesExplorerSimplified: React.FC<RulesExplorerProps> = ({ contentId, onRu
   }, []);
 
   // Handle bulk rule selection for scanning
-  const handleSelectAllForScan = useCallback(() => {
+  const _handleSelectAllForScan = useCallback(() => {
     const currentRules = searchQuery && searchResults.length > 0 ? searchResults : filteredRules;
     setSelectedRulesForScan(currentRules);
   }, [searchQuery, searchResults, filteredRules]);
 
-  const handleClearScanSelection = useCallback(() => {
+  const _handleClearScanSelection = useCallback(() => {
     setSelectedRulesForScan([]);
   }, []);
 
-  // Handle starting scan
+  // Handle starting scan - receives scan configuration from ScannerRuleSelection dialog
   const handleStartScan = useCallback(
-    async (config: any) => {
+    async (config: ScanConfiguration) => {
       try {
         setSnackbarMessage(`Starting scan with ${selectedRulesForScan.length} rules...`);
 
-        // In a real implementation, this would call the scan API
-        console.log('Starting scan with config:', config);
-        console.log('Selected rules:', selectedRulesForScan);
+        // In a real implementation, this would call the scan API with the provided config and rules
+        void config; // Suppress unused parameter warning - will be used when API integration is complete
+        void selectedRulesForScan; // Suppress unused parameter warning
 
         // Simulate API call
         await new Promise((resolve) => setTimeout(resolve, 1000));

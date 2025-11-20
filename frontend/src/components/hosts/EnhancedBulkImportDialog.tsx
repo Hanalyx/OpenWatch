@@ -83,7 +83,7 @@ const EnhancedBulkImportDialog: React.FC<EnhancedBulkImportDialogProps> = ({
   onImportComplete,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [_csvFile, setCsvFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<string>('');
   const [analysis, setAnalysis] = useState<CSVAnalysis | null>(null);
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);

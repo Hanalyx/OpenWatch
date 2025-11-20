@@ -22,7 +22,6 @@ import {
   Stack,
   TextField,
   FormControl,
-  InputLabel,
   Select,
   MenuItem,
   Alert,
@@ -34,17 +33,13 @@ import {
 import {
   Close as CloseIcon,
   PlayArrow as PlayIcon,
-  Stop as StopIcon,
   Refresh as RefreshIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
   Computer as ComputerIcon,
-  Schedule as ScheduleIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 
 interface ScannerRuleSelectionProps {
   open: boolean;
@@ -155,6 +150,8 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
           : null
       );
     }
+    // ESLint disable: simulateScanProgress function is not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRules, scanConfig, onStartScan]);
 
   // Simulate scan progress for demo
@@ -338,7 +335,11 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
         <FormControl fullWidth>
           <Select
             value={scanConfig.scanProfile}
-            onChange={(e) => updateScanConfig({ scanProfile: e.target.value as any })}
+            onChange={(e) =>
+              updateScanConfig({
+                scanProfile: e.target.value as 'quick' | 'standard' | 'comprehensive',
+              })
+            }
           >
             <MenuItem value="quick">
               <Box>
@@ -564,7 +565,7 @@ const ScannerRuleSelection: React.FC<ScannerRuleSelectionProps> = ({
 
       <DialogContent sx={{ p: 0 }}>
         <Stepper activeStep={activeStep} orientation="vertical">
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <Step key={step.label} completed={step.completed || false}>
               <StepLabel>{step.label}</StepLabel>
               <StepContent>

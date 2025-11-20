@@ -24,7 +24,6 @@ import {
   Security,
   CheckCircle,
   BugReport,
-  Settings,
   Schedule,
   PlayArrow,
   Close,
@@ -141,8 +140,10 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
 
       onScanStarted(result.scan_id);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to start scan');
+    } catch (err) {
+      // Handle scan start errors with proper type checking
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start scan';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

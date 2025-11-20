@@ -31,7 +31,6 @@ import {
   Close,
   ExpandMore,
   ExpandLess,
-  Computer,
   Timer,
   Assessment,
 } from '@mui/icons-material';
@@ -120,8 +119,10 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
         const errorMessage = String(errorData.detail || 'Failed to fetch progress');
         throw new Error(errorMessage);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch progress');
+    } catch (err) {
+      // Handle fetch errors with proper type checking
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch progress';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -164,7 +165,11 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  /**
+   * Get MUI Chip color for scan status
+   * Maps scan status to Material-UI color palette values
+   */
+  const getStatusColor = (status: string): 'success' | 'error' | 'primary' | 'default' => {
     switch (status) {
       case 'completed':
         return 'success';
@@ -267,7 +272,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
                   <Typography variant="h6">Overall Progress</Typography>
                   <Chip
                     label={session.status.toUpperCase()}
-                    color={getStatusColor(session.status) as any}
+                    color={getStatusColor(session.status)}
                     size="small"
                   />
                 </Box>
@@ -385,7 +390,7 @@ const ScanProgressDialog: React.FC<ScanProgressDialogProps> = ({
                               <Chip
                                 label={scan.status}
                                 size="small"
-                                color={getStatusColor(scan.status) as any}
+                                color={getStatusColor(scan.status)}
                                 variant="outlined"
                               />
                             </Box>

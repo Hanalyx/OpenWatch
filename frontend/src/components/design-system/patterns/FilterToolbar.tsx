@@ -8,7 +8,6 @@ import {
   IconButton,
   Badge,
   Chip,
-  Button,
 } from '@mui/material';
 import { Search, FilterList, ViewModule, ViewList, ViewCompact } from '@mui/icons-material';
 

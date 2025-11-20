@@ -1,11 +1,69 @@
 import { api } from './api';
 import { getAuthHeaders } from '../hooks/useAuthHeaders';
 import {
-  Rule,
-  SearchRequest,
-  PlatformCapability,
-  RuleDependencyGraph,
+  type Rule,
+  type SearchRequest,
+  type PlatformCapability,
+  type RuleDependencyGraph,
 } from '../store/slices/ruleSlice';
+
+/**
+ * Applied filters structure returned in API responses
+ * Matches the filter parameters used in rule queries
+ */
+export interface AppliedFilters {
+  platform?: string[];
+  severity?: string[];
+  category?: string[];
+  framework?: string[];
+  tag?: string[];
+}
+
+/**
+ * Parameters for rule listing and filtering operations
+ * Used across getRules, getExpandedMongoDBRules, and getMockRulesResponse
+ */
+export interface RuleQueryParams {
+  offset?: number;
+  limit?: number;
+  platform?: string;
+  severity?: string;
+  category?: string;
+  framework?: string;
+  abstract?: boolean;
+  search?: string;
+}
+
+/**
+ * Parameters for platform capability detection
+ * Used in detectPlatformCapabilities and getMockPlatformCapabilitiesResponse
+ */
+export interface PlatformDetectionParams {
+  platform: string;
+  platformVersion: string;
+  targetHost: string;
+}
+
+/**
+ * Parameters for rule export operations
+ * Specifies format and which rules to export
+ */
+export interface RuleExportParams {
+  ruleIds: string[];
+  format: 'json' | 'csv' | 'xml';
+  includeMetadata?: boolean;
+}
+
+/**
+ * Export response for JSON format
+ * Structured export with metadata
+ */
+export interface RuleExportResponse {
+  export_format: string;
+  export_timestamp: string;
+  rules_count: number;
+  rules: Rule[];
+}
 
 export interface RuleListResponse {
   success: boolean;
@@ -33,7 +91,7 @@ export interface RuleSearchResponse {
     total_count: number;
     search_query: string;
     search_time_ms: number;
-    filters_applied: any;
+    filters_applied: AppliedFilters;
   };
   message: string;
   timestamp: string;
@@ -63,20 +121,8 @@ export interface PlatformCapabilitiesResponse {
 class RuleService {
   private readonly baseUrl = '/api/rules';
 
-  async getRules(
-    params: {
-      offset?: number;
-      limit?: number;
-      platform?: string;
-      severity?: string;
-      category?: string;
-      framework?: string;
-      abstract?: boolean;
-      search?: string;
-    } = {}
-  ): Promise<RuleListResponse> {
-    console.log('Connecting to MongoDB compliance rules database...');
-
+  async getRules(params: RuleQueryParams = {}): Promise<RuleListResponse> {
+    // Debug: Connecting to MongoDB compliance rules database
     try {
       // Use our converted rules endpoint instead of MongoDB
       const queryParams = new URLSearchParams();
@@ -103,12 +149,12 @@ class RuleService {
       const rules = result.data.rules || [];
       const totalCount = result.data.total_count || 0;
 
-      console.log(`✅ MongoDB connection successful: Retrieved ${rules.length} rules`);
+      // Debug: MongoDB connection successful, retrieved {rules.length} rules
 
       return {
         success: true,
         data: {
-          rules: rules,
+          rules,
           total_count: totalCount,
           offset: params.offset || 0,
           limit: params.limit || 25,
@@ -120,11 +166,11 @@ class RuleService {
             category: params.category,
           },
         },
-        message: `✅ MongoDB Connected: ${totalCount} compliance rules in database`,
+        message: `MongoDB Connected: ${totalCount} compliance rules in database`,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('❌ Rules API connection failed:', error);
+      console.error('Rules API connection failed:', error);
 
       // Return empty state instead of mock data
       return {
@@ -145,7 +191,8 @@ class RuleService {
   }
 
   // MongoDB-connected data simulating the actual 1,584 rules now in database
-  private getExpandedMongoDBRules(params: any): RuleListResponse {
+  // Accepts same query parameters as getRules for consistent filtering
+  private getExpandedMongoDBRules(params: RuleQueryParams): RuleListResponse {
     // First, generate the base set of realistic rules
     const baseRules: Rule[] = [
       {
@@ -466,8 +513,8 @@ class RuleService {
           source: 'MongoDB Compliance Database',
         },
         abstract: false,
-        severity: severity,
-        category: category,
+        severity,
+        category,
         security_function:
           category === 'authentication'
             ? 'identification_authentication'
@@ -547,7 +594,7 @@ class RuleService {
           category: params.category,
         },
       },
-      message: `✅ MongoDB Connected: ${filteredRules.length} compliance rules in database (showing ${paginatedRules.length} on this page)`,
+      message: `MongoDB Connected: ${filteredRules.length} compliance rules in database (showing ${paginatedRules.length} on this page)`,
       timestamp: new Date().toISOString(),
     };
   }
@@ -591,8 +638,8 @@ class RuleService {
         message: `Found ${totalCount} rules matching your search`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
-      // Mock response for development
+    } catch {
+      // Mock response for development - error details not needed for fallback
       return this.getMockSearchResponse(searchRequest);
     }
   }
@@ -611,7 +658,7 @@ class RuleService {
         message: `Retrieved rule details for ${ruleId}`,
         timestamp: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockRuleDetailsResponse(ruleId, includeInheritance);
     }
@@ -629,7 +676,7 @@ class RuleService {
         max_depth: maxDepth,
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockDependenciesResponse(ruleIds[0]);
     }
@@ -651,32 +698,37 @@ class RuleService {
         capability_types: params.capabilityTypes ?? ['package', 'service', 'security'],
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockPlatformCapabilitiesResponse(params);
     }
   }
 
+  /**
+   * Export rules in various formats
+   * Returns format-specific export data (string for CSV/XML, object for JSON)
+   */
   async exportRules(params: {
     ruleIds: string[];
     format: 'json' | 'csv' | 'xml';
     includeMetadata?: boolean;
-  }): Promise<any> {
+  }): Promise<string | Record<string, unknown>> {
     try {
-      const response = await api.post(`${this.baseUrl}/export`, {
+      const response = await api.post<string | Record<string, unknown>>(`${this.baseUrl}/export`, {
         rule_ids: params.ruleIds,
         format: params.format,
         include_metadata: params.includeMetadata ?? true,
       });
       return response.data;
-    } catch (error) {
+    } catch {
       // Mock response for development
       return this.getMockExportResponse(params);
     }
   }
 
   // Legacy mock data for fallback (kept for compatibility)
-  private getMockRulesResponse(params: any, fromMongoDB = false): RuleListResponse {
+  // Accepts same query parameters as getRules for consistent filtering
+  private getMockRulesResponse(params: RuleQueryParams, fromMongoDB = false): RuleListResponse {
     const mockRules: Rule[] = [
       {
         rule_id: 'ow-ssh-root-login-disabled',
@@ -826,7 +878,11 @@ class RuleService {
     };
   }
 
-  private getMockPlatformCapabilitiesResponse(params: any): PlatformCapabilitiesResponse {
+  // Mock platform detection response for testing and development
+  // Simulates capability detection results for a target platform
+  private getMockPlatformCapabilitiesResponse(
+    params: PlatformDetectionParams
+  ): PlatformCapabilitiesResponse {
     return {
       success: true,
       data: {
@@ -864,7 +920,9 @@ class RuleService {
     };
   }
 
-  private getMockExportResponse(params: any): any {
+  // Mock export response supporting multiple formats (JSON, CSV)
+  // Returns structured data for JSON or formatted string for CSV
+  private getMockExportResponse(params: RuleExportParams): RuleExportResponse | string {
     const mockRules = this.getExpandedMongoDBRules({}).data.rules;
 
     if (params.format === 'json') {
@@ -875,13 +933,10 @@ class RuleService {
         rules: mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id)),
       };
     } else if (params.format === 'csv') {
-      return (
-        'rule_id,name,severity,category\n' +
-        mockRules
-          .filter((rule) => params.ruleIds.includes(rule.rule_id))
-          .map((rule) => `${rule.rule_id},${rule.metadata.name},${rule.severity},${rule.category}`)
-          .join('\n')
-      );
+      return `rule_id,name,severity,category\n${mockRules
+        .filter((rule) => params.ruleIds.includes(rule.rule_id))
+        .map((rule) => `${rule.rule_id},${rule.metadata.name},${rule.severity},${rule.category}`)
+        .join('\n')}`;
     }
 
     return mockRules.filter((rule) => params.ruleIds.includes(rule.rule_id));

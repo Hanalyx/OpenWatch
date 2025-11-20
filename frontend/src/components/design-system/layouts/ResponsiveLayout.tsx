@@ -11,7 +11,7 @@ import {
   Skeleton,
   Stack,
 } from '@mui/material';
-import { SxProps, Theme } from '@mui/material/styles';
+import { type SxProps, type Theme } from '@mui/material/styles';
 
 interface ResponsiveLayoutProps {
   title?: string;
@@ -70,7 +70,7 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
+  const _isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
 
   // Responsive configuration based on screen size
   const getResponsiveConfig = () => {

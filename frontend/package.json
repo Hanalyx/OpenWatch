@@ -44,6 +44,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
     "lint:fix": "eslint src --ext ts,tsx --fix",
+    "lint:strict": "eslint src --ext ts,tsx --max-warnings 0",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "storybook:a11y": "storybook dev -p 6006 --addon @storybook/addon-a11y",

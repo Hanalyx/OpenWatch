@@ -22,7 +22,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
   Chip,
   Alert,
   CircularProgress,
@@ -31,34 +30,19 @@ import {
   CardContent,
   Grid,
   Switch,
-  Divider,
-  Paper,
-  IconButton,
-  Tooltip,
   FormHelperText,
 } from '@mui/material';
 import {
-  Computer as HostIcon,
-  Security as SecurityIcon,
-  Assessment as ComplianceIcon,
-  Schedule as ScheduleIcon,
-  Warning as WarningIcon,
   CheckCircle as SuccessIcon,
   Group as GroupIcon,
   Add as AddIcon,
-  Remove as RemoveIcon,
   SmartToy as SmartIcon,
-  Settings as SettingsIcon,
-  HelpOutline as HelpIcon,
 } from '@mui/icons-material';
 import {
   OS_FAMILY_OPTIONS,
   ARCHITECTURE_OPTIONS,
   COMPLIANCE_FRAMEWORK_OPTIONS,
   SCAN_SCHEDULE_OPTIONS,
-  getOSFamilyLabel,
-  getArchitectureLabel,
-  getComplianceFrameworkLabel,
 } from '../../constants/formOptions';
 
 interface Host {
@@ -86,11 +70,16 @@ interface SCAPContent {
   profiles: Profile[] | string[];
 }
 
+/**
+ * Group validation result from backend analysis
+ * Provides compatibility analysis and recommendations for smart group creation
+ */
 interface GroupValidation {
   compatible: Host[];
   incompatible: Host[];
   warnings: string[];
-  suggestions: Record<string, any>;
+  // Suggestions from validation - recommendations for group configuration
+  suggestions: Record<string, string | number | boolean | string[]>;
   summary: {
     total_hosts: number;
     compatible_count: number;
@@ -213,7 +202,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       }
 
       const data = await response.json();
-      console.log('SCAP Content API Response:', data);
+      // SCAP Content API response received successfully
 
       // MongoDB returns bundles in 'bundles' field
       let contentList: SCAPContent[] = [];
@@ -224,7 +213,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         contentList = data;
       }
 
-      console.log('Parsed SCAP Content List:', contentList);
+      // SCAP content bundles parsed and loaded successfully
       setAvailableScapContent(contentList);
     } catch (err) {
       console.error('Error fetching SCAP content:', err);
@@ -318,6 +307,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         }
       }
     } catch (err) {
+      // Host analysis failed - using default configuration
       console.error('Error analyzing hosts:', err);
     } finally {
       setLoading(false);
@@ -386,6 +376,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         },
       });
     } catch (err) {
+      // Group configuration validation failed
       console.error('Error validating group:', err);
       setError(err instanceof Error ? err.message : 'Failed to validate group configuration');
     } finally {
@@ -411,7 +402,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         scan_schedule: scanSchedule,
       };
 
-      console.log('Creating group with data:', groupConfig);
+      // Creating host group with validated configuration
 
       const createResponse = await fetch('/api/host-groups/', {
         method: 'POST',
@@ -430,7 +421,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       }
 
       const group = await createResponse.json();
-      console.log('Group created successfully, ID:', group.id);
+      // Host group created successfully
       setCreatedGroupId(group.id);
 
       // Switch to host assignment loading state
@@ -440,6 +431,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       // Assign hosts to the group
       await assignHostsToGroup(group.id);
     } catch (err) {
+      // Group creation failed
       console.error('Error creating group:', err);
       setError(err instanceof Error ? err.message : 'Failed to create group');
     } finally {
@@ -451,7 +443,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
   const assignHostsToGroup = async (groupId: string) => {
     try {
       const hostIds = selectedHosts.map((h) => h.id);
-      console.log('Assigning hosts to group:', hostIds);
+      // Assigning selected hosts to the newly created group
 
       const assignResponse = await fetch(`/api/host-groups/${groupId}/hosts`, {
         method: 'POST',
@@ -468,14 +460,14 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         const errorData = await assignResponse.json().catch(() => null);
         const errorMessage =
           errorData?.detail || `Failed to assign hosts to group (${assignResponse.status})`;
-        console.log('Host assignment error:', errorMessage);
+        // Host assignment to group failed - group created but hosts not added
 
         // If group was created but host assignment failed, provide recovery options
         setError(`Group was created successfully, but failed to assign hosts: ${errorMessage}`);
         return;
       }
 
-      console.log('Hosts assigned successfully');
+      // All hosts successfully assigned to the group
       onGroupCreated();
       onClose();
     } catch (err) {
@@ -532,7 +524,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           valid: selectedHosts.length > 0,
           message: selectedHosts.length === 0 ? 'Please select at least one host' : null,
         };
-      case 1:
+      case 1: {
         const errors = [];
         if (!groupName.trim()) errors.push('Group name is required');
         if (groupName.trim().length < 3) errors.push('Group name must be at least 3 characters');
@@ -543,6 +535,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           valid: errors.length === 0,
           message: errors.length > 0 ? errors[0] : null,
         };
+      }
       case 2:
         return { valid: true, message: null }; // Can always review
       case 3:
@@ -1019,7 +1012,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
         </Box>
       ) : (
         <Typography color="text.secondary">
-          Click "Next" to validate the group configuration
+          Click Next to validate the group configuration
         </Typography>
       )}
     </Box>
@@ -1034,7 +1027,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             Ready to Create Group
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Group "{groupName}" will be created with {selectedHosts.length} hosts
+            Group {groupName} will be created with {selectedHosts.length} hosts
           </Typography>
 
           {validation && validation.summary.incompatible_count > 0 && (
@@ -1051,7 +1044,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
             Group Created Successfully
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Group "{groupName}" has been created.
+            Group {groupName} has been created.
           </Typography>
 
           {hostAssignmentLoading ? (

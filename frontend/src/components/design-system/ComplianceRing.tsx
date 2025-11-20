@@ -12,32 +12,84 @@ interface ComplianceRingProps {
   onClick?: () => void;
   trend?: 'up' | 'down' | 'stable';
 
-  // Severity breakdown (optional - for enhanced display)
+  // Failed rule counts by severity
   criticalIssues?: number;
   highIssues?: number;
   mediumIssues?: number;
   lowIssues?: number;
-  criticalHighScore?: number; // Pass rate for critical+high severity only
+
+  // Per-severity pass/fail breakdown for accurate compliance visualization
+  criticalPassed?: number;
+  criticalFailed?: number;
+  highPassed?: number;
+  highFailed?: number;
+  mediumPassed?: number;
+  mediumFailed?: number;
+  lowPassed?: number;
+  lowFailed?: number;
 }
 
 const ComplianceRing: React.FC<ComplianceRingProps> = ({
   score,
   size = 'medium',
-  showLabel = true,
-  label,
+  showLabel: _showLabel = true,
+  label: _label,
   tooltip,
   onClick,
   trend,
+  // Failed counts
   criticalIssues = 0,
   highIssues = 0,
   mediumIssues = 0,
   lowIssues = 0,
-  criticalHighScore,
+  // Pass/fail breakdown
+  criticalPassed,
+  criticalFailed,
+  highPassed,
+  highFailed,
+  mediumPassed,
+  mediumFailed,
+  lowPassed,
+  lowFailed,
 }) => {
   const theme = useTheme();
 
-  // Show severity breakdown if any severity data provided
-  const showSeverityBreakdown = criticalIssues > 0 || highIssues > 0 || mediumIssues > 0 || lowIssues > 0;
+  /**
+   * Real per-severity pass rate calculation
+   *
+   * NIST SP 800-137 Continuous Monitoring requires accurate severity-level
+   * compliance tracking for risk assessment and visualization.
+   *
+   * Calculate real pass rates from passed/failed counts:
+   *   passRate = (passed / (passed + failed)) * 100
+   *
+   * If per-severity data unavailable, fall back to overall score.
+   */
+  const calculatePassRate = (passed?: number, failed?: number): number => {
+    // If no per-severity data available, use overall score as fallback
+    if (passed === undefined || failed === undefined) {
+      return score;
+    }
+
+    const total = passed + failed;
+    // If no rules of this severity, return 100% (no failures)
+    if (total === 0) {
+      return 100;
+    }
+
+    return (passed / total) * 100;
+  };
+
+  // Enable severity breakdown if ANY per-severity data is available
+  const showSeverityBreakdown =
+    criticalPassed !== undefined ||
+    criticalFailed !== undefined ||
+    highPassed !== undefined ||
+    highFailed !== undefined ||
+    mediumPassed !== undefined ||
+    mediumFailed !== undefined ||
+    lowPassed !== undefined ||
+    lowFailed !== undefined;
 
   const sizeConfig = {
     small: {
@@ -64,34 +116,19 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
       highRadius: 30,
       mediumRadius: 38,
       lowRadius: 46,
-      fontSize: '1rem',  // Option 2: Smaller than original, balanced with rings
+      fontSize: '1rem', // Option 2: Smaller than original, balanced with rings
       fontWeight: 700,
     },
   };
 
   const config = sizeConfig[size];
 
-  const getScoreColor = (score: number) => {
-    if (score >= 95) return theme.palette.success.main;    // Green: Compliant (95%+)
-    if (score >= 75) return theme.palette.warning.main;    // Yellow: Near compliant (75-94%)
-    return theme.palette.error.main;                       // Red: Non-compliant (<75%)
-  };
-
-  const getScoreLabel = (score: number) => {
-    if (score >= 95) return 'Compliant';
-    if (score >= 75) return 'Near Compliant';
-    return 'Non-Compliant';
-  };
-
-  const scoreColor = getScoreColor(score);
-  const displayLabel = label || getScoreLabel(score);
-
-  // Calculate individual severity pass rates (simplified - assume equal distribution)
-  const totalIssues = criticalIssues + highIssues + mediumIssues + lowIssues;
-  const criticalPassRate = totalIssues > 0 ? Math.max(0, 100 - (criticalIssues / totalIssues) * 100) : score;
-  const highPassRate = totalIssues > 0 ? Math.max(0, 100 - (highIssues / totalIssues) * 100) : score;
-  const mediumPassRate = totalIssues > 0 ? Math.max(0, 100 - (mediumIssues / totalIssues) * 100) : score;
-  const lowPassRate = totalIssues > 0 ? Math.max(0, 100 - (lowIssues / totalIssues) * 100) : score;
+  // Calculate REAL per-severity pass rates using actual passed/failed counts
+  // Replaces fake algorithm that caused identical rings for different compliance scores
+  const criticalPassRate = calculatePassRate(criticalPassed, criticalFailed);
+  const highPassRate = calculatePassRate(highPassed, highFailed);
+  const mediumPassRate = calculatePassRate(mediumPassed, mediumFailed);
+  const lowPassRate = calculatePassRate(lowPassed, lowFailed);
 
   // Data for each severity ring
   const criticalData = [
@@ -111,7 +148,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
     { name: 'Failed', value: 100 - lowPassRate },
   ];
 
-  const getTrendIndicator = () => {
+  const _getTrendIndicator = () => {
     if (!trend) return null;
 
     const trendConfig = {
@@ -274,7 +311,7 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
       </Box>
     </Box>
   ) : (
-    // Original single ring layout (fallback when no severity data)
+    // Empty ring when no severity data available (no scan performed)
     <Box
       sx={{
         position: 'relative',
@@ -286,26 +323,19 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
       }}
       onClick={onClick}
     >
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={[
-              { name: 'Compliant', value: score },
-              { name: 'Non-compliant', value: 100 - score },
-            ]}
-            cx="50%"
-            cy="50%"
-            innerRadius={config.lowRadius - 6}
-            outerRadius={config.lowRadius}
-            startAngle={90}
-            endAngle={-270}
-            dataKey="value"
-          >
-            <Cell fill={scoreColor} />
-            <Cell fill={alpha(theme.palette.action.disabled, 0.2)} />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
+      {/* Empty ring border */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: config.lowRadius * 2,
+          height: config.lowRadius * 2,
+          borderRadius: '50%',
+          border: `2px solid ${alpha(theme.palette.action.disabled, 0.2)}`,
+        }}
+      />
 
       {/* Center Content */}
       <Box
@@ -322,26 +352,12 @@ const ComplianceRing: React.FC<ComplianceRingProps> = ({
           sx={{
             fontSize: config.fontSize,
             fontWeight: config.fontWeight,
-            color: scoreColor,
+            color: 'text.secondary',
             lineHeight: 1,
           }}
         >
-          {score}%
+          No Data
         </Typography>
-        {showLabel && size !== 'small' && (
-          <Typography
-            variant="caption"
-            sx={{
-              fontSize: '0.625rem',
-              color: 'text.secondary',
-              lineHeight: 1,
-              mt: 0.25,
-              display: 'block',
-            }}
-          >
-            {displayLabel}
-          </Typography>
-        )}
       </Box>
     </Box>
   );

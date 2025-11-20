@@ -1,5 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+/**
+ * Chrome Performance API memory extension
+ * Non-standard extension to Performance API for memory monitoring
+ */
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+/**
+ * Extended Performance API with Chrome-specific memory property
+ * Standard Performance API + Chrome's memory extension
+ */
+interface PerformanceWithMemory extends Performance {
+  memory?: PerformanceMemory;
+}
+
 export interface PerformanceMetrics {
   renderTime: number;
   interactionTime: number;
@@ -144,9 +162,10 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   const measureMemoryUsage = useCallback(() => {
     if (!enabled) return;
 
+    // Chrome-specific Performance API extension for memory monitoring
     if ('memory' in performance) {
-      const memory = (performance as any).memory;
-      const memoryUsage = memory.usedJSHeapSize;
+      const memory = (performance as PerformanceWithMemory).memory;
+      const memoryUsage = memory?.usedJSHeapSize || 0;
 
       setMetrics((prev) => ({
         ...prev,

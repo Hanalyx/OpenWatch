@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Card,
@@ -42,8 +41,6 @@ import {
   Error as ErrorIcon,
   Warning,
   Info,
-  CheckCircle,
-  FilterList,
   Refresh,
   Download,
   Visibility,
@@ -54,7 +51,7 @@ import {
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
-import HostMonitoringTab, { HostMonitoringTabRef } from './HostMonitoringTab';
+import HostMonitoringTab, { type HostMonitoringTabRef } from './HostMonitoringTab';
 
 interface AuditEvent {
   id: number;
@@ -108,7 +105,7 @@ const OView: React.FC = () => {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [stats, setStats] = useState<AuditStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
+  const [_statsLoading, setStatsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // WEEK 2 PHASE 2: Tab state for multi-view dashboard
@@ -131,8 +128,9 @@ const OView: React.FC = () => {
   const [actionFilter, setActionFilter] = useState('');
   const [resourceFilter, setResourceFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState<Date | null>(null);
-  const [dateTo, setDateTo] = useState<Date | null>(null);
+  // Reserved for future date range filtering feature
+  const [dateFrom, _setDateFrom] = useState<Date | null>(null);
+  const [dateTo, _setDateTo] = useState<Date | null>(null);
   const [userFilter, setUserFilter] = useState('');
 
   // Debounced search query to avoid API calls on every keystroke
@@ -161,7 +159,7 @@ const OView: React.FC = () => {
       setEvents(newEvents);
       setTotalEvents(response.total || 0);
       setLastUpdated(new Date());
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Failed to load audit events');
       console.error('Error loading audit events:', err);
     } finally {
@@ -185,7 +183,7 @@ const OView: React.FC = () => {
       setStatsLoading(true);
       const response = await api.get('/api/audit/stats');
       setStats(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading audit stats:', err);
     } finally {
       setStatsLoading(false);
@@ -342,7 +340,11 @@ const OView: React.FC = () => {
           </Box>
           <Avatar
             sx={{
-              bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1),
+              // Type-safe theme palette access - color is validated to be a MUI palette color key
+              bgcolor: alpha(
+                (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                0.1
+              ),
               color: `${color}.main`,
             }}
           >
@@ -631,10 +633,20 @@ const OView: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
+                          {/* Type-safe MUI Chip color - getSeverityColor returns standard MUI color */}
                           <Chip
                             icon={getSeverityIcon(event.severity)}
                             label={event.severity.toUpperCase()}
-                            color={getSeverityColor(event.severity) as any}
+                            color={
+                              getSeverityColor(event.severity) as
+                                | 'error'
+                                | 'warning'
+                                | 'info'
+                                | 'success'
+                                | 'default'
+                                | 'primary'
+                                | 'secondary'
+                            }
                             size="small"
                           />
                         </TableCell>

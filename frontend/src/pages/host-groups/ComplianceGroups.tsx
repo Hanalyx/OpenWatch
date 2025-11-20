@@ -16,13 +16,11 @@ import {
   DialogTitle,
   DialogContent,
   Alert,
-  Fab,
   Tooltip,
   LinearProgress,
   Divider,
   Paper,
   Stack,
-  Avatar,
   Badge,
 } from '@mui/material';
 import {
@@ -70,7 +68,8 @@ interface HostGroup {
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
-  validation_rules?: any;
+  // Validation rules structure from backend (varies by compliance framework)
+  validation_rules?: unknown;
   scap_content_name?: string;
   compatibility_summary?: {
     total_hosts: number;
@@ -97,7 +96,8 @@ const ComplianceGroups: React.FC = () => {
   const [showComplianceReport, setShowComplianceReport] = useState(false);
   const [complianceGroup, setComplianceGroup] = useState<HostGroup | null>(null);
 
-  const user = useAppSelector((state) => state.auth.user);
+  // User data from auth state - reserved for future user-specific group permissions
+  const _user = useAppSelector((state) => state.auth.user);
 
   useEffect(() => {
     fetchGroups();

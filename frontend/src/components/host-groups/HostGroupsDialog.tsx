@@ -25,7 +25,6 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   Group as GroupIcon,
-  ColorLens as ColorIcon,
 } from '@mui/icons-material';
 
 interface HostGroup {

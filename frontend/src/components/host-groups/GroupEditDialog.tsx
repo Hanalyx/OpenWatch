@@ -11,7 +11,6 @@ import {
   Grid,
   FormControlLabel,
   Switch,
-  Checkbox,
   Alert,
   CircularProgress,
   Autocomplete,
@@ -33,11 +32,8 @@ import {
 import {
   Edit as EditIcon,
   Computer as HostIcon,
-  Security as SecurityIcon,
-  Assessment as ComplianceIcon,
   Add as AddIcon,
   Remove as RemoveIcon,
-  Warning as WarningIcon,
 } from '@mui/icons-material';
 import {
   OS_FAMILY_OPTIONS,
@@ -55,13 +51,19 @@ interface Host {
   os_version?: string;
 }
 
+/**
+ * SCAP profile definition from compliance content
+ * Contains profile metadata and rule selection information
+ */
 interface Profile {
   id: string;
   title: string;
   description?: string;
   extends?: string;
-  selected_rules?: any;
-  metadata?: any;
+  // Selected rules - array of rule IDs or rule selection criteria
+  selected_rules?: string[] | Record<string, boolean>;
+  // Profile metadata - extensible key-value pairs from SCAP content
+  metadata?: Record<string, string | number | boolean>;
 }
 
 interface SCAPContent {
@@ -90,7 +92,9 @@ interface HostGroup {
   compliance_framework?: string;
   auto_scan_enabled: boolean;
   scan_schedule?: string;
-  validation_rules?: any;
+  // Flexible validation rules object from backend - structure varies by validation type
+  // May include: required_fields, pattern_matchers, custom_validators, etc.
+  validation_rules?: Record<string, unknown>;
   scap_content_name?: string;
 }
 
@@ -150,6 +154,8 @@ const GroupEditDialog: React.FC<GroupEditDialogProps> = ({
       fetchAvailableHosts();
       resetForm();
     }
+    // ESLint disable: Functions are not memoized to avoid complex dependency chain
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, group]);
 
   const resetForm = () => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, Box, Typography, Chip, useTheme, alpha } from '@mui/material';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { CheckCircle, Error, Warning, Schedule } from '@mui/icons-material';
 
 interface FleetHealthData {
@@ -10,6 +10,35 @@ interface FleetHealthData {
   down: number;
   scanning: number;
   maintenance: number;
+}
+
+/**
+ * Fleet health chart data point
+ * Represents host count and health status for visualization
+ */
+interface FleetHealthChartData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+/**
+ * Recharts tooltip payload entry for fleet health chart
+ * Structure provided by Recharts for each pie slice in the tooltip
+ */
+interface FleetTooltipPayloadEntry {
+  name: string;
+  value: number;
+  payload: FleetHealthChartData;
+}
+
+/**
+ * Recharts custom tooltip props for fleet health
+ * Props passed to custom tooltip component by Recharts
+ */
+interface FleetCustomTooltipProps {
+  active?: boolean;
+  payload?: FleetTooltipPayloadEntry[];
 }
 
 interface FleetHealthWidgetProps {
@@ -95,7 +124,8 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
     }
   };
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  // Custom tooltip for Recharts - displays host count and status for hovered pie slice
+  const CustomTooltip = ({ active, payload }: FleetCustomTooltipProps) => {
     if (active && payload && payload.length) {
       const data = payload[0];
       return (

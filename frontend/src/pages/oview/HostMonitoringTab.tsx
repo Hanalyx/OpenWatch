@@ -39,26 +39,35 @@ import {
   Warning,
   CheckCircle,
   Search,
-  HealthAndSafety,
   ErrorOutline,
   Schedule,
   Speed,
   BuildCircle,
 } from '@mui/icons-material';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Legend,
-  Tooltip as RechartsTooltip,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from 'recharts';
 import { api } from '../../services/api';
+
+/**
+ * API host response structure from backend
+ * Subset of fields needed for host monitoring display
+ * Backend returns PostgreSQL naming (snake_case)
+ */
+interface ApiHostResponse {
+  id: string;
+  hostname: string;
+  ip_address: string;
+  status?: string;
+  ping_consecutive_failures?: number;
+  ssh_consecutive_failures?: number;
+  privilege_consecutive_failures?: number;
+  ping_consecutive_successes?: number;
+  ssh_consecutive_successes?: number;
+  privilege_consecutive_successes?: number;
+  check_priority?: number;
+  response_time_ms?: number | null;
+  last_check?: string;
+  next_check_time?: string | null;
+  updated_at?: string;
+}
 
 interface MonitoringState {
   total_hosts: number;
@@ -81,14 +90,6 @@ interface HostStateDetail {
   response_time_ms: number | null;
   last_check: string;
   next_check_time: string | null;
-}
-
-interface StateTransition {
-  check_time: string;
-  state: string;
-  response_time_ms: number;
-  success: boolean;
-  error_message?: string;
 }
 
 export interface HostMonitoringTabRef {
@@ -138,7 +139,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       unknown: theme.palette.grey[500], // Gray - not yet checked
     };
 
-    const stateIcons = {
+    // State icon mapping - reserved for future tooltip and legend features
+    const _stateIcons = {
       online: <CheckCircle sx={{ color: stateColors.online }} />,
       degraded: <Warning sx={{ color: stateColors.degraded }} />,
       critical: <Warning sx={{ color: stateColors.critical }} />,
@@ -147,7 +149,8 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
       unknown: <ErrorOutline sx={{ color: stateColors.unknown }} />,
     };
 
-    const stateDescriptions = {
+    // State description mapping - reserved for future tooltip and help text features
+    const _stateDescriptions = {
       online: 'Can ping AND ssh - fully operational',
       degraded: 'Can ping and ssh, but no elevated privilege',
       critical: 'Can ping but cannot ssh - partial connectivity',
@@ -179,7 +182,7 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
 
         // CRITICAL FIX: Use data from /api/hosts/ directly instead of N+1 queries
         // This eliminates 7 additional API calls per refresh!
-        const hostDetails = hostsData.map((host: any) => ({
+        const hostDetails = hostsData.map((host: ApiHostResponse) => ({
           host_id: host.id,
           hostname: host.hostname,
           ip_address: host.ip_address,
@@ -206,9 +209,25 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
         if (onLastUpdatedRef.current) {
           onLastUpdatedRef.current(new Date());
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[HostMonitoringTab] Error fetching monitoring data:', err);
-        setError(err.response?.data?.detail || err.message || 'Failed to load monitoring data');
+        // Type-safe error message extraction - check for axios-like error structure first
+        const errorMessage =
+          err &&
+          typeof err === 'object' &&
+          'response' in err &&
+          err.response &&
+          typeof err.response === 'object' &&
+          'data' in err.response &&
+          err.response.data &&
+          typeof err.response.data === 'object' &&
+          'detail' in err.response.data &&
+          typeof err.response.data.detail === 'string'
+            ? err.response.data.detail
+            : err instanceof Error
+              ? err.message
+              : 'Failed to load monitoring data';
+        setError(errorMessage);
       } finally {
         // Always clear the in-flight flag and loading state
         setLoading(false);
@@ -298,7 +317,11 @@ const HostMonitoringTab = forwardRef<HostMonitoringTabRef, HostMonitoringTabProp
             </Box>
             <Avatar
               sx={{
-                bgcolor: alpha((theme.palette as any)[color]?.main || '#000', 0.1),
+                // Type-safe theme palette access - color is validated to be a MUI palette color key
+                bgcolor: alpha(
+                  (theme.palette as Record<string, { main?: string }>)[color]?.main || '#000',
+                  0.1
+                ),
                 color: `${color}.main`,
               }}
             >

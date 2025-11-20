@@ -19,7 +19,6 @@ import {
   Warning,
   Info,
   Computer,
-  Scanner,
   Security,
   Settings,
   ArrowForward,
@@ -74,7 +73,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       )
     : [];
 
-  const getIcon = (type: ActivityItem['type'], severity?: ActivityItem['severity']) => {
+  const getIcon = (type: ActivityItem['type']) => {
     switch (type) {
       case 'scan_completed':
         return <CheckCircle sx={{ color: theme.palette.success.main }} />;
@@ -93,7 +92,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     }
   };
 
-  const getSeverityColor = (severity?: ActivityItem['severity']) => {
+  const _getSeverityColor = (severity?: ActivityItem['severity']) => {
     switch (severity) {
       case 'success':
         return theme.palette.success.main;

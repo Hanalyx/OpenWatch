@@ -9,7 +9,7 @@ import {
   alpha,
   Tooltip,
 } from '@mui/material';
-import { CategoryCount } from '../../types/content.types';
+import { type CategoryCount } from '../../types/content.types';
 
 interface CategoryBreakdownProps {
   categories: CategoryCount[];

@@ -1,6 +1,27 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
 
+/**
+ * Audit log details - action-specific metadata
+ * Contains common fields with extensibility for action-specific data
+ */
+export interface AuditLogDetails {
+  // Common audit fields
+  timestamp?: string;
+  status?: string;
+  // Resource changes
+  old_value?: string | number | boolean | object;
+  new_value?: string | number | boolean | object;
+  // Request/response metadata
+  request_id?: string;
+  duration_ms?: number;
+  // Error information
+  error_code?: string;
+  error_message?: string;
+  // Additional action-specific metadata
+  [key: string]: string | number | boolean | object | undefined;
+}
+
 interface AuditLog {
   id: string;
   user_id: string;
@@ -8,7 +29,8 @@ interface AuditLog {
   action: string;
   resource_type: string;
   resource_id: string | null;
-  details: Record<string, any>;
+  // Action-specific details stored as JSON in backend
+  details: AuditLogDetails;
   ip_address: string;
   user_agent: string;
   created_at: string;

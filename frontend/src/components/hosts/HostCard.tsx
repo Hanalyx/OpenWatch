@@ -48,14 +48,15 @@ import {
   Edit,
   Delete,
   NetworkCheck,
-  PlayArrow,
   Assessment,
   Security,
+  Error as ErrorIcon,
+  Warning,
 } from '@mui/icons-material';
 import { QuickScanDropdown } from '../scans';
 import type { Host } from '../../types/host';
 import { COMPLIANCE_THRESHOLDS } from '../../constants/compliance';
-import { getStatusIcon, getComplianceScoreColor } from '../../utils/hostStatus';
+import { getStatusIcon } from '../../utils/hostStatus';
 import { formatRelativeTime } from '../../utils/hostFormatters';
 
 /**
@@ -99,14 +100,14 @@ interface HostCardProps {
  */
 const HostCard: React.FC<HostCardProps> = ({
   host,
-  viewMode,
+  viewMode: _viewMode,
   selected = false,
   onSelect,
   onEdit,
   onDelete,
   onCheckStatus,
 }) => {
-  const theme = useTheme();
+  const _theme = useTheme();
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
 
   /**
@@ -174,7 +175,8 @@ const HostCard: React.FC<HostCardProps> = ({
    */
   const handleScanStarted = (scanId: string, scanName: string) => {
     if (import.meta.env.DEV) {
-      console.debug(`Scan started for ${host.hostname}: ${scanId} - ${scanName}`);
+      // eslint-disable-next-line no-console
+      console.log(`Scan started for ${host.hostname}: ${scanId} - ${scanName}`);
     }
     // Parent component handles data refresh
   };
@@ -218,7 +220,16 @@ const HostCard: React.FC<HostCardProps> = ({
         <Chip
           label={host.status.toUpperCase()}
           size="small"
-          color={getStatusColor() as any}
+          color={
+            getStatusColor() as
+              | 'default'
+              | 'primary'
+              | 'secondary'
+              | 'error'
+              | 'info'
+              | 'success'
+              | 'warning'
+          }
           variant="outlined"
         />
         {host.complianceScore !== undefined && (
@@ -226,7 +237,16 @@ const HostCard: React.FC<HostCardProps> = ({
             icon={<Security />}
             label={`${host.complianceScore}% Compliant`}
             size="small"
-            color={getComplianceChipColor(host.complianceScore) as any}
+            color={
+              getComplianceChipColor(host.complianceScore) as
+                | 'default'
+                | 'primary'
+                | 'secondary'
+                | 'error'
+                | 'info'
+                | 'success'
+                | 'warning'
+            }
             variant="outlined"
           />
         )}
@@ -256,7 +276,7 @@ const HostCard: React.FC<HostCardProps> = ({
               {host.scanProgress}%
             </Typography>
           </Box>
-          <LinearProgress variant="determinate" value={host.scanProgress} />
+          <LinearProgress variant="determinate" value={host.scanProgress ?? 0} />
         </Box>
       )}
 
@@ -304,8 +324,17 @@ const HostCard: React.FC<HostCardProps> = ({
           </Box>
           <LinearProgress
             variant="determinate"
-            value={host.complianceScore}
-            color={getComplianceChipColor(host.complianceScore) as any}
+            value={host.complianceScore ?? 0}
+            color={
+              getComplianceChipColor(host.complianceScore) as
+                | 'primary'
+                | 'secondary'
+                | 'error'
+                | 'info'
+                | 'success'
+                | 'warning'
+                | 'inherit'
+            }
             sx={{ height: 6, borderRadius: 3 }}
           />
         </Box>

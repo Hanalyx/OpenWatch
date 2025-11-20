@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlatformStatistics, PlatformStatisticsResponse } from '../types/content.types';
+import { type PlatformStatistics, type PlatformStatisticsResponse } from '../types/content.types';
 
 interface UseComplianceStatisticsReturn {
   platforms: PlatformStatistics[];

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -44,16 +42,16 @@ import {
   Computer as PlatformIcon,
   Category as CategoryIcon,
 } from '@mui/icons-material';
-import { Rule } from '../../store/slices/ruleSlice';
+import { type Rule } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ViewModeToggle, ViewMode } from '../../components/content/ViewModeToggle';
+import { ViewModeToggle, type ViewMode } from '../../components/content/ViewModeToggle';
 import { PlatformCard } from '../../components/content/PlatformCard';
 import { FrameworkCard } from '../../components/content/FrameworkCard';
 import RuleSidePanel from '../../components/content/RuleSidePanel';
 import { useComplianceStatistics } from '../../hooks/useComplianceStatistics';
-import { useFrameworkStatistics } from '../../hooks/useFrameworkStatistics';
-import { PlatformStatistics } from '../../types/content.types';
+import { useFrameworkStatistics, type FrameworkData } from '../../hooks/useFrameworkStatistics';
+import { type PlatformStatistics } from '../../types/content.types';
 
 interface ComplianceFilters {
   search: string;
@@ -72,7 +70,8 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   const theme = useTheme();
 
   // State management
-  const [rules, setRules] = useState<Rule[]>([]);
+  // Rules data state - reserved for future direct rule management features
+  const [_rules, setRules] = useState<Rule[]>([]);
   const [filteredRules, setFilteredRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +88,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
     refetch: refetchPlatforms,
     totalPlatforms,
     totalRulesAnalyzed,
-    source,
+    source: _source, // Data source metadata - reserved for future source attribution display
   } = useComplianceStatistics();
 
   // Framework statistics for framework view
@@ -181,9 +180,11 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
       } else {
         setError('Failed to load compliance rules from database');
       }
-    } catch (err: any) {
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
       console.error('Error loading compliance rules:', err);
-      setError(`Error connecting to compliance rules database: ${err.message}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Error connecting to compliance rules database: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -276,15 +277,20 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
   };
 
   const handleExportPlatform = (platform: PlatformStatistics) => {
-    console.log('Export rules for platform:', platform.name);
+    // TODO: Implement platform-specific rule export functionality
+    void platform; // Suppress unused parameter warning
   };
 
   const handleViewPlatformMetrics = (platform: PlatformStatistics) => {
-    console.log('View metrics for platform:', platform.name);
+    // TODO: Implement platform metrics visualization
+    void platform; // Suppress unused parameter warning
   };
 
-  // Handle framework card actions
-  const handleBrowseFramework = (framework: any) => {
+  /**
+   * Handle framework card click action
+   * Switches to 'all' view mode and filters by selected framework
+   */
+  const handleBrowseFramework = (framework: FrameworkData) => {
     setViewMode('all');
     handleFilterChange('framework', framework.name.toLowerCase());
     localStorage.setItem('complianceRulesViewMode', 'all');
@@ -330,14 +336,14 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
             <Typography variant="body2" color="text.secondary">
               {viewMode === 'platform'
                 ? platformsLoading
-                  ? '🔄 Loading...'
+                  ? 'Loading...'
                   : `${totalRulesAnalyzed} rules, ${totalPlatforms} platforms`
                 : viewMode === 'framework'
                   ? frameworksLoading
-                    ? '🔄 Loading...'
+                    ? 'Loading...'
                     : `${frameworkTotalRulesAnalyzed} rules, ${totalFrameworks} frameworks`
                   : loading
-                    ? '🔄 Loading...'
+                    ? 'Loading...'
                     : `${pagination.total} rules`}
             </Typography>
           </Box>
@@ -558,7 +564,7 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                   Platform Overview
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Compliance rules organized by operating system platform. Click "Browse Rules" to
+                  Compliance rules organized by operating system platform. Click Browse Rules to
                   view platform-specific rules.
                 </Typography>
               </Box>

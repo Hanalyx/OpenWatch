@@ -109,10 +109,7 @@ export function getStatusIcon(status: HostStatus): React.ReactElement {
  *   return <Chip label={`${score}%`} sx={{ backgroundColor: color }} />;
  * }
  */
-export function getComplianceScoreColor(
-  score: number | null,
-  theme: Theme
-): string {
+export function getComplianceScoreColor(score: number | null, theme: Theme): string {
   // Gray for hosts that have never been scanned
   if (score === null) {
     return theme.palette.grey[500];

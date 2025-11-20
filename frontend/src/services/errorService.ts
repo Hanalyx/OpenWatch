@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ClassifiedError } from '../components/errors/ErrorClassificationDisplay';
+import { type ClassifiedError } from '../components/errors/ErrorClassificationDisplay';
 
 export interface ValidationRequest {
   host_id: string;
@@ -12,12 +12,30 @@ export interface ValidationRequest {
   framework?: string;
 }
 
+/**
+ * System information collected during validation
+ * Contains common fields with extensibility for additional backend data
+ */
+export interface SystemInfo {
+  // Common validation fields
+  collection_timestamp?: string;
+  openscap_available?: boolean;
+  ssh_available?: boolean;
+  // Resource information
+  memory?: number | string;
+  disk_space?: number | string;
+  // Additional system details (extensible for backend additions)
+  system_details?: Record<string, string | number | boolean>;
+  // Allow any additional fields the backend may return
+  [key: string]: string | number | boolean | Record<string, string | number | boolean> | undefined;
+}
+
 export interface ValidationResult {
   can_proceed: boolean;
   errors: ClassifiedError[];
   warnings: ClassifiedError[];
   pre_flight_duration: number;
-  system_info: Record<string, any>;
+  system_info: SystemInfo;
   validation_checks: Record<string, boolean>;
 }
 
@@ -41,6 +59,44 @@ export interface AutomatedFixResponse {
 }
 
 /**
+ * Type guard for axios-like error objects
+ * Checks if error has response property with data and status
+ */
+interface AxiosLikeError {
+  response?: {
+    data?: {
+      detail?: string;
+      error_code?: string;
+      category?: string;
+      message?: string;
+    };
+    status?: number;
+  };
+  message?: string;
+  code?: string;
+}
+
+/**
+ * Type guard to check if error is AxiosLikeError
+ */
+function isAxiosLikeError(error: unknown): error is AxiosLikeError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    ('response' in error || 'message' in error || 'code' in error)
+  );
+}
+
+/**
+ * Enhanced error object with classification data
+ * Extended Error type that includes classification metadata
+ */
+interface EnhancedError extends Error {
+  classification: ClassifiedError;
+  isClassified: true;
+}
+
+/**
  * Enhanced error service for structured error handling and recovery
  */
 class ErrorService {
@@ -51,7 +107,8 @@ class ErrorService {
     try {
       const result = await api.post<ValidationResult>('/api/scans/validate', request);
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Type-safe error handling: check if error has expected properties
       console.error('Validation request failed:', error);
 
       // Transform generic errors into structured format
@@ -80,7 +137,8 @@ class ErrorService {
   async recoverFailedScan(scanId: string): Promise<RecoveryResponse> {
     try {
       return await api.post<RecoveryResponse>(`/api/scans/${scanId}/recover`);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Type-safe error handling: unknown type requires runtime checks
       console.error('Recovery request failed:', error);
       throw this.enhanceError(error);
     }
@@ -100,7 +158,8 @@ class ErrorService {
         host_id: hostId,
         validate_after: validateAfter,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Type-safe error handling: unknown type requires runtime checks
       console.error('Automated fix request failed:', error);
       throw this.enhanceError(error);
     }
@@ -108,14 +167,17 @@ class ErrorService {
 
   /**
    * Classify a generic error into structured format
+   * Accepts unknown error type and performs runtime type checking
    */
-  classifyGenericError(error: any): ClassifiedError {
+  classifyGenericError(error: unknown): ClassifiedError {
+    // Type-safe access using type guard
+    const axiosError = isAxiosLikeError(error) ? error : null;
     const errorMessage =
-      error.response?.data?.detail || error.message || 'An unexpected error occurred';
-    const statusCode = error.response?.status;
+      axiosError?.response?.data?.detail || axiosError?.message || 'An unexpected error occurred';
+    const statusCode = axiosError?.response?.status;
 
     // Network errors
-    if (!error.response || error.code === 'NETWORK_ERROR') {
+    if (!axiosError?.response || axiosError.code === 'NETWORK_ERROR') {
       return {
         error_code: 'NET_006',
         category: 'network',
@@ -258,35 +320,44 @@ class ErrorService {
 
   /**
    * Enhance an error with additional context and guidance
+   * Returns an error object with attached classification data
    */
-  enhanceError(error: any): Error {
+  enhanceError(error: unknown): Error {
     const classifiedError = this.classifyGenericError(error);
-    const enhancedError = new Error(classifiedError.message);
+    const enhancedError = new Error(classifiedError.message) as EnhancedError;
 
     // Attach classification data to error
-    (enhancedError as any).classification = classifiedError;
-    (enhancedError as any).isClassified = true;
+    enhancedError.classification = classifiedError;
+    enhancedError.isClassified = true;
 
     return enhancedError;
   }
 
   /**
-   * Check if an error is a classified error with structured data
+   * Type guard for enhanced error objects
+   * Checks if error has isClassified flag and classification data
    */
-  isClassifiedError(error: any): boolean {
-    return error && error.isClassified === true && error.classification;
+  isClassifiedError(error: unknown): error is EnhancedError {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'isClassified' in error &&
+      error.isClassified === true &&
+      'classification' in error
+    );
   }
 
   /**
    * Extract classification data from an enhanced error
+   * Performs type-safe checks on unknown error objects
    */
-  getErrorClassification(error: any): ClassifiedError | null {
+  getErrorClassification(error: unknown): ClassifiedError | null {
     if (this.isClassifiedError(error)) {
       return error.classification;
     }
 
     // If it's a backend error response with structured data
-    if (error.response?.data && typeof error.response.data === 'object') {
+    if (isAxiosLikeError(error) && error.response?.data) {
       const data = error.response.data;
       if (data.error_code && data.category && data.message) {
         return data as ClassifiedError;
@@ -298,20 +369,22 @@ class ErrorService {
 
   /**
    * Transform error for user display
+   * Accepts unknown error and extracts user-friendly message
    */
-  getUserFriendlyError(error: any): string {
+  getUserFriendlyError(error: unknown): string {
     const classification = this.getErrorClassification(error);
     if (classification) {
       return classification.user_guidance || classification.message;
     }
 
-    // Fallback to generic handling
-    if (error.response?.data?.detail) {
-      return error.response.data.detail;
+    // Fallback to generic handling using type guard
+    const axiosError = isAxiosLikeError(error) ? error : null;
+    if (axiosError?.response?.data?.detail) {
+      return axiosError.response.data.detail;
     }
 
-    if (error.message) {
-      return error.message;
+    if (axiosError?.message) {
+      return axiosError.message;
     }
 
     return 'An unexpected error occurred. Please try again.';
@@ -319,24 +392,27 @@ class ErrorService {
 
   /**
    * Check if an error can be retried
+   * Accepts unknown error type for flexible error handling
    */
-  canRetryError(error: any): boolean {
+  canRetryError(error: unknown): boolean {
     const classification = this.getErrorClassification(error);
     return classification?.can_retry || false;
   }
 
   /**
    * Get retry delay for an error (in seconds)
+   * Accepts unknown error type for flexible error handling
    */
-  getRetryDelay(error: any): number {
+  getRetryDelay(error: unknown): number {
     const classification = this.getErrorClassification(error);
     return classification?.retry_after || 0;
   }
 
   /**
    * Get available automated fixes for an error
+   * Accepts unknown error type for flexible error handling
    */
-  getAutomatedFixes(error: any) {
+  getAutomatedFixes(error: unknown) {
     const classification = this.getErrorClassification(error);
     return classification?.automated_fixes || [];
   }

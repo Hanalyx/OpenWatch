@@ -12,7 +12,7 @@ import {
   InputAdornment,
   CircularProgress,
 } from '@mui/material';
-import { Visibility, VisibilityOff, LockOutlined } from '@mui/icons-material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { loginSuccess, loginFailure, clearError, setLoading } from '../../store/slices/authSlice';
@@ -33,7 +33,6 @@ const Login: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<LoginFormData>();
 
   useEffect(() => {
@@ -71,8 +70,10 @@ const Login: React.FC = () => {
 
       dispatch(loginSuccess(authData));
       navigate('/');
-    } catch (err: any) {
-      dispatch(loginFailure(err.message || 'Login failed'));
+    } catch (err) {
+      // Type-safe error handling: check if error has message property
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      dispatch(loginFailure(errorMessage));
     }
   };
 
@@ -195,7 +196,7 @@ const Login: React.FC = () => {
             <Box sx={{ textAlign: 'center' }}>
               <Link to="/register" style={{ textDecoration: 'none' }}>
                 <Typography variant="body2" color="primary">
-                  Don't have an account? Sign Up
+                  Do not have an account? Sign Up
                 </Typography>
               </Link>
             </Box>

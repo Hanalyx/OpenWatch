@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -25,7 +25,6 @@ import {
   ListItemText,
   IconButton,
   Tooltip,
-  Divider,
   useTheme,
   alpha,
   CircularProgress,
@@ -42,13 +41,10 @@ import {
   Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
   Search as SearchIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
-  Compare as CompareIcon,
   Assessment as AssessmentIcon,
 } from '@mui/icons-material';
 import { ruleService } from '../../services/ruleService';
-import { PlatformCapability } from '../../store/slices/ruleSlice';
+import { type PlatformCapability } from '../../store/slices/ruleSlice';
 
 interface PlatformCapabilityViewProps {
   onRuleFilterChange?: (platform: string, capabilities: string[]) => void;
@@ -67,6 +63,26 @@ interface CapabilityFilter {
   search: string;
   status: 'all' | 'detected' | 'missing' | 'matched';
   category: string;
+}
+
+/**
+ * Individual capability item (package, service, etc.)
+ * Represents a detected platform capability with its state
+ */
+interface CapabilityItem {
+  installed?: boolean;
+  enabled?: boolean;
+  state?: string;
+  version?: string;
+}
+
+/**
+ * Category data structure from PlatformCapability results
+ * Groups related capabilities (packages, services, etc.)
+ */
+interface CategoryData {
+  detected: boolean;
+  results: Record<string, CapabilityItem>;
 }
 
 const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleFilterChange }) => {
@@ -116,7 +132,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
       const response = await ruleService.detectPlatformCapabilities({
         platform: selectedPlatform,
         platformVersion: selectedVersion,
-        targetHost: targetHost,
+        targetHost,
         compareBaseline: true,
         capabilityTypes: ['package', 'service', 'security', 'configuration'],
       });
@@ -136,7 +152,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
       } else {
         throw new Error('Detection failed');
       }
-    } catch (error) {
+    } catch {
       setDetectionResults((prev) =>
         prev.map((result, index) =>
           index === 0
@@ -184,25 +200,29 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
   // Filter capabilities based on current filter
   const filterCapabilities = (capabilities: PlatformCapability) => {
     const { search, status, category } = filter;
-    const filtered: any = {};
+    // Filtered results grouped by category (packages, services, etc.)
+    const filtered: Record<string, CategoryData> = {};
 
     Object.entries(capabilities.capabilities).forEach(([categoryName, categoryData]) => {
       if (category !== 'all' && category !== categoryName) return;
 
-      const categoryResults: any = {};
-      Object.entries(categoryData.results as any).forEach(([itemName, itemData]: [string, any]) => {
-        const matchesSearch = !search || itemName.toLowerCase().includes(search.toLowerCase());
+      // Filtered capability items within this category
+      const categoryResults: Record<string, CapabilityItem> = {};
+      Object.entries(categoryData.results as Record<string, CapabilityItem>).forEach(
+        ([itemName, itemData]) => {
+          const matchesSearch = !search || itemName.toLowerCase().includes(search.toLowerCase());
 
-        const matchesStatus =
-          status === 'all' ||
-          (status === 'detected' && itemData.installed) ||
-          (status === 'missing' && !itemData.installed) ||
-          (status === 'matched' && capabilities.baseline_comparison?.matched?.includes(itemName));
+          const matchesStatus =
+            status === 'all' ||
+            (status === 'detected' && itemData.installed) ||
+            (status === 'missing' && !itemData.installed) ||
+            (status === 'matched' && capabilities.baseline_comparison?.matched?.includes(itemName));
 
-        if (matchesSearch && matchesStatus) {
-          categoryResults[itemName] = itemData;
+          if (matchesSearch && matchesStatus) {
+            categoryResults[itemName] = itemData;
+          }
         }
-      });
+      );
 
       if (Object.keys(categoryResults).length > 0) {
         filtered[categoryName] = {
@@ -218,13 +238,11 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
   // Render capability category
   const renderCapabilityCategory = (
     categoryName: string,
-    categoryData: any,
+    categoryData: CategoryData,
     capabilities: PlatformCapability
   ) => {
-    const items = Object.entries(categoryData.results as any);
-    const detectedCount = items.filter(
-      ([_, data]: [string, any]) => data.installed || data.enabled
-    ).length;
+    const items = Object.entries(categoryData.results);
+    const detectedCount = items.filter(([_, data]) => data.installed || data.enabled).length;
     const matchedItems = capabilities.baseline_comparison?.matched || [];
     const missingItems = capabilities.baseline_comparison?.missing || [];
 
@@ -259,7 +277,7 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
 
         <AccordionDetails>
           <List dense>
-            {items.map(([itemName, itemData]: [string, any]) => {
+            {items.map(([itemName, itemData]) => {
               const isMatched = matchedItems.includes(itemName);
               const isMissing = missingItems.includes(itemName);
               const statusInfo = getStatusInfo(
@@ -550,7 +568,10 @@ const PlatformCapabilityView: React.FC<PlatformCapabilityViewProps> = ({ onRuleF
                           value={filter.status}
                           label="Status"
                           onChange={(e) =>
-                            setFilter((prev) => ({ ...prev, status: e.target.value as any }))
+                            setFilter((prev) => ({
+                              ...prev,
+                              status: e.target.value as CapabilityFilter['status'],
+                            }))
                           }
                         >
                           <MenuItem value="all">All</MenuItem>

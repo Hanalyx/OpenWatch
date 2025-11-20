@@ -18,7 +18,7 @@ import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useFrameworkVariables } from '@/hooks/useFrameworks';
 import { frameworkService } from '@/services/frameworkService';
 import { VariableInput } from './VariableInput';
-import type { VariableDefinition } from '@/types/scanConfig';
+import type { VariableDefinition, VariableDefaultValue } from '@/types/scanConfig';
 
 interface VariableCustomizerProps {
   framework: string;
@@ -61,9 +61,9 @@ export const VariableCustomizer: React.FC<VariableCustomizerProps> = ({
     setValues(initialValues);
   }, [initialValues]);
 
-  // Validate variables on change
-  const handleChange = async (varId: string, value: any) => {
-    const newValues = { ...values, [varId]: value };
+  // Validate variables on change - handles string, number, or boolean values
+  const handleChange = async (varId: string, value: VariableDefaultValue) => {
+    const newValues = { ...values, [varId]: String(value) };
     setValues(newValues);
     onChange(newValues);
 

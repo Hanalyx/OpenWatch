@@ -140,10 +140,7 @@ export const MAX_CACHE_AGE = 900000; // 15 minutes
  *   return () => clearInterval(timer);
  * }, [interval]);
  */
-export function getRefreshInterval(
-  hasActiveScan: boolean,
-  manualOnly: boolean = false
-): number {
+export function getRefreshInterval(hasActiveScan: boolean, manualOnly: boolean = false): number {
   if (manualOnly) return REFRESH_INTERVALS.MANUAL;
   return hasActiveScan ? REFRESH_INTERVALS.ACTIVE_SCAN : REFRESH_INTERVALS.NORMAL;
 }
@@ -166,9 +163,7 @@ export function isDataStale(
 ): boolean {
   if (!lastFetchTime) return true;
 
-  const fetchDate = typeof lastFetchTime === 'string'
-    ? new Date(lastFetchTime)
-    : lastFetchTime;
+  const fetchDate = typeof lastFetchTime === 'string' ? new Date(lastFetchTime) : lastFetchTime;
 
   const ageMs = Date.now() - fetchDate.getTime();
   return ageMs > maxAge;

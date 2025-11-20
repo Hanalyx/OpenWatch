@@ -85,7 +85,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(initialAutoRefresh);
-  const [refreshInterval, setRefreshInterval] = useState(REFRESH_INTERVALS.NORMAL);
+  const [refreshInterval, setRefreshInterval] = useState<number>(REFRESH_INTERVALS.NORMAL);
 
   /**
    * Fetch hosts from API.
@@ -102,7 +102,7 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
       const apiHosts = response.data;
 
       // Transform API response to match Host interface
-      const transformedHosts: Host[] = apiHosts.map((host: any) => ({
+      const transformedHosts: Host[] = apiHosts.map((host: Record<string, unknown>) => ({
         id: host.id,
         hostname: host.hostname,
         displayName: host.display_name || host.hostname,
@@ -123,6 +123,15 @@ export function useHostData(initialAutoRefresh: boolean = true): UseHostDataRetu
         highIssues: host.high_issues || 0,
         mediumIssues: host.medium_issues || 0,
         lowIssues: host.low_issues || 0,
+        // Phase 1B: Per-severity pass/fail breakdown
+        criticalPassed: host.critical_passed,
+        criticalFailed: host.critical_failed,
+        highPassed: host.high_passed,
+        highFailed: host.high_failed,
+        mediumPassed: host.medium_passed,
+        mediumFailed: host.medium_failed,
+        lowPassed: host.low_passed,
+        lowFailed: host.low_failed,
         latestScanId: host.latest_scan_id,
         latestScanName: host.latest_scan_name,
         scanStatus: host.scan_status,

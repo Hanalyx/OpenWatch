@@ -14,11 +14,6 @@ import {
   StepLabel,
   StepContent,
   Paper,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Dialog,
   DialogTitle,
@@ -37,12 +32,7 @@ import {
   PlayArrow as PlayArrowIcon,
   Build as BuildIcon,
   CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
-  OpenInNew as OpenInNewIcon,
-  Schedule as ScheduleIcon,
-  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { tokenService } from '../../services/tokenService';
 
@@ -88,10 +78,12 @@ const RemediationPanel: React.FC<RemediationPanelProps> = ({
   const [activeStep, setActiveStep] = useState(0);
 
   // Load failed rules when scan is completed
+  // ESLint disable: loadFailedRules function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (scanStatus === 'completed') {
       loadFailedRules();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanId, scanStatus]);
 
   const loadFailedRules = async () => {

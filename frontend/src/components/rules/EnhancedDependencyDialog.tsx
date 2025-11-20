@@ -30,7 +30,6 @@ import {
   AccountTree as TreeIcon,
   CheckCircle as CheckIcon,
   Error as ErrorIcon,
-  Warning as WarningIcon,
   Info as InfoIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
@@ -38,7 +37,7 @@ import {
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import { ruleService } from '../../services/ruleService';
-import { RuleDependencyGraph } from '../../store/slices/ruleSlice';
+import { type RuleDependencyGraph } from '../../store/slices/ruleSlice';
 
 interface EnhancedDependencyDialogProps {
   open: boolean;
@@ -79,11 +78,13 @@ const EnhancedDependencyDialog: React.FC<EnhancedDependencyDialogProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root']));
   const [selectedView, setSelectedView] = useState<'tree' | 'list'>('tree');
 
-  // Load dependency data
+  // Load dependency data when dialog opens with a rule selected
+  // ESLint disable: loadDependencies function is not memoized to avoid complex dependency chain
   useEffect(() => {
     if (open && ruleId) {
       loadDependencies();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ruleId]);
 
   const loadDependencies = async () => {
