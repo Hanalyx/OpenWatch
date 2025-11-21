@@ -103,7 +103,9 @@ class ComplianceScore(BaseModel):
 
     severity_breakdown: SeverityBreakdown = Field(..., description="Breakdown by severity")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When score was calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When score was calculated"
+    )
 
     scan_id: Optional[UUID] = Field(None, description="Associated scan ID if applicable")
 
