@@ -28,9 +28,10 @@ class ComplianceScoreCalculator:
     - Compliance score calculation (passed/total * 100)
     - Tier classification (EXCELLENT/GOOD/FAIR/POOR)
     - Severity breakdown aggregation
-    """
 
-    VERSION = "1.0.0"
+    Security: All calculations use parameterized queries via QueryBuilder
+    to prevent SQL injection attacks.
+    """
 
     def __init__(self, db: Session, cache=None):
         """
@@ -190,7 +191,6 @@ class ComplianceScoreCalculator:
             total_rules=total,
             severity_breakdown=severity_breakdown,
             calculated_at=datetime.utcnow(),
-            algorithm_version=self.VERSION,
             scan_id=scan_id,
         )
 
@@ -284,7 +284,6 @@ class ComplianceScoreCalculator:
             total_rules=total,
             severity_breakdown=severity_breakdown,
             calculated_at=datetime.utcnow(),
-            algorithm_version=self.VERSION,
             scan_id=scan_id,
         )
 
@@ -345,5 +344,4 @@ class ComplianceScoreCalculator:
             total_rules=total_rules,
             severity_breakdown=severity_breakdown,
             calculated_at=datetime.utcnow(),
-            algorithm_version=self.VERSION,
         )

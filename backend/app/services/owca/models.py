@@ -9,7 +9,7 @@ from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class ComplianceTier(str, Enum):
@@ -58,13 +58,29 @@ class SeverityBreakdown(BaseModel):
     low_failed: int = Field(0, ge=0)
     low_total: int = Field(0, ge=0)
 
-    @field_validator("critical_total", "high_total", "medium_total", "low_total", mode="after")
-    @classmethod
-    def validate_total(cls, v, info):
-        """Validate that total = passed + failed."""
-        # In Pydantic v2, we can't access other fields in field_validator
-        # So we'll skip this validation for now - totals are calculated correctly in code
-        return v
+    @model_validator(mode="after")
+    def validate_totals(self) -> "SeverityBreakdown":
+        """
+        Validate that all total fields equal passed + failed.
+
+        Security: Ensures data integrity for compliance calculations.
+        Each severity total must match the sum of passed and failed counts.
+
+        Raises:
+            ValueError: If any total does not equal passed + failed
+        """
+        for severity in ["critical", "high", "medium", "low"]:
+            passed = getattr(self, f"{severity}_passed")
+            failed = getattr(self, f"{severity}_failed")
+            total = getattr(self, f"{severity}_total")
+
+            if total != passed + failed:
+                raise ValueError(
+                    f"{severity} total ({total}) must equal "
+                    f"passed ({passed}) + failed ({failed}) = {passed + failed}"
+                )
+
+        return self
 
 
 class ComplianceScore(BaseModel):
@@ -87,10 +103,7 @@ class ComplianceScore(BaseModel):
 
     severity_breakdown: SeverityBreakdown = Field(..., description="Breakdown by severity")
 
-    calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When score was calculated"
-    )
-    algorithm_version: str = Field(default="1.0.0", description="OWCA algorithm version used")
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When score was calculated")
 
     scan_id: Optional[UUID] = Field(None, description="Associated scan ID if applicable")
 
