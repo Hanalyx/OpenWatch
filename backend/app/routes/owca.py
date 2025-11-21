@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session
 from backend.app.auth import get_current_user
 from backend.app.database import get_db
 from backend.app.services.owca import get_owca_service
-from backend.app.services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetStatistics
+from backend.app.services.owca.models import (
+    BaselineDrift,
+    ComplianceScore,
+    DriftSeverity,
+    FleetStatistics,
+)
 
 logger = logging.getLogger(__name__)
 

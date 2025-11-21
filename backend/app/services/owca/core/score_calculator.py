@@ -196,10 +196,13 @@ class ComplianceScoreCalculator:
 
         # Cache the result
         if self.cache:
-            await self.cache.set(f"host_score:{host_id}", compliance_score.dict(), ttl=300)  # 5 min TTL
+            await self.cache.set(
+                f"host_score:{host_id}", compliance_score.dict(), ttl=300
+            )  # 5 min TTL
 
         logger.info(
-            f"Calculated compliance score for host {host_id}: " f"{overall_score}% ({tier.value}) from scan {scan_id}"
+            f"Calculated compliance score for host {host_id}: "
+            f"{overall_score}% ({tier.value}) from scan {scan_id}"
         )
 
         return compliance_score
@@ -285,7 +288,9 @@ class ComplianceScoreCalculator:
             scan_id=scan_id,
         )
 
-    def calculate_aggregate_score(self, individual_scores: list[ComplianceScore]) -> Optional[ComplianceScore]:
+    def calculate_aggregate_score(
+        self, individual_scores: list[ComplianceScore]
+    ) -> Optional[ComplianceScore]:
         """
         Calculate aggregate compliance score from multiple individual scores.
 

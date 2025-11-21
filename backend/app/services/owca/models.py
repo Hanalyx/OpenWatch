@@ -87,7 +87,9 @@ class ComplianceScore(BaseModel):
 
     severity_breakdown: SeverityBreakdown = Field(..., description="Breakdown by severity")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When score was calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When score was calculated"
+    )
     algorithm_version: str = Field(default="1.0.0", description="OWCA algorithm version used")
 
     scan_id: Optional[UUID] = Field(None, description="Associated scan ID if applicable")
@@ -126,7 +128,9 @@ class FleetStatistics(BaseModel):
 
     hosts_with_critical: int = Field(0, ge=0, description="Hosts with at least 1 critical issue")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When statistics were calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When statistics were calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -155,7 +159,9 @@ class BaselineDrift(BaseModel):
     critical_regressions: int = Field(0, ge=0, description="Critical rules that regressed")
     high_regressions: int = Field(0, ge=0, description="High rules that regressed")
 
-    detected_at: datetime = Field(default_factory=datetime.utcnow, description="When drift was detected")
+    detected_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When drift was detected"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -190,9 +196,13 @@ class TrendData(BaseModel):
     data_points: List[TrendDataPoint] = Field(..., description="Historical data points")
 
     trend_direction: TrendDirection = Field(..., description="Overall trend direction")
-    improvement_rate: Optional[float] = Field(None, description="Rate of improvement (percentage points per day)")
+    improvement_rate: Optional[float] = Field(
+        None, description="Rate of improvement (percentage points per day)"
+    )
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When trend was calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When trend was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -222,7 +232,9 @@ class RiskScore(BaseModel):
 
     priority_rank: int = Field(..., ge=1, description="Priority ranking (1 = highest)")
 
-    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When risk was calculated")
+    calculated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="When risk was calculated"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}

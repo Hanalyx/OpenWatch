@@ -111,7 +111,9 @@ class BaselineDriftDetector:
         baseline_failed = baseline.baseline_failed_rules
 
         # Rules that changed status
-        rules_changed = abs((current_passed - baseline_passed)) + abs((current_failed - baseline_failed))
+        rules_changed = abs((current_passed - baseline_passed)) + abs(
+            (current_failed - baseline_failed)
+        )
 
         # Estimate newly failed and newly passed
         # (This is an approximation - exact tracking would require rule-level comparison)
@@ -186,7 +188,9 @@ class BaselineDriftDetector:
         else:
             return DriftSeverity.NONE
 
-    async def get_hosts_with_drift(self, min_severity: DriftSeverity = DriftSeverity.MEDIUM) -> list[BaselineDrift]:
+    async def get_hosts_with_drift(
+        self, min_severity: DriftSeverity = DriftSeverity.MEDIUM
+    ) -> list[BaselineDrift]:
         """
         Get all hosts with significant baseline drift.
 
@@ -237,7 +241,9 @@ class BaselineDriftDetector:
 
         return drifted_hosts
 
-    def _meets_severity_threshold(self, drift_severity: DriftSeverity, min_severity: DriftSeverity) -> bool:
+    def _meets_severity_threshold(
+        self, drift_severity: DriftSeverity, min_severity: DriftSeverity
+    ) -> bool:
         """
         Check if drift severity meets minimum threshold.
 
