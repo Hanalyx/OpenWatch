@@ -51,6 +51,7 @@ import HostTerminal from '../../components/terminal/HostTerminal';
 import BaselineEstablishDialog from '../../components/baselines/BaselineEstablishDialog';
 import ComplianceTrendChart from '../../components/baselines/ComplianceTrendChart';
 import { api } from '../../services/api';
+import { owcaService, type ComplianceScore as OWCAScore } from '../../services/owcaService';
 
 interface Host {
   id: string;
@@ -137,12 +138,15 @@ const HostDetail: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [deletingSSHKey, setDeletingSSHKey] = useState(false);
   const [baselineDialogOpen, setBaselineDialogOpen] = useState(false);
+  const [_owcaScore, setOwcaScore] = useState<OWCAScore | null>(null);
 
   // Fetch host data when component mounts or id changes
   // ESLint disable: Functions are not memoized to avoid complex dependency chain
   useEffect(() => {
     fetchHostDetails();
     fetchHostScans();
+    // Fetch OWCA compliance score (canonical source for compliance calculations)
+    fetchOWCAScore();
     // Also try to get enhanced host data from hosts list
     fetchEnhancedHostData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -189,6 +193,45 @@ const HostDetail: React.FC = () => {
       console.error('Error fetching host scans:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOWCAScore = async () => {
+    /**
+     * Fetch OWCA compliance score for this host
+     *
+     * OWCA provides canonical compliance calculations including:
+     * - Overall compliance percentage (0-100)
+     * - Compliance tier classification (excellent/good/fair/poor)
+     * - Severity breakdown (critical/high/medium/low passed/failed counts)
+     * - Timestamp of calculation
+     *
+     * This is the single source of truth for compliance data.
+     * Fallback to scan-based compliance if OWCA unavailable.
+     */
+    try {
+      if (!id) return;
+
+      const score = await owcaService.getHostComplianceScore(id);
+      setOwcaScore(score);
+
+      // Update host state with OWCA compliance data if available
+      if (score && host) {
+        setHost((prevHost) => ({
+          ...prevHost!,
+          compliance_score: score.overall_score,
+          critical_issues: score.severity_breakdown.critical_failed,
+          high_issues: score.severity_breakdown.high_failed,
+          medium_issues: score.severity_breakdown.medium_failed,
+          low_issues: score.severity_breakdown.low_failed,
+          passed_rules: score.passed_rules,
+          failed_rules: score.failed_rules,
+          total_rules: score.total_rules,
+        }));
+      }
+    } catch (error) {
+      console.warn('OWCA compliance score not available, using scan-based compliance:', error);
+      // Gracefully degrade to scan-based compliance data
     }
   };
 

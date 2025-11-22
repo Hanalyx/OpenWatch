@@ -125,26 +125,28 @@ class ComplianceScoreCalculator:
                 return ComplianceScore(**cached)
 
         # Query latest scan results for this host using QueryBuilder
+        # Note: Compliance data is stored in scan_results table, not scans table
         query_builder = (
             QueryBuilder("scans s")
             .select(
                 "s.id as scan_id",
-                "s.passed_rules",
-                "s.failed_rules",
-                "s.total_rules",
-                "s.critical_passed",
-                "s.critical_failed",
-                "s.high_passed",
-                "s.high_failed",
-                "s.medium_passed",
-                "s.medium_failed",
-                "s.low_passed",
-                "s.low_failed",
+                "sr.passed_rules",
+                "sr.failed_rules",
+                "sr.total_rules",
+                "sr.severity_critical_passed as critical_passed",
+                "sr.severity_critical_failed as critical_failed",
+                "sr.severity_high_passed as high_passed",
+                "sr.severity_high_failed as high_failed",
+                "sr.severity_medium_passed as medium_passed",
+                "sr.severity_medium_failed as medium_failed",
+                "sr.severity_low_passed as low_passed",
+                "sr.severity_low_failed as low_failed",
             )
+            .join("scan_results sr", "s.id = sr.scan_id", "INNER")  # INNER join ensures we only get scans with results
             .where("s.host_id = :host_id", host_id, "host_id")
             .where("s.status = :status", "completed", "status")
             .order_by("s.completed_at", "DESC")
-            .limit(1)
+            .paginate(page=1, per_page=1)  # Get only the most recent scan
         )
 
         query, params = query_builder.build()
@@ -196,13 +198,10 @@ class ComplianceScoreCalculator:
 
         # Cache the result
         if self.cache:
-            await self.cache.set(
-                f"host_score:{host_id}", compliance_score.dict(), ttl=300
-            )  # 5 min TTL
+            await self.cache.set(f"host_score:{host_id}", compliance_score.dict(), ttl=300)  # 5 min TTL
 
         logger.info(
-            f"Calculated compliance score for host {host_id}: "
-            f"{overall_score}% ({tier.value}) from scan {scan_id}"
+            f"Calculated compliance score for host {host_id}: " f"{overall_score}% ({tier.value}) from scan {scan_id}"
         )
 
         return compliance_score
@@ -222,23 +221,25 @@ class ComplianceScoreCalculator:
             >>> score = await calc.get_scan_compliance_score(scan_id)
         """
         # Query scan results using QueryBuilder
+        # Note: Compliance data is stored in scan_results table, not scans table
         query_builder = (
             QueryBuilder("scans s")
             .select(
                 "s.id as scan_id",
                 "s.host_id",
-                "s.passed_rules",
-                "s.failed_rules",
-                "s.total_rules",
-                "s.critical_passed",
-                "s.critical_failed",
-                "s.high_passed",
-                "s.high_failed",
-                "s.medium_passed",
-                "s.medium_failed",
-                "s.low_passed",
-                "s.low_failed",
+                "sr.passed_rules",
+                "sr.failed_rules",
+                "sr.total_rules",
+                "sr.severity_critical_passed as critical_passed",
+                "sr.severity_critical_failed as critical_failed",
+                "sr.severity_high_passed as high_passed",
+                "sr.severity_high_failed as high_failed",
+                "sr.severity_medium_passed as medium_passed",
+                "sr.severity_medium_failed as medium_failed",
+                "sr.severity_low_passed as low_passed",
+                "sr.severity_low_failed as low_failed",
             )
+            .join("scan_results sr", "s.id = sr.scan_id", "INNER")
             .where("s.id = :scan_id", scan_id, "scan_id")
             .where("s.status = :status", "completed", "status")
         )
@@ -287,9 +288,7 @@ class ComplianceScoreCalculator:
             scan_id=scan_id,
         )
 
-    def calculate_aggregate_score(
-        self, individual_scores: list[ComplianceScore]
-    ) -> Optional[ComplianceScore]:
+    def calculate_aggregate_score(self, individual_scores: list[ComplianceScore]) -> Optional[ComplianceScore]:
         """
         Calculate aggregate compliance score from multiple individual scores.
 

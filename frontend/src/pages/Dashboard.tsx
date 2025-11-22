@@ -12,6 +12,7 @@ import ComplianceTrend from '../components/dashboard/ComplianceTrend';
 import PriorityHosts from '../components/dashboard/PriorityHosts';
 import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
 import { api } from '../services/api';
+import { owcaService, type FleetStatistics } from '../services/owcaService';
 import QuickScanDialog from '../components/scans/QuickScanDialog';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
 
@@ -115,9 +116,11 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [owcaError, setOwcaError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [quickScanOpen, setQuickScanOpen] = useState(false);
+  const [_fleetStats, setFleetStats] = useState<FleetStatistics | null>(null);
 
   // Dashboard data state - adaptive monitoring states
   const [onlineHosts, setOnlineHosts] = useState(0);
@@ -160,16 +163,25 @@ const Dashboard: React.FC = () => {
       // Raw data from backend API (may have inconsistent field naming)
       let hosts: RawHostData[] = [];
       let scans: RawScanData[] = [];
+      let owcaFleetStats: FleetStatistics | null = null;
 
       try {
-        // Attempt to fetch from API using consistent service
-        const [hostsData, scansData] = await Promise.all([
+        // Fetch data from API using OWCA for fleet statistics
+        // OWCA provides canonical compliance calculations (single source of truth)
+        // No fallback to manual calculations - OWCA failure triggers error alert
+        const [hostsData, scansData, fetchedFleetStats] = await Promise.all([
           api.get<RawHostData[]>('/api/hosts/'),
           api.get<{ scans: RawScanData[] }>('/api/scans/'),
+          owcaService.getFleetStatistics(), // Propagate errors - no fallback
         ]);
 
         hosts = hostsData || [];
         scans = scansData.scans || [];
+        owcaFleetStats = fetchedFleetStats;
+
+        // Store OWCA fleet statistics for use in dashboard
+        setFleetStats(fetchedFleetStats);
+        setOwcaError(null); // Clear any previous OWCA errors
       } catch (apiError) {
         // Type-safe error handling: check error properties with type guards
         console.error('Failed to fetch dashboard data:', apiError);
@@ -178,6 +190,15 @@ const Dashboard: React.FC = () => {
         const errorCode = (apiError as { code?: string }).code;
         const errorMessage = (apiError as { message?: string }).message;
         const responseStatus = (apiError as { response?: { status?: number } }).response?.status;
+        const requestUrl = (apiError as { config?: { url?: string } }).config?.url;
+
+        // Detect OWCA-specific failures (compliance applications require accurate data)
+        if (requestUrl?.includes('/api/owca/')) {
+          setOwcaError(
+            'OWCA compliance service is unavailable. Dashboard metrics cannot be displayed without canonical compliance calculations. Please contact your administrator.'
+          );
+          throw new Error('OWCA service unavailable - compliance metrics cannot be calculated');
+        }
 
         if (errorCode === 'NETWORK_ERROR' || errorMessage?.includes('Network Error')) {
           throw new Error('Unable to connect to the server. Please check your connection.');
@@ -241,94 +262,31 @@ const Dashboard: React.FC = () => {
       ).length;
       const totalCount = normalizedHosts.length;
 
-      // Calculate compliance stats
-      let totalCritical = 0,
-        totalHigh = 0,
-        totalMedium = 0,
-        totalLow = 0,
-        totalPassed = 0;
-      let totalCompliance = 0;
-      let complianceCount = 0;
+      // Calculate compliance stats using OWCA fleet statistics (canonical source)
+      // OWCA is the ONLY source for compliance calculations - no fallback to manual calculations
+      // Compliance applications require accurate, canonical data - unavailability triggers error alert
+      if (!owcaFleetStats) {
+        throw new Error('OWCA fleet statistics unavailable - cannot display compliance metrics');
+      }
 
-      // Use NormalizedHost type for type-safe access to compliance metrics
-      normalizedHosts.forEach((host: NormalizedHost) => {
-        if (host.complianceScore !== null && host.complianceScore !== undefined) {
-          totalCompliance += host.complianceScore;
-          complianceCount++;
-        }
-        totalCritical += host.criticalIssues;
-        totalHigh += host.highIssues;
-        totalMedium += host.mediumIssues;
-        totalLow += host.lowIssues;
-        totalPassed += host.passedRules;
-      });
+      const totalCritical = owcaFleetStats.total_critical_issues;
+      const totalHigh = owcaFleetStats.total_high_issues;
+      const totalMedium = owcaFleetStats.total_medium_issues;
+      const totalLow = owcaFleetStats.total_low_issues;
+      const totalPassed = 0; // TODO: Add total_passed_rules to FleetStatistics model
+      const overallCompliance = Math.round(owcaFleetStats.average_compliance);
 
-      const overallCompliance =
-        complianceCount > 0 ? Math.round(totalCompliance / complianceCount) : 0;
-
-      // Generate trend data with realistic progression and ensure data integrity
+      // Generate trend data showing current compliance state
       // Use ComplianceTrendData interface for type-safe trend chart data
+      // TODO(feature): Implement historical trend data from OWCA trend analysis API
+      // Currently showing single data point (current state)
+      // Future: Replace with actual historical data from /api/owca/host/{id}/trend
+      const today = new Date().toISOString().split('T')[0];
       const trendDataArray: ComplianceTrendData[] =
         normalizedHosts.length > 0
           ? [
               {
-                date: '2025-08-13',
-                overall: 85,
-                critical: Math.max(12, totalCritical - 10),
-                high: Math.max(25, totalHigh - 5),
-                medium: Math.max(18, totalMedium),
-                low: Math.max(8, totalLow),
-              },
-              {
-                date: '2025-08-14',
-                overall: 87,
-                critical: Math.max(10, totalCritical - 8),
-                high: Math.max(22, totalHigh - 3),
-                medium: Math.max(20, totalMedium + 2),
-                low: Math.max(6, totalLow - 2),
-              },
-              {
-                date: '2025-08-15',
-                overall: 82,
-                critical: Math.max(15, totalCritical - 5),
-                high: Math.max(28, totalHigh),
-                medium: Math.max(15, totalMedium - 5),
-                low: Math.max(10, totalLow + 2),
-              },
-              {
-                date: '2025-08-16',
-                overall: 89,
-                critical: Math.max(8, totalCritical - 12),
-                high: Math.max(18, totalHigh - 7),
-                medium: Math.max(22, totalMedium + 4),
-                low: Math.max(5, totalLow - 3),
-              },
-              {
-                date: '2025-08-17',
-                overall: 91,
-                critical: Math.max(6, totalCritical - 14),
-                high: Math.max(15, totalHigh - 10),
-                medium: Math.max(25, totalMedium + 7),
-                low: Math.max(4, totalLow - 4),
-              },
-              {
-                date: '2025-08-18',
-                overall: 88,
-                critical: Math.max(9, totalCritical - 11),
-                high: Math.max(20, totalHigh - 5),
-                medium: Math.max(23, totalMedium + 5),
-                low: Math.max(7, totalLow - 1),
-              },
-              {
-                date: '2025-08-19',
-                overall: 92,
-                critical: Math.max(5, totalCritical - 15),
-                high: Math.max(12, totalHigh - 13),
-                medium: Math.max(28, totalMedium + 10),
-                low: Math.max(3, totalLow - 5),
-              },
-              {
-                date: '2025-08-20',
+                date: today,
                 overall: Math.max(0, Math.min(100, overallCompliance)),
                 critical: Math.max(0, totalCritical),
                 high: Math.max(0, totalHigh),
@@ -338,7 +296,7 @@ const Dashboard: React.FC = () => {
             ]
           : [
               // Fallback data when no hosts exist
-              { date: '2025-08-20', overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
+              { date: today, overall: 0, critical: 0, high: 0, medium: 0, low: 0 },
             ];
 
       // Generate activity items from recent scans
@@ -363,7 +321,8 @@ const Dashboard: React.FC = () => {
         }));
 
       // Identify priority hosts using normalized data
-      const priorityHostsArray: Array<{
+      // Type definition for priority host array (used by both OWCA and fallback)
+      let priorityHostsArray: Array<{
         id: string;
         hostname: string;
         displayName: string;
@@ -380,65 +339,57 @@ const Dashboard: React.FC = () => {
         mediumIssues: number;
         lowIssues: number;
         passedRules: number;
-      }> = normalizedHosts
-        // Use NormalizedHost type for type-safe access to host health metrics
-        .filter((host: NormalizedHost) => {
-          // Critical issues
-          if (host.criticalIssues > 0) return true;
-          // Not scanned in 30 days
-          if (!host.lastScan || daysSince(host.lastScan) > 30) return true;
-          // Offline
-          if (host.status === 'offline') return true;
-          // Degrading compliance
-          if (host.complianceScore < 70) return true;
-          return false;
-        })
-        .slice(0, 5)
-        .map((host: NormalizedHost) => {
-          let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
-            'critical_issues';
-          let issue = '';
-          let severity: 'critical' | 'high' | 'medium' = 'medium';
+      }> = [];
 
-          if (host.criticalIssues > 0) {
-            issueType = 'critical_issues';
-            issue = `${host.criticalIssues} critical security issues detected`;
-            severity = 'critical';
-          } else if (!host.lastScan || daysSince(host.lastScan) > 30) {
-            issueType = 'not_scanned';
-            issue = host.lastScan
-              ? `Not scanned in ${daysSince(host.lastScan)} days`
-              : 'Never scanned';
-            severity = daysSince(host.lastScan || '1970-01-01') > 60 ? 'high' : 'medium';
-          } else if (host.status === 'offline') {
-            issueType = 'offline';
-            issue = 'Host is currently offline';
-            severity = 'high';
-          } else if (host.complianceScore < 70) {
-            issueType = 'degrading';
-            issue = `Compliance score below threshold (${host.complianceScore}%)`;
-            severity = host.complianceScore < 50 ? 'high' : 'medium';
-          }
+      // Fetch OWCA priority hosts (uses OWCA risk scoring algorithm)
+      // No fallback - OWCA is required for accurate risk prioritization
+      const owcaPriorityHosts = await owcaService.getTopPriorityHosts(5);
 
-          return {
-            id: host.id,
-            hostname: host.hostname,
-            displayName: host.displayName,
-            ipAddress: host.ipAddress,
-            operatingSystem: host.operatingSystem,
-            status: host.status,
-            complianceScore: host.complianceScore,
-            issueType,
-            issue,
-            severity,
-            lastScan: host.lastScan,
-            criticalIssues: host.criticalIssues,
-            highIssues: host.highIssues,
-            mediumIssues: host.mediumIssues,
-            lowIssues: host.lowIssues,
-            passedRules: host.passedRules,
-          };
-        });
+      // Map OWCA priority hosts to dashboard format
+      // OWCA provides sophisticated prioritization based on risk score
+      priorityHostsArray = owcaPriorityHosts.map((owcaHost) => {
+        // Find matching host in normalized hosts for additional metadata
+        const matchingHost = normalizedHosts.find((h) => h.id === owcaHost.host_id);
+
+        let issueType: 'critical_issues' | 'not_scanned' | 'degrading' | 'offline' =
+          'critical_issues';
+        let issue = '';
+        let severity: 'critical' | 'high' | 'medium' = 'medium';
+
+        // Determine primary issue based on OWCA prioritization
+        if (owcaHost.critical_issues > 0) {
+          issueType = 'critical_issues';
+          issue = `${owcaHost.critical_issues} critical security issues detected`;
+          severity = 'critical';
+        } else if (owcaHost.high_issues > 0) {
+          issueType = 'critical_issues';
+          issue = `${owcaHost.high_issues} high security issues detected`;
+          severity = 'high';
+        } else if (owcaHost.compliance_score < 70) {
+          issueType = 'degrading';
+          issue = `Compliance score below threshold (${owcaHost.compliance_score}%)`;
+          severity = owcaHost.compliance_score < 50 ? 'high' : 'medium';
+        }
+
+        return {
+          id: owcaHost.host_id,
+          hostname: owcaHost.hostname,
+          displayName: owcaHost.hostname,
+          ipAddress: owcaHost.ip_address,
+          operatingSystem: matchingHost?.operatingSystem || 'Unknown',
+          status: matchingHost?.status || 'unknown',
+          complianceScore: owcaHost.compliance_score,
+          issueType,
+          issue,
+          severity,
+          lastScan: owcaHost.last_scan,
+          criticalIssues: owcaHost.critical_issues,
+          highIssues: owcaHost.high_issues,
+          mediumIssues: matchingHost?.mediumIssues || 0,
+          lowIssues: matchingHost?.lowIssues || 0,
+          passedRules: matchingHost?.passedRules || 0,
+        };
+      });
 
       // Update state with processed data
       setOnlineHosts(onlineCount);
@@ -511,14 +462,6 @@ const Dashboard: React.FC = () => {
     navigate('/hosts', { state: { filter: status } });
   };
 
-  // Helper function to calculate days since a date
-  const daysSince = (dateStr: string): number => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
   // Show loading state
   if (loading) {
     return (
@@ -572,6 +515,21 @@ const Dashboard: React.FC = () => {
           Monitor your infrastructure security posture and compliance status
         </Typography>
       </Box>
+
+      {/* OWCA Error Alert - Compliance applications require accurate data */}
+      {owcaError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+            OWCA Compliance Service Unavailable
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            {owcaError}
+          </Typography>
+          <Button onClick={fetchDashboardData} variant="contained" color="error" size="small">
+            Retry Connection
+          </Button>
+        </Alert>
+      )}
 
       {/* Smart Alert Bar */}
       <SmartAlertBar

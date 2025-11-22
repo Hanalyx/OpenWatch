@@ -143,9 +143,7 @@ class FleetStatistics(BaseModel):
 
     hosts_with_critical: int = Field(0, ge=0, description="Hosts with at least 1 critical issue")
 
-    calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When statistics were calculated"
-    )
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When statistics were calculated")
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -174,9 +172,7 @@ class BaselineDrift(BaseModel):
     critical_regressions: int = Field(0, ge=0, description="Critical rules that regressed")
     high_regressions: int = Field(0, ge=0, description="High rules that regressed")
 
-    detected_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When drift was detected"
-    )
+    detected_at: datetime = Field(default_factory=datetime.utcnow, description="When drift was detected")
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -211,13 +207,9 @@ class TrendData(BaseModel):
     data_points: List[TrendDataPoint] = Field(..., description="Historical data points")
 
     trend_direction: TrendDirection = Field(..., description="Overall trend direction")
-    improvement_rate: Optional[float] = Field(
-        None, description="Rate of improvement (percentage points per day)"
-    )
+    improvement_rate: Optional[float] = Field(None, description="Rate of improvement (percentage points per day)")
 
-    calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When trend was calculated"
-    )
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When trend was calculated")
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -247,9 +239,71 @@ class RiskScore(BaseModel):
 
     priority_rank: int = Field(..., ge=1, description="Priority ranking (1 = highest)")
 
-    calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When risk was calculated"
-    )
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When risk was calculated")
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class ForecastPoint(BaseModel):
+    """Single forecasted data point for compliance prediction."""
+
+    date: str = Field(..., description="Forecasted date in YYYY-MM-DD format")
+    predicted_score: float = Field(..., ge=0, le=100, description="Predicted compliance score")
+    confidence_lower: float = Field(..., ge=0, le=100, description="Lower confidence bound (95% CI)")
+    confidence_upper: float = Field(..., ge=0, le=100, description="Upper confidence bound (95% CI)")
+
+
+class ComplianceForecast(BaseModel):
+    """
+    Compliance score forecast for future time periods.
+
+    Uses statistical forecasting methods (linear regression, ARIMA)
+    to predict future compliance trends.
+    """
+
+    entity_id: UUID = Field(..., description="Entity being forecasted")
+    entity_type: str = Field(..., description="Type: host, group, organization")
+
+    forecast_days: int = Field(..., ge=1, description="Number of days forecasted")
+    forecast_points: List[ForecastPoint] = Field(..., description="Forecasted data points")
+
+    method: str = Field(..., description="Forecasting method used (linear, arima)")
+    confidence_level: float = Field(0.95, description="Confidence level (default 95%)")
+
+    calculated_at: datetime = Field(default_factory=datetime.utcnow, description="When forecast was calculated")
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class AnomalySeverity(str, Enum):
+    """Severity of detected anomaly."""
+
+    CRITICAL = "critical"  # >3 standard deviations
+    HIGH = "high"  # 2-3 standard deviations
+    MEDIUM = "medium"  # 1-2 standard deviations
+
+
+class ComplianceAnomaly(BaseModel):
+    """
+    Detected anomaly in compliance score.
+
+    Identifies unusual compliance changes using statistical methods.
+    """
+
+    host_id: UUID = Field(..., description="Host with anomaly")
+    scan_id: UUID = Field(..., description="Scan with anomalous score")
+
+    actual_score: float = Field(..., ge=0, le=100, description="Actual compliance score")
+    expected_score: float = Field(..., ge=0, le=100, description="Expected score (mean)")
+
+    deviation: float = Field(..., description="Deviation in standard deviations (z-score)")
+    severity: AnomalySeverity = Field(..., description="Anomaly severity")
+
+    detected_at: datetime = Field(default_factory=datetime.utcnow, description="When anomaly was detected")
+
+    description: Optional[str] = Field(None, description="Human-readable explanation")
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}

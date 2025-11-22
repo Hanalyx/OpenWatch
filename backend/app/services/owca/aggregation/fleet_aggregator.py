@@ -85,19 +85,20 @@ class FleetAggregator:
                 WHERE status = 'completed'
             ),
             latest_scans AS (
-                SELECT DISTINCT ON (host_id)
-                    host_id,
-                    passed_rules,
-                    failed_rules,
-                    total_rules,
-                    critical_failed,
-                    high_failed,
-                    medium_failed,
-                    low_failed,
-                    completed_at
-                FROM scans
-                WHERE status = 'completed'
-                ORDER BY host_id, completed_at DESC
+                SELECT DISTINCT ON (s.host_id)
+                    s.host_id,
+                    sr.passed_rules,
+                    sr.failed_rules,
+                    sr.total_rules,
+                    sr.severity_critical_failed AS critical_failed,
+                    sr.severity_high_failed AS high_failed,
+                    sr.severity_medium_failed AS medium_failed,
+                    sr.severity_low_failed AS low_failed,
+                    s.completed_at
+                FROM scans s
+                JOIN scan_results sr ON s.id = sr.scan_id
+                WHERE s.status = 'completed'
+                ORDER BY s.host_id, s.completed_at DESC
             ),
             compliance_scores AS (
                 SELECT
@@ -132,6 +133,12 @@ class FleetAggregator:
                 LEFT JOIN scans s ON h.id = s.host_id AND s.status = 'completed'
                 WHERE s.completed_at IS NULL
                    OR s.completed_at < :threshold_date
+            ),
+            compliance_stats AS (
+                SELECT
+                    COALESCE(AVG(score), 0) AS average_compliance,
+                    COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY score), 0) AS median_compliance
+                FROM compliance_scores
             )
             SELECT
                 hc.total_hosts,
@@ -140,8 +147,8 @@ class FleetAggregator:
                 COALESCE(sc.scanned_hosts, 0) AS scanned_hosts,
                 hc.total_hosts - COALESCE(sc.scanned_hosts, 0) AS never_scanned,
                 COALESCE(ns.count, 0) AS needs_scan,
-                COALESCE(AVG(cs.score), 0) AS average_compliance,
-                COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cs.score), 0) AS median_compliance,
+                cst.average_compliance,
+                cst.median_compliance,
                 COALESCE(tc.excellent, 0) AS hosts_excellent,
                 COALESCE(tc.good, 0) AS hosts_good,
                 COALESCE(tc.fair, 0) AS hosts_fair,
@@ -156,7 +163,7 @@ class FleetAggregator:
             CROSS JOIN tier_counts tc
             CROSS JOIN issue_counts ic
             CROSS JOIN needs_scan ns
-            CROSS JOIN compliance_scores cs
+            CROSS JOIN compliance_stats cst
             """
         )
 
@@ -279,20 +286,21 @@ class FleetAggregator:
                 h.hostname,
                 h.ip_address,
                 s.id AS scan_id,
-                s.passed_rules,
-                s.failed_rules,
-                s.total_rules,
-                s.critical_failed,
-                s.high_failed,
+                sr.passed_rules,
+                sr.failed_rules,
+                sr.total_rules,
+                sr.severity_critical_failed AS critical_failed,
+                sr.severity_high_failed AS high_failed,
                 s.completed_at,
                 CASE
-                    WHEN s.total_rules > 0
-                    THEN ROUND((s.passed_rules::numeric / s.total_rules::numeric) * 100, 2)
+                    WHEN sr.total_rules > 0
+                    THEN ROUND((sr.passed_rules::numeric / sr.total_rules::numeric) * 100, 2)
                     ELSE 0
                 END AS compliance_score,
-                (s.critical_failed * 10 + s.high_failed * 5) AS priority_score
+                (sr.severity_critical_failed * 10 + sr.severity_high_failed * 5) AS priority_score
             FROM hosts h
             JOIN scans s ON h.id = s.host_id
+            JOIN scan_results sr ON s.id = sr.scan_id
             WHERE s.status = 'completed'
             ORDER BY s.host_id, s.completed_at DESC
             LIMIT :limit
