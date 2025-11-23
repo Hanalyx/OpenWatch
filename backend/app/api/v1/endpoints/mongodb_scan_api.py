@@ -20,8 +20,8 @@ from ....constants import is_framework_supported
 from ....database import User, get_db
 from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
 from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
+from ....services.owca import SeverityCalculator, XCCDFParser
 from ....services.result_enrichment_service import ResultEnrichmentService
-from ....services.scoring import SeverityWeightingService, XCCDFScoreExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -275,11 +271,11 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
                 # No pass/fail rules to calculate score from (all rules are N/A, error, etc.)
                 results["score"] = 0.0
 
-        # Extract XCCDF native score using XCCDFScoreExtractor
+        # Extract XCCDF native score using OWCA Extraction Layer
         # This extracts the official <score> element from the TestResult
         try:
-            score_extractor = XCCDFScoreExtractor()
-            xccdf_score_result = score_extractor.extract_native_score(result_file)
+            xccdf_parser = XCCDFParser()
+            xccdf_score_result = xccdf_parser.extract_native_score(result_file)
 
             if xccdf_score_result.found:
                 results["xccdf_score"] = xccdf_score_result.xccdf_score
@@ -305,10 +301,10 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
             results["xccdf_score_system"] = None
             results["xccdf_score_max"] = None
 
-        # Calculate severity-weighted risk score (Phase 2)
+        # Calculate severity-weighted risk score using OWCA Extraction Layer
         try:
-            risk_service = SeverityWeightingService()
-            risk_result = risk_service.calculate_risk_score(
+            severity_calculator = SeverityCalculator()
+            risk_result = severity_calculator.calculate_risk_score(
                 critical_count=results["failed_critical"],
                 high_count=results["failed_high"],
                 medium_count=results["failed_medium"],
@@ -382,9 +378,7 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
@@ -642,9 +636,7 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = (
-                [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
-            )
+            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
 
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
@@ -813,11 +805,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 

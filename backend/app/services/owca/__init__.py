@@ -4,6 +4,8 @@ OpenWatch Compliance Algorithm (OWCA)
 Single source of truth for all compliance calculations, analysis, and intelligence.
 
 This module provides:
+- SCAP result extraction and parsing (XML, XCCDF)
+- Severity-weighted risk scoring
 - Core compliance score calculations
 - Framework-specific intelligence (NIST, CIS, STIG, PCI-DSS)
 - Fleet-wide aggregation and statistics
@@ -12,9 +14,10 @@ This module provides:
 - Risk scoring and priority ranking
 
 Architecture:
-    Entry Point → 4 Specialized Layers → Cached Results
+    Entry Point → 5 Specialized Layers → Cached Results
 
 Layers:
+    0. Extraction Layer: XCCDF parsing, severity risk calculation
     1. Core Layer: Raw metric calculations (pass/fail/score)
     2. Framework Layer: Framework-specific mappings and intelligence
     3. Aggregation Layer: Multi-entity rollup (host → group → org)
@@ -23,6 +26,14 @@ Layers:
 Usage:
     >>> from backend.app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
+    >>>
+    >>> # Extract XCCDF score from XML
+    >>> xccdf_result = await owca.extract_xccdf_score("/app/data/results/scan_123.xml")
+    >>>
+    >>> # Calculate severity-based risk
+    >>> severity_risk = await owca.calculate_severity_risk(critical=5, high=10)
+    >>>
+    >>> # Get compliance score
     >>> score = await owca.get_host_compliance_score(host_id)
     >>> print(f"Host compliance: {score.overall_score}% ({score.tier})")
 """
@@ -34,6 +45,7 @@ from sqlalchemy.orm import Session
 from .aggregation.fleet_aggregator import FleetAggregator
 from .cache.redis_cache import OWCACache
 from .core.score_calculator import ComplianceScoreCalculator
+from .extraction import SeverityCalculator, SeverityRiskResult, XCCDFParser, XCCDFScoreResult
 from .framework import get_framework_intelligence
 from .intelligence import BaselineDriftDetector, CompliancePredictor, RiskScorer, TrendAnalyzer
 from .models import (
@@ -48,14 +60,22 @@ from .models import (
 
 __version__ = "1.0.0"
 __all__ = [
+    # Main service
     "OWCAService",
     "get_owca_service",
+    # Extraction Layer (Layer 0)
+    "XCCDFParser",
+    "XCCDFScoreResult",
+    "SeverityCalculator",
+    "SeverityRiskResult",
+    # Core models
     "ComplianceScore",
     "ComplianceTier",
     "FleetStatistics",
     "BaselineDrift",
     "TrendData",
     "RiskScore",
+    "ComplianceForecast",
 ]
 
 
@@ -78,12 +98,21 @@ class OWCAService:
         self.db = db
         self.use_cache = use_cache
 
-        # Initialize layers
+        # Initialize cache
         self.cache = OWCACache() if use_cache else None
+
+        # Layer 0: Extraction Layer
+        # Provides SCAP XML parsing and severity-based risk scoring
+        self.xccdf_parser = XCCDFParser()
+        self.severity_calculator = SeverityCalculator()
+
+        # Layer 1: Core Layer
         self.score_calculator = ComplianceScoreCalculator(db, self.cache)
+
+        # Layer 3: Aggregation Layer
         self.fleet_aggregator = FleetAggregator(db, self.score_calculator, self.cache)
 
-        # Intelligence Layer components
+        # Layer 4: Intelligence Layer components
         self.drift_detector = BaselineDriftDetector(db, self.score_calculator)
         self.trend_analyzer = TrendAnalyzer(db, self.score_calculator)
         self.risk_scorer = RiskScorer(db, self.score_calculator, self.drift_detector)
@@ -122,9 +151,7 @@ class OWCAService:
         """
         return await self.drift_detector.detect_drift(host_id)
 
-    async def get_framework_intelligence(
-        self, framework: str, host_id: str, scan_results: Optional[dict] = None
-    ):
+    async def get_framework_intelligence(self, framework: str, host_id: str, scan_results: Optional[dict] = None):
         """
         Get framework-specific compliance intelligence for a host.
 
@@ -148,9 +175,7 @@ class OWCAService:
             >>> nist_intel = await owca.get_framework_intelligence("NIST_800_53", host_id)
             >>> print(f"Control family AC: {nist_intel.control_families[0].score}%")
         """
-        intelligence_provider = get_framework_intelligence(
-            framework, self.db, self.score_calculator
-        )
+        intelligence_provider = get_framework_intelligence(framework, self.db, self.score_calculator)
 
         if not intelligence_provider:
             return None
@@ -178,18 +203,14 @@ class OWCAService:
             ...     summary = await owca.get_framework_summary(fw, scan_results)
             ...     summaries.append(summary)
         """
-        intelligence_provider = get_framework_intelligence(
-            framework, self.db, self.score_calculator
-        )
+        intelligence_provider = get_framework_intelligence(framework, self.db, self.score_calculator)
 
         if not intelligence_provider:
             return None
 
         return await intelligence_provider.get_framework_summary(scan_results)
 
-    async def analyze_trend(
-        self, entity_id: str, entity_type: str = "host", days: int = 30
-    ) -> Optional[TrendData]:
+    async def analyze_trend(self, entity_id: str, entity_type: str = "host", days: int = 30) -> Optional[TrendData]:
         """
         Analyze compliance trend over time.
 
@@ -210,9 +231,7 @@ class OWCAService:
 
         return await self.trend_analyzer.analyze_trend(UUID(entity_id), entity_type, days)
 
-    async def calculate_risk(
-        self, host_id: str, business_criticality: Optional[str] = None
-    ) -> Optional[RiskScore]:
+    async def calculate_risk(self, host_id: str, business_criticality: Optional[str] = None) -> Optional[RiskScore]:
         """
         Calculate risk score for a host.
 
@@ -276,13 +295,9 @@ class OWCAService:
         """
         from uuid import UUID
 
-        return await self.predictor.forecast_compliance(
-            UUID(entity_id), entity_type, days_ahead, historical_days
-        )
+        return await self.predictor.forecast_compliance(UUID(entity_id), entity_type, days_ahead, historical_days)
 
-    async def detect_anomalies(
-        self, entity_id: str, entity_type: str = "host", lookback_days: int = 60
-    ) -> list:
+    async def detect_anomalies(self, entity_id: str, entity_type: str = "host", lookback_days: int = 60) -> list:
         """
         Detect anomalous compliance scores.
 
@@ -304,6 +319,110 @@ class OWCAService:
         from uuid import UUID
 
         return await self.predictor.detect_anomalies(UUID(entity_id), entity_type, lookback_days)
+
+    def extract_xccdf_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
+        """
+        Extract native XCCDF score from scan result XML file.
+
+        Part of OWCA Extraction Layer (Layer 0).
+        Provides secure XML parsing with comprehensive security controls.
+
+        Args:
+            result_file: Absolute path to XCCDF/ARF result file
+            user_id: Optional user ID for audit logging
+
+        Returns:
+            XCCDFScoreResult with extracted score data or error information
+
+        Security:
+            - XXE attack prevention (secure XML parser)
+            - Path traversal validation (no ../ sequences)
+            - File size limit enforcement (10MB maximum)
+            - Comprehensive audit logging
+
+        Example:
+            >>> owca = get_owca_service(db)
+            >>> result = owca.extract_xccdf_score("/app/data/results/scan_123.xml")
+            >>> if result.found:
+            ...     print(f"XCCDF Score: {result.xccdf_score}/{result.xccdf_score_max}")
+            ... else:
+            ...     print(f"Error: {result.error}")
+        """
+        # Check cache first to avoid re-parsing same file
+        if self.cache:
+            cache_key = f"xccdf_score:{result_file}"
+            cached_result = self.cache.get(cache_key)
+            if cached_result:
+                return XCCDFScoreResult(**cached_result)
+
+        # Parse XML file using secure parser
+        result = self.xccdf_parser.extract_native_score(result_file, user_id)
+
+        # Cache successful results for 5 minutes
+        # Rationale: XML files don't change frequently, caching reduces file I/O
+        if self.cache and result.found:
+            cache_key = f"xccdf_score:{result_file}"
+            self.cache.set(cache_key, result.dict(), ttl=300)
+
+        return result
+
+    def calculate_severity_risk(
+        self,
+        critical: int = 0,
+        high: int = 0,
+        medium: int = 0,
+        low: int = 0,
+        info: int = 0,
+        user_id: Optional[str] = None,
+        scan_id: Optional[str] = None,
+    ) -> SeverityRiskResult:
+        """
+        Calculate severity-weighted risk score from finding counts.
+
+        Part of OWCA Extraction Layer (Layer 0).
+        Applies industry-standard weights from NIST SP 800-30.
+
+        Risk Scoring Formula:
+            risk_score = (critical * 10.0) + (high * 5.0) + (medium * 2.0) +
+                         (low * 0.5) + (info * 0.0)
+
+        Risk Levels:
+            0-20:    Low risk
+            21-50:   Medium risk
+            51-100:  High risk
+            100+:    Critical risk
+
+        Args:
+            critical: Number of critical severity findings
+            high: Number of high severity findings
+            medium: Number of medium severity findings
+            low: Number of low severity findings
+            info: Number of informational findings
+            user_id: Optional user ID for audit logging
+            scan_id: Optional scan ID for audit logging
+
+        Returns:
+            SeverityRiskResult with calculated score, risk level, and breakdown
+
+        Example:
+            >>> owca = get_owca_service(db)
+            >>> risk = owca.calculate_severity_risk(critical=5, high=10, medium=20)
+            >>> print(f"Risk: {risk.risk_score} ({risk.risk_level})")
+            Risk: 155.0 (critical)
+            >>>
+            >>> # Check severity breakdown
+            >>> print(f"Critical contribution: {risk.weighted_breakdown['critical']}")
+            Critical contribution: 50.0
+        """
+        return self.severity_calculator.calculate_risk_score(
+            critical_count=critical,
+            high_count=high,
+            medium_count=medium,
+            low_count=low,
+            info_count=info,
+            user_id=user_id,
+            scan_id=scan_id,
+        )
 
     def get_version(self) -> str:
         """Get OWCA algorithm version."""
