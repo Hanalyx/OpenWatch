@@ -121,7 +121,9 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
         enhancements_total, enhancements_tested = self._analyze_enhancements(nist_rules)
 
         # Calculate enhancement coverage percentage
-        enhancements_coverage = (enhancements_tested / enhancements_total * 100) if enhancements_total > 0 else 0.0
+        enhancements_coverage = (
+            (enhancements_tested / enhancements_total * 100) if enhancements_total > 0 else 0.0
+        )
 
         # Recommend appropriate baseline based on current compliance
         recommended_baseline = self._recommend_baseline(baseline_scores)

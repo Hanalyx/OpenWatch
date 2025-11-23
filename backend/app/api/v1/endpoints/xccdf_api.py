@@ -60,7 +60,9 @@ async def generate_benchmark(
     try:
         mongo_db = mongo_service.mongo_manager.database
 
-        logger.info(f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}")
+        logger.info(
+            f"User {current_user.get('username')} generating benchmark: {request.benchmark_id}"
+        )
 
         # Component Detection (if host_id provided)
         target_capabilities: Optional[Set[str]] = None
@@ -70,7 +72,8 @@ async def generate_benchmark(
                 host_uuid = UUID(request.host_id)
 
                 logger.info(
-                    f"Running component detection for host {request.host_id} " f"to enable intelligent rule filtering"
+                    f"Running component detection for host {request.host_id} "
+                    f"to enable intelligent rule filtering"
                 )
 
                 # Create ReadinessValidator with PostgreSQL session
@@ -86,7 +89,11 @@ async def generate_benchmark(
 
                 # Extract component capabilities from check results
                 component_check = next(
-                    (c for c in readiness.checks if c.check_type == ReadinessCheckType.COMPONENT_DETECTION),
+                    (
+                        c
+                        for c in readiness.checks
+                        if c.check_type == ReadinessCheckType.COMPONENT_DETECTION
+                    ),
                     None,
                 )
 
@@ -114,8 +121,12 @@ async def generate_benchmark(
 
             except Exception as e:
                 # Component detection error - log but don't fail entire request
-                logger.error(f"Component detection failed for {request.host_id}: {e}", exc_info=True)
-                logger.warning("Generating unfiltered XCCDF (all rules) due to component detection failure")
+                logger.error(
+                    f"Component detection failed for {request.host_id}: {e}", exc_info=True
+                )
+                logger.warning(
+                    "Generating unfiltered XCCDF (all rules) due to component detection failure"
+                )
 
         # Create generator service
         generator = XCCDFGeneratorService(mongo_db)
@@ -192,7 +203,9 @@ async def generate_tailoring(
     try:
         db = mongo_service.mongo_manager.database
 
-        logger.info(f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}")
+        logger.info(
+            f"User {current_user.get('username')} generating tailoring: {request.tailoring_id}"
+        )
 
         # Create generator service
         generator = XCCDFGeneratorService(db)
