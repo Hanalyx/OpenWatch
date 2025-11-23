@@ -34,6 +34,7 @@ class ReadinessCheckType(str, Enum):
     MEMORY_AVAILABILITY = "memory_availability"
     SELINUX_STATUS = "selinux_status"
     DEPENDENCIES = "dependencies"
+    COMPONENT_DETECTION = "component_detection"  # Detects installed components for XCCDF filtering
 
 
 class ReadinessCheckSeverity(str, Enum):
@@ -66,9 +67,7 @@ class HostReadinessCheck(Base):
     __tablename__ = "host_readiness_checks"
 
     # Primary key
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4, index=True
-    )
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
 
     # Foreign keys
     host_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hosts.id"), index=True)
@@ -92,9 +91,7 @@ class HostReadinessCheck(Base):
     check_duration_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Audit trail
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False, index=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     created_by: Mapped[Optional[UUID]] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
     # Relationships
@@ -119,9 +116,7 @@ class HostReadinessValidation(Base):
     __tablename__ = "host_readiness_validations"
 
     # Primary key
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid4, index=True
-    )
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
 
     # Foreign key
     host_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("hosts.id"), index=True)
@@ -148,9 +143,7 @@ class HostReadinessValidation(Base):
     created_by: Mapped[Optional[UUID]] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
     # Relationships
-    checks = relationship(
-        "HostReadinessCheck", back_populates="validation_run", cascade="all, delete-orphan"
-    )
+    checks = relationship("HostReadinessCheck", back_populates="validation_run", cascade="all, delete-orphan")
 
     __table_args__ = (
         # Composite index for querying recent validations by host
@@ -252,9 +245,7 @@ class BulkReadinessReport(BaseModel):
     completed_at: datetime
 
     # Aggregated insights
-    common_failures: Dict[str, int] = Field(
-        default_factory=dict, description="Map of check_type -> failure count"
-    )
+    common_failures: Dict[str, int] = Field(default_factory=dict, description="Map of check_type -> failure count")
     remediation_priorities: List[Dict[str, Any]] = Field(
         default_factory=list, description="Prioritized list of issues to fix"
     )
@@ -298,9 +289,7 @@ class ReadinessHistory(BaseModel):
 
     # Trend insights
     improving: bool = Field(description="Is readiness improving over time?")
-    consistent_failures: List[str] = Field(
-        default_factory=list, description="Checks that consistently fail"
-    )
+    consistent_failures: List[str] = Field(default_factory=list, description="Checks that consistently fail")
 
 
 class QuickCheckRequest(BaseModel):

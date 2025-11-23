@@ -5,6 +5,7 @@ Individual check functions for validating host scan readiness.
 Each module implements ONE specific check (Single Responsibility Principle).
 """
 
+from .component_detection_check import check_component_detection
 from .disk_check import check_disk_space
 from .memory_check import check_memory
 from .network_check import check_network_connectivity
@@ -21,4 +22,5 @@ __all__ = [
     "check_network_connectivity",
     "check_memory",
     "check_selinux_status",
+    "check_component_detection",
 ]
