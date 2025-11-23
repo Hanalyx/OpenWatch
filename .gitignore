@@ -748,6 +748,9 @@ backend/app/cli/*_fixed.py
 backend/app/cli/*_backup.py
 backend/app/cli/*_temp.py
 
+# Temporary cleanup scripts
+scripts/cleanup-documentation.sh
+
 # Installation/migration outputs
 *-installation-output
 *-migration-output
