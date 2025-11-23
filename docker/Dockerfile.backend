@@ -2,6 +2,7 @@
 FROM registry.access.redhat.com/ubi9/ubi:9.6
 
 # Install FIPS-compliant OpenSSL and dependencies
+# hadolint ignore=DL3041
 RUN dnf update -y && \
     dnf install -y --allowerasing \
         python3 \
@@ -28,7 +29,8 @@ RUN useradd -m -u 10001 openwatch && \
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
+# hadolint ignore=DL3013
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed requests -r requirements.txt
 
@@ -46,7 +48,8 @@ RUN chown -R openwatch:openwatch /app && \
     chmod -R 700 /app/security
 
 # Create directories for runtime data
-RUN mkdir -p /app/data/{scap,results,uploads} /app/logs /app/security/{keys,certs} && \
+# hadolint ignore=SC3009
+RUN mkdir -p /app/data/scap /app/data/results /app/data/uploads /app/logs /app/security/keys /app/security/certs && \
     chown -R openwatch:openwatch /app/data /app/logs /app/security && \
     chmod -R 755 /app/logs
 
