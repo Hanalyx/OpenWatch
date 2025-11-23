@@ -815,6 +815,3 @@ scap_json_to_openwatch_converter_enhanced.py
 
 backend/debug_*.py
 backend/scripts/
-
-# Documentation directory (user-generated)
-docs/
