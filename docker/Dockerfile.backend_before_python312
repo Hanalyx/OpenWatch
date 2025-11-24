@@ -1,0 +1,79 @@
+# OpenWatch Backend - FIPS Compliant Container
+FROM registry.access.redhat.com/ubi9/ubi:9.6
+
+# Install FIPS-compliant OpenSSL and dependencies
+# hadolint ignore=DL3041
+RUN dnf update -y && \
+    dnf install -y --allowerasing \
+        python3 \
+        python3-pip \
+        python3-devel \
+        openscap-scanner \
+        openssh-clients \
+        openssl \
+        openssl-devel \
+        gcc \
+        postgresql-devel \
+        curl && \
+    dnf clean all
+
+# Enable FIPS mode
+RUN fips-mode-setup --enable || echo "FIPS mode setup completed"
+
+# Create application user with high UID/GID to avoid collisions
+RUN useradd -m -u 10001 openwatch && \
+    mkdir -p /app /app/data /app/logs /app/security && \
+    chown -R openwatch:openwatch /app
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY backend/requirements.txt .
+# hadolint ignore=DL3013
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir --ignore-installed requests -r requirements.txt
+
+# Copy application code
+COPY backend/ ./backend/
+COPY security/ ./security/
+
+# Copy oscap-ssh wrapper script
+COPY backend/scripts/oscap-ssh /usr/local/bin/oscap-ssh
+RUN chmod +x /usr/local/bin/oscap-ssh
+
+# Set proper permissions
+RUN chown -R openwatch:openwatch /app && \
+    chmod -R 755 /app && \
+    chmod -R 700 /app/security
+
+# Create directories for runtime data
+# hadolint ignore=SC3009
+RUN mkdir -p /app/data/scap /app/data/results /app/data/uploads /app/logs /app/security/keys /app/security/certs && \
+    chown -R openwatch:openwatch /app/data /app/logs /app/security && \
+    chmod -R 755 /app/logs
+
+# Copy entrypoint script and set permissions before switching user
+COPY docker/entrypoint-backend.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Switch to non-root user
+USER openwatch
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Environment variables
+ENV PYTHONPATH=/app \
+    OPENWATCH_FIPS_MODE=true \
+    OPENWATCH_LOG_LEVEL=INFO
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# Start command
+CMD ["python3", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

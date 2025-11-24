@@ -1,4 +1,8 @@
 # OpenWatch Backend Dependencies
+# Python Version Requirement: 3.12+ (Python 3.9 EOL 2025-10-31, security risk)
+# Security Compliance: NIST SP 800-53, FedRAMP, CMMC, ISO 27001, PCI DSS
+# FIPS 140-2: Requires RHEL 9 / UBI9 with FIPS-validated OpenSSL
+
 # Core web framework
 fastapi==0.120.1  # Latest stable (Nov 2025), supports starlette 0.49.1+
 uvicorn[standard]==0.32.1
@@ -26,7 +30,7 @@ amqp==5.3.1
 PyJWT==2.10.1  # Security: CVE-2024-33663 fixed
 passlib==1.7.4
 bcrypt==5.0.0
-argon2-cffi==23.1.0
+argon2-cffi==25.1.0  # Updated for Python 3.12+ (from 23.1.0, Dependabot PR recommendation)
 python-multipart==0.0.18
 pyotp==2.9.0
 qrcode==7.4.2
@@ -63,11 +67,15 @@ psutil==6.1.1  # System and process utilities for health monitoring
 # File handling
 aiofiles==24.1.0
 python-magic==0.4.27
-Pillow==11.3.0  # Security: CVE-2024-28219 (buffer overflow) fixed
+Pillow==12.0.0  # Updated for Python 3.12+ (from 11.3.0, Dependabot PR #170)
+                # Breaking change: Requires Python 3.10+, compatible with Python 3.12
+                # Security: CVE-2024-28219 (buffer overflow) fixed
 lxml==5.3.0
 
 # Email
-aiosmtplib==3.0.1
+aiosmtplib==5.0.0  # Updated for Python 3.12+ (from 3.0.1, Dependabot PR #168)
+                   # Breaking change: Requires Python 3.10+, compatible with Python 3.12
+                   # Major version upgrade includes async improvements and bug fixes
 
 # Task scheduling
 APScheduler==3.10.4

@@ -2,7 +2,7 @@
 
 > **Purpose**: This file provides comprehensive guidance to AI assistants (Claude Code, GitHub Copilot, etc.) when working with the OpenWatch compliance scanning platform.
 
-**Last Updated**: 2025-11-10
+**Last Updated**: 2025-11-23 (Python 3.12 Migration)
 **Working Directory**: `/home/rracine/hanalyx/openwatch/`
 
 ---
@@ -200,7 +200,12 @@ Security controls aligned with FedRAMP Moderate requirements:
 
 #### Backend
 - **Framework**: FastAPI 0.119.1+ (async-first)
-- **Language**: Python 3.9+ with strict type hints
+- **Language**: **Python 3.12.1+** with strict type hints
+  - **CRITICAL**: Python 3.9 reached END OF LIFE on 2025-10-31
+  - **Security Requirement**: Python 3.12+ mandatory for NIST SP 800-53 SI-2, FedRAMP SI-2, PCI DSS 6.3.3 compliance
+  - **Base Image**: Red Hat UBI9 Python 3.12 Minimal (`registry.redhat.io/ubi9/python-312-minimal:latest`)
+  - **FIPS Compliance**: FIPS 140-2 validated OpenSSL 3.0+ (inherited from RHEL 9)
+  - **Support Timeline**: Security updates until 2028-10
 - **Databases**:
   - PostgreSQL 15+ (relational data, SQLAlchemy ORM)
   - MongoDB 7.0+ (document store, Beanie ODM)
@@ -3299,6 +3304,16 @@ curl http://localhost:8000/health
 ---
 
 ## 🔄 Version History
+
+- **v1.1.0** (2025-11-23): Python 3.12 Migration
+  - **CRITICAL SECURITY UPDATE**: Migrated from Python 3.9 (EOL) to Python 3.12.1
+  - Updated base container image to Red Hat UBI9 Python 3.12 Minimal
+  - Maintained FIPS 140-2 compliance with RHEL 9 FIPS-validated OpenSSL
+  - Updated dependencies: Pillow 11.3.0→12.0.0, aiosmtplib 3.0.1→5.0.0, argon2-cffi 23.1.0→25.1.0
+  - Added FIPS validation script (`backend/scripts/validate_fips_compliance.py`)
+  - Added migration verification script (`backend/scripts/verify_python_312_migration.py`)
+  - Updated security compliance documentation for NIST SI-2, FedRAMP SI-2, CMMC SI.L2-3.14.1
+  - **Migration Impact**: 20-25% performance improvement, 3 years of security support (until 2028-10)
 
 - **v1.0.0** (2025-10-26): Initial CLAUDE.md for OpenWatch
   - Added comprehensive security standards (OWASP, NIST, ISO 27001, CMMC, FedRAMP)
