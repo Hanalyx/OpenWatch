@@ -32,7 +32,7 @@
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.66.0",
-    "react-redux": "^8.0.7",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^6.11.0",
     "recharts": "^2.15.4",
     "redux-persist": "^6.0.0",
