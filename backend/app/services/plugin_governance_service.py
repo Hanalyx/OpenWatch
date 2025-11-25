@@ -431,7 +431,9 @@ class PluginGovernanceService:
                 compliance_impact={standard.value: result},
             )
 
-        logger.info(f"Evaluated compliance for plugin {plugin_id} against {len(standards)} standards")
+        logger.info(
+            f"Evaluated compliance for plugin {plugin_id} against {len(standards)} standards"
+        )
         return compliance_results
 
     async def check_policy_violations(
@@ -514,15 +516,21 @@ class PluginGovernanceService:
 
         # Calculate overall compliance
         total_plugins = len(plugins)
-        compliant_plugins = len([r for r in compliance_results.values() if r.get("compliant", False)])
+        compliant_plugins = len(
+            [r for r in compliance_results.values() if r.get("compliant", False)]
+        )
         overall_score = (compliant_plugins / total_plugins * 100) if total_plugins > 0 else 100.0
 
         # Generate findings and recommendations
         findings = await self._generate_compliance_findings(compliance_results, standard)
-        recommendations = await self._generate_compliance_recommendations(compliance_results, standard)
+        recommendations = await self._generate_compliance_recommendations(
+            compliance_results, standard
+        )
 
         # Get audit trail references
-        audit_events = await AuditEvent.find({"timestamp": {"$gte": start_date, "$lte": end_date}}).to_list()
+        audit_events = await AuditEvent.find(
+            {"timestamp": {"$gte": start_date, "$lte": end_date}}
+        ).to_list()
         audit_references = [event.event_id for event in audit_events]
 
         report = ComplianceReport(
@@ -553,7 +561,9 @@ class PluginGovernanceService:
             user_id=generated_by,
         )
 
-        logger.info(f"Generated compliance report for {standard.value}: {overall_score:.1f}% compliant")
+        logger.info(
+            f"Generated compliance report for {standard.value}: {overall_score:.1f}% compliant"
+        )
         return report
 
     async def get_audit_trail(
@@ -606,7 +616,9 @@ class PluginGovernanceService:
         logger.info(f"Retrieved {len(violations)} policy violations")
         return violations
 
-    async def resolve_policy_violation(self, violation_id: str, resolution_notes: str, resolved_by: str) -> bool:
+    async def resolve_policy_violation(
+        self, violation_id: str, resolution_notes: str, resolved_by: str
+    ) -> bool:
         """Resolve a policy violation"""
 
         # In production, this would update the violation record
@@ -780,7 +792,9 @@ class PluginGovernanceService:
             ],
         }
 
-        logger.info(f"Initialized compliance configurations for {len(self.compliance_configs)} standards")
+        logger.info(
+            f"Initialized compliance configurations for {len(self.compliance_configs)} standards"
+        )
 
     async def _start_policy_monitor(self, policy_id: str):
         """Start continuous monitoring for a specific policy"""
@@ -796,7 +810,9 @@ class PluginGovernanceService:
                         continue
 
                     # Get all applicable plugins
-                    plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
+                    plugins = await self.plugin_registry_service.find_plugins(
+                        {"status": PluginStatus.ACTIVE}
+                    )
 
                     for plugin in plugins:
                         if await self._policy_applies_to_plugin(policy, plugin):
@@ -829,7 +845,9 @@ class PluginGovernanceService:
             while self.monitoring_enabled:
                 try:
                     # Run compliance check for all plugins
-                    plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
+                    plugins = await self.plugin_registry_service.find_plugins(
+                        {"status": PluginStatus.ACTIVE}
+                    )
 
                     for plugin in plugins:
                         await self._evaluate_standard_compliance(
@@ -859,7 +877,9 @@ class PluginGovernanceService:
             if "rule_id" not in rule:
                 errors.append("Rule missing required field: rule_id")
             if "check" not in rule:
-                errors.append(f"Rule {rule.get('rule_id', 'unknown')} missing required field: check")
+                errors.append(
+                    f"Rule {rule.get('rule_id', 'unknown')} missing required field: check"
+                )
 
             # Validate check types
             check_type = rule.get("check")
@@ -882,7 +902,9 @@ class PluginGovernanceService:
         ]
         return check_type in supported_checks
 
-    async def _policy_applies_to_plugin(self, policy: PluginPolicy, plugin: InstalledPlugin) -> bool:
+    async def _policy_applies_to_plugin(
+        self, policy: PluginPolicy, plugin: InstalledPlugin
+    ) -> bool:
         """Check if a policy applies to a specific plugin"""
 
         # Check exclusions first
@@ -933,7 +955,9 @@ class PluginGovernanceService:
 
         return violations
 
-    async def _perform_policy_check(self, plugin: InstalledPlugin, check_type: str, threshold: Any) -> Dict[str, Any]:
+    async def _perform_policy_check(
+        self, plugin: InstalledPlugin, check_type: str, threshold: Any
+    ) -> Dict[str, Any]:
         """Perform a specific policy check"""
 
         try:
@@ -951,7 +975,9 @@ class PluginGovernanceService:
 
             elif check_type == "response_time_ms":
                 # Get plugin performance metrics
-                health_check = await self.plugin_lifecycle_service.check_plugin_health(plugin.plugin_id)
+                health_check = await self.plugin_lifecycle_service.check_plugin_health(
+                    plugin.plugin_id
+                )
                 response_time = health_check.response_time_ms or 0
                 passed = response_time <= threshold
                 return {
@@ -962,7 +988,9 @@ class PluginGovernanceService:
 
             elif check_type == "memory_usage_mb":
                 # Get plugin memory usage
-                health_check = await self.plugin_lifecycle_service.check_plugin_health(plugin.plugin_id)
+                health_check = await self.plugin_lifecycle_service.check_plugin_health(
+                    plugin.plugin_id
+                )
                 memory_usage = health_check.memory_usage_mb or 0
                 passed = memory_usage <= threshold
                 return {
@@ -973,7 +1001,9 @@ class PluginGovernanceService:
 
             elif check_type == "error_rate":
                 # Get plugin error rate
-                health_check = await self.plugin_lifecycle_service.check_plugin_health(plugin.plugin_id)
+                health_check = await self.plugin_lifecycle_service.check_plugin_health(
+                    plugin.plugin_id
+                )
                 error_rate = health_check.error_rate or 0
                 passed = error_rate <= threshold
                 return {
@@ -1000,7 +1030,11 @@ class PluginGovernanceService:
                 has_license = hasattr(plugin, "license") and plugin.license
                 return {
                     "passed": has_license,
-                    "message": ("License documentation verified" if has_license else "License not documented"),
+                    "message": (
+                        "License documentation verified"
+                        if has_license
+                        else "License not documented"
+                    ),
                 }
 
             else:
@@ -1009,7 +1043,9 @@ class PluginGovernanceService:
         except Exception as e:
             return {"passed": False, "message": f"Check failed: {str(e)}"}
 
-    async def _determine_violation_severity(self, policy: PluginPolicy, rule: Dict[str, Any]) -> ViolationSeverity:
+    async def _determine_violation_severity(
+        self, policy: PluginPolicy, rule: Dict[str, Any]
+    ) -> ViolationSeverity:
         """Determine severity of a policy violation"""
 
         # Check if rule specifies severity
@@ -1084,7 +1120,9 @@ class PluginGovernanceService:
             compliance_result.update(result)
 
         except Exception as e:
-            logger.error(f"Compliance evaluation failed for {plugin.plugin_id} against {standard.value}: {e}")
+            logger.error(
+                f"Compliance evaluation failed for {plugin.plugin_id} against {standard.value}: {e}"
+            )
             compliance_result.update(
                 {
                     "compliant": False,
@@ -1095,7 +1133,9 @@ class PluginGovernanceService:
 
         return compliance_result
 
-    async def _evaluate_soc2_compliance(self, plugin: InstalledPlugin, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_soc2_compliance(
+        self, plugin: InstalledPlugin, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Evaluate SOC 2 compliance for a plugin"""
 
         findings = []
@@ -1145,7 +1185,9 @@ class PluginGovernanceService:
         else:
             return {"compliant": False, "reason": f"Unknown control: {control}"}
 
-    async def _evaluate_iso27001_compliance(self, plugin: InstalledPlugin, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_iso27001_compliance(
+        self, plugin: InstalledPlugin, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Evaluate ISO 27001 compliance for a plugin"""
 
         # Simplified ISO 27001 evaluation
@@ -1156,7 +1198,9 @@ class PluginGovernanceService:
             "violations": [],
         }
 
-    async def _evaluate_nist_csf_compliance(self, plugin: InstalledPlugin, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def _evaluate_nist_csf_compliance(
+        self, plugin: InstalledPlugin, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Evaluate NIST CSF compliance for a plugin"""
 
         # Simplified NIST CSF evaluation
@@ -1298,7 +1342,9 @@ class PluginGovernanceService:
         non_compliant = [r for r in compliance_results.values() if not r.get("compliant", True)]
 
         if non_compliant:
-            recommendations.append(f"Address compliance issues in {len(non_compliant)} non-compliant plugins")
+            recommendations.append(
+                f"Address compliance issues in {len(non_compliant)} non-compliant plugins"
+            )
 
         # Standard-specific recommendations
         if standard == ComplianceStandard.SOC2:
@@ -1381,14 +1427,18 @@ class PluginGovernanceService:
         """Disable plugin due to policy violation"""
 
         # In production, this would disable the plugin
-        logger.info(f"Plugin {violation.plugin_id} disabled for policy violation: {violation.rule_violated}")
+        logger.info(
+            f"Plugin {violation.plugin_id} disabled for policy violation: {violation.rule_violated}"
+        )
 
     async def _quarantine_plugin_for_violation(self, violation: PolicyViolation):
         """Quarantine plugin due to policy violation"""
 
         # In production, this would quarantine the plugin
         violation.quarantined = True
-        logger.info(f"Plugin {violation.plugin_id} quarantined for policy violation: {violation.rule_violated}")
+        logger.info(
+            f"Plugin {violation.plugin_id} quarantined for policy violation: {violation.rule_violated}"
+        )
 
     async def get_governance_statistics(self) -> Dict[str, Any]:
         """Get plugin governance and compliance statistics"""

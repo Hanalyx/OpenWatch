@@ -81,7 +81,9 @@ class HostNetworkDiscoveryService:
 
             # 6. Perform connectivity tests
             connectivity_info = self._perform_connectivity_tests(host)
-            discovery_results["connectivity_tests"] = connectivity_info.get("connectivity_tests", {})
+            discovery_results["connectivity_tests"] = connectivity_info.get(
+                "connectivity_tests", {}
+            )
             discovery_results["discovery_errors"].extend(connectivity_info.get("errors", []))
 
             # 7. Assess network security
@@ -152,9 +154,13 @@ class HostNetworkDiscoveryService:
                 if speed_output and speed_output["success"]:
                     for line in speed_output["stdout"].split("\\n"):
                         if "Speed:" in line:
-                            result["network_interfaces"][interface_name]["speed"] = line.split("Speed:")[1].strip()
+                            result["network_interfaces"][interface_name]["speed"] = line.split(
+                                "Speed:"
+                            )[1].strip()
                         elif "Duplex:" in line:
-                            result["network_interfaces"][interface_name]["duplex"] = line.split("Duplex:")[1].strip()
+                            result["network_interfaces"][interface_name]["duplex"] = line.split(
+                                "Duplex:"
+                            )[1].strip()
 
         except Exception as e:
             logger.warning(f"Error discovering network interfaces for {host.hostname}: {str(e)}")
@@ -204,12 +210,20 @@ class HostNetworkDiscoveryService:
                 result["dns_configuration"].update(dns_config)
 
             # Check systemd-resolved status (if available)
-            systemd_resolved = self.ssh_service.execute_command("systemctl is-active systemd-resolved", timeout=5)
-            if systemd_resolved and systemd_resolved["success"] and "active" in systemd_resolved["stdout"]:
+            systemd_resolved = self.ssh_service.execute_command(
+                "systemctl is-active systemd-resolved", timeout=5
+            )
+            if (
+                systemd_resolved
+                and systemd_resolved["success"]
+                and "active" in systemd_resolved["stdout"]
+            ):
                 result["dns_configuration"]["resolver"] = "systemd-resolved"
 
                 # Get resolved status
-                resolved_status = self.ssh_service.execute_command("systemd-resolve --status", timeout=10)
+                resolved_status = self.ssh_service.execute_command(
+                    "systemd-resolve --status", timeout=10
+                )
                 if resolved_status and resolved_status["success"]:
                     resolved_info = self._parse_systemd_resolved_status(resolved_status["stdout"])
                     result["dns_configuration"]["resolved_info"] = resolved_info
@@ -238,8 +252,14 @@ class HostNetworkDiscoveryService:
             active_service = None
 
             for service in ntp_services:
-                service_check = self.ssh_service.execute_command(f"systemctl is-active {service}", timeout=5)
-                if service_check and service_check["success"] and "active" in service_check["stdout"]:
+                service_check = self.ssh_service.execute_command(
+                    f"systemctl is-active {service}", timeout=5
+                )
+                if (
+                    service_check
+                    and service_check["success"]
+                    and "active" in service_check["stdout"]
+                ):
                     active_service = service
                     break
 
@@ -272,13 +292,17 @@ class HostNetworkDiscoveryService:
 
             elif active_service == "systemd-timesyncd":
                 # systemd-timesyncd configuration
-                timesyncd_config = self.ssh_service.execute_command("cat /etc/systemd/timesyncd.conf", timeout=5)
+                timesyncd_config = self.ssh_service.execute_command(
+                    "cat /etc/systemd/timesyncd.conf", timeout=5
+                )
                 if timesyncd_config and timesyncd_config["success"]:
                     ntp_servers = self._parse_timesyncd_config(timesyncd_config["stdout"])
                     result["ntp_configuration"]["servers"] = ntp_servers
 
                 # Timesyncd status
-                timesyncd_status = self.ssh_service.execute_command("timedatectl show-timesync", timeout=10)
+                timesyncd_status = self.ssh_service.execute_command(
+                    "timedatectl show-timesync", timeout=10
+                )
                 if timesyncd_status and timesyncd_status["success"]:
                     result["ntp_configuration"]["timesyncd_status"] = timesyncd_status["stdout"]
 
@@ -317,8 +341,14 @@ class HostNetworkDiscoveryService:
             running_services = {}
 
             for service in common_services:
-                service_check = self.ssh_service.execute_command(f"systemctl is-active {service}*", timeout=5)
-                if service_check and service_check["success"] and "active" in service_check["stdout"]:
+                service_check = self.ssh_service.execute_command(
+                    f"systemctl is-active {service}*", timeout=5
+                )
+                if (
+                    service_check
+                    and service_check["success"]
+                    and "active" in service_check["stdout"]
+                ):
                     running_services[service] = "active"
                 else:
                     running_services[service] = "inactive"
@@ -345,8 +375,14 @@ class HostNetworkDiscoveryService:
 
             for destination in test_destinations:
                 # Ping test
-                ping_output = self.ssh_service.execute_command(f'ping -c 3 -W 5 {destination["target"]}', timeout=20)
-                ping_success = ping_output and ping_output["success"] and "0% packet loss" in ping_output["stdout"]
+                ping_output = self.ssh_service.execute_command(
+                    f'ping -c 3 -W 5 {destination["target"]}', timeout=20
+                )
+                ping_success = (
+                    ping_output
+                    and ping_output["success"]
+                    and "0% packet loss" in ping_output["stdout"]
+                )
 
                 # Extract ping statistics
                 ping_stats = {}
@@ -360,13 +396,18 @@ class HostNetworkDiscoveryService:
                 }
 
                 # For domain names, also test HTTP/HTTPS connectivity
-                if "." in destination["target"] and not destination["target"].replace(".", "").isdigit():
+                if (
+                    "." in destination["target"]
+                    and not destination["target"].replace(".", "").isdigit()
+                ):
                     curl_test = self.ssh_service.execute_command(
                         f'curl -I --connect-timeout 10 https://{destination["target"]}',
                         timeout=15,
                     )
                     https_success = curl_test and curl_test["success"]
-                    result["connectivity_tests"][destination["name"]]["https_success"] = https_success
+                    result["connectivity_tests"][destination["name"]][
+                        "https_success"
+                    ] = https_success
 
         except Exception as e:
             logger.warning(f"Error performing connectivity tests for {host.hostname}: {str(e)}")
@@ -380,13 +421,17 @@ class HostNetworkDiscoveryService:
 
         try:
             # Check IP forwarding status
-            ip_forward_output = self.ssh_service.execute_command("sysctl net.ipv4.ip_forward", timeout=5)
+            ip_forward_output = self.ssh_service.execute_command(
+                "sysctl net.ipv4.ip_forward", timeout=5
+            )
             if ip_forward_output and ip_forward_output["success"]:
                 ip_forward = "1" in ip_forward_output["stdout"]
                 result["network_security"]["ip_forwarding"] = ip_forward
 
             # Check for open ports and potential security issues
-            if hasattr(self, "_network_services") and "listening_ports" in result.get("network_services", {}):
+            if hasattr(self, "_network_services") and "listening_ports" in result.get(
+                "network_services", {}
+            ):
                 listening_ports = result["network_services"]["listening_ports"]
 
                 # Identify potentially risky open ports
@@ -485,7 +530,9 @@ class HostNetworkDiscoveryService:
                 if addr_match:
                     address = addr_match.group(1)
                     addr_type = "ipv6" if "inet6" in line else "ipv4"
-                    interfaces[current_interface]["addresses"].append({"address": address, "type": addr_type})
+                    interfaces[current_interface]["addresses"].append(
+                        {"address": address, "type": addr_type}
+                    )
 
         return interfaces
 
@@ -510,12 +557,16 @@ class HostNetworkDiscoveryService:
                 # IPv4 address
                 ipv4_match = re.search(r"inet (\\d+\\.\\d+\\.\\d+\\.\\d+)", line)
                 if ipv4_match:
-                    interfaces[current_interface]["addresses"].append({"address": ipv4_match.group(1), "type": "ipv4"})
+                    interfaces[current_interface]["addresses"].append(
+                        {"address": ipv4_match.group(1), "type": "ipv4"}
+                    )
 
                 # IPv6 address
                 ipv6_match = re.search(r"inet6 ([\\w:]+)", line)
                 if ipv6_match:
-                    interfaces[current_interface]["addresses"].append({"address": ipv6_match.group(1), "type": "ipv6"})
+                    interfaces[current_interface]["addresses"].append(
+                        {"address": ipv6_match.group(1), "type": "ipv6"}
+                    )
 
         return interfaces
 

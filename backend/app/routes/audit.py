@@ -73,7 +73,9 @@ async def get_audit_events(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
+            raise HTTPException(
+                status_code=403, detail="Insufficient permissions to view audit logs"
+            )
 
         # Build base query
         query = """
@@ -174,7 +176,9 @@ async def get_audit_stats(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
+            raise HTTPException(
+                status_code=403, detail="Insufficient permissions to view audit logs"
+            )
 
         # Calculate date range
         from datetime import datetime, timedelta

@@ -73,7 +73,9 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
         # Log detailed error server-side for debugging
         logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
         # Return generic error to client (security best practice)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format"
+        )
 
 
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
@@ -174,7 +176,9 @@ class HostUpdate(BaseModel):
 
 
 @router.post("/validate-credentials")
-async def validate_credentials(validation_data: dict, current_user: dict = Depends(get_current_user)):
+async def validate_credentials(
+    validation_data: dict, current_user: dict = Depends(get_current_user)
+):
     """
     Validate SSH credentials without creating a host.
 
@@ -213,10 +217,14 @@ async def validate_credentials(validation_data: dict, current_user: dict = Depen
             return {
                 "is_valid": validation_result.is_valid,
                 "auth_method": "ssh_key",
-                "key_type": (validation_result.key_type.value if validation_result.key_type else None),
+                "key_type": (
+                    validation_result.key_type.value if validation_result.key_type else None
+                ),
                 "key_bits": validation_result.key_size,
                 "security_level": (
-                    validation_result.security_level.value if validation_result.security_level else None
+                    validation_result.security_level.value
+                    if validation_result.security_level
+                    else None
                 ),
                 "error_message": validation_result.error_message,
                 "warnings": validation_result.warnings,
@@ -239,7 +247,11 @@ async def validate_credentials(validation_data: dict, current_user: dict = Depen
                 "is_valid": True,
                 "auth_method": "password",
                 "error_message": None,
-                "warnings": ([] if len(password) >= 12 else ["Password should be at least 12 characters for security"]),
+                "warnings": (
+                    []
+                    if len(password) >= 12
+                    else ["Password should be at least 12 characters for security"]
+                ),
                 "recommendations": [
                     "Use a password manager",
                     "Consider using SSH key authentication instead",
@@ -515,7 +527,9 @@ async def get_host(
 
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs
         # Why: Consistent with Phase 2 pattern, eliminates dual code paths, maintains SQL injection protection
-        logger.info(f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
+        logger.info(
+            f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
+        )
         builder = (
             QueryBuilder("hosts h")
             .select(
@@ -625,7 +639,9 @@ async def update_host(
         current_time = datetime.utcnow()
 
         # Handle display_name logic properly
-        new_hostname = host_update.hostname if host_update.hostname is not None else current_host.hostname
+        new_hostname = (
+            host_update.hostname if host_update.hostname is not None else current_host.hostname
+        )
         new_display_name = (
             host_update.display_name
             if host_update.display_name is not None
@@ -648,10 +664,14 @@ async def update_host(
             if host_update.auth_method == "system_default":
                 # Delete host-specific credentials when switching to system default
                 try:
-                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
+                    existing_creds = auth_service.list_credentials(
+                        scope=CredentialScope.HOST, target_id=str(host_uuid)
+                    )
                     for cred in existing_creds:
                         auth_service.delete_credential(cred["id"])
-                    logger.info(f"Deleted host-specific credentials for system default on host {host_id}")
+                    logger.info(
+                        f"Deleted host-specific credentials for system default on host {host_id}"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to delete host-specific credentials: {e}")
 
@@ -679,8 +699,16 @@ async def update_host(
                 credential_data = CredentialData(
                     username=host_update.username or current_host.username,
                     auth_method=AuthMethod(host_update.auth_method),
-                    password=(host_update.password if host_update.auth_method in ["password", "both"] else None),
-                    private_key=(host_update.ssh_key if host_update.auth_method in ["ssh_key", "both"] else None),
+                    password=(
+                        host_update.password
+                        if host_update.auth_method in ["password", "both"]
+                        else None
+                    ),
+                    private_key=(
+                        host_update.ssh_key
+                        if host_update.auth_method in ["ssh_key", "both"]
+                        else None
+                    ),
                     private_key_passphrase=None,
                 )
 
@@ -695,11 +723,15 @@ async def update_host(
 
                 # Check if host-specific credential already exists
                 try:
-                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
+                    existing_creds = auth_service.list_credentials(
+                        scope=CredentialScope.HOST, target_id=str(host_uuid)
+                    )
 
                     # Get user UUID for created_by field (QueryBuilder for parameterization)
                     user_query = QueryBuilder("users").select(["id"]).where("id = :user_id")
-                    user_id_result = db.execute(text(user_query.query), {"user_id": current_user.get("id")})
+                    user_id_result = db.execute(
+                        text(user_query.query), {"user_id": current_user.get("id")}
+                    )
                     user_row = user_id_result.fetchone()
                     user_uuid = str(user_row[0]) if user_row else None
 
@@ -707,7 +739,9 @@ async def update_host(
                         # Delete old credential and create new one (simpler than update)
                         for cred in existing_creds:
                             auth_service.delete_credential(cred["id"])
-                        logger.info(f"Deleted old host-specific credential for {current_host.hostname}")
+                        logger.info(
+                            f"Deleted old host-specific credential for {current_host.hostname}"
+                        )
 
                     # Store new credential
                     cred_id = auth_service.store_credential(
@@ -715,7 +749,9 @@ async def update_host(
                         metadata=metadata,
                         created_by=user_uuid,
                     )
-                    logger.info(f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})")
+                    logger.info(
+                        f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})"
+                    )
 
                 except Exception as e:
                     logger.error(f"Failed to update host-specific credential: {e}")
@@ -725,7 +761,11 @@ async def update_host(
         update_params = {
             "id": host_uuid,
             "hostname": new_hostname,
-            "ip_address": (host_update.ip_address if host_update.ip_address is not None else current_host.ip_address),
+            "ip_address": (
+                host_update.ip_address
+                if host_update.ip_address is not None
+                else current_host.ip_address
+            ),
             "display_name": new_display_name,
             "operating_system": (
                 host_update.operating_system
@@ -733,12 +773,18 @@ async def update_host(
                 else current_host.operating_system
             ),
             "port": (host_update.port if host_update.port is not None else current_host.port),
-            "username": (host_update.username if host_update.username is not None else current_host.username),
+            "username": (
+                host_update.username if host_update.username is not None else current_host.username
+            ),
             "auth_method": (
-                host_update.auth_method if host_update.auth_method is not None else current_host.auth_method
+                host_update.auth_method
+                if host_update.auth_method is not None
+                else current_host.auth_method
             ),
             "description": (
-                host_update.description if host_update.description is not None else current_host.description
+                host_update.description
+                if host_update.description is not None
+                else current_host.description
             ),
             "updated_at": current_time,
         }
@@ -855,7 +901,9 @@ async def delete_host(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Check if host has scans (for cascade delete)
-        count_query = QueryBuilder("scans").select(["COUNT(*) as count"]).where("host_id = :host_id")
+        count_query = (
+            QueryBuilder("scans").select(["COUNT(*) as count"]).where("host_id = :host_id")
+        )
         scan_result = db.execute(text(count_query.query), {"host_id": host_uuid})
 
         scan_count = scan_result.fetchone().count
@@ -920,7 +968,11 @@ async def delete_host_ssh_key(
         host_uuid = validate_host_uuid(host_id)
 
         # Verify host exists and has SSH key to delete
-        select_query = QueryBuilder("hosts").select(["id", "auth_method", "ssh_key_fingerprint"]).where("id = :id")
+        select_query = (
+            QueryBuilder("hosts")
+            .select(["id", "auth_method", "ssh_key_fingerprint"])
+            .where("id = :id")
+        )
         result = db.execute(text(select_query.query), {"id": host_uuid})
 
         row = result.fetchone()

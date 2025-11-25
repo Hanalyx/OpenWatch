@@ -150,7 +150,9 @@ class ReporterPlugin(PluginInterface):
     """Interface for custom report generation plugins"""
 
     @abstractmethod
-    async def generate_report(self, scan_results: List[ScanResult], format_type: str = "html") -> bytes:
+    async def generate_report(
+        self, scan_results: List[ScanResult], format_type: str = "html"
+    ) -> bytes:
         """Generate a report from scan results"""
 
     @abstractmethod
@@ -170,7 +172,9 @@ class RemediationPlugin(PluginInterface):
         """Check if this plugin can remediate the specified rule"""
 
     @abstractmethod
-    async def execute_remediation(self, rule_id: str, host_config: Dict, scan_result: ScanResult) -> Dict:
+    async def execute_remediation(
+        self, rule_id: str, host_config: Dict, scan_result: ScanResult
+    ) -> Dict:
         """Execute remediation for a failed rule"""
 
     @abstractmethod
@@ -186,7 +190,9 @@ class IntegrationPlugin(PluginInterface):
     """Interface for external system integration plugins"""
 
     @abstractmethod
-    async def export_results(self, scan_results: List[ScanResult], destination_config: Dict) -> bool:
+    async def export_results(
+        self, scan_results: List[ScanResult], destination_config: Dict
+    ) -> bool:
         """Export scan results to external system"""
 
     @abstractmethod
@@ -238,7 +244,9 @@ class NotificationPlugin(PluginInterface):
     """Interface for notification service plugins"""
 
     @abstractmethod
-    async def send_notification(self, message: str, recipients: List[str], notification_type: str = "info") -> bool:
+    async def send_notification(
+        self, message: str, recipients: List[str], notification_type: str = "info"
+    ) -> bool:
         """Send notification message"""
 
     @abstractmethod
@@ -353,6 +361,10 @@ def create_scan_context(
     )
 
 
-def create_scan_result(scan_id: str, hostname: str, status: str, timestamp: str, **kwargs) -> ScanResult:
+def create_scan_result(
+    scan_id: str, hostname: str, status: str, timestamp: str, **kwargs
+) -> ScanResult:
     """Utility function to create scan result"""
-    return ScanResult(scan_id=scan_id, hostname=hostname, status=status, timestamp=timestamp, **kwargs)
+    return ScanResult(
+        scan_id=scan_id, hostname=hostname, status=status, timestamp=timestamp, **kwargs
+    )

@@ -81,11 +81,14 @@ def dispatch_host_checks(self) -> Dict:
 
                     dispatched_count += 1
                     logger.debug(
-                        f"Dispatched check for {host['hostname']} " f"(status: {host['status']}, priority: {priority})"
+                        f"Dispatched check for {host['hostname']} "
+                        f"(status: {host['status']}, priority: {priority})"
                     )
 
                 except Exception as dispatch_error:
-                    logger.error(f"Failed to dispatch check for host {host['id']}: {dispatch_error}")
+                    logger.error(
+                        f"Failed to dispatch check for host {host['id']}: {dispatch_error}"
+                    )
 
             logger.info(f"Dispatched {dispatched_count} host checks")
 

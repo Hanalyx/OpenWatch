@@ -115,7 +115,9 @@ class CompatibilityValidationResponse(BaseModel):
 
 
 @router.get("/", response_model=List[HostGroupResponse])
-async def list_host_groups(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_host_groups(
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """List all host groups with host counts"""
     try:
         result = db.execute(
@@ -140,7 +142,9 @@ async def list_host_groups(db: Session = Depends(get_db), current_user: dict = D
 
         groups = []
         for row in result:
-            logger.info(f"Raw row data for group {row.id}: default_profile_id={row.default_profile_id}")
+            logger.info(
+                f"Raw row data for group {row.id}: default_profile_id={row.default_profile_id}"
+            )
             group_data = {
                 "id": row.id,
                 "name": row.name,
@@ -156,12 +160,18 @@ async def list_host_groups(db: Session = Depends(get_db), current_user: dict = D
                 "scap_content_id": None,  # Removed - column no longer exists
                 "default_profile_id": row.default_profile_id,
                 "compliance_framework": row.compliance_framework,
-                "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
+                "auto_scan_enabled": (
+                    row.auto_scan_enabled if row.auto_scan_enabled is not None else False
+                ),
                 "scan_schedule": row.scan_schedule,
-                "validation_rules": (json.loads(row.validation_rules) if row.validation_rules else None),
+                "validation_rules": (
+                    json.loads(row.validation_rules) if row.validation_rules else None
+                ),
                 "scap_content_name": None,  # Removed - column no longer exists
             }
-            logger.info(f"Group data includes SCAP fields: default_profile_id={group_data.get('default_profile_id')}")
+            logger.info(
+                f"Group data includes SCAP fields: default_profile_id={group_data.get('default_profile_id')}"
+            )
             groups.append(group_data)
 
         return groups
@@ -220,9 +230,13 @@ async def get_host_group(
             "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": row.default_profile_id,
             "compliance_framework": row.compliance_framework,
-            "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
+            "auto_scan_enabled": (
+                row.auto_scan_enabled if row.auto_scan_enabled is not None else False
+            ),
             "scan_schedule": row.scan_schedule,
-            "validation_rules": (json.loads(row.validation_rules) if row.validation_rules else None),
+            "validation_rules": (
+                json.loads(row.validation_rules) if row.validation_rules else None
+            ),
             "scap_content_name": None,  # Removed - column no longer exists
         }
 
@@ -293,7 +307,9 @@ async def create_host_group(
                 "compliance_framework": group_data.compliance_framework,
                 "auto_scan_enabled": group_data.auto_scan_enabled or False,
                 "scan_schedule": group_data.scan_schedule,
-                "validation_rules": (json.dumps(group_data.validation_rules) if group_data.validation_rules else None),
+                "validation_rules": (
+                    json.dumps(group_data.validation_rules) if group_data.validation_rules else None
+                ),
             },
         )
 
@@ -315,9 +331,13 @@ async def create_host_group(
             "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
+            "auto_scan_enabled": (
+                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
+            ),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
+            "validation_rules": (
+                json.loads(group.validation_rules) if group.validation_rules else None
+            ),
             "scap_content_name": None,  # Removed - column no longer exists
         }
 
@@ -469,9 +489,13 @@ async def update_host_group(
             "scap_content_id": None,  # Removed - column no longer exists
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
+            "auto_scan_enabled": (
+                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
+            ),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
+            "validation_rules": (
+                json.loads(group.validation_rules) if group.validation_rules else None
+            ),
             "scap_content_name": None,  # Removed - column no longer exists
         }
 
@@ -692,11 +716,14 @@ async def create_smart_group(
             # Create the group with recommended settings
             group_data = HostGroupCreate(
                 name=request.group_name,
-                description=request.description or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
+                description=request.description
+                or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
                 os_family=recommendations.get("os_family"),
                 os_version_pattern=recommendations.get("os_version_pattern"),
                 scap_content_id=(
-                    recommendations.get("scap_content", {}).get("id") if "scap_content" in recommendations else None
+                    recommendations.get("scap_content", {}).get("id")
+                    if "scap_content" in recommendations
+                    else None
                 ),
                 compliance_framework=(
                     recommendations.get("scap_content", {}).get("compliance_framework")
@@ -793,7 +820,9 @@ async def validate_and_assign_hosts(
 
             # If force_assignment is True, only assign compatible hosts
             hosts_to_assign = (
-                [h["id"] for h in validation_results["compatible"]] if request.force_assignment else request.host_ids
+                [h["id"] for h in validation_results["compatible"]]
+                if request.force_assignment
+                else request.host_ids
             )
         else:
             hosts_to_assign = request.host_ids

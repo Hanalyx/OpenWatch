@@ -118,16 +118,22 @@ class ComplianceFrameworkReporter:
             enriched_results.get("compliance_scores", {})
 
             # Generate detailed framework analysis
-            framework_analysis = await self._analyze_frameworks(framework_mapping, target_frameworks)
+            framework_analysis = await self._analyze_frameworks(
+                framework_mapping, target_frameworks
+            )
 
             # Generate gap analysis
             gap_analysis = await self._generate_gap_analysis(enriched_results, target_frameworks)
 
             # Create remediation roadmap
-            remediation_roadmap = await self._create_remediation_roadmap(enriched_results, target_frameworks)
+            remediation_roadmap = await self._create_remediation_roadmap(
+                enriched_results, target_frameworks
+            )
 
             # Generate executive dashboard data
-            executive_dashboard = await self._generate_executive_dashboard(enriched_results, framework_analysis)
+            executive_dashboard = await self._generate_executive_dashboard(
+                enriched_results, framework_analysis
+            )
 
             # Compile final report
             compliance_report = {
@@ -155,7 +161,9 @@ class ComplianceFrameworkReporter:
 
             # Format output based on requested format
             if report_format == "html":
-                compliance_report["html_content"] = await self._generate_html_report(compliance_report)
+                compliance_report["html_content"] = await self._generate_html_report(
+                    compliance_report
+                )
             elif report_format == "pdf":
                 compliance_report["pdf_path"] = await self._generate_pdf_report(compliance_report)
 
@@ -190,8 +198,12 @@ class ComplianceFrameworkReporter:
                 continue
 
             # Calculate detailed statistics
-            compliant_controls = sum(1 for control in controls.values() if control["status"] == "compliant")
-            non_compliant_controls = sum(1 for control in controls.values() if control["status"] == "non_compliant")
+            compliant_controls = sum(
+                1 for control in controls.values() if control["status"] == "compliant"
+            )
+            non_compliant_controls = sum(
+                1 for control in controls.values() if control["status"] == "non_compliant"
+            )
 
             # Categorize by severity/importance
             critical_failures = []
@@ -205,7 +217,8 @@ class ComplianceFrameworkReporter:
                     failure_info = {
                         "control": control_id,
                         "failed_rules": control_data.get("failed", 0),
-                        "total_rules": control_data.get("failed", 0) + control_data.get("passed", 0),
+                        "total_rules": control_data.get("failed", 0)
+                        + control_data.get("passed", 0),
                     }
 
                     if failure_severity == "critical":
@@ -290,7 +303,9 @@ class ComplianceFrameworkReporter:
                 f"Urgent: {framework.upper()} compliance is critically low. Immediate remediation required."
             )
         elif compliance_rate < 80:
-            recommendations.append(f"Priority: Focus on {framework.upper()} critical controls to improve compliance.")
+            recommendations.append(
+                f"Priority: Focus on {framework.upper()} critical controls to improve compliance."
+            )
 
         # Framework-specific recommendations
         if framework == "nist":
@@ -305,7 +320,9 @@ class ComplianceFrameworkReporter:
                 )
         elif framework == "stig":
             if critical_failures:
-                recommendations.append("STIG: Address Category I (critical) findings immediately for DoD compliance.")
+                recommendations.append(
+                    "STIG: Address Category I (critical) findings immediately for DoD compliance."
+                )
         elif framework == "pci":
             if critical_failures:
                 recommendations.append(
@@ -345,7 +362,9 @@ class ComplianceFrameworkReporter:
                 "tested_controls_count": len(tested_controls),
                 "missing_controls_count": len(missing_controls),
                 "coverage_percentage": (
-                    (len(tested_controls) / len(expected_controls) * 100) if expected_controls else 0
+                    (len(tested_controls) / len(expected_controls) * 100)
+                    if expected_controls
+                    else 0
                 ),
                 "missing_controls": list(missing_controls),
                 "recommendations": (
@@ -526,7 +545,9 @@ class ComplianceFrameworkReporter:
             "key_metrics": {
                 "overall_compliance_score": compliance_scores.get("overall", {}).get("score", 0),
                 "overall_grade": compliance_scores.get("overall", {}).get("grade", "F"),
-                "critical_issues": len(enriched_results.get("remediation_guidance", {}).get("critical_failures", [])),
+                "critical_issues": len(
+                    enriched_results.get("remediation_guidance", {}).get("critical_failures", [])
+                ),
                 "total_rules_tested": compliance_scores.get("overall", {}).get("total_rules", 0),
             },
             "framework_overview": {},
@@ -572,19 +593,39 @@ class ComplianceFrameworkReporter:
         return {
             "rule_results_summary": {
                 "total_rules": len(enriched_results.get("enriched_rules", [])),
-                "passed": len([r for r in enriched_results.get("enriched_rules", []) if r.get("result") == "pass"]),
-                "failed": len([r for r in enriched_results.get("enriched_rules", []) if r.get("result") == "fail"]),
+                "passed": len(
+                    [
+                        r
+                        for r in enriched_results.get("enriched_rules", [])
+                        if r.get("result") == "pass"
+                    ]
+                ),
+                "failed": len(
+                    [
+                        r
+                        for r in enriched_results.get("enriched_rules", [])
+                        if r.get("result") == "fail"
+                    ]
+                ),
                 "not_applicable": len(
-                    [r for r in enriched_results.get("enriched_rules", []) if r.get("result") == "notapplicable"]
+                    [
+                        r
+                        for r in enriched_results.get("enriched_rules", [])
+                        if r.get("result") == "notapplicable"
+                    ]
                 ),
             },
             "intelligence_coverage": enriched_results.get("enrichment_stats", {}),
             "remediation_availability": {
                 "automated_fixes": len(
-                    enriched_results.get("remediation_guidance", {}).get("automated_fixes_available", [])
+                    enriched_results.get("remediation_guidance", {}).get(
+                        "automated_fixes_available", []
+                    )
                 ),
                 "manual_intervention": len(
-                    enriched_results.get("remediation_guidance", {}).get("manual_intervention_required", [])
+                    enriched_results.get("remediation_guidance", {}).get(
+                        "manual_intervention_required", []
+                    )
                 ),
             },
         }

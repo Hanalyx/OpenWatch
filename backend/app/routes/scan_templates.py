@@ -28,7 +28,9 @@ class ScanTemplate(BaseModel):
 
 
 @router.get("/")
-async def list_scan_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_scan_templates(
+    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
+):
     """List available scan templates"""
     # For now, return predefined templates
     # In a full implementation, these would be stored in database

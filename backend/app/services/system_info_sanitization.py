@@ -172,7 +172,9 @@ class SystemInfoSanitizationService:
             info_filter = self._create_system_filter(access_level)
 
             # Detect reconnaissance patterns
-            reconnaissance_detected, triggered_patterns = self._detect_reconnaissance_patterns(raw_system_info)
+            reconnaissance_detected, triggered_patterns = self._detect_reconnaissance_patterns(
+                raw_system_info
+            )
 
             # Apply sanitization based on access level
             if access_level == SystemInfoLevel.ADMIN and not reconnaissance_detected:
@@ -196,7 +198,9 @@ class SystemInfoSanitizationService:
             )
 
             # Audit the access
-            self._audit_system_info_access(context, access_level, reconnaissance_detected, triggered_patterns)
+            self._audit_system_info_access(
+                context, access_level, reconnaissance_detected, triggered_patterns
+            )
 
             # Log security event
             logger.info(
@@ -278,7 +282,9 @@ class SystemInfoSanitizationService:
 
             # First apply system-specific sanitization if system_info exists
             if "system_info" in error_data:
-                sanitized_system_info, metadata = self.sanitize_system_information(error_data["system_info"], context)
+                sanitized_system_info, metadata = self.sanitize_system_information(
+                    error_data["system_info"], context
+                )
                 sanitized_data["system_info"] = sanitized_system_info
 
             # Apply existing error sanitization patterns
@@ -366,7 +372,9 @@ class SystemInfoSanitizationService:
             # Basic - most restrictive
             return SystemInfoFilter(sanitization_level=access_level)
 
-    def _detect_reconnaissance_patterns(self, system_info: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def _detect_reconnaissance_patterns(
+        self, system_info: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
         """Detect potential reconnaissance patterns in system information"""
 
         triggered_patterns = []
@@ -377,7 +385,9 @@ class SystemInfoSanitizationService:
         for pattern in self.RECONNAISSANCE_PATTERNS:
             if re.search(pattern.regex_pattern, system_text, re.IGNORECASE):
                 triggered_patterns.append(pattern.pattern_id)
-                logger.warning(f"Reconnaissance pattern detected: {pattern.pattern_id} - {pattern.description}")
+                logger.warning(
+                    f"Reconnaissance pattern detected: {pattern.pattern_id} - {pattern.description}"
+                )
 
         reconnaissance_detected = len(triggered_patterns) > 0
 
@@ -395,7 +405,9 @@ class SystemInfoSanitizationService:
 
         return reconnaissance_detected, triggered_patterns
 
-    def _sanitize_for_admin(self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter) -> Dict[str, Any]:
+    def _sanitize_for_admin(
+        self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter
+    ) -> Dict[str, Any]:
         """Sanitize system information for admin access (full details)"""
 
         # Admins get full access but with audit logging
@@ -411,18 +423,24 @@ class SystemInfoSanitizationService:
             "access_level": "admin",
         }
 
-    def _sanitize_for_operational(self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter) -> Dict[str, Any]:
+    def _sanitize_for_operational(
+        self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter
+    ) -> Dict[str, Any]:
         """Sanitize system information for operational access"""
 
         return {
             "os_family": self._extract_safe_os_family(raw_info.get("system_details", "")),
             "service_status": self._sanitize_service_status(raw_info.get("service_status", {})),
-            "resource_availability": self._sanitize_resource_info(raw_info.get("resource_info", {})),
+            "resource_availability": self._sanitize_resource_info(
+                raw_info.get("resource_info", {})
+            ),
             "compliance_status": raw_info.get("compliance_status", {}),
             "access_level": "operational",
         }
 
-    def _sanitize_for_compliance(self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter) -> Dict[str, Any]:
+    def _sanitize_for_compliance(
+        self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter
+    ) -> Dict[str, Any]:
         """Sanitize system information for compliance access"""
 
         return {
@@ -433,7 +451,9 @@ class SystemInfoSanitizationService:
             "access_level": "compliance",
         }
 
-    def _sanitize_for_basic(self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter) -> Dict[str, Any]:
+    def _sanitize_for_basic(
+        self, raw_info: Dict[str, Any], info_filter: SystemInfoFilter
+    ) -> Dict[str, Any]:
         """Sanitize system information for basic access (most restrictive)"""
 
         return {
@@ -610,7 +630,9 @@ class SystemInfoSanitizationService:
             "reconnaissance_detected_events": reconnaissance_events,
             "admin_access_events": admin_events,
             "reconnaissance_rate": reconnaissance_events / max(total_events, 1),
-            "last_24h_events": sum(1 for e in self.audit_events if e.timestamp > datetime.utcnow() - timedelta(days=1)),
+            "last_24h_events": sum(
+                1 for e in self.audit_events if e.timestamp > datetime.utcnow() - timedelta(days=1)
+            ),
         }
 
 

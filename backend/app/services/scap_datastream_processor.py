@@ -66,7 +66,9 @@ class SCAPDataStreamProcessor:
                 return self._validate_xccdf_file(file_path)
 
             # Extract data-stream info
-            info_result = subprocess.run(["oscap", "info", file_path], capture_output=True, text=True, timeout=30)
+            info_result = subprocess.run(
+                ["oscap", "info", file_path], capture_output=True, text=True, timeout=30
+            )
 
             if info_result.returncode != 0:
                 raise DataStreamError(f"Failed to extract info: {info_result.stderr}")
@@ -232,7 +234,9 @@ class SCAPDataStreamProcessor:
                     report["errors"].append(validation_result.stderr)
 
             # Extract content info
-            info_result = subprocess.run(["oscap", "info", file_path], capture_output=True, text=True, timeout=30)
+            info_result = subprocess.run(
+                ["oscap", "info", file_path], capture_output=True, text=True, timeout=30
+            )
 
             if info_result.returncode == 0:
                 report["info"]["content_metadata"] = self._parse_oscap_info(info_result.stdout)
@@ -308,7 +312,9 @@ class SCAPDataStreamProcessor:
                 raise DataStreamError(f"Invalid XCCDF content: {result.stderr}")
 
             # Extract XCCDF info
-            info_result = subprocess.run(["oscap", "info", file_path], capture_output=True, text=True, timeout=30)
+            info_result = subprocess.run(
+                ["oscap", "info", file_path], capture_output=True, text=True, timeout=30
+            )
 
             metadata = self._parse_oscap_info(info_result.stdout)
             metadata["format"] = "xccdf"
@@ -402,7 +408,10 @@ class SCAPDataStreamProcessor:
             elif (
                 line
                 and current_profile
-                and not any(line.startswith(prefix) for prefix in ["Profile:", "Title:", "Description:", "Extends:"])
+                and not any(
+                    line.startswith(prefix)
+                    for prefix in ["Profile:", "Title:", "Description:", "Extends:"]
+                )
             ):
                 # Continue description if no new field
                 if current_profile["description"]:
@@ -441,7 +450,9 @@ class SCAPDataStreamProcessor:
 
                     # Count selected rules
                     selections = profile_elem.xpath(".//xccdf:select", namespaces=self.namespaces)
-                    profile["metadata"]["rule_count"] = len([s for s in selections if s.get("selected") == "true"])
+                    profile["metadata"]["rule_count"] = len(
+                        [s for s in selections if s.get("selected") == "true"]
+                    )
 
                     # Extract profile notes or remarks
                     remarks = profile_elem.xpath(".//xccdf:remark", namespaces=self.namespaces)
@@ -480,7 +491,9 @@ class SCAPDataStreamProcessor:
             profile["description"] = self._extract_text_content(desc_elem)
 
         # Extract selected rules
-        selections = profile_elem.xpath('.//xccdf:select[@selected="true"]', namespaces=self.namespaces)
+        selections = profile_elem.xpath(
+            './/xccdf:select[@selected="true"]', namespaces=self.namespaces
+        )
         profile["selected_rules"] = [s.get("idref", "") for s in selections]
 
         return profile
@@ -521,7 +534,9 @@ class SCAPDataStreamProcessor:
             metadata_elem = root.find(".//xccdf:metadata", self.namespaces)
             if metadata_elem is not None:
                 # Extract DC metadata if present
-                dc_elements = metadata_elem.xpath('.//*[namespace-uri()="http://purl.org/dc/elements/1.1/"]')
+                dc_elements = metadata_elem.xpath(
+                    './/*[namespace-uri()="http://purl.org/dc/elements/1.1/"]'
+                )
                 for dc_elem in dc_elements:
                     tag_name = dc_elem.tag.split("}")[-1]
                     metadata[f"dc_{tag_name}"] = dc_elem.text
@@ -629,7 +644,9 @@ class SCAPDataStreamProcessor:
             # Extract references (CCE, CCI, etc.)
             ref_elements = rule_elem.xpath(".//xccdf:reference", namespaces=self.namespaces)
             for ref_elem in ref_elements:
-                rule["references"].append({"href": ref_elem.get("href", ""), "text": ref_elem.text or ""})
+                rule["references"].append(
+                    {"href": ref_elem.get("href", ""), "text": ref_elem.text or ""}
+                )
 
             rules.append(rule)
 
@@ -689,7 +706,9 @@ class SCAPDataStreamProcessor:
             rules = root.xpath(".//xccdf:Rule", namespaces=self.namespaces)
             if len(rules) > 1000:
                 report["info"]["rule_count"] = len(rules)
-                report["warnings"].append(f"Large rule set ({len(rules)} rules) may impact performance")
+                report["warnings"].append(
+                    f"Large rule set ({len(rules)} rules) may impact performance"
+                )
 
             # Check for OVAL content references
             oval_refs = root.xpath(".//xccdf:check-content-ref[@href]", namespaces=self.namespaces)
@@ -705,11 +724,15 @@ class SCAPDataStreamProcessor:
         if report["validation_status"] == "valid_datastream":
             report["recommendations"].append("Content is valid SCAP data-stream format")
         elif report["validation_status"] == "valid_xccdf":
-            report["recommendations"].append("Consider converting to SCAP data-stream format for better tool support")
+            report["recommendations"].append(
+                "Consider converting to SCAP data-stream format for better tool support"
+            )
 
         if report.get("warnings"):
             if "No profiles found" in str(report["warnings"]):
-                report["recommendations"].append("Define profiles to group rules for different use cases")
+                report["recommendations"].append(
+                    "Define profiles to group rules for different use cases"
+                )
 
             if "Large rule set" in str(report["warnings"]):
                 report["recommendations"].append(
@@ -717,4 +740,6 @@ class SCAPDataStreamProcessor:
                 )
 
         if report["info"].get("has_oval_content"):
-            report["recommendations"].append("Ensure OVAL definitions are accessible for automated checking")
+            report["recommendations"].append(
+                "Ensure OVAL definitions are accessible for automated checking"
+            )

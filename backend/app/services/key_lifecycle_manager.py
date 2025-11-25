@@ -103,7 +103,9 @@ class RSAKeyLifecycleManager:
         hash_bytes = digest.finalize()
         return hash_bytes.hex()[:32]
 
-    def generate_rsa_key_pair(self, key_size: int = None) -> Tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
+    def generate_rsa_key_pair(
+        self, key_size: int = None
+    ) -> Tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey]:
         """
         Generate FIPS-compliant RSA key pair
 
@@ -240,7 +242,9 @@ class RSAKeyLifecycleManager:
                 return None
 
             with open(private_key_path, "rb") as f:
-                private_key = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())
+                private_key = serialization.load_pem_private_key(
+                    f.read(), password=None, backend=default_backend()
+                )
 
             return private_key
 

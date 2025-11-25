@@ -117,7 +117,9 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(import_id: str, service: SCAPImportService = Depends(get_import_service)):
+async def get_import_status(
+    import_id: str, service: SCAPImportService = Depends(get_import_service)
+):
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:

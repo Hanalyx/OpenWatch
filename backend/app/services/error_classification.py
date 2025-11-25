@@ -295,7 +295,9 @@ class AuthenticationValidator:
                                 category=ErrorCategory.AUTHENTICATION,
                                 severity=ErrorSeverity.ERROR,
                                 message=f"Invalid SSH key format: {validation_result.error_message}",
-                                technical_details={"validation_error": validation_result.error_message},
+                                technical_details={
+                                    "validation_error": validation_result.error_message
+                                },
                                 user_guidance="Ensure SSH private key is in correct format (RSA, DSA, ECDSA, or Ed25519). Check key file integrity.",
                                 automated_fixes=[
                                     AutomatedFix(
@@ -409,7 +411,9 @@ class PrivilegeValidator:
 
             if selinux_status == "enforcing":
                 # Check OpenSCAP SELinux policies
-                stdin, stdout, stderr = ssh_client.exec_command("getsebool openscap_can_network 2>/dev/null", timeout=5)
+                stdin, stdout, stderr = ssh_client.exec_command(
+                    "getsebool openscap_can_network 2>/dev/null", timeout=5
+                )
                 bool_output = stdout.read().decode().strip()
 
                 if "off" in bool_output:
@@ -458,7 +462,9 @@ class ResourceValidator:
 
         try:
             # Check disk space in /tmp
-            _, stdout, _ = ssh_client.exec_command("df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10)
+            _, stdout, _ = ssh_client.exec_command(
+                "df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10
+            )
             available_output = stdout.read().decode().strip()
 
             if available_output:
@@ -495,7 +501,9 @@ class ResourceValidator:
                     logger.warning(f"Could not parse disk space output: {available_output}")
 
             # Check memory availability
-            stdin, stdout, stderr = ssh_client.exec_command("free -m | grep '^Mem:' | awk '{print $7}'", timeout=10)
+            stdin, stdout, stderr = ssh_client.exec_command(
+                "free -m | grep '^Mem:' | awk '{print $7}'", timeout=10
+            )
             available_memory = stdout.read().decode().strip()
 
             if available_memory:
@@ -672,13 +680,17 @@ class ErrorClassificationService:
         self.resource_validator = ResourceValidator()
         self.dependency_validator = DependencyValidator()
 
-    async def classify_error(self, error: Exception, context: Dict[str, Any] = None) -> ScanErrorInternal:
+    async def classify_error(
+        self, error: Exception, context: Dict[str, Any] = None
+    ) -> ScanErrorInternal:
         """Classify and enhance a generic error with actionable guidance"""
         context = context or {}
         error_str = str(error).lower()
 
         # Network errors
-        if any(keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]):
+        if any(
+            keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]
+        ):
             return ScanErrorInternal(
                 error_code="NET_006",
                 category=ErrorCategory.NETWORK,
@@ -755,7 +767,13 @@ class ErrorClassificationService:
         try:
             network_errors = await self.network_validator.validate_connectivity(hostname, port)
             validation_checks["network_connectivity"] = len(network_errors) == 0
-            errors.extend([e for e in network_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
+            errors.extend(
+                [
+                    e
+                    for e in network_errors
+                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
+                ]
+            )
             warnings.extend([e for e in network_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if network fails
@@ -778,7 +796,13 @@ class ErrorClassificationService:
                 hostname, port, username, auth_method, credential
             )
             validation_checks["authentication"] = len(auth_errors) == 0
-            errors.extend([e for e in auth_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
+            errors.extend(
+                [
+                    e
+                    for e in auth_errors
+                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
+                ]
+            )
             warnings.extend([e for e in auth_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if auth fails
@@ -846,12 +870,16 @@ class ErrorClassificationService:
             system_info["ssh_available"] = True
 
             # Check basic resource info (will be sanitized)
-            stdin, stdout, stderr = ssh_client.exec_command("df /tmp | tail -1 | awk '{print $4}'", timeout=5)
+            stdin, stdout, stderr = ssh_client.exec_command(
+                "df /tmp | tail -1 | awk '{print $4}'", timeout=5
+            )
             disk_output = stdout.read().decode().strip()
             if disk_output and disk_output.rstrip("M").isdigit():
                 system_info["disk_space"] = int(disk_output.rstrip("M"))
 
-            stdin, stdout, stderr = ssh_client.exec_command("free -m | grep \"^Mem:\" | awk '{print $7}'", timeout=5)
+            stdin, stdout, stderr = ssh_client.exec_command(
+                "free -m | grep \"^Mem:\" | awk '{print $7}'", timeout=5
+            )
             memory_output = stdout.read().decode().strip()
             if memory_output and memory_output.isdigit():
                 system_info["memory"] = int(memory_output)
@@ -861,13 +889,27 @@ class ErrorClassificationService:
             validation_checks["privileges"] = (
                 len([e for e in privilege_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
-            errors.extend([e for e in privilege_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
+            errors.extend(
+                [
+                    e
+                    for e in privilege_errors
+                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
+                ]
+            )
             warnings.extend([e for e in privilege_errors if e.severity == ErrorSeverity.WARNING])
 
             # Resource validation
             resource_errors = await self.resource_validator.validate_resources(ssh_client)
-            validation_checks["resources"] = len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR]) == 0
-            errors.extend([e for e in resource_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
+            validation_checks["resources"] = (
+                len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR]) == 0
+            )
+            errors.extend(
+                [
+                    e
+                    for e in resource_errors
+                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
+                ]
+            )
             warnings.extend([e for e in resource_errors if e.severity == ErrorSeverity.WARNING])
 
             # Dependency validation
@@ -875,7 +917,13 @@ class ErrorClassificationService:
             validation_checks["dependencies"] = (
                 len([e for e in dependency_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
-            errors.extend([e for e in dependency_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
+            errors.extend(
+                [
+                    e
+                    for e in dependency_errors
+                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
+                ]
+            )
             warnings.extend([e for e in dependency_errors if e.severity == ErrorSeverity.WARNING])
 
         except Exception as e:
@@ -935,7 +983,9 @@ class ErrorClassificationService:
         # Sanitize errors using existing error sanitization
         sanitized_errors = []
         for error in internal_result.errors:
-            sanitized_error = sanitization_service.sanitize_error(error.dict(), user_id=user_id, source_ip=source_ip)
+            sanitized_error = sanitization_service.sanitize_error(
+                error.dict(), user_id=user_id, source_ip=source_ip
+            )
             # Convert SanitizedError to ScanErrorResponse
             scan_error_response = ScanErrorResponse(
                 error_code=sanitized_error.error_code,

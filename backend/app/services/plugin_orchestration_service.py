@@ -461,7 +461,9 @@ class PluginOrchestrationService:
 
         return response
 
-    async def scale_cluster(self, cluster_id: str, target_instances: int, reason: str = "manual") -> bool:
+    async def scale_cluster(
+        self, cluster_id: str, target_instances: int, reason: str = "manual"
+    ) -> bool:
         """Scale a plugin cluster to target instance count"""
 
         cluster = self.clusters.get(cluster_id)
@@ -501,7 +503,9 @@ class PluginOrchestrationService:
 
                 for instance in instances_to_stop:
                     await self._stop_plugin_instance(instance)
-                    cluster.instances = [i for i in cluster.instances if i.instance_id != instance.instance_id]
+                    cluster.instances = [
+                        i for i in cluster.instances if i.instance_id != instance.instance_id
+                    ]
                     self.instances.pop(instance.instance_id, None)
 
                 logger.info(f"Scaled down cluster {cluster_id} by {instances_to_remove} instances")
@@ -526,7 +530,9 @@ class PluginOrchestrationService:
             raise ValueError(f"Cluster not found: {cluster_id}")
 
         # Create optimization job
-        job = OptimizationJob(target=target, cluster_ids=[cluster_id], plugin_ids=[cluster.plugin_id])
+        job = OptimizationJob(
+            target=target, cluster_ids=[cluster_id], plugin_ids=[cluster.plugin_id]
+        )
 
         await job.save()
         self.optimization_jobs[job.job_id] = job
@@ -598,7 +604,9 @@ class PluginOrchestrationService:
             "load": {
                 "total_connections": total_connections,
                 "max_connections": max_connections,
-                "utilization_percent": ((total_connections / max_connections * 100) if max_connections > 0 else 0.0),
+                "utilization_percent": (
+                    (total_connections / max_connections * 100) if max_connections > 0 else 0.0
+                ),
             },
             "circuit_breaker": {
                 "enabled": cluster.circuit_breaker_enabled,
@@ -649,7 +657,9 @@ class PluginOrchestrationService:
     def _create_response_time_model(self) -> Callable:
         """Create response time prediction model"""
 
-        def predict_response_time(instance: PluginInstance, request: RouteRequest) -> Dict[str, float]:
+        def predict_response_time(
+            instance: PluginInstance, request: RouteRequest
+        ) -> Dict[str, float]:
             # Simple heuristic model
             base_time = instance.avg_response_time_ms or 100.0
 
@@ -671,9 +681,13 @@ class PluginOrchestrationService:
     def _create_load_predictor(self) -> Callable:
         """Create load prediction model"""
 
-        def predict_load(cluster: PluginCluster, time_horizon_minutes: int = 30) -> Dict[str, float]:
+        def predict_load(
+            cluster: PluginCluster, time_horizon_minutes: int = 30
+        ) -> Dict[str, float]:
             # Simple trend-based prediction
-            current_load = sum(i.current_connections for i in cluster.instances if i.status == "running")
+            current_load = sum(
+                i.current_connections for i in cluster.instances if i.status == "running"
+            )
 
             # Get recent load history
             history = self.request_history.get(cluster.cluster_id, deque())
@@ -740,7 +754,9 @@ class PluginOrchestrationService:
 
             # Load balancing optimization
             if len(running_instances) > 1:
-                connection_variance = statistics.variance(i.current_connections for i in running_instances)
+                connection_variance = statistics.variance(
+                    i.current_connections for i in running_instances
+                )
                 if connection_variance > 10:
                     recommendations.append(
                         {
@@ -772,7 +788,10 @@ class PluginOrchestrationService:
             running_instances = len([i for i in cluster.instances if i.status == "running"])
 
             # Scaling decision logic
-            if cpu_trend > cluster.scale_up_threshold_cpu or memory_trend > cluster.scale_up_threshold_memory:
+            if (
+                cpu_trend > cluster.scale_up_threshold_cpu
+                or memory_trend > cluster.scale_up_threshold_memory
+            ):
                 if running_instances < cluster.max_instances:
                     return {
                         "action": "scale_up",
@@ -781,7 +800,10 @@ class PluginOrchestrationService:
                         "confidence": 0.8,
                     }
 
-            elif cpu_trend < cluster.scale_down_threshold_cpu and memory_trend < cluster.scale_down_threshold_memory:
+            elif (
+                cpu_trend < cluster.scale_down_threshold_cpu
+                and memory_trend < cluster.scale_down_threshold_memory
+            ):
                 if running_instances > cluster.min_instances:
                     return {
                         "action": "scale_down",
@@ -850,7 +872,9 @@ class PluginOrchestrationService:
                                 job.status == "running" and cluster_id in job.cluster_ids
                                 for job in self.optimization_jobs.values()
                             ):
-                                await self.optimize_cluster_performance(cluster_id, cluster.optimization_target)
+                                await self.optimize_cluster_performance(
+                                    cluster_id, cluster.optimization_target
+                                )
 
                     # Wait 1 hour before next optimization cycle
                     await asyncio.sleep(3600)
@@ -929,12 +953,16 @@ class PluginOrchestrationService:
                 return cluster
         return None
 
-    async def _select_instance(self, cluster: PluginCluster, request: RouteRequest) -> Optional[PluginInstance]:
+    async def _select_instance(
+        self, cluster: PluginCluster, request: RouteRequest
+    ) -> Optional[PluginInstance]:
         """Select optimal instance for request based on strategy"""
 
         # Get healthy instances
         healthy_instances = [
-            i for i in cluster.instances if i.status == "running" and i.enabled and i.health_score >= 0.5
+            i
+            for i in cluster.instances
+            if i.status == "running" and i.enabled and i.health_score >= 0.5
         ]
 
         if not healthy_instances:
@@ -983,7 +1011,9 @@ class PluginOrchestrationService:
             # Default to round robin
             return self._select_round_robin(cluster, healthy_instances)
 
-    def _select_round_robin(self, cluster: PluginCluster, instances: List[PluginInstance]) -> PluginInstance:
+    def _select_round_robin(
+        self, cluster: PluginCluster, instances: List[PluginInstance]
+    ) -> PluginInstance:
         """Round-robin selection"""
 
         counter = self.round_robin_counters[cluster.cluster_id]
@@ -996,7 +1026,9 @@ class PluginOrchestrationService:
 
         return min(instances, key=lambda x: x.current_connections)
 
-    def _select_weighted_round_robin(self, cluster: PluginCluster, instances: List[PluginInstance]) -> PluginInstance:
+    def _select_weighted_round_robin(
+        self, cluster: PluginCluster, instances: List[PluginInstance]
+    ) -> PluginInstance:
         """Weighted round-robin selection"""
 
         # Create weighted list
@@ -1085,7 +1117,9 @@ class PluginOrchestrationService:
 
         return min(1.0, max(connection_load, resource_load))
 
-    async def _predict_response_time(self, instance: PluginInstance, request: RouteRequest) -> Dict[str, float]:
+    async def _predict_response_time(
+        self, instance: PluginInstance, request: RouteRequest
+    ) -> Dict[str, float]:
         """Predict response time for instance"""
 
         predictor = self.optimization_models.get("response_time_predictor")
@@ -1158,8 +1192,12 @@ class PluginOrchestrationService:
             import random
 
             # Simulate gradual changes in metrics
-            instance.cpu_usage_percent = max(0, min(100, instance.cpu_usage_percent + random.uniform(-5, 5)))
-            instance.memory_usage_mb = max(0, min(1024, instance.memory_usage_mb + random.uniform(-20, 20)))
+            instance.cpu_usage_percent = max(
+                0, min(100, instance.cpu_usage_percent + random.uniform(-5, 5))
+            )
+            instance.memory_usage_mb = max(
+                0, min(1024, instance.memory_usage_mb + random.uniform(-20, 20))
+            )
 
             # Simulate response time based on load
             load_factor = instance.current_connections / instance.max_connections
@@ -1193,7 +1231,9 @@ class PluginOrchestrationService:
         avg_memory = statistics.mean(i.memory_usage_mb for i in running_instances)
         total_connections = sum(i.current_connections for i in running_instances)
         max_connections = sum(i.max_connections for i in running_instances)
-        connection_utilization = (total_connections / max_connections * 100) if max_connections > 0 else 0
+        connection_utilization = (
+            (total_connections / max_connections * 100) if max_connections > 0 else 0
+        )
 
         current_count = len(running_instances)
 
@@ -1213,7 +1253,9 @@ class PluginOrchestrationService:
 
         if scale_up and current_count < cluster.max_instances:
             target_count = min(cluster.max_instances, current_count + 1)
-            await self.scale_cluster(cluster.cluster_id, target_count, f"Auto-scale up: {scale_up_reason}")
+            await self.scale_cluster(
+                cluster.cluster_id, target_count, f"Auto-scale up: {scale_up_reason}"
+            )
             return
 
         # Check scale-down conditions (with longer cooldown)
@@ -1252,7 +1294,9 @@ class PluginOrchestrationService:
         if cluster.circuit_breaker_status == "closed":
             if failure_count >= cluster.circuit_breaker_failure_threshold:
                 cluster.circuit_breaker_status = "open"
-                timeout_time = datetime.utcnow() + timedelta(seconds=cluster.circuit_breaker_timeout_seconds)
+                timeout_time = datetime.utcnow() + timedelta(
+                    seconds=cluster.circuit_breaker_timeout_seconds
+                )
                 self.circuit_breaker_timeouts[cluster.cluster_id] = timeout_time
                 logger.warning(f"Circuit breaker opened for cluster {cluster.cluster_id}")
 
@@ -1268,7 +1312,9 @@ class PluginOrchestrationService:
         metrics = await self.get_cluster_metrics(cluster.cluster_id)
 
         # Store in performance metrics history
-        self.performance_metrics[cluster.cluster_id].append({"timestamp": datetime.utcnow(), "metrics": metrics})
+        self.performance_metrics[cluster.cluster_id].append(
+            {"timestamp": datetime.utcnow(), "metrics": metrics}
+        )
 
     async def _execute_optimization_job(self, job: OptimizationJob):
         """Execute an optimization job"""
@@ -1294,7 +1340,9 @@ class PluginOrchestrationService:
             for cluster_id in job.cluster_ids:
                 cluster = self.clusters.get(cluster_id)
                 if cluster:
-                    cluster_recommendations = await self._generate_optimization_recommendations(cluster, job.target)
+                    cluster_recommendations = await self._generate_optimization_recommendations(
+                        cluster, job.target
+                    )
                     recommendations.extend(cluster_recommendations)
 
             job.recommendations = recommendations
@@ -1328,7 +1376,9 @@ class PluginOrchestrationService:
                 optimized = cluster_metrics.get("performance", {})
 
                 if baseline and optimized:
-                    improvement[cluster_id] = self._calculate_improvement(baseline, optimized, job.target)
+                    improvement[cluster_id] = self._calculate_improvement(
+                        baseline, optimized, job.target
+                    )
 
             job.optimized_metrics = optimized_metrics
             job.improvement_percentage = improvement
@@ -1360,7 +1410,9 @@ class PluginOrchestrationService:
                 rec["id"] = str(uuid.uuid4())
                 rec["cluster_id"] = cluster.cluster_id
                 rec["target"] = target.value
-                rec["auto_apply"] = rec.get("priority") != "high"  # Don't auto-apply high priority changes
+                rec["auto_apply"] = (
+                    rec.get("priority") != "high"
+                )  # Don't auto-apply high priority changes
                 recommendations.append(rec)
 
         # Add strategy-specific recommendations
@@ -1418,7 +1470,9 @@ class PluginOrchestrationService:
             rec_type = recommendation.get("type")
 
             if rec_type == "scale_up":
-                target_instances = recommendation.get("suggested_instances", cluster.target_instance_count + 1)
+                target_instances = recommendation.get(
+                    "suggested_instances", cluster.target_instance_count + 1
+                )
                 return await self.scale_cluster(
                     cluster_id,
                     target_instances,
@@ -1426,7 +1480,9 @@ class PluginOrchestrationService:
                 )
 
             elif rec_type == "scale_down":
-                target_instances = recommendation.get("suggested_instances", cluster.target_instance_count - 1)
+                target_instances = recommendation.get(
+                    "suggested_instances", cluster.target_instance_count - 1
+                )
                 return await self.scale_cluster(
                     cluster_id,
                     target_instances,
@@ -1492,12 +1548,16 @@ class PluginOrchestrationService:
 
         # Cluster statistics
         total_clusters = len(self.clusters)
-        active_clusters = len([c for c in self.clusters.values() if any(i.status == "running" for i in c.instances)])
+        active_clusters = len(
+            [c for c in self.clusters.values() if any(i.status == "running" for i in c.instances)]
+        )
 
         # Instance statistics
         total_instances = len(self.instances)
         running_instances = len([i for i in self.instances.values() if i.status == "running"])
-        healthy_instances = len([i for i in self.instances.values() if i.status == "running" and i.health_score >= 0.8])
+        healthy_instances = len(
+            [i for i in self.instances.values() if i.status == "running" and i.health_score >= 0.8]
+        )
 
         # Strategy distribution
         strategy_distribution = {}
@@ -1506,15 +1566,23 @@ class PluginOrchestrationService:
             strategy_distribution[strategy.value] = count
 
         # Load balancing statistics
-        total_connections = sum(i.current_connections for i in self.instances.values() if i.status == "running")
-        max_connections = sum(i.max_connections for i in self.instances.values() if i.status == "running")
+        total_connections = sum(
+            i.current_connections for i in self.instances.values() if i.status == "running"
+        )
+        max_connections = sum(
+            i.max_connections for i in self.instances.values() if i.status == "running"
+        )
 
         # Optimization statistics
         total_optimization_jobs = len(self.optimization_jobs)
-        completed_optimizations = len([j for j in self.optimization_jobs.values() if j.status == "completed"])
+        completed_optimizations = len(
+            [j for j in self.optimization_jobs.values() if j.status == "completed"]
+        )
 
         # Circuit breaker statistics
-        open_circuit_breakers = len([c for c in self.clusters.values() if c.circuit_breaker_status == "open"])
+        open_circuit_breakers = len(
+            [c for c in self.clusters.values() if c.circuit_breaker_status == "open"]
+        )
 
         return {
             "clusters": {
@@ -1526,19 +1594,25 @@ class PluginOrchestrationService:
                 "total": total_instances,
                 "running": running_instances,
                 "healthy": healthy_instances,
-                "health_rate": (healthy_instances / running_instances if running_instances > 0 else 0.0),
+                "health_rate": (
+                    healthy_instances / running_instances if running_instances > 0 else 0.0
+                ),
             },
             "load_balancing": {
                 "total_connections": total_connections,
                 "max_connections": max_connections,
-                "utilization": ((total_connections / max_connections * 100) if max_connections > 0 else 0.0),
+                "utilization": (
+                    (total_connections / max_connections * 100) if max_connections > 0 else 0.0
+                ),
                 "session_affinity_entries": len(self.session_affinity),
             },
             "optimization": {
                 "total_jobs": total_optimization_jobs,
                 "completed_jobs": completed_optimizations,
                 "success_rate": (
-                    completed_optimizations / total_optimization_jobs if total_optimization_jobs > 0 else 0.0
+                    completed_optimizations / total_optimization_jobs
+                    if total_optimization_jobs > 0
+                    else 0.0
                 ),
                 "models_loaded": len(self.optimization_models),
             },

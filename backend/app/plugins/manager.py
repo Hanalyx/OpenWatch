@@ -206,7 +206,9 @@ class PluginManager:
             return True
         return False
 
-    async def execute_hook(self, hook_name: str, data: Dict, user_id: str = None, session_id: str = None) -> List[Dict]:
+    async def execute_hook(
+        self, hook_name: str, data: Dict, user_id: str = None, session_id: str = None
+    ) -> List[Dict]:
         """Execute all registered hooks for the specified event"""
         results = []
 
@@ -275,7 +277,9 @@ class PluginManager:
         return None
 
     # Reporter Plugin Helpers
-    async def generate_report(self, scan_results: List, format_type: str = "html") -> Optional[bytes]:
+    async def generate_report(
+        self, scan_results: List, format_type: str = "html"
+    ) -> Optional[bytes]:
         """Generate a report using available reporter plugins"""
         reporters = self.get_plugins_by_type(PluginType.REPORTER)
 
@@ -284,12 +288,16 @@ class PluginManager:
                 try:
                     return await reporter.generate_report(scan_results, format_type)
                 except Exception as e:
-                    logger.error(f"Report generation failed with plugin {reporter.get_metadata().name}: {e}")
+                    logger.error(
+                        f"Report generation failed with plugin {reporter.get_metadata().name}: {e}"
+                    )
 
         return None
 
     # Remediation Plugin Helpers
-    async def find_remediation_plugins(self, rule_id: str, host_config: Dict) -> List[RemediationPlugin]:
+    async def find_remediation_plugins(
+        self, rule_id: str, host_config: Dict
+    ) -> List[RemediationPlugin]:
         """Find remediation plugins that can handle the specified rule"""
         remediation_plugins = self.get_plugins_by_type(PluginType.REMEDIATION)
         compatible_plugins = []
@@ -327,7 +335,11 @@ class PluginManager:
         """Find the plugin class in the loaded module"""
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
-            if isinstance(attr, type) and issubclass(attr, PluginInterface) and attr != PluginInterface:
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, PluginInterface)
+                and attr != PluginInterface
+            ):
                 return attr
         return None
 

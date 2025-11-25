@@ -256,7 +256,9 @@ class RemediationRecommendationEngine:
         compliance_gaps = []
 
         for host_result in scan_result.host_results:
-            host_gaps = await self._analyze_host_compliance_gaps(host_result, unified_rules, target_frameworks)
+            host_gaps = await self._analyze_host_compliance_gaps(
+                host_result, unified_rules, target_frameworks
+            )
             compliance_gaps.extend(host_gaps)
 
         # Sort by priority (critical first)
@@ -296,7 +298,9 @@ class RemediationRecommendationEngine:
 
         for gap in compliance_gaps:
             try:
-                recommendation = await self._generate_single_recommendation(gap, unified_rules, orsa_capabilities)
+                recommendation = await self._generate_single_recommendation(
+                    gap, unified_rules, orsa_capabilities
+                )
                 if recommendation:
                     recommendations.append(recommendation)
             except Exception as e:
@@ -345,7 +349,9 @@ class RemediationRecommendationEngine:
                     orsa_rules_by_platform[platform].append(alt_orsa_rule)
 
         total_rules = sum(len(rules) for rules in orsa_rules_by_platform.values())
-        logger.info(f"Mapped to {total_rules} ORSA rules across {len(orsa_rules_by_platform)} platforms")
+        logger.info(
+            f"Mapped to {total_rules} ORSA rules across {len(orsa_rules_by_platform)} platforms"
+        )
 
         return orsa_rules_by_platform
 
@@ -438,7 +444,9 @@ class RemediationRecommendationEngine:
             if target_frameworks and framework_result.framework_id not in target_frameworks:
                 continue
 
-            framework_gaps = await self._analyze_framework_gaps(framework_result, host_result, unified_rules)
+            framework_gaps = await self._analyze_framework_gaps(
+                framework_result, host_result, unified_rules
+            )
             gaps.extend(framework_gaps)
 
         return gaps
@@ -458,7 +466,9 @@ class RemediationRecommendationEngine:
                 ComplianceStatus.PARTIAL,
                 ComplianceStatus.ERROR,
             ]:
-                gap = await self._create_compliance_gap(rule_execution, framework_result, host_result, unified_rules)
+                gap = await self._create_compliance_gap(
+                    rule_execution, framework_result, host_result, unified_rules
+                )
                 if gap:
                     gaps.append(gap)
 
@@ -504,7 +514,9 @@ class RemediationRecommendationEngine:
             gap_id=f"GAP-{framework_result.framework_id}-{rule_execution.rule_id}-{host_result.host_id}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
             rule_id=rule_execution.rule_id,
             framework_id=framework_result.framework_id,
-            control_id=(framework_mapping.control_ids[0] if framework_mapping.control_ids else "unknown"),
+            control_id=(
+                framework_mapping.control_ids[0] if framework_mapping.control_ids else "unknown"
+            ),
             host_id=host_result.host_id,
             title=unified_rule.title,
             description=unified_rule.description,
@@ -518,8 +530,12 @@ class RemediationRecommendationEngine:
             failed_checks=failed_checks,
             error_details=rule_execution.error_message,
             last_scan_time=rule_execution.executed_at or datetime.utcnow(),
-            regulatory_requirements=self._get_regulatory_requirements(framework_result.framework_id),
-            compliance_deadline=self._calculate_compliance_deadline(priority, unified_rule.risk_level),
+            regulatory_requirements=self._get_regulatory_requirements(
+                framework_result.framework_id
+            ),
+            compliance_deadline=self._calculate_compliance_deadline(
+                priority, unified_rule.risk_level
+            ),
         )
 
         return gap
@@ -536,17 +552,23 @@ class RemediationRecommendationEngine:
             return None
 
         # Get primary remediation procedure
-        primary_procedure = await self._create_remediation_procedure(gap, unified_rule, is_primary=True)
+        primary_procedure = await self._create_remediation_procedure(
+            gap, unified_rule, is_primary=True
+        )
 
         if not primary_procedure:
             logger.warning(f"Could not create primary procedure for gap {gap.gap_id}")
             return None
 
         # Get alternative procedures
-        alternative_procedures = await self._get_alternative_procedures(gap, unified_rule, orsa_capabilities)
+        alternative_procedures = await self._get_alternative_procedures(
+            gap, unified_rule, orsa_capabilities
+        )
 
         # Create ORSA-compatible rules
-        orsa_rules = await self._create_orsa_compatible_rules(primary_procedure, alternative_procedures, gap)
+        orsa_rules = await self._create_orsa_compatible_rules(
+            primary_procedure, alternative_procedures, gap
+        )
 
         # Create remediation job template
         job_template = await self.create_remediation_job_template(
@@ -570,7 +592,9 @@ class RemediationRecommendationEngine:
             compliance_benefit=await self._generate_compliance_benefit(gap, unified_rule),
             recommended_approach=await self._generate_recommended_approach(primary_procedure, gap),
             testing_recommendations=await self._generate_testing_recommendations(primary_procedure),
-            monitoring_recommendations=await self._generate_monitoring_recommendations(unified_rule, gap),
+            monitoring_recommendations=await self._generate_monitoring_recommendations(
+                unified_rule, gap
+            ),
             confidence_score=self._calculate_confidence_score(gap, primary_procedure),
             framework_citations=self._get_framework_citations(gap.framework_id),
             related_controls=await self._find_related_controls(gap, unified_rules),
@@ -636,7 +660,9 @@ class RemediationRecommendationEngine:
             prerequisites=self._generate_prerequisites(platform_impl),
             stig_fix_text=self._get_stig_fix_text(gap.framework_id, framework_mapping),
             cis_remediation_procedure=self._get_cis_procedure(gap.framework_id, framework_mapping),
-            nist_implementation_guidance=self._get_nist_guidance(gap.framework_id, framework_mapping),
+            nist_implementation_guidance=self._get_nist_guidance(
+                gap.framework_id, framework_mapping
+            ),
             custom_procedure_text=(framework_mapping.justification if framework_mapping else None),
         )
 
@@ -721,7 +747,9 @@ class RemediationRecommendationEngine:
         else:
             return RemediationPriority.LOW
 
-    def _assess_business_impact(self, unified_rule: UnifiedComplianceRule, rule_execution: RuleExecution) -> str:
+    def _assess_business_impact(
+        self, unified_rule: UnifiedComplianceRule, rule_execution: RuleExecution
+    ) -> str:
         """Assess business impact of the compliance gap"""
         risk_impact = {
             "critical": "Severe business disruption risk, potential regulatory violations",
@@ -757,7 +785,9 @@ class RemediationRecommendationEngine:
         """Get regulatory requirements for framework"""
         return self.framework_mappings.get(framework_id, {}).get("citations", [])
 
-    def _calculate_compliance_deadline(self, priority: RemediationPriority, risk_level: str) -> Optional[datetime]:
+    def _calculate_compliance_deadline(
+        self, priority: RemediationPriority, risk_level: str
+    ) -> Optional[datetime]:
         """Calculate compliance deadline based on priority and risk"""
         deadline_days = {
             RemediationPriority.CRITICAL: 7,
@@ -900,23 +930,33 @@ class RemediationRecommendationEngine:
 
         # Convert alternative procedures
         for alt_procedure in alternative_procedures:
-            alt_rule = await self._convert_procedure_to_orsa_rule(alt_procedure, gap, is_alternative=True)
+            alt_rule = await self._convert_procedure_to_orsa_rule(
+                alt_procedure, gap, is_alternative=True
+            )
             if alt_rule:
                 rules.append(alt_rule)
 
         return rules
 
     # Placeholder methods for additional functionality
-    async def _analyze_root_cause(self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule) -> str:
+    async def _analyze_root_cause(
+        self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule
+    ) -> str:
         return f"Root cause analysis for {gap.title} - requires detailed implementation"
 
-    async def _generate_business_justification(self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule) -> str:
+    async def _generate_business_justification(
+        self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule
+    ) -> str:
         return f"Business justification for remediating {gap.title}"
 
-    async def _generate_compliance_benefit(self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule) -> str:
+    async def _generate_compliance_benefit(
+        self, gap: ComplianceGap, unified_rule: UnifiedComplianceRule
+    ) -> str:
         return f"Compliance benefit of addressing {gap.title}"
 
-    async def _generate_recommended_approach(self, procedure: RemediationProcedure, gap: ComplianceGap) -> str:
+    async def _generate_recommended_approach(
+        self, procedure: RemediationProcedure, gap: ComplianceGap
+    ) -> str:
         return f"Recommended approach: Execute {procedure.title} with {procedure.complexity.value} complexity"
 
     async def _generate_testing_recommendations(self, procedure: RemediationProcedure) -> List[str]:
@@ -934,7 +974,9 @@ class RemediationRecommendationEngine:
             "Configure alerting for configuration drift",
         ]
 
-    def _calculate_confidence_score(self, gap: ComplianceGap, procedure: RemediationProcedure) -> float:
+    def _calculate_confidence_score(
+        self, gap: ComplianceGap, procedure: RemediationProcedure
+    ) -> float:
         score = 0.5  # Base score
 
         if procedure.complexity in [
@@ -990,7 +1032,9 @@ class RemediationRecommendationEngine:
 
         return validation
 
-    def _generate_rollback_steps(self, platform_impl: PlatformImplementation, steps: List[Dict[str, Any]]) -> List[str]:
+    def _generate_rollback_steps(
+        self, platform_impl: PlatformImplementation, steps: List[Dict[str, Any]]
+    ) -> List[str]:
         rollback = []
 
         # Generate reverse operations for file modifications
@@ -1006,7 +1050,9 @@ class RemediationRecommendationEngine:
 
         return rollback
 
-    def _estimate_execution_time(self, steps: List[Dict[str, Any]], complexity: RemediationComplexity) -> int:
+    def _estimate_execution_time(
+        self, steps: List[Dict[str, Any]], complexity: RemediationComplexity
+    ) -> int:
         base_time = len(steps) * 2  # 2 minutes per step
 
         complexity_multiplier = {
@@ -1019,7 +1065,9 @@ class RemediationRecommendationEngine:
 
         return int(base_time * complexity_multiplier.get(complexity, 1.0))
 
-    def _requires_reboot(self, platform_impl: PlatformImplementation, steps: List[Dict[str, Any]]) -> bool:
+    def _requires_reboot(
+        self, platform_impl: PlatformImplementation, steps: List[Dict[str, Any]]
+    ) -> bool:
         # Check if any services that typically require reboot are affected
         reboot_services = ["kernel", "systemd", "init"]
 
@@ -1059,17 +1107,23 @@ class RemediationRecommendationEngine:
 
         return prereqs
 
-    def _get_stig_fix_text(self, framework_id: str, framework_mapping: Optional[FrameworkMapping]) -> Optional[str]:
+    def _get_stig_fix_text(
+        self, framework_id: str, framework_mapping: Optional[FrameworkMapping]
+    ) -> Optional[str]:
         if framework_id.startswith("stig") and framework_mapping:
             return framework_mapping.justification
         return None
 
-    def _get_cis_procedure(self, framework_id: str, framework_mapping: Optional[FrameworkMapping]) -> Optional[str]:
+    def _get_cis_procedure(
+        self, framework_id: str, framework_mapping: Optional[FrameworkMapping]
+    ) -> Optional[str]:
         if framework_id.startswith("cis") and framework_mapping:
             return framework_mapping.justification
         return None
 
-    def _get_nist_guidance(self, framework_id: str, framework_mapping: Optional[FrameworkMapping]) -> Optional[str]:
+    def _get_nist_guidance(
+        self, framework_id: str, framework_mapping: Optional[FrameworkMapping]
+    ) -> Optional[str]:
         if framework_id.startswith("nist") and framework_mapping:
             return framework_mapping.justification
         return None

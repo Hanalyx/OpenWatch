@@ -509,10 +509,14 @@ class PluginDevelopmentFramework:
             baseline_key = f"{plugin_id}:{benchmark_config.benchmark_type.value}"
             if baseline_key in self.benchmark_baselines:
                 baseline = self.benchmark_baselines[baseline_key]
-                benchmark_result.baseline_comparison = self._compare_benchmark_results(benchmark_result, baseline)
+                benchmark_result.baseline_comparison = self._compare_benchmark_results(
+                    benchmark_result, baseline
+                )
 
         # Check if meets criteria
-        benchmark_result.meets_criteria = self._check_benchmark_criteria(benchmark_result, benchmark_config)
+        benchmark_result.meets_criteria = self._check_benchmark_criteria(
+            benchmark_result, benchmark_config
+        )
 
         # Store as new baseline if better than previous
         self._update_benchmark_baseline(plugin_id, benchmark_result)
@@ -529,7 +533,9 @@ class PluginDevelopmentFramework:
         # Query database
         return await TestExecution.find_one(TestExecution.execution_id == execution_id)
 
-    async def generate_plugin_template(self, plugin_name: str, plugin_type: str, author: str, output_path: str) -> str:
+    async def generate_plugin_template(
+        self, plugin_name: str, plugin_type: str, author: str, output_path: str
+    ) -> str:
         """Generate a plugin template with best practices"""
 
         template_dir = Path(output_path) / plugin_name
@@ -562,7 +568,9 @@ class PluginDevelopmentFramework:
         logger.info(f"Generated plugin template: {template_dir}")
         return str(template_dir)
 
-    async def _validate_package_structure(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_package_structure(
+        self, package_path: Path, validation_result: ValidationResult
+    ):
         """Validate plugin package structure"""
 
         required_files = ["plugin.py", "manifest.json"]
@@ -602,7 +610,9 @@ class PluginDevelopmentFramework:
             )
             validation_result.warning_count += 1
 
-    async def _validate_plugin_manifest(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_plugin_manifest(
+        self, package_path: Path, validation_result: ValidationResult
+    ):
         """Validate plugin manifest file"""
 
         manifest_path = package_path / "manifest.json"
@@ -711,7 +721,11 @@ class PluginDevelopmentFramework:
                         score -= 10
 
                     # Check for proper imports
-                    imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
+                    imports = [
+                        node
+                        for node in ast.walk(tree)
+                        if isinstance(node, (ast.Import, ast.ImportFrom))
+                    ]
                     if not imports:
                         validation_result.issues.append(
                             {
@@ -724,7 +738,9 @@ class PluginDevelopmentFramework:
 
                     # Check for classes and functions
                     classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
-                    functions = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+                    functions = [
+                        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                    ]
 
                     if not classes and not functions:
                         validation_result.issues.append(
@@ -825,7 +841,9 @@ class PluginDevelopmentFramework:
 
         validation_result.security_score = max(0, security_score)
 
-    async def _validate_performance_indicators(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_performance_indicators(
+        self, package_path: Path, validation_result: ValidationResult
+    ):
         """Validate performance indicators"""
 
         # This is a basic implementation - in production would be more sophisticated
@@ -849,7 +867,9 @@ class PluginDevelopmentFramework:
                 continue
 
         if has_async:
-            validation_result.recommendations.append("Good: Plugin uses async/await for better performance")
+            validation_result.recommendations.append(
+                "Good: Plugin uses async/await for better performance"
+            )
         else:
             validation_result.recommendations.append(
                 "Consider using async/await for better performance in I/O operations"
@@ -876,13 +896,19 @@ class PluginDevelopmentFramework:
 
         # Generate recommendations based on scores
         if validation_result.code_quality_score < 60:
-            validation_result.recommendations.append("Improve code quality by adding docstrings and proper structure")
+            validation_result.recommendations.append(
+                "Improve code quality by adding docstrings and proper structure"
+            )
 
         if validation_result.security_score < 80:
-            validation_result.recommendations.append("Address security concerns identified in the code")
+            validation_result.recommendations.append(
+                "Address security concerns identified in the code"
+            )
 
         if validation_result.performance_score < 70:
-            validation_result.recommendations.append("Consider performance optimizations for better execution")
+            validation_result.recommendations.append(
+                "Consider performance optimizations for better execution"
+            )
 
     async def _execute_test_suite_async(self, test_suite: TestSuite, execution: TestExecution):
         """Execute test suite asynchronously"""
@@ -931,14 +957,18 @@ class PluginDevelopmentFramework:
         finally:
             execution.completed_at = datetime.utcnow()
             if execution.started_at:
-                execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+                execution.duration_seconds = (
+                    execution.completed_at - execution.started_at
+                ).total_seconds()
 
             await execution.save()
 
             # Remove from active tests
             self.active_tests.pop(execution.execution_id, None)
 
-            logger.info(f"Test suite execution completed: {execution.execution_id} - {execution.overall_status.value}")
+            logger.info(
+                f"Test suite execution completed: {execution.execution_id} - {execution.overall_status.value}"
+            )
 
     async def _execute_test_case(self, test_case: TestCase, execution: TestExecution) -> TestResult:
         """Execute a single test case"""
@@ -973,7 +1003,9 @@ class PluginDevelopmentFramework:
 
         finally:
             test_result.completed_at = datetime.utcnow()
-            test_result.duration_seconds = (test_result.completed_at - test_result.started_at).total_seconds()
+            test_result.duration_seconds = (
+                test_result.completed_at - test_result.started_at
+            ).total_seconds()
 
         return test_result
 
@@ -1010,7 +1042,9 @@ class PluginDevelopmentFramework:
 
         return test_cases
 
-    async def _benchmark_throughput(self, plugin: InstalledPlugin, config: BenchmarkConfig) -> Dict[str, Any]:
+    async def _benchmark_throughput(
+        self, plugin: InstalledPlugin, config: BenchmarkConfig
+    ) -> Dict[str, Any]:
         """Benchmark plugin throughput"""
         # Mock implementation
         return {
@@ -1019,7 +1053,9 @@ class PluginDevelopmentFramework:
             "error_count": 2,
         }
 
-    async def _benchmark_latency(self, plugin: InstalledPlugin, config: BenchmarkConfig) -> Dict[str, Any]:
+    async def _benchmark_latency(
+        self, plugin: InstalledPlugin, config: BenchmarkConfig
+    ) -> Dict[str, Any]:
         """Benchmark plugin latency"""
         # Mock implementation
         base_latency = 50.0 + (hash(plugin.plugin_id) % 100)
@@ -1031,7 +1067,9 @@ class PluginDevelopmentFramework:
             "error_count": 1,
         }
 
-    async def _benchmark_memory(self, plugin: InstalledPlugin, config: BenchmarkConfig) -> Dict[str, Any]:
+    async def _benchmark_memory(
+        self, plugin: InstalledPlugin, config: BenchmarkConfig
+    ) -> Dict[str, Any]:
         """Benchmark plugin memory usage"""
         # Mock implementation
         base_memory = 100.0 + (hash(plugin.plugin_id) % 200)
@@ -1042,7 +1080,9 @@ class PluginDevelopmentFramework:
             "error_count": 0,
         }
 
-    async def _benchmark_cpu(self, plugin: InstalledPlugin, config: BenchmarkConfig) -> Dict[str, Any]:
+    async def _benchmark_cpu(
+        self, plugin: InstalledPlugin, config: BenchmarkConfig
+    ) -> Dict[str, Any]:
         """Benchmark plugin CPU usage"""
         # Mock implementation
         base_cpu = 20.0 + (hash(plugin.plugin_id) % 30)
@@ -1053,7 +1093,9 @@ class PluginDevelopmentFramework:
             "error_count": 1,
         }
 
-    async def _benchmark_scalability(self, plugin: InstalledPlugin, config: BenchmarkConfig) -> Dict[str, Any]:
+    async def _benchmark_scalability(
+        self, plugin: InstalledPlugin, config: BenchmarkConfig
+    ) -> Dict[str, Any]:
         """Benchmark plugin scalability"""
         # Mock implementation
         return {
@@ -1063,7 +1105,9 @@ class PluginDevelopmentFramework:
             "error_count": 5,
         }
 
-    def _compare_benchmark_results(self, current: BenchmarkResult, baseline: BenchmarkResult) -> Dict[str, float]:
+    def _compare_benchmark_results(
+        self, current: BenchmarkResult, baseline: BenchmarkResult
+    ) -> Dict[str, float]:
         """Compare benchmark results with baseline"""
         comparison = {}
 
@@ -1078,7 +1122,9 @@ class PluginDevelopmentFramework:
             ) / baseline.avg_latency_ms
 
         if current.avg_memory_mb and baseline.avg_memory_mb:
-            comparison["memory_improvement"] = (baseline.avg_memory_mb - current.avg_memory_mb) / baseline.avg_memory_mb
+            comparison["memory_improvement"] = (
+                baseline.avg_memory_mb - current.avg_memory_mb
+            ) / baseline.avg_memory_mb
 
         return comparison
 
@@ -1107,10 +1153,14 @@ class PluginDevelopmentFramework:
             current_baseline = self.benchmark_baselines[baseline_key]
 
             # Simple comparison - could be more sophisticated
-            if (result.throughput_ops_per_sec or 0) > (current_baseline.throughput_ops_per_sec or 0):
+            if (result.throughput_ops_per_sec or 0) > (
+                current_baseline.throughput_ops_per_sec or 0
+            ):
                 self.benchmark_baselines[baseline_key] = result
 
-    def _generate_plugin_code_template(self, plugin_name: str, plugin_type: str, author: str) -> str:
+    def _generate_plugin_code_template(
+        self, plugin_name: str, plugin_type: str, author: str
+    ) -> str:
         """Generate plugin code template"""
         return f'''"""
 {plugin_name} Plugin for OpenWatch
@@ -1201,7 +1251,9 @@ class {plugin_name.title().replace('_', '')}Plugin(PluginInterface):
 plugin_class = {plugin_name.title().replace('_', '')}Plugin
 '''
 
-    def _generate_manifest_template(self, plugin_name: str, plugin_type: str, author: str) -> Dict[str, Any]:
+    def _generate_manifest_template(
+        self, plugin_name: str, plugin_type: str, author: str
+    ) -> Dict[str, Any]:
         """Generate manifest template"""
         return {
             "name": plugin_name,

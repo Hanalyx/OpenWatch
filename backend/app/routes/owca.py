@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session
 from backend.app.auth import get_current_user
 from backend.app.database import get_db
 from backend.app.services.owca import get_owca_service
-from backend.app.services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetStatistics
+from backend.app.services.owca.models import (
+    BaselineDrift,
+    ComplianceScore,
+    DriftSeverity,
+    FleetStatistics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -436,7 +441,9 @@ async def get_host_framework_intelligence(
     """
     try:
         owca = get_owca_service(db)
-        intelligence = await owca.get_framework_intelligence(framework=framework, host_id=str(host_id))
+        intelligence = await owca.get_framework_intelligence(
+            framework=framework, host_id=str(host_id)
+        )
 
         if not intelligence:
             raise HTTPException(
@@ -668,7 +675,9 @@ async def calculate_host_risk(
         risk = await owca.calculate_risk(str(host_id), business_criticality)
 
         if not risk:
-            raise HTTPException(status_code=404, detail=f"No compliance data available for host {host_id}")
+            raise HTTPException(
+                status_code=404, detail=f"No compliance data available for host {host_id}"
+            )
 
         return risk.dict() if hasattr(risk, "dict") else risk
 
@@ -758,7 +767,9 @@ async def forecast_host_compliance(
     """
     try:
         owca = get_owca_service(db)
-        forecast = await owca.forecast_compliance(str(host_id), entity_type="host", days_ahead=days_ahead)
+        forecast = await owca.forecast_compliance(
+            str(host_id), entity_type="host", days_ahead=days_ahead
+        )
 
         if not forecast:
             raise HTTPException(
@@ -783,7 +794,9 @@ async def forecast_host_compliance(
 )
 async def detect_host_anomalies(
     host_id: UUID,
-    lookback_days: int = Query(60, ge=30, le=180, description="Days of history to analyze (30-180)"),
+    lookback_days: int = Query(
+        60, ge=30, le=180, description="Days of history to analyze (30-180)"
+    ),
     db: Session = Depends(get_db),
     _current_user: dict = Depends(get_current_user),
 ):
@@ -816,7 +829,9 @@ async def detect_host_anomalies(
     """
     try:
         owca = get_owca_service(db)
-        anomalies = await owca.detect_anomalies(str(host_id), entity_type="host", lookback_days=lookback_days)
+        anomalies = await owca.detect_anomalies(
+            str(host_id), entity_type="host", lookback_days=lookback_days
+        )
 
         return [anomaly.dict() if hasattr(anomaly, "dict") else anomaly for anomaly in anomalies]
 

@@ -126,7 +126,9 @@ class SCAPAEGISMapper:
                     "sed -i 's/^#*\\s*minlen.*/minlen = 15/' /etc/security/pwquality.conf",
                     "grep -q '^minlen' /etc/security/pwquality.conf || echo 'minlen = 15' >> /etc/security/pwquality.conf",
                 ],
-                verification_commands=["grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"],
+                verification_commands=[
+                    "grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"
+                ],
                 rollback_commands=["sed -i 's/^minlen.*/minlen = 8/' /etc/security/pwquality.conf"],
                 estimated_duration=20,
                 requires_reboot=False,
@@ -280,7 +282,9 @@ class SCAPAEGISMapper:
             # Save plan for tracking
             self._save_remediation_plan(plan)
 
-            logger.info(f"Created remediation plan with {remediable_rules}/{len(failed_rules)} remediable rules")
+            logger.info(
+                f"Created remediation plan with {remediable_rules}/{len(failed_rules)} remediable rules"
+            )
             return plan
 
         except Exception as e:
@@ -294,7 +298,9 @@ class SCAPAEGISMapper:
         execution_order = []
 
         # Sort categories by priority
-        sorted_categories = sorted(rule_groups.keys(), key=lambda x: self.category_priorities.get(x, 999))
+        sorted_categories = sorted(
+            rule_groups.keys(), key=lambda x: self.category_priorities.get(x, 999)
+        )
 
         # Process rules in priority order
         for category in sorted_categories:
@@ -467,7 +473,10 @@ class SCAPAEGISMapper:
                     for cmd in mapping.verification_commands
                 ],
                 "rollback": (
-                    [{"description": f"Rollback with: {cmd}", "command": cmd} for cmd in mapping.rollback_commands]
+                    [
+                        {"description": f"Rollback with: {cmd}", "command": cmd}
+                        for cmd in mapping.rollback_commands
+                    ]
                     if mapping.rollback_commands
                     else None
                 ),
