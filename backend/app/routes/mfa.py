@@ -24,7 +24,8 @@ mfa_service = get_mfa_service()
 def get_client_ip(request: Request) -> str:
     """Extract client IP address from request"""
     if "x-forwarded-for" in request.headers:
-        return request.headers["x-forwarded-for"].split(",")[0].strip()
+        ip: str = request.headers["x-forwarded-for"].split(",")[0].strip()
+        return ip
     return request.client.host if request.client else "unknown"
 
 
@@ -44,7 +45,7 @@ class MFAEnrollmentResponse(BaseModel):
     error_message: Optional[str] = None
 
     @validator("backup_codes")
-    def mask_sensitive_data(cls, v):
+    def mask_sensitive_data(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         # In production, consider not returning backup codes in API response
         # Instead, display them once and require user to save them
         return v
@@ -56,7 +57,7 @@ class MFAValidationRequest(BaseModel):
     code: str
 
     @validator("code")
-    def validate_code_format(cls, v):
+    def validate_code_format(cls, v: str) -> str:
         # Remove spaces and validate format
         code = v.strip().replace(" ", "")
         if not code:
@@ -101,8 +102,8 @@ def log_mfa_action(
     ip_address: str,
     user_agent: str,
     method: Optional[str] = None,
-    details: Optional[Dict] = None,
-):
+    details: Optional[Dict[str, Any]] = None,
+) -> None:
     """Log MFA action to audit table"""
     try:
         audit_entry = MFAAuditLog(
@@ -128,11 +129,11 @@ def log_mfa_action(
         logger.error(f"Failed to log MFA action: {e}")
 
 
-@router.get("/status", response_model=MFAStatusResponse)
+@router.get("/status", response_model=MFAStatusResponse)  # type: ignore[misc]
 async def get_mfa_status(
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> MFAStatusResponse:
     """Get user's MFA status"""
     try:
         # Get user MFA data from database
@@ -171,13 +172,13 @@ async def get_mfa_status(
         )
 
 
-@router.post("/enroll", response_model=MFAEnrollmentResponse)
+@router.post("/enroll", response_model=MFAEnrollmentResponse)  # type: ignore[misc]
 async def enroll_mfa(
     request: MFAEnrollmentRequest,
     http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> MFAEnrollmentResponse:
     """Enroll user in MFA with TOTP and backup codes"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
@@ -237,9 +238,19 @@ async def enroll_mfa(
             )
 
         # Encrypt and store MFA secret
+        if enrollment_result.secret_key is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="MFA enrollment failed: no secret key generated",
+            )
         encrypted_secret = mfa_service.encrypt_mfa_secret(enrollment_result.secret_key)
 
         # Hash backup codes for storage
+        if enrollment_result.backup_codes is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="MFA enrollment failed: no backup codes generated",
+            )
         hashed_backup_codes = [mfa_service.hash_backup_code(code) for code in enrollment_result.backup_codes]
 
         # Update user record
@@ -289,13 +300,13 @@ async def enroll_mfa(
         )
 
 
-@router.post("/validate")
+@router.post("/validate")  # type: ignore[misc]
 async def validate_mfa_code(
     request: MFAValidationRequest,
     http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Validate MFA code for already enrolled user"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
@@ -420,13 +431,13 @@ async def validate_mfa_code(
         )
 
 
-@router.post("/enable")
+@router.post("/enable")  # type: ignore[misc]
 async def enable_mfa(
     request: MFAValidationRequest,
     http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Enable MFA after successful enrollment verification"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
@@ -509,13 +520,13 @@ async def enable_mfa(
         )
 
 
-@router.post("/regenerate-backup-codes", response_model=BackupCodesRegenerateResponse)
+@router.post("/regenerate-backup-codes", response_model=BackupCodesRegenerateResponse)  # type: ignore[misc]
 async def regenerate_backup_codes(
     request: MFAValidationRequest,
     http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BackupCodesRegenerateResponse:
     """Regenerate backup codes after MFA validation"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
@@ -602,13 +613,13 @@ async def regenerate_backup_codes(
         )
 
 
-@router.post("/disable")
+@router.post("/disable")  # type: ignore[misc]
 async def disable_mfa(
     request: MFADisableRequest,
     http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Disable MFA for user (requires password confirmation)"""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent", "")
