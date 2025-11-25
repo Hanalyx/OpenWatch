@@ -30,15 +30,15 @@ Related to #
 - [ ] Security testing completed (if applicable)
 
 ### Test Environment
-- Browser: 
-- OS: 
-- OpenWatch Version: 
+- Browser:
+- OS:
+- OpenWatch Version:
 
 ### Test Cases
 <!-- List the scenarios you tested -->
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## 📸 Screenshots/Videos
 <!-- If applicable, add screenshots or videos to demonstrate the changes -->

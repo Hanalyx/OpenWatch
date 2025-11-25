@@ -42,7 +42,7 @@ log_info "Downloading essential base images..."
 for image in "${ESSENTIAL_IMAGES[@]}"; do
     image_name=$(echo "$image" | sed 's|.*/||' | tr ':' '-')
     log_info "Saving $image..."
-    
+
     if podman pull "$image" && podman save -o "$OUTPUT_DIR/images/${image_name}.tar" "$image"; then
         log_success "Saved $image"
     else
@@ -106,7 +106,7 @@ services:
     working_dir: /app
     command: >
       bash -c "
-        apt-get update && 
+        apt-get update &&
         apt-get install -y gcc libpq-dev curl &&
         pip install --no-cache-dir -r requirements.txt &&
         python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -326,9 +326,9 @@ images_size=$(du -sh "$OUTPUT_DIR/images" | cut -f1)
 log_success "Quick bundle created successfully!"
 log_info ""
 log_info "Bundle Summary:"
-log_info "  📦 Bundle: ${BUNDLE_NAME}.tar.gz ($bundle_size)"
-log_info "  🐳 Images: $images_size"
-log_info "  📁 Directory: $OUTPUT_DIR"
+log_info "  Bundle: ${BUNDLE_NAME}.tar.gz ($bundle_size)"
+log_info "  Images: $images_size"
+log_info "  Directory: $OUTPUT_DIR"
 log_info ""
 log_info "Transfer ${BUNDLE_NAME}.tar.gz to your air-gapped environment"
 log_info "Extract and run: sudo ./install-quick-bundle.sh"

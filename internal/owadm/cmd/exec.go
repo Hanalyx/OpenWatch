@@ -30,28 +30,28 @@ func init() {
 
 func runExec(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	
+
 	service := args[0]
 	command := args[1:]
-	
+
 	LogInfo(fmt.Sprintf("Executing in %s: %v", service, command))
-	
+
 	// Get or detect runtime
 	var rt runtime.Runtime
 	var err error
-	
+
 	runtimeName := viper.GetString("runtime")
 	if runtimeName != "" {
 		rt, err = runtime.GetRuntime(runtimeName)
 	} else {
 		rt, err = runtime.DetectRuntime()
 	}
-	
+
 	if err != nil {
 		LogError(fmt.Sprintf("Runtime error: %v", err))
 		return err
 	}
-	
+
 	// Execute command
 	return rt.Exec(ctx, service, command)
 }

@@ -216,10 +216,10 @@ def upgrade():
     op.create_index("idx_scan_drift_events_type", "scan_drift_events", ["drift_type"])
     op.create_index("idx_scan_drift_events_scan", "scan_drift_events", ["scan_id"])
 
-    print("✓ Created scan_baselines table with 8 per-severity pass/fail columns")
-    print("✓ Created scan_drift_events table with per-severity delta tracking")
-    print("✓ Added indexes for efficient baseline and drift queries")
-    print("✓ Configured unique active baseline constraint per host")
+    print("[OK] Created scan_baselines table with 8 per-severity pass/fail columns")
+    print("[OK] Created scan_drift_events table with per-severity delta tracking")
+    print("[OK] Added indexes for efficient baseline and drift queries")
+    print("[OK] Configured unique active baseline constraint per host")
 
 
 def downgrade():
@@ -239,6 +239,6 @@ def downgrade():
     op.drop_index("idx_scan_baselines_host_active", table_name="scan_baselines")
     op.drop_table("scan_baselines")
 
-    print("✓ Removed scan_drift_events table")
-    print("✓ Removed scan_baselines table")
+    print("[OK] Removed scan_drift_events table")
+    print("[OK] Removed scan_baselines table")
     print("WARNING: All baseline and drift tracking data has been deleted")

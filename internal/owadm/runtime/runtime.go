@@ -12,25 +12,25 @@ import (
 type Runtime interface {
 	// Name returns the runtime name
 	Name() string
-	
+
 	// IsAvailable checks if the runtime is installed and available
 	IsAvailable() bool
-	
+
 	// Start starts the containers
 	Start(ctx context.Context, options StartOptions) error
-	
+
 	// Stop stops the containers
 	Stop(ctx context.Context, options StopOptions) error
-	
+
 	// Status returns the status of containers
 	Status(ctx context.Context) (*StatusInfo, error)
-	
+
 	// Logs returns logs from a specific service
 	Logs(ctx context.Context, service string, options LogOptions) error
-	
+
 	// Exec executes a command in a container
 	Exec(ctx context.Context, service string, command []string) error
-	
+
 	// ComposeCommand returns the compose command for this runtime
 	ComposeCommand() string
 }
@@ -82,12 +82,12 @@ func DetectRuntime() (Runtime, error) {
 	if podman := NewPodmanRuntime(); podman.IsAvailable() {
 		return podman, nil
 	}
-	
+
 	// Fall back to Docker
 	if docker := NewDockerRuntime(); docker.IsAvailable() {
 		return docker, nil
 	}
-	
+
 	return nil, fmt.Errorf("no container runtime found. Please install Docker or Podman")
 }
 
@@ -100,14 +100,14 @@ func GetRuntime(name string) (Runtime, error) {
 			return nil, fmt.Errorf("Docker is not available")
 		}
 		return runtime, nil
-		
+
 	case "podman":
 		runtime := NewPodmanRuntime()
 		if !runtime.IsAvailable() {
 			return nil, fmt.Errorf("Podman is not available")
 		}
 		return runtime, nil
-		
+
 	default:
 		return nil, fmt.Errorf("unknown runtime: %s", name)
 	}

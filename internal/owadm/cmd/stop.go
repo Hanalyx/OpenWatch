@@ -40,13 +40,13 @@ func init() {
 
 func runStop(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	
+
 	PrintHeader("Stopping OpenWatch")
-	
+
 	// Get or detect runtime
 	var rt runtime.Runtime
 	var err error
-	
+
 	runtimeName := viper.GetString("runtime")
 	if runtimeName != "" {
 		LogInfo(fmt.Sprintf("Using specified runtime: %s", runtimeName))
@@ -58,12 +58,12 @@ func runStop(cmd *cobra.Command, args []string) error {
 			LogSuccess(fmt.Sprintf("Detected runtime: %s", rt.Name()))
 		}
 	}
-	
+
 	if err != nil {
 		LogError(fmt.Sprintf("Runtime error: %v", err))
 		return err
 	}
-	
+
 	// Confirm destructive operations
 	if removeVolumes {
 		LogWarning("This will remove all data volumes!")
@@ -75,35 +75,35 @@ func runStop(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 	}
-	
+
 	// Stop containers
 	LogInfo(fmt.Sprintf("Stopping containers with %s...", rt.Name()))
-	
+
 	// Create a spinner for visual feedback
 	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 	s.Suffix = " Stopping OpenWatch containers..."
 	s.Start()
-	
+
 	stopOptions := runtime.StopOptions{
 		Force:         force,
 		RemoveVolumes: removeVolumes,
 		Timeout:       2 * time.Minute,
 	}
-	
+
 	err = rt.Stop(ctx, stopOptions)
 	s.Stop()
-	
+
 	if err != nil {
 		LogError(fmt.Sprintf("Failed to stop containers: %v", err))
 		return err
 	}
-	
+
 	LogSuccess("OpenWatch containers stopped successfully!")
-	
+
 	if removeVolumes {
 		LogWarning("Data volumes have been removed")
 	}
-	
+
 	// Print next steps
 	fmt.Println()
 	PrintHeader("Next Steps")
@@ -112,6 +112,6 @@ func runStop(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", bold("Remove data:"), "owadm stop --remove-volumes")
 	}
 	fmt.Println()
-	
+
 	return nil
 }

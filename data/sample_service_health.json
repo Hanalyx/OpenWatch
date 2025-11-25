@@ -4,7 +4,7 @@
   "health_check_timestamp": "2025-09-14T12:45:00.000Z",
   "overall_status": "healthy",
   "uptime_seconds": 864000,
-  
+
   "service_components": {
     "core_services": {
       "scanner_engine": {
@@ -40,7 +40,7 @@
         }
       }
     },
-    
+
     "data_services": {
       "mongodb_connector": {
         "status": "healthy",
@@ -55,7 +55,7 @@
           "database": "openwatch_rules",
           "collections": [
             "compliance_rules",
-            "rule_intelligence", 
+            "rule_intelligence",
             "remediation_scripts",
             "scan_results",
             "audit_logs"
@@ -100,7 +100,7 @@
         "transaction_rate_per_sec": 145.7
       }
     },
-    
+
     "integration_services": {
       "content_updater": {
         "status": "warning",
@@ -141,7 +141,7 @@
         }
       }
     },
-    
+
     "api_endpoints": {
       "rest_api": {
         "status": "healthy",
@@ -167,7 +167,7 @@
       }
     }
   },
-  
+
   "resource_usage": {
     "system": {
       "total_memory_gb": 16.0,
@@ -185,7 +185,7 @@
         "usage_percent": 12.3
       },
       "results_directory": {
-        "path": "/app/data/results", 
+        "path": "/app/data/results",
         "total_gb": 500.0,
         "used_gb": 234.5,
         "usage_percent": 46.9
@@ -215,7 +215,7 @@
       }
     }
   },
-  
+
   "recent_operations": {
     "scans": {
       "completed_last_hour": 45,
@@ -236,7 +236,7 @@
       "rate_limited_last_hour": 5
     }
   },
-  
+
   "alerts": [
     {
       "id": "alert_001",
@@ -257,7 +257,7 @@
       "resolved": false
     }
   ],
-  
+
   "maintenance_windows": {
     "scheduled": [
       {

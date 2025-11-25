@@ -131,7 +131,7 @@ show collections
 // Verify service health schema
 db.service_health.findOne()
 
-// Verify content health schema  
+// Verify content health schema
 db.content_health.findOne()
 
 // Verify health summary
@@ -182,7 +182,7 @@ async def test_performance():
             uptime_seconds=i*300
         )
         await doc.save()
-    
+
     # Test query performance
     query_start = datetime.utcnow()
     results = await ServiceHealthDocument.find(
@@ -190,7 +190,7 @@ async def test_performance():
         ServiceHealthDocument.health_check_timestamp >= start - timedelta(days=7)
     ).to_list()
     query_time = (datetime.utcnow() - query_start).total_seconds()
-    
+
     print(f"Query returned {len(results)} documents in {query_time:.3f} seconds")
 ```
 

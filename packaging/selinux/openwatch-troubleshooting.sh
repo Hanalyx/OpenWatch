@@ -12,28 +12,28 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo -e "${BLUE}[INFO] $1${NC}"
 }
 
 log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}[OK] $1${NC}"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}[WARNING] $1${NC}"
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 # Check SELinux status
 check_selinux_status() {
     log_info "Checking SELinux status..."
-    
+
     local selinux_status=$(getenforce 2>/dev/null || echo "Unknown")
     echo "SELinux mode: $selinux_status"
-    
+
     case "$selinux_status" in
         "Enforcing")
             log_success "SELinux is in enforcing mode"
@@ -57,7 +57,7 @@ check_selinux_status() {
 # Check if OpenWatch policy is installed
 check_policy_installed() {
     log_info "Checking OpenWatch policy installation..."
-    
+
     if semodule -l | grep -q "^openwatch"; then
         local version=$(semodule -l | grep "^openwatch" | awk '{print $2}')
         log_success "OpenWatch policy installed: version $version"
@@ -72,21 +72,21 @@ check_policy_installed() {
 # Check file contexts
 check_file_contexts() {
     log_info "Checking file contexts..."
-    
+
     local paths=(
         "/usr/bin/owadm"
         "/etc/openwatch"
         "/var/lib/openwatch"
         "/var/log/openwatch"
     )
-    
+
     local context_errors=()
-    
+
     for path in "${paths[@]}"; do
         if [ -e "$path" ]; then
             local current_context=$(ls -Z "$path" 2>/dev/null | awk '{print $1}' || echo "unknown")
             echo "  $path: $current_context"
-            
+
             # Check if context looks correct
             if [[ "$current_context" == *"openwatch"* ]]; then
                 log_success "Correct context: $path"
@@ -98,40 +98,40 @@ check_file_contexts() {
             log_warning "Path not found: $path"
         fi
     done
-    
+
     if [ ${#context_errors[@]} -gt 0 ]; then
         echo ""
         log_warning "File context issues found. Fix with:"
         echo "  sudo restorecon -R ${context_errors[*]}"
         return 1
     fi
-    
+
     return 0
 }
 
 # Find recent SELinux denials
 check_recent_denials() {
     log_info "Checking for recent SELinux denials..."
-    
+
     # Check audit log for recent denials
     local denial_count
     denial_count=$(ausearch -m AVC -ts recent 2>/dev/null | grep -c "openwatch" || echo "0")
-    
+
     if [ "$denial_count" -eq 0 ]; then
         log_success "No recent SELinux denials found"
         return 0
     else
         log_warning "Found $denial_count recent denials involving OpenWatch"
-        
+
         echo ""
         echo "Recent denials:"
         ausearch -m AVC -ts recent 2>/dev/null | grep "openwatch" | tail -5
-        
+
         echo ""
         log_info "Generate policy suggestions with:"
         echo "  audit2allow -w < /var/log/audit/audit.log | grep openwatch"
         echo "  audit2allow -a | grep -A 20 -B 5 openwatch"
-        
+
         return 1
     fi
 }
@@ -139,7 +139,7 @@ check_recent_denials() {
 # Test container operations
 test_container_operations() {
     log_info "Testing container operations with SELinux..."
-    
+
     # Test basic owadm functionality
     if command -v owadm >/dev/null 2>&1; then
         log_info "Testing owadm execution..."
@@ -151,7 +151,7 @@ test_container_operations() {
     else
         log_warning "owadm not found - install OpenWatch package first"
     fi
-    
+
     # Test configuration file access
     if [ -f /etc/openwatch/ow.yml ]; then
         log_info "Testing configuration access..."
@@ -161,7 +161,7 @@ test_container_operations() {
             log_warning "Cannot access configuration file"
         fi
     fi
-    
+
     # Test log file access
     local log_dir="/var/log/openwatch"
     if [ -d "$log_dir" ]; then
@@ -178,14 +178,14 @@ test_container_operations() {
 # Generate policy fixes for denials
 generate_policy_fixes() {
     log_info "Generating policy fixes for recent denials..."
-    
+
     local temp_file=$(mktemp)
     ausearch -m AVC -ts recent 2>/dev/null | grep "openwatch" > "$temp_file" || {
         log_info "No recent denials to process"
         rm -f "$temp_file"
         return 0
     }
-    
+
     if [ -s "$temp_file" ]; then
         echo ""
         echo "Suggested policy additions:"
@@ -198,14 +198,14 @@ generate_policy_fixes() {
         echo ""
         log_info "Review these suggestions and add appropriate rules to openwatch.te"
     fi
-    
+
     rm -f "$temp_file"
 }
 
 # Fix common context issues
 fix_contexts() {
     log_info "Fixing common SELinux context issues..."
-    
+
     # Restore default contexts first
     local paths=(
         "/usr/bin/owadm"
@@ -213,25 +213,25 @@ fix_contexts() {
         "/var/lib/openwatch"
         "/var/log/openwatch"
     )
-    
+
     for path in "${paths[@]}"; do
         if [ -e "$path" ]; then
             log_info "Restoring contexts for: $path"
             restorecon -R "$path"
         fi
     done
-    
+
     # Set specific contexts for sensitive files
     if [ -f /etc/openwatch/secrets.env ]; then
         chcon -t openwatch_secret_t /etc/openwatch/secrets.env
         log_info "Set secret context for secrets.env"
     fi
-    
+
     if [ -d /etc/openwatch/ssh ]; then
         chcon -R -t openwatch_ssh_key_t /etc/openwatch/ssh/
         log_info "Set SSH key contexts"
     fi
-    
+
     log_success "Context fixes applied"
 }
 
@@ -239,7 +239,7 @@ fix_contexts() {
 enable_dev_mode() {
     log_warning "Enabling SELinux development mode for OpenWatch..."
     log_warning "This reduces security - only use for development/testing!"
-    
+
     # Create temporary permissive domain
     cat > /tmp/openwatch_permissive.te << 'EOF'
 policy_module(openwatch_permissive, 1.0)
@@ -251,13 +251,13 @@ require {
 # Make OpenWatch domain permissive for development
 permissive openwatch_t;
 EOF
-    
+
     # Compile and install permissive module
     cd /tmp
     make -f /usr/share/selinux/devel/Makefile openwatch_permissive.pp
     semodule -i openwatch_permissive.pp
     rm -f openwatch_permissive.*
-    
+
     log_success "Development mode enabled"
     log_warning "Disable with: semodule -r openwatch_permissive"
 }
@@ -265,12 +265,12 @@ EOF
 # Disable development mode
 disable_dev_mode() {
     log_info "Disabling SELinux development mode..."
-    
+
     semodule -r openwatch_permissive 2>/dev/null || {
         log_info "Development mode was not enabled"
         return 0
     }
-    
+
     log_success "Development mode disabled"
 }
 
@@ -330,7 +330,7 @@ fi
 # Main execution
 main() {
     local command="$1"
-    
+
     case "$command" in
         status)
             check_selinux_status

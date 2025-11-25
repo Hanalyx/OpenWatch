@@ -6,7 +6,7 @@ Provides feature discovery and capability-based routing for OSS/Enterprise featu
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -184,9 +184,7 @@ async def get_integration_status(
     try:
         integrations = await _check_integrations()
 
-        logger.debug(
-            f"Integration status requested by user {current_user.get('user_id', 'unknown')}"
-        )
+        logger.debug(f"Integration status requested by user {current_user.get('user_id', 'unknown')}")
 
         return integrations
 
@@ -315,7 +313,7 @@ def _get_aegis_version() -> str:
     try:
         # In a real implementation, this would query AEGIS API
         return "1.0.0"
-    except:
+    except Exception:
         return None
 
 
@@ -346,7 +344,7 @@ async def _detect_container_runtime() -> str:
         )
         if result.returncode == 0:
             return "podman"
-    except:
+    except Exception:
         pass
 
     try:
@@ -359,7 +357,7 @@ async def _detect_container_runtime() -> str:
         )
         if result.returncode == 0:
             return "docker"
-    except:
+    except Exception:
         pass
 
     return "unknown"
@@ -377,7 +375,7 @@ async def _check_kubernetes_availability() -> bool:
             stderr=asyncio.subprocess.PIPE,
         )
         return result.returncode == 0
-    except:
+    except Exception:
         return False
 
 

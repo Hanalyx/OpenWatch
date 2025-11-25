@@ -7,7 +7,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,7 @@ class RuleVersioningService:
             SHA-256 hash as hex string with "sha256:" prefix
         """
         # Filter out metadata fields
-        content_dict = {
-            k: v for k, v in rule_data.items() if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS
-        }
+        content_dict = {k: v for k, v in rule_data.items() if k not in RuleVersioningService.HASH_EXCLUDE_FIELDS}
 
         # Sort keys for deterministic hashing
         content_json = json.dumps(content_dict, sort_keys=True, default=str)
@@ -79,9 +77,7 @@ class RuleVersioningService:
         return f"sha256:{hash_hex}"
 
     @staticmethod
-    def detect_changes(
-        old_rule: Dict[str, Any], new_rule: Dict[str, Any]
-    ) -> Dict[str, Dict[str, Any]]:
+    def detect_changes(old_rule: Dict[str, Any], new_rule: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """
         Detect changes between two rule versions
 
@@ -132,7 +128,7 @@ class RuleVersioningService:
 
         Handles dicts, lists, and primitives
         """
-        if type(val1) != type(val2):
+        if type(val1) is not type(val2):
             return False
 
         if isinstance(val1, dict):
@@ -243,13 +239,10 @@ class RuleVersioningService:
         if previous_version:
             new_version = previous_version.get("version", 0) + 1
             supersedes_version = previous_version.get("version")
-            change_type = "updated"
 
             # Detect changes
             changes = RuleVersioningService.detect_changes(previous_version, rule_data)
-            change_summary = RuleVersioningService.create_change_summary(
-                changes, change_type="updated"
-            )
+            change_summary = RuleVersioningService.create_change_summary(changes, change_type="updated")
         else:
             new_version = 1
             supersedes_version = None

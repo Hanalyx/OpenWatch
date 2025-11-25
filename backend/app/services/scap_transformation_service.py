@@ -3,20 +3,13 @@ SCAP to MongoDB Transformation Service for OpenWatch
 Transforms parsed SCAP rules into OpenWatch ComplianceRule documents
 """
 
-import hashlib
 import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.mongo_models import (
-    CheckContent,
-    ComplianceRule,
-    FixContent,
-    FrameworkVersions,
-    PlatformImplementation,
-)
+from backend.app.models.mongo_models import FrameworkVersions, PlatformImplementation
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +62,7 @@ class SCAPTransformationService:
         logger.info(f"Successfully transformed {len(transformed_rules)} rules")
         return transformed_rules
 
-    def _transform_single_rule(
-        self, scap_rule: Dict[str, Any], file_info: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _transform_single_rule(self, scap_rule: Dict[str, Any], file_info: Dict[str, Any]) -> Dict[str, Any]:
         """Transform a single SCAP rule to OpenWatch format"""
         scap_id = scap_rule["scap_rule_id"]
 
@@ -133,8 +124,7 @@ class SCAPTransformationService:
 
         return {
             "name": (scap_metadata.get("title") or "").strip() or "Unnamed Rule",
-            "description": (scap_metadata.get("description") or "").strip()
-            or "No description available",
+            "description": (scap_metadata.get("description") or "").strip() or "No description available",
             "rationale": (scap_metadata.get("rationale") or "").strip(),
             "warning": (scap_metadata.get("warning") or "").strip(),
             "source": "SCAP",
@@ -173,9 +163,7 @@ class SCAPTransformationService:
             hipaa=frameworks.get("hipaa", {}),
         )
 
-    def _generate_platform_implementations(
-        self, scap_rule: Dict[str, Any]
-    ) -> Dict[str, PlatformImplementation]:
+    def _generate_platform_implementations(self, scap_rule: Dict[str, Any]) -> Dict[str, PlatformImplementation]:
         """Generate platform implementations based on SCAP content"""
         implementations = {}
 
@@ -276,8 +264,8 @@ class SCAPTransformationService:
         self, platform: str, versions: List[str], scap_rule: Dict[str, Any]
     ) -> PlatformImplementation:
         """Generate platform implementation from SCAP rule"""
-        check = scap_rule.get("check", {})
-        fix = scap_rule.get("fix", {})
+        scap_rule.get("check", {})
+        scap_rule.get("fix", {})
 
         # Base implementation
         impl = PlatformImplementation(versions=versions)
@@ -312,9 +300,7 @@ class SCAPTransformationService:
 
         return impl
 
-    def _create_generic_implementations(
-        self, scap_rule: Dict[str, Any]
-    ) -> Dict[str, PlatformImplementation]:
+    def _create_generic_implementations(self, scap_rule: Dict[str, Any]) -> Dict[str, PlatformImplementation]:
         """Create generic platform implementations"""
         implementations = {}
 
@@ -342,9 +328,7 @@ class SCAPTransformationService:
         else:
             # Determine from content
             content = scap_rule.get("metadata", {})
-            combined_text = (
-                f"{content.get('title') or ''} {content.get('description') or ''}".lower()
-            )
+            combined_text = f"{content.get('title') or ''} {content.get('description') or ''}".lower()
 
             if "file" in combined_text or "config" in combined_text:
                 return "file"
@@ -442,9 +426,7 @@ class SCAPTransformationService:
         """Determine check method from rule content"""
         rule_id = scap_rule.get("scap_rule_id") or ""
         metadata = scap_rule.get("metadata", {})
-        combined_text = (
-            f"{rule_id} {metadata.get('title') or ''} {metadata.get('description') or ''}".lower()
-        )
+        combined_text = f"{rule_id} {metadata.get('title') or ''} {metadata.get('description') or ''}".lower()
 
         if "file" in combined_text or "config" in combined_text:
             return "file"
@@ -490,9 +472,7 @@ class SCAPTransformationService:
         # This would contain remediation logic
         return "# Platform-specific remediation command needed"
 
-    def _generate_validation_command(
-        self, platform: str, scap_rule: Dict[str, Any]
-    ) -> Optional[str]:
+    def _generate_validation_command(self, platform: str, scap_rule: Dict[str, Any]) -> Optional[str]:
         """Generate validation command for platform"""
         # Use the same as check command for now
         return self._generate_check_command(platform, scap_rule)
@@ -514,9 +494,7 @@ class SCAPTransformationService:
         ]
 
         metadata = scap_rule.get("metadata", {})
-        text_content = (
-            f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
-        )
+        text_content = f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
 
         for pattern in service_patterns:
             if pattern in text_content:
@@ -540,9 +518,7 @@ class SCAPTransformationService:
 
         # Assess based on content
         metadata = scap_rule.get("metadata", {})
-        combined_text = (
-            f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
-        )
+        combined_text = f"{metadata.get('description') or ''} {metadata.get('rationale') or ''}".lower()
 
         if "kernel" in combined_text or "reboot" in combined_text:
             return "high"

@@ -3,7 +3,7 @@
   "scanner_id": "openwatch_primary_scanner",
   "health_check_timestamp": "2025-09-14T12:30:00.000Z",
   "last_updated": "2025-09-14T12:30:00.000Z",
-  
+
   "content_health": {
     "frameworks": {
       "summary": {
@@ -25,7 +25,7 @@
         },
         "nist_800_53r5": {
           "version": "revision_5",
-          "status": "active", 
+          "status": "active",
           "last_updated": "2025-09-01T14:30:00.000Z",
           "total_controls": 334,
           "implemented_controls": 298,
@@ -36,7 +36,7 @@
         "pci_dss_4.0": {
           "version": "4.0",
           "status": "active",
-          "last_updated": "2025-07-20T08:15:00.000Z", 
+          "last_updated": "2025-07-20T08:15:00.000Z",
           "total_controls": 62,
           "implemented_controls": 58,
           "coverage_percentage": 93.5,
@@ -94,7 +94,7 @@
         "stig_rhel8_v1r11": {
           "benchmark_version": "1.11",
           "source_framework": "disa_stig",
-          "platform": "rhel8", 
+          "platform": "rhel8",
           "status": "active",
           "last_updated": "2025-09-01T14:30:00.000Z",
           "total_rules": 334,
@@ -103,7 +103,7 @@
           "satisfies_frameworks": ["nist_800_53r5"],
           "content_freshness": {
             "days_since_update": 13,
-            "freshness_status": "current", 
+            "freshness_status": "current",
             "next_update_expected": "2025-12-01T00:00:00.000Z"
           }
         },
@@ -139,7 +139,7 @@
       "rule_distribution": {
         "by_severity": {
           "critical": 89,
-          "high": 312, 
+          "high": 312,
           "medium": 756,
           "low": 366,
           "info": 44
@@ -182,7 +182,7 @@
       },
       "cross_references": {
         "framework_mappings_valid": true,
-        "benchmark_references_valid": true, 
+        "benchmark_references_valid": true,
         "broken_control_references": 0,
         "orphaned_rules": 12
       }
@@ -210,7 +210,7 @@
   "scanner_operational_health": {
     "service_status": {
       "scanner_engine": "healthy",
-      "rule_processor": "healthy", 
+      "rule_processor": "healthy",
       "remediation_engine": "healthy",
       "plugin_manager": "healthy",
       "content_updater": "warning"
@@ -240,7 +240,7 @@
       "urgency": "medium"
     },
     {
-      "type": "info", 
+      "type": "info",
       "category": "framework_migration",
       "message": "NIST 800-53r4 framework deprecated - consider migration to r5",
       "rule_impact": 756,

@@ -4,9 +4,7 @@ Background tasks for host monitoring and credential maintenance
 
 import logging
 from datetime import datetime
-from typing import Optional, Tuple
 
-from celery import Celery
 from sqlalchemy import text
 
 from backend.app.celery_app import celery_app
@@ -15,8 +13,7 @@ from backend.app.database import get_db, get_db_session
 from backend.app.encryption import EncryptionConfig, create_encryption_service
 from backend.app.services.auth_service import get_auth_service
 from backend.app.services.host_monitor import get_host_monitor
-from backend.app.services.host_monitoring_state import HostMonitoringStateMachine, MonitoringState
-from backend.app.services.unified_ssh_service import UnifiedSSHService
+from backend.app.services.host_monitoring_state import HostMonitoringStateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +31,7 @@ def periodic_host_monitoring():
 
         # Create encryption service
         settings = get_settings()
-        encryption_service = create_encryption_service(
-            master_key=settings.master_key, config=EncryptionConfig()
-        )
+        encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
         # Create host monitor with dependencies
         monitor = get_host_monitor(db, encryption_service)
@@ -55,9 +50,7 @@ def periodic_host_monitoring():
         # Log any status changes
         for result in results:
             if result.get("error_message"):
-                logger.warning(
-                    f"Host {result['hostname']} ({result['ip_address']}): {result['error_message']}"
-                )
+                logger.warning(f"Host {result['hostname']} ({result['ip_address']}): {result['error_message']}")
 
         db.close()
         return f"Monitored {total_count} hosts, {online_count} online"
@@ -81,18 +74,14 @@ def periodic_credential_purge():
         try:
             # Create encryption service
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
             # Purge old inactive credentials
             auth_service = get_auth_service(db, encryption_service)
             purged_count = auth_service.purge_old_inactive_credentials(retention_days=90)
 
             if purged_count > 0:
-                logger.info(
-                    f"Credential purge completed: {purged_count} inactive credentials removed"
-                )
+                logger.info(f"Credential purge completed: {purged_count} inactive credentials removed")
             else:
                 logger.debug("Credential purge completed: No credentials to purge")
 
@@ -157,7 +146,6 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
                 }
 
             # Import HostMonitor for comprehensive check
-            from backend.app.services.host_monitor import HostMonitor
 
             # Prepare host data for comprehensive check
             host_data = {
@@ -172,9 +160,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
 
             # Create encryption service
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
             # Perform comprehensive check (ping → port → SSH)
             monitor = get_host_monitor(db, encryption_service)
@@ -185,9 +171,7 @@ def check_host_connectivity(self, host_id: str, priority: int = 5) -> dict:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                check_result = loop.run_until_complete(
-                    monitor.comprehensive_host_check(host_data, db)
-                )
+                check_result = loop.run_until_complete(monitor.comprehensive_host_check(host_data, db))
             finally:
                 loop.close()
 
@@ -302,15 +286,10 @@ def queue_host_checks(self, limit: int = 100) -> dict:
                     queued_count += 1
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to queue check for host {host.get('hostname', host['id'])}: {e}"
-                    )
+                    logger.error(f"Failed to queue check for host {host.get('hostname', host['id'])}: {e}")
                     continue
 
-            logger.info(
-                f"Queued {queued_count} host connectivity checks. "
-                f"State distribution: {state_distribution}"
-            )
+            logger.info(f"Queued {queued_count} host connectivity checks. " f"State distribution: {state_distribution}")
 
             return {
                 "queued_count": queued_count,

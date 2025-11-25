@@ -6,7 +6,6 @@ Handles bulk import/export operations for hosts and other entities
 import csv
 import io
 import ipaddress
-import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
@@ -17,7 +16,7 @@ from ..audit_db import log_security_event
 from ..auth import get_current_user
 from ..database import Host, get_db
 from ..rbac import UserRole, require_role
-from ..services.csv_analyzer import CSVAnalysis, CSVAnalyzer, FieldAnalysis
+from ..services.csv_analyzer import CSVAnalyzer
 
 router = APIRouter()
 
@@ -137,10 +136,7 @@ async def bulk_import_hosts(
             # Check if host already exists
             existing_host = (
                 db.query(Host)
-                .filter(
-                    (Host.hostname == host_data.hostname)
-                    | (Host.ip_address == host_data.ip_address)
-                )
+                .filter((Host.hostname == host_data.hostname) | (Host.ip_address == host_data.ip_address))
                 .first()
             )
 
@@ -213,9 +209,7 @@ async def bulk_import_hosts(
             result.errors.append(
                 {
                     "row": idx + 1,
-                    "hostname": (
-                        host_data.hostname if hasattr(host_data, "hostname") else "unknown"
-                    ),
+                    "hostname": (host_data.hostname if hasattr(host_data, "hostname") else "unknown"),
                     "error": str(e),
                 }
             )
@@ -323,7 +317,7 @@ async def export_hosts_csv(
     Export all hosts to CSV format
     Useful for backing up host configurations or as a template
     """
-    hosts = db.query(Host).filter(Host.is_active == True).all()
+    hosts = db.query(Host).filter(Host.is_active.is_(True)).all()
 
     # Create CSV content
     csv_content = io.StringIO()
@@ -511,10 +505,7 @@ async def import_with_mapping(
                 # Check for existing host
                 existing_host = (
                     db.query(Host)
-                    .filter(
-                        (Host.hostname == mapped_data["hostname"])
-                        | (Host.ip_address == mapped_data["ip_address"])
-                    )
+                    .filter((Host.hostname == mapped_data["hostname"]) | (Host.ip_address == mapped_data["ip_address"]))
                     .first()
                 )
 

@@ -3,24 +3,15 @@ Plugin Registry Service
 Manages plugin lifecycle, dependencies, and storage operations
 """
 
-import asyncio
 import json
 import logging
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 from ..config import get_settings
-from ..models.plugin_models import (
-    InstalledPlugin,
-    PluginAssociation,
-    PluginExecutionRequest,
-    PluginExecutionResult,
-    PluginStatus,
-    PluginTrustLevel,
-    PluginType,
-)
+from ..models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -305,17 +296,13 @@ class PluginRegistryService:
             # Count by trust level
             trust_counts = {}
             for trust_level in PluginTrustLevel:
-                count = await InstalledPlugin.find(
-                    InstalledPlugin.trust_level == trust_level
-                ).count()
+                count = await InstalledPlugin.find(InstalledPlugin.trust_level == trust_level).count()
                 trust_counts[trust_level.value] = count
 
             # Count by type
             type_counts = {}
             for plugin_type in PluginType:
-                count = await InstalledPlugin.find(
-                    InstalledPlugin.manifest.type == plugin_type
-                ).count()
+                count = await InstalledPlugin.find(InstalledPlugin.manifest.type == plugin_type).count()
                 type_counts[plugin_type.value] = count
 
             # Usage statistics
@@ -333,9 +320,7 @@ class PluginRegistryService:
                 )
 
             # Recent activity
-            recent_imports = (
-                await InstalledPlugin.find().sort(-InstalledPlugin.imported_at).limit(5).to_list()
-            )
+            recent_imports = await InstalledPlugin.find().sort(-InstalledPlugin.imported_at).limit(5).to_list()
 
             return {
                 "total_plugins": await InstalledPlugin.count(),
@@ -361,9 +346,7 @@ class PluginRegistryService:
             logger.error(f"Failed to get plugin statistics: {e}")
             return {"error": str(e)}
 
-    async def cleanup_unused_plugins(
-        self, older_than_days: int = 90, dry_run: bool = True
-    ) -> Dict[str, Any]:
+    async def cleanup_unused_plugins(self, older_than_days: int = 90, dry_run: bool = True) -> Dict[str, Any]:
         """
         Clean up unused plugins
 
@@ -411,9 +394,7 @@ class PluginRegistryService:
 
             for candidate in cleanup_candidates:
                 try:
-                    result = await self.unregister_plugin(
-                        candidate["plugin_id"], cleanup_files=True, force=True
-                    )
+                    result = await self.unregister_plugin(candidate["plugin_id"], cleanup_files=True, force=True)
                     if result["success"]:
                         cleaned_up.append(candidate)
                         total_size_freed += candidate["size_mb"]
@@ -563,5 +544,5 @@ class PluginRegistryService:
                     total_size += file_path.stat().st_size
 
             return round(total_size / (1024 * 1024), 2)
-        except:
+        except Exception:
             return 0.0

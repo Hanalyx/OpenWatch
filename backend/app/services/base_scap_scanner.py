@@ -27,8 +27,6 @@ settings = get_settings()
 class SCAPBaseError(Exception):
     """Base exception for SCAP scanner operations"""
 
-    pass
-
 
 class SCAPConnectionManager:
     """Manages SSH connections with unified authentication and validation"""
@@ -66,9 +64,7 @@ class SCAPConnectionManager:
         return ssh
 
     @classmethod
-    def test_connection(
-        cls, hostname: str, port: int, username: str, auth_method: str, credential: str
-    ) -> Dict:
+    def test_connection(cls, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
         """Test SSH connection with comprehensive validation and SCAP availability check"""
         try:
             logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
@@ -93,12 +89,12 @@ class SCAPConnectionManager:
             # Test basic command execution
             stdin, stdout, stderr = ssh.exec_command('echo "OpenWatch SSH Test"')
             output = stdout.read().decode()
-            error = stderr.read().decode()
+            stderr.read().decode()
 
             # Check if oscap is available on remote host
             stdin, stdout, stderr = ssh.exec_command("oscap --version")
             oscap_output = stdout.read().decode()
-            oscap_error = stderr.read().decode()
+            stderr.read().decode()
 
             oscap_available = stdout.channel.recv_exit_status() == 0
 
@@ -268,9 +264,7 @@ class BaseSCAPScanner(ABC):
         try:
             self.content_dir.mkdir(parents=True, exist_ok=True)
             self.results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(
-                f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}"
-            )
+            logger.info(f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}")
         except Exception as e:
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPBaseError(f"Directory creation failed: {str(e)}")
@@ -283,13 +277,9 @@ class BaseSCAPScanner(ABC):
         """Extract profiles from SCAP content - delegates to content validator"""
         return self.content_validator.extract_profiles(content_path)
 
-    def test_ssh_connection(
-        self, hostname: str, port: int, username: str, auth_method: str, credential: str
-    ) -> Dict:
+    def test_ssh_connection(self, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
         """Test SSH connection - delegates to connection manager"""
-        return self.connection_manager.test_connection(
-            hostname, port, username, auth_method, credential
-        )
+        return self.connection_manager.test_connection(hostname, port, username, auth_method, credential)
 
     def create_scan_directory(self, scan_id: str) -> Path:
         """Create directory for scan results"""
@@ -338,11 +328,8 @@ class BaseSCAPScanner(ABC):
         return cmd
 
     @abstractmethod
-    def execute_local_scan(
-        self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None
-    ) -> Dict:
+    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
         """Execute local SCAP scan - must be implemented by subclasses"""
-        pass
 
     @abstractmethod
     def execute_remote_scan(
@@ -358,7 +345,6 @@ class BaseSCAPScanner(ABC):
         rule_id: str = None,
     ) -> Dict:
         """Execute remote SCAP scan - must be implemented by subclasses"""
-        pass
 
     def get_system_info(
         self,
@@ -372,9 +358,7 @@ class BaseSCAPScanner(ABC):
         try:
             if hostname:
                 # Remote system info
-                return self._get_remote_system_info(
-                    hostname, port, username, auth_method, credential
-                )
+                return self._get_remote_system_info(hostname, port, username, auth_method, credential)
             else:
                 # Local system info
                 return self._get_local_system_info()

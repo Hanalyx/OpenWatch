@@ -192,7 +192,7 @@ monitoring:
     enabled: true
     port: 9090
     detailed_histograms: true
-    
+
   tracing:
     enabled: true
     endpoint: "http://jaeger:4318"

@@ -49,8 +49,7 @@ class ScannerFactory:
 
         if not scanner_class:
             raise ValueError(
-                f"Unknown scanner type: {scanner_type}. "
-                f"Available scanners: {list(cls._scanners.keys())}"
+                f"Unknown scanner type: {scanner_type}. " f"Available scanners: {list(cls._scanners.keys())}"
             )
 
         return scanner_class()
@@ -81,7 +80,7 @@ class ScannerFactory:
             scanner_class: Scanner class (must inherit from BaseScanner)
         """
         if not issubclass(scanner_class, BaseScanner):
-            raise TypeError(f"Scanner class must inherit from BaseScanner")
+            raise TypeError("Scanner class must inherit from BaseScanner")
 
         cls._scanners[scanner_type] = scanner_class
 

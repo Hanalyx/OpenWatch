@@ -5,9 +5,8 @@ Provides configurable parameters for encryption operations, allowing
 for flexibility in security requirements and testing scenarios.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class KDFAlgorithm(Enum):
@@ -77,23 +76,18 @@ class EncryptionConfig:
 
         # Validate salt length
         if self.salt_length < 16:
-            raise ValueError(
-                f"Salt length ({self.salt_length}) must be >= 16 bytes "
-                f"for security (NIST SP 800-132)"
-            )
+            raise ValueError(f"Salt length ({self.salt_length}) must be >= 16 bytes " f"for security (NIST SP 800-132)")
 
         # Validate nonce length for GCM mode
         if self.nonce_length != 12:
             raise ValueError(
-                f"Nonce length ({self.nonce_length}) must be exactly 12 bytes "
-                f"for AES-GCM mode (NIST SP 800-38D)"
+                f"Nonce length ({self.nonce_length}) must be exactly 12 bytes " f"for AES-GCM mode (NIST SP 800-38D)"
             )
 
         # Validate key length for AES-256
         if self.key_length not in [16, 24, 32]:
             raise ValueError(
-                f"Key length ({self.key_length}) must be 16 (AES-128), "
-                f"24 (AES-192), or 32 (AES-256) bytes"
+                f"Key length ({self.key_length}) must be 16 (AES-128), " f"24 (AES-192), or 32 (AES-256) bytes"
             )
 
     @property

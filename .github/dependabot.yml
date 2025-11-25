@@ -140,9 +140,9 @@ updates:
     allow:
       - dependency-type: "all"
         update-type: "security-update"
-        
+
   # Security-focused updates for backend (daily)
-  - package-ecosystem: "pip" 
+  - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "daily"
@@ -181,12 +181,12 @@ ignore:
     # Ignore Node.js base image major updates
     update-types: ["version-update:semver-major"]
   - dependency-name: "python"
-    # Ignore Python base image major updates  
+    # Ignore Python base image major updates
     update-types: ["version-update:semver-major"]
   - dependency-name: "postgres"
     # Ignore PostgreSQL major version updates
     update-types: ["version-update:semver-major"]
-  
+
   # Ignore beta/alpha releases globally
   - dependency-name: "*"
     versions: ["*alpha*", "*beta*", "*rc*", "*pre*", "*dev*"]

@@ -3,16 +3,15 @@ Result Aggregation Service
 Aggregates and analyzes compliance scan results across multiple frameworks and hosts
 """
 
-import asyncio
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.unified_rule_models import ComplianceStatus, Platform, RuleExecution
-from backend.app.services.multi_framework_scanner import FrameworkResult, HostResult, ScanResult
+from backend.app.models.unified_rule_models import ComplianceStatus, RuleExecution
+from backend.app.services.multi_framework_scanner import ScanResult
 
 
 class AggregationLevel(str, Enum):
@@ -54,14 +53,10 @@ class ComplianceMetrics:
     def __post_init__(self):
         # Calculate derived metrics
         if self.executed_rules > 0:
-            self.compliance_percentage = (
-                (self.compliant_rules + self.exceeds_rules) / self.executed_rules
-            ) * 100
+            self.compliance_percentage = ((self.compliant_rules + self.exceeds_rules) / self.executed_rules) * 100
             self.exceeds_percentage = (self.exceeds_rules / self.executed_rules) * 100
             self.error_percentage = (self.error_rules / self.executed_rules) * 100
-            self.execution_success_rate = (
-                (self.executed_rules - self.error_rules) / self.executed_rules
-            ) * 100
+            self.execution_success_rate = ((self.executed_rules - self.error_rules) / self.executed_rules) * 100
         else:
             self.compliance_percentage = 0.0
             self.exceeds_percentage = 0.0
@@ -84,9 +79,7 @@ class TrendAnalysis:
     def __post_init__(self):
         # Calculate trend direction and change percentage
         if self.previous_value is not None and self.previous_value != 0:
-            self.change_percentage = (
-                (self.current_value - self.previous_value) / self.previous_value
-            ) * 100
+            self.change_percentage = ((self.current_value - self.previous_value) / self.previous_value) * 100
 
             if self.change_percentage > 2:  # Significant improvement
                 self.trend_direction = TrendDirection.IMPROVING
@@ -283,15 +276,11 @@ class ResultAggregationService:
 
         # Calculate framework metrics
         for framework_id, executions in framework_executions.items():
-            aggregated_results.framework_metrics[framework_id] = (
-                self._calculate_metrics_from_executions(executions)
-            )
+            aggregated_results.framework_metrics[framework_id] = self._calculate_metrics_from_executions(executions)
 
         # Calculate host metrics
         for host_id, executions in host_executions.items():
-            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(
-                executions
-            )
+            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(executions)
 
         # Store platform distribution
         aggregated_results.platform_distribution = dict(platform_counts)
@@ -303,14 +292,10 @@ class ResultAggregationService:
             "total_frameworks": len(framework_executions),
             "total_executions": len(all_executions),
             "average_execution_time": (
-                statistics.mean([e.execution_time for e in all_executions])
-                if all_executions
-                else 0.0
+                statistics.mean([e.execution_time for e in all_executions]) if all_executions else 0.0
             ),
             "median_execution_time": (
-                statistics.median([e.execution_time for e in all_executions])
-                if all_executions
-                else 0.0
+                statistics.median([e.execution_time for e in all_executions]) if all_executions else 0.0
             ),
         }
 
@@ -322,27 +307,20 @@ class ResultAggregationService:
                     if sum(sr.total_execution_time for sr in scan_results) > 0
                     else 0.0
                 ),
-                "average_scan_duration": statistics.mean(
-                    [sr.total_execution_time for sr in scan_results]
-                ),
-                "success_rate": len([e for e in all_executions if e.execution_success])
-                / len(all_executions)
-                * 100,
+                "average_scan_duration": statistics.mean([sr.total_execution_time for sr in scan_results]),
+                "success_rate": len([e for e in all_executions if e.execution_success]) / len(all_executions) * 100,
                 "compliance_rate": len(
                     [
                         e
                         for e in all_executions
-                        if e.compliance_status
-                        in [ComplianceStatus.COMPLIANT, ComplianceStatus.EXCEEDS]
+                        if e.compliance_status in [ComplianceStatus.COMPLIANT, ComplianceStatus.EXCEEDS]
                     ]
                 )
                 / len(all_executions)
                 * 100,
             }
 
-    async def _aggregate_framework_level(
-        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    async def _aggregate_framework_level(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
         """Aggregate results at framework level"""
         framework_data = defaultdict(list)
 
@@ -355,9 +333,7 @@ class ResultAggregationService:
 
         # Calculate metrics for each framework
         for framework_id, executions in framework_data.items():
-            aggregated_results.framework_metrics[framework_id] = (
-                self._calculate_metrics_from_executions(executions)
-            )
+            aggregated_results.framework_metrics[framework_id] = self._calculate_metrics_from_executions(executions)
 
         # Calculate overall metrics as average of frameworks
         if aggregated_results.framework_metrics:
@@ -377,9 +353,7 @@ class ResultAggregationService:
                 execution_success_rate=0.0,
             )
 
-    async def _aggregate_host_level(
-        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    async def _aggregate_host_level(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
         """Aggregate results at host level"""
         host_data = defaultdict(list)
 
@@ -392,9 +366,7 @@ class ResultAggregationService:
 
         # Calculate metrics for each host
         for host_id, executions in host_data.items():
-            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(
-                executions
-            )
+            aggregated_results.host_metrics[host_id] = self._calculate_metrics_from_executions(executions)
 
         # Calculate overall metrics as average of hosts
         if aggregated_results.host_metrics:
@@ -414,9 +386,7 @@ class ResultAggregationService:
                 execution_success_rate=0.0,
             )
 
-    async def _aggregate_time_series(
-        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    async def _aggregate_time_series(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
         """Aggregate results for time series analysis"""
         # Sort scan results by time
         sorted_scans = sorted(scan_results, key=lambda sr: sr.started_at)
@@ -449,31 +419,19 @@ class ResultAggregationService:
             )
             aggregated_results.trend_analysis.append(trend)
 
-    def _calculate_metrics_from_executions(
-        self, executions: List[RuleExecution]
-    ) -> ComplianceMetrics:
+    def _calculate_metrics_from_executions(self, executions: List[RuleExecution]) -> ComplianceMetrics:
         """Calculate compliance metrics from rule executions"""
         if not executions:
             return ComplianceMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0)
 
         total_rules = len(executions)
         executed_rules = sum(1 for e in executions if e.execution_success)
-        compliant_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.COMPLIANT
-        )
-        non_compliant_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.NON_COMPLIANT
-        )
+        compliant_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.COMPLIANT)
+        non_compliant_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.NON_COMPLIANT)
         error_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.ERROR)
-        exceeds_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.EXCEEDS
-        )
-        partial_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.PARTIAL
-        )
-        not_applicable_rules = sum(
-            1 for e in executions if e.compliance_status == ComplianceStatus.NOT_APPLICABLE
-        )
+        exceeds_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.EXCEEDS)
+        partial_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.PARTIAL)
+        not_applicable_rules = sum(1 for e in executions if e.compliance_status == ComplianceStatus.NOT_APPLICABLE)
 
         return ComplianceMetrics(
             total_rules=total_rules,
@@ -490,9 +448,7 @@ class ResultAggregationService:
             execution_success_rate=0.0,
         )
 
-    async def _analyze_compliance_gaps(
-        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    async def _analyze_compliance_gaps(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
         """Analyze compliance gaps across scan results"""
         gaps = []
 
@@ -613,9 +569,7 @@ class ResultAggregationService:
         if compliance_a and compliance_b:
             min_length = min(len(compliance_a), len(compliance_b))
             correlation = (
-                statistics.correlation(compliance_a[:min_length], compliance_b[:min_length])
-                if min_length > 1
-                else 0.0
+                statistics.correlation(compliance_a[:min_length], compliance_b[:min_length]) if min_length > 1 else 0.0
             )
         else:
             correlation = 0.0
@@ -637,9 +591,7 @@ class ResultAggregationService:
         strategic_recommendations = []
 
         # Priority recommendations based on compliance gaps
-        critical_gaps = [
-            gap for gap in aggregated_results.compliance_gaps if gap.severity == "critical"
-        ]
+        critical_gaps = [gap for gap in aggregated_results.compliance_gaps if gap.severity == "critical"]
         high_gaps = [gap for gap in aggregated_results.compliance_gaps if gap.severity == "high"]
 
         if critical_gaps:
@@ -664,9 +616,7 @@ class ResultAggregationService:
                 )
 
         # Exceeding compliance opportunities
-        total_exceeds = sum(
-            metrics.exceeds_rules for metrics in aggregated_results.framework_metrics.values()
-        )
+        total_exceeds = sum(metrics.exceeds_rules for metrics in aggregated_results.framework_metrics.values())
         if total_exceeds > 0:
             strategic_recommendations.append(
                 f"OPPORTUNITY: {total_exceeds} rules exceed baseline requirements - leverage for enhanced compliance reporting"
@@ -681,25 +631,19 @@ class ResultAggregationService:
         # Platform diversity recommendations
         if len(aggregated_results.platform_distribution) > 1:
             strategic_recommendations.append(
-                f"STANDARDIZATION: Multiple platforms detected - consider standardization for consistent compliance"
+                "STANDARDIZATION: Multiple platforms detected - consider standardization for consistent compliance"
             )
 
         aggregated_results.priority_recommendations = priority_recommendations
         aggregated_results.strategic_recommendations = strategic_recommendations
 
-    async def generate_compliance_dashboard_data(
-        self, scan_results: List[ScanResult]
-    ) -> Dict[str, Any]:
+    async def generate_compliance_dashboard_data(self, scan_results: List[ScanResult]) -> Dict[str, Any]:
         """Generate data for compliance dashboard visualization"""
         # Aggregate at organization level
-        org_results = await self.aggregate_scan_results(
-            scan_results, AggregationLevel.ORGANIZATION_LEVEL
-        )
+        org_results = await self.aggregate_scan_results(scan_results, AggregationLevel.ORGANIZATION_LEVEL)
 
         # Framework-level aggregation
-        framework_results = await self.aggregate_scan_results(
-            scan_results, AggregationLevel.FRAMEWORK_LEVEL
-        )
+        framework_results = await self.aggregate_scan_results(scan_results, AggregationLevel.FRAMEWORK_LEVEL)
 
         # Dashboard data
         dashboard_data = {
@@ -728,9 +672,7 @@ class ResultAggregationService:
                     "severity": gap.severity,
                     "affected_hosts": len(gap.affected_hosts),
                 }
-                for gap in sorted(
-                    org_results.compliance_gaps, key=lambda g: g.remediation_priority
-                )[:5]
+                for gap in sorted(org_results.compliance_gaps, key=lambda g: g.remediation_priority)[:5]
             ],
             "recommendations": {
                 "priority": org_results.priority_recommendations[:3],
@@ -742,9 +684,7 @@ class ResultAggregationService:
 
         return dashboard_data
 
-    async def export_aggregated_results(
-        self, aggregated_results: AggregatedResults, format: str = "json"
-    ) -> str:
+    async def export_aggregated_results(self, aggregated_results: AggregatedResults, format: str = "json") -> str:
         """Export aggregated results in specified format"""
         if format == "json":
             import json
@@ -796,9 +736,7 @@ class ResultAggregationService:
 
         elif format == "csv":
             # Generate CSV summary
-            lines = [
-                "Framework,Compliance_Percentage,Total_Rules,Compliant_Rules,Non_Compliant_Rules,Exceeds_Rules"
-            ]
+            lines = ["Framework,Compliance_Percentage,Total_Rules,Compliant_Rules,Non_Compliant_Rules,Exceeds_Rules"]
 
             for framework_id, metrics in aggregated_results.framework_metrics.items():
                 lines.append(

@@ -1,16 +1,17 @@
 """
 Tests for EncryptionService (refactored, no singleton).
 """
+
 import pytest
+
 from backend.app.encryption import (
-    EncryptionService,
-    create_encryption_service,
-    EncryptionConfig,
-    KDFAlgorithm,
     FAST_TEST_CONFIG,
-    EncryptionError,
     DecryptionError,
-    InvalidDataError
+    EncryptionConfig,
+    EncryptionService,
+    InvalidDataError,
+    KDFAlgorithm,
+    create_encryption_service,
 )
 
 
@@ -58,12 +59,12 @@ class TestEncryptionService:
 
     def test_encrypt_unicode_string(self, service):
         """Test encryption with unicode strings (converted to bytes)"""
-        plaintext = "Hello 世界 🌍".encode('utf-8')
+        plaintext = "Hello 世界 🌍".encode("utf-8")
 
         encrypted = service.encrypt(plaintext)
         decrypted = service.decrypt(encrypted)
 
-        assert decrypted.decode('utf-8') == "Hello 世界 🌍"
+        assert decrypted.decode("utf-8") == "Hello 世界 🌍"
 
     def test_encrypt_empty_data(self, service):
         """Test encryption of empty data"""
@@ -124,7 +125,7 @@ class TestEncryptionService:
         encrypted = service.encrypt(plaintext)
 
         # Corrupt the ciphertext (but keep valid length)
-        corrupted = encrypted[:28] + b"\xFF" * (len(encrypted) - 28)
+        corrupted = encrypted[:28] + b"\xff" * (len(encrypted) - 28)
 
         with pytest.raises(DecryptionError, match="Decryption failed"):
             service.decrypt(corrupted)
@@ -152,10 +153,7 @@ class TestEncryptionService:
         service1 = EncryptionService(key, EncryptionConfig(kdf_iterations=10000))
 
         # Service with different config (200k iterations, SHA512)
-        config2 = EncryptionConfig(
-            kdf_iterations=20000,
-            kdf_algorithm=KDFAlgorithm.SHA512
-        )
+        config2 = EncryptionConfig(kdf_iterations=20000, kdf_algorithm=KDFAlgorithm.SHA512)
         service2 = EncryptionService(key, config2)
 
         # Encrypt with service1

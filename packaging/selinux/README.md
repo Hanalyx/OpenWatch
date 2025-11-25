@@ -252,7 +252,7 @@ Add custom file contexts to `openwatch.fc`:
 # Custom SCAP content location
 /opt/scap-content(/.*)?    gen_context(system_u:object_r:openwatch_scap_content_t,s0)
 
-# Custom certificate location  
+# Custom certificate location
 /etc/openwatch/certs(/.*)?    gen_context(system_u:object_r:cert_t,s0)
 ```
 
@@ -282,7 +282,7 @@ neverallow openwatch_t kernel_module_t:system module_load;
 
 All OpenWatch operations are audited through SELinux:
 - File access events
-- Network connections  
+- Network connections
 - Process executions
 - Container operations
 
@@ -313,7 +313,7 @@ sudo semodule -B
 
 Works with container security tools:
 - **Podman**: Full rootless support
-- **Docker**: Secure daemon integration  
+- **Docker**: Secure daemon integration
 - **CRI-O**: Compatible with Kubernetes deployments
 
 ### System Security

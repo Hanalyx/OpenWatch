@@ -27,7 +27,7 @@ NC='\033[0m'
 # Check commit message format
 if [[ "$1" == "--check-message" ]]; then
     if [ -z "$2" ]; then
-        echo -e "${RED}✗ Missing commit message${NC}"
+        echo -e "${RED}[ERROR] Missing commit message${NC}"
         echo -e "${YELLOW}  Usage: $0 --check-message \"feat(api): add endpoint\"${NC}"
         exit 1
     fi
@@ -37,13 +37,13 @@ if [[ "$1" == "--check-message" ]]; then
 
     if [ -x ".git/hooks/commit-msg-lint.sh" ]; then
         if echo "$MESSAGE" | .git/hooks/commit-msg-lint.sh /dev/stdin; then
-            echo -e "${GREEN}✓ Commit message valid${NC}"
+            echo -e "${GREEN}[OK] Commit message valid${NC}"
             exit 0
         else
             exit 1
         fi
     else
-        echo -e "${RED}✗ commit-msg-lint.sh not found${NC}"
+        echo -e "${RED}[ERROR] commit-msg-lint.sh not found${NC}"
         echo -e "${YELLOW}  Run: pre-commit install --hook-type commit-msg${NC}"
         exit 1
     fi
@@ -64,7 +64,7 @@ SCRIPT_START_TIME=$(date +%s)
 
 echo -e "${BOLD}${BLUE}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔍 OpenWatch Code Quality Check"
+echo "OpenWatch Code Quality Check"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NC}"
 
@@ -72,7 +72,7 @@ echo -e "${NC}"
 # Backend Quality Checks
 # ============================================================================
 if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
-    echo -e "${BOLD}${YELLOW}📦 Backend Quality Checks${NC}\n"
+    echo -e "${BOLD}${YELLOW}Backend Quality Checks${NC}\n"
 
     cd backend
 
@@ -81,18 +81,18 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     if command -v black &> /dev/null; then
         if [ "$AUTOFIX" = true ]; then
             black . --line-length=120
-            echo -e "${GREEN}✓ Code formatted${NC}\n"
+            echo -e "${GREEN}[OK] Code formatted${NC}\n"
         else
             if black . --check --line-length=120; then
-                echo -e "${GREEN}✓ Formatting correct${NC}\n"
+                echo -e "${GREEN}[OK] Formatting correct${NC}\n"
             else
-                echo -e "${RED}✗ Formatting issues found${NC}"
+                echo -e "${RED}[ERROR] Formatting issues found${NC}"
                 echo -e "${YELLOW}  Run: black . --line-length=120${NC}\n"
                 ERRORS=$((ERRORS + 1))
             fi
         fi
     else
-        echo -e "${RED}✗ Black not installed${NC}"
+        echo -e "${RED}[ERROR] Black not installed${NC}"
         echo -e "${YELLOW}  Install: pip install black${NC}\n"
         ERRORS=$((ERRORS + 1))
     fi
@@ -102,18 +102,18 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     if command -v isort &> /dev/null; then
         if [ "$AUTOFIX" = true ]; then
             isort . --profile black --line-length=120
-            echo -e "${GREEN}✓ Imports sorted${NC}\n"
+            echo -e "${GREEN}[OK] Imports sorted${NC}\n"
         else
             if isort . --check-only --profile black --line-length=120; then
-                echo -e "${GREEN}✓ Import order correct${NC}\n"
+                echo -e "${GREEN}[OK] Import order correct${NC}\n"
             else
-                echo -e "${RED}✗ Import order issues${NC}"
+                echo -e "${RED}[ERROR] Import order issues${NC}"
                 echo -e "${YELLOW}  Run: isort . --profile black${NC}\n"
                 ERRORS=$((ERRORS + 1))
             fi
         fi
     else
-        echo -e "${RED}✗ isort not installed${NC}"
+        echo -e "${RED}[ERROR] isort not installed${NC}"
         echo -e "${YELLOW}  Install: pip install isort${NC}\n"
         ERRORS=$((ERRORS + 1))
     fi
@@ -125,13 +125,13 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
             --extend-ignore=E203,W503,E501 \
             --exclude=__pycache__,*.pyc,.git,venv,env,migrations \
             --statistics; then
-            echo -e "${GREEN}✓ Linting passed${NC}\n"
+            echo -e "${GREEN}[OK] Linting passed${NC}\n"
         else
-            echo -e "${RED}✗ Linting issues found${NC}\n"
+            echo -e "${RED}[ERROR] Linting issues found${NC}\n"
             ERRORS=$((ERRORS + 1))
         fi
     else
-        echo -e "${RED}✗ Flake8 not installed${NC}"
+        echo -e "${RED}[ERROR] Flake8 not installed${NC}"
         echo -e "${YELLOW}  Install: pip install flake8${NC}\n"
         ERRORS=$((ERRORS + 1))
     fi
@@ -146,13 +146,13 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
             --warn-unreachable \
             --warn-return-any \
             --check-untyped-defs; then
-            echo -e "${GREEN}✓ Type checking passed${NC}\n"
+            echo -e "${GREEN}[OK] Type checking passed${NC}\n"
         else
-            echo -e "${RED}✗ Type checking failed${NC}\n"
+            echo -e "${RED}[ERROR] Type checking failed${NC}\n"
             ERRORS=$((ERRORS + 1))
         fi
     else
-        echo -e "${RED}✗ MyPy not installed${NC}"
+        echo -e "${RED}[ERROR] MyPy not installed${NC}"
         echo -e "${YELLOW}  Install: pipx install mypy${NC}\n"
         ERRORS=$((ERRORS + 1))
     fi
@@ -161,13 +161,13 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     echo -e "${BLUE}→ Bandit (Security Scanner)${NC}"
     if command -v bandit &> /dev/null; then
         if bandit -r app/ -ll -f txt 2>&1; then
-            echo -e "${GREEN}✓ Security scan passed${NC}\n"
+            echo -e "${GREEN}[OK] Security scan passed${NC}\n"
         else
-            echo -e "${RED}✗ Security issues found${NC}\n"
+            echo -e "${RED}[ERROR] Security issues found${NC}\n"
             ERRORS=$((ERRORS + 1))
         fi
     else
-        echo -e "${YELLOW}⚠️  Bandit not installed${NC}"
+        echo -e "${YELLOW}[WARNING] Bandit not installed${NC}"
         echo -e "${YELLOW}  Install: pip install bandit${NC}\n"
     fi
 
@@ -175,12 +175,12 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     echo -e "${BLUE}→ Safety (Dependency Vulnerability Check)${NC}"
     if command -v safety &> /dev/null; then
         if safety check --json 2>&1 | head -20; then
-            echo -e "${GREEN}✓ No known vulnerabilities${NC}\n"
+            echo -e "${GREEN}[OK] No known vulnerabilities${NC}\n"
         else
-            echo -e "${YELLOW}⚠️  Vulnerabilities found (review)${NC}\n"
+            echo -e "${YELLOW}[WARNING] Vulnerabilities found (review)${NC}\n"
         fi
     else
-        echo -e "${YELLOW}⚠️  Safety not installed (optional)${NC}\n"
+        echo -e "${YELLOW}[WARNING] Safety not installed (optional)${NC}\n"
     fi
 
     # 7. Test Coverage
@@ -188,15 +188,15 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     if command -v pytest &> /dev/null; then
         if [ -d "tests" ]; then
             if pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=80 -q 2>/dev/null; then
-                echo -e "${GREEN}✓ Coverage ≥80%${NC}\n"
+                echo -e "${GREEN}[OK] Coverage >=80%${NC}\n"
             else
-                echo -e "${YELLOW}⚠️  Coverage below 80% threshold (non-blocking)${NC}\n"
+                echo -e "${YELLOW}[WARNING] Coverage below 80% threshold (non-blocking)${NC}\n"
             fi
         else
-            echo -e "${YELLOW}⚠️  No tests directory found${NC}\n"
+            echo -e "${YELLOW}[WARNING] No tests directory found${NC}\n"
         fi
     else
-        echo -e "${YELLOW}⚠️  Pytest not installed (optional)${NC}\n"
+        echo -e "${YELLOW}[WARNING] Pytest not installed (optional)${NC}\n"
     fi
 
     # 8. Code Complexity (Radon)
@@ -204,14 +204,14 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "backend" ]]; then
     if command -v radon &> /dev/null; then
         COMPLEX_FUNCS=$(radon cc app/ -n C -j 2>/dev/null | grep -c '"complexity"' || echo "0")
         if [ "$COMPLEX_FUNCS" -gt 0 ]; then
-            echo -e "${YELLOW}⚠️  Found $COMPLEX_FUNCS high-complexity functions${NC}"
+            echo -e "${YELLOW}[WARNING] Found $COMPLEX_FUNCS high-complexity functions${NC}"
             radon cc app/ -n C -s 2>/dev/null || true
             echo ""
         else
-            echo -e "${GREEN}✓ No high-complexity functions${NC}\n"
+            echo -e "${GREEN}[OK] No high-complexity functions${NC}\n"
         fi
     else
-        echo -e "${YELLOW}⚠️  Radon not installed (optional)${NC}\n"
+        echo -e "${YELLOW}[WARNING] Radon not installed (optional)${NC}\n"
     fi
 
     cd ..
@@ -221,13 +221,13 @@ fi
 # Frontend Quality Checks
 # ============================================================================
 if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "frontend" ]]; then
-    echo -e "${BOLD}${YELLOW}📦 Frontend Quality Checks${NC}\n"
+    echo -e "${BOLD}${YELLOW}Frontend Quality Checks${NC}\n"
 
     cd frontend
 
     # Check node_modules
     if [ ! -d "node_modules" ]; then
-        echo -e "${RED}✗ Frontend dependencies not installed${NC}"
+        echo -e "${RED}[ERROR] Frontend dependencies not installed${NC}"
         echo -e "${YELLOW}  Run: npm install${NC}\n"
         ERRORS=$((ERRORS + 1))
         cd ..
@@ -236,12 +236,12 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "frontend" ]]; then
         echo -e "${BLUE}→ ESLint (Linter)${NC}"
         if [ "$AUTOFIX" = true ]; then
             npm run lint:fix
-            echo -e "${GREEN}✓ Linting issues fixed${NC}\n"
+            echo -e "${GREEN}[OK] Linting issues fixed${NC}\n"
         else
             if npm run lint; then
-                echo -e "${GREEN}✓ Linting passed${NC}\n"
+                echo -e "${GREEN}[OK] Linting passed${NC}\n"
             else
-                echo -e "${RED}✗ Linting issues found${NC}"
+                echo -e "${RED}[ERROR] Linting issues found${NC}"
                 echo -e "${YELLOW}  Run: npm run lint:fix${NC}\n"
                 ERRORS=$((ERRORS + 1))
             fi
@@ -250,18 +250,18 @@ if [[ "$TARGET" == "all" ]] || [[ "$TARGET" == "frontend" ]]; then
         # 2. TypeScript
         echo -e "${BLUE}→ TypeScript (Type Checking)${NC}"
         if npx tsc --noEmit; then
-            echo -e "${GREEN}✓ Type checking passed${NC}\n"
+            echo -e "${GREEN}[OK] Type checking passed${NC}\n"
         else
-            echo -e "${RED}✗ TypeScript errors found${NC}\n"
+            echo -e "${RED}[ERROR] TypeScript errors found${NC}\n"
             ERRORS=$((ERRORS + 1))
         fi
 
         # 3. Build test
         echo -e "${BLUE}→ Build Test${NC}"
         if npm run build &> /tmp/openwatch-build.log; then
-            echo -e "${GREEN}✓ Build successful${NC}\n"
+            echo -e "${GREEN}[OK] Build successful${NC}\n"
         else
-            echo -e "${RED}✗ Build failed${NC}"
+            echo -e "${RED}[ERROR] Build failed${NC}"
             echo -e "${YELLOW}  Check: /tmp/openwatch-build.log${NC}\n"
             ERRORS=$((ERRORS + 1))
         fi
@@ -273,7 +273,7 @@ fi
 # ============================================================================
 # General Checks
 # ============================================================================
-echo -e "${BOLD}${YELLOW}📦 General Checks${NC}\n"
+echo -e "${BOLD}${YELLOW}General Checks${NC}\n"
 
 # ShellCheck (Shell Scripts)
 echo -e "${BLUE}→ ShellCheck (Shell Script Linting)${NC}"
@@ -293,15 +293,15 @@ if command -v shellcheck &> /dev/null; then
         done <<< "$SHELL_SCRIPTS"
 
         if [ $SHELLCHECK_ISSUES -eq 0 ]; then
-            echo -e "${GREEN}✓ All shell scripts validated${NC}\n"
+            echo -e "${GREEN}[OK] All shell scripts validated${NC}\n"
         else
-            echo -e "${YELLOW}⚠️  Found issues in $SHELLCHECK_ISSUES shell scripts (non-blocking)${NC}\n"
+            echo -e "${YELLOW}[WARNING] Found issues in $SHELLCHECK_ISSUES shell scripts (non-blocking)${NC}\n"
         fi
     else
-        echo -e "${GREEN}✓ No shell scripts to check${NC}\n"
+        echo -e "${GREEN}[OK] No shell scripts to check${NC}\n"
     fi
 else
-    echo -e "${YELLOW}⚠️  ShellCheck not installed${NC}"
+    echo -e "${YELLOW}[WARNING] ShellCheck not installed${NC}"
     echo -e "${YELLOW}  Install: pipx install shellcheck-py${NC}\n"
 fi
 
@@ -311,18 +311,18 @@ if command -v detect-secrets &> /dev/null; then
     if [ -f ".secrets.baseline" ]; then
         SECRETS_OUTPUT=$(detect-secrets scan 2>&1)
         if echo "$SECRETS_OUTPUT" | grep -q "potential secrets"; then
-            echo -e "${RED}✗ Potential secrets detected${NC}"
+            echo -e "${RED}[ERROR] Potential secrets detected${NC}"
             echo -e "${YELLOW}  Review findings and update baseline if false positive${NC}\n"
             ERRORS=$((ERRORS + 1))
         else
-            echo -e "${GREEN}✓ No new secrets detected${NC}\n"
+            echo -e "${GREEN}[OK] No new secrets detected${NC}\n"
         fi
     else
-        echo -e "${YELLOW}⚠️  .secrets.baseline not found${NC}"
+        echo -e "${YELLOW}[WARNING] .secrets.baseline not found${NC}"
         echo -e "${YELLOW}  Generate: detect-secrets scan > .secrets.baseline${NC}\n"
     fi
 else
-    echo -e "${YELLOW}⚠️  detect-secrets not installed${NC}"
+    echo -e "${YELLOW}[WARNING] detect-secrets not installed${NC}"
     echo -e "${YELLOW}  Install: pipx install detect-secrets${NC}\n"
 fi
 
@@ -336,9 +336,9 @@ TODO_COUNT=$(find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" \) 
     -exec grep -l "TODO\|FIXME\|XXX\|HACK" {} \; 2>/dev/null | wc -l)
 
 if [ "$TODO_COUNT" -gt 0 ]; then
-    echo -e "${YELLOW}⚠️  Found $TODO_COUNT files with TODO/FIXME comments${NC}\n"
+    echo -e "${YELLOW}[WARNING] Found $TODO_COUNT files with TODO/FIXME comments${NC}\n"
 else
-    echo -e "${GREEN}✓ No TODOs found${NC}\n"
+    echo -e "${GREEN}[OK] No TODOs found${NC}\n"
 fi
 
 # Check for large files
@@ -350,11 +350,11 @@ LARGE_FILES=$(find . -type f -size +1M \
     -not -path "*/build/*" 2>/dev/null || true)
 
 if [ -n "$LARGE_FILES" ]; then
-    echo -e "${YELLOW}⚠️  Large files found:${NC}"
+    echo -e "${YELLOW}[WARNING] Large files found:${NC}"
     echo "$LARGE_FILES"
     echo ""
 else
-    echo -e "${GREEN}✓ No large files${NC}\n"
+    echo -e "${GREEN}[OK] No large files${NC}\n"
 fi
 
 # ============================================================================
@@ -365,18 +365,18 @@ TOTAL_DURATION=$((SCRIPT_END_TIME - SCRIPT_START_TIME))
 
 echo -e "${BOLD}${BLUE}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📊 Quality Check Summary"
+echo "Quality Check Summary"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NC}"
 
-echo -e "${BLUE}⏱️  Total execution time: ${TOTAL_DURATION}s${NC}\n"
+echo -e "${BLUE}Total execution time: ${TOTAL_DURATION}s${NC}\n"
 
 if [ $ERRORS -eq 0 ]; then
-    echo -e "${BOLD}${GREEN}✓ All quality checks passed!${NC}"
+    echo -e "${BOLD}${GREEN}[OK] All quality checks passed!${NC}"
     echo -e "${GREEN}  Your code is ready to commit${NC}\n"
     exit 0
 else
-    echo -e "${BOLD}${RED}✗ Found $ERRORS error(s)${NC}"
+    echo -e "${BOLD}${RED}[ERROR] Found $ERRORS error(s)${NC}"
     echo -e "${RED}  Fix the issues above before committing${NC}"
     echo -e "${YELLOW}  Run with --fix to auto-fix some issues:${NC}"
     echo -e "${YELLOW}    ./scripts/quality-check.sh --fix${NC}\n"

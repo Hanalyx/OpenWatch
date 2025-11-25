@@ -37,9 +37,7 @@ try:
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
-    logger.warning(
-        "Docker library not available. Container execution will use subprocess fallback."
-    )
+    logger.warning("Docker library not available. Container execution will use subprocess fallback.")
 
 
 def sanitize_for_log(value: any) -> str:
@@ -94,9 +92,7 @@ class ContainerRuntimeClient:
             else:
                 return docker.from_env()
         except Exception as e:
-            logger.warning(
-                f"Failed to initialize container client: {e}. Using subprocess fallback."
-            )
+            logger.warning(f"Failed to initialize container client: {e}. Using subprocess fallback.")
             return None
 
 
@@ -362,7 +358,6 @@ class CommandSignatureService:
 
     def __init__(self):
         # Use crypto functions directly instead of service class
-        pass
         self.signature_algorithm = hashes.SHA256()
 
     def sign_command(self, command: SecureCommand, private_key_path: str) -> str:
@@ -515,17 +510,13 @@ class CommandSandboxService:
         # Check all required parameters are present
         for param in command.allowed_parameters:
             if param not in parameters:
-                logger.warning(
-                    f"Missing required parameter {param} for command {sanitize_for_log(command_id)}"
-                )
+                logger.warning(f"Missing required parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
 
         # Validate parameter patterns
         for param, value in parameters.items():
             if param not in command.allowed_parameters:
-                logger.warning(
-                    f"Unauthorized parameter {param} for command {sanitize_for_log(command_id)}"
-                )
+                logger.warning(f"Unauthorized parameter {param} for command {sanitize_for_log(command_id)}")
                 return False
 
             if param in command.parameter_patterns:
@@ -533,9 +524,7 @@ class CommandSandboxService:
                 import re
 
                 if not re.match(pattern, str(value)):
-                    logger.warning(
-                        f"Parameter {param} value '{value}' doesn't match pattern {pattern}"
-                    )
+                    logger.warning(f"Parameter {param} value '{value}' doesn't match pattern {pattern}")
                     return False
 
         return True
@@ -563,19 +552,13 @@ class CommandSandboxService:
             target_host=target_host,
             requested_by=requested_by,
             justification=justification,
-            status=(
-                ExecutionStatus.PENDING_APPROVAL
-                if command.requires_approval
-                else ExecutionStatus.APPROVED
-            ),
+            status=(ExecutionStatus.PENDING_APPROVAL if command.requires_approval else ExecutionStatus.APPROVED),
         )
 
         self.execution_requests[request.request_id] = request
 
         # Log security event
-        logger.info(
-            f"Command execution requested: {command_id} by {requested_by} for {target_host}"
-        )
+        logger.info(f"Command execution requested: {command_id} by {requested_by} for {target_host}")
 
         return request
 
@@ -636,9 +619,7 @@ class CommandSandboxService:
                 else:
                     request.status = ExecutionStatus.FAILED
 
-            logger.info(
-                f"Command execution completed: {request.command_id} (exit_code: {exit_code})"
-            )
+            logger.info(f"Command execution completed: {request.command_id} (exit_code: {exit_code})")
 
         except Exception as e:
             request.status = ExecutionStatus.FAILED
@@ -662,18 +643,14 @@ class CommandSandboxService:
 
             # Execute rollback in sandbox
             async with SandboxEnvironment() as sandbox:
-                exit_code, _, _ = await sandbox.execute_command(
-                    request.rollback_command, timeout=300
-                )
+                exit_code, _, _ = await sandbox.execute_command(request.rollback_command, timeout=300)
 
                 if exit_code == 0:
                     request.status = ExecutionStatus.ROLLED_BACK
                     logger.info(f"Command rollback successful: {request.command_id}")
                     return True
                 else:
-                    logger.error(
-                        f"Command rollback failed: {request.command_id} (exit_code: {exit_code})"
-                    )
+                    logger.error(f"Command rollback failed: {request.command_id} (exit_code: {exit_code})")
                     return False
 
         except Exception as e:
@@ -686,11 +663,7 @@ class CommandSandboxService:
 
     def list_pending_approvals(self) -> List[ExecutionRequest]:
         """List all pending approval requests"""
-        return [
-            req
-            for req in self.execution_requests.values()
-            if req.status == ExecutionStatus.PENDING_APPROVAL
-        ]
+        return [req for req in self.execution_requests.values() if req.status == ExecutionStatus.PENDING_APPROVAL]
 
     def get_command_info(self, command_id: str) -> Optional[SecureCommand]:
         """Get information about a secure command"""

@@ -3,33 +3,19 @@ OpenSCAP Scanner Service
 Handles SCAP content processing and scanning operations
 """
 
-import io
-import json
 import logging
 import os
 import re
-import shutil
 import subprocess
-import tempfile
-import uuid
-import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import lxml.etree as etree
-import paramiko
-from paramiko.ssh_exception import SSHException
 
 from ..config import get_settings
 from ..utils.scap_xml_utils import extract_text_content
-from .unified_ssh_service import (
-    SSHKeyError,
-    UnifiedSSHService,
-    format_validation_message,
-    parse_ssh_key,
-    validate_ssh_key,
-)
+from .unified_ssh_service import UnifiedSSHService
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +23,9 @@ logger = logging.getLogger(__name__)
 class SCAPContentError(Exception):
     """Exception raised for SCAP content processing errors"""
 
-    pass
-
 
 class ScanExecutionError(Exception):
     """Exception raised for scan execution errors"""
-
-    pass
 
 
 class SCAPScanner:
@@ -66,9 +48,7 @@ class SCAPScanner:
         try:
             self.content_dir.mkdir(parents=True, exist_ok=True)
             self.results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(
-                f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}"
-            )
+            logger.info(f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}")
         except Exception as e:
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPContentError(f"Directory creation failed: {str(e)}")
@@ -87,9 +67,7 @@ class SCAPScanner:
                 raise SCAPContentError(f"File not found: {file_path}")
 
             # Use oscap to validate the file
-            result = subprocess.run(
-                ["oscap", "info", file_path], capture_output=True, text=True, timeout=30
-            )
+            result = subprocess.run(["oscap", "info", file_path], capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0:
                 raise SCAPContentError(f"Invalid SCAP content: {result.stderr}")
@@ -136,9 +114,7 @@ class SCAPScanner:
             logger.error(f"Error extracting profiles: {e}")
             raise SCAPContentError(f"Profile extraction failed: {str(e)}")
 
-    def test_ssh_connection(
-        self, hostname: str, port: int, username: str, auth_method: str, credential: str
-    ) -> Dict:
+    def test_ssh_connection(self, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
         """Test SSH connection to remote host using unified SSH service"""
         logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
 
@@ -154,9 +130,7 @@ class SCAPScanner:
         )
 
         if not connection_result.success:
-            logger.error(
-                f"SSH connection test failed for {hostname}: {connection_result.error_message}"
-            )
+            logger.error(f"SSH connection test failed for {hostname}: {connection_result.error_message}")
             return {
                 "success": False,
                 "message": f"SSH connection failed: {connection_result.error_message}",
@@ -182,9 +156,7 @@ class SCAPScanner:
                 }
 
             # Check if oscap is available on remote host
-            oscap_result = self.unified_ssh.execute_command(
-                ssh_connection=ssh, command="oscap --version", timeout=5
-            )
+            oscap_result = self.unified_ssh.execute_command(ssh_connection=ssh, command="oscap --version", timeout=5)
 
             oscap_available = oscap_result.success
             oscap_version = oscap_result.stdout.strip() if oscap_available else None
@@ -201,13 +173,9 @@ class SCAPScanner:
 
             if not oscap_available:
                 result["warning"] = "OpenSCAP not found on remote host"
-                logger.warning(
-                    f"OpenSCAP not available on {hostname}: {oscap_result.error_message}"
-                )
+                logger.warning(f"OpenSCAP not available on {hostname}: {oscap_result.error_message}")
             else:
-                logger.info(
-                    f"SSH test successful: {hostname} (OpenSCAP available: {oscap_version})"
-                )
+                logger.info(f"SSH test successful: {hostname} (OpenSCAP available: {oscap_version})")
 
             return result
 
@@ -216,7 +184,7 @@ class SCAPScanner:
             try:
                 if connection_result.connection:
                     connection_result.connection.close()
-            except:
+            except Exception:
                 logger.debug("Ignoring exception during cleanup")
 
             logger.error(f"SSH test error for {hostname}: {e}")
@@ -226,17 +194,11 @@ class SCAPScanner:
                 "oscap_available": False,
             }
 
-    def execute_local_scan(
-        self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None
-    ) -> Dict:
+    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
         """Execute SCAP scan on local system"""
         try:
             # Validate inputs to prevent command injection
-            if (
-                not isinstance(content_path, str)
-                or ".." in content_path
-                or not os.path.isfile(content_path)
-            ):
+            if not isinstance(content_path, str) or ".." in content_path or not os.path.isfile(content_path):
                 raise ScanExecutionError(f"Invalid or unsafe content path: {content_path}")
 
             if not isinstance(profile_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", profile_id):
@@ -245,9 +207,7 @@ class SCAPScanner:
             if not isinstance(scan_id, str) or not re.match(r"^[a-zA-Z0-9_-]+$", scan_id):
                 raise ScanExecutionError(f"Invalid scan_id format: {scan_id}")
 
-            if rule_id and (
-                not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)
-            ):
+            if rule_id and (not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)):
                 raise ScanExecutionError(f"Invalid rule_id format: {rule_id}")
 
             logger.info(f"Starting local scan: {scan_id}")
@@ -286,9 +246,7 @@ class SCAPScanner:
             # Log command execution without exposing actual command to prevent information disclosure
             logger.info(f"Executing local SCAP scan with profile: {profile_id}")
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=1800
-            )  # 30 minutes timeout
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 minutes timeout
 
             # Parse results with content file for remediation extraction
             scan_results = self._parse_scan_results(str(xml_result), content_path)
@@ -339,11 +297,7 @@ class SCAPScanner:
             if not isinstance(username, str) or not re.match(r"^[a-zA-Z0-9_-]+$", username):
                 raise ScanExecutionError(f"Invalid username format: {username}")
 
-            if (
-                not isinstance(content_path, str)
-                or ".." in content_path
-                or not os.path.isfile(content_path)
-            ):
+            if not isinstance(content_path, str) or ".." in content_path or not os.path.isfile(content_path):
                 raise ScanExecutionError(f"Invalid or unsafe content path: {content_path}")
 
             if not isinstance(profile_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", profile_id):
@@ -352,9 +306,7 @@ class SCAPScanner:
             if not isinstance(scan_id, str) or not re.match(r"^[a-zA-Z0-9_-]+$", scan_id):
                 raise ScanExecutionError(f"Invalid scan_id format: {scan_id}")
 
-            if rule_id and (
-                not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)
-            ):
+            if rule_id and (not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)):
                 raise ScanExecutionError(f"Invalid rule_id format: {rule_id}")
 
             logger.info(f"Starting remote scan: {scan_id} on {hostname}")
@@ -368,8 +320,8 @@ class SCAPScanner:
             html_report = scan_dir / "report.html"
             arf_result = scan_dir / "results.arf.xml"
 
-            # Prepare SSH connection parameters
-            ssh_options = [
+            # Prepare SSH connection parameters (reserved for future SSH execution)
+            _ssh_options = [  # noqa: F841
                 "-o",
                 "StrictHostKeyChecking=no",
                 "-o",
@@ -414,9 +366,7 @@ class SCAPScanner:
         try:
             if hostname:
                 # Remote system info
-                return self._get_remote_system_info(
-                    hostname, port, username, auth_method, credential
-                )
+                return self._get_remote_system_info(hostname, port, username, auth_method, credential)
             else:
                 # Local system info
                 return self._get_local_system_info()
@@ -513,9 +463,7 @@ class SCAPScanner:
                     severity = rule_result.get("severity", "unknown")
 
                     # Extract remediation information from SCAP content
-                    remediation_info = self._extract_rule_remediation(
-                        rule_id, content_tree, namespaces
-                    )
+                    remediation_info = self._extract_rule_remediation(rule_id, content_tree, namespaces)
 
                     # Create detailed rule entry
                     rule_detail = {
@@ -665,9 +613,7 @@ class SCAPScanner:
                         parsed_steps = self._parse_remediation_text(remediation_content)
                         remediation.update(parsed_steps)
 
-                        logger.debug(
-                            f"Extracted OpenSCAP remediation: {remediation_content[:100]}..."
-                        )
+                        logger.debug(f"Extracted OpenSCAP remediation: {remediation_content[:100]}...")
                         break
 
             # Third Priority: Look for fix elements with different strategies
@@ -707,9 +653,7 @@ class SCAPScanner:
                 desc_elements = rule_element.findall(selector, namespaces)
                 for desc_elem in desc_elements:
                     detailed_desc = self._extract_text_content(desc_elem)
-                    if detailed_desc and len(detailed_desc) > len(
-                        remediation.get("detailed_description", "")
-                    ):
+                    if detailed_desc and len(detailed_desc) > len(remediation.get("detailed_description", "")):
                         remediation["detailed_description"] = detailed_desc
                         logger.debug(f"Found detailed description: {detailed_desc[:100]}...")
 
@@ -923,9 +867,7 @@ class SCAPScanner:
             logger.error(f"Error extracting references: {e}")
             return references
 
-    def _extract_framework_specific_remediation(
-        self, rule_element, namespaces: Dict, remediation: Dict
-    ):
+    def _extract_framework_specific_remediation(self, rule_element, namespaces: Dict, remediation: Dict):
         """Extract remediation from framework-specific elements (DISA STIG, CIS, etc.)"""
         try:
             # Look for DISA STIG specific elements
@@ -946,7 +888,7 @@ class SCAPScanner:
                             remediation["description"] = stig_content
                             logger.debug(f"Found DISA STIG fix text: {stig_content[:100]}...")
                             return
-                except:
+                except Exception:
                     continue
 
             # Look for CIS Benchmark specific elements
@@ -966,7 +908,7 @@ class SCAPScanner:
                             remediation["description"] = cis_content
                             logger.debug(f"Found CIS Benchmark remediation: {cis_content[:100]}...")
                             return
-                except:
+                except Exception:
                     continue
 
             # Look for NIST specific elements
@@ -985,7 +927,7 @@ class SCAPScanner:
                         if nist_content and not remediation["detailed_description"]:
                             remediation["detailed_description"] = nist_content
                             logger.debug(f"Found NIST guidance: {nist_content[:100]}...")
-                except:
+                except Exception:
                     continue
 
             # Look for generic remediation patterns in text content
@@ -1019,7 +961,6 @@ class SCAPScanner:
             ]
 
             lines = all_text.split("\n")
-            current_section = ""
             remediation_found = False
 
             for i, line in enumerate(lines):
@@ -1061,9 +1002,7 @@ class SCAPScanner:
                             elif not remediation["fix_text"]:
                                 remediation["fix_text"] = remediation_content.strip()
 
-                            logger.debug(
-                                f"Found generic remediation pattern: {remediation_content[:100]}..."
-                            )
+                            logger.debug(f"Found generic remediation pattern: {remediation_content[:100]}...")
                             remediation_found = True
                             break
 
@@ -1192,9 +1131,7 @@ class SCAPScanner:
             )
 
             if not connection_result.success:
-                raise ScanExecutionError(
-                    f"SSH connection failed: {connection_result.error_message}"
-                )
+                raise ScanExecutionError(f"SSH connection failed: {connection_result.error_message}")
 
             ssh = connection_result.connection
 
@@ -1209,9 +1146,7 @@ class SCAPScanner:
             )
 
             if not mkdir_result.success:
-                raise ScanExecutionError(
-                    f"Failed to create remote directory: {mkdir_result.error_message}"
-                )
+                raise ScanExecutionError(f"Failed to create remote directory: {mkdir_result.error_message}")
 
             # Define remote file paths
             remote_xml = f"{remote_results_dir}/results.xml"
@@ -1227,9 +1162,7 @@ class SCAPScanner:
                 logger.info(f"Transferred SCAP content to remote host: {remote_content_path}")
             except Exception as e:
                 sftp.close()
-                raise ScanExecutionError(
-                    f"Failed to transfer SCAP content to remote host: {str(e)}"
-                )
+                raise ScanExecutionError(f"Failed to transfer SCAP content to remote host: {str(e)}")
 
             sftp.close()
 
@@ -1319,9 +1252,7 @@ class SCAPScanner:
                         elif "<TestResult" in first_lines:
                             logger.info("SUCCESS: Downloaded results.xml contains TestResult data")
                         else:
-                            logger.warning(
-                                f"UNKNOWN: Downloaded file content starts with: {first_lines[:100]}..."
-                            )
+                            logger.warning(f"UNKNOWN: Downloaded file content starts with: {first_lines[:100]}...")
 
             except FileNotFoundError:
                 logger.warning("Results XML file not found on remote host")
@@ -1346,9 +1277,7 @@ class SCAPScanner:
             )
 
             if not cleanup_result.success:
-                logger.warning(
-                    f"Failed to cleanup remote directory: {cleanup_result.error_message}"
-                )
+                logger.warning(f"Failed to cleanup remote directory: {cleanup_result.error_message}")
 
             ssh.close()
 
@@ -1374,9 +1303,7 @@ class SCAPScanner:
                         # ARF files contain TestResult wrapped in asset-report-collection
                         arf_results = self._parse_arf_results(str(arf_result), content_path)
                         if arf_results.get("rules_total", 0) > 0:
-                            logger.info(
-                                f"Successfully extracted {arf_results['rules_total']} rules from ARF file"
-                            )
+                            logger.info(f"Successfully extracted {arf_results['rules_total']} rules from ARF file")
                             scan_results = arf_results
                     except Exception as e:
                         logger.error(f"Failed to parse ARF file: {e}")
@@ -1415,7 +1342,7 @@ class SCAPScanner:
         finally:
             try:
                 ssh.close()
-            except:
+            except Exception:
                 pass
 
     def _parse_arf_results(self, arf_file: str, content_file: str = None) -> Dict:

@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         image: ['backend', 'frontend']
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -79,7 +79,7 @@ jobs:
     strategy:
       matrix:
         image: ['backend', 'frontend']
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

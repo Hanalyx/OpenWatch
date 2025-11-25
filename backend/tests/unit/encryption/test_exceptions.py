@@ -1,13 +1,10 @@
 """
 Tests for custom encryption exceptions.
 """
+
 import pytest
-from backend.app.encryption import (
-    EncryptionError,
-    DecryptionError,
-    InvalidDataError,
-    ConfigurationError
-)
+
+from backend.app.encryption import ConfigurationError, DecryptionError, EncryptionError, InvalidDataError
 
 
 class TestExceptionHierarchy:
@@ -59,7 +56,7 @@ class TestExceptionCatching:
             DecryptionError("decrypt failed"),
             InvalidDataError("invalid format"),
             ConfigurationError("bad config"),
-            EncryptionError("generic error")
+            EncryptionError("generic error"),
         ]
 
         for exc in exceptions:

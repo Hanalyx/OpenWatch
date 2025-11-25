@@ -65,11 +65,11 @@ try:
     if result.first():
         print(f"User {username} already exists")
         sys.exit(1)
-    
+
     # Create admin user
     user_id = str(uuid.uuid4())
     hashed_password = get_password_hash(password)
-    
+
     db.execute(text("""
         INSERT INTO users (id, username, email, hashed_password, role, is_active, mfa_enabled, created_at, updated_at)
         VALUES (:id, :username, :email, :password, 'admin', true, false, NOW(), NOW())
@@ -79,10 +79,10 @@ try:
         "email": email,
         "password": hashed_password
     })
-    
+
     db.commit()
     print(f"Admin user '{username}' created successfully!")
-    
+
 except Exception as e:
     print(f"Error creating user: {e}")
     db.rollback()

@@ -56,13 +56,7 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from .auth_service import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from .auth_service import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 from .unified_ssh_service import validate_ssh_key
 
 logger = logging.getLogger(__name__)
@@ -164,8 +158,7 @@ class HostCredentialHandler:
 
             if not validation_result.is_valid:
                 logger.error(
-                    f"SSH key validation failed for host '{hostname}': "
-                    f"{', '.join(validation_result.errors)}"
+                    f"SSH key validation failed for host '{hostname}': " f"{', '.join(validation_result.errors)}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -174,8 +167,7 @@ class HostCredentialHandler:
 
             if validation_result.warnings:
                 logger.warning(
-                    f"SSH key validation warnings for host '{hostname}': "
-                    f"{', '.join(validation_result.warnings)}"
+                    f"SSH key validation warnings for host '{hostname}': " f"{', '.join(validation_result.warnings)}"
                 )
 
         # Create credential data for unified system
@@ -253,10 +245,7 @@ class HostCredentialHandler:
                 metadata=metadata,
                 created_by=created_by,
             )
-            logger.info(
-                f"Stored host-specific credential for {hostname} "
-                f"in unified_credentials (id: {cred_id})"
-            )
+            logger.info(f"Stored host-specific credential for {hostname} " f"in unified_credentials (id: {cred_id})")
             return cred_id
 
         except Exception as e:

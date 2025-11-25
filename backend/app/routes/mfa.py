@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import audit_logger, get_current_user
 from ..database import MFAAuditLog, MFAUsedCodes, get_db
-from ..services.mfa_service import MFAEnrollmentResult, MFAValidationResult, get_mfa_service
+from ..services.mfa_service import get_mfa_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -240,9 +240,7 @@ async def enroll_mfa(
         encrypted_secret = mfa_service.encrypt_mfa_secret(enrollment_result.secret_key)
 
         # Hash backup codes for storage
-        hashed_backup_codes = [
-            mfa_service.hash_backup_code(code) for code in enrollment_result.backup_codes
-        ]
+        hashed_backup_codes = [mfa_service.hash_backup_code(code) for code in enrollment_result.backup_codes]
 
         # Update user record
         db.execute(
@@ -264,9 +262,7 @@ async def enroll_mfa(
         )
         db.commit()
 
-        await log_mfa_action(
-            db, current_user["id"], "enroll", True, client_ip, user_agent, method="totp"
-        )
+        await log_mfa_action(db, current_user["id"], "enroll", True, client_ip, user_agent, method="totp")
 
         return MFAEnrollmentResponse(
             success=True,
@@ -368,11 +364,7 @@ async def validate_mfa_code(
 
             # Remove used backup code if applicable
             if validation_result.backup_code_used:
-                updated_codes = [
-                    code
-                    for code in user_data.backup_codes
-                    if code != validation_result.backup_code_used
-                ]
+                updated_codes = [code for code in user_data.backup_codes if code != validation_result.backup_code_used]
                 db.execute(
                     text(
                         """
@@ -459,9 +451,7 @@ async def enable_mfa(
             )
 
         if user_data.mfa_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is already enabled"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is already enabled")
 
         # Validate the provided code
         validation_result = mfa_service.validate_mfa_code(
@@ -496,9 +486,7 @@ async def enable_mfa(
         )
         db.commit()
 
-        await log_mfa_action(
-            db, current_user["id"], "enable", True, client_ip, user_agent, method="totp"
-        )
+        await log_mfa_action(db, current_user["id"], "enable", True, client_ip, user_agent, method="totp")
 
         return {"success": True, "message": "MFA enabled successfully"}
 
@@ -546,9 +534,7 @@ async def regenerate_backup_codes(
 
         user_data = result.fetchone()
         if not user_data or not user_data.mfa_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled")
 
         # Validate MFA code first
         validation_result = mfa_service.validate_mfa_code(
@@ -664,9 +650,7 @@ async def disable_mfa(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
 
         if not user_data.mfa_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled")
 
         # Disable MFA and clear secrets
         db.execute(

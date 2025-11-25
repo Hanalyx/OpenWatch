@@ -30,31 +30,21 @@ class ExecutorCapability(str, Enum):
 class RemediationExecutorError(Exception):
     """Base exception for remediation executor errors."""
 
-    pass
-
 
 class ExecutorNotAvailableError(RemediationExecutorError):
     """Executor binary/tool not available on system."""
-
-    pass
 
 
 class ExecutorValidationError(RemediationExecutorError):
     """Remediation content failed validation."""
 
-    pass
-
 
 class ExecutorExecutionError(RemediationExecutorError):
     """Error during remediation execution."""
 
-    pass
-
 
 class UnsupportedTargetError(RemediationExecutorError):
     """Target type not supported by this executor."""
-
-    pass
 
 
 class BaseRemediationExecutor(ABC):
@@ -93,7 +83,6 @@ class BaseRemediationExecutor(ABC):
         Raises:
             ExecutorNotAvailableError: If tool not installed
         """
-        pass
 
     @abstractmethod
     def _get_capabilities(self) -> set[ExecutorCapability]:
@@ -103,7 +92,6 @@ class BaseRemediationExecutor(ABC):
         Returns:
             Set of ExecutorCapability enum values
         """
-        pass
 
     @abstractmethod
     async def execute(
@@ -133,7 +121,6 @@ class BaseRemediationExecutor(ABC):
             UnsupportedTargetError: Target type not supported
             TimeoutError: Execution exceeded timeout
         """
-        pass
 
     @abstractmethod
     async def rollback(
@@ -159,7 +146,6 @@ class BaseRemediationExecutor(ABC):
             ExecutorValidationError: Rollback content invalid
             ExecutorExecutionError: Rollback execution failed
         """
-        pass
 
     @abstractmethod
     def validate_content(self, content: str) -> bool:
@@ -175,7 +161,6 @@ class BaseRemediationExecutor(ABC):
         Raises:
             ExecutorValidationError: Content validation failed
         """
-        pass
 
     @abstractmethod
     def supports_target(self, target_type: str) -> bool:
@@ -188,7 +173,6 @@ class BaseRemediationExecutor(ABC):
         Returns:
             True if target type supported
         """
-        pass
 
     def has_capability(self, capability: ExecutorCapability) -> bool:
         """
@@ -263,7 +247,6 @@ class BaseRemediationExecutor(ABC):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - cleanup resources."""
-        pass
 
 
 class ExecutorMetadata:

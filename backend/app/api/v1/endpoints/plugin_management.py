@@ -7,30 +7,13 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    File,
-    HTTPException,
-    Query,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, validator
 
 from ....auth import get_current_user
 from ....database import User
-from ....models.plugin_models import (
-    InstalledPlugin,
-    PluginExecutionRequest,
-    PluginExecutionResult,
-    PluginStatus,
-    PluginTrustLevel,
-    PluginType,
-    SecurityCheckResult,
-)
+from ....models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
 from ....rbac import check_permission
 from ....services.plugin_import_service import PluginImportService
 from ....services.plugin_signature_service import PluginSignatureService
@@ -121,9 +104,7 @@ class TrustedKeyAddRequest(BaseModel):
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.tar.gz, .zip, .owplugin)"),
     verify_signature: bool = Query(True, description="Verify plugin signature"),
-    trust_level_override: Optional[PluginTrustLevel] = Query(
-        None, description="Override trust level (admin only)"
-    ),
+    trust_level_override: Optional[PluginTrustLevel] = Query(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
 ):
@@ -149,12 +130,11 @@ async def import_plugin_from_file(
 
         # Validate file type
         if not file.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
         allowed_extensions = {".tar.gz", ".tgz", ".zip", ".owplugin"}
-        file_extension = "".join(file.filename.lower().split(".")[1:])
+        # file_extension extracted for potential future use (logging, validation)
+        _file_extension = "".join(file.filename.lower().split(".")[1:])  # noqa: F841
         if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -175,7 +155,7 @@ async def import_plugin_from_file(
 
         # Log import attempt
         logger.info(
-            f"Plugin import attempt",
+            "Plugin import attempt",
             extra={
                 "user": current_user.username,
                 "filename": file.filename,
@@ -234,7 +214,7 @@ async def import_plugin_from_url(
 
         # Log import attempt
         logger.info(
-            f"Plugin URL import attempt",
+            "Plugin URL import attempt",
             extra={
                 "user": current_user.username,
                 "url": plugin_url,
@@ -294,11 +274,7 @@ async def list_plugins(
         # Get paginated results
         skip = (page - 1) * page_size
         plugins = (
-            await InstalledPlugin.find(query)
-            .skip(skip)
-            .limit(page_size)
-            .sort(-InstalledPlugin.imported_at)
-            .to_list()
+            await InstalledPlugin.find(query).skip(skip).limit(page_size).sort(-InstalledPlugin.imported_at).to_list()
         )
 
         # Format response
@@ -372,9 +348,7 @@ async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_cu
             "security_checks": len(plugin.security_checks),
             "checks_passed": len([c for c in plugin.security_checks if c.passed]),
             "last_security_scan": (
-                max([c.timestamp for c in plugin.security_checks]).isoformat()
-                if plugin.security_checks
-                else None
+                max([c.timestamp for c in plugin.security_checks]).isoformat() if plugin.security_checks else None
             ),
         }
 
@@ -457,7 +431,7 @@ async def update_plugin_status(
 
         # Log status change
         logger.info(
-            f"Plugin status updated",
+            "Plugin status updated",
             extra={
                 "plugin_id": plugin_id,
                 "old_status": current_status.value,
@@ -511,16 +485,14 @@ async def uninstall_plugin(
         if remove_from_rules and plugin.applied_to_rules:
             # This would integrate with the compliance rules system
             # For now, just log the action
-            logger.info(
-                f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules"
-            )
+            logger.info(f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules")
 
         # Delete plugin
         await plugin.delete()
 
         # Log uninstallation
         logger.info(
-            f"Plugin uninstalled",
+            "Plugin uninstalled",
             extra={
                 "plugin_id": plugin_id,
                 "plugin_name": plugin.manifest.name,
@@ -599,7 +571,7 @@ async def add_trusted_key(
 
         # Log key addition
         logger.info(
-            f"Trusted key added",
+            "Trusted key added",
             extra={
                 "key_id": result["key_id"],
                 "key_name": result["key_name"],

@@ -32,14 +32,14 @@ class EmailService:
             logger.warning("No recipients provided for host offline alert")
             return False
 
-        subject = f"🚨 Host Offline Alert: {host_name}"
+        subject = f"[ALERT] Host Offline: {host_name}"
 
         # Create HTML body
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h2 style="color: #d32f2f; margin-bottom: 20px;">🚨 Host Offline Alert</h2>
+                    <h2 style="color: #d32f2f; margin-bottom: 20px;">[ALERT] Host Offline</h2>
 
                     <div style="background-color: #ffebee; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; font-weight: bold;">A monitored host has gone offline and requires attention.</p>
@@ -117,14 +117,14 @@ This is an automated message from OpenWatch Security Scanner.
             logger.warning("No recipients provided for host online alert")
             return False
 
-        subject = f"✅ Host Online: {host_name}"
+        subject = f"[RESOLVED] Host Online: {host_name}"
 
         # Create HTML body
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h2 style="color: #388e3c; margin-bottom: 20px;">✅ Host Back Online</h2>
+                    <h2 style="color: #388e3c; margin-bottom: 20px;">[RESOLVED] Host Back Online</h2>
 
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; font-weight: bold;">A previously offline host is now back online.</p>
@@ -147,7 +147,7 @@ This is an automated message from OpenWatch Security Scanner.
 
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; color: #388e3c;">
-                            ✅ The host is now responding to connectivity checks and SSH authentication is working properly.
+                            The host is now responding to connectivity checks and SSH authentication is working properly.
                         </p>
                     </div>
 

@@ -4,7 +4,6 @@ Handles MongoDB connections, data operations, and testing
 OW-REFACTOR-002: Migrating to Repository Pattern
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -30,7 +29,7 @@ try:
     from ..repositories import ComplianceRuleRepository
 
     REPOSITORY_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     REPOSITORY_AVAILABLE = False
 
     # Fallback when mongo models are not available
@@ -260,9 +259,7 @@ fi
         query = {query_field: version}
 
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})")
         repo = ComplianceRuleRepository()
         rules = await repo.find_many(query)
 
@@ -281,9 +278,7 @@ fi
         query = {query_field: {"$exists": True}}
 
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})")
         repo = ComplianceRuleRepository()
         rules = await repo.find_many(query)
 
@@ -476,9 +471,7 @@ fi
             # Execute aggregation (fallback to manual processing if aggregation fails)
             try:
                 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-                logger.debug(
-                    "Using ComplianceRuleRepository for get_platform_statistics aggregation"
-                )
+                logger.debug("Using ComplianceRuleRepository for get_platform_statistics aggregation")
                 repo = ComplianceRuleRepository()
                 aggregation_results = await repo.aggregate(pipeline)
 
@@ -494,18 +487,12 @@ fi
 
                         categories = []
                         total_rules = result.get("ruleCount", 0)
-                        for cat, count in sorted(
-                            category_counts.items(), key=lambda x: x[1], reverse=True
-                        ):
+                        for cat, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True):
                             categories.append(
                                 {
                                     "name": cat.replace("_", " ").title(),
                                     "count": count,
-                                    "percentage": (
-                                        round((count / total_rules) * 100, 1)
-                                        if total_rules > 0
-                                        else 0
-                                    ),
+                                    "percentage": (round((count / total_rules) * 100, 1) if total_rules > 0 else 0),
                                 }
                             )
 
@@ -535,9 +522,7 @@ fi
                     }
 
             except Exception as agg_error:
-                logger.warning(
-                    f"MongoDB aggregation failed, falling back to manual processing: {agg_error}"
-                )
+                logger.warning(f"MongoDB aggregation failed, falling back to manual processing: {agg_error}")
 
             # Fallback: Manual processing of all rules
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)

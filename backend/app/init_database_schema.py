@@ -47,7 +47,7 @@ def create_unified_credentials_table(db: Session) -> bool:
         table_exists = result.scalar()
 
         if table_exists:
-            logger.info("✅ unified_credentials table already exists")
+            logger.info("[OK] unified_credentials table already exists")
             return True
 
         logger.info("Creating unified_credentials table...")
@@ -131,11 +131,11 @@ def create_unified_credentials_table(db: Session) -> bool:
         )
 
         db.commit()
-        logger.info("✅ unified_credentials table created successfully with indexes")
+        logger.info("[OK] unified_credentials table created successfully with indexes")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to create unified_credentials table: {e}")
+        logger.error(f"[ERROR] Failed to create unified_credentials table: {e}")
         db.rollback()
         return False
 
@@ -164,7 +164,7 @@ def create_scheduler_config_table(db: Session) -> bool:
         table_exists = result.scalar()
 
         if table_exists:
-            logger.info("✅ scheduler_config table already exists")
+            logger.info("[OK] scheduler_config table already exists")
             return True
 
         logger.info("Creating scheduler_config table...")
@@ -198,11 +198,11 @@ def create_scheduler_config_table(db: Session) -> bool:
         )
 
         db.commit()
-        logger.info("✅ scheduler_config table created successfully")
+        logger.info("[OK] scheduler_config table created successfully")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to create scheduler_config table: {e}")
+        logger.error(f"[ERROR] Failed to create scheduler_config table: {e}")
         db.rollback()
         return False
 
@@ -243,12 +243,12 @@ def verify_critical_tables(db: Session) -> dict:
             )
 
             exists = result.scalar()
-            status[table_name] = "✅" if exists else "❌"
+            status[table_name] = "[OK]" if exists else "[MISSING]"
 
             if not exists:
-                logger.warning(f"❌ Critical table missing: {table_name}")
+                logger.warning(f"[MISSING] Critical table missing: {table_name}")
         except Exception as e:
-            status[table_name] = f"❌ Error: {e}"
+            status[table_name] = f"[ERROR] {e}"
             logger.error(f"Error checking table {table_name}: {e}")
 
     return status
@@ -271,20 +271,20 @@ def initialize_database_schema() -> bool:
         # Create standard ORM tables first
         logger.info("Creating standard SQLAlchemy ORM tables...")
         Base.metadata.create_all(bind=engine)
-        logger.info("✅ Standard tables created")
+        logger.info("[OK] Standard tables created")
 
         # Create tables without ORM models
         db = SessionLocal()
         try:
             # Create unified_credentials (CRITICAL for SSH)
             if not create_unified_credentials_table(db):
-                logger.error("❌ CRITICAL: Failed to create unified_credentials table")
+                logger.error("[CRITICAL] Failed to create unified_credentials table")
                 logger.error("   SSH credential creation will FAIL without this table!")
                 return False
 
             # Create scheduler_config (CRITICAL for monitoring)
             if not create_scheduler_config_table(db):
-                logger.warning("⚠️  Warning: Failed to create scheduler_config table")
+                logger.warning("[WARNING] Failed to create scheduler_config table")
                 logger.warning("   Host monitoring scheduler may not work correctly")
                 # Don't return False - this is not critical enough to abort startup
 
@@ -302,12 +302,14 @@ def initialize_database_schema() -> bool:
             missing_critical = [
                 table
                 for table, status in table_status.items()
-                if status.startswith("❌") and table in ["users", "unified_credentials", "hosts"]
+                if status.startswith("[MISSING]")
+                or status.startswith("[ERROR]")
+                and table in ["users", "unified_credentials", "hosts"]
             ]
 
             if missing_critical:
                 logger.error("")
-                logger.error("❌ CRITICAL TABLES MISSING:")
+                logger.error("[CRITICAL] TABLES MISSING:")
                 for table in missing_critical:
                     logger.error(f"   - {table}")
                 logger.error("")
@@ -316,7 +318,7 @@ def initialize_database_schema() -> bool:
 
             logger.info("")
             logger.info("=" * 60)
-            logger.info("✅ DATABASE SCHEMA INITIALIZATION COMPLETE")
+            logger.info("[OK] DATABASE SCHEMA INITIALIZATION COMPLETE")
             logger.info("=" * 60)
             return True
 
@@ -324,7 +326,7 @@ def initialize_database_schema() -> bool:
             db.close()
 
     except Exception as e:
-        logger.error(f"❌ Database schema initialization failed: {e}")
+        logger.error(f"[ERROR] Database schema initialization failed: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
@@ -337,8 +339,8 @@ if __name__ == "__main__":
 
     success = initialize_database_schema()
     if success:
-        print("\n✅ Database schema initialized successfully!")
+        print("\n[OK] Database schema initialized successfully!")
         exit(0)
     else:
-        print("\n❌ Database schema initialization failed!")
+        print("\n[ERROR] Database schema initialization failed!")
         exit(1)

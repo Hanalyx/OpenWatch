@@ -18,12 +18,12 @@ Status values:
 - maintenance: Planned/manual maintenance mode
 - degraded: Can ping and ssh, but no elevated privilege (permission issues)
 """
+
 from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers
-revision = '009'
-down_revision = '008'
+revision = "009"
+down_revision = "008"
 branch_labels = None
 depends_on = None
 
@@ -32,7 +32,8 @@ def upgrade() -> None:
     """Add monitoring fields to hosts table"""
 
     # Add monitoring scheduling fields
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             -- Next check time
@@ -67,10 +68,12 @@ def upgrade() -> None:
                 ALTER TABLE hosts ADD COLUMN last_state_change TIMESTAMP WITHOUT TIME ZONE;
             END IF;
         END $$
-    """)
+    """
+    )
 
     # Add consecutive check counters for multi-level monitoring
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             -- Ping level counters
@@ -118,25 +121,34 @@ def upgrade() -> None:
                 ALTER TABLE hosts ADD COLUMN privilege_consecutive_successes INTEGER NOT NULL DEFAULT 0;
             END IF;
         END $$
-    """)
+    """
+    )
 
     # Update existing hosts to have default check priority
-    op.execute("""
+    op.execute(
+        """
         UPDATE hosts
         SET check_priority = 5
         WHERE check_priority IS NULL
-    """)
+    """
+    )
 
     # Create indexes for monitoring performance
-    op.execute("""
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_hosts_next_check_time ON hosts(next_check_time) WHERE is_active = true
-    """)
-    op.execute("""
+    """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_hosts_check_priority ON hosts(check_priority) WHERE is_active = true
-    """)
-    op.execute("""
+    """
+    )
+    op.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_hosts_status ON hosts(status) WHERE is_active = true
-    """)
+    """
+    )
 
 
 def downgrade() -> None:
@@ -148,7 +160,8 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS idx_hosts_next_check_time")
 
     # Remove monitoring scheduling fields
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hosts' AND column_name = 'next_check_time') THEN
@@ -164,10 +177,12 @@ def downgrade() -> None:
                 ALTER TABLE hosts DROP COLUMN last_state_change;
             END IF;
         END $$
-    """)
+    """
+    )
 
     # Remove consecutive check counters
-    op.execute("""
+    op.execute(
+        """
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'hosts' AND column_name = 'ping_consecutive_failures') THEN
@@ -189,4 +204,5 @@ def downgrade() -> None:
                 ALTER TABLE hosts DROP COLUMN privilege_consecutive_successes;
             END IF;
         END $$
-    """)
+    """
+    )

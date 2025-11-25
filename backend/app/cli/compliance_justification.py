@@ -9,18 +9,10 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict
 
-from backend.app.models.unified_rule_models import (
-    ComplianceStatus,
-    RuleExecution,
-    UnifiedComplianceRule,
-)
-from backend.app.services.compliance_justification_engine import (
-    AuditEvidence,
-    ComplianceJustificationEngine,
-    JustificationType,
-)
+from backend.app.models.unified_rule_models import UnifiedComplianceRule
+from backend.app.services.compliance_justification_engine import ComplianceJustificationEngine
 from backend.app.services.multi_framework_scanner import ScanResult
 
 
@@ -84,9 +76,7 @@ async def generate_justifications(args):
     batch_justifications = await engine.generate_batch_justifications(scan_result, unified_rules)
 
     # Display summary
-    total_justifications = sum(
-        len(justifications) for justifications in batch_justifications.values()
-    )
+    total_justifications = sum(len(justifications) for justifications in batch_justifications.values())
     print(f"\nGenerated {total_justifications} compliance justifications")
     print("=" * 80)
 
@@ -105,10 +95,7 @@ async def generate_justifications(args):
         print("-" * 60)
 
         for justification in justifications[: args.max_display]:
-            print(
-                f"  {justification.framework_id}:{justification.control_id} "
-                f"on {justification.host_id}"
-            )
+            print(f"  {justification.framework_id}:{justification.control_id} " f"on {justification.host_id}")
             print(f"    {justification.summary}")
             if args.verbose:
                 print(f"    Evidence: {len(justification.evidence)} items")
@@ -118,7 +105,7 @@ async def generate_justifications(args):
     # Show exceeding compliance details
     exceeding_justifications = justification_types.get("exceeds", [])
     if exceeding_justifications:
-        print(f"\nEXCEEDING COMPLIANCE HIGHLIGHTS:")
+        print("\nEXCEEDING COMPLIANCE HIGHLIGHTS:")
         print("-" * 60)
 
         for justification in exceeding_justifications:
@@ -144,9 +131,7 @@ async def generate_justifications(args):
 
         # Export each framework
         for framework_id, justifications in framework_justifications.items():
-            export_data = await engine.export_audit_package(
-                justifications, framework_id, args.export_format
-            )
+            export_data = await engine.export_audit_package(justifications, framework_id, args.export_format)
 
             if args.output_dir:
                 output_dir = Path(args.output_dir)
@@ -211,30 +196,28 @@ async def analyze_evidence(args):
 
     # Display evidence analysis
     print(f"Total Justifications: {evidence_analysis['total_justifications']}")
-    print(f"Evidence by Type:")
+    print("Evidence by Type:")
     for evidence_type, count in evidence_analysis["evidence_by_type"].items():
         print(f"  {evidence_type:15} {count:6} items")
 
-    print(f"\nConfidence Distribution:")
+    print("\nConfidence Distribution:")
     total_evidence = sum(evidence_analysis["confidence_distribution"].values())
     for confidence, count in evidence_analysis["confidence_distribution"].items():
         percentage = (count / total_evidence * 100) if total_evidence > 0 else 0
         print(f"  {confidence:10} {count:6} ({percentage:5.1f}%)")
 
     # Identify gaps
-    print(f"\nEVIDENCE QUALITY RECOMMENDATIONS:")
+    print("\nEVIDENCE QUALITY RECOMMENDATIONS:")
     print("-" * 60)
 
     if evidence_analysis["confidence_distribution"]["low"] > total_evidence * 0.2:
-        print("⚠ High proportion of low-confidence evidence - consider additional validation")
+        print("[WARNING] High proportion of low-confidence evidence - consider additional validation")
 
     if "monitoring" not in evidence_analysis["evidence_by_type"]:
-        print(
-            "💡 No continuous monitoring evidence found - consider adding monitoring capabilities"
-        )
+        print("[INFO] No continuous monitoring evidence found - consider adding monitoring capabilities")
 
     if "policy" not in evidence_analysis["evidence_by_type"]:
-        print("💡 No policy evidence found - consider documenting policy compliance")
+        print("[INFO] No policy evidence found - consider documenting policy compliance")
 
     # Framework coverage
     framework_evidence = {}
@@ -255,7 +238,7 @@ async def analyze_evidence(args):
         if data["justifications"] > 0:
             data["avg_evidence_per_justification"] = data["evidence_items"] / data["justifications"]
 
-    print(f"\nFRAMEWORK EVIDENCE COVERAGE:")
+    print("\nFRAMEWORK EVIDENCE COVERAGE:")
     print("-" * 60)
     for framework_id, data in framework_evidence.items():
         print(
@@ -312,9 +295,7 @@ async def validate_justifications(args):
         ]
 
         for component_name, component_value in required_components:
-            if not component_value or (
-                isinstance(component_value, str) and len(component_value.strip()) < 10
-            ):
+            if not component_value or (isinstance(component_value, str) and len(component_value.strip()) < 10):
                 is_complete = False
                 if component_name not in validation_results["missing_components"]:
                     validation_results["missing_components"][component_name] = 0
@@ -352,22 +333,16 @@ async def validate_justifications(args):
 
     # Display validation results
     complete_percentage = (
-        (
-            validation_results["complete_justifications"]
-            / validation_results["total_justifications"]
-            * 100
-        )
+        (validation_results["complete_justifications"] / validation_results["total_justifications"] * 100)
         if validation_results["total_justifications"] > 0
         else 0
     )
 
     print(f"Total Justifications: {validation_results['total_justifications']}")
-    print(
-        f"Complete Justifications: {validation_results['complete_justifications']} ({complete_percentage:.1f}%)"
-    )
+    print(f"Complete Justifications: {validation_results['complete_justifications']} ({complete_percentage:.1f}%)")
 
     if validation_results["missing_components"]:
-        print(f"\nMissing Components:")
+        print("\nMissing Components:")
         for component, count in validation_results["missing_components"].items():
             print(f"  {component:25} {count:3} justifications")
 
@@ -378,29 +353,27 @@ async def validate_justifications(args):
         if len(validation_results["quality_issues"]) > 10:
             print(f"  ... and {len(validation_results['quality_issues']) - 10} more issues")
 
-    print(f"\nFramework Validation:")
+    print("\nFramework Validation:")
     print("-" * 60)
     for framework_id, data in validation_results["framework_validation"].items():
         framework_percentage = (data["complete"] / data["total"] * 100) if data["total"] > 0 else 0
-        print(
-            f"{framework_id:20} {data['complete']:3}/{data['total']:3} complete ({framework_percentage:5.1f}%)"
-        )
+        print(f"{framework_id:20} {data['complete']:3}/{data['total']:3} complete ({framework_percentage:5.1f}%)")
 
     # Recommendations
-    print(f"\nRECOMMENDATIONS:")
+    print("\nRECOMMENDATIONS:")
     print("-" * 40)
 
     if complete_percentage < 90:
-        print("🔧 Improve justification completeness by addressing missing components")
+        print("[ACTION] Improve justification completeness by addressing missing components")
 
     if validation_results["missing_components"].get("evidence", 0) > 0:
-        print("📋 Add more comprehensive evidence collection")
+        print("[ACTION] Add more comprehensive evidence collection")
 
     if validation_results["missing_components"].get("risk_assessment", 0) > 0:
-        print("⚖️ Enhance risk assessment documentation")
+        print("[ACTION] Enhance risk assessment documentation")
 
     if complete_percentage >= 95:
-        print("✅ Excellent justification quality - audit ready")
+        print("[PASS] Excellent justification quality - audit ready")
 
     return 0
 
@@ -441,9 +414,7 @@ async def export_audit_package(args):
 
         # Export in both JSON and CSV formats
         for format_type in ["json", "csv"]:
-            export_data = await engine.export_audit_package(
-                justifications, framework_id, format_type
-            )
+            export_data = await engine.export_audit_package(justifications, framework_id, format_type)
 
             output_file = output_dir / f"{framework_id}_audit_package.{format_type}"
             with open(output_file, "w") as f:
@@ -458,28 +429,16 @@ async def export_audit_package(args):
             "generated_at": datetime.utcnow().isoformat(),
             "scan_id": scan_result.scan_id,
             "total_frameworks": len(framework_justifications),
-            "total_justifications": sum(
-                len(justifications) for justifications in framework_justifications.values()
-            ),
+            "total_justifications": sum(len(justifications) for justifications in framework_justifications.values()),
             "frameworks": {
                 framework_id: {
                     "justification_count": len(justifications),
                     "compliance_summary": {
-                        "compliant": len(
-                            [j for j in justifications if j.compliance_status.value == "compliant"]
-                        ),
-                        "exceeds": len(
-                            [j for j in justifications if j.compliance_status.value == "exceeds"]
-                        ),
-                        "partial": len(
-                            [j for j in justifications if j.compliance_status.value == "partial"]
-                        ),
+                        "compliant": len([j for j in justifications if j.compliance_status.value == "compliant"]),
+                        "exceeds": len([j for j in justifications if j.compliance_status.value == "exceeds"]),
+                        "partial": len([j for j in justifications if j.compliance_status.value == "partial"]),
                         "non_compliant": len(
-                            [
-                                j
-                                for j in justifications
-                                if j.compliance_status.value == "non_compliant"
-                            ]
+                            [j for j in justifications if j.compliance_status.value == "non_compliant"]
                         ),
                     },
                 }
@@ -491,7 +450,7 @@ async def export_audit_package(args):
     with open(summary_file, "w") as f:
         json.dump(summary_data, f, indent=2)
 
-    print(f"\nAudit package export complete!")
+    print("\nAudit package export complete!")
     print(f"Output directory: {output_dir.absolute()}")
     print(f"Summary report: {summary_file}")
 
@@ -540,26 +499,20 @@ Examples:
 
     # Generate justifications command
     generate_parser = subparsers.add_parser("generate", help="Generate compliance justifications")
-    generate_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    generate_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     generate_parser.add_argument(
         "--rules-directory",
         required=True,
         help="Directory containing unified rules JSON files",
     )
-    generate_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed justification information"
-    )
+    generate_parser.add_argument("--verbose", action="store_true", help="Show detailed justification information")
     generate_parser.add_argument(
         "--max-display",
         type=int,
         default=5,
         help="Maximum justifications to display per type",
     )
-    generate_parser.add_argument(
-        "--export", action="store_true", help="Export justifications as audit packages"
-    )
+    generate_parser.add_argument("--export", action="store_true", help="Export justifications as audit packages")
     generate_parser.add_argument(
         "--export-format",
         choices=["json", "csv"],
@@ -570,9 +523,7 @@ Examples:
 
     # Analyze evidence command
     evidence_parser = subparsers.add_parser("analyze-evidence", help="Analyze evidence quality")
-    evidence_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    evidence_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     evidence_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -581,9 +532,7 @@ Examples:
 
     # Validate justifications command
     validate_parser = subparsers.add_parser("validate", help="Validate justification completeness")
-    validate_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    validate_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     validate_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -592,9 +541,7 @@ Examples:
 
     # Export audit package command
     export_parser = subparsers.add_parser("export-audit", help="Export comprehensive audit package")
-    export_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    export_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     export_parser.add_argument(
         "--rules-directory",
         required=True,

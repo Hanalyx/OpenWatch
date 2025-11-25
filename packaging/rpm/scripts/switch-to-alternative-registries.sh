@@ -77,7 +77,7 @@ RUN npm ci --only=production
 COPY frontend/ .
 RUN npm run build
 
-# Production stage  
+# Production stage
 FROM ghcr.io/nginx/nginx:alpine
 COPY --from=builder /app/build /usr/share/nginx/html
 COPY docker/frontend/default.conf /etc/nginx/conf.d/default.conf
@@ -94,7 +94,7 @@ set -euo pipefail
 
 REGISTRIES=(
     "quay.io"
-    "ghcr.io" 
+    "ghcr.io"
     "gcr.io"
     "registry.access.redhat.com"
 )
@@ -102,13 +102,13 @@ REGISTRIES=(
 test_registry() {
     local registry="$1"
     local test_image="$2"
-    
+
     echo "Testing $registry..."
     if timeout 10 podman pull "$registry/$test_image" --quiet; then
-        echo "✓ $registry is available"
+        echo "[OK] $registry is available"
         return 0
     else
-        echo "✗ $registry failed or timed out"
+        echo "[FAIL] $registry failed or timed out"
         return 1
     fi
 }
@@ -126,7 +126,7 @@ for registry in "${REGISTRIES[@]}"; do
             ;;
         "ghcr.io")
             if test_registry "$registry" "nginx/nginx:alpine"; then
-                PREFERRED_REGISTRY="$registry"  
+                PREFERRED_REGISTRY="$registry"
                 break
             fi
             ;;
@@ -161,7 +161,7 @@ chmod +x "$DOCKER_DIR/select-registry.sh"
 log_success "Created alternative registry configurations"
 log_info "Files created:"
 log_info "  - $DOCKER_DIR/Containerfile.frontend.gcr"
-log_info "  - $DOCKER_DIR/Containerfile.frontend.ghcr"  
+log_info "  - $DOCKER_DIR/Containerfile.frontend.ghcr"
 log_info "  - $DOCKER_DIR/select-registry.sh"
 log_info "  - Backup: $BACKUP_DIR/"
 log_info ""

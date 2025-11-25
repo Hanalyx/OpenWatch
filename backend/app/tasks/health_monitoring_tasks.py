@@ -7,7 +7,6 @@ Scheduled tasks that periodically collect and store health metrics.
 import logging
 from datetime import datetime, timedelta
 
-from celery import Celery
 from celery.schedules import crontab
 
 from backend.app.celery_app import celery_app
@@ -100,8 +99,7 @@ async def update_health_summary_task():
         await health_service.save_health_summary(summary)
 
         logger.info(
-            f"Health summary updated: {summary.overall_health_status}, "
-            f"{summary.active_issues_count} active issues"
+            f"Health summary updated: {summary.overall_health_status}, " f"{summary.active_issues_count} active issues"
         )
 
         return {

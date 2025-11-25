@@ -7,21 +7,18 @@ import asyncio
 import concurrent.futures
 import json
 import logging
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List
 
-from .scap_scanner import ScanExecutionError, SCAPContentError, SCAPScanner
+from .scap_scanner import SCAPContentError, SCAPScanner
 
 logger = logging.getLogger(__name__)
 
 
 class CLIScannerError(Exception):
     """Exception raised for CLI scanner specific errors"""
-
-    pass
 
 
 class SCAPCLIScanner:
@@ -67,9 +64,7 @@ class SCAPCLIScanner:
 
             if hostname in ["localhost", "127.0.0.1", "::1"]:
                 # Local scan
-                return await self._execute_local_scan_async(
-                    content_path, profile_id, scan_id, rule_id
-                )
+                return await self._execute_local_scan_async(content_path, profile_id, scan_id, rule_id)
             else:
                 # Remote scan
                 return await self._execute_remote_scan_async(
@@ -118,9 +113,7 @@ class SCAPCLIScanner:
         total_hosts = len(hosts_configs)
         completed_scans = 0
 
-        logger.info(
-            f"Starting parallel scan of {total_hosts} hosts (max parallel: {self.max_parallel_scans})"
-        )
+        logger.info(f"Starting parallel scan of {total_hosts} hosts (max parallel: {self.max_parallel_scans})")
 
         # Create semaphore to limit concurrent scans
         semaphore = asyncio.Semaphore(self.max_parallel_scans)
@@ -174,17 +167,11 @@ class SCAPCLIScanner:
             host_config = {
                 "hostname": target,
                 "port": 22,
-                "username": (
-                    default_credentials.get("username", "root") if default_credentials else "root"
-                ),
+                "username": (default_credentials.get("username", "root") if default_credentials else "root"),
                 "auth_method": (
-                    default_credentials.get("auth_method", "password")
-                    if default_credentials
-                    else "password"
+                    default_credentials.get("auth_method", "password") if default_credentials else "password"
                 ),
-                "credential": (
-                    default_credentials.get("credential", "") if default_credentials else ""
-                ),
+                "credential": (default_credentials.get("credential", "") if default_credentials else ""),
             }
             hosts_configs.append(host_config)
 
@@ -192,9 +179,7 @@ class SCAPCLIScanner:
         results = []
 
         def progress_callback(completed, total, result):
-            print(
-                f"[OpenWatch] Progress: {completed}/{total} - {result.get('hostname', 'unknown')} completed"
-            )
+            print(f"[OpenWatch] Progress: {completed}/{total} - {result.get('hostname', 'unknown')} completed")
 
         async for result in self.scan_multiple_hosts(
             hosts_configs, profile_id, content_path, rule_id, progress_callback
@@ -340,9 +325,7 @@ class SCAPCLIScanner:
                 "total_rules_passed": total_passed,
                 "total_rules_failed": total_failed,
                 "average_compliance_score": avg_score,
-                "overall_compliance_rate": (
-                    (total_passed / total_rules * 100) if total_rules > 0 else 0
-                ),
+                "overall_compliance_rate": ((total_passed / total_rules * 100) if total_rules > 0 else 0),
             },
             "timestamp": datetime.now().isoformat(),
         }

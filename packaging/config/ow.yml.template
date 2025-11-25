@@ -1,6 +1,6 @@
 # OpenWatch Configuration Template
 # Enterprise SCAP Compliance Platform
-# 
+#
 # This file configures the OpenWatch platform behavior, including:
 # - Container runtime selection (Docker/Podman)
 # - Network and security settings
@@ -21,15 +21,15 @@ runtime:
   # - docker: Force Docker runtime (Ubuntu default)
   # - podman: Force Podman runtime (RHEL/Oracle default)
   engine: "${RUNTIME_ENGINE:-auto}"
-  
+
   # Use rootless containers for enhanced security
   # Note: Docker on Ubuntu typically runs as root by default
   rootless: ${RUNTIME_ROOTLESS:-false}
-  
+
   # Path to compose file (auto-selected based on runtime)
   # Leave empty to use default based on runtime engine
   compose_file: "${COMPOSE_FILE:-}"
-  
+
   # Container registry settings
   registry:
     # Use local registry mirror for air-gapped environments
@@ -47,20 +47,20 @@ database:
   name: "${DB_NAME:-openwatch}"
   user: "${DB_USER:-openwatch}"
   # Password is loaded from /etc/openwatch/secrets.env
-  
+
   # SSL/TLS settings for database connections
   ssl_mode: "${DB_SSL_MODE:-prefer}"  # disable, prefer, require, verify-ca, verify-full
   ssl_cert: "${DB_SSL_CERT:-}"
   ssl_key: "${DB_SSL_KEY:-}"
   ssl_root_cert: "${DB_SSL_ROOT_CERT:-}"
-  
+
   # Connection pool settings
   pool:
     max_connections: ${DB_MAX_CONNECTIONS:-25}
     min_connections: ${DB_MIN_CONNECTIONS:-5}
     connection_timeout: ${DB_CONNECTION_TIMEOUT:-30}
     idle_timeout: ${DB_IDLE_TIMEOUT:-600}
-    
+
   # Performance tuning
   statement_cache_size: ${DB_STATEMENT_CACHE_SIZE:-100}
   query_timeout: ${DB_QUERY_TIMEOUT:-300}
@@ -74,7 +74,7 @@ redis:
   port: ${REDIS_PORT:-6379}
   database: ${REDIS_DATABASE:-0}
   # Password is loaded from /etc/openwatch/secrets.env
-  
+
   # Redis Sentinel for HA (optional)
   sentinel:
     enabled: ${REDIS_SENTINEL_ENABLED:-false}
@@ -83,7 +83,7 @@ redis:
       - "${REDIS_SENTINEL_NODE1:-}"
       - "${REDIS_SENTINEL_NODE2:-}"
       - "${REDIS_SENTINEL_NODE3:-}"
-  
+
   # Performance settings
   pool_size: ${REDIS_POOL_SIZE:-10}
   socket_timeout: ${REDIS_SOCKET_TIMEOUT:-5}
@@ -96,10 +96,10 @@ web:
   # Network binding
   port: ${WEB_PORT:-3001}
   bind_address: "${WEB_BIND_ADDRESS:-0.0.0.0}"
-  
+
   # Base URL for the application (used for redirects and links)
   base_url: "${WEB_BASE_URL:-http://localhost:3001}"
-  
+
   # SSL/TLS configuration
   ssl:
     enabled: ${WEB_SSL_ENABLED:-false}
@@ -108,14 +108,14 @@ web:
     # TLS versions and cipher suites (FIPS-compliant defaults)
     min_tls_version: "${WEB_TLS_MIN_VERSION:-1.2}"
     cipher_suites: "${WEB_TLS_CIPHERS:-TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}"
-    
+
   # HTTP security headers
   security_headers:
     hsts_max_age: ${WEB_HSTS_MAX_AGE:-31536000}
     frame_options: "${WEB_FRAME_OPTIONS:-DENY}"
     content_type_options: "${WEB_CONTENT_TYPE_OPTIONS:-nosniff}"
     xss_protection: "${WEB_XSS_PROTECTION:-1; mode=block}"
-    
+
   # CORS settings
   cors:
     enabled: ${WEB_CORS_ENABLED:-false}
@@ -131,18 +131,18 @@ scanning:
   # SSH key for remote scanning
   ssh_key_path: "${SCAN_SSH_KEY_PATH:-/etc/openwatch/ssh/openwatch_rsa}"
   ssh_key_passphrase: "${SCAN_SSH_KEY_PASSPHRASE:-}"
-  
+
   # Scanning limits and timeouts
   concurrent_scans: ${SCAN_CONCURRENT:-5}
   scan_timeout: ${SCAN_TIMEOUT:-300}  # seconds
   max_retries: ${SCAN_MAX_RETRIES:-3}
   retry_delay: ${SCAN_RETRY_DELAY:-60}  # seconds
-  
+
   # SCAP content management
   scap_content_dir: "${SCAN_CONTENT_DIR:-/var/lib/openwatch/scap}"
   results_dir: "${SCAN_RESULTS_DIR:-/var/lib/openwatch/results}"
   temp_dir: "${SCAN_TEMP_DIR:-/var/lib/openwatch/tmp}"
-  
+
   # Scanner behavior
   scanner:
     # OpenSCAP binary path (for custom installations)
@@ -151,7 +151,7 @@ scanning:
     extra_args: "${SCANNER_EXTRA_ARGS:-}"
     # Enable enhanced parsing (impacts performance)
     enhanced_parsing: ${SCANNER_ENHANCED_PARSING:-false}
-    
+
   # Result processing
   results:
     # Result formats to generate
@@ -167,7 +167,7 @@ scanning:
 security:
   # FIPS 140-2 compliance mode
   fips_mode: ${SECURITY_FIPS_MODE:-false}
-  
+
   # Authentication settings
   auth:
     # Session timeout in seconds
@@ -182,14 +182,14 @@ security:
     password_require_lowercase: ${AUTH_PASSWORD_LOWERCASE:-true}
     password_require_numbers: ${AUTH_PASSWORD_NUMBERS:-true}
     password_require_special: ${AUTH_PASSWORD_SPECIAL:-true}
-    
+
   # Multi-factor authentication
   mfa:
     enabled: ${MFA_ENABLED:-false}
     issuer: "${MFA_ISSUER:-OpenWatch}"
     # Time window for TOTP validation (seconds)
     window: ${MFA_WINDOW:-30}
-    
+
   # API security
   api:
     # Rate limiting (requests per minute)
@@ -198,7 +198,7 @@ security:
     key_expiration_days: ${API_KEY_EXPIRATION:-90}
     # Require API keys for all endpoints
     require_api_key: ${API_REQUIRE_KEY:-false}
-    
+
   # Audit logging
   audit:
     enabled: ${AUDIT_ENABLED:-true}
@@ -217,7 +217,7 @@ security:
 logging:
   # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: "${LOG_LEVEL:-INFO}"
-  
+
   # Log destinations
   file:
     enabled: ${LOG_FILE_ENABLED:-true}
@@ -226,14 +226,14 @@ logging:
     max_age: ${LOG_FILE_MAX_AGE:-30}  # days
     max_backups: ${LOG_FILE_MAX_BACKUPS:-10}
     compress: ${LOG_FILE_COMPRESS:-true}
-    
+
   # Audit log (separate from application log)
   audit_file:
     enabled: ${AUDIT_FILE_ENABLED:-true}
     path: "${AUDIT_FILE_PATH:-/var/log/openwatch/audit.log}"
     max_size: "${AUDIT_FILE_MAX_SIZE:-100MB}"
     max_age: ${AUDIT_FILE_MAX_AGE:-365}  # days
-    
+
   # Syslog forwarding
   syslog:
     enabled: ${SYSLOG_ENABLED:-false}
@@ -241,7 +241,7 @@ logging:
     port: ${SYSLOG_PORT:-514}
     protocol: "${SYSLOG_PROTOCOL:-udp}"  # udp, tcp
     facility: "${SYSLOG_FACILITY:-local0}"
-    
+
   # Structured logging
   json_format: ${LOG_JSON_FORMAT:-false}
   include_caller: ${LOG_INCLUDE_CALLER:-false}
@@ -258,7 +258,7 @@ monitoring:
     path: "${METRICS_PATH:-/metrics}"
     # Include detailed histogram metrics
     detailed_histograms: ${METRICS_DETAILED:-false}
-    
+
   # Health checks
   health:
     enabled: ${HEALTH_ENABLED:-true}
@@ -268,7 +268,7 @@ monitoring:
     database_check_interval: ${HEALTH_DB_INTERVAL:-30}
     redis_check_interval: ${HEALTH_REDIS_INTERVAL:-30}
     storage_check_interval: ${HEALTH_STORAGE_INTERVAL:-60}
-    
+
   # OpenTelemetry tracing
   tracing:
     enabled: ${TRACING_ENABLED:-false}
@@ -290,14 +290,14 @@ notifications:
     smtp_tls: ${EMAIL_SMTP_TLS:-true}
     from_address: "${EMAIL_FROM:-noreply@openwatch.local}"
     from_name: "${EMAIL_FROM_NAME:-OpenWatch}"
-    
+
   # Webhook notifications
   webhooks:
     enabled: ${WEBHOOK_ENABLED:-false}
     # Webhook endpoints are configured in the UI
     timeout: ${WEBHOOK_TIMEOUT:-30}
     max_retries: ${WEBHOOK_MAX_RETRIES:-3}
-    
+
   # Notification rules
   rules:
     # Send notifications for critical findings
@@ -323,14 +323,14 @@ integrations:
     base_dn: "${LDAP_BASE_DN:-}"
     user_filter: "${LDAP_USER_FILTER:-(uid={username})}"
     group_filter: "${LDAP_GROUP_FILTER:-(memberUid={username})}"
-    
+
   # SAML SSO
   saml:
     enabled: ${SAML_ENABLED:-false}
     idp_metadata_url: "${SAML_IDP_METADATA:-}"
     sp_entity_id: "${SAML_SP_ENTITY_ID:-}"
     sp_acs_url: "${SAML_SP_ACS_URL:-}"
-    
+
   # External APIs
   apis:
     # Timeout for external API calls
@@ -348,7 +348,7 @@ maintenance:
     schedule: "${BACKUP_SCHEDULE:-0 2 * * *}"  # Cron format
     retention_days: ${BACKUP_RETENTION:-30}
     destination: "${BACKUP_DESTINATION:-/var/lib/openwatch/backups}"
-    
+
   # Database maintenance
   database:
     # Automatic VACUUM
@@ -357,7 +357,7 @@ maintenance:
     # Automatic ANALYZE
     auto_analyze: ${DB_AUTO_ANALYZE:-true}
     analyze_schedule: "${DB_ANALYZE_SCHEDULE:-0 4 * * *}"  # Daily
-    
+
   # Log rotation (handled by logrotate on Linux)
   # See /etc/logrotate.d/openwatch
 
@@ -370,13 +370,13 @@ rhel:
   selinux_enabled: ${RHEL_SELINUX_ENABLED:-true}
   # Use FIPS-validated crypto
   fips_crypto: ${RHEL_FIPS_CRYPTO:-false}
-  
+
 ubuntu:
   # AppArmor integration
   apparmor_enabled: ${UBUNTU_APPARMOR_ENABLED:-true}
   # UFW firewall integration
   ufw_integration: ${UBUNTU_UFW_INTEGRATION:-false}
-  
+
 # Development mode settings (DO NOT USE IN PRODUCTION)
 development:
   enabled: ${DEV_MODE:-false}

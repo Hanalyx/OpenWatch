@@ -5,7 +5,7 @@ Ensures zero-downtime migration of existing user sessions during security upgrad
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import jwt
 from sqlalchemy import text
@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from ..auth import jwt_manager
 from ..config import get_settings
-from ..database import get_db
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -106,7 +105,7 @@ class SessionMigrationService:
             new_access_token = jwt_manager.create_access_token(user_data)
             new_refresh_token = jwt_manager.create_refresh_token(user_data)
 
-            logger.info(f"Session migrated for user: ***REDACTED***")
+            logger.info("Session migrated for user: ***REDACTED***")
 
             return {
                 "access_token": new_access_token,

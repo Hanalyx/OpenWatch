@@ -25,7 +25,7 @@ jobs:
     # DISABLED for open-source project - no staging infrastructure available
     if: false && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event.inputs.environment == 'staging')
     environment: staging
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -60,7 +60,7 @@ jobs:
         run: |
           # Wait for service to be ready
           sleep 30
-          
+
           # Check health endpoints
           curl -f https://staging.openwatch.hanalyx.com/health || exit 1
           curl -f https://staging.openwatch.hanalyx.com/api/health || exit 1
@@ -80,7 +80,7 @@ jobs:
     # DISABLED for open-source project - no production infrastructure available
     if: false && github.event.inputs.environment == 'production'
     environment: production
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -110,15 +110,15 @@ jobs:
             --task-definition openwatch-prod \
             --query 'taskDefinition' \
             --output json)
-          
+
           # Update image in task definition
           NEW_TASK_DEF=$(echo $TASK_DEFINITION | \
             jq '.containerDefinitions[0].image = "ghcr.io/hanalyx/openwatch-backend:${{ github.sha }}"' | \
             jq '.containerDefinitions[1].image = "ghcr.io/hanalyx/openwatch-frontend:${{ github.sha }}"')
-          
+
           # Register new task definition
           aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF"
-          
+
           # Update service with new task definition
           aws ecs update-service \
             --cluster openwatch-prod \
@@ -166,7 +166,7 @@ jobs:
     runs-on: ubuntu-latest
     # TEMPORARILY DISABLED: GitHub package permissions reverted, user needs to reconfigure
     if: false && github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -237,7 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     if: false  # Enable when K8s is configured
     environment: production
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

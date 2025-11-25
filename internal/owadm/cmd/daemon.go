@@ -27,7 +27,7 @@ func sendSystemdNotification(state string) error {
 	if !notifySystemd {
 		return nil
 	}
-	
+
 	// In a real implementation, this would use systemd notify protocol
 	fmt.Printf("SYSTEMD: %s\n", state)
 	return nil
@@ -37,7 +37,7 @@ func sendSystemdNotification(state string) error {
 func performHealthCheck(service string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	
+
 	switch service {
 	case "database":
 		return checkDatabaseHealth(ctx)
@@ -84,11 +84,11 @@ func checkWorkerHealth(ctx context.Context) error {
 func setupGracefulShutdown(cleanup func()) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
-	
+
 	go func() {
 		sig := <-c
 		fmt.Printf("Received signal: %v\n", sig)
-		
+
 		if sig == syscall.SIGHUP {
 			// Reload configuration
 			sendSystemdNotification("RELOADING=1")
@@ -97,7 +97,7 @@ func setupGracefulShutdown(cleanup func()) {
 			sendSystemdNotification("READY=1")
 			return
 		}
-		
+
 		// Graceful shutdown
 		sendSystemdNotification("STOPPING=1")
 		cleanup()
@@ -111,12 +111,12 @@ func startWatchdog() {
 	if watchdogSec == "" {
 		return
 	}
-	
+
 	// Parse watchdog interval and send periodic notifications
 	go func() {
 		ticker := time.NewTicker(30 * time.Second) // Send every 30 seconds
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			sendSystemdNotification("WATCHDOG=1")
 		}

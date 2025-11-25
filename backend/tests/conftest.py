@@ -1,17 +1,18 @@
 """
 Pytest configuration and fixtures for OpenWatch backend tests.
 """
-import pytest
+
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 # Test database configuration
 # Uses the same PostgreSQL instance as dev, but separate database
 TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://openwatch:openwatch_secure_db_2025@localhost:5432/openwatch_test"
+    "TEST_DATABASE_URL", "postgresql://openwatch:openwatch_secure_db_2025@localhost:5432/openwatch_test"
 )
 
 
@@ -47,10 +48,7 @@ def client():
 @pytest.fixture
 def admin_token(client):
     """Get admin JWT token for authenticated requests"""
-    response = client.post("/api/auth/login", json={
-        "username": "admin",
-        "password": "admin"
-    })
+    response = client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
 
     if response.status_code != 200:
         pytest.skip("Admin login not available in test environment")

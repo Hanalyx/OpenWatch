@@ -120,7 +120,7 @@ After `dnf remove openwatch`, these items remain on your system:
 
 ### Generated Files:
 - SSH keys in `/etc/openwatch/ssh/`
-- JWT keypairs 
+- JWT keypairs
 - SSL certificates
 - SCAP scan results
 

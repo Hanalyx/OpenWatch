@@ -25,25 +25,25 @@ echo ""
 
 # Backup existing certificates
 if [ -f "${CERT_DIR}/mongodb.pem" ]; then
-    echo -e "${YELLOW}⚠️  Backing up existing certificates...${NC}"
+    echo -e "${YELLOW}[WARNING] Backing up existing certificates...${NC}"
     mkdir -p "${BACKUP_DIR}"
     cp "${CERT_DIR}"/*.{pem,crt,key} "${BACKUP_DIR}/" 2>/dev/null || true
-    echo -e "${GREEN}✅ Backup created: ${BACKUP_DIR}${NC}"
+    echo -e "${GREEN}[OK] Backup created: ${BACKUP_DIR}${NC}"
     echo ""
 fi
 
 # Generate CA Certificate (Certificate Authority)
-echo -e "${BLUE}📝 Generating CA certificate...${NC}"
+echo -e "${BLUE}Generating CA certificate...${NC}"
 openssl genrsa -out "${CERT_DIR}/ca.key" 4096
 openssl req -new -x509 -days ${DAYS_VALID} -key "${CERT_DIR}/ca.key" \
     -out "${CERT_DIR}/ca.crt" \
     -subj "/C=US/ST=State/L=City/O=OpenWatch/OU=Security/CN=OpenWatch MongoDB CA" \
     -sha256
 
-echo -e "${GREEN}✅ CA certificate generated${NC}"
+echo -e "${GREEN}[OK] CA certificate generated${NC}"
 
 # Generate Server Certificate
-echo -e "${BLUE}📝 Generating server certificate...${NC}"
+echo -e "${BLUE}Generating server certificate...${NC}"
 openssl genrsa -out "${CERT_DIR}/server.key" 4096
 openssl req -new -key "${CERT_DIR}/server.key" \
     -out "${CERT_DIR}/server.csr" \
@@ -81,10 +81,10 @@ cat "${CERT_DIR}/server.key" "${CERT_DIR}/server.crt" > "${CERT_DIR}/mongodb.pem
 cp "${CERT_DIR}/server.key" "${CERT_DIR}/mongodb.key"
 cp "${CERT_DIR}/server.crt" "${CERT_DIR}/mongodb.crt"
 
-echo -e "${GREEN}✅ Server certificate generated${NC}"
+echo -e "${GREEN}[OK] Server certificate generated${NC}"
 
 # Generate Client Certificate
-echo -e "${BLUE}📝 Generating client certificate...${NC}"
+echo -e "${BLUE}Generating client certificate...${NC}"
 openssl genrsa -out "${CERT_DIR}/client.key" 4096
 openssl req -new -key "${CERT_DIR}/client.key" \
     -out "${CERT_DIR}/client.csr" \
@@ -99,10 +99,10 @@ openssl x509 -req -days ${DAYS_VALID} \
     -out "${CERT_DIR}/client.crt" \
     -sha256
 
-echo -e "${GREEN}✅ Client certificate generated${NC}"
+echo -e "${GREEN}[OK] Client certificate generated${NC}"
 
 # Set proper permissions
-echo -e "${BLUE}🔒 Setting secure permissions...${NC}"
+echo -e "${BLUE}Setting secure permissions...${NC}"
 chmod 600 "${CERT_DIR}"/*.key "${CERT_DIR}"/*.pem
 chmod 644 "${CERT_DIR}"/*.crt
 
@@ -111,12 +111,12 @@ rm -f "${CERT_DIR}"/*.csr "${CERT_DIR}"/*.srl "${CERT_DIR}"/*.v3.ext
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✅ Certificate Generation Complete${NC}"
+echo -e "${GREEN}Certificate Generation Complete${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # Display certificate information
-echo -e "${BLUE}📋 Certificate Details:${NC}"
+echo -e "${BLUE}Certificate Details:${NC}"
 echo ""
 echo -e "${YELLOW}CA Certificate:${NC}"
 openssl x509 -in "${CERT_DIR}/ca.crt" -noout -subject -dates
@@ -129,12 +129,12 @@ openssl x509 -in "${CERT_DIR}/client.crt" -noout -subject -dates
 echo ""
 
 # List generated files
-echo -e "${BLUE}📁 Generated Files:${NC}"
+echo -e "${BLUE}Generated Files:${NC}"
 ls -lh "${CERT_DIR}"/*.{pem,crt,key} 2>/dev/null | awk '{print $9, $5}'
 echo ""
 
 # Important notes
-echo -e "${YELLOW}⚠️  IMPORTANT SECURITY NOTES:${NC}"
+echo -e "${YELLOW}IMPORTANT SECURITY NOTES:${NC}"
 echo ""
 echo "1. These certificates are SELF-SIGNED and suitable for:"
 echo "   - Development environments"
@@ -209,6 +209,6 @@ cat >> "$LOG_FILE" << EOFLOGENTRY
 ---
 EOFLOGENTRY
 
-echo -e "${GREEN}✅ Rotation logged to: ${LOG_FILE}${NC}"
+echo -e "${GREEN}[OK] Rotation logged to: ${LOG_FILE}${NC}"
 echo ""
 echo -e "${GREEN}Certificate generation complete!${NC}"

@@ -7,7 +7,8 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, desc, or_, text
+from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
@@ -17,8 +18,6 @@ from ..rbac import RBACManager, UserRole
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
-
-from pydantic import BaseModel
 
 
 class AuditEventResponse(BaseModel):
@@ -74,9 +73,7 @@ async def get_audit_events(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Build base query
         query = """
@@ -177,9 +174,7 @@ async def get_audit_stats(
         # Check permissions
         user_role = UserRole(current_user.get("role", "guest"))
         if not RBACManager.can_access_resource(user_role, "audit", "read"):
-            raise HTTPException(
-                status_code=403, detail="Insufficient permissions to view audit logs"
-            )
+            raise HTTPException(status_code=403, detail="Insufficient permissions to view audit logs")
 
         # Calculate date range
         from datetime import datetime, timedelta

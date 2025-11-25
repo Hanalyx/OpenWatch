@@ -5,7 +5,6 @@ Direct command-line interface for SCAP scanning operations
 """
 import argparse
 import asyncio
-import json
 import logging
 import sys
 from pathlib import Path
@@ -14,13 +13,11 @@ from typing import Dict, List
 # Add the backend app to the path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import get_settings
-from services.scap_cli_scanner import CLIScannerError, SCAPCLIScanner
+from config import get_settings  # noqa: E402
+from services.scap_cli_scanner import SCAPCLIScanner  # noqa: E402
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -69,9 +66,7 @@ class OpenWatchCLI:
             if rule_id:
                 print(f"[OpenWatch] Scanning specific rule: {rule_id}")
 
-            result = await self.scanner.scan_single_host(
-                host_config, profile_id, content_path, rule_id
-            )
+            result = await self.scanner.scan_single_host(host_config, profile_id, content_path, rule_id)
 
             # Display results
             self._print_scan_result(result)
@@ -205,7 +200,7 @@ class OpenWatchCLI:
         scan_sum = summary["scan_summary"]
         comp_sum = summary["compliance_summary"]
 
-        print(f"\n[OpenWatch] Batch Scan Summary")
+        print("\n[OpenWatch] Batch Scan Summary")
         print("=" * 50)
         print(f"Total Targets: {len(targets)}")
         print(f"Successful Scans: {scan_sum['successful_scans']}")
@@ -245,15 +240,11 @@ Examples:
 
     # Remote scan command
     remote_parser = subparsers.add_parser("scan-remote", help="Execute remote SCAP scan")
-    remote_parser.add_argument(
-        "--targets", "-t", required=True, help="Comma-separated list of target hosts"
-    )
+    remote_parser.add_argument("--targets", "-t", required=True, help="Comma-separated list of target hosts")
     remote_parser.add_argument("--profile", "-p", required=True, help="SCAP profile ID")
     remote_parser.add_argument("--content", "-c", help="SCAP content file path")
     remote_parser.add_argument("--rule", "-r", help="Specific rule ID to scan")
-    remote_parser.add_argument(
-        "--parallel", type=int, default=5, help="Max parallel scans (default: 5)"
-    )
+    remote_parser.add_argument("--parallel", type=int, default=5, help="Max parallel scans (default: 5)")
     remote_parser.add_argument("--output", "-o", help="Output file for results (JSON)")
 
     # List profiles command

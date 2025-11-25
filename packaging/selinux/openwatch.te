@@ -116,21 +116,21 @@ ifdef(`distro_rhel',`
     # Podman rootless containers
     allow openwatch_t self:user_namespace create;
     allow openwatch_t self:capability { setuid setgid sys_chroot };
-    
+
     # Podman socket access
     stream_connect_pattern(openwatch_t, container_var_run_t, container_var_run_t, container_t)
-    
+
     # cgroup management for rootless
     fs_manage_cgroup_dirs(openwatch_t)
     fs_manage_cgroup_files(openwatch_t)
 ')
 
-# Docker-specific permissions  
+# Docker-specific permissions
 ifdef(`distro_ubuntu',`
     # Docker daemon socket
     allow openwatch_t container_var_run_t:sock_file { read write };
     stream_connect_pattern(openwatch_t, container_var_run_t, container_var_run_t, container_t)
-    
+
     # Docker network management
     allow openwatch_t self:capability net_admin;
 ')
@@ -232,7 +232,7 @@ allow openwatch_t self:tcp_socket connect;
 # Configuration directory transitions
 filetrans_pattern(openwatch_t, etc_t, openwatch_conf_t, dir, "openwatch")
 
-# Data directory transitions  
+# Data directory transitions
 filetrans_pattern(openwatch_t, var_lib_t, openwatch_var_lib_t, dir, "openwatch")
 
 # Log directory transitions
@@ -250,10 +250,10 @@ filetrans_pattern(openwatch_t, var_run_t, openwatch_var_run_t, dir, "openwatch")
 tunable_policy(`openwatch_development_mode',`
     # Allow broader file access for development
     files_read_all_files(openwatch_t)
-    
+
     # Allow ptrace for debugging
     allow openwatch_t self:capability sys_ptrace;
-    
+
     # Allow unconfined access in development
     unconfined_domain(openwatch_t)
 ',`
@@ -269,14 +269,14 @@ tunable_policy(`openwatch_development_mode',`
 ifdef(`distro_rhel',`
     # Rootless container namespace operations
     allow openwatch_t self:user_namespace create;
-    
+
     # Podman storage access
     allow openwatch_t container_var_lib_t:dir { mounton };
-    
+
     # cgroup v2 management
     allow openwatch_t cgroup_t:dir { add_name create remove_name rmdir write };
     allow openwatch_t cgroup_t:file { create open read write unlink };
-    
+
     # Podman registry access
     allow openwatch_t container_var_lib_t:file { execute };
 ')
@@ -285,10 +285,10 @@ ifdef(`distro_rhel',`
 ifdef(`distro_ubuntu',`
     # Docker daemon communication
     allow openwatch_t container_t:unix_stream_socket connectto;
-    
+
     # Docker network management
     allow openwatch_t self:capability { net_admin net_raw };
-    
+
     # Docker storage driver access
     allow openwatch_t container_var_lib_t:blk_file { read write };
 ')

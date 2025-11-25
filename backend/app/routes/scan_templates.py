@@ -2,8 +2,7 @@
 Scan Template Routes - Quick Scan Configuration
 """
 
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -29,9 +28,7 @@ class ScanTemplate(BaseModel):
 
 
 @router.get("/")
-async def list_scan_templates(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def list_scan_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """List available scan templates"""
     # For now, return predefined templates
     # In a full implementation, these would be stored in database

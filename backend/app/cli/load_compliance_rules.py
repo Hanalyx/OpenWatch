@@ -17,7 +17,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from ..models.mongo_models import ComplianceRule, mongo_manager
 from ..repositories import ComplianceRuleRepository
@@ -69,9 +69,7 @@ class ComplianceRulesLoader:
             logger.error(f"Failed to initialize MongoDB: {e}")
             return False
 
-    async def load_rules_from_directory(
-        self, rules_dir: Path, replace_existing: bool = False
-    ) -> Dict[str, int]:
+    async def load_rules_from_directory(self, rules_dir: Path, replace_existing: bool = False) -> Dict[str, int]:
         """Load all JSON rules from directory"""
         logger.info(f"Loading compliance rules from: {rules_dir}")
 
@@ -134,9 +132,7 @@ class ComplianceRulesLoader:
         if existing_rule and replace_existing:
             # Update existing rule
             compliance_rule_data["updated_at"] = datetime.utcnow()
-            await self.repo.update_one(
-                query={"rule_id": rule_id}, update={"$set": compliance_rule_data}
-            )
+            await self.repo.update_one(query={"rule_id": rule_id}, update={"$set": compliance_rule_data})
             logger.debug(f"Updated rule: {rule_id}")
         else:
             # Create new rule
@@ -196,16 +192,14 @@ class ComplianceRulesLoader:
             "manual_remediation": rule_data.get("manual_remediation"),
             "remediation_complexity": rule_data.get("remediation_complexity", "medium"),
             "remediation_risk": rule_data.get("remediation_risk", "low"),
-            "dependencies": rule_data.get(
-                "dependencies", {"requires": [], "conflicts": [], "related": []}
-            ),
+            "dependencies": rule_data.get("dependencies", {"requires": [], "conflicts": [], "related": []}),
             "source_file": rule_data.get("source_file", "unknown"),
             "source_hash": rule_data.get("source_hash", "unknown"),
             "version": rule_data.get("version", "1.0.0"),
             "imported_at": datetime.fromisoformat(
-                rule_data.get(
-                    "imported_at", datetime.utcnow().isoformat().replace("+00:00", "Z")
-                ).replace("Z", "+00:00")
+                rule_data.get("imported_at", datetime.utcnow().isoformat().replace("+00:00", "Z")).replace(
+                    "Z", "+00:00"
+                )
             ),
             "updated_at": datetime.utcnow(),
         }
@@ -246,9 +240,7 @@ class ComplianceRulesLoader:
         # Count platform implementations
         platform_counts = {}
         for platform in ["rhel", "ubuntu", "windows", "centos"]:
-            count = await self.repo.count(
-                {f"platform_implementations.{platform}": {"$exists": True}}
-            )
+            count = await self.repo.count({f"platform_implementations.{platform}": {"$exists": True}})
             platform_counts[platform] = count
 
         validation_results = {
@@ -287,9 +279,7 @@ class ComplianceRulesLoader:
 
             # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
             # Count total rules for this platform
-            rule_count = await self.repo.count(
-                {f"platform_implementations.{platform_key}": {"$exists": True}}
-            )
+            rule_count = await self.repo.count({f"platform_implementations.{platform_key}": {"$exists": True}})
 
             if rule_count == 0:
                 continue
@@ -360,9 +350,7 @@ async def main():
         default="/home/rracine/hanalyx/openwatch/data/compliance_rules",
         help="Source directory containing JSON rule files",
     )
-    parser.add_argument(
-        "--replace", action="store_true", help="Replace existing rules if they exist"
-    )
+    parser.add_argument("--replace", action="store_true", help="Replace existing rules if they exist")
 
     args = parser.parse_args()
 
@@ -378,7 +366,7 @@ async def main():
             source_path = Path(args.source)
             results = await loader.load_rules_from_directory(source_path, args.replace)
 
-            print(f"\n=== Loading Results ===")
+            print("\n=== Loading Results ===")
             print(f"Successfully loaded: {results['loaded']}")
             print(f"Errors: {results['errors']}")
             print(f"Skipped (already exist): {results['skipped']}")
@@ -387,22 +375,22 @@ async def main():
         elif args.command == "validate":
             results = await loader.validate_loaded_rules()
 
-            print(f"\n=== Validation Results ===")
+            print("\n=== Validation Results ===")
             print(f"Total rules in database: {results['total_rules']}")
-            print(f"\nSeverity distribution:")
+            print("\nSeverity distribution:")
             for severity, count in results["severity_distribution"].items():
                 print(f"  {severity}: {count}")
-            print(f"\nFramework coverage:")
+            print("\nFramework coverage:")
             for framework, count in results["framework_coverage"].items():
                 print(f"  {framework}: {count}")
-            print(f"\nPlatform coverage:")
+            print("\nPlatform coverage:")
             for platform, count in results["platform_coverage"].items():
                 print(f"  {platform}: {count}")
 
         elif args.command == "stats":
             results = await loader.get_platform_statistics()
 
-            print(f"\n=== Platform Statistics ===")
+            print("\n=== Platform Statistics ===")
             print(f"Total platforms: {results['total_platforms']}")
             print(f"Total rules analyzed: {results['total_rules_analyzed']}")
 
@@ -411,9 +399,7 @@ async def main():
                 print(f"  Rules: {platform['ruleCount']}")
                 print(f"  Coverage: {platform['coverage']}%")
                 print(f"  Frameworks: {', '.join(platform['frameworks'])}")
-                print(
-                    f"  Top categories: {', '.join([cat['name'] for cat in platform['categories'][:3]])}"
-                )
+                print(f"  Top categories: {', '.join([cat['name'] for cat in platform['categories'][:3]])}")
 
     except Exception as e:
         logger.error(f"Command failed: {e}")

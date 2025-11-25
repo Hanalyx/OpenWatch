@@ -126,7 +126,7 @@ check_root() {
 execute_cmd() {
     local cmd="$1"
     local description="$2"
-    
+
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] $description: $cmd"
     else
@@ -143,35 +143,35 @@ create_backup() {
     if [ "$CREATE_BACKUP" != true ]; then
         return 0
     fi
-    
+
     log_info "Creating backup in $BACKUP_DIR..."
-    
+
     if [ "$DRY_RUN" = true ]; then
         echo "[DRY-RUN] Would create backup in $BACKUP_DIR"
         return 0
     fi
-    
+
     mkdir -p "$BACKUP_DIR"
-    
+
     # Backup configuration files
     if [ -d "/etc/openwatch" ]; then
         log_verbose "Backing up configuration files"
         cp -r /etc/openwatch "$BACKUP_DIR/config" || true
     fi
-    
+
     # Backup application data
     if [ -d "/var/lib/openwatch" ]; then
         log_verbose "Backing up application data"
         cp -r /var/lib/openwatch "$BACKUP_DIR/data" || true
     fi
-    
+
     # Backup logs (last 7 days only to save space)
     if [ -d "/var/log/openwatch" ]; then
         log_verbose "Backing up recent logs"
         mkdir -p "$BACKUP_DIR/logs"
         find /var/log/openwatch -type f -mtime -7 -exec cp {} "$BACKUP_DIR/logs/" \; || true
     fi
-    
+
     # Create backup manifest
     cat > "$BACKUP_DIR/manifest.txt" << EOF
 OpenWatch Backup Created: $(date)
@@ -180,7 +180,7 @@ Cleanup Script Version: 1.0
 
 Contents:
 - config/: Configuration files from /etc/openwatch
-- data/: Application data from /var/lib/openwatch  
+- data/: Application data from /var/lib/openwatch
 - logs/: Recent log files (last 7 days)
 
 Restore Instructions:
@@ -191,17 +191,17 @@ Restore Instructions:
 5. Fix permissions: chown -R openwatch:openwatch /var/lib/openwatch
 6. Start services: systemctl start openwatch
 EOF
-    
+
     # Compress backup for space efficiency
     tar -czf "$BACKUP_DIR.tar.gz" -C "$(dirname "$BACKUP_DIR")" "$(basename "$BACKUP_DIR")" && rm -rf "$BACKUP_DIR"
-    
+
     log_success "Backup created: $BACKUP_DIR.tar.gz"
 }
 
 # Stop all OpenWatch services
 stop_services() {
     log_info "Stopping OpenWatch services..."
-    
+
     local services=(
         "openwatch.service"
         "openwatch-db.service"
@@ -209,12 +209,12 @@ stop_services() {
         "openwatch-worker.service"
         "openwatch-redis.service"
     )
-    
+
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
             execute_cmd "systemctl stop $service" "Stop $service"
         fi
-        
+
         if systemctl is-enabled --quiet "$service" 2>/dev/null; then
             execute_cmd "systemctl disable $service" "Disable $service"
         fi
@@ -224,7 +224,7 @@ stop_services() {
 # Clean up containers, images, and volumes
 cleanup_containers() {
     log_info "Cleaning up containers and images..."
-    
+
     # Detect container runtime
     local runtime=""
     if command -v podman >/dev/null 2>&1; then
@@ -235,9 +235,9 @@ cleanup_containers() {
         log_warning "No container runtime found"
         return 0
     fi
-    
+
     log_verbose "Using container runtime: $runtime"
-    
+
     # Stop and remove OpenWatch containers
     local containers
     containers=$($runtime ps -a --filter "label=project=openwatch" --format "{{.Names}}" 2>/dev/null || true)
@@ -247,7 +247,7 @@ cleanup_containers() {
             execute_cmd "$runtime rm $container" "Remove container $container"
         done
     fi
-    
+
     # Remove OpenWatch images
     local images
     images=$($runtime images --filter "reference=openwatch*" --format "{{.Repository}}:{{.Tag}}" 2>/dev/null || true)
@@ -256,7 +256,7 @@ cleanup_containers() {
             execute_cmd "$runtime rmi $image" "Remove image $image"
         done
     fi
-    
+
     # Clean up OpenWatch volumes
     local volumes
     volumes=$($runtime volume ls --filter "label=project=openwatch" --format "{{.Name}}" 2>/dev/null || true)
@@ -265,7 +265,7 @@ cleanup_containers() {
             execute_cmd "$runtime volume rm $volume" "Remove volume $volume"
         done
     fi
-    
+
     # Clean up OpenWatch networks
     local networks
     networks=$($runtime network ls --filter "label=project=openwatch" --format "{{.Name}}" 2>/dev/null || true)
@@ -281,21 +281,21 @@ cleanup_containers() {
 # Remove application files and directories
 cleanup_files() {
     log_info "Cleaning up application files..."
-    
+
     local directories=(
         "/etc/openwatch"
-        "/var/lib/openwatch" 
+        "/var/lib/openwatch"
         "/var/log/openwatch"
         "/var/cache/openwatch"
         "/usr/share/openwatch"
     )
-    
+
     for dir in "${directories[@]}"; do
         if [ -d "$dir" ]; then
             execute_cmd "rm -rf $dir" "Remove directory $dir"
         fi
     done
-    
+
     # Remove systemd service files
     local service_files=(
         "/lib/systemd/system/openwatch.service"
@@ -304,24 +304,24 @@ cleanup_files() {
         "/lib/systemd/system/openwatch-worker.service"
         "/lib/systemd/system/openwatch-redis.service"
     )
-    
+
     for service_file in "${service_files[@]}"; do
         if [ -f "$service_file" ]; then
             execute_cmd "rm $service_file" "Remove service file $service_file"
         fi
     done
-    
+
     execute_cmd "systemctl daemon-reload" "Reload systemd daemon"
 }
 
 # Remove user and group
 cleanup_user() {
     log_info "Cleaning up user accounts..."
-    
+
     if id "openwatch" &>/dev/null; then
         execute_cmd "userdel openwatch" "Remove openwatch user"
     fi
-    
+
     if getent group "openwatch" &>/dev/null; then
         execute_cmd "groupdel openwatch" "Remove openwatch group"
     fi
@@ -330,7 +330,7 @@ cleanup_user() {
 # Remove SELinux policies
 cleanup_selinux() {
     log_info "Cleaning up SELinux policies..."
-    
+
     if command -v semodule >/dev/null 2>&1; then
         if semodule -l | grep -q "openwatch"; then
             execute_cmd "semodule -r openwatch" "Remove OpenWatch SELinux policy"
@@ -341,11 +341,11 @@ cleanup_selinux() {
 # Remove fapolicyd rules
 cleanup_fapolicyd() {
     log_info "Cleaning up fapolicyd rules..."
-    
+
     local fapolicyd_rules="/etc/fapolicyd/rules.d/90-openwatch.rules"
     if [ -f "$fapolicyd_rules" ]; then
         execute_cmd "rm $fapolicyd_rules" "Remove fapolicyd rules"
-        
+
         if systemctl is-active --quiet fapolicyd; then
             execute_cmd "systemctl restart fapolicyd" "Restart fapolicyd"
         fi
@@ -357,7 +357,7 @@ confirm_cleanup() {
     if [ "$FORCE_CLEANUP" = true ] || [ "$DRY_RUN" = true ]; then
         return 0
     fi
-    
+
     echo ""
     log_warning "This will completely remove OpenWatch and all its data!"
     echo ""
@@ -370,15 +370,15 @@ confirm_cleanup() {
     echo "  - User accounts and systemd services"
     echo "  - SELinux policies and fapolicyd rules"
     echo ""
-    
+
     if [ "$CREATE_BACKUP" = true ]; then
         echo "A backup will be created at: $BACKUP_DIR.tar.gz"
         echo ""
     fi
-    
+
     read -p "Are you sure you want to continue? (y/N): " -n 1 -r
     echo ""
-    
+
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_info "Cleanup cancelled by user"
         exit 0
@@ -392,20 +392,20 @@ main() {
     echo "   $SCRIPT_NAME"
     echo "=================================="
     echo ""
-    
+
     parse_arguments "$@"
     check_root
-    
+
     if [ "$DRY_RUN" = true ]; then
         log_info "DRY RUN MODE - No changes will be made"
         echo ""
     fi
-    
+
     confirm_cleanup
-    
+
     # Create backup before cleanup
     create_backup
-    
+
     # Perform cleanup steps
     stop_services
     cleanup_containers
@@ -413,13 +413,13 @@ main() {
     cleanup_user
     cleanup_selinux
     cleanup_fapolicyd
-    
+
     echo ""
     if [ "$DRY_RUN" = true ]; then
         log_info "Dry run completed - no changes were made"
     else
         log_success "OpenWatch cleanup completed successfully!"
-        
+
         if [ "$CREATE_BACKUP" = true ]; then
             echo ""
             log_info "Backup available at: $BACKUP_DIR.tar.gz"

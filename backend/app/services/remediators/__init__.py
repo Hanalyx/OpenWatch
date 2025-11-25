@@ -51,8 +51,7 @@ class RemediationExecutorFactory:
 
         if not executor_class:
             raise ValueError(
-                f"Unknown executor type: {executor_type}. "
-                f"Available: {', '.join(cls._executors.keys())}"
+                f"Unknown executor type: {executor_type}. " f"Available: {', '.join(cls._executors.keys())}"
             )
 
         # Instantiate executor (may raise ExecutorNotAvailableError)
@@ -73,7 +72,7 @@ class RemediationExecutorFactory:
             TypeError: executor_class not a BaseRemediationExecutor subclass
         """
         if not issubclass(executor_class, BaseRemediationExecutor):
-            raise TypeError(f"Executor class must inherit from BaseRemediationExecutor")
+            raise TypeError("Executor class must inherit from BaseRemediationExecutor")
 
         cls._executors[executor_type] = executor_class
 
@@ -95,7 +94,7 @@ class RemediationExecutorFactory:
         available = []
         for executor_type in cls._executors.keys():
             try:
-                executor = cls.get_executor(executor_type)
+                cls.get_executor(executor_type)
                 available.append(executor_type)
             except ExecutorNotAvailableError:
                 pass
@@ -132,7 +131,7 @@ class RemediationExecutorFactory:
 
             return metadata
 
-        except ExecutorNotAvailableError as e:
+        except ExecutorNotAvailableError:
             # Return metadata with available=False
             executor_class = cls._executors.get(executor_type)
             return ExecutorMetadata(

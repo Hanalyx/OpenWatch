@@ -3,17 +3,13 @@ Initialize roles and permissions in the database
 """
 
 import asyncio
-import base64
 import json
 import logging
-from datetime import datetime
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .config import get_settings
 from .database import SessionLocal, create_tables
-from .encryption import create_encryption_service
 from .rbac import ROLE_PERMISSIONS, UserRole
 
 logger = logging.getLogger(__name__)

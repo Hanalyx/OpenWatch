@@ -42,7 +42,7 @@ log_error() {
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     # Check if runtime was forced by user
     if [ -n "$FORCE_RUNTIME" ]; then
         case "$FORCE_RUNTIME" in
@@ -97,7 +97,7 @@ check_prerequisites() {
                 log_warning "Podman found but podman-compose not available"
             fi
         fi
-        
+
         if command -v docker &> /dev/null && [ -z "$RUNTIME" ]; then
             if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
                 RUNTIME="docker"
@@ -111,7 +111,7 @@ check_prerequisites() {
                 log_warning "Docker found but Docker Compose not available"
             fi
         fi
-        
+
         if [ -z "$RUNTIME" ]; then
             log_error "No suitable container runtime found!"
             log_error "Please install one of the following:"
@@ -121,13 +121,13 @@ check_prerequisites() {
             exit 1
         fi
     fi
-    
+
     # Check for required files
     if [ ! -f "$SCRIPT_DIR/$COMPOSE_FILE" ]; then
         log_error "Compose file not found: $COMPOSE_FILE"
         exit 1
     fi
-    
+
     if [ "$DEV_MODE" = true ]; then
         log_info "Running in DEVELOPMENT mode"
     else
@@ -138,22 +138,22 @@ check_prerequisites() {
 # Environment setup
 setup_environment() {
     log_info "Setting up environment..."
-    
+
     # Check for .env file
     if [ ! -f "$SCRIPT_DIR/.env" ]; then
         log_warning ".env file not found"
         if [ -f "$SCRIPT_DIR/backend/.env.example" ]; then
             log_info "Creating .env from backend/.env.example..."
             cp "$SCRIPT_DIR/backend/.env.example" "$SCRIPT_DIR/.env"
-            
+
             # Generate secure keys if they're still default values
             if ! grep -q "your-secret-key-here" "$SCRIPT_DIR/.env" 2>/dev/null; then
                 SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
                 MASTER_KEY=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64)
-                
+
                 sed -i "s/your-secret-key-here-must-be-at-least-32-characters-long/$SECRET_KEY/" "$SCRIPT_DIR/.env"
                 sed -i "s/your-master-key-here-must-be-at-least-32-characters-long/$MASTER_KEY/" "$SCRIPT_DIR/.env"
-                
+
                 log_success "Generated secure keys in .env file"
             fi
         else
@@ -168,25 +168,25 @@ DATABASE_URL=postgresql://openwatch:openwatch_dev_password@localhost:5432/openwa
 EOF
         fi
     fi
-    
+
     # Source environment variables
     if [ -f "$SCRIPT_DIR/.env" ]; then
         export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
     fi
-    
+
     # Create required directories
     mkdir -p "$SCRIPT_DIR/data/scap" "$SCRIPT_DIR/data/results" "$SCRIPT_DIR/logs" 2>/dev/null || true
     mkdir -p "$SCRIPT_DIR/security/certs" "$SCRIPT_DIR/security/keys" 2>/dev/null || true
-    
+
     log_success "Environment setup complete"
 }
 
 # Check if images exist
 check_images() {
     log_info "Checking for existing container images..."
-    
+
     local missing_images=false
-    
+
     case "$RUNTIME" in
         "podman-compose")
             # Check if any openwatch images exist
@@ -201,7 +201,7 @@ check_images() {
             fi
             ;;
     esac
-    
+
     if [ "$missing_images" = true ]; then
         log_warning "No OpenWatch container images found"
         log_info "You may want to run with --build flag to build images first"
@@ -212,9 +212,9 @@ check_images() {
 # Build images if needed
 build_images() {
     log_info "Building container images..."
-    
+
     cd "$SCRIPT_DIR"
-    
+
     case "$RUNTIME" in
         "podman-compose")
             if [ "$FORCE_BUILD" = true ]; then
@@ -239,7 +239,7 @@ build_images() {
             fi
             ;;
     esac
-    
+
     if [ $? -eq 0 ]; then
         log_success "Container images built successfully!"
     else
@@ -251,15 +251,15 @@ build_images() {
 # Start services
 start_services() {
     log_info "Starting OpenWatch services with $RUNTIME..."
-    
+
     cd "$SCRIPT_DIR"
-    
+
     # Determine if we need to build
     local compose_args="-d"
     if [ "$BUILD_IMAGES" = true ]; then
         compose_args="--build -d"
     fi
-    
+
     case "$RUNTIME" in
         "podman-compose")
             podman-compose -f "$COMPOSE_FILE" up $compose_args
@@ -272,7 +272,7 @@ start_services() {
             fi
             ;;
     esac
-    
+
     if [ $? -eq 0 ]; then
         log_success "OpenWatch services started successfully!"
         log_info ""
@@ -304,16 +304,16 @@ start_services() {
 # Health check
 check_health() {
     log_info "Performing health check..."
-    
+
     sleep 30  # Give services time to start
-    
+
     # Check backend
     if curl -f -s http://localhost:8000/health &> /dev/null; then
         log_success "Backend is healthy"
     else
         log_warning "Backend health check failed - may still be starting"
     fi
-    
+
     # Check frontend
     if curl -f -s http://localhost:3000 &> /dev/null; then
         log_success "Frontend is healthy"
@@ -326,15 +326,15 @@ check_health() {
 main() {
     log_info "OpenWatch Startup Script"
     log_info "======================================="
-    
+
     check_prerequisites
     setup_environment
     start_services
-    
+
     if [ "$1" != "--no-health-check" ]; then
         check_health
     fi
-    
+
     log_success "OpenWatch startup complete!"
 }
 
@@ -420,27 +420,27 @@ fi
 main() {
     log_info "OpenWatch Startup Script"
     log_info "======================================="
-    
+
     check_prerequisites
     setup_environment
-    
+
     # Check if images exist (only if not building)
     if [ "$BUILD_IMAGES" != true ]; then
         check_images
     fi
-    
+
     # Build images if requested and not using --build flag with up
     if [ "$BUILD_IMAGES" = true ] && [ "$FORCE_BUILD" = true ]; then
         build_images
         BUILD_IMAGES=false  # Don't use --build with up since we already built
     fi
-    
+
     start_services
-    
+
     if [ "$NO_HEALTH_CHECK" != true ]; then
         check_health
     fi
-    
+
     log_success "OpenWatch startup complete!"
 }
 

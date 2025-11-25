@@ -106,9 +106,7 @@ class ComplianceRulesSecurityService:
         self.temp_dir = Path(tempfile.gettempdir()) / "openwatch_compliance_upload"
         self.temp_dir.mkdir(exist_ok=True, mode=0o700)
 
-    async def validate_archive(
-        self, archive_data: bytes
-    ) -> Tuple[bool, List[SecurityCheckResult], Optional[Path]]:
+    async def validate_archive(self, archive_data: bytes) -> Tuple[bool, List[SecurityCheckResult], Optional[Path]]:
         """
         Comprehensive security validation of compliance rules archive
 
@@ -158,14 +156,11 @@ class ComplianceRulesSecurityService:
             checks.extend(content_checks)
 
             # Check 6: Evaluate overall result
-            critical_failures = [
-                c for c in checks if not c.passed and c.severity in ["critical", "high"]
-            ]
+            critical_failures = [c for c in checks if not c.passed and c.severity in ["critical", "high"]]
 
             if critical_failures:
                 logger.warning(
-                    f"Security validation failed: {len(critical_failures)} "
-                    f"critical/high severity issues"
+                    f"Security validation failed: {len(critical_failures)} " f"critical/high severity issues"
                 )
                 return False, checks, extracted_path
 
@@ -451,9 +446,7 @@ class ComplianceRulesSecurityService:
         # Get all files (excluding manifest and checksums)
         all_files = list(extracted_path.glob("**/*"))
         all_files = [
-            f
-            for f in all_files
-            if f.is_file() and f.name not in ["manifest.bson", "manifest.json", "checksums.sha512"]
+            f for f in all_files if f.is_file() and f.name not in ["manifest.bson", "manifest.json", "checksums.sha512"]
         ]
 
         # Validate each file
@@ -583,9 +576,6 @@ class ComplianceRulesSecurityService:
             "critical_failures": len([c for c in by_severity["critical"] if not c.passed]),
             "high_failures": len([c for c in by_severity["high"] if not c.passed]),
             "medium_failures": len([c for c in by_severity["medium"] if not c.passed]),
-            "checks_by_severity": {
-                severity: len(checks_list) for severity, checks_list in by_severity.items()
-            },
-            "validation_passed": failed_checks == 0
-            or all(c.passed or c.severity in ["low", "info"] for c in checks),
+            "checks_by_severity": {severity: len(checks_list) for severity, checks_list in by_severity.items()},
+            "validation_passed": failed_checks == 0 or all(c.passed or c.severity in ["low", "info"] for c in checks),
         }

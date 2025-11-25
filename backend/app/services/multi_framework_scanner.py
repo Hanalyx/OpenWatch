@@ -5,9 +5,7 @@ Provides data models for scan results across multiple compliance frameworks
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from pydantic import BaseModel
+from typing import Any, Dict, List
 
 from ..models.unified_rule_models import RuleExecution
 

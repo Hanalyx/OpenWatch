@@ -5,7 +5,6 @@ Handles SSH host key policy and known hosts management
 
 import ipaddress
 import logging
-from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -81,9 +80,7 @@ class KnownHostResponse(BaseModel):
 
 @router.get("/policy", response_model=SSHPolicyResponse)
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_ssh_policy(
-    db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+async def get_ssh_policy(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """Get current SSH host key policy configuration"""
     try:
         service = SSHConfigService(db)
@@ -131,9 +128,7 @@ async def set_ssh_policy(
 
         # Set trusted networks if provided
         if policy_request.trusted_networks is not None:
-            success = service.set_trusted_networks(
-                policy_request.trusted_networks, current_user.get("id")
-            )
+            success = service.set_trusted_networks(policy_request.trusted_networks, current_user.get("id"))
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -256,11 +251,7 @@ async def add_known_host(
         # Return the added host
         hosts = service.get_known_hosts(host_request.hostname)
         matching_host = next(
-            (
-                h
-                for h in hosts
-                if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type
-            ),
+            (h for h in hosts if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type),
             None,
         )
 
@@ -297,9 +288,7 @@ async def remove_known_host(
         success = service.remove_known_host(hostname, key_type)
 
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found")
 
         # Enhanced audit logging
         # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented

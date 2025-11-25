@@ -8,11 +8,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Optional
 
-from backend.app.models.readiness_models import (
-    ReadinessCheckResult,
-    ReadinessCheckSeverity,
-    ReadinessCheckType,
-)
+from backend.app.models.readiness_models import ReadinessCheckResult, ReadinessCheckSeverity, ReadinessCheckType
 
 if TYPE_CHECKING:
     from backend.app.services.ssh_connection_context import SSHConnectionContext

@@ -63,9 +63,7 @@ class BaseRepository(Generic[T]):
         try:
             result = await self.model.find_one(query)
 
-            self._log_query_performance(
-                operation="find_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="find_one", query=query, duration=time.time() - start_time)
 
             return result
         except Exception as e:
@@ -223,9 +221,7 @@ class BaseRepository(Generic[T]):
 
             await doc.update(update)
 
-            self._log_query_performance(
-                operation="update_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="update_one", query=query, duration=time.time() - start_time)
 
             return doc
         except Exception as e:
@@ -293,9 +289,7 @@ class BaseRepository(Generic[T]):
 
             await doc.delete()
 
-            self._log_query_performance(
-                operation="delete_one", query=query, duration=time.time() - start_time
-            )
+            self._log_query_performance(operation="delete_one", query=query, duration=time.time() - start_time)
 
             return True
         except Exception as e:

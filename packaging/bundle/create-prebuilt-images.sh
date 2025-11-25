@@ -166,18 +166,18 @@ echo "Loading OpenWatch pre-built images..."
 if [[ -f "\$SCRIPT_DIR/openwatch-backend-$VERSION.tar" ]]; then
     echo "Loading OpenWatch backend..."
     podman load -i "\$SCRIPT_DIR/openwatch-backend-$VERSION.tar"
-    echo "✓ Backend image loaded"
+    echo "[OK] Backend image loaded"
 else
-    echo "✗ Backend image file not found"
+    echo "[FAIL] Backend image file not found"
 fi
 
-# Load frontend image  
+# Load frontend image
 if [[ -f "\$SCRIPT_DIR/openwatch-frontend-$VERSION.tar" ]]; then
     echo "Loading OpenWatch frontend..."
     podman load -i "\$SCRIPT_DIR/openwatch-frontend-$VERSION.tar"
-    echo "✓ Frontend image loaded"
+    echo "[OK] Frontend image loaded"
 else
-    echo "✗ Frontend image file not found"
+    echo "[FAIL] Frontend image file not found"
 fi
 
 echo ""
@@ -266,7 +266,7 @@ This directory contains pre-built OpenWatch container images for offline deploym
 ## Contents
 
 - \`openwatch-backend-$VERSION.tar\` - Backend application image
-- \`openwatch-frontend-$VERSION.tar\` - Frontend application image  
+- \`openwatch-frontend-$VERSION.tar\` - Frontend application image
 - \`load-openwatch-images.sh\` - Script to load images
 - \`podman-compose-prebuilt.yml\` - Compose file for pre-built images
 
@@ -311,13 +311,13 @@ total_size=$(du -sh "$OUTPUT_DIR" | cut -f1)
 log_success "Pre-built images created successfully!"
 log_info ""
 log_info "Created files:"
-log_info "  📁 Directory: $OUTPUT_DIR"
-log_info "  🐳 Backend image: openwatch-backend-$VERSION.tar ($backend_size)"
-log_info "  🌐 Frontend image: openwatch-frontend-$VERSION.tar ($frontend_size)"
-log_info "  📜 Load script: load-openwatch-images.sh"
-log_info "  🐙 Compose file: podman-compose-prebuilt.yml"
-log_info "  📖 Documentation: README.md"
-log_info "  📊 Total size: $total_size"
+log_info "  Directory: $OUTPUT_DIR"
+log_info "  Backend image: openwatch-backend-$VERSION.tar ($backend_size)"
+log_info "  Frontend image: openwatch-frontend-$VERSION.tar ($frontend_size)"
+log_info "  Load script: load-openwatch-images.sh"
+log_info "  Compose file: podman-compose-prebuilt.yml"
+log_info "  Documentation: README.md"
+log_info "  Total size: $total_size"
 log_info ""
 log_info "Next steps:"
 log_info "1. Transfer $OUTPUT_DIR to target system"

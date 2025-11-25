@@ -30,7 +30,7 @@ services:
     tmpfs:
       - /tmp
       - /var/run/postgresql
-    
+
   redis:
     image: docker.io/library/redis:7-alpine
     container_name: openwatch-redis

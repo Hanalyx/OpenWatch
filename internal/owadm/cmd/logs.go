@@ -13,7 +13,7 @@ import (
 var (
 	follow     bool
 	tail       string
-	since      string  
+	since      string
 	timestamps bool
 )
 
@@ -44,31 +44,31 @@ func init() {
 
 func runLogs(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	
+
 	// Default to backend if no service specified
 	service := "backend"
 	if len(args) > 0 {
 		service = args[0]
 	}
-	
+
 	LogInfo(fmt.Sprintf("Viewing logs for service: %s", service))
-	
+
 	// Get or detect runtime
 	var rt runtime.Runtime
 	var err error
-	
+
 	runtimeName := viper.GetString("runtime")
 	if runtimeName != "" {
 		rt, err = runtime.GetRuntime(runtimeName)
 	} else {
 		rt, err = runtime.DetectRuntime()
 	}
-	
+
 	if err != nil {
 		LogError(fmt.Sprintf("Runtime error: %v", err))
 		return err
 	}
-	
+
 	// Show logs
 	logOptions := runtime.LogOptions{
 		Follow:     follow,
@@ -76,7 +76,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		Since:      since,
 		Timestamps: timestamps,
 	}
-	
+
 	fmt.Println() // Empty line before logs
 	return rt.Logs(ctx, service, logOptions)
 }

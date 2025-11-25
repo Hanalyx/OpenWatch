@@ -53,12 +53,9 @@ class BaseFrameworkIntelligence(ABC):
         Returns:
             Framework name (e.g., "NIST_800_53", "CIS", "STIG")
         """
-        pass
 
     @abstractmethod
-    async def analyze_host_compliance(
-        self, host_id: str, scan_results: Optional[Dict] = None
-    ) -> Dict:
+    async def analyze_host_compliance(self, host_id: str, scan_results: Optional[Dict] = None) -> Dict:
         """
         Analyze host compliance using framework-specific intelligence.
 
@@ -81,7 +78,6 @@ class BaseFrameworkIntelligence(ABC):
                 "baseline_scores": [...]
             }
         """
-        pass
 
     @abstractmethod
     async def get_framework_summary(self, scan_results: Dict) -> Dict:
@@ -97,7 +93,6 @@ class BaseFrameworkIntelligence(ABC):
         Returns:
             Framework summary dictionary with key metrics
         """
-        pass
 
     def _extract_framework_rules(self, scan_results: Dict, framework_identifier: str) -> List[Dict]:
         """

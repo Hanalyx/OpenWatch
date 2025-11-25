@@ -101,7 +101,6 @@ export const TemplateEditorPage: React.FC = () => {
     }
 
     if (!isValid) {
-      // eslint-disable-next-line no-alert
       alert('Please fix validation errors before saving');
       return;
     }

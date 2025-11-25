@@ -51,11 +51,11 @@ check_selinux() {
 # Fix Podman storage issues
 fix_podman_storage() {
     log_info "Fixing Podman storage configuration..."
-    
+
     # Stop all OpenWatch services first
     log_info "Stopping OpenWatch services..."
     systemctl stop openwatch.target 2>/dev/null || true
-    
+
     # Reset Podman storage if it exists
     if [[ -d /var/lib/containers/storage ]]; then
         log_warning "Resetting Podman storage (this will remove all containers/images)"
@@ -68,12 +68,12 @@ fix_podman_storage() {
             log_info "Skipping Podman storage reset"
         fi
     fi
-    
+
     # Create proper storage directories
     log_info "Creating Podman storage directories..."
     mkdir -p /var/lib/containers/storage
     mkdir -p /var/lib/containers/storage/tmp
-    
+
     # Set permissions for openwatch user
     if id "openwatch" &>/dev/null; then
         chown -R openwatch:openwatch /var/lib/containers
@@ -84,21 +84,21 @@ fix_podman_storage() {
 # Configure SELinux contexts
 configure_selinux() {
     local selinux_status="$1"
-    
+
     if [[ "$selinux_status" == "Enforcing" ]] || [[ "$selinux_status" == "Permissive" ]]; then
         log_info "Configuring SELinux contexts for containers..."
-        
+
         # Set container storage contexts
         semanage fcontext -a -t container_file_t "/var/lib/containers(/.*)?" 2>/dev/null || \
             semanage fcontext -m -t container_file_t "/var/lib/containers(/.*)?" 2>/dev/null || \
             log_warning "Failed to set SELinux context (may already exist)"
-        
+
         # Apply contexts
         restorecon -Rv /var/lib/containers
-        
+
         # Allow container operations
         setsebool -P container_manage_cgroup true 2>/dev/null || true
-        
+
         log_success "SELinux contexts configured"
     else
         log_info "SELinux not active, skipping context configuration"
@@ -108,26 +108,26 @@ configure_selinux() {
 # Configure sysctl for unprivileged containers
 configure_sysctl() {
     log_info "Configuring kernel parameters for containers..."
-    
+
     # Enable unprivileged user namespaces
     echo "kernel.unprivileged_userns_clone=1" > /etc/sysctl.d/99-openwatch-containers.conf
-    
+
     # Set max user namespaces
     echo "user.max_user_namespaces=28633" >> /etc/sysctl.d/99-openwatch-containers.conf
-    
+
     # Apply settings
     sysctl -p /etc/sysctl.d/99-openwatch-containers.conf
-    
+
     log_success "Kernel parameters configured"
 }
 
 # Update systemd service files
 update_systemd_services() {
     log_info "Updating systemd service permissions..."
-    
+
     # Create override directory
     mkdir -p /etc/systemd/system/openwatch-db.service.d
-    
+
     # Create override for database service
     cat > /etc/systemd/system/openwatch-db.service.d/container-permissions.conf << 'EOF'
 # Override for container permissions
@@ -160,34 +160,34 @@ EOF
         cp /etc/systemd/system/openwatch-db.service.d/container-permissions.conf \
            "/etc/systemd/system/openwatch-${service}.service.d/"
     done
-    
+
     # Reload systemd
     systemctl daemon-reload
-    
+
     log_success "Systemd services updated"
 }
 
 # Configure Podman for the openwatch user (alternative approach)
 configure_podman_rootless() {
     log_info "Configuring rootless Podman for openwatch user..."
-    
+
     if id "openwatch" &>/dev/null; then
         # Enable lingering for the user
         loginctl enable-linger openwatch
-        
+
         # Set subuid/subgid mappings
         if ! grep -q "^openwatch:" /etc/subuid; then
             echo "openwatch:100000:65536" >> /etc/subuid
         fi
-        
+
         if ! grep -q "^openwatch:" /etc/subgid; then
             echo "openwatch:100000:65536" >> /etc/subgid
         fi
-        
+
         # Create XDG runtime directory
         mkdir -p /run/user/$(id -u openwatch)
         chown openwatch:openwatch /run/user/$(id -u openwatch)
-        
+
         log_success "Rootless Podman configured"
     else
         log_warning "openwatch user not found, skipping rootless configuration"
@@ -197,9 +197,9 @@ configure_podman_rootless() {
 # Create Podman storage configuration
 create_storage_conf() {
     log_info "Creating Podman storage configuration..."
-    
+
     mkdir -p /etc/containers
-    
+
     # Create storage.conf with vfs driver (most compatible)
     cat > /etc/containers/storage.conf << 'EOF'
 [storage]
@@ -213,7 +213,7 @@ pull_options = {enable_partial_images = "true", use_hard_links = "false", ostree
 [storage.options.vfs]
 ignore_chown_errors = "true"
 EOF
-    
+
     log_success "Storage configuration created"
 }
 
@@ -221,12 +221,12 @@ EOF
 main() {
     log_info "OpenWatch Podman Permission Fix Script"
     log_info "======================================"
-    
+
     check_root
-    
+
     # Check SELinux status
     selinux_status=$(check_selinux)
-    
+
     # Apply fixes
     fix_podman_storage
     configure_selinux "$selinux_status"
@@ -234,7 +234,7 @@ main() {
     create_storage_conf
     update_systemd_services
     configure_podman_rootless
-    
+
     log_success "Podman permission fixes applied!"
     log_info ""
     log_info "Next steps:"

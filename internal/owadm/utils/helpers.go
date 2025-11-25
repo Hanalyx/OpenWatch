@@ -14,17 +14,17 @@ func generateRandomString(length int) string {
 		// This should rarely happen
 		panic("failed to generate random string")
 	}
-	
+
 	// Convert to base64 and remove special characters
 	str := base64.URLEncoding.EncodeToString(bytes)
 	str = strings.ReplaceAll(str, "-", "")
 	str = strings.ReplaceAll(str, "_", "")
 	str = strings.ReplaceAll(str, "=", "")
-	
+
 	// Ensure we have the requested length
 	if len(str) < length {
 		return generateRandomString(length)
 	}
-	
+
 	return str[:length]
 }

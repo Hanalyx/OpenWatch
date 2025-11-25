@@ -78,9 +78,7 @@ async def discover_host_security_infrastructure(
         discovery_results = security_service.discover_security_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         logger.info(
             f"Security discovery completed for host {host.hostname}: "
@@ -156,9 +154,7 @@ async def bulk_discover_security_infrastructure(
             discovery_results = security_service.discover_security_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = SecurityDiscoveryResponse(**discovery_results)
 
@@ -224,9 +220,7 @@ async def get_host_security_summary(
             "os_family": host.os_family,
             "os_version": host.os_version,
             "architecture": host.architecture,
-            "last_os_detection": (
-                host.last_os_detection.isoformat() if host.last_os_detection else None
-            ),
+            "last_os_detection": (host.last_os_detection.isoformat() if host.last_os_detection else None),
             "auth_method": host.auth_method,
             "security_recommendations": [],
         }

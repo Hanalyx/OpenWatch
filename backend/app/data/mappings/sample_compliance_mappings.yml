@@ -5,34 +5,34 @@
 xccdf_mil.disa.stig_rule_SV-230221r792832_rule:
   title: "SSH daemon must disable root login"
   description: "The root account has the highest privileges on the system. Remote root login should be disabled to prevent unauthorized access."
-  
+
   # AEGIS remediation mapping
   aegis_rule_id: "RHEL-09-255045"
   category: "authentication"
   type: "configuration"
-  
+
   # Implementation commands
   commands:
     - "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config"
     - "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config"
     - "systemctl restart sshd"
-  
+
   # Verification commands
   verify:
     - "grep -E '^PermitRootLogin\\s+no' /etc/ssh/sshd_config"
     - "systemctl is-active sshd"
-  
+
   # Rollback commands
   rollback:
     - "sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config"
     - "systemctl restart sshd"
-  
+
   # Execution metadata
   duration: 30  # seconds
   requires_reboot: false
   dependencies: ["openssh-server"]
   platforms: ["rhel8", "rhel9", "ubuntu20", "ubuntu22"]
-  
+
   # Compliance framework mappings
   frameworks:
     DISA-STIG:
@@ -40,21 +40,21 @@ xccdf_mil.disa.stig_rule_SV-230221r792832_rule:
       severity: "high"
       category: "CAT II"
       implementation_guidance: "Configure SSH daemon to prevent root login by setting PermitRootLogin to 'no' in /etc/ssh/sshd_config"
-      
+
     NIST-800-53:
       control_id: "AC-6(2)"
-      severity: "high" 
+      severity: "high"
       family: "Access Control"
       implementation_guidance: "Require users to use non-privileged accounts when accessing nonsecurity functions"
       related_controls: ["AC-6", "AC-6(1)", "AC-6(5)", "IA-2"]
-      
+
     CIS-Controls:
       control_id: "5.4"
       severity: "high"
       implementation_group: "IG1"
       safeguard_type: "Basic"
       implementation_guidance: "Ensure administrative privileges are restricted to dedicated admin accounts"
-      
+
     CMMC-2.0:
       control_id: "AC.L2-3.1.5"
       maturity_level: 2
@@ -68,47 +68,47 @@ xccdf_mil.disa.stig_rule_SV-230221r792832_rule:
 xccdf_mil.disa.stig_rule_SV-230365r792936_rule:
   title: "System must enforce minimum password length"
   description: "Password complexity requirements help prevent brute force attacks by requiring longer, more complex passwords."
-  
+
   aegis_rule_id: "RHEL-09-611045"
   category: "authentication"
   type: "configuration"
-  
+
   commands:
     - "sed -i 's/^#*\\s*minlen.*/minlen = 15/' /etc/security/pwquality.conf"
     - "grep -q '^minlen' /etc/security/pwquality.conf || echo 'minlen = 15' >> /etc/security/pwquality.conf"
-  
+
   verify:
     - "grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"
-  
+
   rollback:
     - "sed -i 's/^minlen.*/minlen = 8/' /etc/security/pwquality.conf"
-  
+
   duration: 20
   requires_reboot: false
   dependencies: ["libpwquality"]
   platforms: ["rhel8", "rhel9", "ubuntu20", "ubuntu22"]
-  
+
   frameworks:
     DISA-STIG:
       control_id: "SV-230365r792936"
       severity: "medium"
       category: "CAT II"
       implementation_guidance: "Configure PAM to enforce minimum password length of 15 characters"
-      
+
     NIST-800-53:
       control_id: "IA-5(1)(a)"
       severity: "medium"
       family: "Identification and Authentication"
       implementation_guidance: "Enforce minimum password complexity requirements including length"
       related_controls: ["IA-5", "IA-5(1)"]
-      
+
     CIS-Controls:
       control_id: "5.2"
       severity: "medium"
       implementation_group: "IG1"
       safeguard_type: "Basic"
       implementation_guidance: "Ensure all accounts have unique, complex passwords meeting minimum requirements"
-      
+
     CMMC-2.0:
       control_id: "IA.L2-3.5.7"
       maturity_level: 2
@@ -119,50 +119,50 @@ xccdf_mil.disa.stig_rule_SV-230365r792936_rule:
 xccdf_mil.disa.stig_rule_SV-230423r793041_rule:
   title: "Audit daemon must be enabled"
   description: "The audit daemon must be enabled to capture security-relevant events for compliance and forensic analysis."
-  
+
   aegis_rule_id: "RHEL-09-653015"
   category: "audit"
   type: "service"
-  
+
   commands:
     - "systemctl enable auditd"
     - "systemctl start auditd"
     - "augenrules --load"
-  
+
   verify:
     - "systemctl is-enabled auditd"
     - "systemctl is-active auditd"
-  
+
   rollback:
     - "systemctl stop auditd"
     - "systemctl disable auditd"
-  
+
   duration: 45
   requires_reboot: false
   dependencies: ["audit"]
   platforms: ["rhel8", "rhel9"]
-  
+
   frameworks:
     DISA-STIG:
       control_id: "SV-230423r793041"
       severity: "high"
       category: "CAT II"
       implementation_guidance: "Enable and configure auditd service to capture security-relevant events"
-      
+
     NIST-800-53:
       control_id: "AU-12"
       severity: "high"
       family: "Audit and Accountability"
       implementation_guidance: "Generate audit records for security-relevant events"
       related_controls: ["AU-2", "AU-3", "AU-12(1)"]
-      
+
     CIS-Controls:
       control_id: "8.2"
       severity: "high"
       implementation_group: "IG1"
       safeguard_type: "Basic"
       implementation_guidance: "Collect audit logs from all systems capable of generating audit records"
-      
+
     CMMC-2.0:
       control_id: "AU.L2-3.3.1"
       maturity_level: 2
@@ -173,52 +173,52 @@ xccdf_mil.disa.stig_rule_SV-230423r793041_rule:
 xccdf_mil.disa.stig_rule_SV-230515r793185_rule:
   title: "System must have firewall enabled"
   description: "A properly configured firewall provides network access controls and helps prevent unauthorized network access."
-  
+
   aegis_rule_id: "RHEL-09-251010"
   category: "network"
   type: "service"
-  
+
   commands:
     - "systemctl enable firewalld"
     - "systemctl start firewalld"
     - "firewall-cmd --set-default-zone=public"
     - "firewall-cmd --reload"
-  
+
   verify:
     - "systemctl is-enabled firewalld"
     - "systemctl is-active firewalld"
     - "firewall-cmd --state"
-  
+
   rollback:
     - "systemctl stop firewalld"
     - "systemctl disable firewalld"
-  
+
   duration: 60
   requires_reboot: false
   dependencies: ["firewalld"]
   platforms: ["rhel8", "rhel9"]
-  
+
   frameworks:
     DISA-STIG:
       control_id: "SV-230515r793185"
       severity: "high"
       category: "CAT II"
       implementation_guidance: "Enable firewall to restrict network access"
-      
+
     NIST-800-53:
       control_id: "SC-7"
       severity: "high"
       family: "System and Communications Protection"
       implementation_guidance: "Monitor and control communications at the external boundary"
       related_controls: ["SC-7(1)", "SC-7(5)"]
-      
+
     CIS-Controls:
       control_id: "12.1"
       severity: "high"
       implementation_group: "IG1"
       safeguard_type: "Basic"
       implementation_guidance: "Maintain an inventory of network boundaries"
-      
+
     CMMC-2.0:
       control_id: "SC.L1-3.13.1"
       maturity_level: 1
@@ -229,50 +229,50 @@ xccdf_mil.disa.stig_rule_SV-230515r793185_rule:
 xccdf_mil.disa.stig_rule_SV-230279r792861_rule:
   title: "System files must have proper permissions"
   description: "Proper file permissions prevent unauthorized access to system configuration files and ensure system integrity."
-  
+
   aegis_rule_id: "RHEL-09-232010"
   category: "system"
   type: "permission"
-  
+
   commands:
     - "find /etc -type f -name '*.conf' -exec chmod 644 {} \\;"
     - "find /etc -type d -exec chmod 755 {} \\;"
     - "chmod 600 /etc/shadow"
     - "chmod 644 /etc/passwd"
-  
+
   verify:
     - "stat -c '%a' /etc/shadow | grep -q '600'"
     - "stat -c '%a' /etc/passwd | grep -q '644'"
-  
+
   rollback:
     - "# No rollback for security permissions - manual review required"
-  
+
   duration: 120
   requires_reboot: false
   dependencies: []
   platforms: ["rhel8", "rhel9", "ubuntu20", "ubuntu22"]
-  
+
   frameworks:
     DISA-STIG:
       control_id: "SV-230279r792861"
       severity: "medium"
       category: "CAT II"
       implementation_guidance: "Set appropriate permissions on system files to prevent unauthorized access"
-      
+
     NIST-800-53:
       control_id: "AC-3"
       severity: "medium"
       family: "Access Control"
       implementation_guidance: "Enforce approved authorizations for logical access"
       related_controls: ["AC-3(1)", "AC-3(2)"]
-      
+
     CIS-Controls:
       control_id: "3.3"
       severity: "medium"
       implementation_group: "IG1"
       safeguard_type: "Basic"
       implementation_guidance: "Configure data access control lists"
-      
+
     CMMC-2.0:
       control_id: "AC.L1-3.1.1"
       maturity_level: 1

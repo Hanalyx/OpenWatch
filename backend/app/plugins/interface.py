@@ -7,7 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -100,17 +100,14 @@ class PluginInterface(ABC):
     @abstractmethod
     def get_metadata(self) -> PluginMetadata:
         """Return plugin metadata"""
-        pass
 
     @abstractmethod
     async def initialize(self) -> bool:
         """Initialize the plugin. Return True if successful."""
-        pass
 
     @abstractmethod
     async def cleanup(self) -> bool:
         """Cleanup plugin resources. Return True if successful."""
-        pass
 
     def health_check(self) -> Dict:
         """Perform plugin health check"""
@@ -135,17 +132,14 @@ class ScannerPlugin(PluginInterface):
     @abstractmethod
     async def can_scan_host(self, host_config: Dict) -> bool:
         """Check if this plugin can scan the specified host"""
-        pass
 
     @abstractmethod
     async def execute_scan(self, context: ScanContext) -> ScanResult:
         """Execute a scan using this plugin"""
-        pass
 
     @abstractmethod
     async def validate_content(self, content_path: str) -> bool:
         """Validate SCAP content compatibility with this scanner"""
-        pass
 
     def get_supported_profiles(self, content_path: str) -> List[Dict]:
         """Get profiles supported by this scanner"""
@@ -156,16 +150,12 @@ class ReporterPlugin(PluginInterface):
     """Interface for custom report generation plugins"""
 
     @abstractmethod
-    async def generate_report(
-        self, scan_results: List[ScanResult], format_type: str = "html"
-    ) -> bytes:
+    async def generate_report(self, scan_results: List[ScanResult], format_type: str = "html") -> bytes:
         """Generate a report from scan results"""
-        pass
 
     @abstractmethod
     def get_supported_formats(self) -> List[str]:
         """Get list of supported report formats"""
-        pass
 
     def get_report_template(self, format_type: str) -> Optional[str]:
         """Get report template for the specified format"""
@@ -178,19 +168,14 @@ class RemediationPlugin(PluginInterface):
     @abstractmethod
     async def can_remediate_rule(self, rule_id: str, host_config: Dict) -> bool:
         """Check if this plugin can remediate the specified rule"""
-        pass
 
     @abstractmethod
-    async def execute_remediation(
-        self, rule_id: str, host_config: Dict, scan_result: ScanResult
-    ) -> Dict:
+    async def execute_remediation(self, rule_id: str, host_config: Dict, scan_result: ScanResult) -> Dict:
         """Execute remediation for a failed rule"""
-        pass
 
     @abstractmethod
     async def get_remediation_plan(self, failed_rules: List[str], host_config: Dict) -> Dict:
         """Get remediation plan for multiple failed rules"""
-        pass
 
     def validate_remediation(self, rule_id: str, host_config: Dict) -> Dict:
         """Validate that remediation was successful"""
@@ -201,16 +186,12 @@ class IntegrationPlugin(PluginInterface):
     """Interface for external system integration plugins"""
 
     @abstractmethod
-    async def export_results(
-        self, scan_results: List[ScanResult], destination_config: Dict
-    ) -> bool:
+    async def export_results(self, scan_results: List[ScanResult], destination_config: Dict) -> bool:
         """Export scan results to external system"""
-        pass
 
     @abstractmethod
     async def import_content(self, source_config: Dict) -> Optional[str]:
         """Import SCAP content from external source"""
-        pass
 
     def sync_hosts(self, source_config: Dict) -> List[Dict]:
         """Synchronize host inventory from external system"""
@@ -223,17 +204,14 @@ class ContentPlugin(PluginInterface):
     @abstractmethod
     async def fetch_content(self, content_id: str, version: str = "latest") -> str:
         """Fetch SCAP content by identifier"""
-        pass
 
     @abstractmethod
     async def list_available_content(self) -> List[Dict]:
         """List available SCAP content from this provider"""
-        pass
 
     @abstractmethod
     async def validate_content_integrity(self, content_path: str) -> bool:
         """Validate content integrity and authenticity"""
-        pass
 
     def get_content_metadata(self, content_id: str) -> Dict:
         """Get metadata for specific content"""
@@ -246,12 +224,10 @@ class AuthenticationPlugin(PluginInterface):
     @abstractmethod
     async def authenticate_user(self, credentials: Dict) -> Optional[Dict]:
         """Authenticate user and return user info if successful"""
-        pass
 
     @abstractmethod
     async def authorize_action(self, user_info: Dict, action: str, resource: str) -> bool:
         """Check if user is authorized for specific action on resource"""
-        pass
 
     def get_user_groups(self, user_info: Dict) -> List[str]:
         """Get list of groups for authenticated user"""
@@ -262,16 +238,12 @@ class NotificationPlugin(PluginInterface):
     """Interface for notification service plugins"""
 
     @abstractmethod
-    async def send_notification(
-        self, message: str, recipients: List[str], notification_type: str = "info"
-    ) -> bool:
+    async def send_notification(self, message: str, recipients: List[str], notification_type: str = "info") -> bool:
         """Send notification message"""
-        pass
 
     @abstractmethod
     def get_supported_types(self) -> List[str]:
         """Get supported notification types"""
-        pass
 
     def validate_recipients(self, recipients: List[str]) -> List[str]:
         """Validate and return valid recipients"""
@@ -331,7 +303,6 @@ class HookablePlugin(PluginInterface):
     @abstractmethod
     async def handle_hook(self, context: PluginHookContext) -> Optional[Dict]:
         """Handle a plugin hook"""
-        pass
 
     def register_hook(self, hook_name: str):
         """Register interest in a specific hook"""
@@ -382,10 +353,6 @@ def create_scan_context(
     )
 
 
-def create_scan_result(
-    scan_id: str, hostname: str, status: str, timestamp: str, **kwargs
-) -> ScanResult:
+def create_scan_result(scan_id: str, hostname: str, status: str, timestamp: str, **kwargs) -> ScanResult:
     """Utility function to create scan result"""
-    return ScanResult(
-        scan_id=scan_id, hostname=hostname, status=status, timestamp=timestamp, **kwargs
-    )
+    return ScanResult(scan_id=scan_id, hostname=hostname, status=status, timestamp=timestamp, **kwargs)

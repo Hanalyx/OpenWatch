@@ -4,7 +4,6 @@ Executes SQL migrations from backend/app/migrations directory on application sta
 """
 
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -96,11 +95,11 @@ class MigrationRunner:
             )
 
             self.db.commit()
-            logger.info(f"✅ Migration applied successfully: {migration_file.name}")
+            logger.info(f"[OK] Migration applied successfully: {migration_file.name}")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Migration failed: {migration_file.name}")
+            logger.error(f"[ERROR] Migration failed: {migration_file.name}")
             logger.error(f"Error: {str(e)}")
 
             # Record failed migration

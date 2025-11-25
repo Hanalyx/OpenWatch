@@ -34,7 +34,7 @@ func TestDockerRuntime_New(t *testing.T) {
 
 func TestDockerRuntime_Name(t *testing.T) {
 	d := NewDockerRuntime()
-	
+
 	expected := "Docker"
 	if d.Name() != expected {
 		t.Errorf("Name() = %v, want %v", d.Name(), expected)
@@ -43,7 +43,7 @@ func TestDockerRuntime_Name(t *testing.T) {
 
 func TestDockerRuntime_IsAvailable(t *testing.T) {
 	d := NewDockerRuntime()
-	
+
 	// This test will pass if Docker is available, skip if not
 	available := d.IsAvailable()
 	if available {

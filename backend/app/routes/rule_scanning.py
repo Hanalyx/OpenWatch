@@ -4,17 +4,17 @@ import json
 Rule-Specific Scanning API Routes
 Handles targeted scanning of specific SCAP rules
 
-⚠️ WARNING: This file may contain references to removed scap_content.
+WARNING: This file may contain references to removed scap_content.
 Migration: backend/alembic/versions/20250106_remove_scap_content_table.py (applied 2025-01-06)
 
-📚 REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
+REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
 All rule scanning should now use MongoDB compliance_rules collection directly.
 """
 
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -63,9 +63,7 @@ async def scan_specific_rules(
 ):
     """Scan specific SCAP rules on a host"""
     try:
-        logger.info(
-            f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules"
-        )
+        logger.info(f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules")
 
         # Get SCAP content file path
         content_result = db.execute(
@@ -109,9 +107,7 @@ async def scan_specific_rules(
                 "passed": scan_results["passed_rules"],
                 "failed": scan_results["failed_rules"],
                 "compliance_score": scan_results.get("compliance_score", 0),
-                "automated_remediation_available": sum(
-                    1 for r in remediation_priorities if r["automated_remediation"]
-                ),
+                "automated_remediation_available": sum(1 for r in remediation_priorities if r["automated_remediation"]),
             },
         }
 
@@ -247,9 +243,7 @@ async def get_rule_scan_history(
 
         # Get additional history from files if needed
         if len(history) < limit:
-            file_history = await rule_scanner.get_rule_scan_history(
-                rule_id, host_id, limit - len(history)
-            )
+            file_history = await rule_scanner.get_rule_scan_history(rule_id, host_id, limit - len(history))
             history.extend(file_history)
 
         # Get remediation guidance
@@ -339,9 +333,7 @@ async def create_remediation_plan(
         ).fetchall()
 
         if history_results:
-            failed_rules = [
-                {"rule_id": row.rule_id, "severity": row.severity} for row in history_results
-            ]
+            failed_rules = [{"rule_id": row.rule_id, "severity": row.severity} for row in history_results]
         else:
             # Fallback to getting from scan results table if exists
             scan_result = db.execute(
@@ -391,9 +383,7 @@ async def create_remediation_plan(
                 "estimated_duration": plan.estimated_duration,
                 "requires_reboot": plan.requires_reboot,
                 "dependencies_resolved": plan.dependencies_resolved,
-                "rule_groups": {
-                    category: len(rules) for category, rules in plan.rule_groups.items()
-                },
+                "rule_groups": {category: len(rules) for category, rules in plan.rule_groups.items()},
             },
             "aegis_job_request": aegis_job_request,
             "execution_ready": plan.dependencies_resolved,
@@ -432,12 +422,8 @@ def _store_rule_scan_results(db: Session, scan_results: dict):
                     "result": rule_result["result"],
                     "severity": rule_result.get("severity", "unknown"),
                     "scan_output": rule_result.get("scan_output", ""),
-                    "compliance_frameworks": json.dumps(
-                        rule_result.get("compliance_frameworks", [])
-                    ),
-                    "automated_remediation_available": rule_result.get(
-                        "automated_remediation_available", False
-                    ),
+                    "compliance_frameworks": json.dumps(rule_result.get("compliance_frameworks", [])),
+                    "automated_remediation_available": rule_result.get("automated_remediation_available", False),
                     "aegis_rule_id": rule_result.get("aegis_rule_id"),
                     "duration_ms": scan_results.get("duration_seconds", 0) * 1000,
                 },
@@ -495,9 +481,7 @@ def _store_remediation_plan(db: Session, plan, created_by: int):
         db.rollback()
 
 
-def _update_remediation_plan_status(
-    db: Session, aegis_remediation_id: str, verification_report: dict
-):
+def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, verification_report: dict):
     """Update remediation plan status after verification"""
     try:
         # Determine status based on verification results

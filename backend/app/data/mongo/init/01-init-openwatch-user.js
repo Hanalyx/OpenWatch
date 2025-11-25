@@ -173,6 +173,6 @@ print('Indexes are managed by Beanie ODM - see backend/app/models/mongo_models.p
 print('MongoDB initialization completed successfully');
 print('Database: openwatch_rules');
 print('Collections created: compliance_rules, rule_intelligence, remediation_scripts');
-print('Indexes created: ' + db.compliance_rules.getIndexes().length + ' compliance_rules, ' + 
-      db.rule_intelligence.getIndexes().length + ' rule_intelligence, ' + 
+print('Indexes created: ' + db.compliance_rules.getIndexes().length + ' compliance_rules, ' +
+      db.rule_intelligence.getIndexes().length + ' rule_intelligence, ' +
       db.remediation_scripts.getIndexes().length + ' remediation_scripts');

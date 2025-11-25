@@ -46,12 +46,10 @@ class BaseScanner(ABC):
         Returns:
             Tuple of (rule_results, summary)
         """
-        pass
 
     @abstractmethod
     def _get_version(self) -> str:
         """Get scanner version (e.g., oscap 1.3.7, kubectl 1.28.0)"""
-        pass
 
     def _calculate_summary(self, results: List[RuleResult]) -> ScanResultSummary:
         """Calculate summary statistics from rule results"""
@@ -155,16 +153,10 @@ class BaseScanner(ABC):
 class ScannerNotAvailableError(Exception):
     """Raised when required scanner is not available"""
 
-    pass
-
 
 class ScannerExecutionError(Exception):
     """Raised when scanner execution fails"""
 
-    pass
-
 
 class UnsupportedTargetError(Exception):
     """Raised when target type is not supported by scanner"""
-
-    pass

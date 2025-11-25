@@ -4,13 +4,11 @@ Provides comprehensive error taxonomy and user-friendly guidance
 Enhanced with security sanitization to prevent information disclosure
 """
 
-import json
 import logging
 import os
 import socket
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import paramiko
 from pydantic import BaseModel, Field
@@ -23,7 +21,7 @@ from ..models.error_models import (
     ValidationResultInternal,
     ValidationResultResponse,
 )
-from .error_sanitization import SanitizationLevel, get_error_sanitization_service
+from .error_sanitization import get_error_sanitization_service
 from .security_audit_logger import get_security_audit_logger
 
 logger = logging.getLogger(__name__)
@@ -297,14 +295,12 @@ class AuthenticationValidator:
                                 category=ErrorCategory.AUTHENTICATION,
                                 severity=ErrorSeverity.ERROR,
                                 message=f"Invalid SSH key format: {validation_result.error_message}",
-                                technical_details={
-                                    "validation_error": validation_result.error_message
-                                },
+                                technical_details={"validation_error": validation_result.error_message},
                                 user_guidance="Ensure SSH private key is in correct format (RSA, DSA, ECDSA, or Ed25519). Check key file integrity.",
                                 automated_fixes=[
                                     AutomatedFix(
                                         fix_id="regenerate_key",
-                                        description="⚠️ SECURITY: Use secure automated fix system to generate SSH key",
+                                        description="[SECURITY] Use secure automated fix system to generate SSH key",
                                         command=None,  # No direct command - use secure system
                                         requires_sudo=False,
                                         estimated_time=30,
@@ -337,7 +333,7 @@ class AuthenticationValidator:
                             automated_fixes=[
                                 AutomatedFix(
                                     fix_id="copy_public_key",
-                                    description="⚠️ SECURITY: Use secure automated fix system to copy SSH key",
+                                    description="[SECURITY] Use secure automated fix system to copy SSH key",
                                     command=None,  # No direct command - use secure system
                                     requires_sudo=False,
                                     estimated_time=15,
@@ -396,7 +392,7 @@ class PrivilegeValidator:
                             automated_fixes=[
                                 AutomatedFix(
                                     fix_id="add_sudoers_oscap",
-                                    description="⚠️ SECURITY: Use secure automated fix system to configure sudo access",
+                                    description="[SECURITY] Use secure automated fix system to configure sudo access",
                                     command=None,  # No direct command - use secure system
                                     requires_sudo=True,
                                     estimated_time=30,
@@ -413,9 +409,7 @@ class PrivilegeValidator:
 
             if selinux_status == "enforcing":
                 # Check OpenSCAP SELinux policies
-                stdin, stdout, stderr = ssh_client.exec_command(
-                    "getsebool openscap_can_network 2>/dev/null", timeout=5
-                )
+                stdin, stdout, stderr = ssh_client.exec_command("getsebool openscap_can_network 2>/dev/null", timeout=5)
                 bool_output = stdout.read().decode().strip()
 
                 if "off" in bool_output:
@@ -433,7 +427,7 @@ class PrivilegeValidator:
                             automated_fixes=[
                                 AutomatedFix(
                                     fix_id="enable_selinux_openscap",
-                                    description="⚠️ SECURITY: Use secure automated fix system to configure SELinux",
+                                    description="[SECURITY] Use secure automated fix system to configure SELinux",
                                     command=None,  # No direct command - use secure system
                                     requires_sudo=True,
                                     estimated_time=15,
@@ -464,9 +458,7 @@ class ResourceValidator:
 
         try:
             # Check disk space in /tmp
-            _, stdout, _ = ssh_client.exec_command(
-                "df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10
-            )
+            _, stdout, _ = ssh_client.exec_command("df -BM /tmp | tail -1 | awk '{print $4}'", timeout=10)
             available_output = stdout.read().decode().strip()
 
             if available_output:
@@ -487,7 +479,7 @@ class ResourceValidator:
                                 automated_fixes=[
                                     AutomatedFix(
                                         fix_id="cleanup_tmp",
-                                        description="⚠️ SECURITY: Use secure automated fix system to clean up files",
+                                        description="[SECURITY] Use secure automated fix system to clean up files",
                                         command=None,  # No direct command - use secure system
                                         requires_sudo=True,
                                         estimated_time=60,
@@ -503,9 +495,7 @@ class ResourceValidator:
                     logger.warning(f"Could not parse disk space output: {available_output}")
 
             # Check memory availability
-            stdin, stdout, stderr = ssh_client.exec_command(
-                "free -m | grep '^Mem:' | awk '{print $7}'", timeout=10
-            )
+            stdin, stdout, stderr = ssh_client.exec_command("free -m | grep '^Mem:' | awk '{print $7}'", timeout=10)
             available_memory = stdout.read().decode().strip()
 
             if available_memory:
@@ -562,7 +552,7 @@ class DependencyValidator:
                         automated_fixes=[
                             AutomatedFix(
                                 fix_id="install_openscap_rhel",
-                                description="⚠️ SECURITY: Use secure automated fix system to install OpenSCAP on RHEL/CentOS",
+                                description="[SECURITY] Use secure automated fix system to install OpenSCAP on RHEL/CentOS",
                                 command=None,  # No direct command - use secure system
                                 requires_sudo=True,
                                 estimated_time=120,
@@ -570,7 +560,7 @@ class DependencyValidator:
                             ),
                             AutomatedFix(
                                 fix_id="install_openscap_ubuntu",
-                                description="⚠️ SECURITY: Use secure automated fix system to install OpenSCAP on Ubuntu/Debian",
+                                description="[SECURITY] Use secure automated fix system to install OpenSCAP on Ubuntu/Debian",
                                 command=None,  # No direct command - use secure system
                                 requires_sudo=True,
                                 estimated_time=120,
@@ -602,7 +592,7 @@ class DependencyValidator:
                         automated_fixes=[
                             AutomatedFix(
                                 fix_id="update_openscap",
-                                description="⚠️ SECURITY: Use secure automated fix system to update OpenSCAP",
+                                description="[SECURITY] Use secure automated fix system to update OpenSCAP",
                                 command=None,  # No direct command - use secure system
                                 requires_sudo=True,
                                 estimated_time=60,
@@ -682,17 +672,13 @@ class ErrorClassificationService:
         self.resource_validator = ResourceValidator()
         self.dependency_validator = DependencyValidator()
 
-    async def classify_error(
-        self, error: Exception, context: Dict[str, Any] = None
-    ) -> ScanErrorInternal:
+    async def classify_error(self, error: Exception, context: Dict[str, Any] = None) -> ScanErrorInternal:
         """Classify and enhance a generic error with actionable guidance"""
         context = context or {}
         error_str = str(error).lower()
 
         # Network errors
-        if any(
-            keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]
-        ):
+        if any(keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]):
             return ScanErrorInternal(
                 error_code="NET_006",
                 category=ErrorCategory.NETWORK,
@@ -769,13 +755,7 @@ class ErrorClassificationService:
         try:
             network_errors = await self.network_validator.validate_connectivity(hostname, port)
             validation_checks["network_connectivity"] = len(network_errors) == 0
-            errors.extend(
-                [
-                    e
-                    for e in network_errors
-                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
-                ]
-            )
+            errors.extend([e for e in network_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
             warnings.extend([e for e in network_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if network fails
@@ -798,13 +778,7 @@ class ErrorClassificationService:
                 hostname, port, username, auth_method, credential
             )
             validation_checks["authentication"] = len(auth_errors) == 0
-            errors.extend(
-                [
-                    e
-                    for e in auth_errors
-                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
-                ]
-            )
+            errors.extend([e for e in auth_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
             warnings.extend([e for e in auth_errors if e.severity == ErrorSeverity.WARNING])
 
             if errors:  # Can't proceed if auth fails
@@ -872,16 +846,12 @@ class ErrorClassificationService:
             system_info["ssh_available"] = True
 
             # Check basic resource info (will be sanitized)
-            stdin, stdout, stderr = ssh_client.exec_command(
-                "df /tmp | tail -1 | awk '{print $4}'", timeout=5
-            )
+            stdin, stdout, stderr = ssh_client.exec_command("df /tmp | tail -1 | awk '{print $4}'", timeout=5)
             disk_output = stdout.read().decode().strip()
             if disk_output and disk_output.rstrip("M").isdigit():
                 system_info["disk_space"] = int(disk_output.rstrip("M"))
 
-            stdin, stdout, stderr = ssh_client.exec_command(
-                "free -m | grep \"^Mem:\" | awk '{print $7}'", timeout=5
-            )
+            stdin, stdout, stderr = ssh_client.exec_command("free -m | grep \"^Mem:\" | awk '{print $7}'", timeout=5)
             memory_output = stdout.read().decode().strip()
             if memory_output and memory_output.isdigit():
                 system_info["memory"] = int(memory_output)
@@ -891,27 +861,13 @@ class ErrorClassificationService:
             validation_checks["privileges"] = (
                 len([e for e in privilege_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
-            errors.extend(
-                [
-                    e
-                    for e in privilege_errors
-                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
-                ]
-            )
+            errors.extend([e for e in privilege_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
             warnings.extend([e for e in privilege_errors if e.severity == ErrorSeverity.WARNING])
 
             # Resource validation
             resource_errors = await self.resource_validator.validate_resources(ssh_client)
-            validation_checks["resources"] = (
-                len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR]) == 0
-            )
-            errors.extend(
-                [
-                    e
-                    for e in resource_errors
-                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
-                ]
-            )
+            validation_checks["resources"] = len([e for e in resource_errors if e.severity == ErrorSeverity.ERROR]) == 0
+            errors.extend([e for e in resource_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
             warnings.extend([e for e in resource_errors if e.severity == ErrorSeverity.WARNING])
 
             # Dependency validation
@@ -919,13 +875,7 @@ class ErrorClassificationService:
             validation_checks["dependencies"] = (
                 len([e for e in dependency_errors if e.severity == ErrorSeverity.ERROR]) == 0
             )
-            errors.extend(
-                [
-                    e
-                    for e in dependency_errors
-                    if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]
-                ]
-            )
+            errors.extend([e for e in dependency_errors if e.severity in [ErrorSeverity.ERROR, ErrorSeverity.CRITICAL]])
             warnings.extend([e for e in dependency_errors if e.severity == ErrorSeverity.WARNING])
 
         except Exception as e:
@@ -985,9 +935,7 @@ class ErrorClassificationService:
         # Sanitize errors using existing error sanitization
         sanitized_errors = []
         for error in internal_result.errors:
-            sanitized_error = sanitization_service.sanitize_error(
-                error.dict(), user_id=user_id, source_ip=source_ip
-            )
+            sanitized_error = sanitization_service.sanitize_error(error.dict(), user_id=user_id, source_ip=source_ip)
             # Convert SanitizedError to ScanErrorResponse
             scan_error_response = ScanErrorResponse(
                 error_code=sanitized_error.error_code,

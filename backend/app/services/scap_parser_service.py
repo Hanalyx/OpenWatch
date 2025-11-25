@@ -8,8 +8,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -566,7 +565,7 @@ class SCAPParserService:
                         frameworks["stig"][version] = stig_id
 
         # Process identifiers for additional mappings
-        identifiers = self._extract_identifiers(rule_elem)
+        self._extract_identifiers(rule_elem)
 
         # Clean up empty frameworks
         frameworks = {k: v for k, v in frameworks.items() if v}
@@ -605,7 +604,7 @@ class SCAPParserService:
     def _determine_security_function(self, rule: Dict[str, Any]) -> str:
         """Determine high-level security function"""
         category = rule["category"]
-        frameworks = rule.get("frameworks", {})
+        rule.get("frameworks", {})
 
         # Map categories to security functions
         function_map = {

@@ -7,7 +7,7 @@ Docker configurations for containerized deployment of OpenWatch services.
 ```
 docker/
 ├── Dockerfile.backend       # Production Docker backend image
-├── Dockerfile.backend.dev   # Development Docker backend image  
+├── Dockerfile.backend.dev   # Development Docker backend image
 ├── Dockerfile.frontend      # Production Docker frontend image
 ├── Dockerfile.frontend.dev  # Development Docker frontend image
 ├── Containerfile.backend    # Production Podman backend image
@@ -16,7 +16,7 @@ docker/
 │   └── init.sql            # Initial schema and roles
 └── frontend/                # Nginx configurations
     ├── default.conf        # Production HTTPS config
-    ├── default-simple.conf # Simple HTTP config  
+    ├── default-simple.conf # Simple HTTP config
     ├── default.dev.conf    # Development config
     └── nginx.conf          # Base Nginx config
 ```

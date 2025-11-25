@@ -86,7 +86,7 @@ EOF
 # Create required directories
 create_directories() {
     print_status "Creating required directories..."
-    
+
     mkdir -p "$MONITORING_DIR/data/prometheus"
     mkdir -p "$MONITORING_DIR/data/grafana"
     mkdir -p "$MONITORING_DIR/data/alertmanager"
@@ -94,29 +94,29 @@ create_directories() {
     mkdir -p "$MONITORING_DIR/config/grafana/dashboards/secureops"
     mkdir -p "$MONITORING_DIR/config/grafana/dashboards/infrastructure"
     mkdir -p "$MONITORING_DIR/config/grafana/dashboards/business"
-    
+
     # Set appropriate permissions
     chmod 777 "$MONITORING_DIR/data/grafana" 2>/dev/null || true
     chmod 777 "$MONITORING_DIR/data/prometheus" 2>/dev/null || true
-    
+
     print_status "Directories created successfully"
 }
 
 # Validate configuration files
 validate_config() {
     print_status "Validating configuration files..."
-    
+
     # Check if required config files exist
     if [ ! -f "$MONITORING_DIR/config/prometheus.yml" ]; then
         print_error "Prometheus configuration file not found!"
         exit 1
     fi
-    
+
     if [ ! -f "$MONITORING_DIR/config/alertmanager.yml" ]; then
         print_error "Alertmanager configuration file not found!"
         exit 1
     fi
-    
+
     # Validate Prometheus config
     if command -v promtool &> /dev/null; then
         if promtool check config "$MONITORING_DIR/config/prometheus.yml"; then
@@ -128,28 +128,28 @@ validate_config() {
     else
         print_warning "promtool not found, skipping Prometheus config validation"
     fi
-    
+
     print_status "Configuration validation completed"
 }
 
 # Start monitoring services
 start_monitoring() {
     print_status "Starting monitoring stack..."
-    
+
     cd "$MONITORING_DIR"
-    
+
     # Pull latest images
     print_status "Pulling latest container images..."
     $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
-    
+
     # Start services
     print_status "Starting monitoring services..."
     $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
-    
+
     # Wait for services to be ready
     print_status "Waiting for services to be ready..."
     sleep 30
-    
+
     # Check service health
     check_service_health
 }
@@ -157,14 +157,14 @@ start_monitoring() {
 # Check service health
 check_service_health() {
     print_status "Checking service health..."
-    
+
     local services=("prometheus:9090" "grafana:3001" "jaeger:16686" "alertmanager:9093")
     local healthy_services=0
-    
+
     for service in "${services[@]}"; do
         local name=$(echo $service | cut -d: -f1)
         local port=$(echo $service | cut -d: -f2)
-        
+
         if curl -sf "http://localhost:$port" > /dev/null 2>&1; then
             print_status "$name is healthy (port $port)"
             ((healthy_services++))
@@ -172,9 +172,9 @@ check_service_health() {
             print_warning "$name is not responding (port $port)"
         fi
     done
-    
+
     print_status "$healthy_services/${#services[@]} services are healthy"
-    
+
     if [ $healthy_services -eq ${#services[@]} ]; then
         print_status "All monitoring services are running successfully!"
         show_service_urls
@@ -223,25 +223,25 @@ show_status() {
 backup_data() {
     local backup_dir="$MONITORING_DIR/backups/$(date +%Y%m%d_%H%M%S)"
     print_status "Creating backup in $backup_dir..."
-    
+
     mkdir -p "$backup_dir"
-    
+
     # Backup Prometheus data
     if [ -d "$MONITORING_DIR/data/prometheus" ]; then
         tar -czf "$backup_dir/prometheus_data.tar.gz" -C "$MONITORING_DIR/data" prometheus/
         print_status "Prometheus data backed up"
     fi
-    
+
     # Backup Grafana data
     if [ -d "$MONITORING_DIR/data/grafana" ]; then
         tar -czf "$backup_dir/grafana_data.tar.gz" -C "$MONITORING_DIR/data" grafana/
         print_status "Grafana data backed up"
     fi
-    
+
     # Backup configuration
     tar -czf "$backup_dir/config.tar.gz" -C "$MONITORING_DIR" config/
     print_status "Configuration backed up"
-    
+
     print_status "Backup completed: $backup_dir"
 }
 

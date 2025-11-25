@@ -3,14 +3,13 @@ Group Compliance Scanning Routes
 Enhanced endpoints for comprehensive group-based compliance scanning and reporting
 """
 
-import asyncio
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import and_, or_, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.app.auth import get_current_user, require_permissions
@@ -131,7 +130,8 @@ async def start_group_compliance_scan(
 
     # Execute scan directly for now (can be moved to background task later)
     host_ids = [host.id for host in hosts]
-    scan_result = execute_group_compliance_scan(
+    # Result intentionally captured for future use/logging
+    _scan_result = execute_group_compliance_scan(  # noqa: F841
         group_id=group_id,
         host_ids=host_ids,
         scap_content_id=content_id,
@@ -259,9 +259,7 @@ async def get_group_compliance_report(
     # Calculate average scores for each framework
     for framework_data in framework_distribution.values():
         if framework_data["total_rules"] > 0:
-            framework_data["avg_score"] = (
-                framework_data["passed_rules"] / framework_data["total_rules"] * 100
-            )
+            framework_data["avg_score"] = framework_data["passed_rules"] / framework_data["total_rules"] * 100
 
     # Get compliance trend (last 30 days)
     trend_data = db.execute(
@@ -603,9 +601,7 @@ def execute_group_compliance_scan(
                 db.flush()  # Get scan ID
 
                 # Execute SCAP scan
-                scan_result = scanner.scan_host(
-                    host=host, scap_content=scap_content, profile_id=profile_id
-                )
+                scan_result = scanner.scan_host(host=host, scap_content=scap_content, profile_id=profile_id)
 
                 # Update scan status
                 scan.status = "completed"
@@ -634,9 +630,7 @@ def execute_group_compliance_scan(
                     scan.error_message = str(host_error)
                     scan.completed_at = datetime.utcnow()
 
-                scan_results.append(
-                    {"host_id": host_id, "status": "failed", "error": str(host_error)}
-                )
+                scan_results.append({"host_id": host_id, "status": "failed", "error": str(host_error)})
 
         db.commit()
 
@@ -652,9 +646,7 @@ def execute_group_compliance_scan(
         return {"status": "failed", "error": str(e)}
 
 
-async def send_compliance_scan_notification(
-    session_id: str, group_id: int, config: Dict[str, Any], db: Session
-):
+async def send_compliance_scan_notification(session_id: str, group_id: int, config: Dict[str, Any], db: Session):
     """
     Send email notification about completed compliance scan
     """

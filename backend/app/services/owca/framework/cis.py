@@ -108,11 +108,7 @@ class CISBenchmarkIntelligence(BaseFrameworkIntelligence):
         # Group rules by level (simplified - would parse from metadata)
         for rule in cis_rules:
             # Assume Level 1 unless explicitly marked Level 2
-            level = (
-                CISLevel.LEVEL_2
-                if "level_2" in rule.get("rule_id", "").lower()
-                else CISLevel.LEVEL_1
-            )
+            level = CISLevel.LEVEL_2 if "level_2" in rule.get("rule_id", "").lower() else CISLevel.LEVEL_1
             level_rules[level].append(rule)
 
         level_scores = []
@@ -140,9 +136,7 @@ class CISBenchmarkIntelligence(BaseFrameworkIntelligence):
 
         return level_scores
 
-    def _analyze_implementation_groups(
-        self, cis_rules: List[Dict]
-    ) -> List[CISImplementationGroupScore]:
+    def _analyze_implementation_groups(self, cis_rules: List[Dict]) -> List[CISImplementationGroupScore]:
         """Analyze CIS Implementation Group compliance."""
         # Simplified implementation - would parse from CIS metadata
         total = len(cis_rules)

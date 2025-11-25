@@ -9,9 +9,9 @@ import json
 import logging
 import pickle
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import redis.asyncio as redis
 
@@ -514,7 +514,7 @@ class RuleCacheService:
             keys = []
 
             async for key in self.redis_client.scan_iter(match=cache_pattern):
-                if not key.decode().endswith(":metrics") and not ":tags:" in key.decode():
+                if not key.decode().endswith(":metrics") and ":tags:" not in key.decode():
                     keys.append(key)
 
             if len(keys) <= 100:  # Don't evict if cache is small
@@ -556,7 +556,7 @@ class RuleCacheService:
                 count = 0
 
                 async for key in self.redis_client.scan_iter(match=cache_pattern):
-                    if not key.decode().endswith(":metrics") and not ":tags:" in key.decode():
+                    if not key.decode().endswith(":metrics") and ":tags:" not in key.decode():
                         count += 1
 
                 self.metrics.cache_size = count

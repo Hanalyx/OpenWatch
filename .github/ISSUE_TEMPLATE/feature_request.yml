@@ -78,7 +78,7 @@ body:
       label: Alternative Solutions
       description: Alternative approaches you've considered
       placeholder: |
-        A clear and concise description of any alternative solutions 
+        A clear and concise description of any alternative solutions
         or features you've considered.
 
   - type: textarea

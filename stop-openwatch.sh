@@ -23,7 +23,7 @@ CLEAN_MODE=${OPENWATCH_CLEAN_STOP:-false}  # Default to SAFE stop - preserves da
 # Container names (matching actual docker-compose service names)
 CONTAINER_NAMES=(
     "openwatch-frontend"
-    "openwatch-backend" 
+    "openwatch-backend"
     "openwatch-worker"
     "openwatch-db"
     "openwatch-redis"
@@ -53,7 +53,7 @@ detect_runtime() {
     local docker_available=false
     local docker_running=false
     local podman_running=false
-    
+
     # Check for Podman
     if command -v podman &> /dev/null; then
         podman_available=true
@@ -62,7 +62,7 @@ detect_runtime() {
             podman_running=true
         fi
     fi
-    
+
     # Check for Docker
     if command -v docker &> /dev/null; then
         docker_available=true
@@ -71,7 +71,7 @@ detect_runtime() {
             docker_running=true
         fi
     fi
-    
+
     # Determine runtime based on what's actually running
     if [ "$docker_running" = true ]; then
         # Docker containers are running, use docker
@@ -113,7 +113,7 @@ detect_runtime() {
         fi
         log_info "No containers running, using preferred runtime"
     fi
-    
+
     log_info "Using runtime: $RUNTIME"
     log_info "Using compose file: $COMPOSE_FILE"
 }
@@ -121,7 +121,7 @@ detect_runtime() {
 # Stop containers individually if compose fails
 stop_containers_individually() {
     log_warning "Attempting to stop containers individually..."
-    
+
     for container in "${CONTAINER_NAMES[@]}"; do
         case "$RUNTIME" in
             "podman-compose")
@@ -145,18 +145,18 @@ stop_containers_individually() {
 # Stop services with complete cleanup for development
 stop_services() {
     log_info "Stopping OpenWatch services..."
-    
+
     cd "$SCRIPT_DIR"
-    
+
     local compose_down_flags="--remove-orphans"  # Always remove orphans
     if [ "$CLEAN_MODE" = true ]; then
         compose_down_flags="--volumes --remove-orphans"
-        log_warning "⚠️  CLEAN MODE: Will DELETE ALL DATA (volumes will be removed)"
-        log_warning "⚠️  This includes hosts, credentials, scan results, and SCAP content"
+        log_warning "CLEAN MODE: Will DELETE ALL DATA (volumes will be removed)"
+        log_warning "This includes hosts, credentials, scan results, and SCAP content"
     else
         log_info "Safe mode: Stopping containers but preserving data volumes"
     fi
-    
+
     case "$RUNTIME" in
         "podman-compose")
             if [ -f "$COMPOSE_FILE" ]; then
@@ -195,7 +195,7 @@ stop_services() {
             fi
             ;;
     esac
-    
+
     log_success "OpenWatch services stopped"
 }
 
@@ -263,9 +263,9 @@ development_cleanup() {
 main() {
     log_info "OpenWatch Stop Script"
     log_info "===================="
-    
+
     detect_runtime
-    
+
     case "$1" in
         "--deep-clean"|"--dev-clean")
             development_cleanup
@@ -286,9 +286,9 @@ main() {
             stop_services
             ;;
     esac
-    
+
     log_success "Done!"
-    
+
     # Show next steps
     if [ "$CLEAN_MODE" = true ] || [ "$1" = "--deep-clean" ] || [ "$1" = "--dev-clean" ]; then
         log_info ""
@@ -327,7 +327,7 @@ case "$1" in
         echo "  OPENWATCH_CLEAN_STOP=true $0 # Clean stop (DELETES DATA)"
         echo "  $0 --deep-clean              # Nuclear option: remove everything"
         echo ""
-        echo "⚠️  WARNING: --deep-clean and CLEAN_MODE will DELETE ALL DATA!"
+        echo "WARNING: --deep-clean and CLEAN_MODE will DELETE ALL DATA!"
         echo "    This includes: hosts, credentials, scan results, SCAP content"
         echo ""
         exit 0

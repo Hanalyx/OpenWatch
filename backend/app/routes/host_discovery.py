@@ -138,9 +138,7 @@ async def discover_basic_system_bulk(
                 if host.username and (host.ip_address or host.hostname):
                     valid_hosts.append(host)
                 else:
-                    invalid_hosts.append(
-                        {"host_id": host_id, "error": "Missing connection information"}
-                    )
+                    invalid_hosts.append({"host_id": host_id, "error": "Missing connection information"})
             else:
                 invalid_hosts.append({"host_id": host_id, "error": "Host not found"})
 
@@ -161,9 +159,7 @@ async def discover_basic_system_bulk(
 
         except Exception as e:
             logger.error(f"Failed to schedule discovery for host {host.id}: {str(e)}")
-            invalid_hosts.append(
-                {"host_id": str(host.id), "error": f"Failed to schedule: {str(e)}"}
-            )
+            invalid_hosts.append({"host_id": str(host.id), "error": f"Failed to schedule: {str(e)}"})
 
     # Estimate completion time (assume 30 seconds per host)
     estimated_completion = datetime.utcnow()
@@ -230,7 +226,7 @@ async def _execute_background_discovery(host_id: str, db: Session):
 
         if host:
             discovery_service = HostBasicDiscoveryService()
-            discovery_results = discovery_service.discover_basic_system_info(host)
+            discovery_service.discover_basic_system_info(host)
 
             # Update host in database
             db.add(host)

@@ -17,15 +17,15 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 log_info() {
-    echo -e "${GREEN}ℹ️  $1${NC}"
+    echo -e "${GREEN}[INFO] $1${NC}"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}[WARNING] $1${NC}"
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 # Check if running as root
@@ -39,7 +39,7 @@ check_root() {
 # Install service files
 install_service_files() {
     log_info "Installing systemd service files..."
-    
+
     # Copy service files
     for service_file in "$SYSTEMD_SOURCE_DIR"/*.service "$SYSTEMD_SOURCE_DIR"/*.target "$SYSTEMD_SOURCE_DIR"/*.timer; do
         if [ -f "$service_file" ]; then
@@ -49,7 +49,7 @@ install_service_files() {
             chmod 644 "$SYSTEMD_TARGET_DIR/$basename"
         fi
     done
-    
+
     log_info "Service files installed successfully"
 }
 
@@ -63,7 +63,7 @@ reload_systemd() {
 # Enable services
 enable_services() {
     log_info "Enabling OpenWatch services..."
-    
+
     # Enable target and main services
     systemctl enable openwatch.target
     systemctl enable openwatch.service
@@ -71,18 +71,18 @@ enable_services() {
     systemctl enable openwatch-redis.service
     systemctl enable openwatch-worker.service
     systemctl enable openwatch-frontend.service
-    
+
     # Enable timers
     systemctl enable openwatch-backup.timer
     systemctl enable openwatch-maintenance.timer
-    
+
     log_info "Services enabled successfully"
 }
 
 # Validate installation
 validate_installation() {
     log_info "Validating service installation..."
-    
+
     local services=(
         "openwatch.target"
         "openwatch.service"
@@ -95,15 +95,15 @@ validate_installation() {
         "openwatch-maintenance.service"
         "openwatch-maintenance.timer"
     )
-    
+
     local failed_services=()
-    
+
     for service in "${services[@]}"; do
         if ! systemctl is-enabled "$service" >/dev/null 2>&1; then
             failed_services+=("$service")
         fi
     done
-    
+
     if [ ${#failed_services[@]} -eq 0 ]; then
         log_info "All services validated successfully"
     else
@@ -143,9 +143,9 @@ show_next_steps() {
 
 # Main execution
 main() {
-    echo "🔧 OpenWatch Systemd Installation"
+    echo "OpenWatch Systemd Installation"
     echo "=================================="
-    
+
     check_root
     install_service_files
     reload_systemd

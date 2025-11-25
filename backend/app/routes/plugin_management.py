@@ -4,24 +4,15 @@ Handles plugin import, management, and lifecycle operations
 """
 
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ..audit_db import log_security_event
 from ..auth import get_current_user
 from ..database import User, get_db
-from ..models.plugin_models import (
-    InstalledPlugin,
-    PluginAssociation,
-    PluginExecutionRequest,
-    PluginStatus,
-    PluginTrustLevel,
-    SecurityCheckResult,
-)
+from ..models.plugin_models import InstalledPlugin, PluginExecutionRequest, PluginStatus, PluginTrustLevel
 from ..services.plugin_execution_service import PluginExecutionService
 from ..services.plugin_import_service import PluginImportService
 from ..services.plugin_security_service import PluginSecurityService
@@ -55,9 +46,7 @@ class PluginImportResponse(BaseModel):
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.zip, .tar.gz, .owplugin)"),
     verify_signature: bool = Form(True, description="Whether to verify plugin signature"),
-    trust_level_override: Optional[PluginTrustLevel] = Form(
-        None, description="Override trust level (admin only)"
-    ),
+    trust_level_override: Optional[PluginTrustLevel] = Form(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
     db=Depends(get_db),
 ):
@@ -173,10 +162,7 @@ async def list_plugins(
         # Get paginated results
         skip = (page - 1) * per_page
         plugins_cursor = (
-            InstalledPlugin.find(query_filters)
-            .sort(-InstalledPlugin.imported_at)
-            .skip(skip)
-            .limit(per_page)
+            InstalledPlugin.find(query_filters).sort(-InstalledPlugin.imported_at).skip(skip).limit(per_page)
         )
         plugins = await plugins_cursor.to_list()
 
@@ -380,8 +366,7 @@ async def get_plugin_statistics(current_user: User = Depends(get_current_user)):
                 "security_metrics": {
                     "high_risk_plugins": high_risk_count,
                     "total_security_checks": total_security_checks,
-                    "average_checks_per_plugin": total_security_checks
-                    / max(stats["total_plugins"], 1),
+                    "average_checks_per_plugin": total_security_checks / max(stats["total_plugins"], 1),
                 }
             }
         )

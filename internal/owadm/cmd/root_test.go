@@ -22,7 +22,7 @@ func TestRootCommand(t *testing.T) {
 			},
 		},
 		{
-			name:      "Version flag", 
+			name:      "Version flag",
 			args:      []string{"--version"},
 			wantError: false,
 			checkOutput: func(output string) bool {
@@ -71,7 +71,6 @@ func TestVersionCommand(t *testing.T) {
 	if BuildTime == "" {
 		BuildTime = "unknown"
 	}
-	
+
 	t.Logf("Version: %s, Commit: %s, BuildTime: %s", Version, Commit, BuildTime)
 }
-

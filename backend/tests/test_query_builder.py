@@ -4,6 +4,7 @@ Tests SQL query construction, parameterization, and security
 """
 
 import pytest
+
 from app.utils.query_builder import QueryBuilder, build_paginated_query
 
 
@@ -19,9 +20,7 @@ class TestBasicQueries:
 
     def test_select_specific_columns(self):
         """Test SELECT with specific columns"""
-        query, params = (QueryBuilder("hosts")
-            .select("id", "hostname", "ip_address")
-            .build())
+        query, params = QueryBuilder("hosts").select("id", "hostname", "ip_address").build()
 
         assert "SELECT id, hostname, ip_address" in query
         assert "FROM hosts" in query
@@ -39,37 +38,33 @@ class TestWhereConditions:
 
     def test_single_where_condition(self):
         """Test single WHERE condition with parameter"""
-        query, params = (QueryBuilder("hosts")
-            .where("status = :status", "online", "status")
-            .build())
+        query, params = QueryBuilder("hosts").where("status = :status", "online", "status").build()
 
         assert "WHERE status = :status" in query
         assert params == {"status": "online"}
 
     def test_multiple_where_conditions(self):
         """Test multiple WHERE conditions (AND)"""
-        query, params = (QueryBuilder("hosts")
+        query, params = (
+            QueryBuilder("hosts")
             .where("status = :status", "online", "status")
             .where("is_active = :active", True, "active")
-            .build())
+            .build()
+        )
 
         assert "WHERE status = :status AND is_active = :active" in query
         assert params == {"status": "online", "active": True}
 
     def test_where_without_parameters(self):
         """Test WHERE condition without parameters"""
-        query, params = (QueryBuilder("hosts")
-            .where("deleted_at IS NULL")
-            .build())
+        query, params = QueryBuilder("hosts").where("deleted_at IS NULL").build()
 
         assert "WHERE deleted_at IS NULL" in query
         assert params == {}
 
     def test_auto_parameter_naming(self):
         """Test automatic parameter name generation"""
-        query, params = (QueryBuilder("hosts")
-            .where("status = :param_0", "online")  # No param_name provided
-            .build())
+        query, params = QueryBuilder("hosts").where("status = :param_0", "online").build()  # No param_name provided
 
         # Should auto-generate param name
         assert ":param_0" in query or len(params) == 1
@@ -81,9 +76,7 @@ class TestSearchFunctionality:
 
     def test_search_adds_ilike(self):
         """Test search generates ILIKE condition"""
-        query, params = (QueryBuilder("hosts")
-            .search("hostname", "web-server")
-            .build())
+        query, params = QueryBuilder("hosts").search("hostname", "web-server").build()
 
         assert "ILIKE" in query
         assert "hostname" in query
@@ -91,18 +84,14 @@ class TestSearchFunctionality:
 
     def test_search_none_skips_condition(self):
         """Test search with None doesn't add condition"""
-        query, params = (QueryBuilder("hosts")
-            .search("hostname", None)
-            .build())
+        query, params = QueryBuilder("hosts").search("hostname", None).build()
 
         assert "ILIKE" not in query
         assert params == {}
 
     def test_search_empty_string_skips(self):
         """Test search with empty string doesn't add condition"""
-        query, params = (QueryBuilder("hosts")
-            .search("hostname", "")
-            .build())
+        query, params = QueryBuilder("hosts").search("hostname", "").build()
 
         assert "ILIKE" not in query
         assert params == {}
@@ -113,26 +102,24 @@ class TestJoinOperations:
 
     def test_left_join(self):
         """Test LEFT JOIN"""
-        query, params = (QueryBuilder("hosts h")
-            .join("scans s", "h.id = s.host_id", "LEFT")
-            .build())
+        query, params = QueryBuilder("hosts h").join("scans s", "h.id = s.host_id", "LEFT").build()
 
         assert "LEFT JOIN scans s ON h.id = s.host_id" in query
 
     def test_inner_join(self):
         """Test INNER JOIN"""
-        query, params = (QueryBuilder("hosts h")
-            .join("host_groups hg", "h.group_id = hg.id", "INNER")
-            .build())
+        query, params = QueryBuilder("hosts h").join("host_groups hg", "h.group_id = hg.id", "INNER").build()
 
         assert "INNER JOIN host_groups hg ON h.group_id = hg.id" in query
 
     def test_multiple_joins(self):
         """Test multiple JOIN clauses"""
-        query, params = (QueryBuilder("hosts h")
+        query, params = (
+            QueryBuilder("hosts h")
             .join("scans s", "h.id = s.host_id")
             .join("host_groups hg", "h.group_id = hg.id")
-            .build())
+            .build()
+        )
 
         assert "LEFT JOIN scans s ON h.id = s.host_id" in query
         assert "LEFT JOIN host_groups hg ON h.group_id = hg.id" in query
@@ -148,17 +135,13 @@ class TestOrderingAndPagination:
 
     def test_order_by_asc(self):
         """Test ORDER BY ascending"""
-        query, params = (QueryBuilder("hosts")
-            .order_by("created_at", "ASC")
-            .build())
+        query, params = QueryBuilder("hosts").order_by("created_at", "ASC").build()
 
         assert "ORDER BY created_at ASC" in query
 
     def test_order_by_desc(self):
         """Test ORDER BY descending"""
-        query, params = (QueryBuilder("hosts")
-            .order_by("created_at", "DESC")
-            .build())
+        query, params = QueryBuilder("hosts").order_by("created_at", "DESC").build()
 
         assert "ORDER BY created_at DESC" in query
 
@@ -169,27 +152,21 @@ class TestOrderingAndPagination:
 
     def test_pagination_first_page(self):
         """Test pagination for first page"""
-        query, params = (QueryBuilder("hosts")
-            .paginate(page=1, per_page=50)
-            .build())
+        query, params = QueryBuilder("hosts").paginate(page=1, per_page=50).build()
 
         assert "LIMIT 50" in query
         assert "OFFSET 0" in query
 
     def test_pagination_second_page(self):
         """Test pagination for second page"""
-        query, params = (QueryBuilder("hosts")
-            .paginate(page=2, per_page=50)
-            .build())
+        query, params = QueryBuilder("hosts").paginate(page=2, per_page=50).build()
 
         assert "LIMIT 50" in query
         assert "OFFSET 50" in query
 
     def test_pagination_custom_per_page(self):
         """Test pagination with custom per_page"""
-        query, params = (QueryBuilder("hosts")
-            .paginate(page=3, per_page=20)
-            .build())
+        query, params = QueryBuilder("hosts").paginate(page=3, per_page=20).build()
 
         assert "LIMIT 20" in query
         assert "OFFSET 40" in query  # (3-1) * 20
@@ -200,8 +177,7 @@ class TestCountQuery:
 
     def test_count_query_basic(self):
         """Test basic COUNT query"""
-        count_query, params = (QueryBuilder("hosts")
-            .count_query())
+        count_query, params = QueryBuilder("hosts").count_query()
 
         assert "SELECT COUNT(*) as total" in count_query
         assert "FROM hosts" in count_query
@@ -210,27 +186,25 @@ class TestCountQuery:
 
     def test_count_query_preserves_where(self):
         """Test COUNT query preserves WHERE conditions"""
-        count_query, params = (QueryBuilder("hosts")
-            .where("status = :status", "online", "status")
-            .count_query())
+        count_query, params = QueryBuilder("hosts").where("status = :status", "online", "status").count_query()
 
         assert "WHERE status = :status" in count_query
         assert params == {"status": "online"}
 
     def test_count_query_preserves_joins(self):
         """Test COUNT query preserves JOIN clauses"""
-        count_query, params = (QueryBuilder("hosts h")
-            .join("scans s", "h.id = s.host_id")
-            .count_query())
+        count_query, params = QueryBuilder("hosts h").join("scans s", "h.id = s.host_id").count_query()
 
         assert "LEFT JOIN scans s ON h.id = s.host_id" in count_query
 
     def test_count_query_removes_pagination(self):
         """Test COUNT query removes LIMIT/OFFSET"""
-        count_query, params = (QueryBuilder("hosts")
+        count_query, params = (
+            QueryBuilder("hosts")
             .where("status = :status", "online", "status")
             .paginate(page=2, per_page=50)
-            .count_query())
+            .count_query()
+        )
 
         assert "LIMIT" not in count_query
         assert "OFFSET" not in count_query
@@ -244,9 +218,7 @@ class TestSQLInjectionPrevention:
         """Test malicious search input is parameterized"""
         malicious_input = "'; DROP TABLE hosts; --"
 
-        query, params = (QueryBuilder("hosts")
-            .search("hostname", malicious_input)
-            .build())
+        query, params = QueryBuilder("hosts").search("hostname", malicious_input).build()
 
         # Malicious input should be in params, NOT in query string
         assert "DROP TABLE" not in query
@@ -257,9 +229,7 @@ class TestSQLInjectionPrevention:
         """Test malicious WHERE value is parameterized"""
         malicious_input = "online' OR '1'='1"
 
-        query, params = (QueryBuilder("hosts")
-            .where("status = :status", malicious_input, "status")
-            .build())
+        query, params = QueryBuilder("hosts").where("status = :status", malicious_input, "status").build()
 
         # Malicious input in params, not query
         assert "OR '1'='1'" not in query
@@ -269,9 +239,7 @@ class TestSQLInjectionPrevention:
         """Test null byte injection is handled"""
         malicious_input = "test\x00hostname"
 
-        query, params = (QueryBuilder("hosts")
-            .search("hostname", malicious_input)
-            .build())
+        query, params = QueryBuilder("hosts").search("hostname", malicious_input).build()
 
         # Should be parameterized safely
         assert params["search_hostname"] == f"%{malicious_input}%"
@@ -282,13 +250,9 @@ class TestComplexQueries:
 
     def test_host_list_query(self):
         """Test realistic host list query with joins, filters, search, pagination"""
-        builder = (QueryBuilder("hosts h")
-            .select(
-                "h.*",
-                "hg.name as group_name",
-                "hg.color as group_color",
-                "s.status as scan_status"
-            )
+        builder = (
+            QueryBuilder("hosts h")
+            .select("h.*", "hg.name as group_name", "hg.color as group_color", "s.status as scan_status")
             .join("host_groups hg", "h.group_id = hg.id")
             .join("scans s", "h.latest_scan_id = s.id")
             .where("h.is_active = :active", True, "active")
@@ -308,10 +272,7 @@ class TestComplexQueries:
         assert "LIMIT 20" in query
         assert "OFFSET 0" in query
 
-        assert params == {
-            "active": True,
-            "search_h_hostname": "%web%"
-        }
+        assert params == {"active": True, "search_h_hostname": "%web%"}
 
     def test_conditional_filters(self):
         """Test conditional filter application"""
@@ -334,11 +295,7 @@ class TestConvenienceFunction:
 
     def test_basic_paginated_query(self):
         """Test basic paginated query"""
-        data_query, count_query, params = build_paginated_query(
-            table="hosts",
-            page=1,
-            limit=20
-        )
+        data_query, count_query, params = build_paginated_query(table="hosts", page=1, limit=20)
 
         assert "SELECT * FROM hosts" in data_query
         assert "LIMIT 20" in data_query
@@ -347,11 +304,7 @@ class TestConvenienceFunction:
     def test_paginated_query_with_search(self):
         """Test paginated query with search"""
         data_query, count_query, params = build_paginated_query(
-            table="hosts",
-            page=1,
-            limit=20,
-            search="web",
-            search_column="hostname"
+            table="hosts", page=1, limit=20, search="web", search_column="hostname"
         )
 
         assert "hostname ILIKE :search_hostname" in data_query
@@ -360,10 +313,7 @@ class TestConvenienceFunction:
     def test_paginated_query_with_filters(self):
         """Test paginated query with filters"""
         data_query, count_query, params = build_paginated_query(
-            table="hosts",
-            page=1,
-            limit=20,
-            filters={"status": "online", "is_active": True}
+            table="hosts", page=1, limit=20, filters={"status": "online", "is_active": True}
         )
 
         assert "status = :status" in data_query
@@ -373,11 +323,7 @@ class TestConvenienceFunction:
     def test_paginated_query_with_ordering(self):
         """Test paginated query with custom ordering"""
         data_query, count_query, params = build_paginated_query(
-            table="hosts",
-            page=2,
-            limit=50,
-            order_by="hostname",
-            order_direction="ASC"
+            table="hosts", page=2, limit=50, order_by="hostname", order_direction="ASC"
         )
 
         assert "ORDER BY hostname ASC" in data_query
@@ -389,8 +335,7 @@ class TestParameterIsolation:
 
     def test_params_are_copied(self):
         """Test that build() returns copy of params, not reference"""
-        builder = (QueryBuilder("hosts")
-            .where("status = :status", "online", "status"))
+        builder = QueryBuilder("hosts").where("status = :status", "online", "status")
 
         query1, params1 = builder.build()
         query2, params2 = builder.build()
@@ -403,9 +348,7 @@ class TestParameterIsolation:
 
     def test_count_query_independent_params(self):
         """Test count_query returns independent parameter dict"""
-        builder = (QueryBuilder("hosts")
-            .where("status = :status", "online", "status")
-            .paginate(1, 50))
+        builder = QueryBuilder("hosts").where("status = :status", "online", "status").paginate(1, 50)
 
         data_query, data_params = builder.build()
         count_query, count_params = builder.count_query()

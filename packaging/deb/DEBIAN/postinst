@@ -53,21 +53,21 @@ generate_password() {
 generate_jwt_keys() {
     local private_key="$CONFIG_DIR/jwt_private.pem"
     local public_key="$CONFIG_DIR/jwt_public.pem"
-    
+
     if [ ! -f "$private_key" ]; then
         log_info "Generating JWT key pair..."
-        
+
         # Generate RSA-2048 private key
         openssl genpkey -algorithm RSA -out "$private_key" -pkeyopt rsa_keygen_bits:2048 2>/dev/null
-        
+
         # Extract public key
         openssl pkey -in "$private_key" -pubout -out "$public_key" 2>/dev/null
-        
+
         # Set proper permissions
         chmod 600 "$private_key"
         chmod 644 "$public_key"
         chown $SERVICE_USER:$SERVICE_GROUP "$private_key" "$public_key"
-        
+
         log_success "JWT keys generated successfully"
     fi
 }
@@ -76,7 +76,7 @@ generate_jwt_keys() {
 configure_apparmor() {
     if command -v aa-status >/dev/null 2>&1; then
         log_info "Configuring AppArmor profiles..."
-        
+
         # Create AppArmor profile for OpenWatch containers
         cat > /etc/apparmor.d/openwatch-containers << 'EOF'
 # OpenWatch Container AppArmor Profile
@@ -86,31 +86,31 @@ configure_apparmor() {
 
 profile openwatch-containers flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
-  
+
   # Allow container runtime access
   /usr/bin/docker* ix,
   /usr/bin/podman* ix,
-  
+
   # OpenWatch configuration access
   /etc/openwatch/** r,
   /etc/openwatch/secrets.env r,
   /etc/openwatch/ssh/** r,
-  
+
   # Container data directories
   /var/lib/openwatch/** rw,
   /var/log/openwatch/** rw,
-  
+
   # System access for containers
   /proc/sys/net/core/somaxconn r,
   /sys/fs/cgroup/** r,
-  
+
   # Deny potentially dangerous operations
   deny /etc/passwd* w,
   deny /etc/shadow* w,
   deny /boot/** w,
 }
 EOF
-        
+
         # Load the profile in complain mode initially
         if [ -f /etc/apparmor.d/openwatch-containers ]; then
             apparmor_parser -r -C /etc/apparmor.d/openwatch-containers || true
@@ -126,25 +126,25 @@ case "$1" in
             log_info "Creating $SERVICE_GROUP group..."
             addgroup --system $SERVICE_GROUP
         fi
-        
+
         if ! getent passwd $SERVICE_USER >/dev/null; then
             log_info "Creating $SERVICE_USER user..."
             adduser --system --ingroup $SERVICE_GROUP --home /var/lib/openwatch \
                     --shell /usr/sbin/nologin --comment "OpenWatch service account" \
                     $SERVICE_USER
         fi
-        
+
         # Add openwatch user to container groups
         if getent group docker >/dev/null; then
             usermod -aG docker $SERVICE_USER
             log_info "Added $SERVICE_USER to docker group"
         fi
-        
+
         if getent group podman >/dev/null; then
             usermod -aG podman $SERVICE_USER
             log_info "Added $SERVICE_USER to podman group"
         fi
-        
+
         # Create directory structure
         log_info "Creating directory structure..."
         install -d -m 750 -o $SERVICE_USER -g $SERVICE_GROUP $CONFIG_DIR
@@ -152,7 +152,7 @@ case "$1" in
         install -d -m 755 -o $SERVICE_USER -g $SERVICE_GROUP /var/lib/openwatch
         install -d -m 755 -o $SERVICE_USER -g $SERVICE_GROUP /var/log/openwatch
         install -d -m 755 -o $SERVICE_USER -g $SERVICE_GROUP /var/cache/openwatch
-        
+
         # Generate initial configuration if it doesn't exist
         if [ ! -f "$CONFIG_FILE" ]; then
             log_info "Creating default configuration..."
@@ -164,7 +164,7 @@ runtime:
   engine: "docker"              # docker (default), podman, auto
   rootless: false               # Docker typically runs as root on Ubuntu
   compose_file: "/usr/share/openwatch/compose/docker-compose.yml"
-  
+
 database:
   host: "localhost"
   port: 5432
@@ -172,7 +172,7 @@ database:
   user: "openwatch"
   ssl_mode: "prefer"
   # Password loaded from secrets.env
-  
+
 web:
   port: 3001
   bind_address: "0.0.0.0"
@@ -180,7 +180,7 @@ web:
     enabled: false              # Set to true for production
     cert_path: "/etc/ssl/certs/openwatch.crt"
     key_path: "/etc/ssl/private/openwatch.key"
-    
+
 scanning:
   ssh_key_path: "/etc/openwatch/ssh/openwatch_rsa"
   concurrent_scans: 5
@@ -194,13 +194,13 @@ logging:
   audit_file: "/var/log/openwatch/audit.log"
   max_size: "100MB"
   max_age: 30
-  
+
 security:
   fips_mode: false
   audit_logging: true
   rate_limiting: true
   session_timeout: 3600
-  
+
 # Ubuntu-specific settings
 ubuntu:
   apparmor_enabled: true
@@ -209,17 +209,17 @@ EOF
             chmod 640 "$CONFIG_FILE"
             chown $SERVICE_USER:$SERVICE_GROUP "$CONFIG_FILE"
         fi
-        
+
         # Generate secrets if they don't exist
         if [ ! -f "$SECRETS_FILE" ] || grep -q "CHANGEME" "$SECRETS_FILE" 2>/dev/null; then
             log_info "Generating secure secrets..."
-            
+
             # Generate passwords
             DB_PASSWORD=$(generate_password)
             REDIS_PASSWORD=$(generate_password)
             SECRET_KEY=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-64)
             MASTER_KEY=$(generate_password)
-            
+
             # Create secrets file
             cat > "$SECRETS_FILE" << EOF
 # OpenWatch Secrets Configuration
@@ -243,34 +243,34 @@ JWT_PUBLIC_KEY_PATH=/etc/openwatch/jwt_public.pem
 # Container runtime
 CONTAINER_RUNTIME=docker
 EOF
-            
+
             # Secure the secrets file
             chmod 600 "$SECRETS_FILE"
             chown $SERVICE_USER:$SERVICE_GROUP "$SECRETS_FILE"
-            
+
             log_success "Secrets generated successfully"
         fi
-        
+
         # Generate JWT keys
         generate_jwt_keys
-        
+
         # Configure AppArmor
         configure_apparmor
-        
+
         # Copy systemd service files from package
         if [ -d /usr/share/openwatch/systemd ]; then
             log_info "Installing systemd service files..."
             cp /usr/share/openwatch/systemd/*.service /etc/systemd/system/
             systemctl daemon-reload
         fi
-        
+
         # Enable services but don't start them
         if [ -f /etc/systemd/system/openwatch.service ]; then
             systemctl enable openwatch.service || true
             systemctl enable openwatch-db.service || true
             log_success "Services enabled"
         fi
-        
+
         # Configure log rotation
         cat > /etc/logrotate.d/openwatch << 'EOF'
 /var/log/openwatch/*.log {
@@ -287,7 +287,7 @@ EOF
     endscript
 }
 EOF
-        
+
         # Ubuntu firewall configuration hint
         if command -v ufw >/dev/null 2>&1; then
             if ufw status | grep -q "Status: active"; then
@@ -295,7 +295,7 @@ EOF
                 log_warning "  sudo ufw allow 3001/tcp comment 'OpenWatch Web UI'"
             fi
         fi
-        
+
         # Final message
         echo ""
         log_success "OpenWatch installed successfully!"
@@ -309,10 +309,10 @@ EOF
         echo "Documentation: https://github.com/hanalyx/openwatch"
         echo ""
         ;;
-        
+
     abort-upgrade|abort-remove|abort-deconfigure)
         ;;
-        
+
     *)
         echo "postinst called with unknown argument '$1'" >&2
         exit 1

@@ -7,12 +7,12 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 ### `ci.yml` - Continuous Integration
 **Triggers:** Push to main/develop, Pull Requests
 - **Backend Testing:** Python linting, security checks, unit tests with coverage
-- **Frontend Testing:** ESLint, TypeScript checking, build verification  
+- **Frontend Testing:** ESLint, TypeScript checking, build verification
 - **Integration Tests:** Full stack testing with Docker Compose
 - **Docker Builds:** Multi-stage builds with caching for both backend and frontend
 - **Artifacts:** Pushes images to GitHub Container Registry on main branch
 
-### `deploy.yml` - Automated Deployment  
+### `deploy.yml` - Automated Deployment
 **Triggers:** Push to main, Manual dispatch
 - **Staging Deployment:** Automatic deployment to staging environment
 - **Production Deployment:** Manual approval required, blue-green deployment
@@ -37,7 +37,7 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 - **Integration:** Results integrated with GitHub Security tab
 
 ### `container-security.yml` - Container Scanning
-**Triggers:** Push, Pull Requests, Daily schedule  
+**Triggers:** Push, Pull Requests, Daily schedule
 - **Vulnerability Scanning:** Trivy and Grype scanners for container images
 - **SARIF Reports:** Security findings uploaded to GitHub Security
 - **Multi-component:** Separate scans for backend and frontend containers
@@ -53,7 +53,7 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 - **SonarCloud:** Comprehensive code quality and technical debt analysis
 - **Artifacts:** Quality reports uploaded for review
 
-## 📚 Documentation Workflows  
+## 📚 Documentation Workflows
 
 ### `docs.yml` - Documentation Generation
 **Triggers:** Push to main, Documentation changes
@@ -79,7 +79,7 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 **Schedule:** Weekly on Mondays
 - **Python Dependencies:** Backend package updates with security focus
 - **NPM Dependencies:** Frontend dependency management with grouping
-- **Docker Images:** Base image updates for security patches  
+- **Docker Images:** Base image updates for security patches
 - **GitHub Actions:** Workflow dependency updates
 - **Auto-merge:** Low-risk updates with comprehensive testing
 
@@ -106,7 +106,7 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 
 ### Repository Settings
 - Branch protection rules for main/develop branches
-- Required status checks for all CI workflows  
+- Required status checks for all CI workflows
 - GitHub Container Registry permissions
 - GitHub Pages enabled for documentation
 - Security alerts and Dependabot enabled
@@ -115,7 +115,7 @@ This directory contains all the CI/CD workflows for OpenWatch. Below is an overv
 
 1. **Fork the Repository:** All workflows will run automatically on your fork
 2. **Configure Secrets:** Add required secrets for full functionality
-3. **Enable GitHub Pages:** For documentation deployment  
+3. **Enable GitHub Pages:** For documentation deployment
 4. **Set up Branch Protection:** Configure branch rules for your workflow
 5. **Review Dependabot:** Adjust update schedules as needed
 

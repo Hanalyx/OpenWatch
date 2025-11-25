@@ -9,13 +9,11 @@ but never called it, allowing invalid SSH keys to be stored without validation.
 """
 
 import pytest
-import io
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-import paramiko
-from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
 
 
 def generate_ed25519_key() -> str:
@@ -32,10 +30,10 @@ def generate_ed25519_key() -> str:
     pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.OpenSSH,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
-    return pem.decode('utf-8')
+    return pem.decode("utf-8")
 
 
 def generate_rsa_key(key_size: int = 2048) -> str:
@@ -46,20 +44,16 @@ def generate_rsa_key(key_size: int = 2048) -> str:
         key_size: Key size in bits (1024, 2048, 4096, etc.)
     """
     # Generate RSA private key
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=key_size,
-        backend=default_backend()
-    )
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size, backend=default_backend())
 
     # Serialize to OpenSSH format
     pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.OpenSSH,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
-    return pem.decode('utf-8')
+    return pem.decode("utf-8")
 
 
 def test_host_ssh_key_validation_import(db_session: Session):
@@ -71,15 +65,16 @@ def test_host_ssh_key_validation_import(db_session: Session):
     from app.routes import hosts
 
     # Verify the module has the validate_ssh_key function
-    assert hasattr(hosts, 'validate_ssh_key'), (
-        "❌ CRITICAL: hosts.py must import validate_ssh_key from unified_ssh_service!\n\n"
+    assert hasattr(hosts, "validate_ssh_key"), (
+        "[CRITICAL] hosts.py must import validate_ssh_key from unified_ssh_service!\n\n"
         "Without this import, SSH keys cannot be validated."
     )
 
     # Verify it's the correct function from unified_ssh_service
     from app.services.unified_ssh_service import validate_ssh_key
+
     assert hosts.validate_ssh_key == validate_ssh_key, (
-        "❌ CRITICAL: hosts.py imports wrong validate_ssh_key function!\n\n"
+        "[CRITICAL] hosts.py imports wrong validate_ssh_key function!\n\n"
         "Must import from unified_ssh_service, not elsewhere."
     )
 
@@ -99,7 +94,7 @@ def test_valid_ssh_key_passes_validation():
     result = validate_ssh_key(key_content)
 
     assert result.is_valid is True, (
-        f"❌ Valid Ed25519 key failed validation: {result.error_message}\n\n"
+        f"[FAIL] Valid Ed25519 key failed validation: {result.error_message}\n\n"
         "This should never happen with a freshly generated key."
     )
     assert result.key_type is not None, "Valid key should have a key_type"
@@ -117,7 +112,7 @@ def test_invalid_ssh_key_fails_validation():
     result = validate_ssh_key(invalid_key)
 
     assert result.is_valid is False, (
-        "❌ Invalid SSH key passed validation when it should fail!\n\n"
+        "[FAIL] Invalid SSH key passed validation when it should fail!\n\n"
         "This is a security issue - we're accepting malformed keys."
     )
     assert result.error_message is not None, "Failed validation should have error message"
@@ -132,8 +127,7 @@ def test_empty_ssh_key_fails_validation():
     result = validate_ssh_key("")
 
     assert result.is_valid is False, (
-        "❌ Empty SSH key passed validation when it should fail!\n\n"
-        "Empty keys should never be accepted."
+        "[FAIL] Empty SSH key passed validation when it should fail!\n\n" "Empty keys should never be accepted."
     )
     assert result.error_message is not None
 
@@ -155,16 +149,18 @@ def test_rsa_2048_key_validation():
     # RSA-2048 should be "acceptable" not "secure"
     # (RSA-4096 is "secure", RSA-2048 is "acceptable")
     from app.services.unified_ssh_service import SSHKeySecurityLevel
-    assert result.security_level in [SSHKeySecurityLevel.ACCEPTABLE, SSHKeySecurityLevel.SECURE], (
-        f"RSA-2048 should be acceptable or secure, got {result.security_level}"
-    )
+
+    assert result.security_level in [
+        SSHKeySecurityLevel.ACCEPTABLE,
+        SSHKeySecurityLevel.SECURE,
+    ], f"RSA-2048 should be acceptable or secure, got {result.security_level}"
 
 
 def test_rsa_1024_key_rejected():
     """
     Test that weak RSA-1024 keys are rejected as deprecated.
     """
-    from app.services.unified_ssh_service import validate_ssh_key, SSHKeySecurityLevel
+    from app.services.unified_ssh_service import SSHKeySecurityLevel, validate_ssh_key
 
     # Generate weak RSA-1024 key
     key_content = generate_rsa_key(key_size=1024)
@@ -185,15 +181,16 @@ def test_validate_credentials_endpoint_exists():
 
     This endpoint is required for frontend pre-validation of SSH keys.
     """
-    from app.routes import hosts
     from fastapi.routing import APIRoute
+
+    from app.routes import hosts
 
     # Get all routes from the hosts router
     routes = [route for route in hosts.router.routes if isinstance(route, APIRoute)]
     route_paths = [route.path for route in routes]
 
     assert "/validate-credentials" in route_paths, (
-        "❌ CRITICAL: /api/hosts/validate-credentials endpoint does not exist!\n\n"
+        "[CRITICAL] /api/hosts/validate-credentials endpoint does not exist!\n\n"
         "Frontend Add Host page requires this endpoint for SSH key pre-validation.\n"
         f"Available routes: {route_paths}"
     )
@@ -215,16 +212,12 @@ def test_validate_credentials_accepts_ssh_key():
 
     # Call the validation endpoint
     import asyncio
-    validation_data = {
-        "auth_method": "ssh_key",
-        "ssh_key": key_content
-    }
+
+    validation_data = {"auth_method": "ssh_key", "ssh_key": key_content}
 
     result = asyncio.run(validate_credentials(validation_data, mock_user))
 
-    assert result["is_valid"] is True, (
-        f"Valid SSH key failed endpoint validation: {result.get('error_message')}"
-    )
+    assert result["is_valid"] is True, f"Valid SSH key failed endpoint validation: {result.get('error_message')}"
     assert result["auth_method"] == "ssh_key"
     assert result["key_type"] is not None
     assert result["key_bits"] is not None
@@ -241,16 +234,12 @@ def test_validate_credentials_rejects_invalid_key():
     mock_user = {"id": 1, "username": "test_user"}
 
     import asyncio
-    validation_data = {
-        "auth_method": "ssh_key",
-        "ssh_key": invalid_key
-    }
+
+    validation_data = {"auth_method": "ssh_key", "ssh_key": invalid_key}
 
     result = asyncio.run(validate_credentials(validation_data, mock_user))
 
-    assert result["is_valid"] is False, (
-        "Invalid SSH key passed endpoint validation when it should fail!"
-    )
+    assert result["is_valid"] is False, "Invalid SSH key passed endpoint validation when it should fail!"
     assert result["error_message"] is not None
 
 
@@ -321,26 +310,21 @@ def test_security_levels_are_assessed():
     """
     Test that security levels are properly assessed for different key types.
     """
-    from app.services.unified_ssh_service import (
-        validate_ssh_key,
-        SSHKeySecurityLevel
-    )
+    from app.services.unified_ssh_service import SSHKeySecurityLevel, validate_ssh_key
 
     # Test Ed25519 (should be SECURE)
     ed25519_key_content = generate_ed25519_key()
     result = validate_ssh_key(ed25519_key_content)
 
-    assert result.security_level == SSHKeySecurityLevel.SECURE, (
-        f"Ed25519 should be SECURE, got {result.security_level}"
-    )
+    assert result.security_level == SSHKeySecurityLevel.SECURE, f"Ed25519 should be SECURE, got {result.security_level}"
 
     # Test RSA-4096 (should be SECURE)
     rsa_4096_key_content = generate_rsa_key(key_size=4096)
     result = validate_ssh_key(rsa_4096_key_content)
 
-    assert result.security_level == SSHKeySecurityLevel.SECURE, (
-        f"RSA-4096 should be SECURE, got {result.security_level}"
-    )
+    assert (
+        result.security_level == SSHKeySecurityLevel.SECURE
+    ), f"RSA-4096 should be SECURE, got {result.security_level}"
 
 
 if __name__ == "__main__":

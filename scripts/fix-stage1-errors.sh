@@ -76,7 +76,7 @@ sed -i "531s/You're/You are/" \
 sed -i "470s/Don't/Do not/" \
     "${FRONTEND_DIR}/pages/settings/Settings.tsx"
 
-echo "   ✓ Fixed 14 XSS vulnerabilities"
+echo "   [OK] Fixed 14 XSS vulnerabilities"
 
 # Category 2: Type Safety (@typescript-eslint/no-unnecessary-type-constraint)
 # Why: Constraining generic `T extends any` is meaningless and harms type safety
@@ -88,7 +88,7 @@ echo "2. Fixing unnecessary type constraints..."
 sed -i 's/<T extends any>/<T>/g' \
     "${FRONTEND_DIR}/components/design-system/VirtualList.tsx"
 
-echo "   ✓ Fixed 3 type constraint issues"
+echo "   [OK] Fixed 3 type constraint issues"
 
 # Category 3: Code Syntax Errors
 # Why: Improves code quality and prevents potential bugs
@@ -106,8 +106,8 @@ sed -i '63s/\\\[/[/; 63s/\\\//\//' \
 # Hosts.tsx - Line 404: Fix lexical declaration in case block
 # These require manual fixes - wrapping in block scope
 
-echo "   ✓ Fixed 2 regex escape errors"
-echo "   ⚠ Manual fix required for 3 case block declarations (complex)"
+echo "   [OK] Fixed 2 regex escape errors"
+echo "   [MANUAL] Manual fix required for 3 case block declarations (complex)"
 
 # Category 4: React Best Practices
 
@@ -119,17 +119,17 @@ echo "4. Fixing React best practice violations..."
 # Users.tsx - Line 69: JSX not defined
 # These require manual review and context-specific fixes
 
-echo "   ⚠ Manual fix required for 4 React issues (context-dependent)"
+echo "   [MANUAL] Manual fix required for 4 React issues (context-dependent)"
 
 echo ""
 echo "========================================"
 echo "Stage 1 Auto-Fix Summary"
 echo "========================================"
 echo "Automatically fixed: 19/26 errors (73%)"
-echo "  ✓ XSS vulnerabilities: 14/14 (100%)"
-echo "  ✓ Type constraints: 3/3 (100%)"
-echo "  ✓ Regex escapes: 2/2 (100%)"
-echo "  ⚠ Manual fixes needed: 7/26 (27%)"
+echo "  [OK] XSS vulnerabilities: 14/14 (100%)"
+echo "  [OK] Type constraints: 3/3 (100%)"
+echo "  [OK] Regex escapes: 2/2 (100%)"
+echo "  [MANUAL] Manual fixes needed: 7/26 (27%)"
 echo ""
 echo "Manual fixes required in:"
 echo "  - SmartGroupCreationWizard.tsx (case block)"

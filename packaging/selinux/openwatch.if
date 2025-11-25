@@ -380,21 +380,21 @@ interface(`openwatch_admin',`
 	# Configuration management
 	openwatch_manage_config($1)
 	manage_files_pattern($1, openwatch_secret_t, openwatch_secret_t)
-	
+
 	# Data management
 	openwatch_manage_data($1)
 	openwatch_manage_logs($1)
-	
+
 	# SSH key management
 	manage_files_pattern($1, openwatch_ssh_key_t, openwatch_ssh_key_t)
-	
+
 	# SCAP content management
 	openwatch_manage_scap_content($1)
-	
+
 	# Runtime files
 	manage_files_pattern($1, openwatch_var_run_t, openwatch_var_run_t)
 	manage_dirs_pattern($1, openwatch_var_run_t, openwatch_var_run_t)
-	
+
 	# Role assignment
 	openwatch_run($1, $2)
 ')

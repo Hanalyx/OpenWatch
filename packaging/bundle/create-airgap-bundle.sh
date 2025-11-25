@@ -27,7 +27,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Required images for OpenWatch (with fallback registries)
 REQUIRED_IMAGES=(
     "docker.io/postgres:15-alpine"
-    "docker.io/redis:7-alpine"  
+    "docker.io/redis:7-alpine"
     "registry.access.redhat.com/ubi9/ubi:latest"
     "docker.io/library/node:18-alpine"
     "docker.io/nginx:alpine"
@@ -45,48 +45,48 @@ FALLBACK_IMAGES=(
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     local missing_tools=()
     for tool in podman tar gzip rpmbuild; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing_tools+=("$tool")
         fi
     done
-    
+
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         log_error "Missing required tools: ${missing_tools[*]}"
         exit 1
     fi
-    
+
     # Check if we can build images
     if ! podman info >/dev/null 2>&1; then
         log_error "Podman is not properly configured"
         exit 1
     fi
-    
+
     log_success "Prerequisites check passed"
 }
 
 # Create bundle directory structure
 create_bundle_structure() {
     log_info "Creating bundle directory structure..."
-    
+
     rm -rf "$WORK_DIR"
     mkdir -p "$WORK_DIR"/{images,rpm/dependencies,scripts,configs,docs}
     mkdir -p "$OUTPUT_DIR"
-    
+
     log_success "Bundle structure created at $WORK_DIR"
 }
 
 # Pull and save container images with fallback support
 pull_and_save_images() {
     log_info "Pulling and saving container images..."
-    
+
     local image_manifest="$WORK_DIR/images/image-manifest.json"
     echo '{"images": [' > "$image_manifest"
     local first=true
     local successful_pulls=0
-    
+
     # Try primary images first
     for i in "${!REQUIRED_IMAGES[@]}"; do
         local image="${REQUIRED_IMAGES[$i]}"
@@ -94,9 +94,9 @@ pull_and_save_images() {
         local image_name=$(basename "$image" | tr ':' '-')
         local image_file="$WORK_DIR/images/${image_name}.tar"
         local pulled_image=""
-        
+
         log_info "Attempting to pull $image..."
-        
+
         # Try primary image
         if timeout 300 podman pull "$image" 2>/dev/null; then
             pulled_image="$image"
@@ -109,20 +109,20 @@ pull_and_save_images() {
                 log_success "Successfully pulled fallback $fallback_image"
             fi
         fi
-        
+
         # Save the successfully pulled image
         if [[ -n "$pulled_image" ]]; then
             log_info "Saving $pulled_image to ${image_name}.tar..."
             if podman save -o "$image_file" "$pulled_image"; then
                 ((successful_pulls++))
-                
+
                 # Add to manifest
                 if [[ "$first" = true ]]; then
                     first=false
                 else
                     echo ',' >> "$image_manifest"
                 fi
-                
+
                 cat >> "$image_manifest" << EOF
     {
       "original": "$image",
@@ -132,7 +132,7 @@ pull_and_save_images() {
       "sha256": "$(sha256sum "$image_file" | cut -d' ' -f1)"
     }
 EOF
-                
+
                 log_success "Saved $pulled_image as ${image_name}.tar"
             else
                 log_warning "Failed to save $pulled_image"
@@ -141,10 +141,10 @@ EOF
             log_error "Failed to pull both primary and fallback images for $image"
         fi
     done
-    
+
     echo ']' >> "$image_manifest"
     echo '}' >> "$image_manifest"
-    
+
     if [[ $successful_pulls -eq 0 ]]; then
         log_error "Failed to pull any container images - likely due to rate limiting"
         log_info "Wait for Docker Hub rate limit to reset (6 hours) and try again"
@@ -153,16 +153,16 @@ EOF
         log_warning "Only pulled $successful_pulls out of ${#REQUIRED_IMAGES[@]} images"
         log_info "Bundle will still be created but may be incomplete"
     fi
-    
+
     log_success "Container images saved ($successful_pulls successful)"
 }
 
 # Build custom OpenWatch images
 build_custom_images() {
     log_info "Building custom OpenWatch images..."
-    
+
     cd "$PROJECT_ROOT"
-    
+
     # Build backend image
     if [[ -f "docker/Containerfile.backend" ]]; then
         log_info "Building OpenWatch backend image..."
@@ -170,8 +170,8 @@ build_custom_images() {
         podman save -o "$WORK_DIR/images/openwatch-backend.tar" openwatch-backend:${BUNDLE_VERSION}
         log_success "Built OpenWatch backend image"
     fi
-    
-    # Build frontend image  
+
+    # Build frontend image
     if [[ -f "docker/Containerfile.frontend" ]]; then
         log_info "Building OpenWatch frontend image..."
         podman build -t openwatch-frontend:${BUNDLE_VERSION} -f docker/Containerfile.frontend .
@@ -183,7 +183,7 @@ build_custom_images() {
 # Copy RPM and dependencies
 copy_rpm_dependencies() {
     log_info "Copying RPM packages..."
-    
+
     # Copy main OpenWatch RPM
     if [[ -f "$PROJECT_ROOT/packaging/rpm/dist/openwatch-${BUNDLE_VERSION}.x86_64.rpm" ]]; then
         cp "$PROJECT_ROOT/packaging/rpm/dist/openwatch-${BUNDLE_VERSION}.x86_64.rpm" "$WORK_DIR/rpm/"
@@ -191,7 +191,7 @@ copy_rpm_dependencies() {
     else
         log_warning "OpenWatch RPM not found - you may need to build it first"
     fi
-    
+
     # Create dependencies download script
     log_info "Creating dependencies download script..."
     cat > "$WORK_DIR/rpm/download-dependencies.sh" << 'DEPS_EOF'
@@ -204,7 +204,7 @@ set -euo pipefail
 # Core dependencies
 DEPENDENCIES=(
     "podman"
-    "podman-compose" 
+    "podman-compose"
     "openscap-scanner"
     "openssh-clients"
     "python3"
@@ -229,7 +229,7 @@ DEPS_EOF
 # Create installation scripts
 create_installation_scripts() {
     log_info "Creating installation scripts..."
-    
+
     # Main offline installer
     cat > "$WORK_DIR/offline-install.sh" << 'EOF'
 #!/bin/bash
@@ -239,7 +239,7 @@ set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
-GREEN='\033[0;32m' 
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
@@ -353,13 +353,13 @@ done
 if [[ -f "$SCRIPT_DIR/images/image-manifest.json" ]]; then
     echo "Verifying image checksums..."
     cd "$SCRIPT_DIR/images"
-    
+
     # Extract checksums and verify
     jq -r '.images[] | "\(.sha256)  \(.file)"' image-manifest.json > checksums.txt
     if sha256sum -c checksums.txt; then
-        echo "✓ All image checksums verified"
+        echo "[OK] All image checksums verified"
     else
-        echo "✗ Checksum verification failed"
+        echo "[FAIL] Checksum verification failed"
         exit 1
     fi
     rm checksums.txt
@@ -367,9 +367,9 @@ fi
 
 # Check RPM file
 if ls "$SCRIPT_DIR"/rpm/openwatch-*.rpm >/dev/null 2>&1; then
-    echo "✓ OpenWatch RPM found"
+    echo "[OK] OpenWatch RPM found"
 else
-    echo "✗ OpenWatch RPM not found"
+    echo "[FAIL] OpenWatch RPM not found"
     exit 1
 fi
 
@@ -384,7 +384,7 @@ EOF
 # Create documentation
 create_documentation() {
     log_info "Creating documentation..."
-    
+
     cat > "$WORK_DIR/README-AIRGAP.md" << EOF
 # OpenWatch Air-Gapped Installation
 
@@ -393,7 +393,7 @@ This bundle contains everything needed to install OpenWatch in an air-gapped env
 ## Bundle Contents
 
 - **images/**: Container images (.tar files)
-- **rpm/**: OpenWatch RPM and dependencies  
+- **rpm/**: OpenWatch RPM and dependencies
 - **scripts/**: Installation and management scripts
 - **docs/**: Documentation
 
@@ -463,17 +463,17 @@ EOF
 # Create the final bundle
 create_final_bundle() {
     log_info "Creating final bundle archive..."
-    
+
     cd "$(dirname "$WORK_DIR")"
     tar -czf "${OUTPUT_DIR}/${BUNDLE_NAME}.tar.gz" "$(basename "$WORK_DIR")"
-    
+
     # Generate checksums
     cd "$OUTPUT_DIR"
     sha256sum "${BUNDLE_NAME}.tar.gz" > "${BUNDLE_NAME}.tar.gz.sha256"
-    
+
     # Bundle info
     local bundle_size=$(du -sh "${BUNDLE_NAME}.tar.gz" | cut -f1)
-    
+
     log_success "Bundle created successfully!"
     log_info ""
     log_info "Bundle Information:"
@@ -494,7 +494,7 @@ cleanup() {
 # Check for Docker Hub rate limiting
 check_rate_limit() {
     log_info "Checking Docker Hub rate limit status..."
-    
+
     # Try to pull a small test image
     if timeout 30 podman pull hello-world >/dev/null 2>&1; then
         log_success "Docker Hub is accessible"
@@ -503,7 +503,7 @@ check_rate_limit() {
     else
         log_warning "Docker Hub may be rate limited or inaccessible"
         log_info "You can still proceed - fallback registries will be used"
-        
+
         read -p "Continue anyway? (y/N) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -520,16 +520,16 @@ main() {
     log_info "Bundle version: $BUNDLE_VERSION"
     log_info "Output directory: $OUTPUT_DIR"
     log_info ""
-    
+
     check_prerequisites
     check_rate_limit
     create_bundle_structure
-    
+
     # Pull images (may fail due to rate limits)
     if ! pull_and_save_images; then
         log_warning "Image pulling had issues - bundle may be incomplete"
         log_info "You can still proceed with available images"
-        
+
         read -p "Continue creating bundle? (y/N) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -537,17 +537,17 @@ main() {
             exit 1
         fi
     fi
-    
+
     build_custom_images
-    copy_rpm_dependencies  
+    copy_rpm_dependencies
     create_installation_scripts
     create_documentation
     create_final_bundle
     cleanup
-    
+
     log_success "Air-gap bundle creation completed!"
     log_info ""
-    log_info "🎯 Next Steps:"
+    log_info "Next Steps:"
     log_info "1. Transfer the bundle to your air-gapped environment"
     log_info "2. Extract: tar -xzf ${BUNDLE_NAME}.tar.gz"
     log_info "3. Install: sudo ./offline-install.sh"

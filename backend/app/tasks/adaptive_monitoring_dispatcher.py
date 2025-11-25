@@ -19,10 +19,7 @@ This design ensures:
 
 import logging
 from datetime import datetime
-from typing import Dict, List
-
-from celery import Celery
-from sqlalchemy import text
+from typing import Dict
 
 from backend.app.celery_app import celery_app
 from backend.app.database import get_db
@@ -84,14 +81,11 @@ def dispatch_host_checks(self) -> Dict:
 
                     dispatched_count += 1
                     logger.debug(
-                        f"Dispatched check for {host['hostname']} "
-                        f"(status: {host['status']}, priority: {priority})"
+                        f"Dispatched check for {host['hostname']} " f"(status: {host['status']}, priority: {priority})"
                     )
 
                 except Exception as dispatch_error:
-                    logger.error(
-                        f"Failed to dispatch check for host {host['id']}: {dispatch_error}"
-                    )
+                    logger.error(f"Failed to dispatch check for host {host['id']}: {dispatch_error}")
 
             logger.info(f"Dispatched {dispatched_count} host checks")
 

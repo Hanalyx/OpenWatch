@@ -9,18 +9,11 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict
 
 from backend.app.models.unified_rule_models import UnifiedComplianceRule
 from backend.app.services.multi_framework_scanner import ScanResult
-from backend.app.services.remediation_recommendation_engine import (
-    ComplianceGap,
-    RemediationCategory,
-    RemediationComplexity,
-    RemediationPriority,
-    RemediationRecommendation,
-    RemediationRecommendationEngine,
-)
+from backend.app.services.remediation_recommendation_engine import RemediationRecommendationEngine
 
 
 async def load_scan_results(file_path: str) -> ScanResult:
@@ -82,16 +75,14 @@ async def analyze_gaps(args):
     print("Analyzing compliance gaps...")
     target_frameworks = args.frameworks.split(",") if args.frameworks else None
 
-    compliance_gaps = await engine.analyze_compliance_gaps(
-        scan_result, unified_rules, target_frameworks
-    )
+    compliance_gaps = await engine.analyze_compliance_gaps(scan_result, unified_rules, target_frameworks)
 
     if not compliance_gaps:
         print("No compliance gaps found.")
         return 0
 
     # Display gap analysis
-    print(f"\nCOMPLIANCE GAP ANALYSIS")
+    print("\nCOMPLIANCE GAP ANALYSIS")
     print("=" * 80)
     print(f"Total compliance gaps identified: {len(compliance_gaps)}")
 
@@ -131,7 +122,7 @@ async def analyze_gaps(args):
             gaps_by_framework[framework] = []
         gaps_by_framework[framework].append(gap)
 
-    print(f"\nFRAMEWORK BREAKDOWN:")
+    print("\nFRAMEWORK BREAKDOWN:")
     print("-" * 40)
     for framework, gaps in gaps_by_framework.items():
         print(f"{framework:20} {len(gaps):3} gaps")
@@ -144,17 +135,14 @@ async def analyze_gaps(args):
             gaps_by_platform[platform] = []
         gaps_by_platform[platform].append(gap)
 
-    print(f"\nPLATFORM BREAKDOWN:")
+    print("\nPLATFORM BREAKDOWN:")
     print("-" * 40)
     for platform, gaps in gaps_by_platform.items():
         print(f"{platform:20} {len(gaps):3} gaps")
 
     # Export if requested
     if args.export:
-        output_file = (
-            args.output_file
-            or f"compliance_gaps_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-        )
+        output_file = args.output_file or f"compliance_gaps_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
 
         export_data = {
             "gap_analysis_metadata": {
@@ -162,15 +150,9 @@ async def analyze_gaps(args):
                 "scan_id": scan_result.scan_id,
                 "total_gaps": len(compliance_gaps),
                 "target_frameworks": target_frameworks,
-                "priority_distribution": {
-                    priority: len(gaps) for priority, gaps in gaps_by_priority.items()
-                },
-                "framework_distribution": {
-                    framework: len(gaps) for framework, gaps in gaps_by_framework.items()
-                },
-                "platform_distribution": {
-                    platform: len(gaps) for platform, gaps in gaps_by_platform.items()
-                },
+                "priority_distribution": {priority: len(gaps) for priority, gaps in gaps_by_priority.items()},
+                "framework_distribution": {framework: len(gaps) for framework, gaps in gaps_by_framework.items()},
+                "platform_distribution": {platform: len(gaps) for platform, gaps in gaps_by_platform.items()},
             },
             "compliance_gaps": [
                 {
@@ -192,9 +174,7 @@ async def analyze_gaps(args):
                     "error_details": gap.error_details,
                     "last_scan_time": gap.last_scan_time.isoformat(),
                     "regulatory_requirements": gap.regulatory_requirements,
-                    "compliance_deadline": (
-                        gap.compliance_deadline.isoformat() if gap.compliance_deadline else None
-                    ),
+                    "compliance_deadline": (gap.compliance_deadline.isoformat() if gap.compliance_deadline else None),
                 }
                 for gap in compliance_gaps
             ],
@@ -222,9 +202,7 @@ async def generate_recommendations(args):
 
     # Analyze compliance gaps
     target_frameworks = args.frameworks.split(",") if args.frameworks else None
-    compliance_gaps = await engine.analyze_compliance_gaps(
-        scan_result, unified_rules, target_frameworks
-    )
+    compliance_gaps = await engine.analyze_compliance_gaps(scan_result, unified_rules, target_frameworks)
 
     if not compliance_gaps:
         print("No compliance gaps found to remediate.")
@@ -235,24 +213,20 @@ async def generate_recommendations(args):
         priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         min_priority_value = priority_order.get(args.min_priority, 4)
         compliance_gaps = [
-            gap
-            for gap in compliance_gaps
-            if priority_order.get(gap.priority.value, 4) <= min_priority_value
+            gap for gap in compliance_gaps if priority_order.get(gap.priority.value, 4) <= min_priority_value
         ]
 
     print(f"Generating remediation recommendations for {len(compliance_gaps)} gaps...")
 
     # Generate recommendations
-    recommendations = await engine.generate_remediation_recommendations(
-        compliance_gaps, unified_rules
-    )
+    recommendations = await engine.generate_remediation_recommendations(compliance_gaps, unified_rules)
 
     if not recommendations:
         print("No remediation recommendations could be generated.")
         return 0
 
     # Display recommendations
-    print(f"\nREMEDIATION RECOMMENDATIONS")
+    print("\nREMEDIATION RECOMMENDATIONS")
     print("=" * 80)
     print(f"Generated {len(recommendations)} remediation recommendations")
 
@@ -287,9 +261,7 @@ async def generate_recommendations(args):
 
                 if args.verbose:
                     print(f"    Steps: {len(procedure.steps)}")
-                    print(
-                        f"    Rollback Available: {'Yes' if procedure.rollback_available else 'No'}"
-                    )
+                    print(f"    Rollback Available: {'Yes' if procedure.rollback_available else 'No'}")
                     print(f"    Business Justification: {rec.business_justification[:100]}...")
                     print(f"    Testing Recommendations: {len(rec.testing_recommendations)}")
                     print()
@@ -302,7 +274,7 @@ async def generate_recommendations(args):
             complexity_analysis[complexity] = 0
         complexity_analysis[complexity] += 1
 
-    print(f"\nCOMPLEXITY ANALYSIS:")
+    print("\nCOMPLEXITY ANALYSIS:")
     print("-" * 40)
     for complexity, count in complexity_analysis.items():
         print(f"{complexity:15} {count:3} recommendations")
@@ -315,7 +287,7 @@ async def generate_recommendations(args):
             category_analysis[category] = 0
         category_analysis[category] += 1
 
-    print(f"\nCATEGORY ANALYSIS:")
+    print("\nCATEGORY ANALYSIS:")
     print("-" * 40)
     for category, count in category_analysis.items():
         print(f"{category:20} {count:3} recommendations")
@@ -323,8 +295,7 @@ async def generate_recommendations(args):
     # Export if requested
     if args.export:
         output_file = (
-            args.output_file
-            or f"remediation_recommendations_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            args.output_file or f"remediation_recommendations_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
         )
 
         export_data = {
@@ -412,13 +383,9 @@ async def generate_orsa_mapping(args):
 
     # Generate recommendations
     target_frameworks = args.frameworks.split(",") if args.frameworks else None
-    compliance_gaps = await engine.analyze_compliance_gaps(
-        scan_result, unified_rules, target_frameworks
-    )
+    compliance_gaps = await engine.analyze_compliance_gaps(scan_result, unified_rules, target_frameworks)
 
-    recommendations = await engine.generate_remediation_recommendations(
-        compliance_gaps, unified_rules
-    )
+    recommendations = await engine.generate_remediation_recommendations(compliance_gaps, unified_rules)
 
     if not recommendations:
         print("No recommendations available for ORSA mapping.")
@@ -429,7 +396,7 @@ async def generate_orsa_mapping(args):
     orsa_mappings = await engine.map_to_orsa_format(recommendations)
 
     # Display ORSA mappings
-    print(f"\nORSA RULE MAPPINGS")
+    print("\nORSA RULE MAPPINGS")
     print("=" * 80)
 
     total_rules = sum(len(rules) for rules in orsa_mappings.values())
@@ -455,9 +422,7 @@ async def generate_orsa_mapping(args):
                 print()
 
     # Export ORSA mappings
-    output_file = (
-        args.output_file or f"orsa_mappings_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-    )
+    output_file = args.output_file or f"orsa_mappings_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
 
     export_data = {
         "orsa_mapping_metadata": {
@@ -465,9 +430,7 @@ async def generate_orsa_mapping(args):
             "scan_id": scan_result.scan_id,
             "total_platforms": len(orsa_mappings),
             "total_rules": total_rules,
-            "platform_distribution": {
-                platform: len(rules) for platform, rules in orsa_mappings.items()
-            },
+            "platform_distribution": {platform: len(rules) for platform, rules in orsa_mappings.items()},
         },
         "orsa_rules_by_platform": {
             platform: [
@@ -532,9 +495,7 @@ Examples:
 
     # Analyze gaps command
     gaps_parser = subparsers.add_parser("analyze-gaps", help="Analyze compliance gaps")
-    gaps_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    gaps_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     gaps_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -553,9 +514,7 @@ Examples:
 
     # Generate recommendations command
     gen_parser = subparsers.add_parser("generate", help="Generate remediation recommendations")
-    gen_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    gen_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     gen_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -582,21 +541,15 @@ Examples:
     gen_parser.add_argument("--output-file", help="Output file for exported data")
 
     # ORSA mapping command
-    orsa_parser = subparsers.add_parser(
-        "orsa-mapping", help="Generate ORSA-compatible rule mappings"
-    )
-    orsa_parser.add_argument(
-        "--scan-results", required=True, help="JSON file containing scan results"
-    )
+    orsa_parser = subparsers.add_parser("orsa-mapping", help="Generate ORSA-compatible rule mappings")
+    orsa_parser.add_argument("--scan-results", required=True, help="JSON file containing scan results")
     orsa_parser.add_argument(
         "--rules-directory",
         required=True,
         help="Directory containing unified rules JSON files",
     )
     orsa_parser.add_argument("--frameworks", help="Comma-separated list of target frameworks")
-    orsa_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed ORSA rule information"
-    )
+    orsa_parser.add_argument("--verbose", action="store_true", help="Show detailed ORSA rule information")
     orsa_parser.add_argument(
         "--max-display",
         type=int,

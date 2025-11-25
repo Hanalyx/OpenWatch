@@ -4,14 +4,13 @@ Handles webhook endpoint registration and delivery tracking for AEGIS integratio
 """
 
 import hashlib
-import hmac
 import json
 import logging
 import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -121,11 +120,7 @@ async def list_webhook_endpoints(
                 "id": str(row.id),
                 "name": row.name,
                 "url": row.url,
-                "event_types": (
-                    json.loads(row.event_types)
-                    if isinstance(row.event_types, str)
-                    else row.event_types
-                ),
+                "event_types": (json.loads(row.event_types) if isinstance(row.event_types, str) else row.event_types),
                 "is_active": row.is_active,
                 "created_by": row.created_by,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -232,9 +227,7 @@ async def get_webhook_endpoint(
             "name": result.name,
             "url": result.url,
             "event_types": (
-                json.loads(result.event_types)
-                if isinstance(result.event_types, str)
-                else result.event_types
+                json.loads(result.event_types) if isinstance(result.event_types, str) else result.event_types
             ),
             "is_active": result.is_active,
             "created_by": result.created_by,
@@ -425,11 +418,7 @@ async def get_webhook_deliveries(
             delivery_data = {
                 "id": str(row.id),
                 "event_type": row.event_type,
-                "event_data": (
-                    json.loads(row.event_data)
-                    if isinstance(row.event_data, str)
-                    else row.event_data
-                ),
+                "event_data": (json.loads(row.event_data) if isinstance(row.event_data, str) else row.event_data),
                 "delivery_status": row.delivery_status,
                 "http_status_code": row.http_status_code,
                 "response_body": row.response_body,

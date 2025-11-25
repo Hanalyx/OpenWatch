@@ -1,14 +1,15 @@
 """
 Tests for EncryptionConfig dataclass and validation.
 """
+
 import pytest
+
 from backend.app.encryption import (
-    EncryptionConfig,
-    KDFAlgorithm,
     DEFAULT_CONFIG,
     FAST_TEST_CONFIG,
     HIGH_SECURITY_CONFIG,
-    ConfigurationError
+    EncryptionConfig,
+    KDFAlgorithm,
 )
 
 
@@ -27,17 +28,13 @@ class TestEncryptionConfig:
 
     def test_custom_config(self):
         """Test custom configuration values"""
-        config = EncryptionConfig(
-            kdf_iterations=200000,
-            kdf_algorithm=KDFAlgorithm.SHA512,
-            salt_length=32
-        )
+        config = EncryptionConfig(kdf_iterations=200000, kdf_algorithm=KDFAlgorithm.SHA512, salt_length=32)
 
         assert config.kdf_iterations == 200000
         assert config.kdf_algorithm == KDFAlgorithm.SHA512
         assert config.salt_length == 32
         assert config.nonce_length == 12  # Default
-        assert config.key_length == 32    # Default
+        assert config.key_length == 32  # Default
 
     def test_min_encrypted_data_length(self):
         """Test minimum encrypted data length calculation"""

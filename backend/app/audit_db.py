@@ -42,24 +42,19 @@ def log_audit_event(
     try:
         # IMMEDIATE FIX: Block all SSH-related legacy audit calls to prevent conflicts
         if isinstance(action, str) and ("SSH" in action or "ssh" in action.lower()):
-            logger.warning(f"🚫 BLOCKING SSH legacy audit call to prevent conflicts")
-            logger.warning(f"SSH events should use enhanced audit system only")
+            logger.warning("[BLOCKED] SSH legacy audit call to prevent conflicts")
+            logger.warning("SSH events should use enhanced audit system only")
             logger.warning(f"Attempted action: {action}")
             return True  # Return success to not break calling code
 
         # ENHANCED DEFENSIVE FIX: Handle parameter conflicts gracefully
         if isinstance(user_id, dict):
-            logger.warning(f"⚠️ AUDIT PARAMETER CONFLICT - attempting to fix automatically")
+            logger.warning("[WARNING] AUDIT PARAMETER CONFLICT - attempting to fix automatically")
             logger.warning(f"Invalid user_id parameter type: dict {user_id}. Expected int or None.")
 
             # Special SSH-specific automatic fix
-            if (
-                isinstance(user_id, dict)
-                and "policy" in user_id
-                and isinstance(action, str)
-                and "SSH" in action
-            ):
-                logger.warning("🔐 DETECTED SSH LEGACY AUDIT CONFLICT - BLOCKING")
+            if isinstance(user_id, dict) and "policy" in user_id and isinstance(action, str) and "SSH" in action:
+                logger.warning("[BLOCKED] SSH LEGACY AUDIT CONFLICT DETECTED")
                 logger.warning("SSH events should use enhanced audit system only")
                 logger.warning(f"Blocked action: {action}")
                 return True  # Return success to not break SSH policy updates
@@ -68,7 +63,7 @@ def log_audit_event(
             logger.warning("Attempting to extract correct user_id from parameters...")
 
             # Log detailed debugging info
-            logger.warning(f"All parameters received (audit_db.log_audit_event):")
+            logger.warning("All parameters received (audit_db.log_audit_event):")
             logger.warning(f"  db: {type(db)}")
             logger.warning(f"  action: {action} (type: {type(action)})")
             logger.warning(f"  resource_type: {resource_type} (type: {type(resource_type)})")
@@ -81,10 +76,8 @@ def log_audit_event(
             return False  # Still fail for non-SSH cases
 
         if not isinstance(ip_address, str):
-            logger.error(f"AUDIT IP ADDRESS CONFLICT DETECTED!")
-            logger.error(
-                f"Invalid ip_address parameter type: {type(ip_address)} {ip_address}. Expected str."
-            )
+            logger.error("AUDIT IP ADDRESS CONFLICT DETECTED!")
+            logger.error(f"Invalid ip_address parameter type: {type(ip_address)} {ip_address}. Expected str.")
             logger.error(f"Action: {action}, Resource: {resource_type}, User ID: {user_id}")
             import traceback
 
@@ -117,10 +110,10 @@ def log_audit_event(
 
         # Last-chance SSH conflict detection
         if isinstance(user_id, dict) and "policy" in user_id:
-            logger.error(f"🚨 CRITICAL: SSH audit conflict at DB execution level!")
+            logger.error("[CRITICAL] SSH audit conflict at DB execution level!")
             logger.error(f"user_id contains policy data: {user_id}")
             logger.error(f"action: {action}")
-            logger.error(f"This will cause PostgreSQL adapter error - blocking execution")
+            logger.error("This will cause PostgreSQL adapter error - blocking execution")
             return True  # Block the database call to prevent crash
 
         db.execute(query, exec_params)
@@ -145,11 +138,7 @@ def log_login_event(
 ) -> bool:
     """Log login attempt to database"""
     action = "LOGIN_SUCCESS" if success else "LOGIN_FAILED"
-    details = (
-        f"User {username} logged in successfully"
-        if success
-        else f"Failed login attempt for {username}"
-    )
+    details = f"User {username} logged in successfully" if success else f"Failed login attempt for {username}"
     if failure_reason and not success:
         details += f" - Reason: {failure_reason}"
 

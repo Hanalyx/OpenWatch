@@ -22,7 +22,7 @@ State Transitions & Intervals:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session

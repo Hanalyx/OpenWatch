@@ -5,7 +5,7 @@
     "last_updated": "2024-10-01",
     "mapping_sources": [
       "NIST SP 800-53 Rev 5 Control Mappings",
-      "CIS Controls v8 Framework Mappings", 
+      "CIS Controls v8 Framework Mappings",
       "ISO/IEC 27001:2022 Control Objectives",
       "PCI-DSS v4.0 Requirements",
       "DISA STIG/SRG Control Mappings"
@@ -164,7 +164,7 @@
     },
     {
       "source_framework": "iso_27001_2022",
-      "source_control": "A.10.1", 
+      "source_control": "A.10.1",
       "target_framework": "pci_dss_v4",
       "target_control": "3.4.1",
       "mapping_type": "equivalent",

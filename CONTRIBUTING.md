@@ -2,11 +2,11 @@
 
 Thank you for your interest in contributing to OpenWatch! This guide will help you get started with contributing to the project.
 
-## 🤝 Code of Conduct
+## Code of Conduct
 
 We are committed to providing a welcoming and inclusive environment for all contributors. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -28,23 +28,23 @@ We are committed to providing a welcoming and inclusive environment for all cont
    ```bash
    # Start dependencies
    docker compose up -d database redis
-   
+
    # Backend development
    cd backend
    python -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
    uvicorn app.main:app --reload
-   
+
    # Frontend development (new terminal)
    cd frontend
    npm install
    npm run dev
    ```
 
-## 📋 How to Contribute
+## How to Contribute
 
-### 🐛 Reporting Bugs
+### Reporting Bugs
 
 1. **Check existing issues** to avoid duplicates
 2. **Use the bug report template** when creating new issues
@@ -55,14 +55,14 @@ We are committed to providing a welcoming and inclusive environment for all cont
    - Expected vs actual behavior
    - Log files and error messages
 
-### 💡 Suggesting Features
+### Suggesting Features
 
 1. **Check the roadmap** in our [README](README.md#roadmap)
 2. **Open a discussion** for major features before implementing
 3. **Use the feature request template** for new issues
 4. **Provide detailed use cases** and benefits
 
-### 🔧 Contributing Code
+### Contributing Code
 
 #### Branch Strategy
 
@@ -84,11 +84,11 @@ We are committed to providing a welcoming and inclusive environment for all cont
 4. **Commit with meaningful messages**:
    ```bash
    git commit -m "feat: add SCAP profile validation
-   
+
    - Implement OpenSCAP datastream validation
    - Add profile enumeration for uploaded content
    - Include error handling for malformed XML
-   
+
    Closes #123"
    ```
 
@@ -127,7 +127,7 @@ fix(auth): resolve JWT token expiration handling
 docs(api): update scanning endpoint documentation
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Running Tests
 
@@ -158,7 +158,7 @@ make test-integration
 - **Include edge cases** and error conditions
 - **Mock external dependencies** appropriately
 
-## 🎨 Code Style
+## Code Style
 
 ### Python (Backend)
 
@@ -184,7 +184,7 @@ make test-integration
 - **Security-first**: Validate all inputs, sanitize outputs
 - **Performance**: Consider efficiency in scanning operations
 
-## 🔌 Plugin Development
+## Plugin Development
 
 OpenWatch supports a plugin architecture for extensibility.
 
@@ -209,11 +209,11 @@ class MyPlugin(PluginBase):
     name = "my_plugin"
     version = "1.0.0"
     description = "My custom plugin"
-    
+
     def load(self):
         """Called when plugin is loaded"""
         pass
-    
+
     def scan_post_process(self, scan_result):
         """Called after scan completion"""
         return scan_result
@@ -227,7 +227,7 @@ class MyPlugin(PluginBase):
 - **Test plugin compatibility** with core system
 - **Consider security implications** of plugin functionality
 
-## 🔒 Security
+## Security
 
 ### Security Review Process
 
@@ -244,7 +244,7 @@ class MyPlugin(PluginBase):
 - **Follow OWASP guidelines** for web application security
 - **Keep dependencies updated** and scan for vulnerabilities
 
-## 📚 Documentation
+## Documentation
 
 ### Documentation Requirements
 
@@ -262,7 +262,7 @@ class MyPlugin(PluginBase):
 - **API examples** with request/response samples
 - **Link to related documentation**
 
-## 🏗️ Architecture Guidelines
+## Architecture Guidelines
 
 ### Core Principles
 
@@ -280,7 +280,7 @@ class MyPlugin(PluginBase):
 4. **Follow established patterns** in the codebase
 5. **Document architectural decisions** and rationale
 
-## 🎯 Pull Request Guidelines
+## Pull Request Guidelines
 
 ### Before Submitting
 
@@ -322,7 +322,7 @@ Brief description of changes
 4. **Documentation review** for user-facing changes
 5. **Final approval** by project maintainer
 
-## 🌟 Recognition
+## Recognition
 
 Contributors are recognized in several ways:
 
@@ -331,7 +331,7 @@ Contributors are recognized in several ways:
 - **Community spotlights** in project updates
 - **Maintainer privileges** for consistent contributors
 
-## ⚙️ GitHub Actions Setup (For Maintainers)
+## GitHub Actions Setup (For Maintainers)
 
 ### Required Repository Secrets
 
@@ -359,7 +359,7 @@ The following files are already configured for SonarCloud:
 - **Documentation** (`docs.yml`) - API docs generation
 - **Deploy** (`deploy.yml`) - Container publishing (main branch only)
 
-## 🤔 Getting Help
+## Getting Help
 
 ### Community Resources
 
@@ -374,7 +374,7 @@ The following files are already configured for SonarCloud:
 - **Security issues**: security@hanalyx.com
 - **Partnership inquiries**: contact@hanalyx.com
 
-## 📄 License
+## License
 
 By contributing to OpenWatch, you agree that your contributions will be licensed under the [OpenWatch Community License (AGPLv3 + Managed Service Exception)](LICENSE).
 

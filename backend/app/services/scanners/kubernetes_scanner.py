@@ -8,21 +8,11 @@ Executes YAML-based compliance checks against Kubernetes/OpenShift clusters.
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, List
 
-from ...models.scan_models import (
-    RuleResult,
-    RuleResultStatus,
-    ScanResultSummary,
-    ScanTarget,
-    ScanTargetType,
-)
-from .base_scanner import (
-    BaseScanner,
-    ScannerExecutionError,
-    ScannerNotAvailableError,
-    UnsupportedTargetError,
-)
+from ...models.scan_models import RuleResult, RuleResultStatus, ScanResultSummary, ScanTarget, ScanTargetType
+from .base_scanner import BaseScanner, ScannerExecutionError, ScannerNotAvailableError, UnsupportedTargetError
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +74,7 @@ class KubernetesScanner(BaseScanner):
 
         # Validate target type
         if target.type != ScanTargetType.KUBERNETES:
-            raise UnsupportedTargetError(f"Kubernetes scanner only supports KUBERNETES target type")
+            raise UnsupportedTargetError("Kubernetes scanner only supports KUBERNETES target type")
 
         # Check kubectl availability
         if not await self._check_kubectl_available():
@@ -223,9 +213,7 @@ class KubernetesScanner(BaseScanner):
                 scanner_type="kubernetes",
             )
 
-    async def _query_resource(
-        self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str
-    ) -> Any:
+    async def _query_resource(self, target: ScanTarget, resource_type: str, resource_name: str, yamlpath: str) -> Any:
         """
         Query Kubernetes resource using kubectl and JSONPath
 
@@ -311,6 +299,3 @@ class KubernetesScanner(BaseScanner):
     def get_required_capabilities(self) -> List[str]:
         """Required capabilities for Kubernetes scanner"""
         return ["kubectl", "cluster-reader"]  # cluster-reader RBAC role or higher
-
-
-import os  # Add missing import

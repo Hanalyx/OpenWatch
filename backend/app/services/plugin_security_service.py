@@ -3,9 +3,6 @@ Plugin Security Service
 Comprehensive security validation for imported plugins
 """
 
-import ast
-import hashlib
-import json
 import logging
 import re
 import subprocess
@@ -15,18 +12,11 @@ import zipfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from ..models.plugin_models import (
-    PluginManifest,
-    PluginPackage,
-    PluginStatus,
-    PluginTrustLevel,
-    PluginType,
-    SecurityCheckResult,
-)
+from ..models.plugin_models import PluginManifest, PluginPackage, PluginTrustLevel, SecurityCheckResult
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +116,7 @@ class PluginSecurityService:
             checks.extend(security_checks)
 
             # Step 5: Build package if all checks pass
-            critical_failures = [
-                c for c in checks if not c.passed and c.severity in ["critical", "high"]
-            ]
+            critical_failures = [c for c in checks if not c.passed and c.severity in ["critical", "high"]]
             if critical_failures:
                 return False, checks, None
 
@@ -164,9 +152,7 @@ class PluginSecurityService:
             details={"size": size, "max_allowed": max_size},
         )
 
-    async def _safe_extract_package(
-        self, package_data: bytes, package_format: str
-    ) -> Dict[str, Any]:
+    async def _safe_extract_package(self, package_data: bytes, package_format: str) -> Dict[str, Any]:
         """Safely extract package with path traversal protection"""
         temp_extract_dir = self.temp_dir / f"extract_{datetime.utcnow().timestamp()}"
         temp_extract_dir.mkdir(mode=0o700)
@@ -272,9 +258,7 @@ class PluginSecurityService:
         """Check for path traversal attempts"""
         return path.startswith("/") or ".." in path or path.startswith("~")
 
-    async def _validate_manifest(
-        self, extracted_path: Path
-    ) -> Tuple[SecurityCheckResult, Optional[PluginManifest]]:
+    async def _validate_manifest(self, extracted_path: Path) -> Tuple[SecurityCheckResult, Optional[PluginManifest]]:
         """Validate and parse plugin manifest"""
         manifest_path = extracted_path / "openwatch-plugin.yml"
 
@@ -330,9 +314,7 @@ class PluginSecurityService:
                 None,
             )
 
-    async def _run_security_scans(
-        self, extracted_path: Path, manifest: PluginManifest
-    ) -> List[SecurityCheckResult]:
+    async def _run_security_scans(self, extracted_path: Path, manifest: PluginManifest) -> List[SecurityCheckResult]:
         """Run comprehensive security scans"""
         checks = []
 
@@ -378,7 +360,7 @@ class PluginSecurityService:
             if file_path.stat().st_size > self.MAX_FILE_SIZES["script"]:
                 checks.append(
                     SecurityCheckResult(
-                        check_name=f"file_size_check",
+                        check_name="file_size_check",
                         passed=False,
                         severity="high",
                         message=f"Script file too large: {file_path.name}",
@@ -444,18 +426,14 @@ class PluginSecurityService:
                                     "path": forbidden,
                                 }
                             )
-                except:
+                except Exception:
                     continue
 
         return SecurityCheckResult(
             check_name="forbidden_access_scan",
             passed=len(forbidden_accesses) == 0,
             severity="critical" if forbidden_accesses else "info",
-            message=(
-                "Forbidden file access detected"
-                if forbidden_accesses
-                else "No forbidden file access found"
-            ),
+            message=("Forbidden file access detected" if forbidden_accesses else "No forbidden file access found"),
             details={"accesses": forbidden_accesses} if forbidden_accesses else None,
         )
 
@@ -479,18 +457,14 @@ class PluginSecurityService:
                                     "matches": matches[:5],  # Limit matches
                                 }
                             )
-                    except:
+                    except Exception:
                         continue
 
         return SecurityCheckResult(
             check_name="network_scan",
             passed=len(network_findings) == 0,
             severity="high" if network_findings else "info",
-            message=(
-                "Suspicious network patterns detected"
-                if network_findings
-                else "No suspicious network patterns"
-            ),
+            message=("Suspicious network patterns detected" if network_findings else "No suspicious network patterns"),
             details={"findings": network_findings} if network_findings else None,
         )
 
@@ -522,11 +496,7 @@ class PluginSecurityService:
             check_name="permission_check",
             passed=len(permission_issues) == 0,
             severity="high" if permission_issues else "info",
-            message=(
-                "Excessive file permissions found"
-                if permission_issues
-                else "File permissions acceptable"
-            ),
+            message=("Excessive file permissions found" if permission_issues else "File permissions acceptable"),
             details={"issues": permission_issues} if permission_issues else None,
         )
 
@@ -535,7 +505,7 @@ class PluginSecurityService:
         try:
             subprocess.run(["clamscan", "--version"], capture_output=True, check=True)
             return True
-        except:
+        except Exception:
             return False
 
     async def _run_malware_scan(self, path: Path) -> SecurityCheckResult:
@@ -572,13 +542,11 @@ class PluginSecurityService:
                 message=f"Malware scan skipped: {str(e)}",
             )
 
-    async def _build_plugin_package(
-        self, extracted_path: Path, manifest: PluginManifest
-    ) -> PluginPackage:
+    async def _build_plugin_package(self, extracted_path: Path, manifest: PluginManifest) -> PluginPackage:
         """Build plugin package from extracted files"""
         # Read manifest file
         with open(extracted_path / "openwatch-plugin.yml", "r") as f:
-            manifest_data = yaml.safe_load(f)
+            yaml.safe_load(f)
 
         # Read executors
         executors = {}

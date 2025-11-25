@@ -8,14 +8,10 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from backend.app.models.unified_rule_models import Platform, UnifiedComplianceRule
-from backend.app.services.framework_mapping_engine import (
-    FrameworkMappingEngine,
-    MappingConfidence,
-    MappingType,
-)
+from backend.app.services.framework_mapping_engine import FrameworkMappingEngine
 
 
 async def load_unified_rules(rules_directory: str) -> List[UnifiedComplianceRule]:
@@ -44,9 +40,7 @@ async def load_predefined_mappings(args):
     """Load predefined framework mappings"""
     mapping_engine = FrameworkMappingEngine()
 
-    mappings_file = (
-        args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
-    )
+    mappings_file = args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
 
     print(f"Loading predefined mappings from {mappings_file}...")
 
@@ -91,9 +85,7 @@ async def discover_mappings(args):
 
     print(f"Discovering mappings: {source_framework} -> {target_framework}")
 
-    mappings = await mapping_engine.discover_control_mappings(
-        source_framework, target_framework, unified_rules
-    )
+    mappings = await mapping_engine.discover_control_mappings(source_framework, target_framework, unified_rules)
 
     print(f"\nDiscovered {len(mappings)} control mappings:")
     print("=" * 80)
@@ -114,10 +106,7 @@ async def discover_mappings(args):
             print("-" * 40)
 
             for mapping in group_mappings:
-                print(
-                    f"{mapping.source_control:15} -> {mapping.target_control:15} "
-                    f"({mapping.mapping_type.value})"
-                )
+                print(f"{mapping.source_control:15} -> {mapping.target_control:15} " f"({mapping.mapping_type.value})")
                 if args.verbose:
                     print(f"    Rationale: {mapping.rationale}")
                     if mapping.evidence:
@@ -149,7 +138,7 @@ async def discover_mappings(args):
                 json.dump(export_data, f, indent=2)
             print(f"\nMappings exported to {args.output}")
         else:
-            print(f"\nExported mappings:")
+            print("\nExported mappings:")
             print(json.dumps(export_data, indent=2))
 
     return 0
@@ -192,9 +181,7 @@ async def analyze_relationships(args):
             print(f"\nAnalyzing: {framework_a} ↔ {framework_b}")
             print("-" * 50)
 
-            relationship = await mapping_engine.analyze_framework_relationship(
-                framework_a, framework_b, unified_rules
-            )
+            relationship = await mapping_engine.analyze_framework_relationship(framework_a, framework_b, unified_rules)
 
             relationships.append(relationship)
 
@@ -216,20 +203,18 @@ async def analyze_relationships(args):
                 if relationship.conflict_areas:
                     print("\nConflict Areas:")
                     for conflict in relationship.conflict_areas:
-                        print(f"  ⚠ {conflict}")
+                        print(f"  [WARNING] {conflict}")
 
     # Generate coverage analysis
     if args.coverage_analysis:
-        print(f"\n\nFRAMEWORK COVERAGE ANALYSIS")
+        print("\n\nFRAMEWORK COVERAGE ANALYSIS")
         print("=" * 80)
 
         coverage = await mapping_engine.get_framework_coverage_analysis(frameworks, unified_rules)
 
-        print(
-            f"Total Unique Controls: {coverage['cross_framework_analysis']['total_unique_controls']}"
-        )
+        print(f"Total Unique Controls: {coverage['cross_framework_analysis']['total_unique_controls']}")
 
-        print(f"\nPer-Framework Details:")
+        print("\nPer-Framework Details:")
         for framework in frameworks:
             if framework in coverage["framework_details"]:
                 details = coverage["framework_details"][framework]
@@ -240,7 +225,7 @@ async def analyze_relationships(args):
                 )
 
         if coverage["coverage_gaps"]:
-            print(f"\nCoverage Gaps:")
+            print("\nCoverage Gaps:")
             for gap in coverage["coverage_gaps"]:
                 print(
                     f"  {gap['framework']:20} {gap['gap_percentage']:.1f}% gap "
@@ -248,7 +233,7 @@ async def analyze_relationships(args):
                 )
 
         if coverage["optimization_opportunities"]:
-            print(f"\nOptimization Opportunities:")
+            print("\nOptimization Opportunities:")
             for opportunity in coverage["optimization_opportunities"]:
                 print(f"  • {opportunity['description']}")
 
@@ -284,7 +269,7 @@ async def analyze_relationships(args):
                 json.dump(export_data, f, indent=2)
             print(f"\nAnalysis exported to {args.output}")
         else:
-            print(f"\nExported analysis:")
+            print("\nExported analysis:")
             print(json.dumps(export_data, indent=2))
 
     return 0
@@ -305,7 +290,7 @@ async def generate_unified_implementation(args):
     target_frameworks = args.frameworks
     platform = Platform(args.platform)
 
-    print(f"\nGenerating unified implementation:")
+    print("\nGenerating unified implementation:")
     print(f"  Objective: {control_objective}")
     print(f"  Frameworks: {', '.join(target_frameworks)}")
     print(f"  Platform: {platform.value}")
@@ -327,11 +312,11 @@ async def generate_unified_implementation(args):
     print(f"Risk Assessment: {implementation.risk_assessment}")
 
     if args.verbose:
-        print(f"\nControl Mappings:")
+        print("\nControl Mappings:")
         for framework, controls in implementation.control_mappings.items():
             print(f"  {framework}: {', '.join(controls)}")
 
-        print(f"\nCompliance Justification:")
+        print("\nCompliance Justification:")
         print(f"  {implementation.compliance_justification}")
 
         if implementation.platform_specifics:
@@ -365,7 +350,7 @@ async def generate_unified_implementation(args):
                 json.dump(export_data, f, indent=2)
             print(f"\nImplementation exported to {args.output}")
         else:
-            print(f"\nExported implementation:")
+            print("\nExported implementation:")
             print(json.dumps(export_data, indent=2))
 
     return 0
@@ -376,9 +361,7 @@ async def export_mapping_data(args):
     mapping_engine = FrameworkMappingEngine()
 
     # Load predefined mappings
-    mappings_file = (
-        args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
-    )
+    mappings_file = args.mappings_file or "backend/app/data/framework_mappings/predefined_mappings.json"
 
     try:
         loaded_count = await mapping_engine.load_predefined_mappings(mappings_file)
@@ -449,14 +432,10 @@ Examples:
     # Load mappings command
     load_parser = subparsers.add_parser("load-mappings", help="Load predefined framework mappings")
     load_parser.add_argument("--mappings-file", help="JSON file containing predefined mappings")
-    load_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed mapping information"
-    )
+    load_parser.add_argument("--verbose", action="store_true", help="Show detailed mapping information")
 
     # Discover mappings command
-    discover_parser = subparsers.add_parser(
-        "discover", help="Discover framework mappings from unified rules"
-    )
+    discover_parser = subparsers.add_parser("discover", help="Discover framework mappings from unified rules")
     discover_parser.add_argument("--source-framework", required=True, help="Source framework ID")
     discover_parser.add_argument("--target-framework", required=True, help="Target framework ID")
     discover_parser.add_argument(
@@ -464,19 +443,13 @@ Examples:
         required=True,
         help="Directory containing unified rules JSON files",
     )
-    discover_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed mapping information"
-    )
+    discover_parser.add_argument("--verbose", action="store_true", help="Show detailed mapping information")
     discover_parser.add_argument("--export", action="store_true", help="Export discovered mappings")
     discover_parser.add_argument("--output", help="Output file for exported mappings")
 
     # Analyze relationships command
-    analyze_parser = subparsers.add_parser(
-        "analyze", help="Analyze relationships between frameworks"
-    )
-    analyze_parser.add_argument(
-        "--frameworks", nargs="+", required=True, help="Framework IDs to analyze"
-    )
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze relationships between frameworks")
+    analyze_parser.add_argument("--frameworks", nargs="+", required=True, help="Framework IDs to analyze")
     analyze_parser.add_argument(
         "--rules-directory",
         required=True,
@@ -487,23 +460,15 @@ Examples:
         action="store_true",
         help="Load predefined mappings before analysis",
     )
-    analyze_parser.add_argument(
-        "--coverage-analysis", action="store_true", help="Include coverage analysis"
-    )
-    analyze_parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed analysis information"
-    )
+    analyze_parser.add_argument("--coverage-analysis", action="store_true", help="Include coverage analysis")
+    analyze_parser.add_argument("--verbose", action="store_true", help="Show detailed analysis information")
     analyze_parser.add_argument("--export", action="store_true", help="Export analysis results")
     analyze_parser.add_argument("--output", help="Output file for exported analysis")
 
     # Generate implementation command
     implement_parser = subparsers.add_parser("implement", help="Generate unified implementation")
-    implement_parser.add_argument(
-        "--objective", required=True, help="Control objective description"
-    )
-    implement_parser.add_argument(
-        "--frameworks", nargs="+", required=True, help="Target framework IDs"
-    )
+    implement_parser.add_argument("--objective", required=True, help="Control objective description")
+    implement_parser.add_argument("--frameworks", nargs="+", required=True, help="Target framework IDs")
     implement_parser.add_argument(
         "--platform",
         required=True,
@@ -520,9 +485,7 @@ Examples:
         action="store_true",
         help="Show detailed implementation information",
     )
-    implement_parser.add_argument(
-        "--export", action="store_true", help="Export implementation details"
-    )
+    implement_parser.add_argument("--export", action="store_true", help="Export implementation details")
     implement_parser.add_argument("--output", help="Output file for exported implementation")
 
     # Export command

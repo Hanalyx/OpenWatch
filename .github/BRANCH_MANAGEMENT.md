@@ -144,7 +144,7 @@ updates:
     assignees:
       - "sofia-alvarez"  # Frontend lead
     open-pull-requests-limit: 10
-    
+
   # Backend dependencies
   - package-ecosystem: "pip"
     directory: "/backend"
@@ -157,7 +157,7 @@ updates:
     assignees:
       - "daniel-kim"  # Backend lead
     open-pull-requests-limit: 10
-    
+
   # Docker dependencies
   - package-ecosystem: "docker"
     directory: "/"
@@ -332,7 +332,7 @@ All branches must pass:
 ### Branch Health Metrics
 
 - **Average PR Lifetime**: Target < 3 days
-- **Time to First Review**: Target < 1 day  
+- **Time to First Review**: Target < 1 day
 - **Merge Frequency**: Measure deployment velocity
 - **Hotfix Frequency**: Monitor stability
 - **Failed CI/CD Rate**: Target < 5%
@@ -352,7 +352,7 @@ Weekly reports include:
 ### Common Issues
 
 **Issue**: Merge conflicts in Dependabot PRs
-**Solution**: 
+**Solution**:
 1. Checkout the branch locally
 2. Rebase onto main: `git rebase main`
 3. Resolve conflicts

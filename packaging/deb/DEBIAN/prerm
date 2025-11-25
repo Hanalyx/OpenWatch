@@ -10,7 +10,7 @@ PACKAGE="openwatch"
 # Service management
 stop_services() {
     echo "Stopping OpenWatch services..."
-    
+
     # Stop services if they're running
     for service in openwatch openwatch-db; do
         if systemctl is-active --quiet $service.service 2>/dev/null; then
@@ -18,7 +18,7 @@ stop_services() {
             echo "Stopped $service.service"
         fi
     done
-    
+
     # Stop any remaining containers
     if command -v owadm >/dev/null 2>&1; then
         owadm stop --force 2>/dev/null || true
@@ -28,7 +28,7 @@ stop_services() {
 # Disable services
 disable_services() {
     echo "Disabling OpenWatch services..."
-    
+
     for service in openwatch openwatch-db; do
         if systemctl is-enabled --quiet $service.service 2>/dev/null; then
             systemctl disable $service.service || true
@@ -41,12 +41,12 @@ disable_services() {
 remove_apparmor_profile() {
     if [ -f /etc/apparmor.d/openwatch-containers ]; then
         echo "Removing AppArmor profile..."
-        
+
         # Unload the profile
         if command -v apparmor_parser >/dev/null 2>&1; then
             apparmor_parser -R /etc/apparmor.d/openwatch-containers 2>/dev/null || true
         fi
-        
+
         # Remove the profile file
         rm -f /etc/apparmor.d/openwatch-containers
     fi
@@ -56,22 +56,22 @@ case "$1" in
     remove|upgrade|deconfigure)
         # Stop all services
         stop_services
-        
+
         # Disable services on removal
         if [ "$1" = "remove" ]; then
             disable_services
         fi
-        
+
         # Remove AppArmor profile
         remove_apparmor_profile
-        
+
         # Note: We don't remove configuration or data directories here
         # They will be handled by postrm if this is a purge
         ;;
-        
+
     failed-upgrade)
         ;;
-        
+
     *)
         echo "prerm called with unknown argument '$1'" >&2
         exit 1

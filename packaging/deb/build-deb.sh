@@ -25,31 +25,31 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
+    echo -e "${BLUE}[INFO] $1${NC}"
 }
 
 log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}[OK] $1${NC}"
 }
 
 log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}[WARNING] $1${NC}"
 }
 
 log_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking build prerequisites..."
-    
+
     # Check if we're on Debian/Ubuntu
     if ! command -v dpkg >/dev/null 2>&1; then
         log_error "Debian packaging tools not found. This script requires Ubuntu or Debian."
         exit 1
     fi
-    
+
     # Check for required tools
     local missing_tools=()
     for tool in dpkg-deb fakeroot go git; do
@@ -57,13 +57,13 @@ check_prerequisites() {
             missing_tools+=("$tool")
         fi
     done
-    
+
     if [ ${#missing_tools[@]} -gt 0 ]; then
         log_error "Missing required tools: ${missing_tools[*]}"
         log_info "Install with: sudo apt install build-essential golang git"
         exit 1
     fi
-    
+
     log_success "Prerequisites check passed"
 }
 
@@ -77,34 +77,34 @@ clean_build() {
 # Build owadm binary
 build_binary() {
     log_info "Building owadm binary..."
-    
+
     cd "$PROJECT_ROOT"
-    
+
     # Build with proper flags
     export CGO_ENABLED=0
     export GOOS=linux
     export GOARCH=amd64
-    
+
     # Set build-time variables
     LDFLAGS="-s -w \
         -X github.com/hanalyx/openwatch/internal/owadm/cmd.Version=$VERSION \
         -X github.com/hanalyx/openwatch/internal/owadm/cmd.Commit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown') \
         -X github.com/hanalyx/openwatch/internal/owadm/cmd.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')"
-    
+
     go build -ldflags "$LDFLAGS" -o "$BUILD_DIR/owadm" cmd/owadm/main.go
-    
+
     if [ ! -f "$BUILD_DIR/owadm" ]; then
         log_error "Failed to build owadm binary"
         exit 1
     fi
-    
+
     log_success "Binary built successfully"
 }
 
 # Create package structure
 create_package_structure() {
     log_info "Creating package structure..."
-    
+
     # Create directory structure
     mkdir -p "$PACKAGE_DIR/DEBIAN"
     mkdir -p "$PACKAGE_DIR/usr/bin"
@@ -115,41 +115,41 @@ create_package_structure() {
     mkdir -p "$PACKAGE_DIR/etc/openwatch/ssh"
     mkdir -p "$PACKAGE_DIR/var/lib/openwatch"
     mkdir -p "$PACKAGE_DIR/var/log/openwatch"
-    
+
     # Copy control files
     cp -r "$SCRIPT_DIR/DEBIAN"/* "$PACKAGE_DIR/DEBIAN/"
-    
+
     # Update version in control file
     sed -i "s/^Version:.*/Version: $VERSION/" "$PACKAGE_DIR/DEBIAN/control"
-    
+
     # Copy binary
     cp "$BUILD_DIR/owadm" "$PACKAGE_DIR/usr/bin/"
     chmod 755 "$PACKAGE_DIR/usr/bin/owadm"
-    
+
     # Copy compose files
     cp "$PROJECT_ROOT/docker-compose.yml" "$PACKAGE_DIR/usr/share/openwatch/compose/"
     cp "$PROJECT_ROOT/podman-compose.yml" "$PACKAGE_DIR/usr/share/openwatch/compose/" 2>/dev/null || true
-    
+
     # Create systemd service files
     create_systemd_files
-    
+
     # Copy documentation
     cp "$PROJECT_ROOT/README.md" "$PACKAGE_DIR/usr/share/doc/openwatch/"
     cp "$PROJECT_ROOT/LICENSE" "$PACKAGE_DIR/usr/share/doc/openwatch/" 2>/dev/null || true
-    
+
     # Create changelog
     create_changelog
-    
+
     # Create copyright file
     create_copyright
-    
+
     log_success "Package structure created"
 }
 
 # Create systemd service files
 create_systemd_files() {
     log_info "Creating systemd service files..."
-    
+
     # Main service
     cat > "$PACKAGE_DIR/usr/share/openwatch/systemd/openwatch.service" << 'EOF'
 [Unit]
@@ -228,7 +228,7 @@ EOF
 # Create changelog
 create_changelog() {
     log_info "Creating changelog..."
-    
+
     cat > "$PACKAGE_DIR/usr/share/doc/openwatch/changelog" << EOF
 openwatch ($VERSION) stable; urgency=medium
 
@@ -242,7 +242,7 @@ openwatch ($VERSION) stable; urgency=medium
 
  -- OpenWatch Team <admin@hanalyx.com>  $(date -R)
 EOF
-    
+
     gzip -9 "$PACKAGE_DIR/usr/share/doc/openwatch/changelog"
 }
 
@@ -283,7 +283,7 @@ EOF
 # Build the package
 build_package() {
     log_info "Building DEB package..."
-    
+
     # Set proper permissions
     find "$PACKAGE_DIR" -type d -exec chmod 755 {} \;
     find "$PACKAGE_DIR" -type f -exec chmod 644 {} \;
@@ -291,26 +291,26 @@ build_package() {
     chmod 755 "$PACKAGE_DIR/DEBIAN/postinst"
     chmod 755 "$PACKAGE_DIR/DEBIAN/prerm"
     chmod 755 "$PACKAGE_DIR/DEBIAN/postrm"
-    
+
     # Build the package
     cd "$BUILD_DIR"
     fakeroot dpkg-deb --build "${PACKAGE_NAME}_${VERSION}_${ARCH}"
-    
+
     if [ $? -eq 0 ]; then
         log_success "DEB package built successfully!"
-        
+
         # Create dist directory
         mkdir -p "$SCRIPT_DIR/dist"
         mv "${PACKAGE_NAME}_${VERSION}_${ARCH}.deb" "$SCRIPT_DIR/dist/"
-        
+
         # Show package info
         echo ""
         log_info "Package details:"
         dpkg-deb --info "$SCRIPT_DIR/dist/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-        
+
         echo ""
         log_success "Package saved to: $SCRIPT_DIR/dist/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-        
+
     else
         log_error "DEB package build failed!"
         exit 1
@@ -320,15 +320,15 @@ build_package() {
 # Verify package
 verify_package() {
     log_info "Verifying package..."
-    
+
     local deb_file="$SCRIPT_DIR/dist/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-    
+
     # Check with lintian if available
     if command -v lintian >/dev/null 2>&1; then
         log_info "Running lintian checks..."
         lintian --info "$deb_file" || log_warning "Lintian found some issues (this is common for custom packages)"
     fi
-    
+
     # List contents
     log_info "Package contents:"
     dpkg-deb --contents "$deb_file" | head -20
@@ -337,23 +337,23 @@ verify_package() {
 
 # Main execution
 main() {
-    echo "🏗️  OpenWatch DEB Build Script"
+    echo "OpenWatch DEB Build Script"
     echo "================================"
-    
+
     check_prerequisites
     clean_build
     build_binary
     create_package_structure
     build_package
     verify_package
-    
+
     echo ""
     log_success "OpenWatch DEB package build completed!"
     echo ""
-    echo "📦 Install with:"
+    echo "Install with:"
     echo "   sudo apt install $SCRIPT_DIR/dist/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
     echo ""
-    echo "🚀 After installation:"
+    echo "After installation:"
     echo "   1. Review: /etc/openwatch/ow.yml"
     echo "   2. Start: sudo systemctl start openwatch"
     echo "   3. Status: owadm status"

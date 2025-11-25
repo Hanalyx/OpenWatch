@@ -5,19 +5,17 @@ Supports conditional execution, parallel/sequential stages, and comprehensive er
 """
 
 import asyncio
-import json
 import logging
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from beanie import Document
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 from .bulk_remediation_service import BulkRemediationRequest, BulkRemediationService
-from .plugin_execution_service import PluginExecutionRequest, PluginExecutionService
+from .plugin_execution_service import PluginExecutionService
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +69,7 @@ class StageStatus(str, Enum):
 class WorkflowCondition(BaseModel):
     """Condition for conditional stage execution"""
 
-    condition_type: str = Field(
-        ..., description="Type of condition (previous_stage_success, rule_count, etc.)"
-    )
+    condition_type: str = Field(..., description="Type of condition (previous_stage_success, rule_count, etc.)")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Condition parameters")
 
     def evaluate(self, workflow_context: Dict[str, Any]) -> bool:
@@ -129,14 +125,10 @@ class WorkflowStage(BaseModel):
     skip_on_failure: bool = Field(default=False, description="Skip stage if previous stages failed")
 
     # Stage-specific configuration
-    stage_config: Dict[str, Any] = Field(
-        default_factory=dict, description="Stage-specific configuration"
-    )
+    stage_config: Dict[str, Any] = Field(default_factory=dict, description="Stage-specific configuration")
 
     # Dependencies
-    depends_on: List[str] = Field(
-        default_factory=list, description="Stage IDs this stage depends on"
-    )
+    depends_on: List[str] = Field(default_factory=list, description="Stage IDs this stage depends on")
 
     # Rollback configuration
     supports_rollback: bool = Field(default=False)
@@ -162,9 +154,7 @@ class WorkflowDefinition(BaseModel):
     # Failure handling
     stop_on_first_failure: bool = Field(default=False)
     auto_rollback_on_failure: bool = Field(default=False)
-    rollback_stages: List[str] = Field(
-        default_factory=list, description="Stages to rollback on failure"
-    )
+    rollback_stages: List[str] = Field(default_factory=list, description="Stages to rollback on failure")
 
     # Notifications
     notification_config: Dict[str, Any] = Field(default_factory=dict)
@@ -191,9 +181,7 @@ class WorkflowDefinition(BaseModel):
 
         return issues
 
-    def _has_circular_dependency(
-        self, stage: WorkflowStage, all_stages: List[WorkflowStage], visited: set
-    ) -> bool:
+    def _has_circular_dependency(self, stage: WorkflowStage, all_stages: List[WorkflowStage], visited: set) -> bool:
         """Check for circular dependencies in workflow stages"""
         if stage.stage_id in visited:
             return True
@@ -294,9 +282,7 @@ class RemediationWorkflowService:
         self.workflow_definitions: Dict[str, WorkflowDefinition] = {}
         self.active_workflows: Dict[str, WorkflowExecution] = {}
 
-    async def register_workflow_definition(
-        self, workflow_def: WorkflowDefinition
-    ) -> WorkflowDefinition:
+    async def register_workflow_definition(self, workflow_def: WorkflowDefinition) -> WorkflowDefinition:
         """Register a new workflow definition"""
         # Validate workflow
         issues = workflow_def.validate_workflow()
@@ -304,9 +290,7 @@ class RemediationWorkflowService:
             raise ValueError(f"Workflow validation failed: {', '.join(issues)}")
 
         self.workflow_definitions[workflow_def.workflow_id] = workflow_def
-        logger.info(
-            f"Registered workflow definition: {workflow_def.workflow_id} ({workflow_def.name})"
-        )
+        logger.info(f"Registered workflow definition: {workflow_def.workflow_id} ({workflow_def.name})")
 
         return workflow_def
 
@@ -376,9 +360,7 @@ class RemediationWorkflowService:
         execution.completed_at = datetime.utcnow()
 
         if execution.started_at:
-            execution.duration_seconds = (
-                execution.completed_at - execution.started_at
-            ).total_seconds()
+            execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
         await execution.save()
 
@@ -405,12 +387,7 @@ class RemediationWorkflowService:
         if user:
             query["user"] = user
 
-        return (
-            await WorkflowExecution.find(query)
-            .sort(-WorkflowExecution.started_at)
-            .limit(limit)
-            .to_list()
-        )
+        return await WorkflowExecution.find(query).sort(-WorkflowExecution.started_at).limit(limit).to_list()
 
     async def _execute_workflow_stages(self, execution: WorkflowExecution):
         """Execute all stages of a workflow"""
@@ -447,9 +424,7 @@ class RemediationWorkflowService:
             execution.completed_at = datetime.utcnow()
 
             if execution.started_at:
-                execution.duration_seconds = (
-                    execution.completed_at - execution.started_at
-                ).total_seconds()
+                execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
             await execution.save()
 
@@ -457,9 +432,7 @@ class RemediationWorkflowService:
             # Remove from active workflows
             self.active_workflows.pop(execution.execution_id, None)
 
-    async def _execute_stages_sequential(
-        self, execution: WorkflowExecution, workflow_context: Dict[str, Any]
-    ):
+    async def _execute_stages_sequential(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
         """Execute stages sequentially"""
         for stage in execution.workflow_definition.stages:
             if execution.status == WorkflowStatus.CANCELLED:
@@ -478,18 +451,13 @@ class RemediationWorkflowService:
             workflow_context["stage_results"][stage.stage_id] = stage_result.dict()
 
             # Check if workflow should stop on failure
-            if (
-                stage_result.status == StageStatus.FAILED
-                and execution.workflow_definition.stop_on_first_failure
-            ):
+            if stage_result.status == StageStatus.FAILED and execution.workflow_definition.stop_on_first_failure:
                 break
 
-    async def _execute_stages_parallel(
-        self, execution: WorkflowExecution, workflow_context: Dict[str, Any]
-    ):
+    async def _execute_stages_parallel(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
         """Execute stages in parallel with dependency management"""
         # Build dependency graph
-        dependency_graph = self._build_dependency_graph(execution.workflow_definition.stages)
+        self._build_dependency_graph(execution.workflow_definition.stages)
 
         # Execute stages in topological order with parallelization
         executed_stages = set()
@@ -501,9 +469,7 @@ class RemediationWorkflowService:
             # Find stages that can be executed (dependencies satisfied)
             ready_stages = []
             for stage in execution.workflow_definition.stages:
-                if stage.stage_id not in executed_stages and all(
-                    dep in executed_stages for dep in stage.depends_on
-                ):
+                if stage.stage_id not in executed_stages and all(dep in executed_stages for dep in stage.depends_on):
                     ready_stages.append(stage)
 
             if not ready_stages:
@@ -515,9 +481,7 @@ class RemediationWorkflowService:
             stage_tasks = []
             for stage in ready_stages[:max_parallel]:
                 if self._should_execute_stage(stage, workflow_context):
-                    task = asyncio.create_task(
-                        self._execute_single_stage(stage, execution, workflow_context)
-                    )
+                    task = asyncio.create_task(self._execute_single_stage(stage, execution, workflow_context))
                     stage_tasks.append((stage, task))
                 else:
                     # Mark as skipped
@@ -528,9 +492,7 @@ class RemediationWorkflowService:
             for stage, task in stage_tasks:
                 try:
                     stage_result = await task
-                    await self._record_stage_result(
-                        execution, stage, stage_result.status, stage_result
-                    )
+                    await self._record_stage_result(execution, stage, stage_result.status, stage_result)
                     workflow_context["stage_results"][stage.stage_id] = stage_result.dict()
                     executed_stages.add(stage.stage_id)
                 except Exception as e:
@@ -538,9 +500,7 @@ class RemediationWorkflowService:
                     await self._record_stage_result(execution, stage, StageStatus.FAILED)
                     executed_stages.add(stage.stage_id)
 
-    async def _execute_stages_conditional(
-        self, execution: WorkflowExecution, workflow_context: Dict[str, Any]
-    ):
+    async def _execute_stages_conditional(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
         """Execute stages with conditional logic"""
         # Similar to sequential but with additional condition checking
         await self._execute_stages_sequential(execution, workflow_context)
@@ -565,21 +525,13 @@ class RemediationWorkflowService:
         try:
             # Execute stage based on type
             if stage.stage_type == WorkflowStageType.PRE_VALIDATION:
-                await self._execute_pre_validation_stage(
-                    stage, execution, workflow_context, stage_result
-                )
+                await self._execute_pre_validation_stage(stage, execution, workflow_context, stage_result)
             elif stage.stage_type == WorkflowStageType.REMEDIATION:
-                await self._execute_remediation_stage(
-                    stage, execution, workflow_context, stage_result
-                )
+                await self._execute_remediation_stage(stage, execution, workflow_context, stage_result)
             elif stage.stage_type == WorkflowStageType.POST_VALIDATION:
-                await self._execute_post_validation_stage(
-                    stage, execution, workflow_context, stage_result
-                )
+                await self._execute_post_validation_stage(stage, execution, workflow_context, stage_result)
             elif stage.stage_type == WorkflowStageType.NOTIFICATION:
-                await self._execute_notification_stage(
-                    stage, execution, workflow_context, stage_result
-                )
+                await self._execute_notification_stage(stage, execution, workflow_context, stage_result)
             elif stage.stage_type == WorkflowStageType.ROLLBACK:
                 await self._execute_rollback_stage(stage, execution, workflow_context, stage_result)
             elif stage.stage_type == WorkflowStageType.CUSTOM:
@@ -600,9 +552,7 @@ class RemediationWorkflowService:
 
         finally:
             stage_result.completed_at = datetime.utcnow()
-            stage_result.duration_seconds = (
-                stage_result.completed_at - stage_result.started_at
-            ).total_seconds()
+            stage_result.duration_seconds = (stage_result.completed_at - stage_result.started_at).total_seconds()
 
         return stage_result
 
@@ -795,9 +745,7 @@ class RemediationWorkflowService:
         execution.current_stage = None
 
         if execution.started_at:
-            execution.duration_seconds = (
-                execution.completed_at - execution.started_at
-            ).total_seconds()
+            execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
         # Determine final status
         if execution.status == WorkflowStatus.CANCELLED:

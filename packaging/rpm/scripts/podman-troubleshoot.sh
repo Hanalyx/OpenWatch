@@ -30,7 +30,7 @@ echo ""
 # Function to detect issues
 detect_issues() {
     local issues=()
-    
+
     # Check Podman version
     if command -v podman &>/dev/null; then
         local podman_version=$(podman version --format '{{.Client.Version}}')
@@ -38,12 +38,12 @@ detect_issues() {
     else
         issues+=("Podman not installed")
     fi
-    
+
     # Check SELinux
     if command -v getenforce &>/dev/null; then
         local selinux_status=$(getenforce 2>/dev/null || echo "Unknown")
         log_info "SELinux status: $selinux_status"
-        
+
         if [[ "$selinux_status" == "Enforcing" ]]; then
             # Check container contexts
             if ! semanage fcontext -l | grep -q container_file_t; then
@@ -51,19 +51,19 @@ detect_issues() {
             fi
         fi
     fi
-    
+
     # Check storage driver
     if [[ -f /etc/containers/storage.conf ]]; then
         local storage_driver=$(grep "^driver" /etc/containers/storage.conf | cut -d'"' -f2)
         log_info "Storage driver: $storage_driver"
-        
+
         if [[ "$storage_driver" != "vfs" ]]; then
             log_warning "Non-VFS storage driver may cause permission issues"
         fi
     else
         issues+=("Podman storage not configured")
     fi
-    
+
     # Check kernel parameters
     if [[ -f /proc/sys/kernel/unprivileged_userns_clone ]]; then
         local userns_clone=$(cat /proc/sys/kernel/unprivileged_userns_clone)
@@ -71,14 +71,14 @@ detect_issues() {
             issues+=("Unprivileged user namespaces disabled")
         fi
     fi
-    
+
     # Check systemd service overrides
     if [[ -d /etc/systemd/system/openwatch-db.service.d ]]; then
         log_info "Systemd overrides detected"
     else
         log_warning "No systemd overrides for container permissions"
     fi
-    
+
     # Return issues
     if [[ ${#issues[@]} -eq 0 ]]; then
         log_success "No issues detected"
@@ -95,13 +95,13 @@ detect_issues() {
 # Quick fix function
 quick_fix() {
     log_info "Applying quick fixes..."
-    
+
     # 1. Enable user namespaces
     if [[ -f /proc/sys/kernel/unprivileged_userns_clone ]]; then
         echo 1 > /proc/sys/kernel/unprivileged_userns_clone
         log_success "Enabled unprivileged user namespaces"
     fi
-    
+
     # 2. Configure VFS storage driver
     mkdir -p /etc/containers
     cat > /etc/containers/storage.conf << 'EOF'
@@ -114,11 +114,11 @@ graphroot = "/var/lib/containers/storage"
 ignore_chown_errors = "true"
 EOF
     log_success "Configured VFS storage driver"
-    
+
     # 3. Reset Podman storage
     log_warning "Resetting Podman storage..."
     podman system reset -f
-    
+
     # 4. Create systemd overrides
     mkdir -p /etc/systemd/system/openwatch-db.service.d
     cat > /etc/systemd/system/openwatch-db.service.d/podman-fix.conf << 'EOF'
@@ -130,17 +130,17 @@ NoNewPrivileges=no
 User=root
 Group=root
 EOF
-    
+
     # Apply to all services
     for svc in frontend worker redis; do
         mkdir -p /etc/systemd/system/openwatch-${svc}.service.d
         cp /etc/systemd/system/openwatch-db.service.d/podman-fix.conf \
            /etc/systemd/system/openwatch-${svc}.service.d/
     done
-    
+
     systemctl daemon-reload
     log_success "Updated systemd service configurations"
-    
+
     # 5. SELinux fixes (if applicable)
     if command -v getenforce &>/dev/null && [[ "$(getenforce)" != "Disabled" ]]; then
         semanage fcontext -a -t container_file_t "/var/lib/containers(/.*)?" 2>/dev/null || true

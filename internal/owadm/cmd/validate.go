@@ -72,7 +72,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 
 	// Parse YAML with environment variable substitution
 	expandedData := os.ExpandEnv(string(data))
-	
+
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return fmt.Errorf("invalid YAML configuration: %v", err)
@@ -176,7 +176,7 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Printf("  %s Secrets file found with correct permissions\n", green("OK:"))
 		}
-		
+
 		// Check for default passwords
 		content, _ := ioutil.ReadFile(secretsPath)
 		if strings.Contains(string(content), "CHANGEME") {
@@ -229,16 +229,16 @@ func validateRuntime(config Config) error {
 
 func validateDatabase(config Config) error {
 	fmt.Printf("%s Validating database configuration...\n\n", blue("[INFO]"))
-	
+
 	if err := validateDatabaseConfig(config); err != nil {
 		fmt.Printf("%s Database validation failed: %v\n", red("ERROR:"), err)
 		return err
 	}
-	
+
 	fmt.Printf("%s Database configuration is valid\n", green("OK:"))
 	fmt.Printf("  Host: %s:%d\n", config.Database.Host, config.Database.Port)
 	fmt.Printf("  SSL: %s\n", config.Database.SSLMode)
-	
+
 	return nil
 }
 
@@ -246,11 +246,11 @@ func validateDatabaseConfig(config Config) error {
 	if config.Database.Host == "" {
 		return fmt.Errorf("database host is not configured")
 	}
-	
+
 	if config.Database.Port < 1 || config.Database.Port > 65535 {
 		return fmt.Errorf("invalid database port: %d", config.Database.Port)
 	}
-	
+
 	validSSLModes := []string{"disable", "prefer", "require", "verify-ca", "verify-full"}
 	validMode := false
 	for _, mode := range validSSLModes {
@@ -262,6 +262,6 @@ func validateDatabaseConfig(config Config) error {
 	if !validMode {
 		return fmt.Errorf("invalid database SSL mode: %s", config.Database.SSLMode)
 	}
-	
+
 	return nil
 }

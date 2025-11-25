@@ -32,7 +32,7 @@ Description: Enterprise SCAP compliance scanning and remediation platform
  .
  Key features:
   * SCAP-compliant security scanning
-  * Multi-host fleet management  
+  * Multi-host fleet management
   * Automated remediation workflows
   * Real-time compliance dashboards
   * Role-based access control

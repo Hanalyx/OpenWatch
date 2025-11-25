@@ -26,19 +26,19 @@ except ImportError:
 def clear_all_blocks():
     """Clear all IP blocks from rate limiter"""
     middleware = get_rate_limiting_middleware()
-    
+
     # Clear blocked IPs
     blocked_count = len(middleware.store.blocked_ips)
     middleware.store.blocked_ips.clear()
-    
+
     # Clear request history
     request_count = len(middleware.store.requests)
     middleware.store.requests.clear()
-    
+
     # Clear error counts
     error_count = len(middleware.store.error_counts)
     middleware.store.error_counts.clear()
-    
+
     print(f"Cleared {blocked_count} blocked IPs")
     print(f"Cleared {request_count} request histories")
     print(f"Cleared {error_count} error count records")

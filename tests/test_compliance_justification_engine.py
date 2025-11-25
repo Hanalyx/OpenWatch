@@ -20,12 +20,12 @@ from backend.app.services.multi_framework_scanner import ScanResult, FrameworkRe
 
 class TestComplianceJustificationEngine:
     """Test compliance justification engine functionality"""
-    
+
     @pytest.fixture
     def justification_engine(self):
         """Create compliance justification engine instance"""
         return ComplianceJustificationEngine()
-    
+
     @pytest.fixture
     def mock_rule_execution(self):
         """Create mock rule execution"""
@@ -43,7 +43,7 @@ class TestComplianceJustificationEngine:
             error_message=None,
             executed_at=datetime.utcnow()
         )
-    
+
     @pytest.fixture
     def mock_exceeding_execution(self):
         """Create mock rule execution that exceeds requirements"""
@@ -62,7 +62,7 @@ class TestComplianceJustificationEngine:
             error_message=None,
             executed_at=datetime.utcnow()
         )
-    
+
     @pytest.fixture
     def mock_unified_rule(self):
         """Create mock unified compliance rule"""
@@ -99,7 +99,7 @@ class TestComplianceJustificationEngine:
                 )
             ]
         )
-    
+
     @pytest.fixture
     def mock_fips_rule(self):
         """Create mock FIPS cryptography rule"""
@@ -136,7 +136,7 @@ class TestComplianceJustificationEngine:
                 )
             ]
         )
-    
+
     def test_justification_evidence_creation(self):
         """Test creating justification evidence objects"""
         evidence = JustificationEvidence(
@@ -153,14 +153,14 @@ class TestComplianceJustificationEngine:
             confidence_level="high",
             evidence_path="/var/log/openwatch/scan_evidence.log"
         )
-        
+
         assert evidence.evidence_type == AuditEvidence.TECHNICAL
         assert evidence.description == "Session timeout configuration validation"
         assert evidence.source == "OpenWatch Scanner"
         assert evidence.confidence_level == "high"
         assert "config_file" in evidence.evidence_data
         assert evidence.timestamp is not None
-    
+
     def test_compliance_justification_creation(self):
         """Test creating compliance justification objects"""
         justification = ComplianceJustification(
@@ -171,22 +171,22 @@ class TestComplianceJustificationEngine:
             host_id="host_001",
             justification_type=JustificationType.COMPLIANT,
             compliance_status=ComplianceStatus.COMPLIANT,
-            
+
             summary="Session timeout configured to 15 minutes on RHEL 9",
             detailed_explanation="Implementation of session timeout for NIST compliance",
             implementation_description="Automated session lock after 15 minutes of inactivity",
-            
+
             evidence=[],
             technical_details={"execution_time": 1.2, "validation": "passed"},
-            
+
             risk_assessment="Medium risk control effectively mitigated",
             business_justification="Supports regulatory compliance objectives",
             impact_analysis="Positive security impact with no operational issues",
-            
+
             regulatory_citations=["NIST SP 800-53 Rev 5", "FISMA"],
             standards_references=["NIST Cybersecurity Framework"]
         )
-        
+
         assert justification.justification_id.startswith("JUST-NIST-AC11")
         assert justification.compliance_status == ComplianceStatus.COMPLIANT
         assert justification.justification_type == JustificationType.COMPLIANT
@@ -194,7 +194,7 @@ class TestComplianceJustificationEngine:
         assert justification.last_updated is not None
         assert len(justification.auditor_notes) == 0
         assert len(justification.regulatory_citations) == 2
-    
+
     def test_exceeding_compliance_analysis_creation(self):
         """Test creating exceeding compliance analysis"""
         analysis = ExceedingComplianceAnalysis(
@@ -211,13 +211,13 @@ class TestComplianceJustificationEngine:
             business_value_statement="Single FIPS implementation satisfies 3 framework requirements",
             audit_advantage="Demonstrates security excellence beyond minimum compliance"
         )
-        
+
         assert analysis.enhancement_level == "significant"
         assert len(analysis.security_benefits) == 3
         assert len(analysis.additional_frameworks_satisfied) == 2
         assert "FIPS" in analysis.compliance_value
         assert "excellence" in analysis.audit_advantage
-    
+
     @pytest.mark.asyncio
     async def test_generate_justification_compliant(self, justification_engine, mock_rule_execution, mock_unified_rule):
         """Test generating justification for compliant control"""
@@ -226,7 +226,7 @@ class TestComplianceJustificationEngine:
             "version": "9.2",
             "architecture": "x86_64"
         }
-        
+
         justification = await justification_engine.generate_justification(
             rule_execution=mock_rule_execution,
             unified_rule=mock_unified_rule,
@@ -235,7 +235,7 @@ class TestComplianceJustificationEngine:
             host_id="host_001",
             platform_info=platform_info
         )
-        
+
         assert justification.justification_type == JustificationType.COMPLIANT
         assert justification.compliance_status == ComplianceStatus.COMPLIANT
         assert justification.framework_id == "nist_800_53_r5"
@@ -246,7 +246,7 @@ class TestComplianceJustificationEngine:
         assert len(justification.evidence) >= 2  # Technical and platform evidence
         assert "NIST SP 800-53 Rev 5" in justification.regulatory_citations
         assert justification.risk_assessment.startswith("This medium risk control")
-    
+
     @pytest.mark.asyncio
     async def test_generate_justification_exceeding(self, justification_engine, mock_exceeding_execution, mock_fips_rule):
         """Test generating justification for exceeding compliance"""
@@ -255,7 +255,7 @@ class TestComplianceJustificationEngine:
             "version": "9.2",
             "architecture": "x86_64"
         }
-        
+
         justification = await justification_engine.generate_justification(
             rule_execution=mock_exceeding_execution,
             unified_rule=mock_fips_rule,
@@ -264,7 +264,7 @@ class TestComplianceJustificationEngine:
             host_id="host_002",
             platform_info=platform_info
         )
-        
+
         assert justification.justification_type == JustificationType.EXCEEDS
         assert justification.compliance_status == ComplianceStatus.EXCEEDS
         assert justification.framework_id == "cis_v8"
@@ -274,7 +274,7 @@ class TestComplianceJustificationEngine:
         assert justification.exceeding_rationale is not None
         assert "exceeds baseline requirements" in justification.risk_assessment
         assert "FIPS" in justification.summary
-    
+
     @pytest.mark.asyncio
     async def test_analyze_exceeding_compliance_fips(self, justification_engine, mock_fips_rule):
         """Test analyzing FIPS exceeding compliance scenario"""
@@ -284,7 +284,7 @@ class TestComplianceJustificationEngine:
             control_id="3.11",
             context_data={}
         )
-        
+
         assert analysis.enhancement_level in ["moderate", "significant"]
         assert len(analysis.security_benefits) > 0
         assert "NIST-approved cryptographic algorithms" in analysis.security_benefits
@@ -292,7 +292,7 @@ class TestComplianceJustificationEngine:
         assert "stig_rhel9" in analysis.additional_frameworks_satisfied
         assert "FIPS" in analysis.compliance_value
         assert "security excellence" in analysis.audit_advantage
-    
+
     @pytest.mark.asyncio
     async def test_generate_technical_evidence(self, justification_engine, mock_rule_execution, mock_unified_rule):
         """Test generating technical evidence"""
@@ -302,37 +302,37 @@ class TestComplianceJustificationEngine:
             "architecture": "x86_64",
             "capabilities": ["systemd", "selinux"]
         }
-        
+
         evidence = await justification_engine._generate_technical_evidence(
             rule_execution=mock_rule_execution,
             unified_rule=mock_unified_rule,
             platform_info=platform_info
         )
-        
+
         assert len(evidence) >= 3  # Execution, platform, implementation evidence
-        
+
         # Check execution evidence
         execution_evidence = next((e for e in evidence if "execution output" in e.description), None)
         assert execution_evidence is not None
         assert execution_evidence.evidence_type == AuditEvidence.TECHNICAL
         assert execution_evidence.confidence_level == "high"
         assert "timeout_value" in execution_evidence.evidence_data["execution_output"]
-        
+
         # Check platform evidence
         platform_evidence = next((e for e in evidence if "Platform configuration" in e.description), None)
         assert platform_evidence is not None
         assert platform_evidence.evidence_data["platform"] == "rhel_9"
-        
+
         # Check implementation evidence
         impl_evidence = next((e for e in evidence if "Implementation details" in e.description), None)
         assert impl_evidence is not None
         assert "commands" in impl_evidence.evidence_data
-    
+
     @pytest.mark.asyncio
     async def test_generate_justification_text(self, justification_engine, mock_unified_rule, mock_rule_execution):
         """Test generating justification text components"""
         platform_info = {"platform": "rhel_9"}
-        
+
         summary, detailed, implementation = await justification_engine._generate_justification_text(
             unified_rule=mock_unified_rule,
             rule_execution=mock_rule_execution,
@@ -340,7 +340,7 @@ class TestComplianceJustificationEngine:
             platform_info=platform_info,
             context_data={}
         )
-        
+
         assert "Session Timeout Configuration" in summary
         assert "rhel_9" in summary
         assert "NIST" in detailed
@@ -350,7 +350,7 @@ class TestComplianceJustificationEngine:
         assert "successfully implemented" in implementation
         assert "1.200 seconds" in implementation
         assert "Compliant" in detailed
-    
+
     @pytest.mark.asyncio
     async def test_generate_risk_assessment(self, justification_engine, mock_unified_rule):
         """Test generating risk assessments for different statuses"""
@@ -365,7 +365,7 @@ class TestComplianceJustificationEngine:
         )
         assert "effectively mitigated" in risk_assessment
         assert "medium risk control" in risk_assessment
-        
+
         # Test exceeding status
         exceeding_execution = RuleExecution(
             execution_id="test", rule_id="test", execution_success=True,
@@ -377,7 +377,7 @@ class TestComplianceJustificationEngine:
         )
         assert "exceeds baseline requirements" in risk_assessment
         assert "enhanced protection" in risk_assessment
-        
+
         # Test non-compliant status
         non_compliant_execution = RuleExecution(
             execution_id="test", rule_id="test", execution_success=False,
@@ -389,7 +389,7 @@ class TestComplianceJustificationEngine:
         )
         assert "immediate attention" in risk_assessment
         assert "security risk" in risk_assessment
-    
+
     @pytest.mark.asyncio
     async def test_generate_business_justification(self, justification_engine, mock_unified_rule):
         """Test generating business justifications for different frameworks"""
@@ -399,21 +399,21 @@ class TestComplianceJustificationEngine:
         )
         assert "federal compliance" in nist_justification
         assert "cybersecurity framework" in nist_justification
-        
+
         # Test CIS framework
         cis_justification = await justification_engine._generate_business_justification(
             mock_unified_rule, "cis_v8"
         )
         assert "industry best practices" in cis_justification
         assert "cyber defense" in cis_justification
-        
+
         # Test ISO framework
         iso_justification = await justification_engine._generate_business_justification(
             mock_unified_rule, "iso_27001_2022"
         )
         assert "information security management" in iso_justification
         assert "international standards" in iso_justification
-    
+
     @pytest.mark.asyncio
     async def test_batch_justifications(self, justification_engine):
         """Test generating batch justifications from scan results"""
@@ -426,7 +426,7 @@ class TestComplianceJustificationEngine:
             execution_time=1.0,
             executed_at=datetime.utcnow()
         )
-        
+
         framework_result = FrameworkResult(
             framework_id="nist_800_53_r5",
             compliance_percentage=95.0,
@@ -436,13 +436,13 @@ class TestComplianceJustificationEngine:
             error_rules=0,
             rule_executions=[rule_execution]
         )
-        
+
         host_result = HostResult(
             host_id="host_001",
             platform_info={"platform": "rhel_9"},
             framework_results=[framework_result]
         )
-        
+
         scan_result = ScanResult(
             scan_id="scan_001",
             started_at=datetime.utcnow(),
@@ -450,7 +450,7 @@ class TestComplianceJustificationEngine:
             total_execution_time=10.0,
             host_results=[host_result]
         )
-        
+
         # Mock unified rule
         unified_rule = UnifiedComplianceRule(
             rule_id="session_timeout_001",
@@ -468,22 +468,22 @@ class TestComplianceJustificationEngine:
             ],
             platform_implementations=[]
         )
-        
+
         unified_rules = {"session_timeout_001": unified_rule}
-        
+
         batch_justifications = await justification_engine.generate_batch_justifications(
             scan_result, unified_rules
         )
-        
+
         assert "host_001" in batch_justifications
         assert len(batch_justifications["host_001"]) == 1
-        
+
         justification = batch_justifications["host_001"][0]
         assert justification.rule_id == "session_timeout_001"
         assert justification.framework_id == "nist_800_53_r5"
         assert justification.control_id == "AC-11"
         assert justification.host_id == "host_001"
-    
+
     @pytest.mark.asyncio
     async def test_export_audit_package_json(self, justification_engine):
         """Test exporting audit package in JSON format"""
@@ -506,35 +506,35 @@ class TestComplianceJustificationEngine:
                 impact_analysis="Positive impact"
             )
         ]
-        
+
         json_export = await justification_engine.export_audit_package(
             justifications, "nist_800_53_r5", "json"
         )
-        
+
         # Should be valid JSON
         parsed = json.loads(json_export)
         assert "audit_package_metadata" in parsed
         assert "compliance_summary" in parsed
         assert "justifications" in parsed
-        
+
         # Check metadata
         metadata = parsed["audit_package_metadata"]
         assert metadata["framework"] == "nist_800_53_r5"
         assert metadata["total_justifications"] == 1
         assert "NIST SP 800-53 Rev 5" in metadata["regulatory_citations"]
-        
+
         # Check compliance summary
         summary = parsed["compliance_summary"]
         assert summary["compliant"] == 1
         assert summary["exceeds"] == 0
         assert summary["non_compliant"] == 0
-        
+
         # Check justifications
         justification_data = parsed["justifications"][0]
         assert justification_data["justification_id"] == "JUST-001"
         assert justification_data["control_id"] == "AC-11"
         assert justification_data["compliance_status"] == "compliant"
-    
+
     @pytest.mark.asyncio
     async def test_export_audit_package_csv(self, justification_engine):
         """Test exporting audit package in CSV format"""
@@ -557,106 +557,106 @@ class TestComplianceJustificationEngine:
                 impact_analysis="Positive impact"
             )
         ]
-        
+
         csv_export = await justification_engine.export_audit_package(
             justifications, "nist_800_53_r5", "csv"
         )
-        
+
         # Should be valid CSV
         lines = csv_export.strip().split('\n')
         assert len(lines) == 2  # Header + 1 data row
-        
+
         # Check header
         header = lines[0]
         assert "Control_ID" in header
         assert "Host_ID" in header
         assert "Compliance_Status" in header
         assert "Summary" in header
-        
+
         # Check data row
         data_row = lines[1]
         assert "AC-11" in data_row
         assert "host_001" in data_row
         assert "compliant" in data_row
         assert "Test summary" in data_row
-    
+
     @pytest.mark.asyncio
     async def test_unsupported_export_format(self, justification_engine):
         """Test unsupported export format"""
         with pytest.raises(ValueError, match="Unsupported export format"):
             await justification_engine.export_audit_package([], "nist", "xml")
-    
+
     def test_template_library_initialization(self, justification_engine):
         """Test template library initialization"""
         templates = justification_engine.template_library
-        
+
         assert "session_timeout" in templates
         assert "fips_cryptography" in templates
         assert "access_control" in templates
         assert "patch_management" in templates
-        
+
         # Check session timeout template
         session_template = templates["session_timeout"]
         assert "summary_template" in session_template
         assert "implementation_template" in session_template
         assert "risk_mitigation" in session_template
         assert "{timeout}" in session_template["summary_template"]
-        
+
         # Check FIPS template
         fips_template = templates["fips_cryptography"]
         assert "exceeding_rationale" in fips_template
         assert "security_enhancement" in fips_template
         assert "{mode}" in fips_template["summary_template"]
-    
+
     def test_regulatory_mappings_initialization(self, justification_engine):
         """Test regulatory mappings initialization"""
         mappings = justification_engine.regulatory_mappings
-        
+
         assert "nist_800_53_r5" in mappings
         assert "cis_v8" in mappings
         assert "iso_27001_2022" in mappings
         assert "pci_dss_v4" in mappings
         assert "stig_rhel9" in mappings
-        
+
         # Check NIST mappings
         nist_mappings = mappings["nist_800_53_r5"]
         assert "NIST SP 800-53 Rev 5" in nist_mappings
         assert "FISMA" in nist_mappings
-        
+
         # Check CIS mappings
         cis_mappings = mappings["cis_v8"]
         assert "CIS Critical Security Controls Version 8" in cis_mappings
-        
+
         # Check STIG mappings
         stig_mappings = mappings["stig_rhel9"]
         assert "DISA Security Technical Implementation Guide (STIG)" in stig_mappings
-    
+
     def test_cache_functionality(self, justification_engine):
         """Test justification cache functionality"""
         # Test cache clearing
         justification_engine.justification_cache["test_key"] = "test_value"
         assert len(justification_engine.justification_cache) == 1
-        
+
         justification_engine.clear_cache()
         assert len(justification_engine.justification_cache) == 0
-    
+
     def test_helper_methods(self, justification_engine):
         """Test helper methods for text generation"""
         # Test security purpose descriptions
         assert "prevent security incidents" in justification_engine._get_security_purpose("prevention")
         assert "identify and alert" in justification_engine._get_security_purpose("detection")
         assert "protect assets" in justification_engine._get_security_purpose("protection")
-        
+
         # Test risk descriptions
         assert "routine operational" in justification_engine._get_risk_description("low")
         assert "moderate business impact" in justification_engine._get_risk_description("medium")
         assert "significant organizational" in justification_engine._get_risk_description("high")
         assert "severe enterprise-wide" in justification_engine._get_risk_description("critical")
-        
+
         # Test standards references
         mock_rule = Mock()
         mock_rule.category = "access_control"
-        
+
         references = justification_engine._get_standards_references(mock_rule, "nist_800_53_r5")
         assert "NIST Cybersecurity Framework" in references
         assert "NIST SP 800-162" in references  # access control specific
@@ -664,12 +664,12 @@ class TestComplianceJustificationEngine:
 
 class TestJustificationScenarios:
     """Test real-world justification scenarios"""
-    
+
     @pytest.mark.asyncio
     async def test_fips_exceeding_cis_scenario(self):
         """Test FIPS exceeding CIS cryptography scenario"""
         engine = ComplianceJustificationEngine()
-        
+
         # Create FIPS rule execution
         fips_execution = RuleExecution(
             execution_id="fips_exec",
@@ -684,7 +684,7 @@ class TestJustificationScenarios:
             },
             executed_at=datetime.utcnow()
         )
-        
+
         # Create FIPS rule
         fips_rule = UnifiedComplianceRule(
             rule_id="fips_crypto_001",
@@ -710,7 +710,7 @@ class TestJustificationScenarios:
             ],
             platform_implementations=[]
         )
-        
+
         justification = await engine.generate_justification(
             rule_execution=fips_execution,
             unified_rule=fips_rule,
@@ -720,7 +720,7 @@ class TestJustificationScenarios:
             platform_info={"platform": "rhel_9"},
             context_data={}
         )
-        
+
         # Should identify exceeding compliance
         assert justification.justification_type == JustificationType.EXCEEDS
         assert justification.compliance_status == ComplianceStatus.EXCEEDS
@@ -728,17 +728,17 @@ class TestJustificationScenarios:
         assert "exceeds baseline requirements" in justification.risk_assessment
         assert "FIPS" in justification.summary
         assert "SHA1" in justification.detailed_explanation or "weak algorithms" in justification.detailed_explanation
-        
+
         # Should have high-confidence technical evidence
         technical_evidence = [e for e in justification.evidence if e.evidence_type == AuditEvidence.TECHNICAL]
         assert len(technical_evidence) >= 2
         assert any(e.confidence_level == "high" for e in technical_evidence)
-    
+
     @pytest.mark.asyncio
     async def test_partial_compliance_scenario(self):
         """Test partial compliance justification scenario"""
         engine = ComplianceJustificationEngine()
-        
+
         # Create partial compliance execution
         partial_execution = RuleExecution(
             execution_id="partial_exec",
@@ -755,7 +755,7 @@ class TestJustificationScenarios:
             error_message="1 critical patch pending installation",
             executed_at=datetime.utcnow()
         )
-        
+
         # Create patch management rule
         patch_rule = UnifiedComplianceRule(
             rule_id="patch_management_001",
@@ -774,7 +774,7 @@ class TestJustificationScenarios:
             ],
             platform_implementations=[]
         )
-        
+
         justification = await engine.generate_justification(
             rule_execution=partial_execution,
             unified_rule=patch_rule,
@@ -784,14 +784,14 @@ class TestJustificationScenarios:
             platform_info={"platform": "rhel_9"},
             context_data={}
         )
-        
+
         # Should identify partial compliance
         assert justification.justification_type == JustificationType.PARTIAL
         assert justification.compliance_status == ComplianceStatus.PARTIAL
         assert "partial implementation" in justification.risk_assessment.lower()
         assert "requires completion" in justification.risk_assessment.lower()
         assert "critical patch" in justification.implementation_description
-        
+
         # Should include error information
         technical_details = justification.technical_details
         assert "critical patch pending" in technical_details["error_details"]

@@ -39,15 +39,15 @@ Recommends:     fapolicyd
 Recommends:     aide
 
 %description
-OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol) 
-compliance scanning and remediation platform. It provides automated security 
-compliance monitoring, vulnerability assessment, and remediation capabilities 
+OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol)
+compliance scanning and remediation platform. It provides automated security
+compliance monitoring, vulnerability assessment, and remediation capabilities
 for enterprise Linux environments.
 
 Key features:
 - SCAP-compliant security scanning
 - Multi-host fleet management
-- Automated remediation workflows  
+- Automated remediation workflows
 - Real-time compliance dashboards
 - Role-based access control
 - Audit logging and reporting
@@ -126,7 +126,7 @@ runtime:
   compose_file: "/usr/share/openwatch/compose/podman-compose.yml"
   compose_command: "podman-compose"  # podman-compose or podman compose or docker-compose
   working_directory: "/usr/share/openwatch/compose"  # Directory containing compose files
-  
+
 database:
   host: "localhost"
   port: 5432
@@ -134,7 +134,7 @@ database:
   user: "openwatch"
   ssl_mode: "require"
   # Password loaded from secrets.env
-  
+
 web:
   port: 3001
   bind_address: "0.0.0.0"
@@ -142,7 +142,7 @@ web:
     enabled: false              # Set to true for production
     cert_path: "/etc/ssl/certs/openwatch.crt"
     key_path: "/etc/ssl/private/openwatch.key"
-    
+
 scanning:
   ssh_key_path: "/etc/openwatch/ssh/openwatch_rsa"
   concurrent_scans: 5
@@ -156,7 +156,7 @@ logging:
   audit_file: "/var/log/openwatch/audit.log"
   max_size: "100MB"
   max_age: 30
-  
+
 security:
   fips_mode: false              # Enable for FIPS 140-2 compliance
   audit_logging: true
@@ -284,7 +284,7 @@ install -m 0755 packaging/rpm/scripts/fapolicyd-troubleshoot.sh %{buildroot}%{_d
 # Install comprehensive cleanup script
 install -m 0755 packaging/rpm/scripts/cleanup-openwatch.sh %{buildroot}%{_datadir}/openwatch/scripts/cleanup-openwatch.sh
 
-# Install Podman permission fix script  
+# Install Podman permission fix script
 install -m 0755 packaging/rpm/scripts/fix-podman-permissions.sh %{buildroot}%{_datadir}/openwatch/scripts/fix-podman-permissions.sh
 
 # Install Podman troubleshooting script
@@ -335,7 +335,7 @@ log_error() {
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     # Check if OpenSSL is installed
     if ! command -v openssl >/dev/null 2>&1; then
         log_error "OpenSSL is not installed!"
@@ -347,12 +347,12 @@ check_prerequisites() {
         echo ""
         exit 1
     fi
-    
+
     # Check OpenSSL version
     local openssl_version
     openssl_version=$(openssl version | cut -d' ' -f2)
     log_info "OpenSSL version: $openssl_version"
-    
+
     # Check if we have required tools
     local missing_tools=()
     for tool in sed chown chmod; do
@@ -360,12 +360,12 @@ check_prerequisites() {
             missing_tools+=("$tool")
         fi
     done
-    
+
     if [ ${#missing_tools[@]} -gt 0 ]; then
         log_error "Missing required tools: ${missing_tools[*]}"
         exit 1
     fi
-    
+
     log_info "Prerequisites check passed"
 }
 
@@ -386,9 +386,9 @@ generate_password() {
 generate_jwt_keys() {
     local private_key="$CONFIG_DIR/jwt_private.pem"
     local public_key="$CONFIG_DIR/jwt_public.pem"
-    
+
     log_info "Generating JWT key pair..."
-    
+
     # Try modern OpenSSL syntax first, fall back to older syntax
     if openssl genpkey -algorithm RSA -out "$private_key" -pkeyopt rsa_keygen_bits:2048 2>/dev/null; then
         log_info "Generated private key using modern OpenSSL"
@@ -397,7 +397,7 @@ generate_jwt_keys() {
     else
         log_error "Failed to generate RSA private key"
         log_info "Trying alternative method..."
-        
+
         # Alternative method for very old OpenSSL versions
         if ! openssl genrsa 2048 > "$private_key" 2>/dev/null; then
             log_error "All RSA key generation methods failed"
@@ -405,7 +405,7 @@ generate_jwt_keys() {
         fi
         log_info "Generated private key using alternative method"
     fi
-    
+
     # Extract public key (try different methods)
     if openssl pkey -in "$private_key" -pubout -out "$public_key" 2>/dev/null; then
         log_info "Extracted public key using modern OpenSSL"
@@ -415,18 +415,18 @@ generate_jwt_keys() {
         log_error "Failed to extract public key from private key"
         exit 1
     fi
-    
+
     # Set proper permissions
     chmod 600 "$private_key"
     chmod 644 "$public_key"
-    
+
     # Only change ownership if openwatch user exists
     if id "openwatch" >/dev/null 2>&1; then
         chown openwatch:openwatch "$private_key" "$public_key"
     else
         log_warning "openwatch user not found - keeping root ownership"
     fi
-    
+
     log_info "JWT keys generated successfully"
 }
 
@@ -550,7 +550,7 @@ echo "Creating .env file for container services..."
 create_env_file() {
     local env_file="/etc/openwatch/.env"
     local secrets_file="/etc/openwatch/secrets.env"
-    
+
     # Source the secrets file to get the values
     if [ -f "$secrets_file" ]; then
         # Create .env file with required environment variables
@@ -561,7 +561,7 @@ create_env_file() {
 # Database Configuration
 $(grep "POSTGRES_PASSWORD=" "$secrets_file" || echo "POSTGRES_PASSWORD=changeme")
 
-# Redis Configuration  
+# Redis Configuration
 $(grep "REDIS_PASSWORD=" "$secrets_file" || echo "REDIS_PASSWORD=changeme")
 
 # Application Secrets
@@ -576,7 +576,7 @@ $(grep "JWT_PUBLIC_KEY_PATH=" "$secrets_file" || echo "JWT_PUBLIC_KEY_PATH=/etc/
 COMPOSE_PROJECT_NAME=openwatch
 CONTAINER_RUNTIME=podman
 EOF
-        
+
         # Set proper permissions
         chmod 600 "$env_file"
         chown openwatch:openwatch "$env_file"
@@ -588,7 +588,7 @@ EOF
 
 create_env_file
 
-# Create symbolic link for .env file in compose directory  
+# Create symbolic link for .env file in compose directory
 echo "Configuring compose directory..."
 if [ -f /etc/openwatch/.env ]; then
     ln -sf /etc/openwatch/.env /usr/share/openwatch/compose/.env
@@ -601,7 +601,7 @@ ln -sf /usr/share/openwatch/docker /usr/share/openwatch/compose/docker
 echo "Creating owadm required directories..."
 create_owadm_directories() {
     local base_dir="/usr/share/openwatch/compose"
-    
+
     # Create all directories that owadm expects (from prerequisites.go)
     local directories=(
         "logs"
@@ -613,20 +613,20 @@ create_owadm_directories() {
         "backend/logs"
         "backend/security/keys"
     )
-    
+
     for dir in "${directories[@]}"; do
         mkdir -p "$base_dir/$dir"
         echo "Created directory: $base_dir/$dir"
     done
-    
+
     # Set proper ownership on all directories
     chown -R openwatch:openwatch "$base_dir/logs" "$base_dir/data" "$base_dir/backend" 2>/dev/null || true
-    
+
     # Set restrictive permissions on security directories (matching owadm expectations)
     chmod 700 "$base_dir/security/keys" 2>/dev/null || true
     chmod 700 "$base_dir/backend/security/keys" 2>/dev/null || true
     chown -R openwatch:openwatch "$base_dir/security" 2>/dev/null || true
-    
+
     echo "All owadm directories created and configured"
 }
 
@@ -643,23 +643,23 @@ check_and_configure_selinux() {
         echo "INFO: SELinux management tools not found - skipping SELinux policy installation"
         return 0
     fi
-    
+
     # Check if SELinux is installed and enabled
     if ! command -v getenforce >/dev/null 2>&1; then
         echo "INFO: SELinux not installed - skipping SELinux policy installation"
         return 0
     fi
-    
+
     local selinux_status
     selinux_status=$(getenforce 2>/dev/null || echo "Disabled")
-    
+
     if [ "$selinux_status" = "Disabled" ]; then
         echo "INFO: SELinux is disabled - skipping SELinux policy installation"
         return 0
     fi
-    
+
     echo "Installing OpenWatch SELinux policy (SELinux status: $selinux_status)..."
-    
+
     # Install policy module only if the file exists and is valid
     if [ -f /usr/share/selinux/packages/openwatch.pp ] && [ -s /usr/share/selinux/packages/openwatch.pp ]; then
         if semodule -i /usr/share/selinux/packages/openwatch.pp 2>/dev/null; then
@@ -670,7 +670,7 @@ check_and_configure_selinux() {
     else
         echo "WARNING: SELinux policy file not found or empty - skipping policy installation"
     fi
-    
+
     # Apply file contexts regardless of policy installation
     echo "Applying SELinux file contexts..."
     if [ -d /etc/openwatch ]; then
@@ -685,7 +685,7 @@ check_and_configure_selinux() {
     if [ -f /usr/bin/owadm ]; then
         restorecon /usr/bin/owadm 2>/dev/null || true
     fi
-    
+
     echo "SELinux contexts configured"
 }
 
@@ -696,33 +696,33 @@ check_and_configure_fapolicyd() {
         echo "INFO: fapolicyd not installed - skipping fapolicyd configuration"
         return 0
     fi
-    
+
     # Check if fapolicyd service exists
     if ! systemctl list-unit-files fapolicyd.service >/dev/null 2>&1; then
         echo "INFO: fapolicyd service not available - skipping fapolicyd configuration"
         return 0
     fi
-    
+
     # Check if fapolicyd is enabled and running
     local fapolicyd_enabled=false
     local fapolicyd_active=false
-    
+
     if systemctl is-enabled fapolicyd >/dev/null 2>&1; then
         fapolicyd_enabled=true
     fi
-    
+
     if systemctl is-active --quiet fapolicyd 2>/dev/null; then
         fapolicyd_active=true
     fi
-    
+
     if [ "$fapolicyd_enabled" = "false" ] && [ "$fapolicyd_active" = "false" ]; then
         echo "INFO: fapolicyd is not enabled or running - skipping automatic configuration"
         echo "INFO: To configure fapolicyd later: /usr/share/openwatch/scripts/configure-fapolicyd.sh configure"
         return 0
     fi
-    
+
     echo "Configuring fapolicyd for OpenWatch (enabled: $fapolicyd_enabled, active: $fapolicyd_active)..."
-    
+
     # Check if configuration script exists
     if [ -f /usr/share/openwatch/scripts/configure-fapolicyd.sh ]; then
         if /usr/share/openwatch/scripts/configure-fapolicyd.sh configure 2>/dev/null; then
@@ -823,19 +823,19 @@ if [ $1 -eq 0 ]; then
     echo ""
     echo "WARNING: Complete cleanup is irreversible without backup!"
     echo ""
-    
+
     # Basic cleanup - only user accounts and system integration
     # Data directories are preserved for safety
-    
+
     # Remove openwatch user (but preserve data directories)
     userdel openwatch 2>/dev/null || true
-    
+
     # Remove SELinux policy module
     if command -v semodule >/dev/null 2>&1; then
         semodule -r openwatch 2>/dev/null || true
         echo "Removed OpenWatch SELinux policy"
     fi
-    
+
     # Clean up fapolicyd rules
     if command -v fapolicyd >/dev/null 2>&1 && [ -f /usr/share/openwatch/scripts/configure-fapolicyd.sh ]; then
         /usr/share/openwatch/scripts/configure-fapolicyd.sh cleanup 2>/dev/null || true
@@ -928,13 +928,13 @@ fi
 - FIXED: owadm source code changes properly included in RPM package
 - FIXED: Directory permission handling now works correctly in production
 - FIXED: Environment detection properly identifies production vs development
-- Remove all emoji characters from owadm terminal output 
+- Remove all emoji characters from owadm terminal output
 - Comprehensive cleanup script with backup capabilities included
 
 * Sat Sep 21 2024 OpenWatch Team <admin@hanalyx.com> - 1.2.1-5
 - Add comprehensive cleanup script for complete OpenWatch removal
 - Implement cleanup with backup options for data preservation
-- Fix directory permission handling to work in production environments  
+- Fix directory permission handling to work in production environments
 - Improve environment detection for RPM vs development installations
 - Enhanced removal process with clear administrator guidance
 - Remove all emoji characters from owadm terminal output for compatibility

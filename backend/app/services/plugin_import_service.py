@@ -4,16 +4,11 @@ Secure import and validation of external plugins
 """
 
 import logging
-import os
 import uuid
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import aiofiles
-
-from ..auth import get_current_user
 from ..models.plugin_models import (
     InstalledPlugin,
     PluginExecutor,
@@ -31,8 +26,6 @@ logger = logging.getLogger(__name__)
 
 class PluginImportError(Exception):
     """Plugin import specific exceptions"""
-
-    pass
 
 
 class PluginImportService:
@@ -84,9 +77,7 @@ class PluginImportService:
 
             # Step 3: Security scanning
             logger.info(f"Running security scan for import {import_id}")
-            scan_result = await self.security_service.validate_plugin_package(
-                file_content, package_format
-            )
+            scan_result = await self.security_service.validate_plugin_package(file_content, package_format)
 
             is_secure, security_checks, package = scan_result
 
@@ -120,14 +111,10 @@ class PluginImportService:
                 }
 
             # Step 6: Calculate trust level
-            trust_level = self._calculate_trust_level(
-                security_checks, signature_check, trust_level_override
-            )
+            trust_level = self._calculate_trust_level(security_checks, signature_check, trust_level_override)
 
             # Step 7: Store plugin
-            installed_plugin = await self._store_plugin(
-                package, security_checks, user_id, trust_level, import_id
-            )
+            installed_plugin = await self._store_plugin(package, security_checks, user_id, trust_level, import_id)
 
             # Step 8: Post-import validation
             await self._post_import_validation(installed_plugin)
@@ -191,9 +178,7 @@ class PluginImportService:
                 }
 
             # Step 2: Download plugin package
-            download_result = await self._download_plugin_package(
-                plugin_url, max_size or self.max_package_size
-            )
+            download_result = await self._download_plugin_package(plugin_url, max_size or self.max_package_size)
 
             if not download_result["success"]:
                 return {
@@ -208,15 +193,11 @@ class PluginImportService:
             file_content = download_result["content"]
 
             # Continue with file import process
-            import_result = await self.import_plugin_from_file(
-                file_content, filename, user_id, verify_signature
-            )
+            import_result = await self.import_plugin_from_file(file_content, filename, user_id, verify_signature)
 
             # Update source URL in result
             if import_result["success"]:
-                plugin = await InstalledPlugin.find_one(
-                    InstalledPlugin.plugin_id == import_result["plugin_id"]
-                )
+                plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == import_result["plugin_id"])
                 if plugin:
                     plugin.source_url = plugin_url
                     plugin.import_method = "url"
@@ -233,9 +214,7 @@ class PluginImportService:
                 "stage": "error",
             }
 
-    async def _validate_import_request(
-        self, file_content: bytes, filename: str, user_id: str
-    ) -> Dict[str, Any]:
+    async def _validate_import_request(self, file_content: bytes, filename: str, user_id: str) -> Dict[str, Any]:
         """Validate import request basics"""
 
         # Check file size
@@ -270,9 +249,7 @@ class PluginImportService:
         else:
             return "tar.gz"  # Default assumption
 
-    async def _log_security_failure(
-        self, import_id: str, user_id: str, security_checks: List[SecurityCheckResult]
-    ):
+    async def _log_security_failure(self, import_id: str, user_id: str, security_checks: List[SecurityCheckResult]):
         """Log security validation failure for audit"""
         failed_checks = [check for check in security_checks if not check.passed]
 
@@ -314,9 +291,7 @@ class PluginImportService:
             return override
 
         # Check for critical security failures
-        critical_failures = [
-            c for c in security_checks if not c.passed and c.severity == "critical"
-        ]
+        critical_failures = [c for c in security_checks if not c.passed and c.severity == "critical"]
         if critical_failures:
             return PluginTrustLevel.UNTRUSTED
 
@@ -391,9 +366,7 @@ class PluginImportService:
             # Validate plugin executors
             for executor_name, executor in plugin.executors.items():
                 if not self._validate_executor(executor, plugin.manifest):
-                    logger.warning(
-                        f"Executor {executor_name} validation failed for {plugin.plugin_id}"
-                    )
+                    logger.warning(f"Executor {executor_name} validation failed for {plugin.plugin_id}")
 
             # Initialize plugin configuration
             if plugin.manifest.config_schema:
@@ -459,9 +432,7 @@ class PluginImportService:
         import aiohttp
 
         try:
-            async with aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=300)
-            ) as session:  # 5 minute timeout
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=300)) as session:  # 5 minute timeout
 
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -515,20 +486,13 @@ class PluginImportService:
             logger.error(f"Download error for {url}: {e}")
             return {"success": False, "error": f"Download failed: {str(e)}"}
 
-    async def list_import_history(
-        self, user_id: Optional[str] = None, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    async def list_import_history(self, user_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         """Get plugin import history"""
         query = {}
         if user_id:
             query["imported_by"] = user_id
 
-        plugins = (
-            await InstalledPlugin.find(query)
-            .sort(-InstalledPlugin.imported_at)
-            .limit(limit)
-            .to_list()
-        )
+        plugins = await InstalledPlugin.find(query).sort(-InstalledPlugin.imported_at).limit(limit).to_list()
 
         return [
             {
@@ -566,9 +530,7 @@ class PluginImportService:
             "by_status": status_counts,
             "by_trust_level": trust_counts,
             "import_methods": {
-                "upload": await InstalledPlugin.find(
-                    InstalledPlugin.import_method == "upload"
-                ).count(),
+                "upload": await InstalledPlugin.find(InstalledPlugin.import_method == "upload").count(),
                 "url": await InstalledPlugin.find(InstalledPlugin.import_method == "url").count(),
             },
         }

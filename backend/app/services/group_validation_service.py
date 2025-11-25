@@ -10,10 +10,8 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
-from uuid import UUID
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from ..database import Host, HostGroup, HostGroupMembership, ScapContent
@@ -150,9 +148,7 @@ class GroupValidationService:
 
         # Calculate overall compatibility score
         if hosts:
-            total_score = sum(
-                h["compatibility_score"] for h in results["compatible"] + results["incompatible"]
-            )
+            total_score = sum(h["compatibility_score"] for h in results["compatible"] + results["incompatible"])
             results["summary"]["compatibility_score"] = total_score / len(hosts)
 
         # Cache the results
@@ -271,9 +267,7 @@ class GroupValidationService:
         # No compatibility
         result["compatible"] = False
         result["score"] = 0.0
-        result["reason"] = (
-            f"Host OS {host.os_family} incompatible with group requirement {group.os_family}"
-        )
+        result["reason"] = f"Host OS {host.os_family} incompatible with group requirement {group.os_family}"
 
         return result
 
@@ -295,9 +289,7 @@ class GroupValidationService:
             else:
                 result["compatible"] = False
                 result["score"] = 0.0
-                result["reason"] = (
-                    f"Host OS version {host.os_version} doesn't match pattern {group.os_version_pattern}"
-                )
+                result["reason"] = f"Host OS version {host.os_version} doesn't match pattern {group.os_version_pattern}"
         except Exception as e:
             logger.warning(f"Invalid version pattern {group.os_version_pattern}: {e}")
             result["compatible"] = False
@@ -353,9 +345,7 @@ class GroupValidationService:
         result = {"compatible": True, "score": 1.0, "reason": ""}
 
         # Get SCAP content
-        scap_content = (
-            self.db.query(ScapContent).filter(ScapContent.id == group.scap_content_id).first()
-        )
+        scap_content = self.db.query(ScapContent).filter(ScapContent.id == group.scap_content_id).first()
 
         if not scap_content:
             result["compatible"] = False
@@ -375,10 +365,7 @@ class GroupValidationService:
                     OSFamily.WINDOWS_FAMILY,
                     OSFamily.BSD_FAMILY,
                 ]:
-                    if (
-                        host.os_family in family_members
-                        and scap_content.os_family in family_members
-                    ):
+                    if host.os_family in family_members and scap_content.os_family in family_members:
                         compatible = True
                         result["score"] = 0.9
                         break
@@ -410,7 +397,7 @@ class GroupValidationService:
                         )
                     else:
                         result["score"] = 0.7  # Penalty for version mismatch
-                except:
+                except Exception:
                     pass
 
         return result
@@ -428,7 +415,7 @@ class GroupValidationService:
                 if isinstance(group.validation_rules, str)
                 else group.validation_rules
             )
-        except:
+        except Exception:
             logger.error(f"Failed to parse validation rules for group {group.id}")
             return results
 
@@ -450,9 +437,7 @@ class GroupValidationService:
                     value = getattr(host, field, "")
                     if not re.match(expression, str(value)):
                         rule_result["passed"] = False
-                        rule_result["message"] = rule.get(
-                            "error_message", f"Field {field} doesn't match pattern"
-                        )
+                        rule_result["message"] = rule.get("error_message", f"Field {field} doesn't match pattern")
 
                 elif rule_type == "range":
                     field = rule.get("field")
@@ -463,14 +448,10 @@ class GroupValidationService:
                     if value is not None:
                         if min_val is not None and value < min_val:
                             rule_result["passed"] = False
-                            rule_result["message"] = rule.get(
-                                "error_message", f"{field} below minimum"
-                            )
+                            rule_result["message"] = rule.get("error_message", f"{field} below minimum")
                         elif max_val is not None and value > max_val:
                             rule_result["passed"] = False
-                            rule_result["message"] = rule.get(
-                                "error_message", f"{field} above maximum"
-                            )
+                            rule_result["message"] = rule.get("error_message", f"{field} above maximum")
 
                 elif rule_type == "custom":
                     # For complex custom rules, we'd evaluate them here
@@ -545,9 +526,7 @@ class GroupValidationService:
         suggestions = []
 
         # Find groups with matching OS family
-        matching_groups = (
-            self.db.query(HostGroup).filter(HostGroup.os_family == host.os_family).all()
-        )
+        matching_groups = self.db.query(HostGroup).filter(HostGroup.os_family == host.os_family).all()
 
         for group in matching_groups:
             # Calculate compatibility score
@@ -570,15 +549,11 @@ class GroupValidationService:
         # Return top 3 suggestions
         return suggestions[:3]
 
-    def _cache_compatibility_results(
-        self, host_ids: List[str], group_id: int, results: Dict[str, Any]
-    ) -> None:
+    def _cache_compatibility_results(self, host_ids: List[str], group_id: int, results: Dict[str, Any]) -> None:
         """Cache compatibility results for performance"""
         # This would be implemented with Redis or similar caching solution
         # For now, we'll just log that we would cache the results
-        logger.info(
-            f"Would cache compatibility results for {len(host_ids)} hosts with group {group_id}"
-        )
+        logger.info(f"Would cache compatibility results for {len(host_ids)} hosts with group {group_id}")
 
     def create_smart_group_from_hosts(
         self,
@@ -728,11 +703,7 @@ class GroupValidationService:
             )
 
         # Get all hosts in the group
-        memberships = (
-            self.db.query(HostGroupMembership)
-            .filter(HostGroupMembership.group_id == group_id)
-            .all()
-        )
+        memberships = self.db.query(HostGroupMembership).filter(HostGroupMembership.group_id == group_id).all()
 
         report = {
             "group": {

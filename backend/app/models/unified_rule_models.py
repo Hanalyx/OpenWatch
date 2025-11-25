@@ -6,9 +6,7 @@ Defines data models for unified compliance rules, executions, and related struct
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
 
 class ComplianceStatus(str, Enum):

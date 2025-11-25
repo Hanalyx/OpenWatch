@@ -3,12 +3,11 @@ SCAP Import API Endpoints for OpenWatch
 REST API for importing SCAP files into MongoDB
 """
 
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ....services.mongo_integration_service import MongoIntegrationService
@@ -118,9 +117,7 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(
-    import_id: str, service: SCAPImportService = Depends(get_import_service)
-):
+async def get_import_status(import_id: str, service: SCAPImportService = Depends(get_import_service)):
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
@@ -223,7 +220,7 @@ async def get_import_statistics(
             "total_rules": await ComplianceRule.count(),
             "rules_by_severity": {},
             "rules_by_category": {},
-            "rules_with_fixes": await ComplianceRule.count(ComplianceRule.fix_available == True),
+            "rules_with_fixes": await ComplianceRule.count(ComplianceRule.fix_available is True),
             "total_intelligence_records": await RuleIntelligence.count(),
             "total_remediation_scripts": await RemediationScript.count(),
         }

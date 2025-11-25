@@ -32,13 +32,13 @@ func init() {
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	
+
 	PrintHeader("OpenWatch Status")
-	
+
 	// Get or detect runtime
 	var rt runtime.Runtime
 	var err error
-	
+
 	runtimeName := viper.GetString("runtime")
 	if runtimeName != "" {
 		LogVerbose(fmt.Sprintf("Using specified runtime: %s", runtimeName))
@@ -47,34 +47,34 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		LogVerbose("Auto-detecting container runtime...")
 		rt, err = runtime.DetectRuntime()
 	}
-	
+
 	if err != nil {
 		LogError(fmt.Sprintf("Runtime error: %v", err))
 		return err
 	}
-	
+
 	LogInfo(fmt.Sprintf("Using %s runtime", rt.Name()))
-	
+
 	// Get container status
 	status, err := rt.Status(ctx)
 	if err != nil {
 		LogError(fmt.Sprintf("Failed to get status: %v", err))
 		return err
 	}
-	
+
 	// Display overall status
 	fmt.Println()
 	fmt.Printf("%s %s\n", bold("Overall Status:"), getStatusColor(status.Overall))
 	fmt.Println()
-	
+
 	// Check service health by trying to connect
 	services := checkServiceHealth()
-	
+
 	// Display service status in a table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, bold("SERVICE\tSTATUS\tHEALTH\tPORTS"))
 	fmt.Fprintln(w, strings.Repeat("-", 60))
-	
+
 	for _, svc := range services {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			svc.Name,
@@ -83,9 +83,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			strings.Join(svc.Ports, ", "),
 		)
 	}
-	
+
 	w.Flush()
-	
+
 	// Display access URLs if services are running
 	if hasRunningServices(services) {
 		fmt.Println()
@@ -94,7 +94,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", bold("Backend:"), green("http://localhost:8000"))
 		fmt.Printf("  %s %s\n", bold("API Docs:"), green("http://localhost:8000/docs"))
 	}
-	
+
 	// Display helpful commands
 	fmt.Println()
 	PrintHeader("Commands")
@@ -106,7 +106,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", bold("Restart services:"), "owadm restart")
 	}
 	fmt.Println()
-	
+
 	return nil
 }
 
@@ -117,7 +117,7 @@ func checkServiceHealth() []runtime.ServiceStatus {
 		{
 			Name:   "frontend",
 			State:  "unknown",
-			Health: "unknown", 
+			Health: "unknown",
 			Ports:  []string{"3001"},
 		},
 		{
@@ -134,7 +134,7 @@ func checkServiceHealth() []runtime.ServiceStatus {
 		},
 		{
 			Name:   "redis",
-			State:  "unknown", 
+			State:  "unknown",
 			Health: "unknown",
 			Ports:  []string{"6379"},
 		},
@@ -145,7 +145,7 @@ func checkServiceHealth() []runtime.ServiceStatus {
 			Ports:  []string{"-"},
 		},
 	}
-	
+
 	// Simple port-based health check
 	// TODO: Implement actual container status checking
 	for i := range services {
@@ -160,7 +160,7 @@ func checkServiceHealth() []runtime.ServiceStatus {
 			services[i].Health = "-"
 		}
 	}
-	
+
 	return services
 }
 
