@@ -151,7 +151,9 @@ class OWCAService:
         """
         return await self.drift_detector.detect_drift(host_id)
 
-    async def get_framework_intelligence(self, framework: str, host_id: str, scan_results: Optional[dict] = None):
+    async def get_framework_intelligence(
+        self, framework: str, host_id: str, scan_results: Optional[dict] = None
+    ):
         """
         Get framework-specific compliance intelligence for a host.
 
@@ -175,7 +177,9 @@ class OWCAService:
             >>> nist_intel = await owca.get_framework_intelligence("NIST_800_53", host_id)
             >>> print(f"Control family AC: {nist_intel.control_families[0].score}%")
         """
-        intelligence_provider = get_framework_intelligence(framework, self.db, self.score_calculator)
+        intelligence_provider = get_framework_intelligence(
+            framework, self.db, self.score_calculator
+        )
 
         if not intelligence_provider:
             return None
@@ -203,14 +207,18 @@ class OWCAService:
             ...     summary = await owca.get_framework_summary(fw, scan_results)
             ...     summaries.append(summary)
         """
-        intelligence_provider = get_framework_intelligence(framework, self.db, self.score_calculator)
+        intelligence_provider = get_framework_intelligence(
+            framework, self.db, self.score_calculator
+        )
 
         if not intelligence_provider:
             return None
 
         return await intelligence_provider.get_framework_summary(scan_results)
 
-    async def analyze_trend(self, entity_id: str, entity_type: str = "host", days: int = 30) -> Optional[TrendData]:
+    async def analyze_trend(
+        self, entity_id: str, entity_type: str = "host", days: int = 30
+    ) -> Optional[TrendData]:
         """
         Analyze compliance trend over time.
 
@@ -231,7 +239,9 @@ class OWCAService:
 
         return await self.trend_analyzer.analyze_trend(UUID(entity_id), entity_type, days)
 
-    async def calculate_risk(self, host_id: str, business_criticality: Optional[str] = None) -> Optional[RiskScore]:
+    async def calculate_risk(
+        self, host_id: str, business_criticality: Optional[str] = None
+    ) -> Optional[RiskScore]:
         """
         Calculate risk score for a host.
 
@@ -295,9 +305,13 @@ class OWCAService:
         """
         from uuid import UUID
 
-        return await self.predictor.forecast_compliance(UUID(entity_id), entity_type, days_ahead, historical_days)
+        return await self.predictor.forecast_compliance(
+            UUID(entity_id), entity_type, days_ahead, historical_days
+        )
 
-    async def detect_anomalies(self, entity_id: str, entity_type: str = "host", lookback_days: int = 60) -> list:
+    async def detect_anomalies(
+        self, entity_id: str, entity_type: str = "host", lookback_days: int = 60
+    ) -> list:
         """
         Detect anomalous compliance scores.
 
@@ -320,7 +334,9 @@ class OWCAService:
 
         return await self.predictor.detect_anomalies(UUID(entity_id), entity_type, lookback_days)
 
-    def extract_xccdf_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
+    def extract_xccdf_score(
+        self, result_file: str, user_id: Optional[str] = None
+    ) -> XCCDFScoreResult:
         """
         Extract native XCCDF score from scan result XML file.
 
