@@ -40,13 +40,14 @@ security = HTTPBearer()
 class FIPSJWTManager:
     """FIPS-compliant JWT token management using RSA-PSS"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize JWT manager with RSA keys."""
         self.private_key = None
         self.public_key = None
         self._load_or_generate_keys()
 
-    def _load_or_generate_keys(self):
-        """Load existing RSA keys or generate new FIPS-compliant ones"""
+    def _load_or_generate_keys(self) -> None:
+        """Load existing RSA keys or generate new FIPS-compliant ones."""
         # Use environment variables for key paths, with fallback to default
         import tempfile
 
@@ -83,8 +84,8 @@ class FIPSJWTManager:
             logger.error(f"Error loading RSA keys: {e}")
             self._generate_keys(private_key_path, public_key_path)
 
-    def _generate_keys(self, private_path: str, public_path: str):
-        """Generate FIPS-compliant RSA-2048 key pair"""
+    def _generate_keys(self, private_path: str, public_path: str) -> None:
+        """Generate FIPS-compliant RSA-2048 key pair."""
         try:
             # Generate RSA-2048 key pair (FIPS approved)
             self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
@@ -236,7 +237,8 @@ class PasswordManager:
 class SecurityAuditLogger:
     """Security event audit logging"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize security audit logger."""
         self.audit_logger = logging.getLogger("openwatch.audit")
         handler = logging.FileHandler(settings.audit_log_file)
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
@@ -244,17 +246,17 @@ class SecurityAuditLogger:
         self.audit_logger.addHandler(handler)
         self.audit_logger.setLevel(logging.INFO)
 
-    def log_login_attempt(self, username: str, success: bool, ip_address: str):
-        """Log authentication attempts"""
-        status = "SUCCESS" if success else "FAILED"
-        self.audit_logger.info(f"LOGIN_{status} - User: {username}, IP: {ip_address}")
+    def log_login_attempt(self, username: str, success: bool, ip_address: str) -> None:
+        """Log authentication attempts."""
+        log_status = "SUCCESS" if success else "FAILED"
+        self.audit_logger.info(f"LOGIN_{log_status} - User: {username}, IP: {ip_address}")
 
-    def log_scan_action(self, username: str, action: str, target: str, ip_address: str):
-        """Log scan-related actions"""
+    def log_scan_action(self, username: str, action: str, target: str, ip_address: str) -> None:
+        """Log scan-related actions."""
         self.audit_logger.info(f"SCAN_{action} - User: {username}, Target: {target}, IP: {ip_address}")
 
-    def log_security_event(self, event_type: str, details: str, ip_address: str):
-        """Log security events"""
+    def log_security_event(self, event_type: str, details: str, ip_address: str) -> None:
+        """Log security events."""
         self.audit_logger.warning(f"SECURITY_{event_type} - Details: {details}, IP: {ip_address}")
 
     def log_api_key_action(
@@ -263,9 +265,9 @@ class SecurityAuditLogger:
         action: str,
         api_key_id: str,
         api_key_name: str,
-        details: Optional[Dict] = None,
-    ):
-        """Log API key related actions"""
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Log API key related actions."""
         self.audit_logger.info(
             f"API_KEY_{action} - User: {user_id}, Key: {api_key_name} ({api_key_id}), " f"Details: {details or {}}"
         )

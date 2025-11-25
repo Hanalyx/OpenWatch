@@ -22,7 +22,7 @@ State Transitions & Intervals:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -33,12 +33,13 @@ logger = logging.getLogger(__name__)
 class AdaptiveSchedulerService:
     """Service for managing adaptive host monitoring scheduler configuration"""
 
-    def __init__(self):
-        self._config_cache: Optional[Dict] = None
+    def __init__(self) -> None:
+        """Initialize adaptive scheduler service with cache configuration."""
+        self._config_cache: Optional[Dict[str, Any]] = None
         self._cache_timestamp: Optional[datetime] = None
         self._cache_ttl_seconds = 60  # Cache config for 1 minute
 
-    def get_config(self, db: Session) -> Dict:
+    def get_config(self, db: Session) -> Dict[str, Any]:
         """
         Get current scheduler configuration with caching.
 
@@ -128,7 +129,7 @@ class AdaptiveSchedulerService:
         check_timeout_seconds: Optional[int] = None,
         retry_on_failure: Optional[bool] = None,
         user_id: Optional[int] = None,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Update scheduler configuration.
 
@@ -294,7 +295,7 @@ class AdaptiveSchedulerService:
         config = self.get_config(db)
         return config["maintenance_mode"] == "skip"
 
-    def get_hosts_due_for_check(self, db: Session, limit: Optional[int] = None) -> List[Dict]:
+    def get_hosts_due_for_check(self, db: Session, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get hosts that are due for monitoring checks.
 
