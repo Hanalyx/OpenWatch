@@ -4,6 +4,7 @@ Host Monitoring API Routes
 
 import logging
 from datetime import datetime
+from typing import Any, Dict
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
@@ -24,12 +25,12 @@ class HostCheckRequest(BaseModel):
     host_id: str
 
 
-@router.post("/hosts/check")
+@router.post("/hosts/check")  # type: ignore[misc]
 async def check_host_status(
     request: HostCheckRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Check status of a specific host
     """
@@ -102,18 +103,18 @@ async def check_host_status(
         raise HTTPException(status_code=500, detail="Failed to check host status")
 
 
-@router.post("/hosts/check-all")
+@router.post("/hosts/check-all")  # type: ignore[misc]
 async def check_all_hosts_status(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Check status of all hosts (runs in background)
     """
     try:
         # Create wrapper function for background monitoring
-        async def monitor_with_encryption():
+        async def monitor_with_encryption() -> None:
             # Create encryption service
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -131,8 +132,10 @@ async def check_all_hosts_status(
         raise HTTPException(status_code=500, detail="Failed to start host monitoring")
 
 
-@router.get("/hosts/status")
-async def get_hosts_status_summary(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/hosts/status")  # type: ignore[misc]
+async def get_hosts_status_summary(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
     """
     Get summary of all host statuses with monitoring statistics
     """
@@ -206,12 +209,12 @@ async def get_hosts_status_summary(db: Session = Depends(get_db), current_user: 
         raise HTTPException(status_code=500, detail="Failed to get host status summary")
 
 
-@router.post("/hosts/{host_id}/ping")
+@router.post("/hosts/{host_id}/ping")  # type: ignore[misc]
 async def ping_host(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Simple ping test for a specific host
     """
@@ -254,12 +257,12 @@ async def ping_host(
         raise HTTPException(status_code=500, detail="Failed to ping host")
 
 
-@router.post("/hosts/{host_id}/check-connectivity")
+@router.post("/hosts/{host_id}/check-connectivity")  # type: ignore[misc]
 async def jit_connectivity_check(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Just-In-Time (JIT) connectivity check for a specific host.
 
@@ -350,12 +353,12 @@ async def jit_connectivity_check(
         raise HTTPException(status_code=500, detail=f"Failed to check connectivity: {str(e)}")
 
 
-@router.get("/hosts/{host_id}/state")
+@router.get("/hosts/{host_id}/state")  # type: ignore[misc]
 async def get_host_monitoring_state(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get detailed monitoring state for a host.
 
@@ -457,7 +460,7 @@ async def get_host_monitoring_state(
         raise HTTPException(status_code=500, detail="Failed to get monitoring state")
 
 
-def _get_interval_info(state: str) -> dict:
+def _get_interval_info(state: str) -> Dict[str, Any]:
     """Helper function to get check interval info for a state"""
     intervals = {
         "HEALTHY": {"minutes": 30, "description": "Stable - 30 min checks"},

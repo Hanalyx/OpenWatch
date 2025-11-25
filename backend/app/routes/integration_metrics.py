@@ -4,7 +4,7 @@ Provides endpoints for monitoring integration performance and health
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
@@ -15,8 +15,8 @@ from ..services.integration_metrics import metrics_collector
 router = APIRouter()
 
 
-@router.get("/health")
-async def integration_health():
+@router.get("/health")  # type: ignore[misc]
+async def integration_health() -> Dict[str, Any]:
     """Get integration health status - no auth required"""
     try:
         stats = metrics_collector.get_current_stats()
@@ -55,12 +55,12 @@ async def integration_health():
         }
 
 
-@router.get("/stats")
+@router.get("/stats")  # type: ignore[misc]
 @require_admin()
 async def get_integration_stats(
     hours: int = Query(1, ge=1, le=168, description="Hours of data to analyze"),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """Get detailed integration statistics"""
     try:
         stats = metrics_collector.get_current_stats()
@@ -88,19 +88,19 @@ async def get_integration_stats(
         raise HTTPException(status_code=500, detail=f"Failed to get integration stats: {e}")
 
 
-@router.get("/metrics")
+@router.get("/metrics")  # type: ignore[misc]
 @require_admin()
 async def get_metrics(
     format: str = Query("json", regex="^(json|prometheus)$"),
     operation: Optional[str] = Query(None, description="Filter by specific operation"),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> Union[Response, Dict[str, Any]]:
     """Export metrics in various formats"""
     try:
         if format == "prometheus":
-            metrics_data = metrics_collector.export_metrics("prometheus")
+            metrics_data_str = metrics_collector.export_metrics("prometheus")
             return Response(
-                content=metrics_data,
+                content=metrics_data_str,
                 media_type="text/plain; version=0.0.4; charset=utf-8",
                 headers={"Content-Type": "text/plain; version=0.0.4; charset=utf-8"},
             )
@@ -111,7 +111,7 @@ async def get_metrics(
                 all_metrics = [m for m in all_metrics if m.operation == operation]
 
             # Convert to serializable format
-            metrics_data = []
+            metrics_data: List[Dict[str, Any]] = []
             for metric in all_metrics[-1000:]:  # Last 1000 metrics
                 metrics_data.append(
                     {
@@ -134,11 +134,11 @@ async def get_metrics(
         raise HTTPException(status_code=500, detail=f"Failed to export metrics: {e}")
 
 
-@router.get("/performance")
+@router.get("/performance")  # type: ignore[misc]
 @require_admin()
 async def get_performance_overview(
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """Get performance overview dashboard data"""
     try:
         # Get metrics for different time periods
@@ -204,9 +204,9 @@ async def get_performance_overview(
         raise HTTPException(status_code=500, detail=f"Failed to get performance overview: {e}")
 
 
-@router.post("/cleanup")
+@router.post("/cleanup")  # type: ignore[misc]
 @require_admin()
-async def cleanup_old_metrics(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def cleanup_old_metrics(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Manually trigger cleanup of old metrics"""
     try:
         initial_count = len(metrics_collector.metrics)

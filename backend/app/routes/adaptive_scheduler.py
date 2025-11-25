@@ -6,7 +6,7 @@ host monitoring scheduler.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -80,8 +80,10 @@ class SchedulerStatsResponse(BaseModel):
     maintenance_mode: str
 
 
-@router.get("/config", response_model=SchedulerConfigResponse)
-async def get_scheduler_config(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/config", response_model=SchedulerConfigResponse)  # type: ignore[misc]
+async def get_scheduler_config(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> SchedulerConfigResponse:
     """
     Get current adaptive scheduler configuration.
 
@@ -106,13 +108,13 @@ async def get_scheduler_config(db: Session = Depends(get_db), current_user: dict
         raise HTTPException(status_code=500, detail="Failed to retrieve scheduler configuration")
 
 
-@router.put("/config", response_model=SchedulerConfigResponse)
+@router.put("/config", response_model=SchedulerConfigResponse)  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CONFIG)
 async def update_scheduler_config(
     config_update: SchedulerConfigUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SchedulerConfigResponse:
     """
     Update adaptive scheduler configuration.
 
@@ -160,9 +162,11 @@ async def update_scheduler_config(
         raise HTTPException(status_code=500, detail="Failed to update scheduler configuration")
 
 
-@router.post("/start")
+@router.post("/start")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CONFIG)
-async def start_scheduler(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def start_scheduler(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
     """
     Enable the adaptive monitoring scheduler.
 
@@ -190,9 +194,11 @@ async def start_scheduler(db: Session = Depends(get_db), current_user: dict = De
         raise HTTPException(status_code=500, detail="Failed to start scheduler")
 
 
-@router.post("/stop")
+@router.post("/stop")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CONFIG)
-async def stop_scheduler(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def stop_scheduler(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
     """
     Disable the adaptive monitoring scheduler.
 
@@ -218,8 +224,10 @@ async def stop_scheduler(db: Session = Depends(get_db), current_user: dict = Dep
         raise HTTPException(status_code=500, detail="Failed to stop scheduler")
 
 
-@router.get("/stats", response_model=SchedulerStatsResponse)
-async def get_scheduler_stats(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/stats", response_model=SchedulerStatsResponse)  # type: ignore[misc]
+async def get_scheduler_stats(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> SchedulerStatsResponse:
     """
     Get real-time scheduler statistics.
 
@@ -247,9 +255,11 @@ async def get_scheduler_stats(db: Session = Depends(get_db), current_user: dict 
         raise HTTPException(status_code=500, detail="Failed to retrieve scheduler statistics")
 
 
-@router.post("/reset-defaults")
+@router.post("/reset-defaults")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CONFIG)
-async def reset_to_defaults(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def reset_to_defaults(
+    db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
     """
     Reset scheduler configuration to default values.
 
