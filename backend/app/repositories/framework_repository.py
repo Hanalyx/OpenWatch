@@ -31,7 +31,8 @@ class FrameworkRepository(BaseRepository[Framework]):
         frameworks = await repo.find_by_category("government")
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the framework repository."""
         super().__init__(Framework)
 
     async def find_by_category(self, category: str) -> List[Framework]:

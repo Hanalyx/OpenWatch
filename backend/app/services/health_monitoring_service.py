@@ -36,16 +36,17 @@ logger = logging.getLogger(__name__)
 
 
 class HealthMonitoringService:
-    """Service for monitoring system and content health"""
+    """Service for monitoring system and content health."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the health monitoring service."""
         self.scanner_id = f"openwatch_{platform.node()}"
         self.start_time = datetime.utcnow()
         self._initialized = False
         self.settings = get_settings()
 
-    async def initialize(self):
-        """Initialize health monitoring service"""
+    async def initialize(self) -> None:
+        """Initialize health monitoring service asynchronously."""
         if self._initialized:
             return
 

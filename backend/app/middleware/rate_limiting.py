@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -55,9 +55,10 @@ class TokenBucket:
 
 
 class RateLimitStore:
-    """In-memory rate limit store with token buckets and automatic cleanup"""
+    """In-memory rate limit store with token buckets and automatic cleanup."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the rate limit store."""
         # Token buckets per client/endpoint
         self.buckets: Dict[str, TokenBucket] = {}
         # Track suspicious activity
@@ -137,9 +138,10 @@ class RateLimitStore:
 
 
 class RateLimitingMiddleware:
-    """Industry-standard rate limiting middleware with token bucket algorithm"""
+    """Industry-standard rate limiting middleware with token bucket algorithm."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the rate limiting middleware."""
         self.store = RateLimitStore()
         self.enabled = os.getenv("OPENWATCH_RATE_LIMITING", "true").lower() == "true"
         self.environment = os.getenv("OPENWATCH_ENVIRONMENT", "development").lower()
@@ -147,7 +149,7 @@ class RateLimitingMiddleware:
 
         logger.info(f"Rate limiting initialized - Environment: {self.environment}, Enabled: {self.enabled}")
 
-    def _get_limits_configuration(self) -> Dict:
+    def _get_limits_configuration(self) -> Dict[str, Any]:
         """Get rate limits following industry patterns"""
         base_config = {
             # Anonymous users (like GitHub's unauthenticated API)

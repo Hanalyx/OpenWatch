@@ -663,9 +663,10 @@ def classify_authentication_error(context: SecurityContext) -> ScanErrorInternal
 
 
 class ErrorClassificationService:
-    """Main error classification service"""
+    """Main error classification service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the error classification service with validators."""
         self.network_validator = NetworkValidator()
         self.auth_validator = AuthenticationValidator()
         self.privilege_validator = PrivilegeValidator()

@@ -31,7 +31,8 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
         rules = await repo.find_by_framework("CIS", version="2.0.0")
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the compliance rule repository."""
         super().__init__(ComplianceRule)
 
     async def find_by_framework(self, framework: str, version: Optional[str] = None) -> List[ComplianceRule]:
