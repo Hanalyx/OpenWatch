@@ -4,7 +4,7 @@ Audit Log API Routes for OView Dashboard
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -52,7 +52,7 @@ class AuditStatsResponse(BaseModel):
     unique_ips: int
 
 
-@router.get("/events", response_model=AuditEventsResponse)
+@router.get("/events", response_model=AuditEventsResponse)  # type: ignore[misc]
 async def get_audit_events(
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=1, le=100),
@@ -64,8 +64,8 @@ async def get_audit_events(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> AuditEventsResponse:
     """
     Get audit events with filtering and pagination
     """
@@ -83,7 +83,7 @@ async def get_audit_events(
             WHERE 1=1
         """
 
-        params = {}
+        params: Dict[str, Union[str, int, datetime]] = {}
 
         # Add filters
         if search:
@@ -161,12 +161,12 @@ async def get_audit_events(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit events")
 
 
-@router.get("/stats", response_model=AuditStatsResponse)
+@router.get("/stats", response_model=AuditStatsResponse)  # type: ignore[misc]
 async def get_audit_stats(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> AuditStatsResponse:
     """
     Get audit statistics for the dashboard
     """
@@ -219,15 +219,15 @@ async def get_audit_stats(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit statistics")
 
 
-@router.post("/log")
+@router.post("/log")  # type: ignore[misc]
 async def create_audit_log(
     action: str,
     resource_type: str,
     resource_id: Optional[str] = None,
     details: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Create a new audit log entry (for internal use)
     """
@@ -275,7 +275,7 @@ def log_audit_event(
     ip_address: str,
     user_agent: Optional[str],
     details: Optional[str],
-):
+) -> None:
     """
     Helper function to create audit log entries from middleware
     """

@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.security import HTTPBearer
@@ -97,13 +97,13 @@ class CredentialsResponse(BaseModel):
     requested_count: int
 
 
-@router.get("/hosts/{host_id}", response_model=SSHCredential)
+@router.get("/hosts/{host_id}", response_model=SSHCredential)  # type: ignore[misc]
 async def get_host_credentials(
     host_id: str,
     db: Session = Depends(get_db),
     _: bool = Depends(validate_aegis_request),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SSHCredential:
     """
     Get SSH credentials for a specific host (AEGIS integration).
 
@@ -186,13 +186,13 @@ async def get_host_credentials(
         )
 
 
-@router.post("/hosts/batch", response_model=CredentialsResponse)
+@router.post("/hosts/batch", response_model=CredentialsResponse)  # type: ignore[misc]
 async def get_multiple_host_credentials(
     request: HostCredentialsRequest,
     db: Session = Depends(get_db),
     _: bool = Depends(validate_aegis_request),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> CredentialsResponse:
     """
     Get SSH credentials for multiple hosts (AEGIS integration).
 
@@ -285,13 +285,13 @@ async def get_multiple_host_credentials(
         )
 
 
-@router.get("/system/default", response_model=SSHCredential)
+@router.get("/system/default", response_model=SSHCredential)  # type: ignore[misc]
 async def get_default_system_credentials(
     response: Response,
     db: Session = Depends(get_db),
     _: bool = Depends(validate_aegis_request),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SSHCredential:
     """
     Get default system SSH credentials (AEGIS integration).
 
@@ -346,8 +346,8 @@ async def get_default_system_credentials(
         )
 
 
-@router.get("/health")
-async def credentials_health_check():
+@router.get("/health")  # type: ignore[misc]
+async def credentials_health_check() -> Dict[str, str]:
     """Health check endpoint for credential sharing service."""
     return {
         "status": "healthy",
