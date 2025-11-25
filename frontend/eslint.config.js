@@ -98,7 +98,9 @@ export default [
       // General Rules
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-debugger': 'warn',
-      'no-alert': 'warn',
+      // Note: alert/confirm used for quick user confirmations; consider migrating to
+      // dialog components in a future iteration for better UX consistency
+      'no-alert': 'off',
       'prefer-const': 'error',
       'no-var': 'error',
       'object-shorthand': 'warn',

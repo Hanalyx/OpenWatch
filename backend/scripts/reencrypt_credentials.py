@@ -10,19 +10,19 @@ This script should be run when rotating the OPENWATCH_ENCRYPTION_KEY to ensure
 existing encrypted credentials can still be accessed.
 """
 
+import argparse
 import os
 import sys
-import argparse
-import base64
+from pathlib import Path
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from pathlib import Path
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Updated to use new modular encryption module (encryption migration - Nov 2025)
-from app.encryption import EncryptionService, create_encryption_service
+from app.encryption import EncryptionService  # noqa: E402
 
 
 def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run: bool = False):
@@ -36,7 +36,7 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
         dry_run: If True, only show what would be changed
     """
 
-    print(f"=== Credential Re-encryption Script ===")
+    print("=== Credential Re-encryption Script ===")
     print(f"Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"Old key: {old_key[:16]}...{old_key[-8:]}")
     print(f"New key: {new_key[:16]}...{new_key[-8:]}")
@@ -53,11 +53,15 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
 
     try:
         # Get all credentials with encrypted data
-        result = session.execute(text("""
+        result = session.execute(
+            text(
+                """
             SELECT id, name, username, auth_method, encrypted_password, encrypted_private_key
             FROM unified_credentials
             WHERE encrypted_password IS NOT NULL OR encrypted_private_key IS NOT NULL
-        """))
+        """
+            )
+        )
 
         credentials = result.fetchall()
         print(f"Found {len(credentials)} credentials to re-encrypt\n")
@@ -86,7 +90,7 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
                         decrypted_password = old_encryption.decrypt(old_password)
                         new_encrypted_password = new_encryption.encrypt(decrypted_password)
                         new_password = new_encrypted_password  # Keep as bytes
-                        print(f"  ✓ Password re-encrypted")
+                        print("  ✓ Password re-encrypted")
                     except Exception as e:
                         print(f"  ✗ Failed to decrypt/re-encrypt password: {e}")
                         error_count += 1
@@ -99,7 +103,7 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
                         decrypted_key = old_encryption.decrypt(old_private_key)
                         new_encrypted_key = new_encryption.encrypt(decrypted_key)
                         new_private_key = new_encrypted_key  # Keep as bytes
-                        print(f"  ✓ Private key re-encrypted")
+                        print("  ✓ Private key re-encrypted")
                     except Exception as e:
                         print(f"  ✗ Failed to decrypt/re-encrypt private key: {e}")
                         error_count += 1
@@ -114,15 +118,13 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
                             updated_at = NOW()
                         WHERE id = :id
                     """
-                    session.execute(text(update_sql), {
-                        'id': cred_id,
-                        'password': new_password,
-                        'private_key': new_private_key
-                    })
+                    session.execute(
+                        text(update_sql), {"id": cred_id, "password": new_password, "private_key": new_private_key}
+                    )
                     session.commit()
-                    print(f"  ✓ Database updated")
+                    print("  ✓ Database updated")
                 else:
-                    print(f"  → Would update database (dry run)")
+                    print("  → Would update database (dry run)")
 
                 success_count += 1
 
@@ -131,14 +133,14 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
                 error_count += 1
                 session.rollback()
 
-        print(f"\n=== Summary ===")
+        print("\n=== Summary ===")
         print(f"Total credentials: {len(credentials)}")
         print(f"Successfully re-encrypted: {success_count}")
         print(f"Errors: {error_count}")
         print(f"Mode: {'DRY RUN - No changes made' if dry_run else 'LIVE - Changes committed'}")
 
         if dry_run and success_count > 0:
-            print(f"\nTo apply changes, run without --dry-run flag")
+            print("\nTo apply changes, run without --dry-run flag")
 
     except Exception as e:
         print(f"Fatal error: {e}")
@@ -149,38 +151,22 @@ def reencrypt_credentials(old_key: str, new_key: str, database_url: str, dry_run
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Re-encrypt SSH credentials with new encryption key'
-    )
-    parser.add_argument(
-        '--old-key',
-        required=True,
-        help='Old OPENWATCH_ENCRYPTION_KEY value'
-    )
-    parser.add_argument(
-        '--new-key',
-        help='New OPENWATCH_ENCRYPTION_KEY value (defaults to current env var)'
-    )
-    parser.add_argument(
-        '--database-url',
-        help='Database URL (defaults to OPENWATCH_DATABASE_URL env var)'
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show what would be changed without making changes'
-    )
+    parser = argparse.ArgumentParser(description="Re-encrypt SSH credentials with new encryption key")
+    parser.add_argument("--old-key", required=True, help="Old OPENWATCH_ENCRYPTION_KEY value")
+    parser.add_argument("--new-key", help="New OPENWATCH_ENCRYPTION_KEY value (defaults to current env var)")
+    parser.add_argument("--database-url", help="Database URL (defaults to OPENWATCH_DATABASE_URL env var)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be changed without making changes")
 
     args = parser.parse_args()
 
     # Get new key from env if not provided
-    new_key = args.new_key or os.getenv('OPENWATCH_ENCRYPTION_KEY')
+    new_key = args.new_key or os.getenv("OPENWATCH_ENCRYPTION_KEY")
     if not new_key:
         print("Error: --new-key not provided and OPENWATCH_ENCRYPTION_KEY not set")
         sys.exit(1)
 
     # Get database URL from env if not provided
-    database_url = args.database_url or os.getenv('OPENWATCH_DATABASE_URL')
+    database_url = args.database_url or os.getenv("OPENWATCH_DATABASE_URL")
     if not database_url:
         print("Error: --database-url not provided and OPENWATCH_DATABASE_URL not set")
         sys.exit(1)
@@ -189,17 +175,12 @@ def main():
     if not args.dry_run:
         print("WARNING: This will modify encrypted credentials in the database!")
         response = input("Type 'yes' to proceed: ")
-        if response.lower() != 'yes':
+        if response.lower() != "yes":
             print("Aborted")
             sys.exit(0)
 
-    reencrypt_credentials(
-        old_key=args.old_key,
-        new_key=new_key,
-        database_url=database_url,
-        dry_run=args.dry_run
-    )
+    reencrypt_credentials(old_key=args.old_key, new_key=new_key, database_url=database_url, dry_run=args.dry_run)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

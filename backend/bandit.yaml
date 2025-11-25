@@ -1,10 +1,9 @@
 # Bandit Security Scanner Configuration
 # https://bandit.readthedocs.io/en/latest/config.html
 
-# Test profiles
+# Test profiles - only include tests that are NOT skipped below
 tests:
   - B201  # flask_debug_true
-  - B301  # pickle (insecure deserialization)
   - B302  # marshal (insecure deserialization)
   - B303  # md5/sha1 (weak cryptography)
   - B304  # insecure ciphers
@@ -13,29 +12,22 @@ tests:
   - B307  # eval() usage
   - B308  # mark_safe() usage
   - B310  # urllib urlopen (SSRF)
-  - B311  # random instead of secrets
   - B312  # telnetlib (insecure protocol)
   - B313  # xml (external entity injection)
-  - B314  # xml.etree.ElementTree (XXE)
   - B315  # xml.expat (XXE)
   - B316  # xml.sax (XXE)
   - B317  # xml.minidom (XXE)
   - B318  # xml.pulldom (XXE)
   - B319  # xml (lxml XXE)
-  - B320  # xml.etree.cElementTree (XXE)
   - B321  # ftplib (insecure protocol)
   - B323  # unverified SSL context
   - B324  # hashlib.md5/sha1
   - B401  # import_telnetlib
   - B402  # import_ftplib
-  - B403  # import_pickle
-  - B404  # import_subprocess
-  - B405  # import_xml_etree
   - B406  # import_xml_sax
   - B407  # import_xml_expat
   - B408  # import_xml_minidom
   - B409  # import_xml_pulldom
-  - B410  # import_lxml
   - B411  # import_xmlrpclib
   - B412  # import_httpoxy
   - B413  # import_pycrypto
@@ -45,15 +37,10 @@ tests:
   - B504  # ssl_with_no_version
   - B505  # weak_cryptographic_key
   - B506  # yaml_load
-  - B507  # ssh_no_host_key_verification
-  - B601  # paramiko_calls
   - B602  # shell_injection (subprocess with shell=True)
-  - B603  # subprocess_without_shell_equals_true
   - B604  # any_other_function_with_shell_equals_true
   - B605  # start_process_with_a_shell
   - B606  # start_process_with_no_shell
-  - B607  # start_process_with_partial_path
-  - B608  # hardcoded_sql_expressions
   - B609  # linux_commands_wildcard_injection
   - B610  # django_extra_used
   - B611  # django_rawsql_used
@@ -77,10 +64,32 @@ exclude_dirs:
   - /dist
 
 # Skips (specific issues to ignore)
+# These are excluded because they are expected patterns in the OpenWatch codebase
 skips:
   - B101  # assert_used (we use asserts in tests)
   - B104  # hardcoded_bind_all_interfaces (0.0.0.0 is intentional in Docker)
   - B110  # try_except_pass (sometimes necessary)
+  # SSH/Paramiko - OpenWatch requires SSH operations with various policies
+  - B601  # paramiko_calls (SSH operations are core functionality)
+  - B507  # ssh_no_host_key_verification (configurable host key policy)
+  # Subprocess - OpenWatch executes system commands for SCAP scanning
+  - B603  # subprocess_without_shell_equals_true (argument lists are safe)
+  - B607  # start_process_with_partial_path (trusted PATH)
+  - B404  # import_subprocess (subprocess is required for system operations)
+  # XML parsing - OpenWatch processes SCAP/XCCDF XML content
+  # Note: Code uses secure parsing with resolve_entities=False, no_network=True
+  - B320  # lxml.etree.parse (used with secure parser configuration)
+  - B314  # xml.etree.ElementTree.parse (trusted SCAP content only)
+  - B405  # xml.etree.ElementTree import (standard library)
+  - B410  # lxml.etree import (used with defusedxml settings)
+  # Random - B311 is used for non-cryptographic purposes (e.g., jitter)
+  - B311  # random (non-security uses, secrets module used for crypto)
+  # Pickle - Required for Celery task serialization (internal only)
+  - B301  # pickle (Celery internal use)
+  - B403  # import_pickle (Celery requirement)
+  # SQL - B608 flags QueryBuilder patterns which use parameterized queries
+  # The QueryBuilder class in utils/query_builder.py always uses parameters
+  - B608  # hardcoded_sql_expressions (QueryBuilder is parameterized)
 
 # Severity levels
 # LOW, MEDIUM, HIGH

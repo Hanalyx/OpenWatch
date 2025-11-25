@@ -25,7 +25,9 @@ creation will break again with 500 errors.
 
 Reference: commit e84d652 "Fix: Ensure 99% first-run success..."
 """
+
 import os
+
 import pytest
 from sqlalchemy import text
 
@@ -41,18 +43,22 @@ def test_unified_credentials_table_exists(db_session):
 
     Fix location: backend/app/init_database_schema.py
     """
-    result = db_session.execute(text("""
+    result = db_session.execute(
+        text(
+            """
         SELECT EXISTS (
             SELECT FROM information_schema.tables
             WHERE table_schema = 'public'
             AND table_name = 'unified_credentials'
         )
-    """))
+    """
+        )
+    )
 
     table_exists = result.scalar()
 
     assert table_exists is True, (
-        "❌ CRITICAL: unified_credentials table does not exist!\n\n"
+        "[CRITICAL] unified_credentials table does not exist!\n\n"
         "This breaks SSH credential creation (500 error).\n"
         "Users cannot add hosts or run compliance scans.\n\n"
         "Check: backend/app/init_database_schema.py\n"
@@ -71,13 +77,17 @@ def test_unified_credentials_schema(db_session):
     - encrypted_password, encrypted_private_key (AES-256-GCM)
     - created_by, created_at, updated_at
     """
-    result = db_session.execute(text("""
+    result = db_session.execute(
+        text(
+            """
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_schema = 'public'
         AND table_name = 'unified_credentials'
         ORDER BY ordinal_position
-    """))
+    """
+        )
+    )
 
     columns = {row[0]: row[1] for row in result}
 
@@ -102,14 +112,12 @@ def test_unified_credentials_schema(db_session):
         elif expected_type not in columns[col_name]:
             # Data type mismatch
             actual_type = columns[col_name]
-            missing_columns.append(
-                f"{col_name}: expected {expected_type}, got {actual_type}"
-            )
+            missing_columns.append(f"{col_name}: expected {expected_type}, got {actual_type}")
 
+    missing_cols_str = "\n".join(f"  - {col}" for col in missing_columns)
     assert len(missing_columns) == 0, (
-        f"❌ unified_credentials table schema incomplete!\n\n"
-        f"Missing or incorrect columns:\n" +
-        "\n".join(f"  - {col}" for col in missing_columns) +
+        "[FAIL] unified_credentials table schema incomplete!\n\n"
+        f"Missing or incorrect columns:\n{missing_cols_str}"
         "\n\nThis will cause SSH credential creation to fail.\n"
         "Check: backend/app/init_database_schema.py::create_unified_credentials_table()"
     )
@@ -122,16 +130,20 @@ def test_scheduler_config_table_exists(db_session):
     Used for host monitoring and status updates.
     Missing table causes host status to remain "offline".
     """
-    result = db_session.execute(text("""
+    result = db_session.execute(
+        text(
+            """
         SELECT EXISTS (
             SELECT FROM information_schema.tables
             WHERE table_schema = 'public'
             AND table_name = 'scheduler_config'
         )
-    """))
+    """
+        )
+    )
 
     assert result.scalar() is True, (
-        "❌ scheduler_config table does not exist!\n"
+        "[CRITICAL] scheduler_config table does not exist!\n"
         "Host monitoring will not work correctly.\n"
         "Check: backend/app/init_database_schema.py"
     )
@@ -156,30 +168,32 @@ def test_all_critical_tables_exist(db_session):
         "scheduler_config",
     ]
 
-    result = db_session.execute(text("""
+    result = db_session.execute(
+        text(
+            """
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
         AND table_name = ANY(:table_names)
-    """), {"table_names": critical_tables})
+    """
+        ),
+        {"table_names": critical_tables},
+    )
 
     existing_tables = {row[0] for row in result}
     missing_tables = set(critical_tables) - existing_tables
 
+    missing_tables_str = "\n".join(f"  - {table}" for table in sorted(missing_tables))
     assert len(missing_tables) == 0, (
-        f"❌ Critical tables missing from database!\n\n"
-        f"Missing tables:\n" +
-        "\n".join(f"  - {table}" for table in sorted(missing_tables)) +
+        "[FAIL] Critical tables missing from database!\n\n"
+        f"Missing tables:\n{missing_tables_str}"
         "\n\nThis indicates incomplete database initialization.\n"
         "Run: backend/app/init_database_schema.py::initialize_database_schema()\n"
         "Or check: main.py startup sequence"
     )
 
 
-@pytest.mark.skipif(
-    "CI" not in os.environ,
-    reason="Integration test: requires running application"
-)
+@pytest.mark.skipif("CI" not in os.environ, reason="Integration test: requires running application")
 def test_ssh_credential_creation_api(client, admin_token):
     """
     Integration test: Verify SSH credential creation via API.
@@ -199,12 +213,12 @@ def test_ssh_credential_creation_api(client, admin_token):
             "username": "testuser",
             "auth_method": "password",
             "password": "Test123!@#",
-        }
+        },
     )
 
     # Must NOT return 500 "relation unified_credentials does not exist"
     assert response.status_code != 500, (
-        f"❌ SSH credential creation returned 500 error!\n"
+        f"[FAIL] SSH credential creation returned 500 error!\n"
         f"Response: {response.json()}\n\n"
         f"This is the exact bug we fixed. The unified_credentials table\n"
         f"likely doesn't exist or has schema issues.\n"
@@ -213,8 +227,7 @@ def test_ssh_credential_creation_api(client, admin_token):
 
     # Should return 201 Created or 200 OK
     assert response.status_code in [200, 201], (
-        f"Unexpected status code: {response.status_code}\n"
-        f"Response: {response.json()}"
+        f"Unexpected status code: {response.status_code}\n" f"Response: {response.json()}"
     )
 
     # Response should contain credential ID
