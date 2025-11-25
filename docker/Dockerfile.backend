@@ -23,7 +23,7 @@
 # - ISO 27001:2022: A.8.8 (Vulnerability Management)
 # - PCI DSS v4.0: Requirement 6.3.3 (Security Patch Management)
 
-FROM registry.access.redhat.com/ubi9/ubi:9.6
+FROM registry.access.redhat.com/ubi9/ubi:9.7
 
 # Metadata labels for container management and compliance tracking
 LABEL maintainer="OpenWatch Security Team" \
