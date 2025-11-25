@@ -29,7 +29,7 @@ import logging
 import time
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -43,7 +43,7 @@ from ..models.error_models import ValidationResultResponse
 from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
 from ..services.error_classification import ErrorClassificationService
 from ..services.error_sanitization import get_error_sanitization_service
-from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceService
+from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceService, ScanPriority
 from ..services.scap_scanner import SCAPScanner
 from ..tasks.scan_tasks import execute_scan_task
 from ..utils.logging_security import sanitize_path_for_log
@@ -61,7 +61,7 @@ sanitization_service = get_error_sanitization_service()
 
 def sanitize_http_error(
     request: Request,
-    current_user: dict,
+    current_user: Dict[str, Any],
     exception: Exception,
     fallback_message: str,
     status_code: int = 500,
@@ -100,26 +100,26 @@ def sanitize_http_error(
         return HTTPException(status_code=status_code, detail=fallback_message)
 
 
-class ScanRequest(BaseModel):
+class ScanRequest(BaseModel):  # type: ignore[misc]
     name: str
     host_id: str  # Changed to str to handle UUID
     content_id: int
     profile_id: str
-    scan_options: Optional[dict] = {}
+    scan_options: Optional[Dict[str, Any]] = {}
 
 
-class ScanUpdate(BaseModel):
+class ScanUpdate(BaseModel):  # type: ignore[misc]
     status: Optional[str] = None
     progress: Optional[int] = None
     error_message: Optional[str] = None
 
 
-class RuleRescanRequest(BaseModel):
+class RuleRescanRequest(BaseModel):  # type: ignore[misc]
     rule_id: str
     name: Optional[str] = None
 
 
-class VerificationScanRequest(BaseModel):
+class VerificationScanRequest(BaseModel):  # type: ignore[misc]
     host_id: str
     content_id: int
     profile_id: str
@@ -128,26 +128,26 @@ class VerificationScanRequest(BaseModel):
     name: Optional[str] = None
 
 
-class ValidationRequest(BaseModel):
+class ValidationRequest(BaseModel):  # type: ignore[misc]
     host_id: str
     content_id: int
     profile_id: str
 
 
-class AutomatedFixRequest(BaseModel):
+class AutomatedFixRequest(BaseModel):  # type: ignore[misc]
     fix_id: str
     host_id: str
     validate_after: bool = True
 
 
-class QuickScanRequest(BaseModel):
+class QuickScanRequest(BaseModel):  # type: ignore[misc]
     template_id: Optional[str] = "auto"  # Auto-detect best profile
     priority: Optional[str] = "normal"
     name: Optional[str] = None
     email_notify: bool = False
 
 
-class QuickScanResponse(BaseModel):
+class QuickScanResponse(BaseModel):  # type: ignore[misc]
     id: str
     message: str
     status: str
@@ -155,7 +155,7 @@ class QuickScanResponse(BaseModel):
     estimated_completion: Optional[float] = None
 
 
-class BulkScanRequest(BaseModel):
+class BulkScanRequest(BaseModel):  # type: ignore[misc]
     host_ids: List[str]
     template_id: Optional[str] = "auto"
     priority: Optional[str] = "normal"
@@ -163,7 +163,7 @@ class BulkScanRequest(BaseModel):
     stagger_delay: int = 30  # seconds between scan starts
 
 
-class BulkScanResponse(BaseModel):
+class BulkScanResponse(BaseModel):  # type: ignore[misc]
     session_id: str
     message: str
     total_hosts: int
@@ -171,12 +171,12 @@ class BulkScanResponse(BaseModel):
     scan_ids: List[str]
 
 
-@router.post("/validate")
+@router.post("/validate")  # type: ignore[misc]
 async def validate_scan_configuration(
     validation_request: ValidationRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> ValidationResultResponse:
     """Pre-flight validation for scan configuration"""
     try:
@@ -223,10 +223,10 @@ async def validate_scan_configuration(
         try:
             from ..services.auth_service import get_auth_service
 
-            auth_service = get_auth_service(db)
+            auth_service = get_auth_service(db)  # type: ignore[call-arg]
 
             use_default = host_result.auth_method in ["default", "system_default"]
-            target_id = None if use_default else host_result.id
+            target_id = str(host_result.id) if not use_default and host_result.id else ""
 
             credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
@@ -263,7 +263,7 @@ async def validate_scan_configuration(
             port=host_result.port,
             username=credential_data.username,
             auth_method=credential_data.auth_method.value,
-            credential=credential_value,
+            credential=credential_value or "",
             user_id=user_id,
             source_ip=client_ip,
         )
@@ -311,13 +311,13 @@ async def validate_scan_configuration(
         raise HTTPException(status_code=500, detail=f"Validation failed: {sanitized_error.message}")
 
 
-@router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
+@router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)  # type: ignore[misc]
 async def quick_scan(
     host_id: str,
     quick_scan_request: QuickScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
@@ -334,7 +334,7 @@ async def quick_scan(
             content_id = suggested_profile.content_id
         else:
             # Use specified template - for now, map to default content
-            template_id = quick_scan_request.template_id
+            template_id = quick_scan_request.template_id or "auto"
             content_id = 1  # Default SCAP content
 
             # Still get suggestion for response metadata
@@ -399,10 +399,10 @@ async def quick_scan(
         try:
             from ..services.auth_service import get_auth_service
 
-            auth_service = get_auth_service(db)
+            auth_service = get_auth_service(db)  # type: ignore[call-arg]
 
             use_default = host_result.auth_method in ["default", "system_default"]
-            target_id = None if use_default else host_result.id
+            target_id = str(host_result.id) if not use_default and host_result.id else ""
 
             credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
@@ -499,7 +499,7 @@ async def quick_scan(
                 reasoning=["Manual template selection"],
                 estimated_duration="10-15 min",
                 rule_count=150,
-                priority=suggested_profile.priority if suggested_profile else "normal",
+                priority=suggested_profile.priority if suggested_profile else ScanPriority.NORMAL,
             ),
             estimated_completion=estimated_time,
         )
@@ -530,18 +530,18 @@ async def quick_scan(
             )
 
 
-async def _async_validation_check(scan_id: str, host_result, credential_data):
+async def _async_validation_check(scan_id: str, host_result: Any, credential_data: Any) -> None:
     """Async validation check for quick scan"""
     # This would run validation and update scan status if blocked
     # Implementation would go here
 
 
-@router.post("/bulk-scan", response_model=BulkScanResponse)
+@router.post("/bulk-scan", response_model=BulkScanResponse)  # type: ignore[misc]
 async def create_bulk_scan(
     bulk_scan_request: BulkScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> BulkScanResponse:
     """Create and start bulk scan session for multiple hosts"""
     try:
@@ -559,9 +559,9 @@ async def create_bulk_scan(
         # Create bulk scan session
         session = await orchestrator.create_bulk_scan_session(
             host_ids=bulk_scan_request.host_ids,
-            template_id=bulk_scan_request.template_id,
-            name_prefix=bulk_scan_request.name_prefix,
-            priority=bulk_scan_request.priority,
+            template_id=bulk_scan_request.template_id or "auto",
+            name_prefix=bulk_scan_request.name_prefix or "Bulk Scan",
+            priority=bulk_scan_request.priority or "normal",
             user_id=current_user["id"],
             stagger_delay=bulk_scan_request.stagger_delay,
         )
@@ -585,12 +585,12 @@ async def create_bulk_scan(
         raise HTTPException(status_code=500, detail=f"Failed to create bulk scan: {str(e)}")
 
 
-@router.get("/bulk-scan/{session_id}/progress")
+@router.get("/bulk-scan/{session_id}/progress")  # type: ignore[misc]
 async def get_bulk_scan_progress(
     session_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Get real-time progress of a bulk scan session"""
     try:
         orchestrator = BulkScanOrchestrator(db)
@@ -604,12 +604,12 @@ async def get_bulk_scan_progress(
         raise HTTPException(status_code=500, detail="Failed to get bulk scan progress")
 
 
-@router.post("/bulk-scan/{session_id}/cancel")
+@router.post("/bulk-scan/{session_id}/cancel")  # type: ignore[misc]
 async def cancel_bulk_scan(
     session_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Cancel a running bulk scan session"""
     try:
         # Update session status to cancelled
@@ -654,19 +654,19 @@ async def cancel_bulk_scan(
         raise HTTPException(status_code=500, detail="Failed to cancel bulk scan")
 
 
-@router.get("/sessions")
+@router.get("/sessions")  # type: ignore[misc]
 async def list_scan_sessions(
     status: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """List scan sessions for monitoring and management"""
     try:
         # Build query conditions
-        where_conditions = []
-        params = {"limit": limit, "offset": offset}
+        where_conditions: List[str] = []
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
 
         if status:
             where_conditions.append("status = :status")
@@ -733,12 +733,12 @@ async def list_scan_sessions(
         raise HTTPException(status_code=500, detail="Failed to list scan sessions")
 
 
-@router.post("/{scan_id}/recover")
+@router.post("/{scan_id}/recover")  # type: ignore[misc]
 async def recover_scan(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Attempt to recover a failed scan with intelligent retry"""
     try:
         # Get failed scan details
@@ -820,14 +820,14 @@ async def recover_scan(
         raise HTTPException(status_code=500, detail="Failed to create recovery scan")
 
 
-@router.post("/hosts/{host_id}/apply-fix")
+@router.post("/hosts/{host_id}/apply-fix")  # type: ignore[misc]
 async def apply_automated_fix(
     host_id: str,
     fix_request: AutomatedFixRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Apply an automated fix to a host"""
     try:
         # Get host details
@@ -882,15 +882,15 @@ async def apply_automated_fix(
         raise HTTPException(status_code=500, detail="Failed to apply automated fix")
 
 
-@router.get("/")
+@router.get("/")  # type: ignore[misc]
 async def list_scans(
     host_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """List scans with optional filtering"""
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs and filtering
@@ -1036,13 +1036,13 @@ async def list_scans(
         raise HTTPException(status_code=500, detail="Failed to retrieve scans")
 
 
-@router.post("/")
+@router.post("/")  # type: ignore[misc]
 async def create_scan(
     scan_request: ScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Create and start a new SCAP scan"""
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT validation queries
@@ -1174,12 +1174,12 @@ async def create_scan(
             raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
 
 
-@router.get("/{scan_id}")
+@router.get("/{scan_id}")  # type: ignore[misc]
 async def get_scan(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Get scan details"""
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs
@@ -1283,13 +1283,13 @@ async def get_scan(
         raise HTTPException(status_code=500, detail="Failed to retrieve scan")
 
 
-@router.patch("/{scan_id}")
+@router.patch("/{scan_id}")  # type: ignore[misc]
 async def update_scan(
     scan_id: str,
     scan_update: ScanUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Update scan status (internal use)"""
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT and UPDATE
@@ -1303,8 +1303,8 @@ async def update_scan(
         if not existing:
             raise HTTPException(status_code=404, detail="Scan not found")
 
-        # Build update data
-        update_data = {}
+        # Build update data - use Any type to accommodate mixed value types
+        update_data: Dict[str, Any] = {}
 
         if scan_update.status is not None:
             update_data["status"] = scan_update.status
@@ -1343,12 +1343,12 @@ async def update_scan(
         raise HTTPException(status_code=500, detail="Failed to update scan")
 
 
-@router.delete("/{scan_id}")
+@router.delete("/{scan_id}")  # type: ignore[misc]
 async def delete_scan(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Delete scan and its results"""
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT and DELETE
@@ -1410,12 +1410,12 @@ async def delete_scan(
         raise HTTPException(status_code=500, detail="Failed to delete scan")
 
 
-@router.post("/{scan_id}/stop")
+@router.post("/{scan_id}/stop")  # type: ignore[misc]
 async def stop_scan(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Stop a running scan"""
     try:
         # Check if scan exists and is running
@@ -1467,12 +1467,12 @@ async def stop_scan(
         raise HTTPException(status_code=500, detail="Failed to stop scan")
 
 
-@router.get("/{scan_id}/report/html")
+@router.get("/{scan_id}/report/html")  # type: ignore[misc]
 async def get_scan_html_report(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Any:
     """Download scan HTML report"""
     try:
         # Get scan details
@@ -1510,12 +1510,12 @@ async def get_scan_html_report(
         raise HTTPException(status_code=500, detail="Failed to retrieve report")
 
 
-@router.get("/{scan_id}/report/json")
+@router.get("/{scan_id}/report/json")  # type: ignore[misc]
 async def get_scan_json_report(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Export scan results as JSON"""
     try:
         # Get full scan details with results
@@ -1525,7 +1525,7 @@ async def get_scan_json_report(
         if scan_data.get("status") == "completed" and scan_data.get("result_file"):
             try:
                 # Get the SCAP content file path for remediation extraction
-                content_file = None
+                content_file: Optional[str] = None
                 content_result = db.execute(
                     text(
                         """
@@ -1542,14 +1542,13 @@ async def get_scan_json_report(
                 # TODO: Implement caching or optimize the parsing logic
                 enhanced_parsing_enabled = False
 
-                if enhanced_parsing_enabled:
+                enhanced_results: Dict[str, Any] = {}
+                if enhanced_parsing_enabled and content_file is not None:
                     # Use enhanced SCAP scanner parsing
                     from ..services.scap_scanner import SCAPScanner
 
                     scanner = SCAPScanner()
                     enhanced_results = scanner._parse_scan_results(scan_data["result_file"], content_file)
-                else:
-                    enhanced_results = {}
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
@@ -1566,7 +1565,7 @@ async def get_scan_json_report(
 
                         # Extract basic rule results
                         namespaces = {"xccdf": "http://checklists.nist.gov/xccdf/1.2"}
-                        rule_results = []
+                        rule_results: List[Dict[str, Any]] = []
 
                         for rule_result in root.findall(".//xccdf:rule-result", namespaces):
                             rule_id = rule_result.get("idref", "")
@@ -1594,7 +1593,7 @@ async def get_scan_json_report(
                 # Maintain backward compatibility - don't break if enhancement fails
                 scan_data["rule_results"] = []
 
-        return scan_data
+        return dict(scan_data)
 
     except HTTPException:
         raise
@@ -1603,12 +1602,12 @@ async def get_scan_json_report(
         raise HTTPException(status_code=500, detail="Failed to generate JSON report")
 
 
-@router.get("/{scan_id}/report/csv")
+@router.get("/{scan_id}/report/csv")  # type: ignore[misc]
 async def get_scan_csv_report(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Any:
     """Export scan results as CSV"""
     try:
         # Get scan data
@@ -1667,12 +1666,12 @@ async def get_scan_csv_report(
         raise HTTPException(status_code=500, detail="Failed to generate CSV report")
 
 
-@router.get("/{scan_id}/failed-rules")
+@router.get("/{scan_id}/failed-rules")  # type: ignore[misc]
 async def get_scan_failed_rules(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Get failed rules from a completed scan for AEGIS integration"""
     try:
         # Verify scan exists and is completed
@@ -1780,13 +1779,13 @@ async def get_scan_failed_rules(
         raise HTTPException(status_code=500, detail="Failed to retrieve failed rules")
 
 
-@router.post("/verify")
+@router.post("/verify")  # type: ignore[misc]
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Create a verification scan after AEGIS remediation"""
     try:
         # Validate host exists and is active
@@ -1910,14 +1909,14 @@ async def create_verification_scan(
         raise HTTPException(status_code=500, detail=f"Failed to create verification scan: {str(e)}")
 
 
-@router.post("/{scan_id}/rescan/rule")
+@router.post("/{scan_id}/rescan/rule")  # type: ignore[misc]
 async def rescan_rule(
     scan_id: str,
     rescan_request: RuleRescanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Rescan a specific rule from a completed scan"""
     try:
         logger.info(f"Rule rescan requested for scan {scan_id}, rule {rescan_request.rule_id}")
@@ -1958,12 +1957,12 @@ async def rescan_rule(
         raise HTTPException(status_code=500, detail="Failed to initiate rule rescan")
 
 
-@router.post("/{scan_id}/remediate")
+@router.post("/{scan_id}/remediate")  # type: ignore[misc]
 async def start_remediation(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Send failed rules to AEGIS for automated remediation"""
     try:
         # Get scan details and failed rules
@@ -2048,12 +2047,12 @@ async def start_remediation(
 # ============================================================================
 
 
-@router.post("/readiness/validate-bulk", response_model=dict)
+@router.post("/readiness/validate-bulk", response_model=Dict[str, Any])  # type: ignore[misc]
 async def validate_bulk_readiness(
-    request: dict,
+    request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Validate readiness for multiple hosts (bulk operation).
 
@@ -2134,7 +2133,7 @@ async def validate_bulk_readiness(
 
         # Execute validations
         start_time = time.time()
-        validation_results = []
+        validation_results: List[Any] = []
 
         user_id = current_user.get("sub")
 
@@ -2188,7 +2187,7 @@ async def validate_bulk_readiness(
         degraded_hosts = sum(1 for r in validation_results if r.status == "degraded")
 
         # Identify common failures
-        common_failures = {}
+        common_failures: Dict[str, int] = {}
         for result in validation_results:
             for check in result.checks:
                 if not check.passed:
@@ -2235,12 +2234,12 @@ async def validate_bulk_readiness(
         raise HTTPException(status_code=500, detail="Failed to execute bulk readiness validation")
 
 
-@router.get("/{scan_id}/pre-flight-check", response_model=dict)
+@router.get("/{scan_id}/pre-flight-check", response_model=Dict[str, Any])  # type: ignore[misc]
 async def pre_flight_check(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Quick pre-flight readiness check before executing a scan.
 
@@ -2342,8 +2341,10 @@ async def pre_flight_check(
         raise HTTPException(status_code=500, detail="Failed to execute pre-flight check")
 
 
-@router.get("/capabilities")
-async def get_scan_capabilities(current_user: dict = Depends(get_current_user)):
+@router.get("/capabilities")  # type: ignore[misc]
+async def get_scan_capabilities(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get scanning capabilities
 
@@ -2389,8 +2390,10 @@ async def get_scan_capabilities(current_user: dict = Depends(get_current_user)):
     }
 
 
-@router.get("/summary")
-async def get_scans_summary(current_user: dict = Depends(get_current_user)):
+@router.get("/summary")  # type: ignore[misc]
+async def get_scans_summary(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get summary statistics for scan management
 
@@ -2408,8 +2411,10 @@ async def get_scans_summary(current_user: dict = Depends(get_current_user)):
     }
 
 
-@router.get("/profiles")
-async def get_available_profiles(current_user: dict = Depends(get_current_user)):
+@router.get("/profiles")  # type: ignore[misc]
+async def get_available_profiles(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get available SCAP profiles for scanning
 
