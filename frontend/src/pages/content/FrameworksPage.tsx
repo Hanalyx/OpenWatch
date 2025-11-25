@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { useFrameworks } from '@/hooks/useFrameworks';
-import { FrameworkCard } from '@/components/Frameworks/FrameworkCard';
+import { FrameworkCard } from '@/components/frameworks/FrameworkCard';
 import type { Framework } from '@/types/scanConfig';
 
 export const FrameworksPage: React.FC = () => {

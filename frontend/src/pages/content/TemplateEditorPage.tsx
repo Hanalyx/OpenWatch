@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { useTemplate, useCreateTemplate, useUpdateTemplate } from '@/hooks/useTemplates';
-import { FrameworkSelector } from '@/components/Frameworks/FrameworkSelector';
+import { FrameworkSelector } from '@/components/frameworks/FrameworkSelector';
 import { VariableCustomizer } from '@/components/Variables/VariableCustomizer';
 import type { CreateTemplateRequest } from '@/types/scanConfig';
 
@@ -101,6 +101,7 @@ export const TemplateEditorPage: React.FC = () => {
     }
 
     if (!isValid) {
+      // eslint-disable-next-line no-alert
       alert('Please fix validation errors before saving');
       return;
     }
