@@ -73,7 +73,8 @@ class ResourceIdentifier:
     parent_resource_id: Optional[str] = None
     attributes: Dict[str, Any] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Initialize default values for mutable fields."""
         if self.attributes is None:
             self.attributes = {}
 
@@ -97,7 +98,8 @@ class PermissionPolicy:
     created_by: str = None
     is_active: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Initialize default values for mutable fields."""
         if self.conditions is None:
             self.conditions = {}
 
@@ -115,7 +117,8 @@ class AuthorizationContext:
     request_time: datetime = Field(default_factory=datetime.utcnow)
     additional_attributes: Dict[str, Any] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Initialize default values for mutable fields."""
         if self.additional_attributes is None:
             self.additional_attributes = {}
 
@@ -266,8 +269,9 @@ class AuthorizationPolicy(BaseModel):
 class PermissionCache:
     """In-memory cache for permission decisions"""
 
-    def __init__(self, ttl_seconds: int = 300, max_size: int = 10000):
-        self.cache: Dict[str, Dict] = {}
+    def __init__(self, ttl_seconds: int = 300, max_size: int = 10000) -> None:
+        """Initialize the permission cache."""
+        self.cache: Dict[str, Dict[str, Any]] = {}
         self.ttl_seconds = ttl_seconds
         self.max_size = max_size
         self.access_times: Dict[str, datetime] = {}
@@ -308,8 +312,8 @@ class PermissionCache:
         resource: ResourceIdentifier,
         action: ActionType,
         result: AuthorizationResult,
-    ):
-        """Cache permission decision"""
+    ) -> None:
+        """Cache permission decision."""
         if len(self.cache) >= self.max_size:
             self._evict_least_recently_used()
 
@@ -317,16 +321,16 @@ class PermissionCache:
         self.cache[key] = {"result": result, "timestamp": datetime.utcnow()}
         self.access_times[key] = datetime.utcnow()
 
-    def invalidate_user(self, user_id: str):
-        """Invalidate all cached permissions for a user"""
+    def invalidate_user(self, user_id: str) -> None:
+        """Invalidate all cached permissions for a user."""
         keys_to_remove = [k for k in self.cache.keys() if k.startswith(f"{user_id}:")]
         for key in keys_to_remove:
             del self.cache[key]
             if key in self.access_times:
                 del self.access_times[key]
 
-    def invalidate_resource(self, resource: ResourceIdentifier):
-        """Invalidate all cached permissions for a resource"""
+    def invalidate_resource(self, resource: ResourceIdentifier) -> None:
+        """Invalidate all cached permissions for a resource."""
         resource_prefix = f"{resource.resource_type.value}:{resource.resource_id}"
         keys_to_remove = [k for k in self.cache.keys() if resource_prefix in k]
         for key in keys_to_remove:
@@ -334,13 +338,13 @@ class PermissionCache:
             if key in self.access_times:
                 del self.access_times[key]
 
-    def clear(self):
-        """Clear all cached permissions"""
+    def clear(self) -> None:
+        """Clear all cached permissions."""
         self.cache.clear()
         self.access_times.clear()
 
-    def _evict_least_recently_used(self):
-        """Evict least recently used cache entries"""
+    def _evict_least_recently_used(self) -> None:
+        """Evict least recently used cache entries."""
         if not self.access_times:
             return
 

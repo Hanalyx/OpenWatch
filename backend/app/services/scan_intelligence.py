@@ -6,7 +6,7 @@ Provides intelligent scanning capabilities including profile suggestion and opti
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -419,7 +419,7 @@ class ScanIntelligenceService:
             priority=ScanPriority.NORMAL,
         )
 
-    async def analyze_bulk_scan_feasibility(self, host_ids: List[str]) -> Dict:
+    async def analyze_bulk_scan_feasibility(self, host_ids: List[str]) -> Dict[str, Any]:
         """Analyze the feasibility of scanning multiple hosts"""
         try:
             # Get host information for all hosts

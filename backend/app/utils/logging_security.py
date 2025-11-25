@@ -11,7 +11,7 @@ SECURITY FEATURES:
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
@@ -223,7 +223,7 @@ def create_audit_log_entry(
     ip_address: Optional[str] = None,
     success: bool = True,
     error_message: Optional[str] = None,
-    additional_context: Optional[dict] = None,
+    additional_context: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Create a standardized audit log entry.

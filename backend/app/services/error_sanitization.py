@@ -130,7 +130,8 @@ class ErrorSanitizationService:
         "EXEC_001": "Scan execution failed due to unexpected error",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the error sanitization service with rate limiting cache."""
         self.rate_limit_cache: Dict[str, RateLimitState] = {}
         self._cleanup_rate_limit_cache()
 
@@ -238,8 +239,8 @@ class ErrorSanitizationService:
 
         return False
 
-    def _update_rate_limit(self, source_ip: str):
-        """Update rate limiting state for source IP"""
+    def _update_rate_limit(self, source_ip: str) -> None:
+        """Update rate limiting state for source IP."""
         now = datetime.utcnow()
 
         if source_ip not in self.rate_limit_cache:
@@ -266,8 +267,8 @@ class ErrorSanitizationService:
         elif time_diff_minutes <= 60 and state.error_count > self.MAX_ERRORS_PER_HOUR:
             self._block_ip(source_ip)
 
-    def _block_ip(self, source_ip: str):
-        """Block IP address due to rate limit violation"""
+    def _block_ip(self, source_ip: str) -> None:
+        """Block IP address due to rate limit violation."""
         if source_ip in self.rate_limit_cache:
             state = self.rate_limit_cache[source_ip]
             state.is_blocked = True
@@ -293,8 +294,8 @@ class ErrorSanitizationService:
         error_data: Dict[str, Any],
         user_id: Optional[str],
         source_ip: Optional[str],
-    ):
-        """Log full error details for security audit"""
+    ) -> None:
+        """Log full error details for security audit."""
 
         # Create audit log entry
         audit_entry = AuditLogEntry(
@@ -330,8 +331,8 @@ class ErrorSanitizationService:
         # Also log summary to main logger
         logger.info(f"Sanitized error response for {audit_entry.error_code} from IP {source_ip}")
 
-    def _cleanup_rate_limit_cache(self):
-        """Clean up expired rate limit entries"""
+    def _cleanup_rate_limit_cache(self) -> None:
+        """Clean up expired rate limit entries."""
         now = datetime.utcnow()
         expired_ips = []
 

@@ -6,11 +6,14 @@ Defines permissions, roles, and access control logic
 import logging
 from enum import Enum
 from functools import wraps
-from typing import Any, Dict, List, Set
+from typing import Any, Callable, Dict, List, Set, TypeVar
 
 from fastapi import HTTPException, status
 
 from .utils.logging_security import sanitize_username_for_log
+
+# Type variable for generic decorator return types
+F = TypeVar("F", bound=Callable[..., Any])
 
 logger = logging.getLogger(__name__)
 
@@ -257,12 +260,12 @@ class RBACManager:
         return RBACManager.has_permission(user_role, required_permission)
 
 
-def require_permission(permission: Permission):
-    """Decorator to require a specific permission"""
+def require_permission(permission: Permission) -> Callable[[F], F]:
+    """Decorator to require a specific permission."""
 
-    def decorator(func):
+    def decorator(func: F) -> F:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Get current user from kwargs (injected by get_current_user dependency)
             current_user = kwargs.get("current_user")
             if not current_user:
@@ -288,12 +291,12 @@ def require_permission(permission: Permission):
     return decorator
 
 
-def require_any_permission(permissions: List[Permission]):
-    """Decorator to require any of the specified permissions"""
+def require_any_permission(permissions: List[Permission]) -> Callable[[F], F]:
+    """Decorator to require any of the specified permissions."""
 
-    def decorator(func):
+    def decorator(func: F) -> F:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             current_user = kwargs.get("current_user")
             if not current_user:
                 raise HTTPException(
@@ -318,12 +321,12 @@ def require_any_permission(permissions: List[Permission]):
     return decorator
 
 
-def require_role(required_roles: List[UserRole]):
-    """Decorator to require specific roles"""
+def require_role(required_roles: List[UserRole]) -> Callable[[F], F]:
+    """Decorator to require specific roles."""
 
-    def decorator(func):
+    def decorator(func: F) -> F:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             current_user = kwargs.get("current_user")
             if not current_user:
                 raise HTTPException(
@@ -349,22 +352,22 @@ def require_role(required_roles: List[UserRole]):
 
 
 # Convenience decorators for common access patterns
-def require_admin():
-    """Require admin-level access (super_admin or security_admin)"""
+def require_admin() -> Callable[[F], F]:
+    """Require admin-level access (super_admin or security_admin)."""
     return require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 
 
-def require_super_admin():
-    """Require super admin access"""
+def require_super_admin() -> Callable[[F], F]:
+    """Require super admin access."""
     return require_role([UserRole.SUPER_ADMIN])
 
 
-def require_analyst_or_above():
-    """Require analyst level or above"""
+def require_analyst_or_above() -> Callable[[F], F]:
+    """Require analyst level or above."""
     return require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN, UserRole.SECURITY_ANALYST])
 
 
-def check_permission(user_role: str, resource_type: str, action: str):
+def check_permission(user_role: str, resource_type: str, action: str) -> None:
     """Check if a user role has permission to perform an action on a resource.
 
     For API keys, we'll allow super_admin and security_admin to manage them.
@@ -387,7 +390,7 @@ def check_permission(user_role: str, resource_type: str, action: str):
         )
 
 
-def check_permission_async(current_user: dict, required_permission: Permission, db: Any = None):
+def check_permission_async(current_user: Dict[str, Any], required_permission: Permission, db: Any = None) -> bool:
     """Async permission check for specific permissions"""
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")

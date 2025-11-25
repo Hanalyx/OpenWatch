@@ -137,12 +137,13 @@ class SystemInfoSanitizationService:
         "keys_info",  # Cryptographic keys
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the system info sanitization service."""
         self.detection_level = ReconnaissanceDetectionLevel.STRICT
         self.audit_events: List[SystemInfoAuditEvent] = []
-        self._error_sanitization_service = None
+        self._error_sanitization_service: Any = None
 
-    def _get_error_sanitization_service(self):
+    def _get_error_sanitization_service(self) -> Any:
         """Lazy load error sanitization service to avoid cyclic import."""
         if self._error_sanitization_service is None:
             from .error_sanitization import get_error_sanitization_service
@@ -546,8 +547,8 @@ class SystemInfoSanitizationService:
         granted_level: SystemInfoLevel,
         reconnaissance_detected: bool,
         triggered_patterns: List[str],
-    ):
-        """Audit system information access for security monitoring"""
+    ) -> None:
+        """Audit system information access for security monitoring."""
 
         audit_event = SystemInfoAuditEvent(
             event_id=hashlib.sha256(f"{context.user_id}{datetime.utcnow()}".encode()).hexdigest(),

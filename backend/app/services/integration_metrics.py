@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +46,11 @@ class MetricsSummary:
 class IntegrationMetricsCollector:
     """Collects and manages integration performance metrics"""
 
-    def __init__(self, retention_hours: int = 24, max_metrics: int = 10000):
+    def __init__(self, retention_hours: int = 24, max_metrics: int = 10000) -> None:
+        """Initialize the metrics collector with retention settings."""
         self.retention_hours = retention_hours
         self.max_metrics = max_metrics
-        self.metrics: deque = deque(maxlen=max_metrics)
+        self.metrics: deque[IntegrationMetric] = deque(maxlen=max_metrics)
         self.lock = threading.RLock()
 
         # In-memory counters for quick access
@@ -64,8 +65,8 @@ class IntegrationMetricsCollector:
         success: bool = True,
         error: Optional[str] = None,
         labels: Optional[Dict[str, str]] = None,
-    ):
-        """Record a new metric"""
+    ) -> None:
+        """Record a new metric."""
         with self.lock:
             metric = IntegrationMetric(
                 timestamp=time.time(),
@@ -96,8 +97,8 @@ class IntegrationMetricsCollector:
                     self.timers[counter_key] = self.timers[counter_key][-1000:]
 
     @contextmanager
-    def time_operation(self, operation: str, labels: Optional[Dict[str, str]] = None):
-        """Context manager to time operations"""
+    def time_operation(self, operation: str, labels: Optional[Dict[str, str]] = None) -> Generator[None, None, None]:
+        """Context manager to time operations."""
         start_time = time.time()
         error = None
         success = True
@@ -119,8 +120,8 @@ class IntegrationMetricsCollector:
                 labels=labels,
             )
 
-    def cleanup_old_metrics(self):
-        """Remove metrics older than retention period"""
+    def cleanup_old_metrics(self) -> None:
+        """Remove metrics older than retention period."""
         with self.lock:
             cutoff_time = time.time() - (self.retention_hours * 3600)
 
@@ -239,8 +240,8 @@ metrics_collector = IntegrationMetricsCollector()
 
 
 # Convenience functions for common operations
-def record_webhook_delivery(success: bool, duration: float, target_service: str, error: str = None):
-    """Record webhook delivery metrics"""
+def record_webhook_delivery(success: bool, duration: float, target_service: str, error: Optional[str] = None) -> None:
+    """Record webhook delivery metrics."""
     metrics_collector.record_metric(
         metric_type="duration",
         operation="webhook_delivery",
@@ -251,8 +252,8 @@ def record_webhook_delivery(success: bool, duration: float, target_service: str,
     )
 
 
-def record_api_call(operation: str, success: bool, duration: float, service: str, error: str = None):
-    """Record API call metrics"""
+def record_api_call(operation: str, success: bool, duration: float, service: str, error: Optional[str] = None) -> None:
+    """Record API call metrics."""
     metrics_collector.record_metric(
         metric_type="duration",
         operation=f"api_call_{operation}",
@@ -263,8 +264,8 @@ def record_api_call(operation: str, success: bool, duration: float, service: str
     )
 
 
-def record_remediation_job(job_id: str, status: str, duration: float, rules_count: int, success_count: int):
-    """Record remediation job metrics"""
+def record_remediation_job(job_id: str, status: str, duration: float, rules_count: int, success_count: int) -> None:
+    """Record remediation job metrics."""
     metrics_collector.record_metric(
         metric_type="duration",
         operation="remediation_job",
@@ -280,16 +281,16 @@ def record_remediation_job(job_id: str, status: str, duration: float, rules_coun
 
 
 # Context managers for easy timing
-def time_webhook_delivery(target):
+def time_webhook_delivery(target: str) -> Generator[None, None, None]:
     """Create context manager for timing webhook delivery."""
     return metrics_collector.time_operation("webhook_delivery", {"target": target})
 
 
-def time_api_call(operation, service):
+def time_api_call(operation: str, service: str) -> Generator[None, None, None]:
     """Create context manager for timing API calls."""
     return metrics_collector.time_operation(f"api_call_{operation}", {"service": service})
 
 
-def time_remediation(job_id):
+def time_remediation(job_id: str) -> Generator[None, None, None]:
     """Create context manager for timing remediation execution."""
     return metrics_collector.time_operation("remediation_execution", {"job_id": job_id})
