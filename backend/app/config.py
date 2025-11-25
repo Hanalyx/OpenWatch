@@ -94,26 +94,30 @@ class Settings(BaseSettings):
     # - OW-REFACTOR-002 (Repository Pattern): Completed, all MongoDB operations use repositories
 
     @validator("secret_key")
-    def secret_key_must_be_strong(cls, v):
+    def secret_key_must_be_strong(cls, v: str) -> str:
+        """Validate that secret key meets minimum length requirement."""
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
         return v
 
     @validator("master_key")
-    def master_key_must_be_strong(cls, v):
+    def master_key_must_be_strong(cls, v: str) -> str:
+        """Validate that master key meets minimum length requirement."""
         if len(v) < 32:
             raise ValueError("Master key must be at least 32 characters long")
         return v
 
     @validator("allowed_origins")
-    def validate_origins(cls, v):
+    def validate_origins(cls, v: list[str]) -> list[str]:
+        """Validate that all CORS origins use HTTPS except localhost."""
         for origin in v:
             if not origin.startswith(("https://", "http://localhost")):
                 raise ValueError("All origins must use HTTPS (except localhost)")
         return v
 
     @validator("mongodb_url")
-    def validate_mongodb_url(cls, v):
+    def validate_mongodb_url(cls, v: str) -> str:
+        """Validate MongoDB connection URL format."""
         if not v.startswith("mongodb://"):
             raise ValueError("MongoDB URL must start with mongodb://")
         return v

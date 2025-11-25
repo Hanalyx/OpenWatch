@@ -1,12 +1,15 @@
 """
-OpenTelemetry Distributed Tracing Configuration for OpenWatch
-Comprehensive tracing for request flows and service integration
+OpenTelemetry Distributed Tracing Configuration for OpenWatch.
+
+Provides comprehensive distributed tracing for request flows and service
+integration using OpenTelemetry. Supports Jaeger, OTLP, and console exporters.
+
 Author: Noah Chen - nc9010@hanalyx.com
 """
 
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from opentelemetry import trace
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
@@ -45,8 +48,16 @@ class TracingConfig:
         self.tracer_provider = None
         self.tracer = None
 
-    def initialize_tracing(self):
-        """Initialize OpenTelemetry tracing"""
+    def initialize_tracing(self) -> bool:
+        """
+        Initialize OpenTelemetry tracing with configured exporters.
+
+        Sets up the tracer provider, configures exporters (Jaeger, OTLP, Console),
+        and instruments common libraries for automatic span creation.
+
+        Returns:
+            True if tracing was initialized successfully, False otherwise.
+        """
         try:
             # Create resource with service information
             resource = Resource.create(
@@ -78,9 +89,16 @@ class TracingConfig:
             logger.error(f"Failed to initialize tracing: {e}")
             return False
 
-    def _setup_exporters(self):
-        """Setup trace exporters (Jaeger, OTLP, Console)"""
-        exporters = []
+    def _setup_exporters(self) -> None:
+        """
+        Setup trace exporters for span data collection.
+
+        Configures available exporters in order of preference:
+        1. Jaeger - for distributed tracing visualization
+        2. OTLP - for OpenTelemetry Protocol compatible backends
+        3. Console - for development debugging (when OPENWATCH_DEBUG=true)
+        """
+        exporters: List[Any] = []
 
         # Jaeger exporter
         try:
@@ -113,8 +131,13 @@ class TracingConfig:
             span_processor = BatchSpanProcessor(exporter)
             self.tracer_provider.add_span_processor(span_processor)
 
-    def _instrument_libraries(self):
-        """Instrument common libraries for automatic tracing"""
+    def _instrument_libraries(self) -> None:
+        """
+        Instrument common libraries for automatic span creation.
+
+        Enables automatic tracing for HTTP clients (requests, httpx) and
+        Redis connections without requiring code changes.
+        """
         try:
             # Instrument HTTP requests
             RequestsInstrumentor().instrument()
@@ -132,8 +155,13 @@ class TracingConfig:
         except Exception as e:
             logger.error(f"Library instrumentation failed: {e}")
 
-    def instrument_fastapi(self, app):
-        """Instrument FastAPI application"""
+    def instrument_fastapi(self, app: Any) -> None:
+        """
+        Instrument FastAPI application for automatic request tracing.
+
+        Args:
+            app: FastAPI application instance to instrument.
+        """
         try:
             FastAPIInstrumentor.instrument_app(
                 app,
@@ -144,27 +172,58 @@ class TracingConfig:
         except Exception as e:
             logger.error(f"FastAPI instrumentation failed: {e}")
 
-    def instrument_sqlalchemy(self, engine):
-        """Instrument SQLAlchemy for database tracing"""
+    def instrument_sqlalchemy(self, engine: Any) -> None:
+        """
+        Instrument SQLAlchemy engine for database query tracing.
+
+        Args:
+            engine: SQLAlchemy engine instance to instrument.
+        """
         try:
             SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=self.tracer_provider)
             logger.info("SQLAlchemy instrumentation enabled")
         except Exception as e:
             logger.error(f"SQLAlchemy instrumentation failed: {e}")
 
-    def get_tracer(self):
-        """Get the configured tracer"""
+    def get_tracer(self) -> Optional[Any]:
+        """
+        Get the configured OpenTelemetry tracer.
+
+        Returns:
+            The configured tracer instance, or None if not initialized.
+        """
         return self.tracer
 
 
 class SecureOpsTracer:
-    """Custom tracer for SecureOps-specific operations"""
+    """
+    Custom tracer for SecureOps-specific operations.
 
-    def __init__(self, tracer):
+    Provides specialized span creation methods for common OpenWatch operations
+    including SCAP scans, remediation calls, and integration calls.
+    """
+
+    def __init__(self, tracer: Any) -> None:
+        """
+        Initialize the SecureOps tracer.
+
+        Args:
+            tracer: OpenTelemetry tracer instance.
+        """
         self.tracer = tracer
 
-    def trace_scan_operation(self, scan_id: str, host_id: str, profile: str):
-        """Create span for SCAP scan operation"""
+    def trace_scan_operation(self, scan_id: str, host_id: str, profile: str) -> Any:
+        """
+        Create span for SCAP scan operation.
+
+        Args:
+            scan_id: Unique identifier for the scan.
+            host_id: Target host identifier.
+            profile: SCAP profile being executed.
+
+        Returns:
+            OpenTelemetry span for the scan operation.
+        """
         return self.tracer.start_span(
             "scap_scan",
             attributes={
@@ -175,8 +234,17 @@ class SecureOpsTracer:
             },
         )
 
-    def trace_remediation_call(self, host_id: str, rule_count: int):
-        """Create span for AEGIS remediation call"""
+    def trace_remediation_call(self, host_id: str, rule_count: int) -> Any:
+        """
+        Create span for AEGIS remediation call.
+
+        Args:
+            host_id: Target host identifier.
+            rule_count: Number of rules being remediated.
+
+        Returns:
+            OpenTelemetry span for the remediation operation.
+        """
         return self.tracer.start_span(
             "aegis_remediation",
             attributes={
@@ -186,8 +254,17 @@ class SecureOpsTracer:
             },
         )
 
-    def trace_integration_call(self, target_service: str, endpoint: str):
-        """Create span for external service integration"""
+    def trace_integration_call(self, target_service: str, endpoint: str) -> Any:
+        """
+        Create span for external service integration.
+
+        Args:
+            target_service: Name of the external service being called.
+            endpoint: API endpoint being accessed.
+
+        Returns:
+            OpenTelemetry span for the integration call.
+        """
         return self.tracer.start_span(
             f"integration_call_{target_service}",
             attributes={
@@ -197,8 +274,17 @@ class SecureOpsTracer:
             },
         )
 
-    def trace_database_operation(self, operation: str, table: str):
-        """Create span for database operations"""
+    def trace_database_operation(self, operation: str, table: str) -> Any:
+        """
+        Create span for database operations.
+
+        Args:
+            operation: Database operation type (SELECT, INSERT, UPDATE, DELETE).
+            table: Database table being accessed.
+
+        Returns:
+            OpenTelemetry span for the database operation.
+        """
         return self.tracer.start_span(
             f"db_{operation}",
             attributes={
@@ -208,8 +294,17 @@ class SecureOpsTracer:
             },
         )
 
-    def trace_authentication(self, username: str, method: str):
-        """Create span for authentication operations"""
+    def trace_authentication(self, username: str, method: str) -> Any:
+        """
+        Create span for authentication operations.
+
+        Args:
+            username: Username attempting authentication.
+            method: Authentication method (password, token, mfa).
+
+        Returns:
+            OpenTelemetry span for the authentication operation.
+        """
         return self.tracer.start_span(
             "authentication",
             attributes={
@@ -219,8 +314,17 @@ class SecureOpsTracer:
             },
         )
 
-    def trace_workflow(self, workflow_type: str, workflow_id: str):
-        """Create span for end-to-end workflows"""
+    def trace_workflow(self, workflow_type: str, workflow_id: str) -> Any:
+        """
+        Create span for end-to-end workflows.
+
+        Args:
+            workflow_type: Type of workflow (scan, remediation, compliance_check).
+            workflow_id: Unique identifier for the workflow instance.
+
+        Returns:
+            OpenTelemetry span for the workflow.
+        """
         return self.tracer.start_span(
             f"workflow_{workflow_type}",
             attributes={
@@ -230,8 +334,15 @@ class SecureOpsTracer:
             },
         )
 
-    def add_scan_result_attributes(self, span, scan_result):
-        """Add scan result attributes to span"""
+    def add_scan_result_attributes(self, span: Any, scan_result: Optional[Dict[str, Any]]) -> None:
+        """
+        Add scan result attributes to an existing span.
+
+        Args:
+            span: OpenTelemetry span to add attributes to.
+            scan_result: Dictionary containing scan results with keys like
+                rules_total, rules_passed, rules_failed, compliance_score, duration.
+        """
         if span and scan_result:
             span.set_attributes(
                 {
@@ -243,8 +354,14 @@ class SecureOpsTracer:
                 }
             )
 
-    def add_error_attributes(self, span, error: Exception):
-        """Add error attributes to span"""
+    def add_error_attributes(self, span: Any, error: Exception) -> None:
+        """
+        Add error attributes to a span and mark it as failed.
+
+        Args:
+            span: OpenTelemetry span to add error attributes to.
+            error: Exception that occurred during the traced operation.
+        """
         if span and error:
             span.set_status(trace.Status(trace.StatusCode.ERROR))
             span.record_exception(error)
@@ -288,13 +405,23 @@ def get_secureops_tracer() -> Optional[SecureOpsTracer]:
     return _secureops_tracer
 
 
-def instrument_fastapi_app(app):
-    """Instrument FastAPI application with tracing"""
+def instrument_fastapi_app(app: Any) -> None:
+    """
+    Instrument FastAPI application with tracing.
+
+    Args:
+        app: FastAPI application instance to instrument.
+    """
     if _tracing_config:
         _tracing_config.instrument_fastapi(app)
 
 
-def instrument_database_engine(engine):
-    """Instrument database engine with tracing"""
+def instrument_database_engine(engine: Any) -> None:
+    """
+    Instrument database engine with tracing.
+
+    Args:
+        engine: SQLAlchemy engine instance to instrument.
+    """
     if _tracing_config:
         _tracing_config.instrument_sqlalchemy(engine)

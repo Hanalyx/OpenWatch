@@ -98,14 +98,15 @@ class ResourceUsage(BaseModel):
     load_average: List[float] = Field(description="System load averages")
 
     @validator("memory_usage_percent", "cpu_usage_percent")
-    def validate_percentage(cls, v):
+    def validate_percentage(cls, v: float) -> float:
+        """Validate that percentage is within 0-100 range."""
         if not 0 <= v <= 100:
             raise ValueError("Percentage must be between 0 and 100")
         return v
 
 
 class StorageUsage(BaseModel):
-    """Storage usage metrics"""
+    """Storage usage metrics."""
 
     path: str = Field(description="Storage path")
     total_gb: float = Field(description="Total storage in GB")
@@ -113,7 +114,8 @@ class StorageUsage(BaseModel):
     usage_percent: float = Field(description="Storage usage percentage")
 
     @validator("usage_percent")
-    def validate_percentage(cls, v):
+    def validate_percentage(cls, v: float) -> float:
+        """Validate that percentage is within 0-100 range."""
         if not 0 <= v <= 100:
             raise ValueError("Percentage must be between 0 and 100")
         return v
@@ -183,7 +185,8 @@ class FrameworkHealth(BaseModel):
     benchmark_dependencies: List[str] = Field(default_factory=list, description="Dependent benchmarks")
 
     @validator("coverage_percentage")
-    def validate_percentage(cls, v):
+    def validate_percentage(cls, v: float) -> float:
+        """Validate that coverage percentage is within 0-100 range."""
         if not 0 <= v <= 100:
             raise ValueError("Coverage percentage must be between 0 and 100")
         return v

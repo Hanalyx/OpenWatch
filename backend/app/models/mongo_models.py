@@ -3,6 +3,9 @@ MongoDB Models for OpenWatch Compliance Rules
 Enhanced models with inheritance and multi-platform support
 """
 
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Union
+
 # Optional motor/beanie imports for test compatibility
 try:
     from beanie import Document, Indexed, init_beanie
@@ -16,15 +19,13 @@ except ImportError:
     AsyncIOMotorClient = type("AsyncIOMotorClient", (), {})
     Document = object
 
-    def Indexed(*args, **kwargs):  # noqa: E731
+    def Indexed(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:  # noqa: E731
+        """Stub for Indexed decorator when beanie is not available."""
         return lambda x: x
 
     init_beanie = None
     IndexModel = None
     TEXT = None
-
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, validator
 
@@ -64,8 +65,16 @@ class FrameworkVersions(BaseModel):
     iso27001: Optional[Dict[str, List[str]]] = None
     hipaa: Optional[Dict[str, List[str]]] = None
 
-    def model_dump(self, **kwargs):
-        """Override to ensure None values are excluded for MongoDB storage"""
+    def model_dump(self, **kwargs: Any) -> Dict[str, Any]:
+        """
+        Override to ensure None values are excluded for MongoDB storage.
+
+        Args:
+            **kwargs: Keyword arguments passed to parent model_dump.
+
+        Returns:
+            Dictionary representation with None values excluded.
+        """
         # Force exclude_none=True for all dumps
         kwargs["exclude_none"] = True
         return super().model_dump(**kwargs)
@@ -192,16 +201,16 @@ class XCCDFVariable(BaseModel):
     )
 
     @validator("type")
-    def validate_type(cls, v):
-        """Ensure type is one of the supported XCCDF types"""
+    def validate_type(cls, v: str) -> str:
+        """Ensure type is one of the supported XCCDF types."""
         valid_types = ["string", "number", "boolean"]
         if v not in valid_types:
             raise ValueError(f"Invalid type '{v}'. Must be one of: {', '.join(valid_types)}")
         return v
 
     @validator("constraints")
-    def validate_constraints(cls, v, values):
-        """Validate constraints match the variable type"""
+    def validate_constraints(cls, v: Optional[Dict[str, Any]], values: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Validate constraints match the variable type."""
         if not v:
             return v
 
@@ -527,7 +536,8 @@ class ComplianceRule(Document):
     # ============================================================================
 
     @validator("rule_id")
-    def validate_rule_id(cls, v):
+    def validate_rule_id(cls, v: str) -> str:
+        """Validate rule_id format and minimum length."""
         if not v or len(v) < 3:
             raise ValueError("Rule ID must be at least 3 characters long")
         if not v.startswith("ow-"):
@@ -535,7 +545,7 @@ class ComplianceRule(Document):
         return v
 
     @validator("metadata")
-    def validate_metadata(cls, v):
+    def validate_metadata(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not v.get("name"):
             raise ValueError("Metadata must contain a name")
         return v
@@ -629,7 +639,9 @@ class RuleIntelligence(Document):
 
     # Known Issues
     false_positive_rate: float = Field(ge=0.0, le=1.0, default=0.0, description="Historical false positive rate")
-    common_exceptions: List[Dict] = Field(default_factory=list, description="Common legitimate exceptions to this rule")
+    common_exceptions: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Common legitimate exceptions to this rule"
+    )
 
     # Implementation Guidance
     implementation_notes: str = Field(description="Detailed implementation guidance")
@@ -774,15 +786,23 @@ class UploadHistory(Document):
 
 # Database connection management
 class MongoManager:
-    """MongoDB connection and database management"""
+    """MongoDB connection and database management."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize MongoManager with default connection state."""
         self.client: Optional[AsyncIOMotorClient] = None
-        self.database = None
-        self.initialized = False
+        self.database: Any = None
+        self.initialized: bool = False
 
-    async def initialize(self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs):
-        """Initialize MongoDB connection and Beanie ODM"""
+    async def initialize(self, mongodb_url: str, database_name: str = "openwatch_rules", **kwargs: Any) -> None:
+        """
+        Initialize MongoDB connection and Beanie ODM.
+
+        Args:
+            mongodb_url: MongoDB connection URL.
+            database_name: Name of the database to use.
+            **kwargs: Additional connection options (ssl, ssl_cert, etc.).
+        """
 
         if self.initialized:
             return
@@ -887,8 +907,8 @@ class MongoManager:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    async def close(self):
-        """Close MongoDB connection"""
+    async def close(self) -> None:
+        """Close MongoDB connection gracefully."""
         if self.client:
             self.client.close()
             self.initialized = False

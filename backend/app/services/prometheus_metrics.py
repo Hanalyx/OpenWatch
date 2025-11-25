@@ -1,12 +1,16 @@
 """
-Prometheus Metrics Collection for OpenWatch
-Comprehensive metrics for monitoring and observability
+Prometheus Metrics Collection for OpenWatch.
+
+Provides comprehensive metrics for monitoring and observability using Prometheus.
+Includes metrics for HTTP requests, SCAP scans, compliance, integrations,
+remediation, security events, and system resources.
+
 Author: Noah Chen - nc9010@hanalyx.com
 """
 
 import logging
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import psutil
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Info, generate_latest
@@ -203,9 +207,15 @@ error_rate = Gauge(
 
 
 class PrometheusMetrics:
-    """Centralized metrics collection and management"""
+    """
+    Centralized metrics collection and management for OpenWatch.
 
-    def __init__(self):
+    Provides methods to record various types of metrics including HTTP requests,
+    SCAP scans, compliance scores, integrations, and system resources.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the Prometheus metrics instance with service info."""
         self.start_time = time.time()
         # Initialize service info
         service_info.info({"version": "1.0.0", "service": "openwatch", "environment": "production"})
@@ -217,8 +227,17 @@ class PrometheusMetrics:
         status_code: int,
         duration: float,
         service: str = "openwatch",
-    ):
-        """Record HTTP request metrics"""
+    ) -> None:
+        """
+        Record HTTP request metrics.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE).
+            endpoint: API endpoint path.
+            status_code: HTTP response status code.
+            duration: Request duration in seconds.
+            service: Service name for labeling.
+        """
         http_requests_total.labels(method=method, endpoint=endpoint, status=str(status_code), service=service).inc()
 
         http_request_duration_seconds.labels(method=method, endpoint=endpoint, service=service).observe(duration)
@@ -229,9 +248,18 @@ class PrometheusMetrics:
         profile: str,
         framework: str,
         duration: Optional[float] = None,
-        rules_processed: Dict[str, int] = None,
-    ):
-        """Record SCAP scan metrics"""
+        rules_processed: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """
+        Record SCAP scan metrics.
+
+        Args:
+            status: Scan status (completed, failed, cancelled).
+            profile: SCAP profile used for the scan.
+            framework: Compliance framework (NIST, CIS, STIG).
+            duration: Scan duration in seconds.
+            rules_processed: Dictionary mapping rule status to count.
+        """
         scans_total.labels(status=status, profile=profile, framework=framework).inc()
 
         if duration is not None:
@@ -242,47 +270,98 @@ class PrometheusMetrics:
                 severity = rules_processed.get("severity", "medium")
                 scan_rules_processed.labels(status=rule_status, severity=severity).inc(count)
 
-    def update_compliance_score(self, host_id: str, framework: str, score: float):
-        """Update compliance score for a host"""
+    def update_compliance_score(self, host_id: str, framework: str, score: float) -> None:
+        """
+        Update compliance score for a host.
+
+        Args:
+            host_id: Host identifier.
+            framework: Compliance framework name.
+            score: Compliance score (0-100).
+        """
         compliance_score.labels(host_id=host_id, framework=framework).set(score)
 
-    def update_compliance_failures(self, host_id: str, framework: str, severity_counts: Dict[str, int]):
-        """Update compliance failure counts by severity"""
+    def update_compliance_failures(self, host_id: str, framework: str, severity_counts: Dict[str, int]) -> None:
+        """
+        Update compliance failure counts by severity.
+
+        Args:
+            host_id: Host identifier.
+            framework: Compliance framework name.
+            severity_counts: Dictionary mapping severity to failure count.
+        """
         for severity, count in severity_counts.items():
             compliance_rules_failed.labels(host_id=host_id, severity=severity, framework=framework).set(count)
 
-    def record_host_connectivity(self, result: str):
-        """Record host connectivity check result"""
+    def record_host_connectivity(self, result: str) -> None:
+        """
+        Record host connectivity check result.
+
+        Args:
+            result: Connectivity check result (success, failure, timeout).
+        """
         host_connectivity_checks.labels(result=result).inc()
 
-    def update_host_counts(self, status_counts: Dict[str, int]):
-        """Update host count metrics by status"""
+    def update_host_counts(self, status_counts: Dict[str, int]) -> None:
+        """
+        Update host count metrics by status.
+
+        Args:
+            status_counts: Dictionary mapping host status to count.
+        """
         for status, count in status_counts.items():
             hosts_total.labels(status=status).set(count)
 
-    def record_integration_call(self, target: str, endpoint: str, status: str, duration: float):
-        """Record integration call metrics"""
+    def record_integration_call(self, target: str, endpoint: str, status: str, duration: float) -> None:
+        """
+        Record integration call metrics.
+
+        Args:
+            target: Target service name.
+            endpoint: API endpoint called.
+            status: Call status (success, failure).
+            duration: Call duration in seconds.
+        """
         integration_calls_total.labels(target=target, endpoint=endpoint, status=status).inc()
 
         integration_call_duration_seconds.labels(target=target, endpoint=endpoint).observe(duration)
 
-    def record_remediation(self, status: str, severity: str, duration: Optional[float] = None):
-        """Record remediation metrics"""
+    def record_remediation(self, status: str, severity: str, duration: Optional[float] = None) -> None:
+        """
+        Record remediation metrics.
+
+        Args:
+            status: Remediation status (success, failure).
+            severity: Severity of remediated rules.
+            duration: Remediation duration in seconds.
+        """
         remediations_total.labels(status=status, severity=severity).inc()
 
         if duration is not None:
             remediation_duration_seconds.labels(severity=severity).observe(duration)
 
-    def record_security_event(self, event_type: str, severity: str = "medium"):
-        """Record security event"""
+    def record_security_event(self, event_type: str, severity: str = "medium") -> None:
+        """
+        Record security event.
+
+        Args:
+            event_type: Type of security event.
+            severity: Event severity (low, medium, high, critical).
+        """
         security_events_total.labels(event_type=event_type, severity=severity).inc()
 
-    def record_authentication_attempt(self, result: str, method: str = "jwt"):
-        """Record authentication attempt"""
+    def record_authentication_attempt(self, result: str, method: str = "jwt") -> None:
+        """
+        Record authentication attempt.
+
+        Args:
+            result: Authentication result (success, failure).
+            method: Authentication method (jwt, password, mfa).
+        """
         authentication_attempts_total.labels(result=result, method=method).inc()
 
-    def update_system_metrics(self):
-        """Update system resource metrics"""
+    def update_system_metrics(self) -> None:
+        """Update system resource metrics including CPU, memory, and disk usage."""
         try:
             # CPU usage
             cpu_percent = psutil.cpu_percent(interval=1)
@@ -308,10 +387,18 @@ class PrometheusMetrics:
         except Exception as e:
             logger.error(f"Error updating system metrics: {e}")
 
-    async def update_database_metrics(self, db: Session):
-        """Update database-related metrics"""
+    async def update_database_metrics(self, db: Session) -> None:
+        """
+        Update database-related metrics from PostgreSQL.
+
+        Queries pg_stat_activity to get the count of active database connections
+        and updates the corresponding Prometheus gauge.
+
+        Args:
+            db: SQLAlchemy database session for executing queries.
+        """
         try:
-            # Active connections
+            # Active connections from PostgreSQL system catalog
             result = db.execute(
                 text(
                     """
@@ -329,24 +416,54 @@ class PrometheusMetrics:
         except Exception as e:
             logger.error(f"Error updating database metrics: {e}")
 
-    def update_queue_metrics(self, queue_name: str, size: int):
-        """Update queue size metrics"""
+    def update_queue_metrics(self, queue_name: str, size: int) -> None:
+        """
+        Update queue size metrics for background task queues.
+
+        Args:
+            queue_name: Name of the queue (e.g., 'celery', 'scan_queue').
+            size: Current number of items in the queue.
+        """
         queue_size.labels(queue_name=queue_name).set(size)
 
-    def record_workflow_duration(self, workflow_type: str, duration: float):
-        """Record workflow duration"""
+    def record_workflow_duration(self, workflow_type: str, duration: float) -> None:
+        """
+        Record the duration of a completed workflow.
+
+        Args:
+            workflow_type: Type of workflow (e.g., 'scan', 'remediation', 'compliance_check').
+            duration: Workflow duration in seconds.
+        """
         workflow_duration_seconds.labels(workflow_type=workflow_type).observe(duration)
 
-    def set_active_scans(self, count: int):
-        """Set number of active scans"""
+    def set_active_scans(self, count: int) -> None:
+        """
+        Set the current number of active scans.
+
+        Args:
+            count: Number of scans currently in progress.
+        """
         scans_active.set(count)
 
-    def set_service_up(self, service: str, is_up: bool):
-        """Set service up status"""
+    def set_service_up(self, service: str, is_up: bool) -> None:
+        """
+        Set the up/down status of a service.
+
+        Args:
+            service: Name of the service being monitored.
+            is_up: True if the service is operational, False otherwise.
+        """
         service_up.labels(service=service).set(1 if is_up else 0)
 
-    def get_metrics(self) -> str:
-        """Get all metrics in Prometheus format"""
+    def get_metrics(self) -> Union[bytes, str]:
+        """
+        Get all metrics in Prometheus exposition format.
+
+        Updates system metrics before generating output to ensure fresh data.
+
+        Returns:
+            Prometheus-formatted metrics as bytes, or empty string on error.
+        """
         try:
             # Update system metrics before generating output
             self.update_system_metrics()

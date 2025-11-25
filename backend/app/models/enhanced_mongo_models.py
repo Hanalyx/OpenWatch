@@ -249,7 +249,8 @@ class UnifiedComplianceRule(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
 
     @validator("rule_id")
-    def validate_rule_id(cls, v):
+    def validate_rule_id(cls, v: str) -> str:
+        """Validate that rule_id meets format and length requirements."""
         if not v or len(v) < 3:
             raise ValueError("Rule ID must be at least 3 characters long")
         if not v.startswith("ow-"):
@@ -257,7 +258,8 @@ class UnifiedComplianceRule(Document):
         return v
 
     @validator("metadata")
-    def validate_metadata(cls, v):
+    def validate_metadata(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate that metadata contains required name field."""
         if not v.get("name"):
             raise ValueError("Metadata must contain a name")
         return v

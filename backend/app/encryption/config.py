@@ -103,8 +103,8 @@ class EncryptionConfig:
         """
         return self.salt_length + self.nonce_length + 16  # +16 for GCM tag
 
-    def __post_init__(self):
-        """Validate configuration on initialization"""
+    def __post_init__(self) -> None:
+        """Validate configuration on initialization."""
         self.validate()
 
 

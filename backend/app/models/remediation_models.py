@@ -126,8 +126,14 @@ class RemediationResult(Document):
             [("rule_id", 1), ("created_at", -1)],  # Composite index
         ]
 
-    def add_audit_entry(self, action: str, details: Optional[Dict[str, Any]] = None):
-        """Add entry to audit log."""
+    def add_audit_entry(self, action: str, details: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Add entry to audit log.
+
+        Args:
+            action: The action being logged.
+            details: Optional additional details about the action.
+        """
         entry = {
             "timestamp": datetime.utcnow(),
             "action": action,

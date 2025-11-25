@@ -5,7 +5,7 @@ PostgreSQL with TLS and encrypted connections
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -628,7 +628,7 @@ def get_db_session() -> Session:
     return SessionLocal()
 
 
-def get_encryption_service():
+def get_encryption_service() -> Callable[..., Any]:
     """
     Dependency for getting encryption service from FastAPI app state.
 
@@ -646,13 +646,16 @@ def get_encryption_service():
     Note:
         The encryption service is initialized in main.py lifespan and stored
         in app.state.encryption_service. This function retrieves it.
+
+    Returns:
+        A callable that accepts a Request and returns an EncryptionService.
     """
     from fastapi import Request
 
     # This will be called with request context by FastAPI
     # We need to use a callable that accepts the request
-    def _get_encryption_service(request: Request):
-        """Inner function that receives the request from FastAPI"""
+    def _get_encryption_service(request: Request) -> Any:
+        """Inner function that receives the request from FastAPI."""
         if not hasattr(request.app.state, "encryption_service"):
             # Fallback for testing or if lifespan hasn't run yet
             logger.warning(
@@ -670,8 +673,8 @@ def get_encryption_service():
     return _get_encryption_service
 
 
-def create_tables():
-    """Create database tables if they don't exist"""
+def create_tables() -> None:
+    """Create database tables if they don't exist."""
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
@@ -758,10 +761,20 @@ class DatabaseManager:
         resource_type: str,
         resource_id: str,
         details: str,
-        user_id: int = None,
+        user_id: Optional[int] = None,
         ip_address: str = "unknown",
-    ):
-        """Log audit event"""
+    ) -> None:
+        """
+        Log audit event to the database.
+
+        Args:
+            action: The action performed (CREATE, UPDATE, DELETE, etc.).
+            resource_type: The type of resource affected.
+            resource_id: The identifier of the resource.
+            details: Human-readable description of the action.
+            user_id: ID of the user who performed the action, if known.
+            ip_address: IP address of the request origin.
+        """
         audit_log = AuditLog(
             user_id=user_id,
             action=action,
@@ -775,8 +788,13 @@ class DatabaseManager:
 
 
 # Initialize database connection test
-async def init_database():
-    """Initialize database connection and verify FIPS compliance"""
+async def init_database() -> None:
+    """
+    Initialize database connection and verify FIPS compliance.
+
+    Performs connectivity test and creates tables if they don't exist.
+    Raises an exception if initialization fails.
+    """
     try:
         # Test connection
         healthy = check_database_health()

@@ -5,26 +5,26 @@ Shared utilities for XML processing across SCAP services
 
 import logging
 import re
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from lxml import etree
 
 logger = logging.getLogger(__name__)
 
 
-def extract_text_content(element) -> str:
+def extract_text_content(element: Any) -> str:
     """
-    Extract clean text content from XML element, handling HTML tags
+    Extract clean text content from XML element, handling HTML tags.
 
     This function was extracted from duplicate implementations in:
     - scap_scanner.py
     - scap_datastream_processor.py
 
     Args:
-        element: XML element to extract text from
+        element: XML element to extract text from (lxml Element or None).
 
     Returns:
-        str: Clean text content with normalized whitespace
+        Clean text content with normalized whitespace.
     """
     if element is None:
         return ""
@@ -38,19 +38,19 @@ def extract_text_content(element) -> str:
     return text
 
 
-def parse_oscap_info_basic(info_output: str) -> Dict:
+def parse_oscap_info_basic(info_output: str) -> Dict[str, str]:
     """
-    Basic oscap info command output parser
+    Basic oscap info command output parser.
 
     Extracts key-value pairs from oscap info output with basic normalization.
     For enhanced parsing with special case handling, use the specific
     implementations in scap_datastream_processor.py
 
     Args:
-        info_output: Raw output from oscap info command
+        info_output: Raw output from oscap info command.
 
     Returns:
-        Dict: Parsed key-value pairs with normalized keys
+        Parsed key-value pairs with normalized keys.
     """
     info = {}
     lines = info_output.split("\n")
@@ -78,17 +78,17 @@ SCAP_NAMESPACES = {
 }
 
 
-def safe_xml_find(root, xpath: str, namespaces: Optional[Dict] = None) -> Optional[any]:
+def safe_xml_find(root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None) -> Optional[Any]:
     """
-    Safe XML element finder with error handling
+    Safe XML element finder with error handling.
 
     Args:
-        root: XML root element
-        xpath: XPath expression
-        namespaces: Optional namespace dict (defaults to SCAP_NAMESPACES)
+        root: XML root element (lxml Element).
+        xpath: XPath expression to search for.
+        namespaces: Optional namespace dict (defaults to SCAP_NAMESPACES).
 
     Returns:
-        Element if found, None if not found or on error
+        Element if found, None if not found or on error.
     """
     try:
         if namespaces is None:
@@ -99,17 +99,17 @@ def safe_xml_find(root, xpath: str, namespaces: Optional[Dict] = None) -> Option
         return None
 
 
-def safe_xml_findall(root, xpath: str, namespaces: Optional[Dict] = None) -> list:
+def safe_xml_findall(root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None) -> List[Any]:
     """
-    Safe XML elements finder with error handling
+    Safe XML elements finder with error handling.
 
     Args:
-        root: XML root element
-        xpath: XPath expression
-        namespaces: Optional namespace dict (defaults to SCAP_NAMESPACES)
+        root: XML root element (lxml Element).
+        xpath: XPath expression to search for.
+        namespaces: Optional namespace dict (defaults to SCAP_NAMESPACES).
 
     Returns:
-        List of elements (empty list if none found or on error)
+        List of elements (empty list if none found or on error).
     """
     try:
         if namespaces is None:

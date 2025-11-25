@@ -78,8 +78,7 @@ repos:
           - '--no-strict-optional'
           - '--explicit-package-bases'
           # Disable common errors during gradual typing adoption
-          - '--disable-error-code=no-untyped-def'
-          - '--disable-error-code=type-arg'
+          # ENABLED: no-untyped-def, type-arg (2025-11-25)
           - '--disable-error-code=var-annotated'
           - '--disable-error-code=arg-type'
           - '--disable-error-code=attr-defined'
