@@ -50,25 +50,26 @@ repos:
           - '--extend-ignore=E203,W503,E501'
           - '--exclude=__pycache__,*.pyc,.git,venv,env'
 
-  # MyPy temporarily disabled - 290+ pre-existing type annotation issues across codebase
-  # TODO: Re-enable after codebase-wide type annotation cleanup
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.8.0
-  #   hooks:
-  #     - id: mypy
-  #       files: ^backend/
-  #       args:
-  #         - '--ignore-missing-imports'
-  #         - '--warn-redundant-casts'
-  #         - '--warn-unused-ignores'
-  #         - '--warn-unreachable'
-  #         - '--warn-return-any'
-  #         - '--no-strict-optional'
-  #         - '--explicit-package-bases'
-  #       additional_dependencies:
-  #         - 'types-redis'
-  #         - 'types-requests'
-  #         - 'sqlalchemy[mypy]'
+  # MyPy type checking for Python backend
+  # Note: Currently has 290+ pre-existing type annotation issues
+  # Run with SKIP=mypy if needed during transition period
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        files: ^backend/
+        args:
+          - '--ignore-missing-imports'
+          - '--warn-redundant-casts'
+          - '--warn-unused-ignores'
+          - '--warn-unreachable'
+          - '--warn-return-any'
+          - '--no-strict-optional'
+          - '--explicit-package-bases'
+        additional_dependencies:
+          - 'types-redis'
+          - 'types-requests'
+          - 'sqlalchemy[mypy]'
 
   # Security scanning
   # Note: Bandit configured to scan only staged files to avoid blocking on pre-existing issues
