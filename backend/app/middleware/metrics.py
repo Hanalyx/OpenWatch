@@ -257,8 +257,8 @@ class BackgroundMetricsUpdater:
         except Exception as e:
             logger.error(f"Error updating application metrics: {e}")
 
-    def stop_background_updates(self):
-        """Stop background metrics collection"""
+    def stop_background_updates(self) -> None:
+        """Stop background metrics collection."""
         self.is_running = False
 
 

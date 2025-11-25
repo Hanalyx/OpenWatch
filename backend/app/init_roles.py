@@ -184,8 +184,8 @@ def init_default_system_credentials(db: Session):
         raise
 
 
-async def initialize_rbac_system():
-    """Initialize the complete RBAC system including default credentials"""
+async def initialize_rbac_system() -> None:
+    """Initialize the complete RBAC system including default credentials."""
     try:
         # Ensure tables exist
         create_tables()

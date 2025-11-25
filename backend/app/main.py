@@ -6,13 +6,16 @@ Main application with comprehensive security middleware
 import asyncio
 import logging
 import time
+import types
 from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Callable, Dict, Optional
 
 import uvicorn
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from starlette.responses import Response
 
 # Import v1 endpoint routers (consolidated from v1/api.py)
 from .api.v1.endpoints import (
@@ -27,9 +30,12 @@ from .api.v1.endpoints import (
     scap_import,
     xccdf_api,
 )
+from .audit_db import log_security_event
 from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
 from .database import get_db
+from .middleware.metrics import PrometheusMiddleware, background_updater
+from .middleware.rate_limiting import get_rate_limiting_middleware
 from .routes import (
     adaptive_scheduler,
     api_keys,
@@ -66,8 +72,14 @@ from .routes import (
     webhooks,
 )
 from .routes.system_settings_unified import router as system_settings_router
+from .services.prometheus_metrics import get_metrics_instance
 
 # Import security routes only if available
+# Type declarations for optional modules
+automated_fixes: Optional[types.ModuleType]
+authorization: Optional[types.ModuleType]
+security_config: Optional[types.ModuleType]
+
 try:
     from .routes import automated_fixes
 except ImportError:
@@ -80,10 +92,6 @@ except ImportError:
     print("authorization/security_config not available")
     authorization = None
     security_config = None
-from .audit_db import log_security_event
-from .middleware.metrics import PrometheusMiddleware, background_updater
-from .middleware.rate_limiting import get_rate_limiting_middleware
-from .services.prometheus_metrics import get_metrics_instance
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -93,8 +101,8 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan management"""
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan management."""
     # Startup
     logger.info("Starting OpenWatch application...")
 
@@ -253,9 +261,9 @@ app.middleware("http")(rate_limiter)
 
 
 # Security Middleware
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    """Add FIPS-compliant security headers to all responses"""
+@app.middleware("http")  # type: ignore[misc]
+async def security_headers_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
+    """Add FIPS-compliant security headers to all responses."""
     response = await call_next(request)
 
     # Add security headers with development modifications
@@ -279,8 +287,8 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-def _log_audit_event(db, event_type: str, request: Request, response, client_ip: str):
-    """Helper function to log audit events to both file and database"""
+def _log_audit_event(db: Any, event_type: str, request: Request, response: Response, client_ip: str) -> None:
+    """Helper function to log audit events to both file and database."""
     details = f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
 
     # Log to file
@@ -290,9 +298,9 @@ def _log_audit_event(db, event_type: str, request: Request, response, client_ip:
     log_security_event(db=db, event_type=event_type, ip_address=client_ip, details=details)
 
 
-@app.middleware("http")
-async def audit_middleware(request: Request, call_next):
-    """Log security-relevant requests for audit purposes"""
+@app.middleware("http")  # type: ignore[misc]
+async def audit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
+    """Log security-relevant requests for audit purposes."""
     # Get client IP
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
@@ -331,9 +339,9 @@ async def audit_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def request_size_limit_middleware(request: Request, call_next):
-    """Enforce request size limits to prevent DoS attacks"""
+@app.middleware("http")  # type: ignore[misc]
+async def request_size_limit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
+    """Enforce request size limits to prevent DoS attacks."""
     max_size = settings.max_upload_size  # 100MB default
 
     # Check Content-Length header if present
@@ -350,9 +358,9 @@ async def request_size_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-@app.middleware("http")
-async def https_redirect_middleware(request: Request, call_next):
-    """Enforce HTTPS in production"""
+@app.middleware("http")  # type: ignore[misc]
+async def https_redirect_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
+    """Enforce HTTPS in production."""
     if settings.require_https and not settings.debug:
         if request.url.scheme != "https":
             https_url = request.url.replace(scheme="https")
@@ -395,9 +403,9 @@ app.add_middleware(PrometheusMiddleware, service_name="openwatch")
 
 
 # Health Check Endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for container orchestration"""
+@app.get("/health")  # type: ignore[misc]
+async def health_check() -> JSONResponse:
+    """Health check endpoint for container orchestration."""
     try:
         # Basic health checks
         health_status = {
@@ -408,7 +416,7 @@ async def health_check():
         }
 
         # Helper function for synchronous DB check
-        def check_database_sync():
+        def check_database_sync() -> tuple[bool, str]:
             db = None
             try:
                 from sqlalchemy import text
@@ -426,7 +434,7 @@ async def health_check():
                     db.close()
 
         # Helper function for synchronous Redis check
-        def check_redis_sync():
+        def check_redis_sync() -> tuple[bool, str]:
             redis_client = None
             try:
                 import urllib.parse
@@ -435,7 +443,7 @@ async def health_check():
 
                 parsed = urllib.parse.urlparse(settings.redis_url)
                 redis_client = redis.Redis(
-                    host=parsed.hostname,
+                    host=parsed.hostname or "localhost",
                     port=parsed.port or 6379,
                     password=parsed.password,
                     socket_timeout=5,
@@ -506,9 +514,9 @@ async def health_check():
 
 
 # Security Info Endpoint
-@app.get("/security-info")
-async def security_info(current_user: dict = Depends(require_admin)):
-    """Provide security configuration information (admin only)"""
+@app.get("/security-info")  # type: ignore[misc]
+async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -> JSONResponse:
+    """Provide security configuration information (admin only)."""
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -523,11 +531,9 @@ async def security_info(current_user: dict = Depends(require_admin)):
 
 
 # Prometheus Metrics Endpoint
-@app.get("/metrics")
-async def metrics():
-    """Prometheus metrics endpoint"""
-    from fastapi.responses import PlainTextResponse
-
+@app.get("/metrics")  # type: ignore[misc]
+async def metrics() -> PlainTextResponse:
+    """Prometheus metrics endpoint."""
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
@@ -607,9 +613,9 @@ if security_config:
 
 
 # Global Exception Handler
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Global exception handler for security and logging"""
+@app.exception_handler(Exception)  # type: ignore[misc]
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Global exception handler for security and logging."""
     client_ip = request.client.host
     if "x-forwarded-for" in request.headers:
         client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
