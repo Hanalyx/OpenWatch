@@ -23,7 +23,13 @@ logger = logging.getLogger(__name__)
 
 # Define ValidationError as a simple exception class
 class ValidationError(Exception):
-    def __init__(self, message, category=None, severity=None, context=None):
+    def __init__(
+        self,
+        message: str,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
         super().__init__(message)
         self.category = category
         self.severity = severity
@@ -79,7 +85,7 @@ class GroupValidationService:
         if not group:
             raise ValidationError(
                 message=f"Group {group_id} not found",
-                category=ErrorCategory.NOT_FOUND,
+                category=ErrorCategory.RESOURCE,
                 severity=ErrorSeverity.ERROR,
                 context={"group_id": group_id},
             )
@@ -88,12 +94,24 @@ class GroupValidationService:
         if not hosts:
             raise ValidationError(
                 message="No hosts found",
-                category=ErrorCategory.NOT_FOUND,
+                category=ErrorCategory.RESOURCE,
                 severity=ErrorSeverity.ERROR,
                 context={"host_ids": host_ids},
             )
 
-        results = {
+        # Create typed collections for result dict
+        compatible_hosts: List[Dict[str, Any]] = []
+        incompatible_hosts: List[Dict[str, Any]] = []
+        warnings_list: List[str] = []
+        suggestions_dict: Dict[str, Any] = {}
+        summary: Dict[str, Any] = {
+            "total_hosts": len(hosts),
+            "compatible_count": 0,
+            "incompatible_count": 0,
+            "compatibility_score": 0.0,
+        }
+
+        results: Dict[str, Any] = {
             "group": {
                 "id": group.id,
                 "name": group.name,
@@ -102,16 +120,11 @@ class GroupValidationService:
                 "compliance_framework": group.compliance_framework,
                 "scap_content_id": group.scap_content_id,
             },
-            "compatible": [],
-            "incompatible": [],
-            "warnings": [],
-            "suggestions": {},
-            "summary": {
-                "total_hosts": len(hosts),
-                "compatible_count": 0,
-                "incompatible_count": 0,
-                "compatibility_score": 0.0,
-            },
+            "compatible": compatible_hosts,
+            "incompatible": incompatible_hosts,
+            "warnings": warnings_list,
+            "suggestions": suggestions_dict,
+            "summary": summary,
         }
 
         # Check each host
@@ -130,26 +143,26 @@ class GroupValidationService:
             }
 
             if compatibility["is_compatible"]:
-                results["compatible"].append(host_info)
-                results["summary"]["compatible_count"] += 1
+                compatible_hosts.append(host_info)
+                summary["compatible_count"] += 1
             else:
                 host_info["reasons"] = compatibility["reasons"]
-                results["incompatible"].append(host_info)
-                results["summary"]["incompatible_count"] += 1
+                incompatible_hosts.append(host_info)
+                summary["incompatible_count"] += 1
 
                 # Generate suggestions for incompatible hosts
                 suggestions = self._generate_group_suggestions(host)
                 if suggestions:
-                    results["suggestions"][str(host.id)] = suggestions
+                    suggestions_dict[str(host.id)] = suggestions
 
             # Add warnings if any
             if compatibility.get("warnings"):
-                results["warnings"].extend(compatibility["warnings"])
+                warnings_list.extend(compatibility["warnings"])
 
         # Calculate overall compatibility score
         if hosts:
-            total_score = sum(h["compatibility_score"] for h in results["compatible"] + results["incompatible"])
-            results["summary"]["compatibility_score"] = total_score / len(hosts)
+            total_score = sum(h["compatibility_score"] for h in compatible_hosts + incompatible_hosts)
+            summary["compatibility_score"] = total_score / len(hosts)
 
         # Cache the results
         self._cache_compatibility_results(host_ids, group_id, results)
@@ -160,12 +173,17 @@ class GroupValidationService:
         self, host: Host, group: HostGroup, user_role: Optional[str] = None
     ) -> Dict[str, Any]:
         """Check compatibility between a host and a group"""
-        compatibility = {
+        # Create typed collections for compatibility dict
+        reasons: List[str] = []
+        compat_warnings: List[str] = []
+        details: Dict[str, Any] = {}
+
+        compatibility: Dict[str, Any] = {
             "is_compatible": True,
             "score": 100.0,
-            "reasons": [],
-            "warnings": [],
-            "details": {},
+            "reasons": reasons,
+            "warnings": compat_warnings,
+            "details": details,
         }
 
         # Detect OS information if not available
@@ -175,10 +193,10 @@ class GroupValidationService:
         # Check OS family compatibility
         if group.os_family:
             os_check = self._check_os_family_compatibility(host, group)
-            compatibility["details"]["os_family"] = os_check
+            details["os_family"] = os_check
             if not os_check["compatible"]:
                 compatibility["is_compatible"] = False
-                compatibility["reasons"].append(os_check["reason"])
+                reasons.append(os_check["reason"])
                 compatibility["score"] *= 0.0  # Complete mismatch
             else:
                 compatibility["score"] *= os_check["score"]
@@ -186,10 +204,10 @@ class GroupValidationService:
         # Check OS version compatibility
         if group.os_version_pattern:
             version_check = self._check_os_version_compatibility(host, group)
-            compatibility["details"]["os_version"] = version_check
+            details["os_version"] = version_check
             if not version_check["compatible"]:
                 compatibility["is_compatible"] = False
-                compatibility["reasons"].append(version_check["reason"])
+                reasons.append(version_check["reason"])
                 compatibility["score"] *= 0.2  # Severe penalty
             else:
                 compatibility["score"] *= version_check["score"]
@@ -197,18 +215,18 @@ class GroupValidationService:
         # Check architecture compatibility
         if group.architecture:
             arch_check = self._check_architecture_compatibility(host, group)
-            compatibility["details"]["architecture"] = arch_check
+            details["architecture"] = arch_check
             if not arch_check["compatible"]:
-                compatibility["warnings"].append(arch_check["reason"])
+                compat_warnings.append(arch_check["reason"])
                 compatibility["score"] *= 0.8  # Minor penalty
 
         # Check SCAP content compatibility
         if group.scap_content_id:
             scap_check = self._check_scap_content_compatibility(host, group)
-            compatibility["details"]["scap_content"] = scap_check
+            details["scap_content"] = scap_check
             if not scap_check["compatible"]:
                 compatibility["is_compatible"] = False
-                compatibility["reasons"].append(scap_check["reason"])
+                reasons.append(scap_check["reason"])
                 compatibility["score"] *= 0.1  # Severe penalty
             else:
                 compatibility["score"] *= scap_check["score"]
@@ -216,14 +234,14 @@ class GroupValidationService:
         # Apply custom validation rules if any
         if group.validation_rules:
             custom_check = self._apply_custom_validation_rules(host, group)
-            compatibility["details"]["custom_rules"] = custom_check
+            details["custom_rules"] = custom_check
             for rule_result in custom_check:
                 if rule_result["severity"] == "error" and not rule_result["passed"]:
                     compatibility["is_compatible"] = False
-                    compatibility["reasons"].append(rule_result["message"])
+                    reasons.append(rule_result["message"])
                     compatibility["score"] *= 0.5
                 elif rule_result["severity"] == "warning" and not rule_result["passed"]:
-                    compatibility["warnings"].append(rule_result["message"])
+                    compat_warnings.append(rule_result["message"])
                     compatibility["score"] *= 0.9
 
         return compatibility
@@ -284,7 +302,8 @@ class GroupValidationService:
         try:
             # Convert pattern to regex
             pattern = group.os_version_pattern.replace("*", ".*").replace("?", ".")
-            if re.match(f"^{pattern}$", host.os_version, re.IGNORECASE):
+            os_version_str = str(host.os_version) if host.os_version else ""
+            if re.match(f"^{pattern}$", os_version_str, re.IGNORECASE):
                 result["score"] = 1.0
             else:
                 result["compatible"] = False
@@ -404,22 +423,22 @@ class GroupValidationService:
 
     def _apply_custom_validation_rules(self, host: Host, group: HostGroup) -> List[Dict[str, Any]]:
         """Apply custom validation rules defined for the group"""
-        results = []
+        results: List[Dict[str, Any]] = []
 
         if not group.validation_rules:
             return results
 
         try:
-            rules = (
+            rules_data: List[Dict[str, Any]] = (
                 json.loads(group.validation_rules)
                 if isinstance(group.validation_rules, str)
-                else group.validation_rules
+                else list(group.validation_rules) if group.validation_rules else []
             )
         except Exception:
             logger.error(f"Failed to parse validation rules for group {group.id}")
             return results
 
-        for rule in rules:
+        for rule in rules_data:
             rule_result = {
                 "rule_name": rule.get("name", "Unknown"),
                 "passed": True,
@@ -440,8 +459,8 @@ class GroupValidationService:
                         rule_result["message"] = rule.get("error_message", f"Field {field} doesn't match pattern")
 
                 elif rule_type == "range":
-                    field = rule.get("field")
-                    value = getattr(host, field, None)
+                    field = rule.get("field", "")
+                    value = getattr(host, field, None) if field else None
                     min_val = rule.get("min")
                     max_val = rule.get("max")
 
@@ -493,13 +512,13 @@ class GroupValidationService:
 
         for family, pattern in os_family_patterns.items():
             if re.search(pattern, os_string):
-                host.os_family = family
+                host.os_family = family  # type: ignore[assignment]
                 break
 
         # Detect OS version
         version_match = re.search(r"(\d+\.?\d*)", os_string)
         if version_match:
-            host.os_version = version_match.group(1)
+            host.os_version = version_match.group(1)  # type: ignore[assignment]
 
         # Detect architecture if present
         arch_patterns = {
@@ -511,11 +530,11 @@ class GroupValidationService:
 
         for arch, pattern in arch_patterns.items():
             if re.search(pattern, os_string):
-                host.architecture = arch
+                host.architecture = arch  # type: ignore[assignment]
                 break
 
         # Update last OS detection time
-        host.last_os_detection = datetime.utcnow()
+        host.last_os_detection = datetime.utcnow()  # type: ignore[assignment]
 
         # Commit changes
         self.db.add(host)
@@ -572,83 +591,86 @@ class GroupValidationService:
         if not hosts:
             raise ValidationError(
                 message="No hosts found",
-                category=ErrorCategory.NOT_FOUND,
+                category=ErrorCategory.RESOURCE,
                 severity=ErrorSeverity.ERROR,
                 context={"host_ids": host_ids},
             )
 
         # Detect common characteristics
-        os_families = {}
-        os_versions = {}
-        architectures = {}
+        os_families: Dict[str, int] = {}
+        os_versions: Dict[str, int] = {}
+        architectures: Dict[str, int] = {}
 
         for host in hosts:
             if not host.os_family:
                 self._detect_host_os_info(host)
 
             if host.os_family:
-                os_families[host.os_family] = os_families.get(host.os_family, 0) + 1
+                os_family_key = str(host.os_family)
+                os_families[os_family_key] = os_families.get(os_family_key, 0) + 1
             if host.os_version:
-                os_versions[host.os_version] = os_versions.get(host.os_version, 0) + 1
+                os_version_key = str(host.os_version)
+                os_versions[os_version_key] = os_versions.get(os_version_key, 0) + 1
             if host.architecture:
-                architectures[host.architecture] = architectures.get(host.architecture, 0) + 1
+                arch_key = str(host.architecture)
+                architectures[arch_key] = architectures.get(arch_key, 0) + 1
 
         # Determine group characteristics
-        result = {
+        recommendations: Dict[str, Any] = {}
+        characteristics: Dict[str, Any] = {
+            "os_families": os_families,
+            "os_versions": os_versions,
+            "architectures": architectures,
+        }
+
+        result: Dict[str, Any] = {
             "hosts_analyzed": len(hosts),
-            "characteristics": {
-                "os_families": os_families,
-                "os_versions": os_versions,
-                "architectures": architectures,
-            },
-            "recommendations": {},
+            "characteristics": characteristics,
+            "recommendations": recommendations,
         }
 
         # Check if hosts are homogeneous
         if len(os_families) == 1:
             # Homogeneous OS family
             os_family = list(os_families.keys())[0]
-            result["recommendations"]["os_family"] = os_family
+            recommendations["os_family"] = os_family
 
             # Check version pattern
             if os_versions:
                 versions = list(os_versions.keys())
                 if len(versions) == 1:
-                    result["recommendations"]["os_version_pattern"] = versions[0]
+                    recommendations["os_version_pattern"] = versions[0]
                 else:
                     # Find common version pattern
                     common_prefix = self._find_common_version_pattern(versions)
                     if common_prefix:
-                        result["recommendations"]["os_version_pattern"] = f"{common_prefix}*"
+                        recommendations["os_version_pattern"] = f"{common_prefix}*"
 
             # Recommend SCAP content
-            scap_content = self._find_matching_scap_content(
-                os_family, result["recommendations"].get("os_version_pattern")
-            )
+            scap_content = self._find_matching_scap_content(os_family, recommendations.get("os_version_pattern"))
             if scap_content:
-                result["recommendations"]["scap_content"] = {
+                recommendations["scap_content"] = {
                     "id": scap_content.id,
                     "name": scap_content.name,
                     "compliance_framework": scap_content.compliance_framework,
                 }
         else:
             # Mixed OS families
-            result["warnings"] = [
-                f"Mixed OS families detected: {', '.join(os_families.keys())}",
-                "Consider creating separate groups for each OS family",
-            ]
-
-            # Suggest splitting into multiple groups
-            result["split_suggestions"] = []
+            split_suggestions: List[Dict[str, Any]] = []
             for os_family in os_families.keys():
                 family_hosts = [h for h in hosts if h.os_family == os_family]
-                result["split_suggestions"].append(
+                split_suggestions.append(
                     {
                         "os_family": os_family,
                         "host_count": len(family_hosts),
                         "suggested_name": f"{group_name} - {os_family}",
                     }
                 )
+            result["warnings"] = [
+                f"Mixed OS families detected: {', '.join(os_families.keys())}",
+                "Consider creating separate groups for each OS family",
+            ]
+            result["split_suggestions"] = split_suggestions
 
         return result
 
@@ -697,7 +719,7 @@ class GroupValidationService:
         if not group:
             raise ValidationError(
                 message=f"Group {group_id} not found",
-                category=ErrorCategory.NOT_FOUND,
+                category=ErrorCategory.RESOURCE,
                 severity=ErrorSeverity.ERROR,
                 context={"group_id": group_id},
             )
@@ -705,7 +727,18 @@ class GroupValidationService:
         # Get all hosts in the group
         memberships = self.db.query(HostGroupMembership).filter(HostGroupMembership.group_id == group_id).all()
 
-        report = {
+        # Create typed collections for type safety
+        hosts_list: List[Dict[str, Any]] = []
+        issues_list: List[str] = []
+        recommendations_list: List[Dict[str, Any]] = []
+        statistics: Dict[str, int] = {
+            "total_hosts": len(memberships),
+            "fully_compatible": 0,
+            "partially_compatible": 0,
+            "incompatible": 0,
+        }
+
+        report: Dict[str, Any] = {
             "group": {
                 "id": group.id,
                 "name": group.name,
@@ -714,15 +747,10 @@ class GroupValidationService:
                 "os_version_pattern": group.os_version_pattern,
                 "compliance_framework": group.compliance_framework,
             },
-            "statistics": {
-                "total_hosts": len(memberships),
-                "fully_compatible": 0,
-                "partially_compatible": 0,
-                "incompatible": 0,
-            },
-            "hosts": [],
-            "issues": [],
-            "recommendations": [],
+            "statistics": statistics,
+            "hosts": hosts_list,
+            "issues": issues_list,
+            "recommendations": recommendations_list,
         }
 
         # Check each host
@@ -743,31 +771,31 @@ class GroupValidationService:
                 "warnings": compatibility.get("warnings", []),
             }
 
-            report["hosts"].append(host_report)
+            hosts_list.append(host_report)
 
             # Update statistics
             if compatibility["score"] >= 95:
-                report["statistics"]["fully_compatible"] += 1
+                statistics["fully_compatible"] += 1
             elif compatibility["score"] >= 70:
-                report["statistics"]["partially_compatible"] += 1
+                statistics["partially_compatible"] += 1
             else:
-                report["statistics"]["incompatible"] += 1
+                statistics["incompatible"] += 1
 
             # Collect issues
-            report["issues"].extend(compatibility.get("reasons", []))
+            issues_list.extend(compatibility.get("reasons", []))
 
         # Generate recommendations
-        if report["statistics"]["incompatible"] > 0:
-            report["recommendations"].append(
+        if statistics["incompatible"] > 0:
+            recommendations_list.append(
                 {
                     "type": "warning",
-                    "message": f"{report['statistics']['incompatible']} hosts are incompatible with this group",
+                    "message": f"{statistics['incompatible']} hosts are incompatible with this group",
                     "action": "Review group requirements or remove incompatible hosts",
                 }
             )
 
-        if report["statistics"]["partially_compatible"] > report["statistics"]["fully_compatible"]:
-            report["recommendations"].append(
+        if statistics["partially_compatible"] > statistics["fully_compatible"]:
+            recommendations_list.append(
                 {
                     "type": "info",
                     "message": "Most hosts are only partially compatible",
