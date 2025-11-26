@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
@@ -40,7 +41,7 @@ except ImportError:
     logger.warning("Docker library not available. Container execution will use subprocess fallback.")
 
 
-def sanitize_for_log(value: any) -> str:
+def sanitize_for_log(value: Any) -> str:
     """Sanitize user input for safe logging"""
     if value is None:
         return "None"
@@ -52,11 +53,11 @@ def sanitize_for_log(value: any) -> str:
 class ContainerRuntimeClient:
     """Runtime-agnostic container client supporting Docker and Podman"""
 
-    def __init__(self, runtime="auto"):
+    def __init__(self, runtime: str = "auto") -> None:
         self.runtime = self._detect_runtime() if runtime == "auto" else runtime
         self.client = self._initialize_client()
 
-    def _detect_runtime(self):
+    def _detect_runtime(self) -> str:
         """Detect available container runtime"""
         # Check for Podman socket first (rootless)
         if os.path.exists(f"/run/user/{os.getuid()}/podman/podman.sock"):
@@ -71,7 +72,7 @@ class ContainerRuntimeClient:
             logger.warning("No container runtime detected, using Docker as fallback")
             return "docker"
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> Optional[Any]:
         """Initialize Docker client with runtime-specific configuration"""
         if not DOCKER_AVAILABLE:
             logger.warning("Docker library not available. Container runtime disabled.")
@@ -99,14 +100,21 @@ class ContainerRuntimeClient:
 class CommandSandbox:
     """Runtime-agnostic command sandbox for plugin execution"""
 
-    def __init__(self, runtime=None):
+    def __init__(self, runtime: Optional[str] = None) -> None:
         settings = get_settings()
         runtime = runtime or settings.container_runtime
         self.container_client = ContainerRuntimeClient(runtime)
         self.runtime = self.container_client.runtime
         logger.info(f"CommandSandbox initialized with {self.runtime} runtime")
 
-    async def run_command(self, command, cwd=None, env=None, timeout=300, capture_output=True):
+    async def run_command(
+        self,
+        command: Any,
+        cwd: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout: int = 300,
+        capture_output: bool = True,
+    ) -> "CommandResult":
         """Run command with containerized execution"""
         try:
             # If containerized execution is available, use it
@@ -121,14 +129,26 @@ class CommandSandbox:
             logger.error(f"Command execution failed: {e}")
             return CommandResult(returncode=1, stdout="", stderr=str(e))
 
-    async def _run_containerized(self, command, cwd, env, timeout):
+    async def _run_containerized(
+        self,
+        command: Any,
+        cwd: Optional[str],
+        env: Optional[Dict[str, str]],
+        timeout: int,
+    ) -> "CommandResult":
         """Run command in container (future implementation)"""
         # TODO: Implement full containerized execution
         # For now, log and fall back to subprocess
         logger.info(f"Containerized execution requested for: {command}")
         return await self._run_subprocess(command, cwd, env, timeout)
 
-    async def _run_subprocess(self, command, cwd, env, timeout):
+    async def _run_subprocess(
+        self,
+        command: Any,
+        cwd: Optional[str],
+        env: Optional[Dict[str, str]],
+        timeout: int,
+    ) -> "CommandResult":
         """Run command with subprocess (secure fallback)"""
         try:
             # Security: Use create_subprocess_exec to prevent command injection
@@ -158,7 +178,7 @@ class CommandSandbox:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
 
                 return CommandResult(
-                    returncode=process.returncode,
+                    returncode=process.returncode if process.returncode is not None else -1,
                     stdout=stdout.decode("utf-8") if stdout else "",
                     stderr=stderr.decode("utf-8") if stderr else "",
                 )
@@ -179,7 +199,7 @@ class CommandSandbox:
 class CommandResult:
     """Result of command execution"""
 
-    def __init__(self, returncode, stdout, stderr):
+    def __init__(self, returncode: int, stdout: str, stderr: str) -> None:
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
@@ -245,28 +265,33 @@ class ExecutionRequest(BaseModel):
 class SandboxEnvironment:
     """Containerized sandbox environment for secure command execution"""
 
-    def __init__(self, container_image: str = "ubuntu:22.04"):
+    def __init__(self, container_image: str = "ubuntu:22.04") -> None:
         self.container_image = container_image
         if DOCKER_AVAILABLE:
-            self.container_client = ContainerRuntimeClient()
+            self.container_client: Optional[ContainerRuntimeClient] = ContainerRuntimeClient()
             self.docker_client = self.container_client.client
         else:
             self.container_client = None
             self.docker_client = None
-        self.container = None
+        self.container: Optional[Any] = None
         self.sandbox_id = str(uuid.uuid4())
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "SandboxEnvironment":
         """Async context manager entry - create sandbox"""
         await self._create_sandbox()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self, exc_type: Optional[type], exc_val: Optional[BaseException], exc_tb: Optional[Any]
+    ) -> None:
         """Async context manager exit - cleanup sandbox"""
         await self._cleanup_sandbox()
 
-    async def _create_sandbox(self):
+    async def _create_sandbox(self) -> None:
         """Create secure containerized environment"""
+        if not self.docker_client:
+            raise RuntimeError("Docker client not initialized")
+
         try:
             # Create container with security constraints
             self.container = self.docker_client.containers.run(
@@ -290,7 +315,7 @@ class SandboxEnvironment:
             await asyncio.sleep(1)
 
             # Install basic tools in sandbox
-            await self._setup_sandbox_tools()
+            self._setup_sandbox_tools()
 
             logger.info(f"Created secure sandbox: {self.sandbox_id}")
 
@@ -298,8 +323,12 @@ class SandboxEnvironment:
             logger.error(f"Failed to create sandbox {self.sandbox_id}: {e}")
             raise
 
-    def _setup_sandbox_tools(self):
+    def _setup_sandbox_tools(self) -> None:
         """Install essential tools in sandbox"""
+        if not self.container:
+            logger.warning("Container not initialized, skipping tools setup")
+            return
+
         try:
             # Update package lists
             result = self.container.exec_run("apt-get update -qq")
@@ -343,7 +372,7 @@ class SandboxEnvironment:
             logger.error(f"Command execution failed in sandbox {self.sandbox_id}: {e}")
             raise
 
-    def _cleanup_sandbox(self):
+    async def _cleanup_sandbox(self) -> None:
         """Clean up sandbox container"""
         try:
             if self.container:
@@ -356,16 +385,21 @@ class SandboxEnvironment:
 class CommandSignatureService:
     """Cryptographic signature service for command verification"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Use crypto functions directly instead of service class
         self.signature_algorithm = hashes.SHA256()
 
-    def sign_command(self, command: SecureCommand, private_key_path: str) -> str:
+    def sign_command(self, command: "SecureCommand", private_key_path: str) -> str:
         """Generate cryptographic signature for command"""
         try:
             # Load private key
             with open(private_key_path, "rb") as f:
-                private_key = serialization.load_pem_private_key(f.read(), password=None)
+                loaded_key = serialization.load_pem_private_key(f.read(), password=None)
+
+            # Verify it's an RSA key (required for PSS padding)
+            if not isinstance(loaded_key, RSAPrivateKey):
+                raise ValueError("Only RSA private keys are supported for command signing")
+            private_key: RSAPrivateKey = loaded_key
 
             # Create command payload for signing
             payload = {
@@ -394,12 +428,17 @@ class CommandSignatureService:
             logger.error(f"Failed to sign command {command.command_id}: {e}")
             raise
 
-    def verify_command(self, command: SecureCommand, signature: str, public_key_path: str) -> bool:
+    def verify_command(self, command: "SecureCommand", signature: str, public_key_path: str) -> bool:
         """Verify cryptographic signature for command"""
         try:
             # Load public key
             with open(public_key_path, "rb") as f:
-                public_key = serialization.load_pem_public_key(f.read())
+                loaded_key = serialization.load_pem_public_key(f.read())
+
+            # Verify it's an RSA key (required for PSS padding)
+            if not isinstance(loaded_key, RSAPublicKey):
+                raise ValueError("Only RSA public keys are supported for command verification")
+            public_key: RSAPublicKey = loaded_key
 
             # Recreate command payload
             payload = {
@@ -434,13 +473,13 @@ class CommandSignatureService:
 class CommandSandboxService:
     """Main service for secure command sandboxing"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.signature_service = CommandSignatureService()
-        self.allowed_commands: Dict[str, SecureCommand] = {}
-        self.execution_requests: Dict[str, ExecutionRequest] = {}
+        self.allowed_commands: Dict[str, "SecureCommand"] = {}
+        self.execution_requests: Dict[str, "ExecutionRequest"] = {}
         self._load_allowed_commands()
 
-    def _load_allowed_commands(self):
+    def _load_allowed_commands(self) -> None:
         """Load pre-approved secure commands"""
         # Define secure command templates with strict parameter validation
         commands = [
@@ -601,9 +640,7 @@ class CommandSandboxService:
 
             # Execute in sandbox
             async with SandboxEnvironment() as sandbox:
-                exit_code, stdout, stderr = await sandbox.execute_command(
-                    command_str, timeout=command.max_execution_time
-                )
+                exit_code, stdout, stderr = sandbox.execute_command(command_str, timeout=command.max_execution_time)
 
                 request.exit_code = exit_code
                 request.output = stdout
@@ -643,7 +680,7 @@ class CommandSandboxService:
 
             # Execute rollback in sandbox
             async with SandboxEnvironment() as sandbox:
-                exit_code, _, _ = await sandbox.execute_command(request.rollback_command, timeout=300)
+                exit_code, _, _ = sandbox.execute_command(request.rollback_command, timeout=300)
 
                 if exit_code == 0:
                     request.status = ExecutionStatus.ROLLED_BACK
