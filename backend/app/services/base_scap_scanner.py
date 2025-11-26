@@ -12,7 +12,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import paramiko
 from paramiko.ssh_exception import SSHException
@@ -59,12 +59,14 @@ class SCAPConnectionManager:
 
         # Use configurable SSH host key policy instead of hardcoded RejectPolicy
         ssh_config_service = SSHConfigService()
-        ssh_config_service.configure_ssh_client(ssh, host_ip)
+        ssh_config_service.configure_ssh_client(ssh, host_ip or "")
 
         return ssh
 
     @classmethod
-    def test_connection(cls, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
+    def test_connection(
+        cls, hostname: str, port: int, username: str, auth_method: str, credential: str
+    ) -> Dict[str, Any]:
         """Test SSH connection with comprehensive validation and SCAP availability check"""
         try:
             logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
@@ -134,7 +136,7 @@ class SCAPContentValidator:
     """Handles SCAP content validation and profile extraction"""
 
     @staticmethod
-    def validate_content(content_path: str) -> Dict:
+    def validate_content(content_path: str) -> Dict[str, Any]:
         """Validate SCAP content file and extract metadata"""
         try:
             if not os.path.exists(content_path):
@@ -168,7 +170,7 @@ class SCAPContentValidator:
             raise SCAPBaseError(f"Content validation failed: {str(e)}")
 
     @staticmethod
-    def extract_profiles(content_path: str) -> List[Dict]:
+    def extract_profiles(content_path: str) -> List[Dict[str, Any]]:
         """Extract available profiles from SCAP content"""
         try:
             if not os.path.exists(content_path):
@@ -196,7 +198,7 @@ class SCAPContentValidator:
             raise SCAPBaseError(f"Profile extraction failed: {str(e)}")
 
     @staticmethod
-    def _parse_oscap_info(info_output: str) -> Dict:
+    def _parse_oscap_info(info_output: str) -> Dict[str, Any]:
         """Parse oscap info command output"""
         info = {}
         lines = info_output.split("\n")
@@ -212,7 +214,7 @@ class SCAPContentValidator:
         return info
 
     @staticmethod
-    def _parse_profiles(profiles_output: str) -> List[Dict]:
+    def _parse_profiles(profiles_output: str) -> List[Dict[str, Any]]:
         """Parse profiles from oscap info --profiles output"""
         profiles = []
         lines = profiles_output.split("\n")
@@ -248,7 +250,7 @@ class BaseSCAPScanner(ABC):
     and result processing.
     """
 
-    def __init__(self, content_dir: str = None, results_dir: str = None):
+    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None) -> None:
         # Use provided paths or fall back to configuration
         content_path = content_dir or settings.scap_content_dir
         results_path = results_dir or settings.scan_results_dir
@@ -269,15 +271,17 @@ class BaseSCAPScanner(ABC):
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPBaseError(f"Directory creation failed: {str(e)}")
 
-    def validate_scap_content(self, content_path: str) -> Dict:
+    def validate_scap_content(self, content_path: str) -> Dict[str, Any]:
         """Validate SCAP content file - delegates to content validator"""
         return self.content_validator.validate_content(content_path)
 
-    def extract_profiles(self, content_path: str) -> List[Dict]:
+    def extract_profiles(self, content_path: str) -> List[Dict[str, Any]]:
         """Extract profiles from SCAP content - delegates to content validator"""
         return self.content_validator.extract_profiles(content_path)
 
-    def test_ssh_connection(self, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
+    def test_ssh_connection(
+        self, hostname: str, port: int, username: str, auth_method: str, credential: str
+    ) -> Dict[str, Any]:
         """Test SSH connection - delegates to connection manager"""
         return self.connection_manager.test_connection(hostname, port, username, auth_method, credential)
 
@@ -302,7 +306,7 @@ class BaseSCAPScanner(ABC):
         html_report: Path,
         arf_result: Path,
         content_path: str,
-        rule_id: str = None,
+        rule_id: Optional[str] = None,
     ) -> List[str]:
         """Build standardized oscap command with optional rule-specific scanning"""
         cmd = [
@@ -328,7 +332,9 @@ class BaseSCAPScanner(ABC):
         return cmd
 
     @abstractmethod
-    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
+    def execute_local_scan(
+        self, content_path: str, profile_id: str, scan_id: str, rule_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Execute local SCAP scan - must be implemented by subclasses"""
 
     @abstractmethod
@@ -342,22 +348,24 @@ class BaseSCAPScanner(ABC):
         content_path: str,
         profile_id: str,
         scan_id: str,
-        rule_id: str = None,
-    ) -> Dict:
+        rule_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute remote SCAP scan - must be implemented by subclasses"""
 
     def get_system_info(
         self,
-        hostname: str = None,
+        hostname: Optional[str] = None,
         port: int = 22,
-        username: str = None,
-        auth_method: str = None,
-        credential: str = None,
-    ) -> Dict:
+        username: Optional[str] = None,
+        auth_method: Optional[str] = None,
+        credential: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Get system information from local or remote host"""
         try:
             if hostname:
-                # Remote system info
+                # Remote system info - validate required parameters
+                if not username or not auth_method or not credential:
+                    return {"error": "Remote system info requires username, auth_method, and credential"}
                 return self._get_remote_system_info(hostname, port, username, auth_method, credential)
             else:
                 # Local system info
@@ -367,7 +375,7 @@ class BaseSCAPScanner(ABC):
             logger.error(f"Error getting system info: {e}")
             return {"error": str(e)}
 
-    def _get_local_system_info(self) -> Dict:
+    def _get_local_system_info(self) -> Dict[str, Any]:
         """Get local system information"""
         try:
             # Get OS info
@@ -399,7 +407,7 @@ class BaseSCAPScanner(ABC):
 
     def _get_remote_system_info(
         self, hostname: str, port: int, username: str, auth_method: str, credential: str
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Get remote system information via SSH"""
         try:
             ssh = self.connection_manager.create_ssh_client(hostname)
@@ -429,20 +437,20 @@ class BaseSCAPScanner(ABC):
                 "cpu_info": "nproc",
             }
 
-            results = {}
-            for key, cmd in commands.items():
+            results: Dict[str, str] = {}
+            for cmd_key, cmd in commands.items():
                 stdin, stdout, stderr = ssh.exec_command(cmd)
                 output = stdout.read().decode().strip()
-                results[key] = output
+                results[cmd_key] = output
 
             ssh.close()
 
             # Parse OS release info
-            os_info = {}
+            os_info: Dict[str, str] = {}
             for line in results.get("os_release", "").split("\n"):
                 if "=" in line:
-                    key, value = line.split("=", 1)
-                    os_info[key] = value.strip('"')
+                    info_key, info_value = line.split("=", 1)
+                    os_info[info_key] = info_value.strip('"')
 
             return {
                 "hostname": results.get("hostname", hostname),
