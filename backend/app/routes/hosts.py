@@ -5,7 +5,7 @@ Host Management Routes
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -79,7 +79,7 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
 
 
-class Host(BaseModel):
+class Host(BaseModel):  # type: ignore[misc]
     id: Optional[str] = None
     hostname: str
     ip_address: str
@@ -142,7 +142,7 @@ class Host(BaseModel):
     group_color: Optional[str] = None
 
 
-class HostCreate(BaseModel):
+class HostCreate(BaseModel):  # type: ignore[misc]
     hostname: str
     ip_address: str
     display_name: Optional[str] = None
@@ -157,7 +157,7 @@ class HostCreate(BaseModel):
     owner: Optional[str] = None
 
 
-class HostUpdate(BaseModel):
+class HostUpdate(BaseModel):  # type: ignore[misc]
     hostname: Optional[str] = None
     ip_address: Optional[str] = None
     display_name: Optional[str] = None
@@ -173,8 +173,11 @@ class HostUpdate(BaseModel):
     description: Optional[str] = None  # Allow description updates
 
 
-@router.post("/validate-credentials")
-async def validate_credentials(validation_data: dict, current_user: dict = Depends(get_current_user)):
+@router.post("/validate-credentials")  # type: ignore[misc]
+async def validate_credentials(
+    validation_data: Dict[str, Any],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Validate SSH credentials without creating a host.
 
@@ -262,8 +265,11 @@ async def validate_credentials(validation_data: dict, current_user: dict = Depen
         )
 
 
-@router.get("/", response_model=List[Host])
-async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/", response_model=List[Host])  # type: ignore[misc]
+async def list_hosts(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Host]:
     """List all managed hosts"""
     try:
         # Try to get hosts from database with latest scan information and group details
@@ -286,7 +292,8 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
                    sr.severity_high_passed, sr.severity_high_failed,
                    sr.severity_medium_passed, sr.severity_medium_failed,
                    sr.severity_low_passed, sr.severity_low_failed,
-                   hg.id as group_id, hg.name as group_name, hg.description as group_description, hg.color as group_color
+                   hg.id as group_id, hg.name as group_name,
+                   hg.description as group_description, hg.color as group_color
             FROM hosts h
             LEFT JOIN LATERAL (
                 SELECT s2.id, s2.name, s2.status, s2.progress, s2.started_at, s2.completed_at
@@ -391,12 +398,12 @@ async def list_hosts(db: Session = Depends(get_db), current_user: dict = Depends
         )
 
 
-@router.post("/", response_model=Host)
+@router.post("/", response_model=Host)  # type: ignore[misc]
 async def create_host(
     host: HostCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Host:
     """Add a new host to management"""
     try:
         # Insert into database
@@ -415,8 +422,8 @@ async def create_host(
         # Validate and prepare credentials (if provided)
         credential_info = credential_handler.validate_and_prepare_credential(
             hostname=host.hostname,
-            auth_method=host.auth_method,
-            username=host.username,
+            auth_method=host.auth_method or "ssh_key",
+            username=host.username or "",
             password=host.password,
             ssh_key=host.ssh_key,
             host_id=host_uuid,
@@ -466,8 +473,11 @@ async def create_host(
         # Phase 2: Store credential in unified_credentials using service
         if credential_info:
             # Get user UUID for audit trail (QueryBuilder for consistent parameterization)
-            user_query = QueryBuilder("users").select(["id"]).where("id = :user_id")
-            user_id_result = db.execute(text(user_query.query), {"user_id": current_user.get("id")})
+            user_query_builder = (
+                QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
+            )
+            user_query, user_params = user_query_builder.build()
+            user_id_result = db.execute(text(user_query), user_params)
             user_row = user_id_result.fetchone()
             user_uuid = str(user_row[0]) if user_row else None
 
@@ -502,12 +512,12 @@ async def create_host(
         )
 
 
-@router.get("/{host_id}", response_model=Host)
+@router.get("/{host_id}", response_model=Host)  # type: ignore[misc]
 async def get_host(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Host:
     """Get host details by ID"""
     try:
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
@@ -579,43 +589,43 @@ async def get_host(
         )
 
 
-@router.put("/{host_id}", response_model=Host)
+@router.put("/{host_id}", response_model=Host)  # type: ignore[misc]
 async def update_host(
     host_id: str,
     host_update: HostUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Host:
     """Update host information"""
     try:
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
         # Verify host exists before updating (QueryBuilder for parameterization)
-        check_query = QueryBuilder("hosts").select(["id"]).where("id = :id")
-        result = db.execute(text(check_query.query), {"id": host_uuid})
+        check_query_builder = QueryBuilder("hosts").select("id").where("id = :id", host_uuid, "id")
+        check_query, check_params = check_query_builder.build()
+        result = db.execute(text(check_query), check_params)
 
         if not result.fetchone():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Get current host data for partial update logic
-        current_host_query = (
+        current_host_builder = (
             QueryBuilder("hosts")
             .select(
-                [
-                    "hostname",
-                    "ip_address",
-                    "display_name",
-                    "operating_system",
-                    "port",
-                    "username",
-                    "auth_method",
-                    "description",
-                ]
+                "hostname",
+                "ip_address",
+                "display_name",
+                "operating_system",
+                "port",
+                "username",
+                "auth_method",
+                "description",
             )
-            .where("id = :id")
+            .where("id = :id", host_uuid, "id")
         )
-        current_host_result = db.execute(text(current_host_query.query), {"id": host_uuid})
+        current_host_query, current_host_params = current_host_builder.build()
+        current_host_result = db.execute(text(current_host_query), current_host_params)
 
         current_host = current_host_result.fetchone()
         if not current_host:
@@ -643,7 +653,7 @@ async def update_host(
                 get_auth_service,
             )
 
-            auth_service = get_auth_service(db)
+            auth_service = get_auth_service(db)  # type: ignore[call-arg]
 
             if host_update.auth_method == "system_default":
                 # Delete host-specific credentials when switching to system default
@@ -698,8 +708,11 @@ async def update_host(
                     existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
 
                     # Get user UUID for created_by field (QueryBuilder for parameterization)
-                    user_query = QueryBuilder("users").select(["id"]).where("id = :user_id")
-                    user_id_result = db.execute(text(user_query.query), {"user_id": current_user.get("id")})
+                    user_query_builder = (
+                        QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
+                    )
+                    user_query, user_params = user_query_builder.build()
+                    user_id_result = db.execute(text(user_query), user_params)
                     user_row = user_id_result.fetchone()
                     user_uuid = str(user_row[0]) if user_row else None
 
@@ -713,7 +726,7 @@ async def update_host(
                     cred_id = auth_service.store_credential(
                         credential_data=credential_data,
                         metadata=metadata,
-                        created_by=user_uuid,
+                        created_by=user_uuid or "",
                     )
                     logger.info(f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})")
 
@@ -771,33 +784,32 @@ async def update_host(
         db.commit()
 
         # Retrieve updated host with group information for response
-        select_query = (
+        select_query_builder = (
             QueryBuilder("hosts h")
             .select(
-                [
-                    "h.id",
-                    "h.hostname",
-                    "h.ip_address",
-                    "h.display_name",
-                    "h.operating_system",
-                    "h.status",
-                    "h.port",
-                    "h.username",
-                    "h.auth_method",
-                    "h.created_at",
-                    "h.updated_at",
-                    "h.description",
-                    "hg.id as group_id",
-                    "hg.name as group_name",
-                    "hg.description as group_description",
-                    "hg.color as group_color",
-                ]
+                "h.id",
+                "h.hostname",
+                "h.ip_address",
+                "h.display_name",
+                "h.operating_system",
+                "h.status",
+                "h.port",
+                "h.username",
+                "h.auth_method",
+                "h.created_at",
+                "h.updated_at",
+                "h.description",
+                "hg.id as group_id",
+                "hg.name as group_name",
+                "hg.description as group_description",
+                "hg.color as group_color",
             )
-            .join("LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id")
-            .join("LEFT JOIN host_groups hg ON hg.id = hgm.group_id")
-            .where("h.id = :id")
+            .join("host_group_memberships hgm", "hgm.host_id = h.id", "LEFT")
+            .join("host_groups hg", "hg.id = hgm.group_id", "LEFT")
+            .where("h.id = :id", host_uuid, "id")
         )
-        result = db.execute(text(select_query.query), {"id": host_uuid})
+        select_query, select_params = select_query_builder.build()
+        result = db.execute(text(select_query), select_params)
 
         row = result.fetchone()
         updated_host = Host(
@@ -836,27 +848,31 @@ async def update_host(
         )
 
 
-@router.delete("/{host_id}")
+@router.delete("/{host_id}")  # type: ignore[misc]
 async def delete_host(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Remove host from management"""
     try:
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
         # Verify host exists before deleting (QueryBuilder for parameterization)
-        check_query = QueryBuilder("hosts").select(["id"]).where("id = :id")
-        result = db.execute(text(check_query.query), {"id": host_uuid})
+        check_query_builder = QueryBuilder("hosts").select("id").where("id = :id", host_uuid, "id")
+        check_query, check_params = check_query_builder.build()
+        result = db.execute(text(check_query), check_params)
 
         if not result.fetchone():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
         # Check if host has scans (for cascade delete)
-        count_query = QueryBuilder("scans").select(["COUNT(*) as count"]).where("host_id = :host_id")
-        scan_result = db.execute(text(count_query.query), {"host_id": host_uuid})
+        count_query_builder = (
+            QueryBuilder("scans").select("COUNT(*) as count").where("host_id = :host_id", host_uuid, "host_id")
+        )
+        count_query, count_params = count_query_builder.build()
+        scan_result = db.execute(text(count_query), count_params)
 
         scan_count = scan_result.fetchone().count
         if scan_count > 0:
@@ -908,20 +924,23 @@ async def delete_host(
         )
 
 
-@router.delete("/{host_id}/ssh-key")
+@router.delete("/{host_id}/ssh-key")  # type: ignore[misc]
 async def delete_host_ssh_key(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Delete SSH key from host"""
     try:
         # OW-REFACTOR-001C: Use centralized UUID validation (eliminates duplication)
         host_uuid = validate_host_uuid(host_id)
 
         # Verify host exists and has SSH key to delete
-        select_query = QueryBuilder("hosts").select(["id", "auth_method", "ssh_key_fingerprint"]).where("id = :id")
-        result = db.execute(text(select_query.query), {"id": host_uuid})
+        select_query_builder = (
+            QueryBuilder("hosts").select("id", "auth_method", "ssh_key_fingerprint").where("id = :id", host_uuid, "id")
+        )
+        select_query, select_params = select_query_builder.build()
+        result = db.execute(text(select_query), select_params)
 
         row = result.fetchone()
         if not row:
@@ -934,20 +953,20 @@ async def delete_host_ssh_key(
             )
 
         # Clear SSH key fields (set to NULL)
-        update_query = (
-            QueryBuilder("hosts")
-            .update(
-                {
-                    "ssh_key_fingerprint": None,
-                    "ssh_key_type": None,
-                    "ssh_key_bits": None,
-                    "ssh_key_comment": None,
-                    "updated_at": datetime.utcnow(),
-                }
-            )
-            .where("id = :id")
+        # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
+        # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
+        update_query = text(
+            """
+            UPDATE hosts
+            SET ssh_key_fingerprint = NULL,
+                ssh_key_type = NULL,
+                ssh_key_bits = NULL,
+                ssh_key_comment = NULL,
+                updated_at = :updated_at
+            WHERE id = :id
+        """
         )
-        db.execute(text(update_query.query), {"id": host_uuid, **update_query.params})
+        db.execute(update_query, {"id": host_uuid, "updated_at": datetime.utcnow()})
 
         db.commit()
 
@@ -965,10 +984,10 @@ async def delete_host_ssh_key(
         )
 
 
-@router.get("/capabilities")
+@router.get("/capabilities")  # type: ignore[misc]
 async def get_host_management_capabilities(
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get host management capabilities
 
@@ -1001,8 +1020,10 @@ async def get_host_management_capabilities(
     }
 
 
-@router.get("/summary")
-async def get_hosts_summary(current_user: dict = Depends(get_current_user)):
+@router.get("/summary")  # type: ignore[misc]
+async def get_hosts_summary(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get summary statistics for host management
 

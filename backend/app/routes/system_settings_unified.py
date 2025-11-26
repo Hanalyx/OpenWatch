@@ -6,7 +6,7 @@ Updated to use the unified credentials system while maintaining API compatibilit
 import hashlib
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/system", tags=["System Settings"])
 
 
 # Pydantic models (keeping same interface for frontend compatibility)
-class SystemCredentialsBase(BaseModel):
+class SystemCredentialsBase(BaseModel):  # type: ignore[misc]
     name: str
     description: Optional[str] = None
     username: str
@@ -41,7 +41,7 @@ class SystemCredentialsCreate(SystemCredentialsBase):
     private_key_passphrase: Optional[str] = None
 
 
-class SystemCredentialsUpdate(BaseModel):
+class SystemCredentialsUpdate(BaseModel):  # type: ignore[misc]
     name: Optional[str] = None
     description: Optional[str] = None
     username: Optional[str] = None
@@ -65,7 +65,7 @@ class SystemCredentialsResponse(SystemCredentialsBase):
 
 
 # ID Mapping utilities for frontend compatibility
-def uuid_to_int(uuid_str) -> int:
+def uuid_to_int(uuid_str: Any) -> int:
     """Convert UUID to deterministic integer for frontend compatibility"""
     # Convert UUID object to string if needed
     if hasattr(uuid_str, "__str__"):
@@ -88,15 +88,17 @@ def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
 
     for row in result:
         if uuid_to_int(row.id) == target_int:
-            return row.id
+            return str(row.id)
     return None
 
 
-@router.get("/credentials", response_model=List[SystemCredentialsResponse])
+@router.get("/credentials", response_model=List[SystemCredentialsResponse])  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def list_system_credentials(
-    request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[SystemCredentialsResponse]:
     """List all system credentials using unified credentials system"""
     try:
         encryption_service: EncryptionService = request.app.state.encryption_service
@@ -139,14 +141,14 @@ async def list_system_credentials(
         )
 
 
-@router.post("/credentials", response_model=SystemCredentialsResponse)
+@router.post("/credentials", response_model=SystemCredentialsResponse)  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def create_system_credential(
     request: Request,
     credential: SystemCredentialsCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SystemCredentialsResponse:
     """Create new system credential using unified credentials system"""
     try:
         encryption_service: EncryptionService = request.app.state.encryption_service
@@ -232,7 +234,7 @@ async def create_system_credential(
             updated_at=current_time,
             ssh_key_fingerprint=ssh_metadata.get("fingerprint"),
             ssh_key_type=ssh_metadata.get("key_type"),
-            ssh_key_bits=(int(ssh_metadata.get("key_bits")) if ssh_metadata.get("key_bits") else None),
+            ssh_key_bits=(int(str(ssh_metadata.get("key_bits"))) if ssh_metadata.get("key_bits") else None),
             ssh_key_comment=ssh_metadata.get("key_comment"),
         )
 
@@ -253,14 +255,14 @@ async def create_system_credential(
         )
 
 
-@router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
+@router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_system_credential(
     request: Request,
     credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SystemCredentialsResponse:
     """Get specific system credential by ID"""
     try:
         # Convert integer ID from frontend to UUID
@@ -311,11 +313,13 @@ async def get_system_credential(
         )
 
 
-@router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])
+@router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_default_system_credential(
-    request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)
-):
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[SystemCredentialsResponse]:
     """Get default system credential"""
     try:
         encryption_service: EncryptionService = request.app.state.encryption_service
@@ -353,15 +357,15 @@ async def get_default_system_credential(
         )
 
 
-@router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
+@router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def update_system_credential(
     request: Request,
     credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     credential_update: SystemCredentialsUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SystemCredentialsResponse:
     """Update system credential (Note: Currently creates new due to unified credentials architecture)"""
     try:
         # Convert integer ID from frontend to UUID
@@ -514,14 +518,14 @@ async def update_system_credential(
         )
 
 
-@router.delete("/credentials/{credential_id}")
+@router.delete("/credentials/{credential_id}")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credential(
     request: Request,
     credential_id: str,  # Frontend sends integer ID, need to convert to UUID
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Delete system credential"""
     try:
         # Convert integer ID from frontend to UUID
@@ -562,19 +566,19 @@ async def delete_system_credential(
 
 
 # Scheduler endpoints for host monitoring
-class SchedulerStatus(BaseModel):
+class SchedulerStatus(BaseModel):  # type: ignore[misc]
     enabled: bool
     interval_minutes: int
     status: str  # "running", "stopped", "error"
-    jobs: Optional[List[dict]] = []
+    jobs: Optional[List[Dict[str, Any]]] = []
     uptime: Optional[str] = None
 
 
-class SchedulerStartRequest(BaseModel):
+class SchedulerStartRequest(BaseModel):  # type: ignore[misc]
     interval_minutes: int = 5
 
 
-class SchedulerUpdateRequest(BaseModel):
+class SchedulerUpdateRequest(BaseModel):  # type: ignore[misc]
     interval_minutes: int
 
 
@@ -583,17 +587,19 @@ _scheduler = None
 _scheduler_interval = 15  # Default 15 minutes
 
 
-def get_scheduler():
+def get_scheduler() -> Any:
     """Get or create the global scheduler instance"""
     global _scheduler
     if _scheduler is None:
-        _scheduler = setup_host_monitoring_scheduler()
+        _scheduler = setup_host_monitoring_scheduler()  # type: ignore[no-untyped-call]
     return _scheduler
 
 
-@router.get("/scheduler", response_model=SchedulerStatus)
+@router.get("/scheduler", response_model=SchedulerStatus)  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def get_scheduler_status(current_user: dict = Depends(get_current_user)):
+async def get_scheduler_status(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SchedulerStatus:
     """Get current scheduler status"""
     try:
         scheduler = get_scheduler()
@@ -650,9 +656,12 @@ async def get_scheduler_status(current_user: dict = Depends(get_current_user)):
         )
 
 
-@router.post("/scheduler/start")
+@router.post("/scheduler/start")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def start_scheduler(request: SchedulerStartRequest, current_user: dict = Depends(get_current_user)):
+async def start_scheduler(
+    request: SchedulerStartRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Start the monitoring scheduler"""
     try:
         global _scheduler, _scheduler_interval
@@ -661,7 +670,7 @@ async def start_scheduler(request: SchedulerStartRequest, current_user: dict = D
 
         if scheduler is None:
             # Try to create a new scheduler
-            _scheduler = setup_host_monitoring_scheduler()
+            _scheduler = setup_host_monitoring_scheduler()  # type: ignore[no-untyped-call]
             scheduler = _scheduler
 
             if scheduler is None:
@@ -717,8 +726,9 @@ async def start_scheduler(request: SchedulerStartRequest, current_user: dict = D
             except Exception as db_error:
                 logger.warning(f"Failed to update scheduler database state: {db_error}")
 
+            username = current_user.get("username", "unknown")
             logger.info(
-                f"Host monitoring scheduler started with {_scheduler_interval} minute interval by user {current_user.get('username', 'unknown')}"
+                f"Host monitoring scheduler started with {_scheduler_interval} min interval " f"by user {username}"
             )
 
             return {
@@ -737,9 +747,11 @@ async def start_scheduler(request: SchedulerStartRequest, current_user: dict = D
         )
 
 
-@router.post("/scheduler/stop")
+@router.post("/scheduler/stop")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def stop_scheduler(current_user: dict = Depends(get_current_user)):
+async def stop_scheduler(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Stop the monitoring scheduler"""
     try:
         scheduler = get_scheduler()
@@ -786,9 +798,12 @@ async def stop_scheduler(current_user: dict = Depends(get_current_user)):
         )
 
 
-@router.put("/scheduler")
+@router.put("/scheduler")  # type: ignore[misc]
 @require_permission(Permission.SYSTEM_MAINTENANCE)
-async def update_scheduler(request: SchedulerUpdateRequest, current_user: dict = Depends(get_current_user)):
+async def update_scheduler(
+    request: SchedulerUpdateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Update scheduler settings"""
     try:
         global _scheduler_interval
@@ -836,9 +851,8 @@ async def update_scheduler(request: SchedulerUpdateRequest, current_user: dict =
                 replace_existing=True,
             )
 
-            logger.info(
-                f"Scheduler interval updated to {_scheduler_interval} minutes by user {current_user.get('username', 'unknown')}"
-            )
+            username = current_user.get("username", "unknown")
+            logger.info(f"Scheduler interval updated to {_scheduler_interval} minutes by user {username}")
 
         return {
             "message": f"Scheduler interval updated to {_scheduler_interval} minutes",
@@ -854,7 +868,7 @@ async def update_scheduler(request: SchedulerUpdateRequest, current_user: dict =
         )
 
 
-def restore_scheduler_state():
+def restore_scheduler_state() -> None:
     """Restore scheduler state from database on startup"""
     logger.info("restore_scheduler_state() function called")
     try:
