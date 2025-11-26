@@ -863,7 +863,7 @@ class UnifiedSSHService:
             logger.error(f"Failed to connect to {hostname if 'hostname' in locals() else 'host'}: {e}")
             return False
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Close SSH connection"""
         try:
             if self.client:
