@@ -9,7 +9,7 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import lxml.etree as etree
 
@@ -53,7 +53,7 @@ class SCAPScanner:
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPContentError(f"Directory creation failed: {str(e)}")
 
-    def validate_scap_content(self, file_path: str) -> Dict:
+    def validate_scap_content(self, file_path: str) -> Dict[str, Any]:
         """Validate SCAP content file and extract metadata"""
         try:
             # Validate file path to prevent path traversal
@@ -84,7 +84,7 @@ class SCAPScanner:
             logger.error(f"Error validating SCAP content: {e}")
             raise SCAPContentError(f"Validation failed: {str(e)}")
 
-    def extract_profiles(self, file_path: str) -> List[Dict]:
+    def extract_profiles(self, file_path: str) -> List[Dict[str, Any]]:
         """Extract available profiles from SCAP content"""
         try:
             # Validate file path to prevent path traversal
@@ -114,7 +114,9 @@ class SCAPScanner:
             logger.error(f"Error extracting profiles: {e}")
             raise SCAPContentError(f"Profile extraction failed: {str(e)}")
 
-    def test_ssh_connection(self, hostname: str, port: int, username: str, auth_method: str, credential: str) -> Dict:
+    def test_ssh_connection(
+        self, hostname: str, port: int, username: str, auth_method: str, credential: str
+    ) -> Dict[str, Any]:
         """Test SSH connection to remote host using unified SSH service"""
         logger.info(f"Testing SSH connection to {username}@{hostname}:{port}")
 
@@ -142,8 +144,14 @@ class SCAPScanner:
             ssh = connection_result.connection
             logger.info(f"Testing SSH connection to ***REDACTED***@{hostname}:{port}")
 
-            # Test basic command execution
-            test_result = self.unified_ssh.execute_command(
+            # Test basic command execution using execute_command_advanced
+            if ssh is None:
+                return {
+                    "success": False,
+                    "message": "SSH connection not established",
+                    "oscap_available": False,
+                }
+            test_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh, command='echo "OpenWatch SSH Test"', timeout=5
             )
 
@@ -156,14 +164,16 @@ class SCAPScanner:
                 }
 
             # Check if oscap is available on remote host
-            oscap_result = self.unified_ssh.execute_command(ssh_connection=ssh, command="oscap --version", timeout=5)
+            oscap_result = self.unified_ssh.execute_command_advanced(
+                ssh_connection=ssh, command="oscap --version", timeout=5
+            )
 
             oscap_available = oscap_result.success
             oscap_version = oscap_result.stdout.strip() if oscap_available else None
 
             ssh.close()
 
-            result = {
+            result: Dict[str, Any] = {
                 "success": True,
                 "message": "SSH connection successful",
                 "oscap_available": oscap_available,
@@ -194,7 +204,9 @@ class SCAPScanner:
                 "oscap_available": False,
             }
 
-    def execute_local_scan(self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None) -> Dict:
+    def execute_local_scan(
+        self, content_path: str, profile_id: str, scan_id: str, rule_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Execute SCAP scan on local system"""
         try:
             # Validate inputs to prevent command injection
@@ -283,8 +295,8 @@ class SCAPScanner:
         content_path: str,
         profile_id: str,
         scan_id: str,
-        rule_id: str = None,
-    ) -> Dict:
+        rule_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute SCAP scan on remote system via SSH"""
         try:
             # Validate inputs to prevent injection attacks
@@ -356,12 +368,12 @@ class SCAPScanner:
 
     def get_system_info(
         self,
-        hostname: str = None,
+        hostname: Optional[str] = None,
         port: int = 22,
-        username: str = None,
-        auth_method: str = None,
-        credential: str = None,
-    ) -> Dict:
+        username: Optional[str] = None,
+        auth_method: Optional[str] = None,
+        credential: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Get system information from local or remote host"""
         try:
             if hostname:
@@ -375,7 +387,7 @@ class SCAPScanner:
             logger.error(f"Error getting system info: {e}")
             return {"error": str(e)}
 
-    def _parse_oscap_info(self, info_output: str) -> Dict:
+    def _parse_oscap_info(self, info_output: str) -> Dict[str, Any]:
         """Parse oscap info command output"""
         info = {}
         lines = info_output.split("\n")
@@ -390,7 +402,7 @@ class SCAPScanner:
 
         return info
 
-    def _parse_profiles(self, profiles_output: str) -> List[Dict]:
+    def _parse_profiles(self, profiles_output: str) -> List[Dict[str, Any]]:
         """Parse profiles from oscap info --profiles output"""
         profiles = []
         lines = profiles_output.split("\n")
@@ -416,7 +428,7 @@ class SCAPScanner:
 
         return profiles
 
-    def _parse_scan_results(self, xml_file: str, content_file: str = None) -> Dict:
+    def _parse_scan_results(self, xml_file: str, content_file: Optional[str] = None) -> Dict[str, Any]:
         """Parse SCAP scan results from XML file with enhanced remediation extraction"""
         try:
             if not os.path.exists(xml_file):
@@ -426,9 +438,13 @@ class SCAPScanner:
             root = tree.getroot()
 
             # Extract basic statistics
-            namespaces = {"xccdf": "http://checklists.nist.gov/xccdf/1.2"}
+            namespaces: Dict[str, str] = {"xccdf": "http://checklists.nist.gov/xccdf/1.2"}
 
-            results = {
+            # Initialize results with typed lists to avoid mypy errors
+            failed_rules_list: List[Dict[str, Any]] = []
+            rule_details_list: List[Dict[str, Any]] = []
+
+            results: Dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "rules_total": 0,
                 "rules_passed": 0,
@@ -438,8 +454,8 @@ class SCAPScanner:
                 "rules_notapplicable": 0,
                 "rules_notchecked": 0,
                 "score": 0.0,
-                "failed_rules": [],
-                "rule_details": [],  # Enhanced rule details with remediation
+                "failed_rules": failed_rules_list,
+                "rule_details": rule_details_list,
             }
 
             # Load SCAP content for remediation extraction if available
@@ -477,29 +493,32 @@ class SCAPScanner:
                         "references": remediation_info.get("references", []),
                     }
 
-                    results["rule_details"].append(rule_detail)
+                    rule_details_list.append(rule_detail)
 
                     # Count by result type
                     if result_value == "pass":
-                        results["rules_passed"] += 1
+                        results["rules_passed"] = int(results["rules_passed"]) + 1
                     elif result_value == "fail":
-                        results["rules_failed"] += 1
+                        results["rules_failed"] = int(results["rules_failed"]) + 1
                         # Extract failed rule info (backward compatibility)
-                        results["failed_rules"].append({"rule_id": rule_id, "severity": severity})
+                        failed_rules_list.append({"rule_id": rule_id, "severity": severity})
                     elif result_value == "error":
-                        results["rules_error"] += 1
+                        results["rules_error"] = int(results["rules_error"]) + 1
                     elif result_value == "unknown":
-                        results["rules_unknown"] += 1
+                        results["rules_unknown"] = int(results["rules_unknown"]) + 1
                     elif result_value == "notapplicable":
-                        results["rules_notapplicable"] += 1
+                        results["rules_notapplicable"] = int(results["rules_notapplicable"]) + 1
                     elif result_value == "notchecked":
-                        results["rules_notchecked"] += 1
+                        results["rules_notchecked"] = int(results["rules_notchecked"]) + 1
 
-            # Calculate score
-            if results["rules_total"] > 0:
-                divisor = results["rules_passed"] + results["rules_failed"]
+            # Calculate score with proper type handling
+            rules_total = int(results["rules_total"])
+            rules_passed = int(results["rules_passed"])
+            rules_failed = int(results["rules_failed"])
+            if rules_total > 0:
+                divisor = rules_passed + rules_failed
                 if divisor > 0:
-                    results["score"] = (results["rules_passed"] / divisor) * 100
+                    results["score"] = (rules_passed / divisor) * 100
                 else:
                     # No pass/fail rules to calculate score from (all rules are N/A, error, etc.)
                     results["score"] = 0.0
@@ -510,14 +529,16 @@ class SCAPScanner:
             logger.error(f"Error parsing scan results: {e}")
             return {"error": f"Failed to parse results: {str(e)}"}
 
-    def _extract_rule_remediation(self, rule_id: str, content_tree, namespaces: Dict) -> Dict:
+    def _extract_rule_remediation(self, rule_id: str, content_tree: Any, namespaces: Dict[str, str]) -> Dict[str, Any]:
         """Extract detailed rule information and remediation from SCAP content"""
-        remediation_info = {
+        # Initialize typed list for references
+        references_list: List[Dict[str, Any]] = []
+        remediation_info: Dict[str, Any] = {
             "title": "",
             "description": "",
             "rationale": "",
             "remediation": {},
-            "references": [],
+            "references": references_list,
         }
 
         if not content_tree:
@@ -562,22 +583,27 @@ class SCAPScanner:
             logger.error(f"Error extracting remediation for rule {rule_id}: {e}")
             return remediation_info
 
-    def _extract_text_content(self, element) -> str:
+    def _extract_text_content(self, element: Any) -> str:
         """Extract clean text content from XML element, handling HTML tags"""
         return extract_text_content(element)
 
-    def _extract_remediation_details(self, rule_element, namespaces: Dict) -> Dict:
+    def _extract_remediation_details(self, rule_element: Any, namespaces: Dict[str, str]) -> Dict[str, Any]:
         """Extract remediation details from rule element with enhanced Fix Text and OpenSCAP remediation parsing"""
-        remediation = {
+        # Initialize typed lists to avoid mypy errors when calling extend()
+        steps_list: List[Dict[str, str]] = []
+        commands_list: List[Dict[str, str]] = []
+        configuration_list: List[str] = []
+
+        remediation: Dict[str, Any] = {
             "type": "manual",
             "complexity": "unknown",
             "disruption": "unknown",
             "description": "",
             "fix_text": "",
             "detailed_description": "",
-            "steps": [],
-            "commands": [],
-            "configuration": [],
+            "steps": steps_list,
+            "commands": commands_list,
+            "configuration": configuration_list,
         }
 
         try:
@@ -633,7 +659,7 @@ class SCAPScanner:
                         remediation["type"] = "automatic"
                         # Extract configuration commands
                         parsed_config = self._parse_configuration_commands(fix_content)
-                        remediation["commands"].extend(parsed_config)
+                        commands_list.extend(parsed_config)
                     else:
                         remediation["type"] = "manual"
                         parsed_steps = self._parse_remediation_text(fix_content)
@@ -675,11 +701,11 @@ class SCAPScanner:
             logger.error(f"Error extracting remediation details: {e}")
             return remediation
 
-    def _parse_remediation_text(self, text: str) -> Dict:
+    def _parse_remediation_text(self, text: str) -> Dict[str, Any]:
         """Parse remediation text to extract structured steps and commands"""
-        steps = []
-        commands = []
-        configuration = []
+        steps: List[str] = []
+        commands: List[Dict[str, str]] = []
+        configuration: List[Dict[str, str]] = []
 
         if not text:
             return {
@@ -806,7 +832,7 @@ class SCAPScanner:
             and len(line.split()) <= 5
         )  # Config lines are usually short
 
-    def _parse_configuration_commands(self, text: str) -> List[Dict]:
+    def _parse_configuration_commands(self, text: str) -> List[Dict[str, str]]:
         """Parse configuration-style commands from fix text"""
         commands = []
 
@@ -837,7 +863,7 @@ class SCAPScanner:
             logger.error(f"Error parsing configuration commands: {e}")
             return commands
 
-    def _extract_references(self, rule_element, namespaces: Dict) -> List[Dict]:
+    def _extract_references(self, rule_element: Any, namespaces: Dict[str, str]) -> List[Dict[str, Any]]:
         """Extract reference information from rule element"""
         references = []
 
@@ -867,7 +893,12 @@ class SCAPScanner:
             logger.error(f"Error extracting references: {e}")
             return references
 
-    def _extract_framework_specific_remediation(self, rule_element, namespaces: Dict, remediation: Dict):
+    def _extract_framework_specific_remediation(
+        self,
+        rule_element: Any,
+        namespaces: Dict[str, str],
+        remediation: Dict[str, Any],
+    ) -> None:
         """Extract remediation from framework-specific elements (DISA STIG, CIS, etc.)"""
         try:
             # Look for DISA STIG specific elements
@@ -936,7 +967,7 @@ class SCAPScanner:
         except Exception as e:
             logger.error(f"Error extracting framework-specific remediation: {e}")
 
-    def _extract_generic_remediation_patterns(self, rule_element, remediation: Dict):
+    def _extract_generic_remediation_patterns(self, rule_element: Any, remediation: Dict[str, Any]) -> None:
         """Extract remediation from common text patterns"""
         try:
             # Get all text content from the rule element
@@ -1012,7 +1043,7 @@ class SCAPScanner:
         except Exception as e:
             logger.error(f"Error extracting generic remediation patterns: {e}")
 
-    def _get_local_system_info(self) -> Dict:
+    def _get_local_system_info(self) -> Dict[str, Any]:
         """Get local system information"""
         try:
             # Get OS info
@@ -1043,8 +1074,8 @@ class SCAPScanner:
             return {"error": str(e)}
 
     def _get_remote_system_info(
-        self, hostname: str, port: int, username: str, auth_method: str, credential: str
-    ) -> Dict:
+        self, hostname: str, port: int, username: Optional[str], auth_method: Optional[str], credential: Optional[str]
+    ) -> Dict[str, Any]:
         """Get minimal remote system information using unified SSH service
 
         Replaces 7-command system discovery with 2 essential commands to reduce
@@ -1052,6 +1083,10 @@ class SCAPScanner:
         """
         try:
             logger.info(f"Getting minimal system info for {hostname} via unified SSH service")
+
+            # Validate required parameters
+            if not username or not auth_method or not credential:
+                return {"error": "Missing required SSH credentials"}
 
             # Use unified SSH service for minimal system discovery
             minimal_info = self.unified_ssh.execute_minimal_system_check(
@@ -1113,8 +1148,8 @@ class SCAPScanner:
         xml_result: Path,
         html_report: Path,
         arf_result: Path,
-        rule_id: str = None,
-    ) -> Dict:
+        rule_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute remote SCAP scan using unified SSH service for consistent security policies"""
         try:
             logger.info(f"Executing remote scan via unified SSH service: {scan_id} on {hostname}")
@@ -1134,12 +1169,14 @@ class SCAPScanner:
                 raise ScanExecutionError(f"SSH connection failed: {connection_result.error_message}")
 
             ssh = connection_result.connection
+            if ssh is None:
+                raise ScanExecutionError("SSH connection not established")
 
             # Create remote directory for results with safe path construction
             import shlex
 
             remote_results_dir = f"/tmp/openwatch_scan_{scan_id}"
-            mkdir_result = self.unified_ssh.execute_command(
+            mkdir_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh,
                 command=f"mkdir -p {shlex.quote(remote_results_dir)}",
                 timeout=10,
@@ -1197,7 +1234,7 @@ class SCAPScanner:
             logger.info(f"Executing remote SCAP scan with profile: {profile_id}")
 
             # Execute SCAP scan command using unified SSH service
-            oscap_result = self.unified_ssh.execute_command(
+            oscap_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh, command=oscap_cmd, timeout=1800  # 30 minutes
             )
 
@@ -1213,13 +1250,13 @@ class SCAPScanner:
             time.sleep(2)
 
             # Debug: List remote directory contents before download
-            ls_result = self.unified_ssh.execute_command(
+            ls_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh, command=f"ls -la {remote_results_dir}/", timeout=10
             )
             logger.info(f"Remote directory contents before download:\n{ls_result.stdout}")
 
             # Debug: Check file types
-            file_type_result = self.unified_ssh.execute_command(
+            file_type_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh,
                 command=f"file {remote_results_dir}/*.xml 2>/dev/null || echo 'No XML files found'",
                 timeout=10,
@@ -1231,7 +1268,9 @@ class SCAPScanner:
 
             try:
                 # Verify content before download
-                verify_result = self.unified_ssh.execute_command(
+                if ssh is None:
+                    raise ScanExecutionError("SSH connection lost during file transfer")
+                verify_result = self.unified_ssh.execute_command_advanced(
                     ssh_connection=ssh,
                     command=f"head -5 {remote_xml} 2>/dev/null || echo 'Cannot read file'",
                     timeout=10,
@@ -1272,7 +1311,7 @@ class SCAPScanner:
             sftp.close()
 
             # Clean up remote files
-            cleanup_result = self.unified_ssh.execute_command(
+            cleanup_result = self.unified_ssh.execute_command_advanced(
                 ssh_connection=ssh, command=f"rm -rf {remote_results_dir}", timeout=10
             )
 
@@ -1341,11 +1380,12 @@ class SCAPScanner:
             raise ScanExecutionError(f"Remote scan execution failed: {str(e)}")
         finally:
             try:
-                ssh.close()
+                if ssh is not None:
+                    ssh.close()
             except Exception:
                 pass
 
-    def _parse_arf_results(self, arf_file: str, content_file: str = None) -> Dict:
+    def _parse_arf_results(self, arf_file: str, content_file: Optional[str] = None) -> Dict[str, Any]:
         """Parse SCAP scan results from ARF (Asset Reporting Format) file"""
         try:
             if not os.path.exists(arf_file):
@@ -1371,7 +1411,11 @@ class SCAPScanner:
             # Use the first TestResult (there should typically be only one)
             test_result = test_results[0]
 
-            results = {
+            # Initialize typed lists for proper mypy typing
+            arf_failed_rules: List[Dict[str, Any]] = []
+            arf_rule_details: List[Dict[str, Any]] = []
+
+            results: Dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "rules_total": 0,
                 "rules_passed": 0,
@@ -1381,8 +1425,8 @@ class SCAPScanner:
                 "rules_notapplicable": 0,
                 "rules_notchecked": 0,
                 "score": 0.0,
-                "failed_rules": [],
-                "rule_details": [],
+                "failed_rules": arf_failed_rules,
+                "rule_details": arf_rule_details,
             }
 
             # Count rule results from TestResult element
@@ -1396,26 +1440,29 @@ class SCAPScanner:
                     rule_id = rule_result.get("idref", "")
                     severity = rule_result.get("severity", "unknown")
 
-                    # Count by result type
+                    # Count by result type using typed operations
                     if result_value == "pass":
-                        results["rules_passed"] += 1
+                        results["rules_passed"] = int(results["rules_passed"]) + 1
                     elif result_value == "fail":
-                        results["rules_failed"] += 1
-                        results["failed_rules"].append({"rule_id": rule_id, "severity": severity})
+                        results["rules_failed"] = int(results["rules_failed"]) + 1
+                        arf_failed_rules.append({"rule_id": rule_id, "severity": severity})
                     elif result_value == "error":
-                        results["rules_error"] += 1
+                        results["rules_error"] = int(results["rules_error"]) + 1
                     elif result_value == "unknown":
-                        results["rules_unknown"] += 1
+                        results["rules_unknown"] = int(results["rules_unknown"]) + 1
                     elif result_value == "notapplicable":
-                        results["rules_notapplicable"] += 1
+                        results["rules_notapplicable"] = int(results["rules_notapplicable"]) + 1
                     elif result_value == "notchecked":
-                        results["rules_notchecked"] += 1
+                        results["rules_notchecked"] = int(results["rules_notchecked"]) + 1
 
-            # Calculate score
-            if results["rules_total"] > 0:
-                divisor = results["rules_passed"] + results["rules_failed"]
+            # Calculate score with proper type handling
+            arf_rules_total = int(results["rules_total"])
+            arf_rules_passed = int(results["rules_passed"])
+            arf_rules_failed = int(results["rules_failed"])
+            if arf_rules_total > 0:
+                divisor = arf_rules_passed + arf_rules_failed
                 if divisor > 0:
-                    results["score"] = (results["rules_passed"] / divisor) * 100
+                    results["score"] = (arf_rules_passed / divisor) * 100
                 else:
                     results["score"] = 0.0
 
