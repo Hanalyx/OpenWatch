@@ -35,17 +35,17 @@ class ComplianceRulesUploadService:
     - MongoDB import
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.security_service = ComplianceRulesSecurityService()
         self.parser_service = BSONParserService()
         self.deduplication_service = SmartDeduplicationService()
         self.dependency_graph = RuleDependencyGraph()
-        self.inheritance_resolver = None  # Initialized after graph is built
-        self.versioning_service = RuleVersioningService()  # Immutable versioning
+        self.inheritance_resolver: Optional[InheritanceResolver] = None
+        self.versioning_service = RuleVersioningService()
 
-        self.upload_id = None
+        self.upload_id: Optional[str] = None
         self.current_phase = "initializing"
-        self.progress = {
+        self.progress: Dict[str, Any] = {
             "phase": "initializing",
             "processed_rules": 0,
             "total_rules": 0,
@@ -77,22 +77,30 @@ class ComplianceRulesUploadService:
 
         logger.info(f"Starting upload {self.upload_id}: {archive_filename}")
 
-        result = {
+        # Create typed collections for result dict
+        errors: List[Dict[str, Any]] = []
+        warnings: List[Any] = []
+        statistics: Dict[str, Any] = {}
+        security_validation: Dict[str, Any] = {}
+        dependency_validation: Dict[str, Any] = {}
+        inheritance_impact: Dict[str, Any] = {}
+
+        result: Dict[str, Any] = {
             "upload_id": self.upload_id,
             "filename": archive_filename,
             "start_time": start_time.isoformat(),
             "user_id": user_id,
             "success": False,
             "phase": "initializing",
-            "statistics": {},
-            "security_validation": {},
-            "dependency_validation": {},
-            "inheritance_impact": {},
-            "errors": [],
-            "warnings": [],
+            "statistics": statistics,
+            "security_validation": security_validation,
+            "dependency_validation": dependency_validation,
+            "inheritance_impact": inheritance_impact,
+            "errors": errors,
+            "warnings": warnings,
         }
 
-        extracted_path = None
+        extracted_path: Optional[Path] = None
 
         try:
             # Phase 1: Security Validation
@@ -106,7 +114,7 @@ class ComplianceRulesUploadService:
             result["file_hash"] = self.security_service.calculate_archive_hash(archive_data)
 
             if not is_valid:
-                result["errors"].append(
+                errors.append(
                     {
                         "phase": "security_validation",
                         "message": "Security validation failed",
@@ -122,6 +130,10 @@ class ComplianceRulesUploadService:
             logger.info(f"[{self.upload_id}] Phase 2: Parsing archive")
             self.current_phase = "parsing"
             result["phase"] = "parsing"
+
+            # extracted_path is guaranteed to be set after validate_archive success
+            if extracted_path is None:
+                raise ValueError("Extracted path is None after security validation")
 
             # Parse manifest
             manifest_bson = extracted_path / "manifest.bson"
@@ -152,7 +164,7 @@ class ComplianceRulesUploadService:
 
             parsing_stats = self.parser_service.get_parsing_statistics()
             if parsing_stats["parsing_errors"]:
-                result["warnings"].extend(parsing_stats["parsing_errors"])
+                warnings.extend(parsing_stats["parsing_errors"])
 
             logger.info(
                 f"[{self.upload_id}] Parsed {len(new_rules)} rules " f"({parsing_stats['parsing_errors_count']} errors)"
@@ -170,7 +182,7 @@ class ComplianceRulesUploadService:
 
             result["oval_extraction"] = oval_extraction
             if oval_extraction["errors"]:
-                result["warnings"].extend(oval_extraction["errors"])
+                warnings.extend(oval_extraction["errors"])
 
             if oval_extraction["oval_available"]:
                 logger.info(
@@ -188,23 +200,23 @@ class ComplianceRulesUploadService:
             await self.dependency_graph.build_from_database()
 
             # Validate new rules' dependencies
-            dependency_validation = self.dependency_graph.validate_dependencies(new_rules, check_existing_db=True)
+            dep_validation_result = self.dependency_graph.validate_dependencies(new_rules, check_existing_db=True)
 
-            result["dependency_validation"] = dependency_validation
+            result["dependency_validation"] = dep_validation_result
 
-            if not dependency_validation["valid"]:
-                result["errors"].append(
+            if not dep_validation_result["valid"]:
+                errors.append(
                     {
                         "phase": "dependency_validation",
                         "message": "Dependency validation failed",
-                        "details": dependency_validation["errors"],
+                        "details": dep_validation_result["errors"],
                     }
                 )
                 logger.error(f"[{self.upload_id}] Dependency validation failed")
                 return result
 
-            if dependency_validation["warnings"]:
-                result["warnings"].extend(dependency_validation["warnings"])
+            if dep_validation_result["warnings"]:
+                warnings.extend(dep_validation_result["warnings"])
 
             logger.info(f"[{self.upload_id}] Dependency validation passed")
 
@@ -293,7 +305,7 @@ class ComplianceRulesUploadService:
 
             result["success"] = False
             result["end_time"] = datetime.utcnow().isoformat()
-            result["errors"].append(
+            errors.append(
                 {
                     "phase": result.get("phase", "unknown"),
                     "message": f"Upload failed: {str(e)}",
@@ -384,12 +396,17 @@ class ComplianceRulesUploadService:
         Returns:
             Dict with extraction statistics
         """
-        result = {
+        oval_errors: List[str] = []
+        oval_files_found = 0
+        oval_files_copied = 0
+        rules_with_oval = 0
+
+        result: Dict[str, Any] = {
             "oval_available": False,
-            "oval_files_found": 0,
-            "oval_files_copied": 0,
-            "rules_with_oval": 0,
-            "errors": [],
+            "oval_files_found": oval_files_found,
+            "oval_files_copied": oval_files_copied,
+            "rules_with_oval": rules_with_oval,
+            "errors": oval_errors,
         }
 
         try:
@@ -430,11 +447,11 @@ class ComplianceRulesUploadService:
                         try:
                             dest_file = platform_storage / oval_file.name
                             shutil.copy2(oval_file, dest_file)
-                            result["oval_files_copied"] += 1
+                            oval_files_copied += 1
                         except Exception as e:
-                            result["errors"].append(f"Failed to copy {platform}/{oval_file.name}: {str(e)}")
+                            oval_errors.append(f"Failed to copy {platform}/{oval_file.name}: {str(e)}")
 
-                    result["oval_files_found"] += len(platform_oval_files)
+                    oval_files_found += len(platform_oval_files)
                     logger.info(f"[{self.upload_id}] Copied {len(platform_oval_files)} OVAL files for {platform}")
 
                 # Populate oval_filename field - rules will match against their platform tags
@@ -468,7 +485,7 @@ class ComplianceRulesUploadService:
                         oval_path = oval_storage_base / platform / oval_filename
                         if oval_path.exists():
                             rule["oval_filename"] = f"{platform}/{oval_filename}"
-                            result["rules_with_oval"] += 1
+                            rules_with_oval += 1
                             break
             else:
                 # Single-platform bundle: oval/*.xml structure
@@ -485,10 +502,14 @@ class ComplianceRulesUploadService:
 
                 # Count OVAL files
                 oval_files = list(oval_dir.glob("*.xml"))
-                result["oval_files_found"] = len(oval_files)
+                oval_files_found = len(oval_files)
 
                 if not oval_files:
                     logger.info(f"[{self.upload_id}] OVAL directory exists but no .xml files found")
+                    # Update result before returning
+                    result["oval_files_found"] = oval_files_found
+                    result["oval_files_copied"] = oval_files_copied
+                    result["rules_with_oval"] = rules_with_oval
                     return result
 
                 logger.info(f"[{self.upload_id}] Found {len(oval_files)} OVAL definition files")
@@ -501,9 +522,9 @@ class ComplianceRulesUploadService:
                     try:
                         dest_file = platform_storage / oval_file.name
                         shutil.copy2(oval_file, dest_file)
-                        result["oval_files_copied"] += 1
+                        oval_files_copied += 1
                     except Exception as e:
-                        result["errors"].append(f"Failed to copy {oval_file.name}: {str(e)}")
+                        oval_errors.append(f"Failed to copy {oval_file.name}: {str(e)}")
                         logger.error(f"[{self.upload_id}] Failed to copy OVAL file {oval_file.name}: {e}")
 
                 # Populate oval_filename field in rules
@@ -515,17 +536,26 @@ class ComplianceRulesUploadService:
 
                         if oval_filename in oval_filenames:
                             rule["oval_filename"] = f"{platform}/{oval_filename}"
-                            result["rules_with_oval"] += 1
+                            rules_with_oval += 1
+
+            # Update result dict with final values
+            result["oval_files_found"] = oval_files_found
+            result["oval_files_copied"] = oval_files_copied
+            result["rules_with_oval"] = rules_with_oval
 
             logger.info(
                 f"[{self.upload_id}] OVAL extraction complete: "
-                f"{result['oval_files_copied']}/{result['oval_files_found']} files copied, "
-                f"{result['rules_with_oval']} rules linked to OVAL definitions"
+                f"{oval_files_copied}/{oval_files_found} files copied, "
+                f"{rules_with_oval} rules linked to OVAL definitions"
             )
 
         except Exception as e:
-            result["errors"].append(f"OVAL extraction failed: {str(e)}")
+            oval_errors.append(f"OVAL extraction failed: {str(e)}")
             logger.error(f"[{self.upload_id}] OVAL extraction failed: {e}", exc_info=True)
+            # Ensure result is updated even on error
+            result["oval_files_found"] = oval_files_found
+            result["oval_files_copied"] = oval_files_copied
+            result["rules_with_oval"] = rules_with_oval
 
         return result
 
@@ -580,6 +610,9 @@ class ComplianceRulesUploadService:
 
                 elif action == "updated":
                     # Create new version (immutable - never update existing)
+                    # existing_rule is guaranteed to be set for "updated" action
+                    if existing_rule is None:
+                        raise ValueError(f"existing_rule is None for updated action on {rule_id}")
                     await self._create_new_version(
                         existing_rule,
                         rule_data,
@@ -636,7 +669,7 @@ class ComplianceRulesUploadService:
 
         return rule_data
 
-    async def _create_new_rule(self, rule_data: Dict[str, Any], source_file: str, source_hash: str):
+    async def _create_new_rule(self, rule_data: Dict[str, Any], source_file: str, source_hash: str) -> None:
         """
         Create a new compliance rule in MongoDB (version 1)
 
@@ -652,6 +685,10 @@ class ComplianceRulesUploadService:
         # CRITICAL: Clean empty framework fields BEFORE Pydantic processing
         rule_data = self._clean_empty_framework_fields(rule_data)
 
+        # upload_id is guaranteed to be set at this point in the workflow
+        if self.upload_id is None:
+            raise ValueError("upload_id is not set")
+
         # Prepare version 1 with immutable versioning fields
         versioned_rule = self.versioning_service.prepare_new_version(
             rule_data=rule_data,
@@ -666,7 +703,8 @@ class ComplianceRulesUploadService:
         rule = ComplianceRule(**versioned_rule)
         await rule.insert()
 
-        logger.info(f"Created new rule: {rule.rule_id} v{rule.version} " f"(hash: {rule.version_hash[:16]}...)")
+        version_hash_display = rule.version_hash[:16] if rule.version_hash else "N/A"
+        logger.info(f"Created new rule: {rule.rule_id} v{rule.version} (hash: {version_hash_display}...)")
 
         # Create basic rule intelligence (optional)
         await self._create_rule_intelligence(rule)
@@ -678,7 +716,7 @@ class ComplianceRulesUploadService:
         changes: Dict[str, Any],
         source_file: str,
         source_hash: str,
-    ):
+    ) -> None:
         """
         Create new immutable version of existing rule (NEVER updates existing document)
 
@@ -718,6 +756,10 @@ class ComplianceRulesUploadService:
         # Convert existing_rule to dict for versioning service
         previous_version_dict = existing_rule.dict(by_alias=True)
 
+        # upload_id is guaranteed to be set at this point in the workflow
+        if self.upload_id is None:
+            raise ValueError("upload_id is not set")
+
         # Prepare new version
         versioned_rule = self.versioning_service.prepare_new_version(
             rule_data=new_data,
@@ -740,14 +782,15 @@ class ComplianceRulesUploadService:
         new_rule = ComplianceRule(**versioned_rule)
         await new_rule.insert()
 
+        version_hash_display = new_rule.version_hash[:16] if new_rule.version_hash else "N/A"
         logger.info(
             f"Created new version: {new_rule.rule_id} v{new_rule.version} "
-            f"(hash: {new_rule.version_hash[:16]}..., "
+            f"(hash: {version_hash_display}..., "
             f"changes: {versioned_rule['change_summary']['change_count']}, "
             f"breaking: {versioned_rule['change_summary']['breaking_changes']})"
         )
 
-    async def _create_rule_intelligence(self, rule: ComplianceRule):
+    async def _create_rule_intelligence(self, rule: ComplianceRule) -> None:
         """
         Create basic rule intelligence record
 
