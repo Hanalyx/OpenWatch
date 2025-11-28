@@ -114,7 +114,9 @@ class SemanticSCAPEngine:
             framework_mappings = await self._map_to_universal_frameworks(semantic_rules, host_info)
 
             # 3. Analyze cross-framework compliance impact
-            compliance_matrix = await self._analyze_compliance_matrix(semantic_rules, scan_results, framework_mappings)
+            compliance_matrix = await self._analyze_compliance_matrix(
+                semantic_rules, scan_results, framework_mappings
+            )
 
             # 4. Generate intelligent remediation strategy
             remediation_strategy = await self._create_intelligent_remediation_strategy(
@@ -122,7 +124,9 @@ class SemanticSCAPEngine:
             )
 
             # 5. Predict compliance trends (simplified for initial implementation)
-            compliance_trends = await self._predict_compliance_trends(semantic_rules, scan_id, host_info.get("host_id"))
+            compliance_trends = await self._predict_compliance_trends(
+                semantic_rules, scan_id, host_info.get("host_id")
+            )
 
             processing_time = (datetime.utcnow() - start_time).total_seconds()
 
@@ -138,7 +142,9 @@ class SemanticSCAPEngine:
                     "processing_time_seconds": processing_time,
                     "semantic_rules_count": len(semantic_rules),
                     "frameworks_analyzed": list(compliance_matrix.keys()),
-                    "remediation_available_count": sum(1 for r in semantic_rules if r.remediation_available),
+                    "remediation_available_count": sum(
+                        1 for r in semantic_rules if r.remediation_available
+                    ),
                     "processed_at": start_time.isoformat(),
                 },
             )
@@ -176,7 +182,10 @@ class SemanticSCAPEngine:
             )
 
     async def _extract_semantic_understanding(
-        self, failed_rules: List[Dict[str, Any]], rule_details: List[Dict[str, Any]], host_info: Dict[str, Any]
+        self,
+        failed_rules: List[Dict[str, Any]],
+        rule_details: List[Dict[str, Any]],
+        host_info: Dict[str, Any],
     ) -> List[SemanticRule]:
         """Extract semantic meaning from SCAP rule IDs"""
 
@@ -227,7 +236,11 @@ class SemanticSCAPEngine:
         return semantic_rules
 
     async def _map_scap_rule_to_semantic(
-        self, scap_rule_id: str, rule_detail: Dict[str, Any], severity: str, host_info: Dict[str, Any]
+        self,
+        scap_rule_id: str,
+        rule_detail: Dict[str, Any],
+        severity: str,
+        host_info: Dict[str, Any],
     ) -> Optional[SemanticRule]:
         """Map a SCAP rule ID to semantic understanding"""
 
@@ -410,7 +423,9 @@ class SemanticSCAPEngine:
                             business_impact=rule_data.get("business_impact", "medium"),
                             risk_level=rule_data.get("severity", "medium"),
                             frameworks=rule_data.get("frameworks", []),
-                            remediation_complexity=rule_data.get("remediation_complexity", "simple"),
+                            remediation_complexity=rule_data.get(
+                                "remediation_complexity", "simple"
+                            ),
                             estimated_fix_time=rule_data.get("estimated_fix_time", 10),
                             dependencies=rule_data.get("dependencies", []),
                             cross_framework_mappings=rule_data.get("cross_framework_mappings", {}),
@@ -525,9 +540,15 @@ class SemanticSCAPEngine:
 
         # Categorize rules by impact and complexity
         high_impact_rules = [r for r in semantic_rules if r.business_impact == "high"]
-        quick_wins = [r for r in semantic_rules if r.remediation_complexity == "simple" and r.estimated_fix_time <= 10]
+        quick_wins = [
+            r
+            for r in semantic_rules
+            if r.remediation_complexity == "simple" and r.estimated_fix_time <= 10
+        ]
         # Complex rules tracked for analytics/reporting
-        _complex_rules = [r for r in semantic_rules if r.remediation_complexity == "complex"]  # noqa: F841
+        _complex_rules = [
+            r for r in semantic_rules if r.remediation_complexity == "complex"
+        ]  # noqa: F841
 
         # Calculate total estimated time
         total_time = sum(rule.estimated_fix_time for rule in semantic_rules)
@@ -536,7 +557,9 @@ class SemanticSCAPEngine:
         priority_rules = []
 
         # 1. High impact, simple fixes first
-        priority_rules.extend([r for r in high_impact_rules if r.remediation_complexity == "simple"])
+        priority_rules.extend(
+            [r for r in high_impact_rules if r.remediation_complexity == "simple"]
+        )
 
         # 2. Quick wins
         priority_rules.extend([r for r in quick_wins if r not in priority_rules])
@@ -555,11 +578,19 @@ class SemanticSCAPEngine:
             "priority_order": [r.name for r in priority_rules],
             "complexity_breakdown": {
                 "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
-                "moderate": len([r for r in semantic_rules if r.remediation_complexity == "moderate"]),
-                "complex": len([r for r in semantic_rules if r.remediation_complexity == "complex"]),
+                "moderate": len(
+                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
+                ),
+                "complex": len(
+                    [r for r in semantic_rules if r.remediation_complexity == "complex"]
+                ),
             },
-            "framework_impact_prediction": self._predict_framework_impact(semantic_rules, compliance_matrix),
-            "remediation_recommendations": self._generate_remediation_recommendations(semantic_rules),
+            "framework_impact_prediction": self._predict_framework_impact(
+                semantic_rules, compliance_matrix
+            ),
+            "remediation_recommendations": self._generate_remediation_recommendations(
+                semantic_rules
+            ),
         }
 
         return strategy
@@ -588,7 +619,9 @@ class SemanticSCAPEngine:
 
         return impact_prediction
 
-    def _generate_remediation_recommendations(self, semantic_rules: List[SemanticRule]) -> List[str]:
+    def _generate_remediation_recommendations(
+        self, semantic_rules: List[SemanticRule]
+    ) -> List[str]:
         """Generate human-readable remediation recommendations"""
 
         recommendations = []
@@ -597,10 +630,14 @@ class SemanticSCAPEngine:
         quick_wins_count = len([r for r in semantic_rules if r.estimated_fix_time <= 10])
 
         if high_impact_count > 0:
-            recommendations.append(f"Prioritize {high_impact_count} high-impact security rules first")
+            recommendations.append(
+                f"Prioritize {high_impact_count} high-impact security rules first"
+            )
 
         if quick_wins_count > 0:
-            recommendations.append(f"Consider addressing {quick_wins_count} quick-win rules for immediate improvement")
+            recommendations.append(
+                f"Consider addressing {quick_wins_count} quick-win rules for immediate improvement"
+            )
 
         total_time = sum(rule.estimated_fix_time for rule in semantic_rules)
         if total_time <= 30:
@@ -608,7 +645,9 @@ class SemanticSCAPEngine:
         elif total_time <= 60:
             recommendations.append("Estimated remediation time: 30-60 minutes")
         else:
-            recommendations.append(f"Estimated remediation time: {total_time} minutes - consider batching")
+            recommendations.append(
+                f"Estimated remediation time: {total_time} minutes - consider batching"
+            )
 
         return recommendations
 
@@ -626,8 +665,12 @@ class SemanticSCAPEngine:
             },
             "remediation_complexity_trend": {
                 "simple": len([r for r in semantic_rules if r.remediation_complexity == "simple"]),
-                "moderate": len([r for r in semantic_rules if r.remediation_complexity == "moderate"]),
-                "complex": len([r for r in semantic_rules if r.remediation_complexity == "complex"]),
+                "moderate": len(
+                    [r for r in semantic_rules if r.remediation_complexity == "moderate"]
+                ),
+                "complex": len(
+                    [r for r in semantic_rules if r.remediation_complexity == "complex"]
+                ),
             },
             "framework_coverage": {
                 framework: len([r for r in semantic_rules if framework in r.frameworks])
@@ -670,8 +713,12 @@ class SemanticSCAPEngine:
                         "scan_id": result.scan_id,
                         "host_id": result.host_id,
                         "semantic_rules_count": len(result.semantic_rules),
-                        "frameworks_analyzed": json.dumps(list(result.framework_compliance_matrix.keys())),
-                        "remediation_available_count": result.processing_metadata.get("remediation_available_count", 0),
+                        "frameworks_analyzed": json.dumps(
+                            list(result.framework_compliance_matrix.keys())
+                        ),
+                        "remediation_available_count": result.processing_metadata.get(
+                            "remediation_available_count", 0
+                        ),
                         "processing_metadata": json.dumps(result.processing_metadata),
                         "analysis_data": json.dumps(result.to_dict()),
                         "created_at": datetime.utcnow(),
@@ -707,7 +754,9 @@ class SemanticSCAPEngine:
                     data = json.loads(result.analysis_data)
 
                     # Reconstruct SemanticRule objects
-                    semantic_rules = [SemanticRule(**rule_data) for rule_data in data.get("semantic_rules", [])]
+                    semantic_rules = [
+                        SemanticRule(**rule_data) for rule_data in data.get("semantic_rules", [])
+                    ]
 
                     return IntelligentScanResult(
                         scan_id=data["scan_id"],

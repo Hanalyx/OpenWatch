@@ -37,8 +37,12 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
-    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
+    rule_ids: Optional[List[str]] = Field(
+        None, description="Specific rule IDs to scan (from wizard selection)"
+    )
+    connection_params: Optional[Dict[str, Any]] = Field(
+        None, description="SSH connection parameters"
+    )
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -380,7 +384,9 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
+        logger.info(
+            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
+        )
 
         # Log request details safely
         try:
@@ -661,7 +667,9 @@ async def enrich_scan_results_task(
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
+async def get_scan_status(
+    scan_id: str, current_user: User = Depends(get_current_user)
+) -> ScanStatusResponse:
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -809,7 +817,11 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    "platforms": (
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 }
             )
 
@@ -833,7 +845,9 @@ async def get_available_rules(
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(request: Request, current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+async def get_scanner_health(
+    request: Request, current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
     """Get MongoDB scanner service health"""
     try:
         scanner = await get_mongodb_scanner(request)

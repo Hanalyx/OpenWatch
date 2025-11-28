@@ -109,7 +109,9 @@ async def discover_host_network_topology(
         discovery_results = network_service.discover_network_topology(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results[
+            "discovery_timestamp"
+        ].isoformat()
 
         interface_count = len(discovery_results["network_interfaces"])
         route_count = len(discovery_results["routing_table"])
@@ -185,7 +187,9 @@ async def bulk_discover_network_topology(
             discovery_results = network_service.discover_network_topology(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results[
+                "discovery_timestamp"
+            ].isoformat()
 
             results[host_id] = NetworkDiscoveryResponse(**discovery_results)
 
@@ -410,7 +414,9 @@ async def get_network_discovery_capabilities(
     return capabilities
 
 
-def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> NetworkSecurityAssessment:
+def _assess_network_security(
+    host: Host, discovery_results: Dict[str, Any]
+) -> NetworkSecurityAssessment:
     """Assess network security based on discovery results"""
 
     # Initialize assessment
@@ -438,7 +444,9 @@ def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> N
             port = int(port_info.get("port", 0))
             if port in risky_port_numbers:
                 risky_ports.append(port_info)
-                assessment.risky_services.append(f"Port {port} ({port_info.get('protocol', 'unknown')})")
+                assessment.risky_services.append(
+                    f"Port {port} ({port_info.get('protocol', 'unknown')})"
+                )
         except (ValueError, TypeError):
             continue
 
@@ -486,7 +494,9 @@ def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> N
 
     # Connectivity test failures might indicate network issues
     connectivity_tests = discovery_results.get("connectivity_tests", {})
-    failed_tests = sum(1 for test in connectivity_tests.values() if not test.get("ping_success", True))
+    failed_tests = sum(
+        1 for test in connectivity_tests.values() if not test.get("ping_success", True)
+    )
     if failed_tests > 0:
         assessment.network_vulnerabilities.append(f"{failed_tests} connectivity tests failed")
 
@@ -496,7 +506,9 @@ def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> N
     return assessment
 
 
-def _generate_topology_map(discovery_results: Dict[str, NetworkDiscoveryResponse], db: Session) -> NetworkTopologyMap:
+def _generate_topology_map(
+    discovery_results: Dict[str, NetworkDiscoveryResponse], db: Session
+) -> NetworkTopologyMap:
     """Generate network topology map from discovery results."""
     hosts: List[Dict[str, Any]] = []
     network_segments: List[Dict[str, Any]] = []
@@ -593,6 +605,8 @@ def _calculate_connectivity_score(connectivity_tests: Dict[str, Any]) -> float:
         return 0.0
 
     total_tests = len(connectivity_tests)
-    successful_tests = sum(1 for test in connectivity_tests.values() if test.get("ping_success", False))
+    successful_tests = sum(
+        1 for test in connectivity_tests.values() if test.get("ping_success", False)
+    )
 
     return successful_tests / total_tests if total_tests > 0 else 0.0

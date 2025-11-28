@@ -64,7 +64,9 @@ class ServiceComponent(BaseModel):
     memory_usage_mb: Optional[float] = Field(default=None, description="Memory usage in MB")
     cpu_usage_percent: Optional[float] = Field(default=None, description="CPU usage percentage")
     errors_last_hour: int = Field(default=0, description="Error count in last hour")
-    custom_metrics: Dict[str, Any] = Field(default_factory=dict, description="Component-specific metrics")
+    custom_metrics: Dict[str, Any] = Field(
+        default_factory=dict, description="Component-specific metrics"
+    )
 
 
 class ConnectionPool(BaseModel):
@@ -84,7 +86,9 @@ class DatabaseHealth(BaseModel):
     host: str = Field(description="Database host")
     database_name: str = Field(description="Database name")
     storage_size_mb: float = Field(description="Storage size in MB")
-    performance_metrics: Dict[str, float] = Field(default_factory=dict, description="Performance metrics")
+    performance_metrics: Dict[str, float] = Field(
+        default_factory=dict, description="Performance metrics"
+    )
 
 
 class ResourceUsage(BaseModel):
@@ -129,9 +133,13 @@ class OperationalAlert(BaseModel):
     component: str = Field(description="Affected component")
     message: str = Field(description="Alert message")
     timestamp: datetime = Field(description="Alert timestamp")
-    auto_resolution_attempted: bool = Field(default=False, description="Auto-resolution attempted flag")
+    auto_resolution_attempted: bool = Field(
+        default=False, description="Auto-resolution attempted flag"
+    )
     resolved: bool = Field(default=False, description="Resolution status")
-    resolution_timestamp: Optional[datetime] = Field(default=None, description="Resolution timestamp")
+    resolution_timestamp: Optional[datetime] = Field(
+        default=None, description="Resolution timestamp"
+    )
 
 
 class ServiceHealthDocument(Document):
@@ -146,13 +154,17 @@ class ServiceHealthDocument(Document):
     core_services: Dict[str, ServiceComponent] = Field(
         default_factory=dict, description="Core service components health"
     )
-    data_services: Dict[str, DatabaseHealth] = Field(default_factory=dict, description="Database services health")
+    data_services: Dict[str, DatabaseHealth] = Field(
+        default_factory=dict, description="Database services health"
+    )
     integration_services: Dict[str, ServiceComponent] = Field(
         default_factory=dict, description="Integration services health"
     )
 
     # Resource usage
-    resource_usage: Dict[str, Any] = Field(default_factory=dict, description="System resource usage")
+    resource_usage: Dict[str, Any] = Field(
+        default_factory=dict, description="System resource usage"
+    )
 
     # Recent operations
     recent_operations: Dict[str, Dict[str, Any]] = Field(
@@ -160,7 +172,9 @@ class ServiceHealthDocument(Document):
     )
 
     # Alerts
-    alerts: List[OperationalAlert] = Field(default_factory=list, description="Active operational alerts")
+    alerts: List[OperationalAlert] = Field(
+        default_factory=list, description="Active operational alerts"
+    )
 
     class Settings:
         name = "service_health"
@@ -182,7 +196,9 @@ class FrameworkHealth(BaseModel):
     implemented_controls: int = Field(description="Implemented control count")
     coverage_percentage: float = Field(description="Coverage percentage")
     rule_count: int = Field(description="Associated rule count")
-    benchmark_dependencies: List[str] = Field(default_factory=list, description="Dependent benchmarks")
+    benchmark_dependencies: List[str] = Field(
+        default_factory=list, description="Dependent benchmarks"
+    )
 
     @validator("coverage_percentage")
     def validate_percentage(cls, v: float) -> float:
@@ -203,24 +219,38 @@ class BenchmarkHealth(BaseModel):
     total_rules: int = Field(description="Total rule count")
     implemented_rules: int = Field(description="Implemented rule count")
     coverage_percentage: float = Field(description="Coverage percentage")
-    satisfies_frameworks: List[str] = Field(default_factory=list, description="Satisfied frameworks")
+    satisfies_frameworks: List[str] = Field(
+        default_factory=list, description="Satisfied frameworks"
+    )
     content_freshness: Dict[str, Any] = Field(default_factory=dict, description="Freshness metrics")
 
 
 class RuleDistribution(BaseModel):
     """Rule distribution statistics"""
 
-    by_severity: Dict[str, int] = Field(default_factory=dict, description="Distribution by severity")
-    by_category: Dict[str, int] = Field(default_factory=dict, description="Distribution by category")
-    by_platform: Dict[str, int] = Field(default_factory=dict, description="Distribution by platform")
+    by_severity: Dict[str, int] = Field(
+        default_factory=dict, description="Distribution by severity"
+    )
+    by_category: Dict[str, int] = Field(
+        default_factory=dict, description="Distribution by category"
+    )
+    by_platform: Dict[str, int] = Field(
+        default_factory=dict, description="Distribution by platform"
+    )
 
 
 class ContentIntegrity(BaseModel):
     """Content integrity validation results"""
 
-    source_validation: Dict[str, Any] = Field(default_factory=dict, description="Source validation results")
-    rule_consistency: Dict[str, Any] = Field(default_factory=dict, description="Rule consistency metrics")
-    cross_references: Dict[str, Any] = Field(default_factory=dict, description="Cross-reference validation")
+    source_validation: Dict[str, Any] = Field(
+        default_factory=dict, description="Source validation results"
+    )
+    rule_consistency: Dict[str, Any] = Field(
+        default_factory=dict, description="Rule consistency metrics"
+    )
+    cross_references: Dict[str, Any] = Field(
+        default_factory=dict, description="Cross-reference validation"
+    )
 
 
 class ContentAlert(BaseModel):
@@ -242,13 +272,19 @@ class ContentHealthDocument(Document):
     last_updated: datetime = Field(description="Last update timestamp")
 
     # Framework health
-    frameworks: Dict[str, FrameworkHealth] = Field(default_factory=dict, description="Framework health metrics")
+    frameworks: Dict[str, FrameworkHealth] = Field(
+        default_factory=dict, description="Framework health metrics"
+    )
 
     # Benchmark health
-    benchmarks: Dict[str, BenchmarkHealth] = Field(default_factory=dict, description="Benchmark health metrics")
+    benchmarks: Dict[str, BenchmarkHealth] = Field(
+        default_factory=dict, description="Benchmark health metrics"
+    )
 
     # Rule statistics
-    rule_statistics: Dict[str, Any] = Field(default_factory=dict, description="Rule distribution and statistics")
+    rule_statistics: Dict[str, Any] = Field(
+        default_factory=dict, description="Rule distribution and statistics"
+    )
 
     # Content integrity
     content_integrity: ContentIntegrity = Field(
@@ -256,7 +292,9 @@ class ContentHealthDocument(Document):
     )
 
     # Performance metrics
-    performance_metrics: Dict[str, Any] = Field(default_factory=dict, description="Content processing performance")
+    performance_metrics: Dict[str, Any] = Field(
+        default_factory=dict, description="Content processing performance"
+    )
 
     # Alerts and recommendations
     alerts_and_recommendations: List[ContentAlert] = Field(

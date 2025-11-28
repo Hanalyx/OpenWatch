@@ -116,7 +116,9 @@ class NISTFrameworkIntelligence(BaseModel):
     enhancements_total: int = Field(default=0, description="Total control enhancements available")
     enhancements_tested: int = Field(default=0, description="Control enhancements tested")
     enhancements_coverage: float = Field(default=0.0, description="Enhancement coverage percentage")
-    recommended_baseline: NISTBaseline = Field(..., description="Recommended baseline for organization")
+    recommended_baseline: NISTBaseline = Field(
+        ..., description="Recommended baseline for organization"
+    )
     calculated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -200,7 +202,9 @@ class CISFrameworkIntelligence(BaseModel):
     benchmark_version: str = Field(..., description="Benchmark version (e.g., '2.0.0')")
     overall_score: float = Field(..., description="Overall CIS compliance score")
     overall_tier: str = Field(..., description="OWCA compliance tier")
-    level_scores: List[CISLevelScore] = Field(default_factory=list, description="Score breakdown by Level 1/2")
+    level_scores: List[CISLevelScore] = Field(
+        default_factory=list, description="Score breakdown by Level 1/2"
+    )
     implementation_group_scores: List[CISImplementationGroupScore] = Field(
         default_factory=list, description="Score breakdown by IG1/IG2/IG3"
     )

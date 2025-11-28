@@ -12,8 +12,19 @@ import tempfile
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional
 
-from ...models.scan_models import RuleResult, RuleResultStatus, ScanResultSummary, ScanTarget, ScanTargetType
-from .base_scanner import BaseScanner, ScannerExecutionError, ScannerNotAvailableError, UnsupportedTargetError
+from ...models.scan_models import (
+    RuleResult,
+    RuleResultStatus,
+    ScanResultSummary,
+    ScanTarget,
+    ScanTargetType,
+)
+from .base_scanner import (
+    BaseScanner,
+    ScannerExecutionError,
+    ScannerNotAvailableError,
+    UnsupportedTargetError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +86,9 @@ class OSCAPScanner(BaseScanner):
 
         # Validate target type
         if target.type not in [ScanTargetType.SSH_HOST, ScanTargetType.LOCAL]:
-            raise UnsupportedTargetError(f"OSCAP scanner does not support target type: {target.type}")
+            raise UnsupportedTargetError(
+                f"OSCAP scanner does not support target type: {target.type}"
+            )
 
         # Check oscap availability
         if not await self._check_oscap_available():
@@ -133,7 +146,9 @@ class OSCAPScanner(BaseScanner):
         except Exception:
             return False
 
-    async def _generate_benchmark(self, rules: List[Dict[str, Any]], scan_options: Dict[str, Any]) -> tuple[str, str]:
+    async def _generate_benchmark(
+        self, rules: List[Dict[str, Any]], scan_options: Dict[str, Any]
+    ) -> tuple[str, str]:
         """
         Generate XCCDF benchmark from rules
 
@@ -165,7 +180,9 @@ class OSCAPScanner(BaseScanner):
 
         return benchmark_xml, profile_id
 
-    async def _generate_tailoring(self, benchmark_id: str, profile_id: str, variables: Dict[str, str]) -> str:
+    async def _generate_tailoring(
+        self, benchmark_id: str, profile_id: str, variables: Dict[str, str]
+    ) -> str:
         """Generate XCCDF tailoring file with variable overrides"""
 
         # Build set-value elements
@@ -372,7 +389,11 @@ class OSCAPScanner(BaseScanner):
 
                 # Find corresponding rule from input rules
                 matching_rule = next(
-                    (r for r in rules if r["rule_id"] in rule_id or r.get("scap_rule_id") == rule_id),
+                    (
+                        r
+                        for r in rules
+                        if r["rule_id"] in rule_id or r.get("scap_rule_id") == rule_id
+                    ),
                     None,
                 )
 

@@ -86,10 +86,14 @@ def validate_user_id(user_id_str: str) -> int:
         return int(user_id_str)
     except (ValueError, TypeError) as e:
         logger.error(f"Invalid user ID format: {user_id_str[:50]} - {type(e).__name__}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format"
+        )
 
 
-def serialize_user_row(row: Union[Row[Any], SimpleNamespace], include_sensitive: bool = False) -> Dict[str, Any]:
+def serialize_user_row(
+    row: Union[Row[Any], SimpleNamespace], include_sensitive: bool = False
+) -> Dict[str, Any]:
     """
     Convert database row to standardized user response dictionary.
 

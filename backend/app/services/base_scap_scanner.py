@@ -250,7 +250,9 @@ class BaseSCAPScanner(ABC):
     and result processing.
     """
 
-    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None) -> None:
+    def __init__(
+        self, content_dir: Optional[str] = None, results_dir: Optional[str] = None
+    ) -> None:
         # Use provided paths or fall back to configuration
         content_path = content_dir or settings.scap_content_dir
         results_path = results_dir or settings.scan_results_dir
@@ -266,7 +268,9 @@ class BaseSCAPScanner(ABC):
         try:
             self.content_dir.mkdir(parents=True, exist_ok=True)
             self.results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}")
+            logger.info(
+                f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}"
+            )
         except Exception as e:
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPBaseError(f"Directory creation failed: {str(e)}")
@@ -283,7 +287,9 @@ class BaseSCAPScanner(ABC):
         self, hostname: str, port: int, username: str, auth_method: str, credential: str
     ) -> Dict[str, Any]:
         """Test SSH connection - delegates to connection manager"""
-        return self.connection_manager.test_connection(hostname, port, username, auth_method, credential)
+        return self.connection_manager.test_connection(
+            hostname, port, username, auth_method, credential
+        )
 
     def create_scan_directory(self, scan_id: str) -> Path:
         """Create directory for scan results"""
@@ -365,8 +371,12 @@ class BaseSCAPScanner(ABC):
             if hostname:
                 # Remote system info - validate required parameters
                 if not username or not auth_method or not credential:
-                    return {"error": "Remote system info requires username, auth_method, and credential"}
-                return self._get_remote_system_info(hostname, port, username, auth_method, credential)
+                    return {
+                        "error": "Remote system info requires username, auth_method, and credential"
+                    }
+                return self._get_remote_system_info(
+                    hostname, port, username, auth_method, credential
+                )
             else:
                 # Local system info
                 return self._get_local_system_info()

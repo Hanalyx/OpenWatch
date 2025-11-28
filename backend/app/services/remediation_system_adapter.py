@@ -66,8 +66,12 @@ class RemediationSystemInfo(BaseModel):
     api_version: str = Field(..., description="Supported ORSA API version")
 
     # Capabilities
-    capabilities: List[RemediationSystemCapability] = Field(..., description="Supported remediation capabilities")
-    supported_platforms: List[str] = Field(..., description="Supported target platforms (rhel, ubuntu, windows, etc.)")
+    capabilities: List[RemediationSystemCapability] = Field(
+        ..., description="Supported remediation capabilities"
+    )
+    supported_platforms: List[str] = Field(
+        ..., description="Supported target platforms (rhel, ubuntu, windows, etc.)"
+    )
     supported_frameworks: List[str] = Field(
         default_factory=list,
         description="Supported compliance frameworks (stig, cis, pci, etc.)",
@@ -75,7 +79,9 @@ class RemediationSystemInfo(BaseModel):
 
     # Integration details
     api_endpoint: HttpUrl = Field(..., description="Base API endpoint URL")
-    authentication_type: str = Field(..., description="Authentication method (apikey, oauth2, jwt, etc.)")
+    authentication_type: str = Field(
+        ..., description="Authentication method (apikey, oauth2, jwt, etc.)"
+    )
     webhook_support: bool = Field(default=False, description="Supports webhook callbacks")
 
     # Operational info
@@ -137,7 +143,9 @@ class RemediationJob(BaseModel):
     parallel_execution: bool = Field(default=False, description="Enable parallel rule execution")
 
     # Context from OpenWatch
-    openwatch_context: Dict[str, Any] = Field(default_factory=dict, description="Context from OpenWatch scan results")
+    openwatch_context: Dict[str, Any] = Field(
+        default_factory=dict, description="Context from OpenWatch scan results"
+    )
 
     # Integration
     callback_url: Optional[HttpUrl] = Field(None, description="Webhook callback URL")
@@ -399,7 +407,9 @@ class OpenWatchRemediationSystemAdapter:
 
         return plugin
 
-    async def execute_remediation_via_openwatch(self, request: PluginExecutionRequest) -> PluginExecutionResult:
+    async def execute_remediation_via_openwatch(
+        self, request: PluginExecutionRequest
+    ) -> PluginExecutionResult:
         """
         Execute remediation through OpenWatch plugin interface
 
@@ -410,7 +420,9 @@ class OpenWatchRemediationSystemAdapter:
 
         try:
             # Map OpenWatch rule to remediation system rules
-            remediation_rules = await self._map_openwatch_rule_to_remediation_rules(request.rule_id, request.platform)
+            remediation_rules = await self._map_openwatch_rule_to_remediation_rules(
+                request.rule_id, request.platform
+            )
 
             if not remediation_rules:
                 return self._create_error_result(
@@ -439,7 +451,9 @@ class OpenWatchRemediationSystemAdapter:
             result = await self._wait_for_job_completion(job_id, job.timeout)
 
             # Convert to OpenWatch format
-            return self._convert_to_openwatch_result(execution_id, started_at, result, request.plugin_id)
+            return self._convert_to_openwatch_result(
+                execution_id, started_at, result, request.plugin_id
+            )
 
         except Exception as e:
             logger.error(f"Remediation execution failed: {e}")
@@ -449,7 +463,9 @@ class OpenWatchRemediationSystemAdapter:
         self, rule_id: str, platform: str, framework: Optional[str] = None
     ) -> List[RemediationRule]:
         """Get remediation system rules that can fix an OpenWatch compliance rule"""
-        available_rules = await self.remediation_system.get_available_rules(platform=platform, framework=framework)
+        available_rules = await self.remediation_system.get_available_rules(
+            platform=platform, framework=framework
+        )
 
         # Find matching rules using multiple strategies
         matches = []
@@ -475,7 +491,9 @@ class OpenWatchRemediationSystemAdapter:
 
         return matches
 
-    def _map_capabilities_to_plugin_capabilities(self, capabilities: List[RemediationSystemCapability]) -> List:
+    def _map_capabilities_to_plugin_capabilities(
+        self, capabilities: List[RemediationSystemCapability]
+    ) -> List:
         """Map remediation system capabilities to OpenWatch plugin capabilities"""
         from ..models.plugin_models import PluginCapability
 
@@ -559,7 +577,9 @@ if __name__ == "__main__":
     print(json.dumps(result))
 '''
 
-    async def _map_openwatch_rule_to_remediation_rules(self, rule_id: str, platform: str) -> List[str]:
+    async def _map_openwatch_rule_to_remediation_rules(
+        self, rule_id: str, platform: str
+    ) -> List[str]:
         """Map OpenWatch rule to remediation system rules"""
         matching_rules = await self.get_rules_for_openwatch_rule(rule_id, platform)
         return [rule.semantic_name for rule in matching_rules]
@@ -600,7 +620,9 @@ if __name__ == "__main__":
         return PluginExecutionResult(
             execution_id=execution_id,
             plugin_id=plugin_id,
-            status=("success" if job_result.status == RemediationExecutionStatus.SUCCESS else "failure"),
+            status=(
+                "success" if job_result.status == RemediationExecutionStatus.SUCCESS else "failure"
+            ),
             started_at=started_at,
             completed_at=job_result.completed_at or datetime.utcnow(),
             duration_seconds=job_result.duration_seconds or 0,
@@ -616,7 +638,9 @@ if __name__ == "__main__":
             rollback_data=(
                 {
                     "job_id": job_result.job_id,
-                    "rule_results": [r.dict() for r in job_result.rule_results if r.rollback_available],
+                    "rule_results": [
+                        r.dict() for r in job_result.rule_results if r.rollback_available
+                    ],
                 }
                 if any(r.rollback_available for r in job_result.rule_results)
                 else None
