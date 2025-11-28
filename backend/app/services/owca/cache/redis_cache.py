@@ -27,13 +27,14 @@ class OWCACache:
         """
         Initialize Redis cache connection.
 
-        Uses connection pool for performance.
+        Uses redis_url from settings which includes authentication credentials.
+        Falls back to individual host/port settings if URL parsing fails.
         """
         settings = get_settings()
         try:
-            self.redis_client = redis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
+            # Use redis_url which includes authentication (same as Celery)
+            self.redis_client = redis.from_url(
+                settings.redis_url,
                 db=settings.redis_db,
                 decode_responses=True,
                 socket_connect_timeout=5,
