@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -27,11 +27,11 @@ error_service = ErrorClassificationService()
 
 def execute_scan_task(
     scan_id: str,
-    host_data: Dict,
+    host_data: Dict[str, Any],
     content_path: str,
     profile_id: str,
-    scan_options: Dict,
-):
+    scan_options: Dict[str, Any],
+) -> Dict[str, Any]:
     """
     Execute SCAP scan task
     This is designed to work with or without Celery
@@ -355,7 +355,9 @@ def execute_scan_task(
         db.close()
 
 
-def _update_scan_error(db: Session, scan_id: str, error_message: str, original_exception: Exception = None):
+def _update_scan_error(
+    db: Session, scan_id: str, error_message: str, original_exception: Optional[Exception] = None
+) -> None:
     """Update scan with error status and set progress to 100% to indicate completion"""
     try:
         # Classify error if original exception provided
@@ -458,7 +460,7 @@ def _update_scan_error(db: Session, scan_id: str, error_message: str, original_e
         logger.error(f"Failed to update scan error status: {e}")
 
 
-def _save_scan_results(db: Session, scan_id: str, scan_results: Dict):
+def _save_scan_results(db: Session, scan_id: str, scan_results: Dict[str, Any]) -> None:
     """Save scan results summary to database"""
     try:
         # Parse failed rules by severity
@@ -547,13 +549,13 @@ try:
 
     @current_app.task(bind=True)
     def execute_scan_celery_task(
-        self,
+        self: Any,
         scan_id: str,
-        host_data: Dict,
+        host_data: Dict[str, Any],
         content_path: str,
         profile_id: str,
-        scan_options: Dict,
-    ):
+        scan_options: Dict[str, Any],
+    ) -> None:
         """Celery task wrapper for scan execution"""
         try:
             # Update task ID in database
@@ -586,7 +588,7 @@ except ImportError:
 
 async def _process_semantic_intelligence(
     db: Session, scan_id: str, scan_results: Dict[str, Any], host_data: Dict[str, Any]
-):
+) -> None:
     """Process scan results with semantic intelligence"""
 
     try:
@@ -649,7 +651,7 @@ async def _process_semantic_intelligence(
         # Don't re-raise - we want to continue with normal scan processing
 
 
-async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: "Any", host_data: Dict[str, Any]):
+async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any, host_data: Dict[str, Any]) -> None:
     """Send enhanced webhook with semantic intelligence data"""
 
     try:

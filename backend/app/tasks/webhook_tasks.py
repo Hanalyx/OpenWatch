@@ -71,11 +71,7 @@ async def deliver_webhook(
         finally:
             db.close()
     except Exception as e:
-        logger.error(
-            "Failed to create webhook delivery record",
-            error=str(e),
-            webhook_id=webhook_id,
-        )
+        logger.error(f"Failed to create webhook delivery record: error={e}, webhook_id={webhook_id}")
         return False
 
     # Create webhook headers with signature
@@ -128,11 +124,9 @@ async def deliver_webhook(
             db.close()
 
         logger.info(
-            "Webhook delivered successfully",
-            webhook_id=webhook_id,
-            delivery_id=delivery_id,
-            status_code=response.status_code,
-            duration_ms=round(duration * 1000, 2),
+            f"Webhook delivered successfully: webhook_id={webhook_id}, "
+            f"delivery_id={delivery_id}, status_code={response.status_code}, "
+            f"duration_ms={round(duration * 1000, 2)}"
         )
         return True
 
@@ -167,11 +161,9 @@ async def deliver_webhook(
             db.close()
 
         logger.error(
-            "Webhook delivery failed",
-            webhook_id=webhook_id,
-            delivery_id=delivery_id,
-            error=error_msg,
-            duration_ms=round(duration * 1000, 2),
+            f"Webhook delivery failed: webhook_id={webhook_id}, "
+            f"delivery_id={delivery_id}, error={error_msg}, "
+            f"duration_ms={round(duration * 1000, 2)}"
         )
 
     return False
@@ -209,14 +201,10 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
             try:
                 await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
-                logger.error(
-                    "Failed to deliver scan.completed webhook",
-                    webhook_id=str(webhook.id),
-                    error=str(e),
-                )
+                logger.error(f"Failed to deliver scan.completed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
-        logger.error("Failed to process scan.completed webhooks", scan_id=scan_id, error=str(e))
+        logger.error(f"Failed to process scan.completed webhooks: scan_id={scan_id}, error={e}")
 
 
 async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], error_message: str):
@@ -251,11 +239,7 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
             try:
                 await deliver_webhook(webhook.url, webhook.secret_hash, event_data, str(webhook.id))
             except Exception as e:
-                logger.error(
-                    "Failed to deliver scan.failed webhook",
-                    webhook_id=str(webhook.id),
-                    error=str(e),
-                )
+                logger.error(f"Failed to deliver scan.failed webhook: webhook_id={webhook.id}, error={e}")
 
     except Exception as e:
-        logger.error("Failed to process scan.failed webhooks", scan_id=scan_id, error=str(e))
+        logger.error(f"Failed to process scan.failed webhooks: scan_id={scan_id}, error={e}")

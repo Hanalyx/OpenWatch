@@ -33,7 +33,7 @@ from .api.v1.endpoints import (
 from .audit_db import log_security_event
 from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
-from .database import get_db
+from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
 from .routes import (
@@ -261,7 +261,7 @@ app.middleware("http")(rate_limiter)
 
 
 # Security Middleware
-@app.middleware("http")  # type: ignore[misc]
+@app.middleware("http")
 async def security_headers_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Add FIPS-compliant security headers to all responses."""
     response = await call_next(request)
@@ -298,7 +298,7 @@ def _log_audit_event(db: Any, event_type: str, request: Request, response: Respo
     log_security_event(db=db, event_type=event_type, ip_address=client_ip, details=details)
 
 
-@app.middleware("http")  # type: ignore[misc]
+@app.middleware("http")
 async def audit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Log security-relevant requests for audit purposes."""
     # Get client IP
@@ -310,7 +310,7 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
     response = await call_next(request)
 
     # Get database session for audit logging
-    db = next(get_db())
+    db = get_db_session()
 
     try:
         # Map URL path prefixes to event types
@@ -339,7 +339,7 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
     return response
 
 
-@app.middleware("http")  # type: ignore[misc]
+@app.middleware("http")
 async def request_size_limit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce request size limits to prevent DoS attacks."""
     max_size = settings.max_upload_size  # 100MB default
@@ -358,7 +358,7 @@ async def request_size_limit_middleware(request: Request, call_next: Callable[[R
     return await call_next(request)
 
 
-@app.middleware("http")  # type: ignore[misc]
+@app.middleware("http")
 async def https_redirect_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce HTTPS in production."""
     if settings.require_https and not settings.debug:
@@ -403,7 +403,7 @@ app.add_middleware(PrometheusMiddleware, service_name="openwatch")
 
 
 # Health Check Endpoint
-@app.get("/health")  # type: ignore[misc]
+@app.get("/health")
 async def health_check() -> JSONResponse:
     """Health check endpoint for container orchestration."""
     try:
@@ -514,7 +514,7 @@ async def health_check() -> JSONResponse:
 
 
 # Security Info Endpoint
-@app.get("/security-info")  # type: ignore[misc]
+@app.get("/security-info")
 async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -> JSONResponse:
     """Provide security configuration information (admin only)."""
     return JSONResponse(
@@ -531,7 +531,7 @@ async def security_info(current_user: Dict[str, Any] = Depends(require_admin)) -
 
 
 # Prometheus Metrics Endpoint
-@app.get("/metrics")  # type: ignore[misc]
+@app.get("/metrics")
 async def metrics() -> PlainTextResponse:
     """Prometheus metrics endpoint."""
     metrics_instance = get_metrics_instance()
@@ -613,7 +613,7 @@ if security_config:
 
 
 # Global Exception Handler
-@app.exception_handler(Exception)  # type: ignore[misc]
+@app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler for security and logging."""
     client_ip = request.client.host

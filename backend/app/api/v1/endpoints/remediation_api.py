@@ -9,7 +9,7 @@ Provides REST API for:
 - Statistics and reporting
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -37,9 +37,9 @@ router = APIRouter()
 @router.post("/execute", response_model=RemediationResult)
 async def execute_remediation(
     request: RemediationRequest,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> RemediationResult:
     """
     Execute remediation for a single rule.
 
@@ -85,7 +85,7 @@ async def execute_remediation(
             target=request.target,
             variable_overrides=request.variable_overrides,
             dry_run=request.dry_run,
-            executed_by=current_user.get("username"),
+            executed_by=current_user.get("username", "unknown"),
             scan_id=request.scan_id,
         )
 
@@ -106,9 +106,9 @@ async def execute_remediation(
 @router.post("/execute-bulk", response_model=BulkRemediationJob)
 async def execute_bulk_remediation(
     request: BulkRemediationRequest,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> BulkRemediationJob:
     """
     Execute remediation for multiple rules.
 
@@ -167,7 +167,7 @@ async def execute_bulk_remediation(
             rule_filter=request.rule_filter,
             variable_overrides=request.variable_overrides,
             dry_run=request.dry_run,
-            executed_by=current_user.get("username"),
+            executed_by=current_user.get("username", "unknown"),
         )
 
         return job
@@ -181,9 +181,9 @@ async def execute_bulk_remediation(
 @router.get("/{remediation_id}", response_model=RemediationResult)
 async def get_remediation(
     remediation_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> RemediationResult:
     """
     Get remediation result by ID.
 
@@ -218,9 +218,9 @@ async def list_remediations(
     limit: int = Query(50, ge=1, le=100, description="Max results"),
     status: Optional[RemediationStatus] = Query(None, description="Filter by status"),
     scan_id: Optional[str] = Query(None, description="Filter by scan ID"),
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[RemediationResult]:
     """
     List remediations with filters and pagination.
 
@@ -257,9 +257,9 @@ async def list_remediations(
 @router.post("/{remediation_id}/rollback", response_model=RemediationResult)
 async def rollback_remediation(
     remediation_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> RemediationResult:
     """
     Rollback a remediation.
 
@@ -294,7 +294,7 @@ async def rollback_remediation(
 
         # Execute rollback
         result = await orchestrator.rollback_remediation(
-            remediation_id=remediation_id, executed_by=current_user.get("username")
+            remediation_id=remediation_id, executed_by=current_user.get("username", "unknown")
         )
 
         return result
@@ -310,9 +310,9 @@ async def rollback_remediation(
 @router.delete("/{remediation_id}")
 async def delete_remediation(
     remediation_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Delete remediation result.
 
@@ -352,9 +352,9 @@ async def delete_remediation(
 @router.get("/statistics/summary", response_model=RemediationSummary)
 async def get_remediation_statistics(
     days: int = Query(30, ge=1, le=365, description="Days to include"),
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> RemediationSummary:
     """
     Get remediation statistics.
 
@@ -403,7 +403,9 @@ async def get_remediation_statistics(
 
 
 @router.get("/executors/available")
-async def list_available_executors(current_user: dict = Depends(get_current_user)):
+async def list_available_executors(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     """
     List available remediation executors.
 
@@ -444,9 +446,9 @@ async def list_available_executors(current_user: dict = Depends(get_current_user
 @router.get("/jobs/{job_id}", response_model=BulkRemediationJob)
 async def get_bulk_job(
     job_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> BulkRemediationJob:
     """
     Get bulk remediation job status.
 

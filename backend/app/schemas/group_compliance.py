@@ -69,7 +69,7 @@ class GroupScanScheduleRequest(BaseModel):
     email_notifications: bool = Field(True, description="Send notifications for scheduled scans")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "enabled": True,
                 "cron_expression": "0 2 * * 0",  # Weekly on Sunday at 2 AM

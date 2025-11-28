@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from beanie import Document, Indexed
+from beanie import Document
 from pydantic import BaseModel, Field, validator
 
 
@@ -55,25 +55,25 @@ class AlertSeverity(str, Enum):
 
 # Service Health Models
 class ServiceComponent(BaseModel):
-    """Individual service component health"""
+    """Individual service component health."""
 
     status: HealthStatus = Field(description="Component health status")
-    version: Optional[str] = Field(None, description="Component version")
-    started_at: Optional[datetime] = Field(None, description="Component start time")
-    last_heartbeat: Optional[datetime] = Field(None, description="Last heartbeat timestamp")
-    memory_usage_mb: Optional[float] = Field(None, description="Memory usage in MB")
-    cpu_usage_percent: Optional[float] = Field(None, description="CPU usage percentage")
-    errors_last_hour: int = Field(0, description="Error count in last hour")
+    version: Optional[str] = Field(default=None, description="Component version")
+    started_at: Optional[datetime] = Field(default=None, description="Component start time")
+    last_heartbeat: Optional[datetime] = Field(default=None, description="Last heartbeat timestamp")
+    memory_usage_mb: Optional[float] = Field(default=None, description="Memory usage in MB")
+    cpu_usage_percent: Optional[float] = Field(default=None, description="CPU usage percentage")
+    errors_last_hour: int = Field(default=0, description="Error count in last hour")
     custom_metrics: Dict[str, Any] = Field(default_factory=dict, description="Component-specific metrics")
 
 
 class ConnectionPool(BaseModel):
-    """Database connection pool statistics"""
+    """Database connection pool statistics."""
 
     active_connections: int = Field(description="Active connection count")
     idle_connections: int = Field(description="Idle connection count")
     max_connections: int = Field(description="Maximum connections allowed")
-    wait_queue_length: int = Field(0, description="Connection wait queue length")
+    wait_queue_length: int = Field(default=0, description="Connection wait queue length")
 
 
 class DatabaseHealth(BaseModel):
@@ -122,22 +122,22 @@ class StorageUsage(BaseModel):
 
 
 class OperationalAlert(BaseModel):
-    """Operational alert information"""
+    """Operational alert information."""
 
     id: str = Field(description="Alert ID")
     severity: AlertSeverity = Field(description="Alert severity")
     component: str = Field(description="Affected component")
     message: str = Field(description="Alert message")
     timestamp: datetime = Field(description="Alert timestamp")
-    auto_resolution_attempted: bool = Field(False, description="Auto-resolution attempted flag")
-    resolved: bool = Field(False, description="Resolution status")
-    resolution_timestamp: Optional[datetime] = Field(None, description="Resolution timestamp")
+    auto_resolution_attempted: bool = Field(default=False, description="Auto-resolution attempted flag")
+    resolved: bool = Field(default=False, description="Resolution status")
+    resolution_timestamp: Optional[datetime] = Field(default=None, description="Resolution timestamp")
 
 
 class ServiceHealthDocument(Document):
     """Service health monitoring document"""
 
-    scanner_id: Indexed(str) = Field(description="Scanner instance ID")
+    scanner_id: str = Field(description="Scanner instance ID")
     health_check_timestamp: datetime = Field(description="Health check timestamp")
     overall_status: HealthStatus = Field(description="Overall system health")
     uptime_seconds: int = Field(description="System uptime in seconds")
@@ -237,7 +237,7 @@ class ContentAlert(BaseModel):
 class ContentHealthDocument(Document):
     """Content health monitoring document"""
 
-    scanner_id: Indexed(str) = Field(description="Scanner instance ID")
+    scanner_id: str = Field(description="Scanner instance ID")
     health_check_timestamp: datetime = Field(description="Health check timestamp")
     last_updated: datetime = Field(description="Last update timestamp")
 
@@ -276,7 +276,7 @@ class ContentHealthDocument(Document):
 class HealthSummaryDocument(Document):
     """Combined health summary for quick access"""
 
-    scanner_id: Indexed(str, unique=True) = Field(description="Scanner instance ID")
+    scanner_id: str = Field(description="Scanner instance ID")
     last_updated: datetime = Field(description="Last update timestamp")
 
     # Quick status

@@ -6,7 +6,7 @@ Provides feature discovery and capability-based routing for OSS/Enterprise featu
 import asyncio
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 class FeatureFlags(BaseModel):
-    """Feature flags for conditional functionality"""
+    """Feature flags for conditional functionality."""
 
     scanning: bool = True
     reporting: bool = True
@@ -42,7 +42,7 @@ class FeatureFlags(BaseModel):
 
 
 class SystemLimits(BaseModel):
-    """System limits and constraints"""
+    """System limits and constraints."""
 
     max_hosts: int = 50
     concurrent_scans: int = 5
@@ -53,10 +53,10 @@ class SystemLimits(BaseModel):
 
 
 class IntegrationStatus(BaseModel):
-    """Status of external integrations"""
+    """Status of external integrations."""
 
     aegis_available: bool = False
-    aegis_version: str = None
+    aegis_version: Optional[str] = None
     ldap_enabled: bool = False
     smtp_configured: bool = False
     prometheus_enabled: bool = False
@@ -67,7 +67,7 @@ class IntegrationStatus(BaseModel):
 
 
 class CapabilitiesResponse(BaseModel):
-    """Complete capabilities response"""
+    """Complete capabilities response."""
 
     version: str
     build_info: Dict[str, Any]
@@ -80,7 +80,7 @@ class CapabilitiesResponse(BaseModel):
 
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities(
-    current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> CapabilitiesResponse:
     """
     Get system capabilities and feature flags
@@ -98,7 +98,7 @@ async def get_capabilities(
         settings = get_settings()
 
         # Detect license type and enterprise features
-        license_info = await _detect_license_info()
+        license_info = _detect_license_info()
 
         # Check integration status
         integrations = await _check_integrations()
@@ -107,10 +107,10 @@ async def get_capabilities(
         features = await _determine_feature_flags(license_info, settings)
 
         # Calculate system limits
-        limits = await _calculate_system_limits(license_info, settings)
+        limits = _calculate_system_limits(license_info, settings)
 
         # Get system information
-        system_info = await _get_system_info()
+        system_info = _get_system_info()
 
         # Build version info
         build_info = {
@@ -145,7 +145,7 @@ async def get_capabilities(
 
 @router.get("/features", response_model=FeatureFlags)
 async def get_feature_flags(
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> FeatureFlags:
     """
     Get just the feature flags (lightweight endpoint)
@@ -156,7 +156,7 @@ async def get_feature_flags(
     """
     try:
         settings = get_settings()
-        license_info = await _detect_license_info()
+        license_info = _detect_license_info()
         features = await _determine_feature_flags(license_info, settings)
 
         logger.debug(f"Feature flags requested by user {current_user.get('user_id', 'unknown')}")
@@ -173,7 +173,7 @@ async def get_feature_flags(
 
 @router.get("/health/integrations", response_model=IntegrationStatus)
 async def get_integration_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> IntegrationStatus:
     """
     Get status of external integrations
@@ -217,7 +217,7 @@ def _detect_license_info() -> Dict[str, Any]:
     }
 
 
-async def _determine_feature_flags(license_info: Dict, settings) -> FeatureFlags:
+async def _determine_feature_flags(license_info: Dict[str, Any], settings: Any) -> FeatureFlags:
     """Determine which features are available based on license and config"""
 
     # Base OSS features (always available)
@@ -236,14 +236,14 @@ async def _determine_feature_flags(license_info: Dict, settings) -> FeatureFlags
     features.mfa = getattr(settings, "mfa_enabled", True)
 
     # Check if AEGIS is available (affects remediation)
-    if await _check_aegis_availability():
+    if _check_aegis_availability():
         # Even in OSS, basic remediation might be available if AEGIS is configured
         features.remediation = license_info.get("type") == "enterprise"
 
     return features
 
 
-def _calculate_system_limits(license_info: Dict, settings) -> SystemLimits:
+def _calculate_system_limits(license_info: Dict[str, Any], settings: Any) -> SystemLimits:
     """Calculate system limits based on license and configuration"""
 
     limits = SystemLimits()
@@ -275,9 +275,9 @@ async def _check_integrations() -> IntegrationStatus:
     integrations = IntegrationStatus()
 
     # Check AEGIS availability
-    integrations.aegis_available = await _check_aegis_availability()
+    integrations.aegis_available = _check_aegis_availability()
     if integrations.aegis_available:
-        integrations.aegis_version = await _get_aegis_version()
+        integrations.aegis_version = _get_aegis_version()
 
     # Check LDAP configuration
     integrations.ldap_enabled = _check_ldap_config()
@@ -308,8 +308,8 @@ def _check_aegis_availability() -> bool:
         return False
 
 
-def _get_aegis_version() -> str:
-    """Get AEGIS version if available"""
+def _get_aegis_version() -> Optional[str]:
+    """Get AEGIS version if available."""
     try:
         # In a real implementation, this would query AEGIS API
         return "1.0.0"

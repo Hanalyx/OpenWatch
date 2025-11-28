@@ -48,7 +48,7 @@ class CacheMetrics:
     avg_miss_time: float = 0.0
     cache_size: int = 0
     memory_usage: int = 0
-    last_updated: datetime = None
+    last_updated: Optional[datetime] = None
 
 
 @dataclass
@@ -98,7 +98,7 @@ class RuleCacheService:
             ("framework_rules", {"framework": "nist"}),
         ]
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize cache service"""
         try:
             self.redis_client = redis.from_url(
@@ -232,7 +232,7 @@ class RuleCacheService:
             if result > 0:
                 await self._update_size_metrics()
 
-            return result > 0
+            return bool(result > 0)
 
         except Exception as e:
             logger.error(f"Cache delete error for key {key}: {str(e)}")
@@ -356,7 +356,7 @@ class RuleCacheService:
                 "avg_hit_time_ms": round(self.metrics.avg_hit_time * 1000, 2),
                 "avg_miss_time_ms": round(self.metrics.avg_miss_time * 1000, 2),
                 "redis_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 2),
-                "last_updated": self.metrics.last_updated.isoformat(),
+                "last_updated": self.metrics.last_updated.isoformat() if self.metrics.last_updated else None,
             }
 
             return cache_info
@@ -365,7 +365,7 @@ class RuleCacheService:
             logger.error(f"Error getting cache info: {str(e)}")
             return {"status": "error", "error": str(e)}
 
-    async def warm_cache(self, queries: Optional[List[Tuple[str, Dict]]] = None):
+    async def warm_cache(self, queries: Optional[List[Tuple[str, Dict[str, Any]]]] = None) -> None:
         """Warm cache with common queries"""
         try:
             if self.redis_client is None:
@@ -378,7 +378,8 @@ class RuleCacheService:
             for query_type, params in warm_queries:
                 try:
                     # Create cache key
-                    key = self._build_query_key(query_type, params)
+                    params_dict: Dict[str, Any] = params if isinstance(params, dict) else {}
+                    key = self._build_query_key(query_type, params_dict)
 
                     # Check if already cached
                     if await self.get(key) is not None:
@@ -388,7 +389,7 @@ class RuleCacheService:
                     # For now, create placeholder for cache warming architecture
                     placeholder_data = {
                         "query_type": query_type,
-                        "params": params,
+                        "params": params_dict,
                         "warmed_at": datetime.utcnow().isoformat(),
                         "placeholder": True,
                     }
@@ -424,7 +425,7 @@ class RuleCacheService:
 
         return f"{query_type}:{params_hash}"
 
-    async def _initialize_metrics(self):
+    async def _initialize_metrics(self) -> None:
         """Initialize cache metrics"""
         try:
             if self.redis_client:
@@ -442,7 +443,7 @@ class RuleCacheService:
         except Exception as e:
             logger.error(f"Failed to initialize cache metrics: {str(e)}")
 
-    async def _save_metrics(self):
+    async def _save_metrics(self) -> None:
         """Save metrics to cache"""
         try:
             if self.redis_client:
@@ -456,7 +457,7 @@ class RuleCacheService:
         except Exception as e:
             logger.error(f"Failed to save cache metrics: {str(e)}")
 
-    async def _record_hit(self, start_time: datetime):
+    async def _record_hit(self, start_time: datetime) -> None:
         """Record cache hit metrics"""
         duration = (datetime.utcnow() - start_time).total_seconds()
 
@@ -472,7 +473,7 @@ class RuleCacheService:
         if self.metrics.total_requests % 100 == 0:
             await self._save_metrics()
 
-    async def _record_miss(self, start_time: datetime):
+    async def _record_miss(self, start_time: datetime) -> None:
         """Record cache miss metrics"""
         duration = (datetime.utcnow() - start_time).total_seconds()
 
@@ -495,15 +496,15 @@ class RuleCacheService:
                 return False
 
             redis_info = await self.redis_client.info("memory")
-            current_memory = redis_info.get("used_memory", 0)
-            max_memory = self.max_memory_mb * 1024 * 1024
+            current_memory: int = int(redis_info.get("used_memory", 0))
+            max_memory: int = self.max_memory_mb * 1024 * 1024
 
-            return (current_memory + new_entry_size) > max_memory
+            return bool((current_memory + new_entry_size) > max_memory)
 
         except Exception:
             return False
 
-    async def _evict_entries(self):
+    async def _evict_entries(self) -> None:
         """Evict entries based on strategy"""
         try:
             if self.redis_client is None:
@@ -548,7 +549,7 @@ class RuleCacheService:
         except Exception as e:
             logger.error(f"Cache eviction error: {str(e)}")
 
-    async def _update_size_metrics(self):
+    async def _update_size_metrics(self) -> None:
         """Update cache size metrics"""
         try:
             if self.redis_client:
@@ -569,12 +570,12 @@ class RuleCacheService:
         except Exception as e:
             logger.error(f"Failed to update cache size metrics: {str(e)}")
 
-    async def _reset_metrics(self):
+    async def _reset_metrics(self) -> None:
         """Reset cache metrics"""
         self.metrics = CacheMetrics(last_updated=datetime.utcnow())
         await self._save_metrics()
 
-    async def _warm_cache(self):
+    async def _warm_cache(self) -> None:
         """Background cache warming task"""
         try:
             # Wait a bit for system to stabilize
@@ -588,7 +589,7 @@ class RuleCacheService:
         except Exception as e:
             logger.error(f"Background cache warming error: {str(e)}")
 
-    async def close(self):
+    async def close(self) -> None:
         """Close cache connections"""
         try:
             if self.redis_client:

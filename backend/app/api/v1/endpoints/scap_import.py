@@ -72,7 +72,7 @@ async def import_scap_file(
     request: ImportRequest,
     background_tasks: BackgroundTasks,
     service: SCAPImportService = Depends(get_import_service),
-):
+) -> ImportResponse:
     """
     Import a SCAP XML file into MongoDB
 
@@ -117,7 +117,7 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(import_id: str, service: SCAPImportService = Depends(get_import_service)):
+async def get_import_status(import_id: str, service: SCAPImportService = Depends(get_import_service)) -> ImportStatus:
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
@@ -141,7 +141,7 @@ async def get_import_status(import_id: str, service: SCAPImportService = Depends
 
 
 @router.get("/imports")
-async def list_active_imports():
+async def list_active_imports() -> Dict[str, Any]:
     """List all active and recent imports"""
 
     return {
@@ -158,7 +158,7 @@ async def list_active_imports():
 
 
 @router.delete("/import/{import_id}")
-async def cancel_import(import_id: str):
+async def cancel_import(import_id: str) -> Dict[str, str]:
     """Cancel an ongoing import (if possible)"""
 
     if import_id not in active_imports:
@@ -177,7 +177,7 @@ async def cancel_import(import_id: str):
 
 
 @router.get("/files")
-async def list_imported_files(service: SCAPImportService = Depends(get_import_service)):
+async def list_imported_files(service: SCAPImportService = Depends(get_import_service)) -> Dict[str, Any]:
     """List all previously imported SCAP files"""
 
     try:
@@ -188,7 +188,7 @@ async def list_imported_files(service: SCAPImportService = Depends(get_import_se
 
 
 @router.post("/validate/{import_id}")
-async def validate_import(import_id: str, service: SCAPImportService = Depends(get_import_service)):
+async def validate_import(import_id: str, service: SCAPImportService = Depends(get_import_service)) -> Dict[str, Any]:
     """Validate the integrity of an imported file"""
 
     if import_id not in active_imports:
@@ -209,7 +209,7 @@ async def validate_import(import_id: str, service: SCAPImportService = Depends(g
 @router.get("/statistics")
 async def get_import_statistics(
     service: SCAPImportService = Depends(get_import_service),
-):
+) -> Dict[str, Any]:
     """Get overall import statistics"""
 
     try:
@@ -266,7 +266,7 @@ async def run_import_task(
     deduplication_strategy: str,
     batch_size: int,
     service: SCAPImportService,
-):
+) -> None:
     """Run the import task in the background"""
 
     try:

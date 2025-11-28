@@ -1,9 +1,12 @@
 """
 SCAP Content Management Routes
+
+Provides endpoints for managing SCAP (Security Content Automation Protocol)
+content files, including uploading, listing, and deleting benchmark definitions.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPBearer
@@ -18,6 +21,8 @@ router = APIRouter()
 
 
 class SCAPContent(BaseModel):
+    """Model representing SCAP content metadata."""
+
     id: Optional[str] = None
     name: str
     version: str
@@ -29,6 +34,8 @@ class SCAPContent(BaseModel):
 
 
 class ContentCreate(BaseModel):
+    """Request model for creating new SCAP content."""
+
     name: str
     version: str
     description: str
@@ -36,7 +43,7 @@ class ContentCreate(BaseModel):
 
 
 @router.get("/", response_model=List[SCAPContent])
-async def list_content(token: str = Depends(security)):
+async def list_content(token: str = Depends(security)) -> List[SCAPContent]:
     """List all SCAP content"""
     # Mock data
     mock_content = [
@@ -66,7 +73,10 @@ async def list_content(token: str = Depends(security)):
 
 
 @router.post("/upload")
-async def upload_content(file: UploadFile = File(...), token: str = Depends(security)):
+async def upload_content(
+    file: UploadFile = File(...),
+    token: str = Depends(security),
+) -> Dict[str, Any]:
     """Upload new SCAP content file"""
     # Sanitize filename to prevent path traversal
     safe_filename = sanitize_filename(file.filename)
@@ -94,7 +104,7 @@ async def upload_content(file: UploadFile = File(...), token: str = Depends(secu
 
 
 @router.get("/{content_id}", response_model=SCAPContent)
-async def get_content(content_id: str, token: str = Depends(security)):
+async def get_content(content_id: str, token: str = Depends(security)) -> SCAPContent:
     """Get SCAP content details by ID"""
     # Mock data
     if content_id == "1":
@@ -113,7 +123,10 @@ async def get_content(content_id: str, token: str = Depends(security)):
 
 
 @router.get("/{content_id}/profiles")
-async def get_content_profiles(content_id: str, token: str = Depends(security)):
+async def get_content_profiles(
+    content_id: str,
+    token: str = Depends(security),
+) -> List[Dict[str, str]]:
     """Get available profiles for SCAP content"""
     # Mock profiles
     mock_profiles = [
@@ -133,7 +146,7 @@ async def get_content_profiles(content_id: str, token: str = Depends(security)):
 
 
 @router.delete("/{content_id}")
-async def delete_content(content_id: str, token: str = Depends(security)):
+async def delete_content(content_id: str, token: str = Depends(security)) -> Dict[str, str]:
     """Delete SCAP content"""
     logger.info(f"Deleted SCAP content {content_id}")
     return {"message": "SCAP content deleted successfully"}

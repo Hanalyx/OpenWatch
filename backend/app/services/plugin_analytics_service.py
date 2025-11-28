@@ -257,15 +257,16 @@ class PluginAnalyticsService:
     - System-wide performance insights
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize plugin analytics service."""
         self.plugin_registry_service = PluginRegistryService()
-        self.metrics_buffer: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
+        self.metrics_buffer: Dict[str, deque[PluginMetric]] = defaultdict(lambda: deque(maxlen=10000))
         self.analytics_cache: Dict[str, Any] = {}
         self.monitoring_enabled = False
-        self.collection_task: Optional[asyncio.Task] = None
+        self.collection_task: Optional[asyncio.Task[None]] = None
 
-    async def start_metrics_collection(self):
-        """Start real-time metrics collection"""
+    async def start_metrics_collection(self) -> None:
+        """Start real-time metrics collection."""
         if self.monitoring_enabled:
             logger.warning("Metrics collection is already running")
             return
@@ -274,8 +275,8 @@ class PluginAnalyticsService:
         self.collection_task = asyncio.create_task(self._metrics_collection_loop())
         logger.info("Started plugin metrics collection")
 
-    async def stop_metrics_collection(self):
-        """Stop real-time metrics collection"""
+    async def stop_metrics_collection(self) -> None:
+        """Stop real-time metrics collection."""
         if not self.monitoring_enabled:
             return
 
@@ -289,8 +290,8 @@ class PluginAnalyticsService:
 
         logger.info("Stopped plugin metrics collection")
 
-    async def record_plugin_metric(self, metric: PluginMetric):
-        """Record a plugin metric data point"""
+    async def record_plugin_metric(self, metric: PluginMetric) -> None:
+        """Record a plugin metric data point."""
         metric_key = f"{metric.plugin_id}:{metric.metric_type.value}:{metric.metric_name}"
         self.metrics_buffer[metric_key].append(metric)
 
@@ -660,8 +661,8 @@ class PluginAnalyticsService:
         await analytics.save()
         return analytics
 
-    async def _metrics_collection_loop(self):
-        """Background metrics collection loop"""
+    async def _metrics_collection_loop(self) -> None:
+        """Background metrics collection loop."""
         while self.monitoring_enabled:
             try:
                 # Collect metrics from all active plugins
@@ -679,8 +680,8 @@ class PluginAnalyticsService:
                 logger.error(f"Error in metrics collection loop: {e}")
                 await asyncio.sleep(60)
 
-    async def _collect_plugin_metrics(self, plugin: InstalledPlugin):
-        """Collect metrics for a specific plugin"""
+    async def _collect_plugin_metrics(self, plugin: InstalledPlugin) -> None:
+        """Collect metrics for a specific plugin."""
         try:
             # This would collect actual metrics from the plugin
             # For now, generate mock metrics
@@ -765,8 +766,8 @@ class PluginAnalyticsService:
         else:
             return timedelta(hours=1)
 
-    def _analyze_metric_trends(self, summaries: List[PluginMetricSummary]):
-        """Analyze trends in metric summaries"""
+    def _analyze_metric_trends(self, summaries: List[PluginMetricSummary]) -> None:
+        """Analyze trends in metric summaries."""
         if len(summaries) < 3:
             return
 
@@ -795,13 +796,13 @@ class PluginAnalyticsService:
                 summary.trend_confidence = 0.8
 
     def _analyze_usage_patterns(self, execution_metrics: List[PluginMetric]) -> Dict[str, Any]:
-        """Analyze usage patterns from execution metrics"""
+        """Analyze usage patterns from execution metrics."""
         if not execution_metrics:
             return {}
 
         # Group by hour of day
-        hourly_counts = defaultdict(int)
-        daily_counts = defaultdict(int)
+        hourly_counts: Dict[int, int] = defaultdict(int)
+        daily_counts: Dict[Any, int] = defaultdict(int)
 
         for metric in execution_metrics:
             if metric.metric_name == "execution_count":

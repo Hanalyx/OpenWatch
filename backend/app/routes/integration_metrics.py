@@ -15,7 +15,7 @@ from ..services.integration_metrics import metrics_collector
 router = APIRouter()
 
 
-@router.get("/health")  # type: ignore[misc]
+@router.get("/health")
 async def integration_health() -> Dict[str, Any]:
     """Get integration health status - no auth required"""
     try:
@@ -55,7 +55,7 @@ async def integration_health() -> Dict[str, Any]:
         }
 
 
-@router.get("/stats")  # type: ignore[misc]
+@router.get("/stats")
 @require_admin()
 async def get_integration_stats(
     hours: int = Query(1, ge=1, le=168, description="Hours of data to analyze"),
@@ -88,7 +88,7 @@ async def get_integration_stats(
         raise HTTPException(status_code=500, detail=f"Failed to get integration stats: {e}")
 
 
-@router.get("/metrics")  # type: ignore[misc]
+@router.get("/metrics", response_model=None)
 @require_admin()
 async def get_metrics(
     format: str = Query("json", regex="^(json|prometheus)$"),
@@ -134,7 +134,7 @@ async def get_metrics(
         raise HTTPException(status_code=500, detail=f"Failed to export metrics: {e}")
 
 
-@router.get("/performance")  # type: ignore[misc]
+@router.get("/performance")
 @require_admin()
 async def get_performance_overview(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -146,7 +146,8 @@ async def get_performance_overview(
         last_day = metrics_collector.get_metrics_summary(hours=24)
 
         # Calculate trends
-        performance_data = {}
+        # Dict[operation, Dict[period, metrics]] - contains mixed types (int, float, str)
+        performance_data: Dict[str, Any] = {}
 
         for operation in set(list(last_hour.keys()) + list(last_day.keys())):
             hour_data = last_hour.get(operation)
@@ -204,7 +205,7 @@ async def get_performance_overview(
         raise HTTPException(status_code=500, detail=f"Failed to get performance overview: {e}")
 
 
-@router.post("/cleanup")  # type: ignore[misc]
+@router.post("/cleanup")
 @require_admin()
 async def cleanup_old_metrics(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Manually trigger cleanup of old metrics"""

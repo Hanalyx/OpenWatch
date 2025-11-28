@@ -65,14 +65,15 @@ class BaseRepository(Generic[T]):
 
             self._log_query_performance(operation="find_one", query=query, duration=time.time() - start_time)
 
-            return result
+            result_value: Optional[T] = result
+            return result_value
         except Exception as e:
             self.logger.error(f"Error in find_one with query {query}: {e}")
             raise
 
     async def find_many(
         self,
-        query: Dict[str, Any] = None,
+        query: Optional[Dict[str, Any]] = None,
         skip: int = 0,
         limit: int = 100,
         sort: Optional[List[Tuple[str, int]]] = None,
@@ -121,12 +122,13 @@ class BaseRepository(Generic[T]):
                 result_count=len(result),
             )
 
-            return result
+            result_list: List[T] = result
+            return result_list
         except Exception as e:
             self.logger.error(f"Error in find_many with query {query}: {e}")
             raise
 
-    async def count(self, query: Dict[str, Any] = None) -> int:
+    async def count(self, query: Optional[Dict[str, Any]] = None) -> int:
         """
         Count documents matching query.
 
@@ -156,7 +158,8 @@ class BaseRepository(Generic[T]):
                 result_count=result,
             )
 
-            return result
+            count_value: int = result
+            return count_value
         except Exception as e:
             self.logger.error(f"Error in count with query {query}: {e}")
             raise
@@ -223,7 +226,8 @@ class BaseRepository(Generic[T]):
 
             self._log_query_performance(operation="update_one", query=query, duration=time.time() - start_time)
 
-            return doc
+            result_doc: Optional[T] = doc
+            return result_doc
         except Exception as e:
             self.logger.error(f"Error in update_one with query {query}: {e}")
             raise
@@ -359,14 +363,15 @@ class BaseRepository(Generic[T]):
                 result_count=len(result),
             )
 
-            return result
+            result_list: List[Dict[str, Any]] = result
+            return result_list
         except Exception as e:
             self.logger.error(f"Error in aggregate with pipeline {pipeline}: {e}")
             raise
 
     async def find_with_pagination(
         self,
-        query: Dict[str, Any] = None,
+        query: Optional[Dict[str, Any]] = None,
         page: int = 1,
         per_page: int = 20,
         sort: Optional[List[Tuple[str, int]]] = None,
@@ -415,7 +420,7 @@ class BaseRepository(Generic[T]):
         query: Dict[str, Any],
         duration: float,
         result_count: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Log query performance and warn about slow queries.
 

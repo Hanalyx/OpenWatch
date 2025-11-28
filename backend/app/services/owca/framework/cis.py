@@ -103,7 +103,7 @@ class CISBenchmarkIntelligence(BaseFrameworkIntelligence):
 
     def _analyze_levels(self, cis_rules: List[Dict]) -> List[CISLevelScore]:
         """Analyze CIS Level 1/2 compliance."""
-        level_rules = {CISLevel.LEVEL_1: [], CISLevel.LEVEL_2: []}
+        level_rules: Dict[CISLevel, List[Dict]] = {CISLevel.LEVEL_1: [], CISLevel.LEVEL_2: []}
 
         # Group rules by level (simplified - would parse from metadata)
         for rule in cis_rules:

@@ -5,7 +5,7 @@ dual-system approach with a single, consistent authentication layer.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -23,13 +23,14 @@ router = APIRouter(prefix="/v2/credentials", tags=["Credentials v2"])
 
 
 def get_encryption_service_from_request(request: Request) -> EncryptionService:
-    """Helper function to get encryption service from app state"""
-    return request.app.state.encryption_service
+    """Helper function to get encryption service from app state."""
+    enc_service: EncryptionService = request.app.state.encryption_service
+    return enc_service
 
 
 # Pydantic models for API
 class CredentialCreateRequest(BaseModel):
-    """Request model for creating credentials"""
+    """Request model for creating credentials."""
 
     name: str = Field(..., description="Human-readable name for the credential")
     description: Optional[str] = Field(None, description="Optional description")
@@ -44,7 +45,7 @@ class CredentialCreateRequest(BaseModel):
 
 
 class CredentialResponse(BaseModel):
-    """Response model for credential data (without sensitive fields)"""
+    """Response model for credential data (without sensitive fields)."""
 
     id: str
     name: str
@@ -64,7 +65,7 @@ class CredentialResponse(BaseModel):
 
 
 class CredentialResolveResponse(BaseModel):
-    """Response model for resolved credentials"""
+    """Response model for resolved credentials."""
 
     username: str
     auth_method: str
@@ -76,7 +77,7 @@ class CredentialResolveResponse(BaseModel):
 
 
 class CredentialDataResponse(BaseModel):
-    """Response model with decrypted credential data (admin only)"""
+    """Response model with decrypted credential data (admin only)."""
 
     username: str
     auth_method: str
@@ -92,8 +93,8 @@ async def create_credential(
     request: CredentialCreateRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> CredentialResponse:
     """
     Create a new credential with unified encryption.
     All credentials use AES-256-GCM regardless of scope.
@@ -137,7 +138,7 @@ async def create_credential(
             user_id = f"00000000-0000-0000-0000-{user_id:012d}"
 
         credential_id = auth_service.store_credential(
-            credential_data=credential_data, metadata=metadata, created_by=user_id
+            credential_data=credential_data, metadata=metadata, created_by=user_id or ""
         )
 
         # Return credential metadata (no sensitive data)
@@ -164,8 +165,8 @@ async def list_credentials(
     target_id: Optional[str] = None,
     include_inactive: bool = False,  # WEEK 2: Control inactive credential visibility
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[CredentialResponse]:
     """
     List credentials with optional filtering.
     Returns metadata only (no sensitive credential data).
@@ -190,9 +191,9 @@ async def list_credentials(
 
         # WEEK 2 FIX: Include inactive credentials only if requested (for compliance audit)
         credentials = auth_service.list_credentials(
-            scope=scope,
-            target_id=target_id,
-            user_id=user_id,
+            scope=scope or CredentialScope.HOST,  # Default to HOST scope
+            target_id=target_id or "",
+            user_id=user_id or "",
             include_inactive=include_inactive,
         )
 
@@ -209,8 +210,8 @@ async def resolve_credential(
     http_request: Request,
     use_default: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> CredentialResolveResponse:
     """
     Resolve effective credentials for a target using inheritance logic.
     This is the core endpoint that fixes authentication inconsistency.
@@ -257,8 +258,8 @@ async def get_credential_data(
     http_request: Request,
     use_default: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> CredentialDataResponse:
     """
     Get decrypted credential data for internal use (admin only).
     Used by scanning and monitoring services.
@@ -296,8 +297,8 @@ async def get_credential_data(
 async def get_system_default_credential(
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> CredentialDataResponse:
     """
     Get system default credential for internal use.
     Maintains compatibility with existing code.
@@ -332,8 +333,8 @@ async def validate_credential(
     credential_data: CredentialCreateRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Validate credential format and connectivity without storing.
     """
@@ -369,8 +370,8 @@ async def delete_credential(
     credential_id: str,
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Soft delete a credential by marking it inactive.
     """

@@ -78,7 +78,7 @@ class SemanticSCAPEngine:
     and AEGIS remediation, enabling universal compliance understanding.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         self.aegis_base_url = getattr(self.settings, "aegis_api_url", "http://localhost:8001")
         self._rule_mappings_cache: Dict[str, SemanticRule] = {}
@@ -176,7 +176,7 @@ class SemanticSCAPEngine:
             )
 
     async def _extract_semantic_understanding(
-        self, failed_rules: List[Dict], rule_details: List[Dict], host_info: Dict
+        self, failed_rules: List[Dict[str, Any]], rule_details: List[Dict[str, Any]], host_info: Dict[str, Any]
     ) -> List[SemanticRule]:
         """Extract semantic meaning from SCAP rule IDs"""
 
@@ -227,7 +227,7 @@ class SemanticSCAPEngine:
         return semantic_rules
 
     async def _map_scap_rule_to_semantic(
-        self, scap_rule_id: str, rule_detail: Dict, severity: str, host_info: Dict
+        self, scap_rule_id: str, rule_detail: Dict[str, Any], severity: str, host_info: Dict[str, Any]
     ) -> Optional[SemanticRule]:
         """Map a SCAP rule ID to semantic understanding"""
 
@@ -309,7 +309,7 @@ class SemanticSCAPEngine:
 
         return clean_id or "unknown_rule"
 
-    def _extract_compliance_intent(self, rule_detail: Dict) -> str:
+    def _extract_compliance_intent(self, rule_detail: Dict[str, Any]) -> str:
         """Extract compliance intent from rule details"""
         title = rule_detail.get("title", "").lower()
         description = rule_detail.get("description", "").lower()
@@ -337,7 +337,7 @@ class SemanticSCAPEngine:
 
         return "security_compliance"
 
-    def _determine_business_impact(self, rule_detail: Dict, semantic_name: str) -> str:
+    def _determine_business_impact(self, rule_detail: Dict[str, Any], semantic_name: str) -> str:
         """Determine business impact category"""
         high_impact = ["authentication", "access_control", "network_security"]
         medium_impact = ["audit_logging", "system_hardening"]
@@ -351,13 +351,13 @@ class SemanticSCAPEngine:
         else:
             return "low"
 
-    def _determine_applicable_frameworks(self, rule_detail: Dict) -> List[str]:
+    def _determine_applicable_frameworks(self, rule_detail: Dict[str, Any]) -> List[str]:
         """Determine which compliance frameworks this rule applies to"""
         # For now, assume most rules apply to common frameworks
         # This will be enhanced with actual framework mapping
         return ["stig", "cis", "nist"]
 
-    def _estimate_remediation_complexity(self, rule_detail: Dict) -> str:
+    def _estimate_remediation_complexity(self, rule_detail: Dict[str, Any]) -> str:
         """Estimate remediation complexity"""
         remediation = rule_detail.get("remediation", {})
         fix_text = remediation.get("fix_text", "").lower()
@@ -376,7 +376,9 @@ class SemanticSCAPEngine:
         time_mapping = {"simple": 5, "moderate": 15, "complex": 30}
         return time_mapping.get(complexity, 10)
 
-    async def _query_aegis_for_semantic_mapping(self, scap_rule_id: str, host_info: Dict) -> Optional[SemanticRule]:
+    async def _query_aegis_for_semantic_mapping(
+        self, scap_rule_id: str, host_info: Dict[str, Any]
+    ) -> Optional[SemanticRule]:
         """Query AEGIS for semantic rule mapping"""
 
         try:
@@ -420,7 +422,7 @@ class SemanticSCAPEngine:
 
         return None
 
-    def _build_distribution_key(self, host_info: Dict) -> str:
+    def _build_distribution_key(self, host_info: Dict[str, Any]) -> str:
         """Build distribution key for AEGIS queries"""
         dist_name = host_info.get("distribution_name", "")
         dist_version = host_info.get("distribution_version", "")
@@ -438,7 +440,7 @@ class SemanticSCAPEngine:
         return "rhel9"  # Default fallback
 
     async def _map_to_universal_frameworks(
-        self, semantic_rules: List[SemanticRule], host_info: Dict
+        self, semantic_rules: List[SemanticRule], host_info: Dict[str, Any]
     ) -> Dict[str, List[SemanticRule]]:
         """Map semantic rules to universal compliance frameworks"""
 
@@ -478,7 +480,7 @@ class SemanticSCAPEngine:
     async def _analyze_compliance_matrix(
         self,
         semantic_rules: List[SemanticRule],
-        original_scan_results: Dict,
+        original_scan_results: Dict[str, Any],
         framework_mappings: Dict[str, List[SemanticRule]],
     ) -> Dict[str, float]:
         """Analyze cross-framework compliance scores"""
@@ -513,7 +515,7 @@ class SemanticSCAPEngine:
     async def _create_intelligent_remediation_strategy(
         self,
         semantic_rules: List[SemanticRule],
-        host_info: Dict,
+        host_info: Dict[str, Any],
         compliance_matrix: Dict[str, float],
     ) -> Dict[str, Any]:
         """Create intelligent remediation strategy"""
@@ -640,7 +642,7 @@ class SemanticSCAPEngine:
 
         return trends
 
-    async def _store_semantic_analysis(self, result: IntelligentScanResult):
+    async def _store_semantic_analysis(self, result: IntelligentScanResult) -> None:
         """Store semantic analysis results for future reference"""
 
         try:

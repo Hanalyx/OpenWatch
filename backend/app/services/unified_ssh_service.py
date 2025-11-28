@@ -71,9 +71,9 @@ class SSHKeyValidationResult:
         security_level: Optional[SSHKeySecurityLevel] = None,
         key_size: Optional[int] = None,
         error_message: Optional[str] = None,
-        warnings: Optional[list] = None,
-        recommendations: Optional[list] = None,
-    ):
+        warnings: Optional[List[str]] = None,
+        recommendations: Optional[List[str]] = None,
+    ) -> None:
         self.is_valid = is_valid
         self.key_type = key_type
         self.security_level = security_level
@@ -127,7 +127,7 @@ class SecurityWarningPolicy(paramiko.MissingHostKeyPolicy):
     Follows industry best practices similar to Ansible's approach.
     """
 
-    def __init__(self, audit_callback=None):
+    def __init__(self, audit_callback: Optional[Any] = None) -> None:
         """
         Initialize policy with optional audit callback.
 
@@ -316,7 +316,9 @@ def get_key_size(pkey: paramiko.PKey) -> Optional[int]:
         return None
 
 
-def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[SSHKeySecurityLevel, list, list]:
+def assess_key_security(
+    key_type: SSHKeyType, key_size: Optional[int]
+) -> Tuple[SSHKeySecurityLevel, List[str], List[str]]:
     """
     Assess the security level of an SSH key based on type and size.
 
@@ -327,8 +329,8 @@ def assess_key_security(key_type: SSHKeyType, key_size: Optional[int]) -> Tuple[
     Returns:
         Tuple of (security_level, warnings, recommendations)
     """
-    warnings = []
-    recommendations = []
+    warnings: List[str] = []
+    recommendations: List[str] = []
 
     if key_type == SSHKeyType.ED25519:
         # Ed25519 is always secure (256-bit equivalent to 3072-bit RSA)
@@ -533,10 +535,11 @@ def format_validation_message(result: SSHKeyValidationResult) -> str:
     if not result.is_valid:
         return f"Invalid SSH key: {result.error_message}"
 
-    message_parts = []
+    message_parts: List[str] = []
 
     # Basic info
-    key_info = f"{result.key_type.value.upper()} key"
+    key_type_str = result.key_type.value.upper() if result.key_type else "Unknown"
+    key_info = f"{key_type_str} key"
     if result.key_size:
         key_info += f" ({result.key_size} bits)"
 
@@ -690,7 +693,13 @@ def extract_key_comment(key_content: str) -> Optional[str]:
         return None
 
 
-def format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date) -> str:
+def format_key_display_info(
+    fingerprint: Optional[str],
+    key_type: Optional[str],
+    key_bits: Optional[str],
+    key_comment: Optional[str],
+    created_date: Any,
+) -> str:
     """
     Format SSH key information for user-friendly display.
 
@@ -794,23 +803,23 @@ class UnifiedSSHService:
     - ssh_key_service.py: SSH key metadata extraction
     """
 
-    def __init__(self, db: Session = None):
+    def __init__(self, db: Optional[Session] = None) -> None:
         """Initialize unified SSH service"""
         self.db = db
-        self.client = None
-        self.current_host = None
-        self._settings_cache = {}
-        self._cache_expiry = None
+        self.client: Optional[SSHClient] = None
+        self.current_host: Optional[Host] = None
+        self._settings_cache: Dict[str, Any] = {}
+        self._cache_expiry: Optional[datetime] = None
         self._debug_mode = False  # Enable detailed SSH debugging
 
-    def enable_debug_mode(self):
+    def enable_debug_mode(self) -> None:
         """Enable detailed SSH debugging"""
         self._debug_mode = True
         # Enable paramiko debug logging
         paramiko.util.log_to_file("/tmp/paramiko_debug.log")
         logger.info("SSH debug mode enabled - detailed logs will be written to /tmp/paramiko_debug.log")
 
-    def disable_debug_mode(self):
+    def disable_debug_mode(self) -> None:
         """Disable SSH debugging"""
         self._debug_mode = False
         logger.info("SSH debug mode disabled")
@@ -931,8 +940,8 @@ class UnifiedSSHService:
             }
 
     async def execute_command_async(
-        self, host, credentials, command: str, timeout: int = 30  # pragma: allowlist secret
-    ):
+        self, host: Any, credentials: Any, command: str, timeout: int = 30  # pragma: allowlist secret
+    ) -> Any:
         """
         Async wrapper for execute_command for use by readiness check modules.
 
@@ -951,7 +960,7 @@ class UnifiedSSHService:
         import asyncio
         from types import SimpleNamespace
 
-        def _execute_sync():
+        def _execute_sync() -> Any:
             """Synchronous SSH execution"""
             UnifiedSSHService()
 
@@ -1205,7 +1214,7 @@ class UnifiedSSHService:
         """Get current SSH host key policy"""
         return self.get_setting("ssh_host_key_policy", "auto_add_warning")
 
-    def set_ssh_policy(self, policy: str, user_id: int = None) -> bool:
+    def set_ssh_policy(self, policy: str, user_id: Optional[int] = None) -> bool:
         """Set SSH host key policy"""
         valid_policies = ["strict", "auto_add", "auto_add_warning", "bypass_trusted"]
 
@@ -1231,7 +1240,7 @@ class UnifiedSSHService:
                 networks = []
         return networks if isinstance(networks, list) else []
 
-    def set_trusted_networks(self, networks: List[str], user_id: int = None) -> bool:
+    def set_trusted_networks(self, networks: List[str], user_id: Optional[int] = None) -> bool:
         """Set trusted network ranges"""
         # Validate network ranges
         valid_networks = []
@@ -1268,7 +1277,7 @@ class UnifiedSSHService:
         except ValueError:
             return False
 
-    def create_ssh_policy(self, host_ip: str = None):
+    def create_ssh_policy(self, host_ip: Optional[str] = None) -> paramiko.MissingHostKeyPolicy:
         """Create paramiko policy object based on configuration"""
         policy = self.get_ssh_policy()
 
@@ -1287,7 +1296,7 @@ class UnifiedSSHService:
             # Default to warning policy
             return SecurityWarningPolicy()
 
-    def configure_ssh_client(self, ssh: paramiko.SSHClient, host_ip: str = None) -> None:
+    def configure_ssh_client(self, ssh: paramiko.SSHClient, host_ip: Optional[str] = None) -> None:
         """Configure SSH client with security policy"""
         try:
             policy = self.create_ssh_policy(host_ip)
@@ -1669,7 +1678,14 @@ class UnifiedSSHService:
         """Extract comment/label from SSH key content"""
         return extract_key_comment(key_content)
 
-    def format_key_display_info(self, fingerprint, key_type, key_bits, key_comment, created_date) -> str:
+    def format_key_display_info(
+        self,
+        fingerprint: Optional[str],
+        key_type: Optional[str],
+        key_bits: Optional[str],
+        key_comment: Optional[str],
+        created_date: Any,
+    ) -> str:
         """Format SSH key information for user-friendly display"""
         return format_key_display_info(fingerprint, key_type, key_bits, key_comment, created_date)
 
@@ -1762,7 +1778,7 @@ class UnifiedSSHService:
 
         return results
 
-    def get_known_hosts(self, hostname: Optional[str] = None) -> List[Dict]:
+    def get_known_hosts(self, hostname: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get SSH known hosts from database.
 
@@ -1924,12 +1940,12 @@ class UnifiedSSHService:
 # ============================================================================
 
 
-def get_ssh_config_service(db: Session = None) -> UnifiedSSHService:
+def get_ssh_config_service(db: Optional[Session] = None) -> UnifiedSSHService:
     """Factory function for backward compatibility"""
     return UnifiedSSHService(db)
 
 
-def configure_ssh_client_with_policy(ssh: paramiko.SSHClient, host_ip: str = None) -> None:
+def configure_ssh_client_with_policy(ssh: paramiko.SSHClient, host_ip: Optional[str] = None) -> None:
     """Convenience function for SSH client configuration"""
     service = UnifiedSSHService()
     service.configure_ssh_client(ssh, host_ip)

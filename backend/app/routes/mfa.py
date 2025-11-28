@@ -129,7 +129,7 @@ def log_mfa_action(
         logger.error(f"Failed to log MFA action: {e}")
 
 
-@router.get("/status", response_model=MFAStatusResponse)  # type: ignore[misc]
+@router.get("/status", response_model=MFAStatusResponse)
 async def get_mfa_status(
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -172,7 +172,7 @@ async def get_mfa_status(
         )
 
 
-@router.post("/enroll", response_model=MFAEnrollmentResponse)  # type: ignore[misc]
+@router.post("/enroll", response_model=MFAEnrollmentResponse)
 async def enroll_mfa(
     request: MFAEnrollmentRequest,
     http_request: Request,
@@ -202,7 +202,7 @@ async def enroll_mfa(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(request.verify_password, user_data.hashed_password):
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "enroll_attempt",
@@ -223,7 +223,7 @@ async def enroll_mfa(
         enrollment_result = mfa_service.enroll_user_mfa(current_user["username"])
 
         if not enrollment_result.success:
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "enroll",
@@ -273,7 +273,7 @@ async def enroll_mfa(
         )
         db.commit()
 
-        await log_mfa_action(db, current_user["id"], "enroll", True, client_ip, user_agent, method="totp")
+        log_mfa_action(db, current_user["id"], "enroll", True, client_ip, user_agent, method="totp")
 
         return MFAEnrollmentResponse(
             success=True,
@@ -285,7 +285,7 @@ async def enroll_mfa(
         raise
     except Exception as e:
         logger.error(f"MFA enrollment failed for user {current_user['id']}: {e}")
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "enroll",
@@ -300,7 +300,7 @@ async def enroll_mfa(
         )
 
 
-@router.post("/validate")  # type: ignore[misc]
+@router.post("/validate")
 async def validate_mfa_code(
     request: MFAValidationRequest,
     http_request: Request,
@@ -364,7 +364,9 @@ async def validate_mfa_code(
             )
 
             # Record used code for replay protection (TOTP only)
-            if validation_result.method_used.value == "totp":
+            # Null guard: method_used is Optional[MFAMethod], access .value safely
+            method_used_value = validation_result.method_used.value if validation_result.method_used else None
+            if method_used_value == "totp":
                 import hashlib
 
                 code_hash = hashlib.sha256(
@@ -388,19 +390,19 @@ async def validate_mfa_code(
 
             db.commit()
 
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "validate",
                 True,
                 client_ip,
                 user_agent,
-                method=validation_result.method_used.value,
+                method=method_used_value,
             )
 
-            return {"success": True, "method": validation_result.method_used.value}
+            return {"success": True, "method": method_used_value}
         else:
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "validate",
@@ -416,7 +418,7 @@ async def validate_mfa_code(
         raise
     except Exception as e:
         logger.error(f"MFA validation failed for user {current_user['id']}: {e}")
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "validate",
@@ -431,7 +433,7 @@ async def validate_mfa_code(
         )
 
 
-@router.post("/enable")  # type: ignore[misc]
+@router.post("/enable")
 async def enable_mfa(
     request: MFAValidationRequest,
     http_request: Request,
@@ -470,7 +472,7 @@ async def enable_mfa(
         )
 
         if not validation_result.valid:
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "enable_attempt",
@@ -497,7 +499,7 @@ async def enable_mfa(
         )
         db.commit()
 
-        await log_mfa_action(db, current_user["id"], "enable", True, client_ip, user_agent, method="totp")
+        log_mfa_action(db, current_user["id"], "enable", True, client_ip, user_agent, method="totp")
 
         return {"success": True, "message": "MFA enabled successfully"}
 
@@ -505,7 +507,7 @@ async def enable_mfa(
         raise
     except Exception as e:
         logger.error(f"MFA enable failed for user {current_user['id']}: {e}")
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "enable",
@@ -520,7 +522,7 @@ async def enable_mfa(
         )
 
 
-@router.post("/regenerate-backup-codes", response_model=BackupCodesRegenerateResponse)  # type: ignore[misc]
+@router.post("/regenerate-backup-codes", response_model=BackupCodesRegenerateResponse)
 async def regenerate_backup_codes(
     request: MFAValidationRequest,
     http_request: Request,
@@ -553,7 +555,7 @@ async def regenerate_backup_codes(
         )
 
         if not validation_result.valid:
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "regenerate_backup_codes",
@@ -582,7 +584,7 @@ async def regenerate_backup_codes(
         )
         db.commit()
 
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "regenerate_backup_codes",
@@ -598,7 +600,7 @@ async def regenerate_backup_codes(
         raise
     except Exception as e:
         logger.error(f"Backup code regeneration failed for user {current_user['id']}: {e}")
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "regenerate_backup_codes",
@@ -613,7 +615,7 @@ async def regenerate_backup_codes(
         )
 
 
-@router.post("/disable")  # type: ignore[misc]
+@router.post("/disable")
 async def disable_mfa(
     request: MFADisableRequest,
     http_request: Request,
@@ -649,7 +651,7 @@ async def disable_mfa(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
         if not pwd_context.verify(request.verify_password, user_data.hashed_password):
-            await log_mfa_action(
+            log_mfa_action(
                 db,
                 current_user["id"],
                 "disable_attempt",
@@ -690,7 +692,7 @@ async def disable_mfa(
 
         db.commit()
 
-        await log_mfa_action(db, current_user["id"], "disable", True, client_ip, user_agent)
+        log_mfa_action(db, current_user["id"], "disable", True, client_ip, user_agent)
 
         return {"success": True, "message": "MFA disabled successfully"}
 
@@ -698,7 +700,7 @@ async def disable_mfa(
         raise
     except Exception as e:
         logger.error(f"MFA disable failed for user {current_user['id']}: {e}")
-        await log_mfa_action(
+        log_mfa_action(
             db,
             current_user["id"],
             "disable",

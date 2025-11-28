@@ -278,23 +278,24 @@ class PluginGovernanceService:
     - Regulatory compliance reporting with evidence collection
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize plugin governance service."""
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_lifecycle_service = PluginLifecycleService()
         self.plugin_analytics_service = PluginAnalyticsService()
 
         # Policy and compliance state
         self.policies: Dict[str, PluginPolicy] = {}
-        self.compliance_configs: Dict[ComplianceStandard, Dict] = {}
+        self.compliance_configs: Dict[ComplianceStandard, Dict[str, Any]] = {}
         self.governance_config = PluginGovernanceConfig()
 
         # Active monitoring
-        self.policy_monitors: Dict[str, asyncio.Task] = {}
-        self.compliance_monitors: Dict[str, asyncio.Task] = {}
+        self.policy_monitors: Dict[str, asyncio.Task[None]] = {}
+        self.compliance_monitors: Dict[str, asyncio.Task[None]] = {}
         self.monitoring_enabled = False
 
-    async def initialize_governance(self, config: PluginGovernanceConfig):
-        """Initialize governance system with configuration"""
+    async def initialize_governance(self, config: PluginGovernanceConfig) -> None:
+        """Initialize governance system with configuration."""
         self.governance_config = config
 
         # Load default policies
@@ -309,8 +310,8 @@ class PluginGovernanceService:
 
         logger.info("Plugin governance system initialized")
 
-    async def start_governance_monitoring(self):
-        """Start continuous governance and compliance monitoring"""
+    async def start_governance_monitoring(self) -> None:
+        """Start continuous governance and compliance monitoring."""
         if self.monitoring_enabled:
             logger.warning("Governance monitoring is already running")
             return
@@ -327,8 +328,8 @@ class PluginGovernanceService:
 
         logger.info("Started governance and compliance monitoring")
 
-    async def stop_governance_monitoring(self):
-        """Stop governance and compliance monitoring"""
+    async def stop_governance_monitoring(self) -> None:
+        """Stop governance and compliance monitoring."""
         if not self.monitoring_enabled:
             return
 
@@ -564,9 +565,8 @@ class PluginGovernanceService:
         end_date: Optional[datetime] = None,
         limit: int = 1000,
     ) -> List[AuditEvent]:
-        """Get plugin audit trail with filtering options"""
-
-        query = {}
+        """Get plugin audit trail with filtering options."""
+        query: Dict[str, Any] = {}
 
         if plugin_id:
             query["plugin_id"] = plugin_id
@@ -575,17 +575,17 @@ class PluginGovernanceService:
             query["event_type"] = {"$in": [t.value for t in event_types]}
 
         if start_date or end_date:
-            timestamp_query = {}
+            timestamp_query: Dict[str, datetime] = {}
             if start_date:
                 timestamp_query["$gte"] = start_date
             if end_date:
                 timestamp_query["$lte"] = end_date
             query["timestamp"] = timestamp_query
 
-        events = await AuditEvent.find(query).sort(-AuditEvent.timestamp).limit(limit).to_list()
+        result: List[AuditEvent] = await AuditEvent.find(query).sort([("timestamp", -1)]).limit(limit).to_list()
 
-        logger.info(f"Retrieved {len(events)} audit events")
-        return events
+        logger.info(f"Retrieved {len(result)} audit events")
+        return result
 
     async def get_policy_violations(
         self,
@@ -597,11 +597,10 @@ class PluginGovernanceService:
         end_date: Optional[datetime] = None,
         limit: int = 100,
     ) -> List[PolicyViolation]:
-        """Get policy violations with filtering options"""
-
+        """Get policy violations with filtering options."""
         # In production, this would query a database
         # For now, simulate by returning empty list
-        violations = []
+        violations: List[PolicyViolation] = []
 
         logger.info(f"Retrieved {len(violations)} policy violations")
         return violations
@@ -625,8 +624,8 @@ class PluginGovernanceService:
         logger.info(f"Resolved policy violation: {violation_id}")
         return True
 
-    async def _load_default_policies(self):
-        """Load default governance policies"""
+    async def _load_default_policies(self) -> None:
+        """Load default governance policies."""
 
         # Security policy
         security_policy = PluginPolicy(
@@ -729,8 +728,8 @@ class PluginGovernanceService:
 
         logger.info(f"Loaded {len(self.policies)} default policies")
 
-    async def _initialize_compliance_configs(self):
-        """Initialize compliance standard configurations"""
+    async def _initialize_compliance_configs(self) -> None:
+        """Initialize compliance standard configurations."""
 
         # SOC 2 configuration
         self.compliance_configs[ComplianceStandard.SOC2] = {
@@ -782,12 +781,12 @@ class PluginGovernanceService:
 
         logger.info(f"Initialized compliance configurations for {len(self.compliance_configs)} standards")
 
-    async def _start_policy_monitor(self, policy_id: str):
-        """Start continuous monitoring for a specific policy"""
+    async def _start_policy_monitor(self, policy_id: str) -> None:
+        """Start continuous monitoring for a specific policy."""
         if policy_id in self.policy_monitors:
             return  # Already monitoring
 
-        async def monitor_loop():
+        async def monitor_loop() -> None:
             while self.monitoring_enabled:
                 try:
                     policy = self.policies.get(policy_id)
@@ -819,13 +818,13 @@ class PluginGovernanceService:
         self.policy_monitors[policy_id] = task
         logger.info(f"Started policy monitoring for: {policy_id}")
 
-    async def _start_compliance_monitor(self, standard: ComplianceStandard):
-        """Start continuous compliance monitoring for a standard"""
+    async def _start_compliance_monitor(self, standard: ComplianceStandard) -> None:
+        """Start continuous compliance monitoring for a standard."""
         monitor_id = f"compliance_{standard.value}"
         if monitor_id in self.compliance_monitors:
             return
 
-        async def compliance_monitor_loop():
+        async def compliance_monitor_loop() -> None:
             while self.monitoring_enabled:
                 try:
                     # Run compliance check for all plugins
@@ -915,6 +914,10 @@ class PluginGovernanceService:
             rule_id = rule.get("rule_id")
             check_type = rule.get("check")
             threshold = rule.get("threshold")
+
+            # Skip if check_type is not specified
+            if not check_type or not isinstance(check_type, str):
+                continue
 
             # Perform the check
             check_result = await self._perform_policy_check(plugin, check_type, threshold)
@@ -1026,8 +1029,8 @@ class PluginGovernanceService:
         else:
             return ViolationSeverity.MEDIUM
 
-    async def _handle_policy_violation(self, violation: PolicyViolation):
-        """Handle a detected policy violation"""
+    async def _handle_policy_violation(self, violation: PolicyViolation) -> None:
+        """Handle a detected policy violation."""
 
         policy = self.policies.get(violation.policy_id)
         if not policy:
@@ -1059,9 +1062,8 @@ class PluginGovernanceService:
         standard: ComplianceStandard,
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Evaluate plugin compliance against a specific standard"""
-
-        compliance_result = {
+        """Evaluate plugin compliance against a specific standard."""
+        compliance_result: Dict[str, Any] = {
             "standard": standard.value,
             "plugin_id": plugin.plugin_id,
             "evaluated_at": datetime.utcnow().isoformat(),
@@ -1265,7 +1267,7 @@ class PluginGovernanceService:
             all_findings.extend(result.get("findings", []))
 
         # Categorize findings
-        finding_categories = {}
+        finding_categories: Dict[str, List[str]] = {}
         for finding in all_findings:
             category = finding.split(":")[0] if ":" in finding else "general"
             if category not in finding_categories:
@@ -1371,33 +1373,29 @@ class PluginGovernanceService:
 
         return audit_event
 
-    async def _send_violation_notification(self, violation: PolicyViolation):
-        """Send notification for policy violation"""
-
+    async def _send_violation_notification(self, violation: PolicyViolation) -> None:
+        """Send notification for policy violation."""
         # In production, this would send notifications via configured channels
         logger.info(f"Notification sent for policy violation: {violation.violation_id}")
 
-    async def _disable_plugin_for_violation(self, violation: PolicyViolation):
-        """Disable plugin due to policy violation"""
-
+    async def _disable_plugin_for_violation(self, violation: PolicyViolation) -> None:
+        """Disable plugin due to policy violation."""
         # In production, this would disable the plugin
         logger.info(f"Plugin {violation.plugin_id} disabled for policy violation: {violation.rule_violated}")
 
-    async def _quarantine_plugin_for_violation(self, violation: PolicyViolation):
-        """Quarantine plugin due to policy violation"""
-
+    async def _quarantine_plugin_for_violation(self, violation: PolicyViolation) -> None:
+        """Quarantine plugin due to policy violation."""
         # In production, this would quarantine the plugin
         violation.quarantined = True
         logger.info(f"Plugin {violation.plugin_id} quarantined for policy violation: {violation.rule_violated}")
 
     async def get_governance_statistics(self) -> Dict[str, Any]:
-        """Get plugin governance and compliance statistics"""
-
+        """Get plugin governance and compliance statistics."""
         # Policy statistics
         total_policies = len(self.policies)
         enabled_policies = len([p for p in self.policies.values() if p.enabled])
 
-        policy_by_type = {}
+        policy_by_type: Dict[str, int] = {}
         for policy in self.policies.values():
             policy_type = policy.policy_type.value
             policy_by_type[policy_type] = policy_by_type.get(policy_type, 0) + 1

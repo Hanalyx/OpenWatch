@@ -332,7 +332,7 @@ class PluginDevelopmentFramework:
     - Development tools and debugging support
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_execution_service = PluginExecutionService()
         self.test_environments: Dict[str, Dict[str, Any]] = {}
@@ -562,7 +562,7 @@ class PluginDevelopmentFramework:
         logger.info(f"Generated plugin template: {template_dir}")
         return str(template_dir)
 
-    async def _validate_package_structure(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_package_structure(self, package_path: Path, validation_result: ValidationResult) -> None:
         """Validate plugin package structure"""
 
         required_files = ["plugin.py", "manifest.json"]
@@ -602,7 +602,7 @@ class PluginDevelopmentFramework:
             )
             validation_result.warning_count += 1
 
-    async def _validate_plugin_manifest(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_plugin_manifest(self, package_path: Path, validation_result: ValidationResult) -> None:
         """Validate plugin manifest file"""
 
         manifest_path = package_path / "manifest.json"
@@ -667,7 +667,7 @@ class PluginDevelopmentFramework:
             validation_result.critical_count += 1
             validation_result.is_valid = False
 
-    async def _validate_code_quality(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_code_quality(self, package_path: Path, validation_result: ValidationResult) -> None:
         """Validate Python code quality"""
 
         python_files = list(package_path.glob("*.py"))
@@ -766,7 +766,7 @@ class PluginDevelopmentFramework:
         else:
             validation_result.code_quality_score = 0
 
-    async def _validate_security(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_security(self, package_path: Path, validation_result: ValidationResult) -> None:
         """Basic security validation"""
 
         python_files = list(package_path.glob("*.py"))
@@ -825,7 +825,7 @@ class PluginDevelopmentFramework:
 
         validation_result.security_score = max(0, security_score)
 
-    async def _validate_performance_indicators(self, package_path: Path, validation_result: ValidationResult):
+    async def _validate_performance_indicators(self, package_path: Path, validation_result: ValidationResult) -> None:
         """Validate performance indicators"""
 
         # This is a basic implementation - in production would be more sophisticated
@@ -855,7 +855,7 @@ class PluginDevelopmentFramework:
                 "Consider using async/await for better performance in I/O operations"
             )
 
-    def _calculate_validation_scores(self, validation_result: ValidationResult):
+    def _calculate_validation_scores(self, validation_result: ValidationResult) -> None:
         """Calculate final validation scores"""
 
         # Start with base score
@@ -884,7 +884,7 @@ class PluginDevelopmentFramework:
         if validation_result.performance_score < 70:
             validation_result.recommendations.append("Consider performance optimizations for better execution")
 
-    async def _execute_test_suite_async(self, test_suite: TestSuite, execution: TestExecution):
+    async def _execute_test_suite_async(self, test_suite: TestSuite, execution: TestExecution) -> None:
         """Execute test suite asynchronously"""
         try:
             execution.overall_status = TestStatus.RUNNING
@@ -1097,7 +1097,7 @@ class PluginDevelopmentFramework:
 
         return meets_criteria
 
-    def _update_benchmark_baseline(self, plugin_id: str, result: BenchmarkResult):
+    def _update_benchmark_baseline(self, plugin_id: str, result: BenchmarkResult) -> None:
         """Update benchmark baseline if result is better"""
         baseline_key = f"{plugin_id}:{result.benchmark_type.value}"
 

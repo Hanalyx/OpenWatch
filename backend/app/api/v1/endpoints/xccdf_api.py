@@ -8,7 +8,7 @@ from MongoDB compliance rules.
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,10 +34,10 @@ logger = logging.getLogger(__name__)
 @router.post("/generate-benchmark", response_model=XCCDFBenchmarkResponse)
 async def generate_benchmark(
     request: XCCDFBenchmarkRequest,
-    mongo_service=Depends(get_mongo_service),
-    current_user: Dict = Depends(get_current_user),
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> XCCDFBenchmarkResponse:
     """
     Generate XCCDF Benchmark XML from MongoDB rules with optional component-based filtering
 
@@ -175,9 +175,9 @@ async def generate_benchmark(
 @router.post("/generate-tailoring", response_model=XCCDFTailoringResponse)
 async def generate_tailoring(
     request: XCCDFTailoringRequest,
-    mongo_service=Depends(get_mongo_service),
-    current_user: Dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> XCCDFTailoringResponse:
     """
     Generate XCCDF Tailoring file for variable customization
 
@@ -221,9 +221,9 @@ async def generate_tailoring(
 
 @router.get("/frameworks")
 async def list_frameworks(
-    mongo_service=Depends(get_mongo_service),
-    current_user: Dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     List available frameworks and their versions
 
@@ -259,11 +259,11 @@ async def list_frameworks(
 
 @router.get("/variables")
 async def list_variables(
-    framework: str = None,
-    framework_version: str = None,
-    mongo_service=Depends(get_mongo_service),
-    current_user: Dict = Depends(get_current_user),
-):
+    framework: Optional[str] = None,
+    framework_version: Optional[str] = None,
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     List all XCCDF variables available for customization
 

@@ -114,7 +114,8 @@ def safe_xml_findall(root: Any, xpath: str, namespaces: Optional[Dict[str, str]]
     try:
         if namespaces is None:
             namespaces = SCAP_NAMESPACES
-        return root.findall(xpath, namespaces)
+        result = root.findall(xpath, namespaces)
+        return list(result) if result is not None else []
     except Exception as e:
         logger.debug(f"XML findall error for xpath '{xpath}': {e}")
         return []

@@ -21,6 +21,8 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 
 class AuditEventResponse(BaseModel):
+    """Response model for a single audit event."""
+
     id: int
     user_id: Optional[int]
     username: Optional[str]
@@ -35,6 +37,8 @@ class AuditEventResponse(BaseModel):
 
 
 class AuditEventsResponse(BaseModel):
+    """Response model for paginated audit events list."""
+
     events: List[AuditEventResponse]
     total: int
     page: int
@@ -42,6 +46,8 @@ class AuditEventsResponse(BaseModel):
 
 
 class AuditStatsResponse(BaseModel):
+    """Response model for audit statistics."""
+
     total_events: int
     login_attempts: int
     failed_logins: int
@@ -52,7 +58,7 @@ class AuditStatsResponse(BaseModel):
     unique_ips: int
 
 
-@router.get("/events", response_model=AuditEventsResponse)  # type: ignore[misc]
+@router.get("/events", response_model=AuditEventsResponse)
 async def get_audit_events(
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=1, le=100),
@@ -113,7 +119,8 @@ async def get_audit_events(
         # Get total count
         count_query = f"SELECT COUNT(*) as total FROM ({query}) as subquery"
         count_result = db.execute(text(count_query), params)
-        total = count_result.fetchone().total
+        count_row = count_result.fetchone()
+        total: int = count_row.total if count_row else 0
 
         # Add ordering and pagination
         query += " ORDER BY al.timestamp DESC"
@@ -161,7 +168,7 @@ async def get_audit_events(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit events")
 
 
-@router.get("/stats", response_model=AuditStatsResponse)  # type: ignore[misc]
+@router.get("/stats", response_model=AuditStatsResponse)
 async def get_audit_stats(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
@@ -201,6 +208,19 @@ async def get_audit_stats(
         result = db.execute(stats_query, {"date_from": date_from})
         row = result.fetchone()
 
+        # Handle case where no row is returned
+        if not row:
+            return AuditStatsResponse(
+                total_events=0,
+                login_attempts=0,
+                failed_logins=0,
+                scan_operations=0,
+                admin_actions=0,
+                security_events=0,
+                unique_users=0,
+                unique_ips=0,
+            )
+
         return AuditStatsResponse(
             total_events=row.total_events or 0,
             login_attempts=row.login_attempts or 0,
@@ -219,7 +239,7 @@ async def get_audit_stats(
         raise HTTPException(status_code=500, detail="Failed to retrieve audit statistics")
 
 
-@router.post("/log")  # type: ignore[misc]
+@router.post("/log")
 async def create_audit_log(
     action: str,
     resource_type: str,

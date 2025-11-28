@@ -28,12 +28,13 @@ settings = get_settings()
 
 
 class PluginExecutionService:
-    """Execute plugins safely in isolated environments"""
+    """Execute plugins safely in isolated environments."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize plugin execution service."""
         self.registry_service = PluginRegistryService()
-        self.execution_history = {}
-        self.active_executions = {}
+        self.execution_history: Dict[str, Any] = {}
+        self.active_executions: Dict[str, Any] = {}
 
     async def execute_plugin(self, request: PluginExecutionRequest) -> PluginExecutionResult:
         """
@@ -300,11 +301,11 @@ class PluginExecutionService:
     async def _execute_shell_plugin(
         self,
         plugin: InstalledPlugin,
-        executor,
+        executor: Any,
         request: PluginExecutionRequest,
         execution_env: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Execute shell-based plugin"""
+        """Execute shell-based plugin."""
         plugin_dir = execution_env["plugin_dir"]
         entry_point = plugin_dir / executor.entry_point
 
@@ -351,11 +352,11 @@ class PluginExecutionService:
     async def _execute_python_plugin(
         self,
         plugin: InstalledPlugin,
-        executor,
+        executor: Any,
         request: PluginExecutionRequest,
         execution_env: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Execute Python-based plugin"""
+        """Execute Python-based plugin."""
         plugin_dir = execution_env["plugin_dir"]
         entry_point = plugin_dir / executor.entry_point
 
@@ -409,11 +410,11 @@ class PluginExecutionService:
     async def _execute_ansible_plugin(
         self,
         plugin: InstalledPlugin,
-        executor,
+        executor: Any,
         request: PluginExecutionRequest,
         execution_env: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Execute Ansible-based plugin"""
+        """Execute Ansible-based plugin."""
         plugin_dir = execution_env["plugin_dir"]
         playbook_path = plugin_dir / executor.entry_point
 
@@ -461,17 +462,17 @@ class PluginExecutionService:
     async def _execute_api_plugin(
         self,
         plugin: InstalledPlugin,
-        executor,
+        executor: Any,
         request: PluginExecutionRequest,
         execution_env: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Execute API-based plugin"""
+        """Execute API-based plugin."""
         # This would involve making HTTP requests based on plugin configuration
         # For now, return a placeholder implementation
         return {"success": False, "error": "API plugin execution not yet implemented"}
 
-    async def _update_usage_statistics(self, plugin: InstalledPlugin, result: PluginExecutionResult):
-        """Update plugin usage statistics"""
+    async def _update_usage_statistics(self, plugin: InstalledPlugin, result: PluginExecutionResult) -> None:
+        """Update plugin usage statistics."""
         plugin.usage_count += 1
         plugin.last_used = datetime.utcnow()
 
@@ -493,8 +494,8 @@ class PluginExecutionService:
 
         await plugin.save()
 
-    async def _cleanup_execution_environment(self, execution_env: Dict[str, Any]):
-        """Clean up temporary execution environment"""
+    async def _cleanup_execution_environment(self, execution_env: Dict[str, Any]) -> None:
+        """Clean up temporary execution environment."""
         try:
             import shutil
 
@@ -507,8 +508,8 @@ class PluginExecutionService:
         plugin: InstalledPlugin,
         request: PluginExecutionRequest,
         result: PluginExecutionResult,
-    ):
-        """Record execution in system history"""
+    ) -> None:
+        """Record execution in system history."""
         # This could store in a separate audit log or database table
         self.execution_history[result.execution_id] = {
             "plugin_id": plugin.plugin_id,

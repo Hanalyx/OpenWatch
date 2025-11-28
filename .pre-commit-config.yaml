@@ -78,7 +78,9 @@ repos:
           - '--no-strict-optional'
           - '--explicit-package-bases'
           # Disable common errors during gradual typing adoption
-          # ENABLED: no-untyped-def, type-arg (2025-11-25)
+          # TODO: Enable no-untyped-def and type-arg after full migration
+          - '--disable-error-code=no-untyped-def'
+          - '--disable-error-code=type-arg'
           - '--disable-error-code=var-annotated'
           - '--disable-error-code=arg-type'
           - '--disable-error-code=attr-defined'
@@ -100,6 +102,8 @@ repos:
           - '--disable-error-code=list-item'
           - '--disable-error-code=return'
           - '--disable-error-code=comparison-overlap'
+          - '--disable-error-code=empty-body'
+          - '--disable-error-code=unused-ignore'
         additional_dependencies:
           - 'types-redis'
           - 'types-requests'

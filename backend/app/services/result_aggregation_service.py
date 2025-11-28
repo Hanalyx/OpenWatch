@@ -50,7 +50,7 @@ class ComplianceMetrics:
     error_percentage: float
     execution_success_rate: float
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Calculate derived metrics
         if self.executed_rules > 0:
             self.compliance_percentage = ((self.compliant_rules + self.exceeds_rules) / self.executed_rules) * 100
@@ -76,7 +76,7 @@ class TrendAnalysis:
     time_period: str
     data_points: List[Tuple[datetime, float]]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Calculate trend direction and change percentage
         if self.previous_value is not None and self.previous_value != 0:
             self.change_percentage = ((self.current_value - self.previous_value) / self.previous_value) * 100
@@ -150,7 +150,7 @@ class AggregatedResults:
     priority_recommendations: List[str]
     strategic_recommendations: List[str]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.framework_metrics is None:
             self.framework_metrics = {}
         if self.host_metrics is None:
@@ -176,7 +176,7 @@ class AggregatedResults:
 class ResultAggregationService:
     """Service for aggregating and analyzing compliance scan results"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the result aggregation service"""
         self.aggregation_cache: Dict[str, AggregatedResults] = {}
         self.cache_ttl = 3600  # 1 hour cache TTL
@@ -248,7 +248,7 @@ class ResultAggregationService:
 
     async def _aggregate_organization_level(
         self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    ) -> None:
         """Aggregate results at organization level"""
         # Collect all rule executions
         all_executions = []
@@ -320,7 +320,9 @@ class ResultAggregationService:
                 * 100,
             }
 
-    async def _aggregate_framework_level(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
+    async def _aggregate_framework_level(
+        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
+    ) -> None:
         """Aggregate results at framework level"""
         framework_data = defaultdict(list)
 
@@ -353,7 +355,9 @@ class ResultAggregationService:
                 execution_success_rate=0.0,
             )
 
-    async def _aggregate_host_level(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
+    async def _aggregate_host_level(
+        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
+    ) -> None:
         """Aggregate results at host level"""
         host_data = defaultdict(list)
 
@@ -386,7 +390,9 @@ class ResultAggregationService:
                 execution_success_rate=0.0,
             )
 
-    async def _aggregate_time_series(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
+    async def _aggregate_time_series(
+        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
+    ) -> None:
         """Aggregate results for time series analysis"""
         # Sort scan results by time
         sorted_scans = sorted(scan_results, key=lambda sr: sr.started_at)
@@ -448,7 +454,9 @@ class ResultAggregationService:
             execution_success_rate=0.0,
         )
 
-    async def _analyze_compliance_gaps(self, scan_results: List[ScanResult], aggregated_results: AggregatedResults):
+    async def _analyze_compliance_gaps(
+        self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
+    ) -> None:
         """Analyze compliance gaps across scan results"""
         gaps = []
 
@@ -516,7 +524,7 @@ class ResultAggregationService:
 
     async def _analyze_framework_comparisons(
         self, scan_results: List[ScanResult], aggregated_results: AggregatedResults
-    ):
+    ) -> None:
         """Analyze comparisons between frameworks"""
         comparisons = []
 
@@ -585,7 +593,7 @@ class ResultAggregationService:
             implementation_gaps=[],  # Could be expanded to identify specific gaps
         )
 
-    async def _generate_recommendations(self, aggregated_results: AggregatedResults):
+    async def _generate_recommendations(self, aggregated_results: AggregatedResults) -> None:
         """Generate recommendations based on aggregated results"""
         priority_recommendations = []
         strategic_recommendations = []
@@ -749,6 +757,6 @@ class ResultAggregationService:
         else:
             raise ValueError(f"Unsupported export format: {format}")
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the aggregation cache"""
         self.aggregation_cache.clear()

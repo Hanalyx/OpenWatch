@@ -155,7 +155,7 @@ services:
       - openwatch-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python3.9", "-m", "celery", "-A", "backend.app.celery_app", "inspect", "ping"]
+      test: ["CMD", "python3", "-m", "celery", "-A", "backend.app.celery_app", "inspect", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3

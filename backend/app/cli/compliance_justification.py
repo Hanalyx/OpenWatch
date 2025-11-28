@@ -9,15 +9,15 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, List, Optional
 
 from backend.app.models.unified_rule_models import UnifiedComplianceRule
 from backend.app.services.compliance_justification_engine import ComplianceJustificationEngine
 from backend.app.services.multi_framework_scanner import ScanResult
 
 
-async def load_scan_results(file_path: str) -> ScanResult:
-    """Load scan results from JSON file"""
+async def load_scan_results(file_path: str) -> Optional[ScanResult]:
+    """Load scan results from JSON file."""
     try:
         with open(file_path, "r") as f:
             data = json.load(f)
@@ -28,8 +28,8 @@ async def load_scan_results(file_path: str) -> ScanResult:
 
 
 async def load_unified_rules(rules_directory: str) -> Dict[str, UnifiedComplianceRule]:
-    """Load unified rules from directory"""
-    rules = {}
+    """Load unified rules from directory."""
+    rules: Dict[str, UnifiedComplianceRule] = {}
     rules_path = Path(rules_directory)
 
     if not rules_path.exists():
@@ -49,8 +49,8 @@ async def load_unified_rules(rules_directory: str) -> Dict[str, UnifiedComplianc
     return rules
 
 
-async def generate_justifications(args):
-    """Generate compliance justifications from scan results"""
+async def generate_justifications(args: argparse.Namespace) -> int:
+    """Generate compliance justifications from scan results."""
     engine = ComplianceJustificationEngine()
 
     # Load scan results
@@ -81,7 +81,7 @@ async def generate_justifications(args):
     print("=" * 80)
 
     # Group by justification type
-    justification_types = {}
+    justification_types: Dict[str, List[Any]] = {}
     for host_justifications in batch_justifications.values():
         for justification in host_justifications:
             jtype = justification.justification_type.value
@@ -122,7 +122,7 @@ async def generate_justifications(args):
             all_justifications.extend(host_justifications)
 
         # Group by framework for export
-        framework_justifications = {}
+        framework_justifications: Dict[str, List[Any]] = {}
         for justification in all_justifications:
             framework_id = justification.framework_id
             if framework_id not in framework_justifications:
@@ -149,8 +149,8 @@ async def generate_justifications(args):
     return 0
 
 
-async def analyze_evidence(args):
-    """Analyze evidence quality and completeness"""
+async def analyze_evidence(args: argparse.Namespace) -> int:
+    """Analyze evidence quality and completeness."""
     engine = ComplianceJustificationEngine()
 
     # Load scan results and rules
@@ -168,41 +168,38 @@ async def analyze_evidence(args):
     print("=" * 80)
 
     # Analyze evidence by type
-    evidence_analysis = {
-        "total_justifications": 0,
-        "evidence_by_type": {},
-        "confidence_distribution": {"high": 0, "medium": 0, "low": 0},
-        "coverage_analysis": {},
-    }
+    total_justifications = 0
+    evidence_by_type: Dict[str, int] = {}
+    confidence_distribution: Dict[str, int] = {"high": 0, "medium": 0, "low": 0}
 
-    all_justifications = []
+    all_justifications: List[Any] = []
     for host_justifications in batch_justifications.values():
         all_justifications.extend(host_justifications)
 
-    evidence_analysis["total_justifications"] = len(all_justifications)
+    total_justifications = len(all_justifications)
 
     for justification in all_justifications:
         # Analyze evidence types
         for evidence in justification.evidence:
             evidence_type = evidence.evidence_type.value
-            if evidence_type not in evidence_analysis["evidence_by_type"]:
-                evidence_analysis["evidence_by_type"][evidence_type] = 0
-            evidence_analysis["evidence_by_type"][evidence_type] += 1
+            if evidence_type not in evidence_by_type:
+                evidence_by_type[evidence_type] = 0
+            evidence_by_type[evidence_type] += 1
 
             # Analyze confidence levels
             confidence = evidence.confidence_level
-            if confidence in evidence_analysis["confidence_distribution"]:
-                evidence_analysis["confidence_distribution"][confidence] += 1
+            if confidence in confidence_distribution:
+                confidence_distribution[confidence] += 1
 
     # Display evidence analysis
-    print(f"Total Justifications: {evidence_analysis['total_justifications']}")
+    print(f"Total Justifications: {total_justifications}")
     print("Evidence by Type:")
-    for evidence_type, count in evidence_analysis["evidence_by_type"].items():
+    for evidence_type, count in evidence_by_type.items():
         print(f"  {evidence_type:15} {count:6} items")
 
     print("\nConfidence Distribution:")
-    total_evidence = sum(evidence_analysis["confidence_distribution"].values())
-    for confidence, count in evidence_analysis["confidence_distribution"].items():
+    total_evidence = sum(confidence_distribution.values())
+    for confidence, count in confidence_distribution.items():
         percentage = (count / total_evidence * 100) if total_evidence > 0 else 0
         print(f"  {confidence:10} {count:6} ({percentage:5.1f}%)")
 
@@ -210,24 +207,24 @@ async def analyze_evidence(args):
     print("\nEVIDENCE QUALITY RECOMMENDATIONS:")
     print("-" * 60)
 
-    if evidence_analysis["confidence_distribution"]["low"] > total_evidence * 0.2:
+    if confidence_distribution["low"] > total_evidence * 0.2:
         print("[WARNING] High proportion of low-confidence evidence - consider additional validation")
 
-    if "monitoring" not in evidence_analysis["evidence_by_type"]:
+    if "monitoring" not in evidence_by_type:
         print("[INFO] No continuous monitoring evidence found - consider adding monitoring capabilities")
 
-    if "policy" not in evidence_analysis["evidence_by_type"]:
+    if "policy" not in evidence_by_type:
         print("[INFO] No policy evidence found - consider documenting policy compliance")
 
     # Framework coverage
-    framework_evidence = {}
+    framework_evidence: Dict[str, Dict[str, Any]] = {}
     for justification in all_justifications:
         framework_id = justification.framework_id
         if framework_id not in framework_evidence:
             framework_evidence[framework_id] = {
                 "justifications": 0,
                 "evidence_items": 0,
-                "avg_evidence_per_justification": 0,
+                "avg_evidence_per_justification": 0.0,
             }
 
         framework_evidence[framework_id]["justifications"] += 1
@@ -249,8 +246,8 @@ async def analyze_evidence(args):
     return 0
 
 
-async def validate_justifications(args):
-    """Validate justification completeness and quality"""
+async def validate_justifications(args: argparse.Namespace) -> int:
+    """Validate justification completeness and quality."""
     engine = ComplianceJustificationEngine()
 
     # Load data
@@ -267,19 +264,17 @@ async def validate_justifications(args):
     print("JUSTIFICATION VALIDATION REPORT")
     print("=" * 80)
 
-    validation_results = {
-        "total_justifications": 0,
-        "complete_justifications": 0,
-        "missing_components": {},
-        "quality_issues": [],
-        "framework_validation": {},
-    }
+    total_justifications = 0
+    complete_justifications = 0
+    missing_components: Dict[str, int] = {}
+    quality_issues: List[str] = []
+    framework_validation: Dict[str, Dict[str, Any]] = {}
 
-    all_justifications = []
+    all_justifications: List[Any] = []
     for host_justifications in batch_justifications.values():
         all_justifications.extend(host_justifications)
 
-    validation_results["total_justifications"] = len(all_justifications)
+    total_justifications = len(all_justifications)
 
     for justification in all_justifications:
         is_complete = True
@@ -297,65 +292,59 @@ async def validate_justifications(args):
         for component_name, component_value in required_components:
             if not component_value or (isinstance(component_value, str) and len(component_value.strip()) < 10):
                 is_complete = False
-                if component_name not in validation_results["missing_components"]:
-                    validation_results["missing_components"][component_name] = 0
-                validation_results["missing_components"][component_name] += 1
+                if component_name not in missing_components:
+                    missing_components[component_name] = 0
+                missing_components[component_name] += 1
 
         # Check evidence quality
         if len(justification.evidence) < 2:
-            validation_results["quality_issues"].append(
+            quality_issues.append(
                 f"{justification.justification_id}: Insufficient evidence ({len(justification.evidence)} items)"
             )
             is_complete = False
 
         # Check regulatory citations
         if not justification.regulatory_citations:
-            validation_results["quality_issues"].append(
-                f"{justification.justification_id}: Missing regulatory citations"
-            )
+            quality_issues.append(f"{justification.justification_id}: Missing regulatory citations")
             is_complete = False
 
         if is_complete:
-            validation_results["complete_justifications"] += 1
+            complete_justifications += 1
 
         # Framework-specific validation
         framework_id = justification.framework_id
-        if framework_id not in validation_results["framework_validation"]:
-            validation_results["framework_validation"][framework_id] = {
+        if framework_id not in framework_validation:
+            framework_validation[framework_id] = {
                 "total": 0,
                 "complete": 0,
                 "issues": [],
             }
 
-        validation_results["framework_validation"][framework_id]["total"] += 1
+        framework_validation[framework_id]["total"] += 1
         if is_complete:
-            validation_results["framework_validation"][framework_id]["complete"] += 1
+            framework_validation[framework_id]["complete"] += 1
 
     # Display validation results
-    complete_percentage = (
-        (validation_results["complete_justifications"] / validation_results["total_justifications"] * 100)
-        if validation_results["total_justifications"] > 0
-        else 0
-    )
+    complete_percentage = (complete_justifications / total_justifications * 100) if total_justifications > 0 else 0
 
-    print(f"Total Justifications: {validation_results['total_justifications']}")
-    print(f"Complete Justifications: {validation_results['complete_justifications']} ({complete_percentage:.1f}%)")
+    print(f"Total Justifications: {total_justifications}")
+    print(f"Complete Justifications: {complete_justifications} ({complete_percentage:.1f}%)")
 
-    if validation_results["missing_components"]:
+    if missing_components:
         print("\nMissing Components:")
-        for component, count in validation_results["missing_components"].items():
+        for component, count in missing_components.items():
             print(f"  {component:25} {count:3} justifications")
 
-    if validation_results["quality_issues"]:
-        print(f"\nQuality Issues ({len(validation_results['quality_issues'])} total):")
-        for issue in validation_results["quality_issues"][:10]:  # Show first 10
+    if quality_issues:
+        print(f"\nQuality Issues ({len(quality_issues)} total):")
+        for issue in quality_issues[:10]:  # Show first 10
             print(f"  {issue}")
-        if len(validation_results["quality_issues"]) > 10:
-            print(f"  ... and {len(validation_results['quality_issues']) - 10} more issues")
+        if len(quality_issues) > 10:
+            print(f"  ... and {len(quality_issues) - 10} more issues")
 
     print("\nFramework Validation:")
     print("-" * 60)
-    for framework_id, data in validation_results["framework_validation"].items():
+    for framework_id, data in framework_validation.items():
         framework_percentage = (data["complete"] / data["total"] * 100) if data["total"] > 0 else 0
         print(f"{framework_id:20} {data['complete']:3}/{data['total']:3} complete ({framework_percentage:5.1f}%)")
 
@@ -366,10 +355,10 @@ async def validate_justifications(args):
     if complete_percentage < 90:
         print("[ACTION] Improve justification completeness by addressing missing components")
 
-    if validation_results["missing_components"].get("evidence", 0) > 0:
+    if missing_components.get("evidence", 0) > 0:
         print("[ACTION] Add more comprehensive evidence collection")
 
-    if validation_results["missing_components"].get("risk_assessment", 0) > 0:
+    if missing_components.get("risk_assessment", 0) > 0:
         print("[ACTION] Enhance risk assessment documentation")
 
     if complete_percentage >= 95:
@@ -378,8 +367,8 @@ async def validate_justifications(args):
     return 0
 
 
-async def export_audit_package(args):
-    """Export comprehensive audit package"""
+async def export_audit_package(args: argparse.Namespace) -> int:
+    """Export comprehensive audit package."""
     engine = ComplianceJustificationEngine()
 
     # Load data
@@ -395,7 +384,7 @@ async def export_audit_package(args):
     batch_justifications = await engine.generate_batch_justifications(scan_result, unified_rules)
 
     # Group by framework
-    framework_justifications = {}
+    framework_justifications: Dict[str, List[Any]] = {}
     for host_justifications in batch_justifications.values():
         for justification in host_justifications:
             framework_id = justification.framework_id
@@ -457,8 +446,8 @@ async def export_audit_package(args):
     return 0
 
 
-def main():
-    """Main CLI entry point"""
+def main() -> int:
+    """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Compliance justification generation and audit documentation tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,

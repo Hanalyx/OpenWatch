@@ -1,11 +1,13 @@
 """
 AEGIS Remediation Callback Routes
-Handles remediation completion notifications from AEGIS
+
+Handles remediation completion notifications from AEGIS, processing webhook
+callbacks with signature verification and updating scan records.
 """
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import UUID4, BaseModel, Field
@@ -22,6 +24,8 @@ router = APIRouter()
 
 
 class RemediationResult(BaseModel):
+    """Model for individual rule remediation result."""
+
     rule_id: str
     rule_name: str
     status: str = Field(..., pattern="^(success|failed|skipped)$")
@@ -29,6 +33,8 @@ class RemediationResult(BaseModel):
 
 
 class RemediationCallbackRequest(BaseModel):
+    """Request model for AEGIS remediation completion webhook."""
+
     remediation_job_id: UUID4
     scan_id: UUID4
     host_id: UUID4
@@ -50,7 +56,7 @@ async def handle_remediation_callback(
     x_openwatch_signature: Optional[str] = Header(None),
     x_hub_signature_256: Optional[str] = Header(None),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """Handle remediation completion callback from AEGIS"""
 
     # Verify webhook signature
@@ -75,7 +81,8 @@ async def handle_remediation_callback(
     # Get raw body for signature verification
     body = await request.body()
 
-    if not verify_webhook_signature(body.decode(), webhook_secret, signature):
+    # verify_webhook_signature expects (payload, signature) - uses internal secret
+    if not verify_webhook_signature(body.decode(), signature):
         logger.error("Invalid webhook signature for remediation callback")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 
@@ -96,6 +103,8 @@ async def handle_remediation_callback(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Host ID mismatch")
 
         # Update scan with remediation information
+        # Note: Direct attribute assignment to SQLAlchemy columns works at runtime
+        # mypy doesn't understand SQLAlchemy's descriptor protocol
         scan.aegis_remediation_id = str(callback.remediation_job_id)
         scan.remediation_status = callback.status
         scan.remediation_completed_at = callback.completed_at
@@ -118,19 +127,15 @@ async def handle_remediation_callback(
 
         db.commit()
 
-        # Log audit event
-        await log_audit_event(
+        # Log audit event - log_audit_event is a synchronous function
+        log_audit_event(
             db=db,
             user_id=None,  # System action
             action="REMEDIATION_COMPLETED",
             resource_type="scan",
             resource_id=str(scan.id),
-            details={
-                "remediation_job_id": str(callback.remediation_job_id),
-                "status": callback.status,
-                "successful_rules": callback.successful_rules,
-                "failed_rules": callback.failed_rules,
-            },
+            details=f"remediation_job_id={callback.remediation_job_id}, status={callback.status}, "
+            f"successful_rules={callback.successful_rules}, failed_rules={callback.failed_rules}",
             ip_address="127.0.0.1",  # Internal system
         )
 

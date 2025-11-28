@@ -7,7 +7,7 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -600,9 +600,9 @@ class ComplianceFrameworkMapper:
         }
         return aegis_mappings.get(scap_rule_id)
 
-    def get_framework_summary(self, scap_rules: List[str]) -> Dict[str, Dict]:
+    def get_framework_summary(self, scap_rules: List[str]) -> Dict[str, Any]:
         """Get compliance summary across all frameworks for a list of SCAP rules"""
-        summary = {
+        summary: Dict[str, Any] = {
             framework.value: {
                 "total_controls": 0,
                 "covered_controls": set(),
@@ -650,9 +650,9 @@ class ComplianceFrameworkMapper:
 
         return summary
 
-    def get_remediation_priorities(self, failed_rules: List[Dict[str, str]]) -> List[Dict]:
+    def get_remediation_priorities(self, failed_rules: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Prioritize failed rules for remediation based on framework requirements"""
-        priorities = []
+        priorities: List[Dict[str, Any]] = []
 
         for rule in failed_rules:
             rule_id = rule.get("rule_id", "")
@@ -716,9 +716,9 @@ class ComplianceFrameworkMapper:
         else:
             return "moderate"
 
-    def export_compliance_matrix(self, scap_rules: List[str]) -> Dict:
+    def export_compliance_matrix(self, scap_rules: List[str]) -> Dict[str, Any]:
         """Export a compliance matrix showing coverage across all frameworks"""
-        matrix = {
+        matrix: Dict[str, Any] = {
             "frameworks": list(ComplianceFramework.__members__.keys()),
             "rules": [],
         }
@@ -728,7 +728,7 @@ class ComplianceFrameworkMapper:
             if not control:
                 continue
 
-            rule_entry = {"rule_id": rule_id, "title": control.title, "mappings": {}}
+            rule_entry: Dict[str, Any] = {"rule_id": rule_id, "title": control.title, "mappings": {}}
 
             for framework in ComplianceFramework:
                 framework_mappings = [m for m in control.frameworks if m.framework == framework]

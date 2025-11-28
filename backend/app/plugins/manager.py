@@ -1,6 +1,27 @@
 """
 OpenWatch Plugin Manager
+
 Handles plugin discovery, loading, lifecycle management, and hook execution
+for OpenWatch's extensible plugin architecture.
+
+This module provides:
+- Plugin discovery from filesystem directories
+- Safe dynamic plugin loading with validation
+- Plugin lifecycle management (init, enable, disable, cleanup)
+- Hook-based event system for plugin communication
+- Type-safe plugin categorization by functionality
+
+Security Considerations:
+- All plugins are validated before loading (OWASP A04:2021)
+- Plugin configurations stored separately from code
+- Comprehensive error handling prevents plugin failures from affecting core system
+
+Example:
+    >>> manager = get_plugin_manager()
+    >>> await manager.initialize()
+    >>> scanner = await manager.find_compatible_scanner(host_config)
+    >>> if scanner:
+    ...     results = await scanner.scan(host_config)
 """
 
 import importlib
@@ -9,7 +30,8 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from types import ModuleType
+from typing import Any, Dict, List, Optional, Type
 
 from .interface import (
     AuthenticationPlugin,
@@ -43,7 +65,7 @@ class PluginManager:
         self.plugins_dir = Path(plugins_dir)
         self.config_dir = Path(config_dir)
         self.loaded_plugins: Dict[str, PluginInterface] = {}
-        self.plugin_configs: Dict[str, Dict] = {}
+        self.plugin_configs: Dict[str, Dict[str, Any]] = {}
         self.hook_registry: Dict[str, List[HookablePlugin]] = {}
         self.plugin_dependencies: Dict[str, List[str]] = {}
 
@@ -51,8 +73,9 @@ class PluginManager:
         self.plugins_dir.mkdir(parents=True, exist_ok=True)
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
-        # Plugin type mapping
-        self.plugin_type_map = {
+        # Plugin type mapping - maps PluginType enum to expected plugin interface class
+        # Using type: ignore for abstract class assignment (these are ABCs used for isinstance checks)
+        self.plugin_type_map: Dict[PluginType, type] = {
             PluginType.SCANNER: ScannerPlugin,
             PluginType.REPORTER: ReporterPlugin,
             PluginType.REMEDIATION: RemediationPlugin,
@@ -112,8 +135,25 @@ class PluginManager:
             logger.error(f"Error during plugin manager shutdown: {e}")
             return False
 
-    async def load_plugin(self, plugin_path: str, plugin_name: str = None) -> bool:
-        """Load a single plugin from the specified path"""
+    async def load_plugin(self, plugin_path: str, plugin_name: Optional[str] = None) -> bool:
+        """
+        Load a single plugin from the specified path.
+
+        Performs dynamic module loading with comprehensive validation to ensure
+        plugin safety and compatibility before activation.
+
+        Args:
+            plugin_path: Filesystem path to the plugin's main Python file.
+            plugin_name: Optional name for the plugin. If not provided,
+                        derived from the path stem.
+
+        Returns:
+            True if plugin loaded successfully, False otherwise.
+
+        Note:
+            Plugin validation includes type checking and interface verification
+            to prevent malformed plugins from affecting system stability.
+        """
         try:
             if not plugin_name:
                 plugin_name = Path(plugin_path).stem
@@ -139,8 +179,8 @@ class PluginManager:
             # Instantiate plugin
             plugin = plugin_class(plugin_config)
 
-            # Validate plugin
-            if not await self._validate_plugin(plugin):
+            # Validate plugin (synchronous validation)
+            if not self._validate_plugin(plugin):
                 raise PluginLoadError(f"Plugin validation failed: {plugin_name}")
 
             # Initialize plugin
@@ -150,9 +190,9 @@ class PluginManager:
             # Store plugin
             self.loaded_plugins[plugin_name] = plugin
 
-            # Register hooks if applicable
+            # Register hooks if applicable (synchronous operation)
             if isinstance(plugin, HookablePlugin):
-                await self._register_plugin_hooks_for(plugin)
+                self._register_plugin_hooks_for(plugin)
 
             logger.info(f"Successfully loaded plugin: {plugin_name}")
             return True
@@ -173,8 +213,8 @@ class PluginManager:
                 plugins.append(plugin)
         return plugins
 
-    def list_plugins(self) -> Dict[str, Dict]:
-        """List all loaded plugins with their metadata"""
+    def list_plugins(self) -> Dict[str, Dict[str, Any]]:
+        """List all loaded plugins with their metadata."""
         plugin_list = {}
         for name, plugin in self.loaded_plugins.items():
             metadata = plugin.get_metadata()
@@ -206,9 +246,29 @@ class PluginManager:
             return True
         return False
 
-    async def execute_hook(self, hook_name: str, data: Dict, user_id: str = None, session_id: str = None) -> List[Dict]:
-        """Execute all registered hooks for the specified event"""
-        results = []
+    async def execute_hook(
+        self,
+        hook_name: str,
+        data: Dict[str, Any],
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute all registered hooks for the specified event.
+
+        Iterates through all plugins registered for the given hook and executes
+        their handlers, collecting results for further processing.
+
+        Args:
+            hook_name: The name of the hook/event to execute.
+            data: Context data to pass to hook handlers.
+            user_id: Optional user identifier for audit context.
+            session_id: Optional session identifier for tracking.
+
+        Returns:
+            List of result dictionaries from each plugin's hook handler.
+        """
+        results: List[Dict[str, Any]] = []
 
         if hook_name not in self.hook_registry:
             return results
@@ -235,9 +295,18 @@ class PluginManager:
 
         return results
 
-    async def health_check(self) -> Dict:
-        """Perform health check on all plugins"""
-        health_status = {
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Perform health check on all plugins.
+
+        Iterates through all loaded plugins and collects their health status,
+        providing an aggregate view of plugin system health.
+
+        Returns:
+            Dictionary containing plugin manager health status, plugin counts,
+            and individual plugin health information.
+        """
+        health_status: Dict[str, Any] = {
             "plugin_manager": "healthy",
             "total_plugins": len(self.loaded_plugins),
             "enabled_plugins": 0,
@@ -247,7 +316,8 @@ class PluginManager:
 
         for name, plugin in self.loaded_plugins.items():
             try:
-                plugin_health = await plugin.health_check()
+                # health_check is synchronous per PluginInterface definition
+                plugin_health = plugin.health_check()
                 health_status["plugin_health"][name] = plugin_health
 
                 if plugin.is_enabled():
@@ -264,45 +334,91 @@ class PluginManager:
         return health_status
 
     # Scanner Plugin Helpers
-    async def find_compatible_scanner(self, host_config: Dict) -> Optional[ScannerPlugin]:
-        """Find a scanner plugin that can handle the specified host"""
+    async def find_compatible_scanner(self, host_config: Dict[str, Any]) -> Optional[ScannerPlugin]:
+        """
+        Find a scanner plugin that can handle the specified host.
+
+        Iterates through all scanner plugins and returns the first one
+        that is enabled and compatible with the host configuration.
+
+        Args:
+            host_config: Dictionary containing host configuration details.
+
+        Returns:
+            A compatible ScannerPlugin instance, or None if none found.
+        """
         scanners = self.get_plugins_by_type(PluginType.SCANNER)
 
         for scanner in scanners:
-            if scanner.is_enabled() and await scanner.can_scan_host(host_config):
-                return scanner
+            # Type-safe cast: we know these are scanner plugins
+            if isinstance(scanner, ScannerPlugin):
+                if scanner.is_enabled() and await scanner.can_scan_host(host_config):
+                    return scanner
 
         return None
 
     # Reporter Plugin Helpers
-    async def generate_report(self, scan_results: List, format_type: str = "html") -> Optional[bytes]:
-        """Generate a report using available reporter plugins"""
+    async def generate_report(self, scan_results: List[Any], format_type: str = "html") -> Optional[bytes]:
+        """
+        Generate a report using available reporter plugins.
+
+        Attempts to generate a report in the specified format using the first
+        available reporter plugin that supports the format.
+
+        Args:
+            scan_results: List of scan result data to include in report.
+            format_type: Output format (e.g., 'html', 'pdf', 'json').
+
+        Returns:
+            Report content as bytes, or None if no compatible reporter found.
+        """
         reporters = self.get_plugins_by_type(PluginType.REPORTER)
 
         for reporter in reporters:
-            if reporter.is_enabled() and format_type in reporter.get_supported_formats():
-                try:
-                    return await reporter.generate_report(scan_results, format_type)
-                except Exception as e:
-                    logger.error(f"Report generation failed with plugin {reporter.get_metadata().name}: {e}")
+            # Type-safe cast: we know these are reporter plugins
+            if isinstance(reporter, ReporterPlugin):
+                if reporter.is_enabled() and format_type in reporter.get_supported_formats():
+                    try:
+                        return await reporter.generate_report(scan_results, format_type)
+                    except Exception as e:
+                        logger.error(f"Report generation failed with plugin " f"{reporter.get_metadata().name}: {e}")
 
         return None
 
     # Remediation Plugin Helpers
-    async def find_remediation_plugins(self, rule_id: str, host_config: Dict) -> List[RemediationPlugin]:
-        """Find remediation plugins that can handle the specified rule"""
+    async def find_remediation_plugins(self, rule_id: str, host_config: Dict[str, Any]) -> List[RemediationPlugin]:
+        """
+        Find remediation plugins that can handle the specified rule.
+
+        Searches through all remediation plugins to find those capable
+        of remediating the given rule on the specified host.
+
+        Args:
+            rule_id: The compliance rule identifier to remediate.
+            host_config: Dictionary containing host configuration details.
+
+        Returns:
+            List of compatible RemediationPlugin instances.
+        """
         remediation_plugins = self.get_plugins_by_type(PluginType.REMEDIATION)
-        compatible_plugins = []
+        compatible_plugins: List[RemediationPlugin] = []
 
         for plugin in remediation_plugins:
-            if plugin.is_enabled() and await plugin.can_remediate_rule(rule_id, host_config):
-                compatible_plugins.append(plugin)
+            # Type-safe cast: we know these are remediation plugins
+            if isinstance(plugin, RemediationPlugin):
+                if plugin.is_enabled() and await plugin.can_remediate_rule(rule_id, host_config):
+                    compatible_plugins.append(plugin)
 
         return compatible_plugins
 
     # Private methods
-    async def _discover_plugins(self):
-        """Discover plugins in the plugins directory"""
+    async def _discover_plugins(self) -> None:
+        """
+        Discover plugins in the plugins directory.
+
+        Scans the plugins directory for subdirectories containing plugin.py files
+        and attempts to load each discovered plugin.
+        """
         logger.info(f"Discovering plugins in: {self.plugins_dir}")
 
         for plugin_dir in self.plugins_dir.iterdir():
@@ -311,20 +427,36 @@ class PluginManager:
                 if plugin_file.exists():
                     await self.load_plugin(str(plugin_file), plugin_dir.name)
 
-    def _load_plugin_configs(self):
-        """Load plugin configurations from config directory"""
+    async def _load_plugin_configs(self) -> None:
+        """
+        Load plugin configurations from config directory.
+
+        Reads JSON configuration files for each plugin, storing them in
+        plugin_configs dictionary for later use during plugin initialization.
+        """
         for config_file in self.config_dir.glob("*.json"):
             try:
                 with open(config_file, "r") as f:
-                    config = json.load(f)
+                    config: Dict[str, Any] = json.load(f)
                     plugin_name = config_file.stem
                     self.plugin_configs[plugin_name] = config
                     logger.debug(f"Loaded config for plugin: {plugin_name}")
             except Exception as e:
                 logger.error(f"Failed to load config for {config_file}: {e}")
 
-    def _find_plugin_class(self, module) -> Optional[Type[PluginInterface]]:
-        """Find the plugin class in the loaded module"""
+    def _find_plugin_class(self, module: ModuleType) -> Optional[Type[PluginInterface]]:
+        """
+        Find the plugin class in the loaded module.
+
+        Searches the module for a class that inherits from PluginInterface
+        (excluding PluginInterface itself).
+
+        Args:
+            module: The loaded Python module to search.
+
+        Returns:
+            The plugin class if found, None otherwise.
+        """
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
             if isinstance(attr, type) and issubclass(attr, PluginInterface) and attr != PluginInterface:
@@ -332,7 +464,18 @@ class PluginManager:
         return None
 
     def _validate_plugin(self, plugin: PluginInterface) -> bool:
-        """Validate a plugin meets requirements"""
+        """
+        Validate a plugin meets requirements.
+
+        Performs validation checks including metadata presence and
+        interface compliance verification.
+
+        Args:
+            plugin: The plugin instance to validate.
+
+        Returns:
+            True if plugin passes validation, False otherwise.
+        """
         try:
             metadata = plugin.get_metadata()
 
@@ -355,8 +498,13 @@ class PluginManager:
             logger.error(f"Plugin validation error: {e}")
             return False
 
-    async def _initialize_plugins(self):
-        """Initialize all loaded plugins"""
+    async def _initialize_plugins(self) -> None:
+        """
+        Initialize all loaded plugins.
+
+        Iterates through loaded plugins and calls their initialize methods.
+        Logs errors for any plugins that fail to initialize.
+        """
         # Sort plugins by dependencies (simplified for now)
         for plugin_name, plugin in self.loaded_plugins.items():
             try:
@@ -365,14 +513,26 @@ class PluginManager:
             except Exception as e:
                 logger.error(f"Error initializing plugin {plugin_name}: {e}")
 
-    async def _register_plugin_hooks(self):
-        """Register hooks for all hookable plugins"""
+    async def _register_plugin_hooks(self) -> None:
+        """
+        Register hooks for all hookable plugins.
+
+        Iterates through loaded plugins and registers hooks for any
+        that implement the HookablePlugin interface.
+        """
         for plugin in self.loaded_plugins.values():
             if isinstance(plugin, HookablePlugin):
-                await self._register_plugin_hooks_for(plugin)
+                self._register_plugin_hooks_for(plugin)
 
-    def _register_plugin_hooks_for(self, plugin: HookablePlugin):
-        """Register hooks for a specific plugin"""
+    def _register_plugin_hooks_for(self, plugin: HookablePlugin) -> None:
+        """
+        Register hooks for a specific plugin.
+
+        Adds the plugin to the hook registry for each hook it declares.
+
+        Args:
+            plugin: The hookable plugin to register hooks for.
+        """
         for hook_name in plugin.get_registered_hooks():
             if hook_name not in self.hook_registry:
                 self.hook_registry[hook_name] = []

@@ -23,7 +23,7 @@ router = APIRouter(prefix="/host-discovery", tags=["Host Discovery"])
 
 
 class HostDiscoveryResponse(BaseModel):
-    """Response model for host discovery operations"""
+    """Response model for host discovery operations."""
 
     host_id: str
     hostname: str
@@ -33,14 +33,14 @@ class HostDiscoveryResponse(BaseModel):
 
 
 class BulkDiscoveryRequest(BaseModel):
-    """Request model for bulk host discovery"""
+    """Request model for bulk host discovery."""
 
     host_ids: List[str]
     discovery_types: List[str] = ["basic_system"]  # For future extension
 
 
 class BulkDiscoveryResponse(BaseModel):
-    """Response model for bulk discovery operations"""
+    """Response model for bulk discovery operations."""
 
     total_hosts: int
     discovery_initiated: List[str]
@@ -53,13 +53,11 @@ async def discover_basic_system_info(
     host_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Trigger basic system information discovery for a specific host
-    """
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> HostDiscoveryResponse:
+    """Trigger basic system information discovery for a specific host."""
     # Check permissions
-    check_permission(current_user, "hosts:discover")
+    check_permission(current_user["role"], "hosts", "read")
 
     # Validate host exists
     try:
@@ -116,13 +114,11 @@ async def discover_basic_system_bulk(
     request: BulkDiscoveryRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Trigger basic system discovery for multiple hosts
-    """
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> BulkDiscoveryResponse:
+    """Trigger basic system discovery for multiple hosts."""
     # Check permissions
-    check_permission(current_user, "hosts:discover")
+    check_permission(current_user["role"], "hosts", "read")
 
     # Validate hosts exist
     valid_hosts = []
@@ -178,13 +174,11 @@ async def discover_basic_system_bulk(
 async def get_discovery_status(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Get the current discovery status and information for a host
-    """
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get the current discovery status and information for a host."""
     # Check permissions
-    check_permission(current_user, "hosts:view")
+    check_permission(current_user["role"], "hosts", "read")
 
     # Validate and get host
     try:
@@ -216,7 +210,7 @@ async def get_discovery_status(
     }
 
 
-async def _execute_background_discovery(host_id: str, db: Session):
+async def _execute_background_discovery(host_id: str, db: Session) -> None:
     """
     Background task for executing host discovery
     """

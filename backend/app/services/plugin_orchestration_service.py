@@ -217,9 +217,9 @@ class OptimizationJob(Document):
     progress: float = Field(default=0.0, ge=0.0, le=100.0)
 
     # Results
-    baseline_metrics: Dict[str, float] = Field(default_factory=dict)
-    optimized_metrics: Dict[str, float] = Field(default_factory=dict)
-    improvement_percentage: Dict[str, float] = Field(default_factory=dict)
+    baseline_metrics: Dict[str, Any] = Field(default_factory=dict)
+    optimized_metrics: Dict[str, Any] = Field(default_factory=dict)
+    improvement_percentage: Dict[str, Any] = Field(default_factory=dict)
 
     # Recommendations
     recommendations: List[Dict[str, Any]] = Field(default_factory=list)
@@ -257,7 +257,8 @@ class PluginOrchestrationService:
     - Multi-objective optimization (throughput, latency, cost, availability)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize plugin orchestration service."""
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_lifecycle_service = PluginLifecycleService()
         self.plugin_analytics_service = PluginAnalyticsService()
@@ -269,10 +270,10 @@ class PluginOrchestrationService:
 
         # Load balancing state
         self.round_robin_counters: Dict[str, int] = defaultdict(int)
-        self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
+        self.request_history: Dict[str, deque[Any]] = defaultdict(lambda: deque(maxlen=1000))
 
         # Performance monitoring
-        self.performance_metrics: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
+        self.performance_metrics: Dict[str, deque[Any]] = defaultdict(lambda: deque(maxlen=1000))
         self.optimization_cache: Dict[str, Dict[str, Any]] = {}
 
         # Circuit breaker state
@@ -284,12 +285,12 @@ class PluginOrchestrationService:
         self.optimization_models: Dict[str, Any] = {}  # ML models for optimization
 
         # Monitoring and tasks
-        self.monitoring_tasks: Dict[str, asyncio.Task] = {}
-        self.optimization_tasks: Dict[str, asyncio.Task] = {}
+        self.monitoring_tasks: Dict[str, asyncio.Task[None]] = {}
+        self.optimization_tasks: Dict[str, asyncio.Task[None]] = {}
         self.monitoring_enabled = False
 
-    async def initialize_orchestration(self):
-        """Initialize orchestration service"""
+    async def initialize_orchestration(self) -> None:
+        """Initialize orchestration service."""
 
         # Load existing clusters and instances
         await self._discover_existing_plugins()
@@ -302,8 +303,8 @@ class PluginOrchestrationService:
 
         logger.info("Plugin orchestration service initialized")
 
-    async def start_orchestration_monitoring(self):
-        """Start orchestration monitoring and optimization"""
+    async def start_orchestration_monitoring(self) -> None:
+        """Start orchestration monitoring and optimization."""
         if self.monitoring_enabled:
             logger.warning("Orchestration monitoring already running")
             return
@@ -319,8 +320,8 @@ class PluginOrchestrationService:
 
         logger.info("Started orchestration monitoring")
 
-    async def stop_orchestration_monitoring(self):
-        """Stop orchestration monitoring"""
+    async def stop_orchestration_monitoring(self) -> None:
+        """Stop orchestration monitoring."""
         if not self.monitoring_enabled:
             return
 
@@ -607,8 +608,8 @@ class PluginOrchestrationService:
             },
         }
 
-    async def _discover_existing_plugins(self):
-        """Discover existing plugins and create default clusters"""
+    async def _discover_existing_plugins(self) -> None:
+        """Discover existing plugins and create default clusters."""
 
         plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
 
@@ -631,8 +632,8 @@ class PluginOrchestrationService:
 
         logger.info(f"Discovered {len(plugins)} plugins and created default clusters")
 
-    async def _initialize_optimization_models(self):
-        """Initialize ML models for performance optimization"""
+    async def _initialize_optimization_models(self) -> None:
+        """Initialize ML models for performance optimization."""
 
         # In production, would load trained ML models
         # For now, use simple heuristic-based optimization
@@ -646,8 +647,8 @@ class PluginOrchestrationService:
 
         logger.info("Initialized optimization models")
 
-    def _create_response_time_model(self) -> Callable:
-        """Create response time prediction model"""
+    def _create_response_time_model(self) -> Callable[..., Dict[str, float]]:
+        """Create response time prediction model."""
 
         def predict_response_time(instance: PluginInstance, request: RouteRequest) -> Dict[str, float]:
             # Simple heuristic model
@@ -668,8 +669,8 @@ class PluginOrchestrationService:
 
         return predict_response_time
 
-    def _create_load_predictor(self) -> Callable:
-        """Create load prediction model"""
+    def _create_load_predictor(self) -> Callable[..., Dict[str, float]]:
+        """Create load prediction model."""
 
         def predict_load(cluster: PluginCluster, time_horizon_minutes: int = 30) -> Dict[str, float]:
             # Simple trend-based prediction
@@ -694,11 +695,11 @@ class PluginOrchestrationService:
 
         return predict_load
 
-    def _create_resource_optimizer(self) -> Callable:
-        """Create resource optimization model"""
+    def _create_resource_optimizer(self) -> Callable[..., List[Dict[str, Any]]]:
+        """Create resource optimization model."""
 
         def optimize_resources(cluster: PluginCluster) -> List[Dict[str, Any]]:
-            recommendations = []
+            recommendations: List[Dict[str, Any]] = []
 
             running_instances = [i for i in cluster.instances if i.status == "running"]
             if not running_instances:
@@ -755,10 +756,10 @@ class PluginOrchestrationService:
 
         return optimize_resources
 
-    def _create_scaling_advisor(self) -> Callable:
-        """Create scaling advisory model"""
+    def _create_scaling_advisor(self) -> Callable[..., Dict[str, Any]]:
+        """Create scaling advisory model."""
 
-        def advise_scaling(cluster: PluginCluster, metrics_history: List[Dict]) -> Dict[str, Any]:
+        def advise_scaling(cluster: PluginCluster, metrics_history: List[Dict[str, Any]]) -> Dict[str, Any]:
             if not metrics_history:
                 return {"action": "maintain", "confidence": 0.0}
 
@@ -798,13 +799,13 @@ class PluginOrchestrationService:
 
         return advise_scaling
 
-    async def _start_cluster_monitoring(self, cluster_id: str):
-        """Start monitoring for a specific cluster"""
+    async def _start_cluster_monitoring(self, cluster_id: str) -> None:
+        """Start monitoring for a specific cluster."""
 
         if cluster_id in self.monitoring_tasks:
             return  # Already monitoring
 
-        async def monitor_loop():
+        async def monitor_loop() -> None:
             while self.monitoring_enabled:
                 try:
                     cluster = self.clusters.get(cluster_id)
@@ -836,10 +837,10 @@ class PluginOrchestrationService:
         self.monitoring_tasks[cluster_id] = task
         logger.info(f"Started monitoring for cluster: {cluster_id}")
 
-    async def _start_optimization_scheduler(self):
-        """Start optimization scheduler"""
+    async def _start_optimization_scheduler(self) -> None:
+        """Start optimization scheduler."""
 
-        async def optimization_loop():
+        async def optimization_loop() -> None:
             while self.monitoring_enabled:
                 try:
                     # Run optimization for all clusters periodically
@@ -877,8 +878,8 @@ class PluginOrchestrationService:
 
         return instance
 
-    async def _start_plugin_instance(self, instance: PluginInstance):
-        """Start a plugin instance"""
+    async def _start_plugin_instance(self, instance: PluginInstance) -> None:
+        """Start a plugin instance."""
 
         try:
             instance.status = "starting"
@@ -898,8 +899,8 @@ class PluginOrchestrationService:
             instance.health_score = 0.0
             logger.error(f"Failed to start plugin instance {instance.instance_id}: {e}")
 
-    async def _stop_plugin_instance(self, instance: PluginInstance):
-        """Stop a plugin instance"""
+    async def _stop_plugin_instance(self, instance: PluginInstance) -> None:
+        """Stop a plugin instance."""
 
         try:
             instance.status = "stopping"
@@ -1072,7 +1073,8 @@ class PluginOrchestrationService:
                 best_score = score
                 best_instance = instance
 
-        return best_instance
+        # Return best instance or fallback to first instance if scoring failed
+        return best_instance if best_instance is not None else instances[0]
 
     def _calculate_instance_load(self, instance: PluginInstance) -> float:
         """Calculate current load percentage for an instance"""
@@ -1090,7 +1092,8 @@ class PluginOrchestrationService:
 
         predictor = self.optimization_models.get("response_time_predictor")
         if predictor:
-            return predictor(instance, request)
+            result: Dict[str, float] = predictor(instance, request)
+            return result
 
         # Fallback prediction
         return {"time_ms": instance.avg_response_time_ms or 100.0, "confidence": 0.5}
@@ -1101,8 +1104,8 @@ class PluginOrchestrationService:
         instance: PluginInstance,
         request: RouteRequest,
         response: RouteResponse,
-    ):
-        """Record routing decision for analytics"""
+    ) -> None:
+        """Record routing decision for analytics."""
 
         # Record in request history
         self.request_history[cluster.cluster_id].append(
@@ -1115,8 +1118,8 @@ class PluginOrchestrationService:
             }
         )
 
-    async def _update_cluster_health(self, cluster: PluginCluster):
-        """Update health metrics for all instances in cluster"""
+    async def _update_cluster_health(self, cluster: PluginCluster) -> None:
+        """Update health metrics for all instances in cluster."""
 
         for instance in cluster.instances:
             if instance.status == "running":
@@ -1148,8 +1151,8 @@ class PluginOrchestrationService:
             logger.error(f"Health check failed for instance {instance.instance_id}: {e}")
             return 0.0
 
-    async def _update_instance_metrics(self, instance: PluginInstance):
-        """Update performance and resource metrics for an instance"""
+    async def _update_instance_metrics(self, instance: PluginInstance) -> None:
+        """Update performance and resource metrics for an instance."""
 
         try:
             # In production, would collect actual metrics
@@ -1172,8 +1175,8 @@ class PluginOrchestrationService:
         except Exception as e:
             logger.error(f"Failed to update metrics for instance {instance.instance_id}: {e}")
 
-    async def _check_autoscaling(self, cluster: PluginCluster):
-        """Check and execute auto-scaling for cluster"""
+    async def _check_autoscaling(self, cluster: PluginCluster) -> None:
+        """Check and execute auto-scaling for cluster."""
 
         if cluster.scaling_policy == ScalingPolicy.DISABLED:
             return
@@ -1241,8 +1244,8 @@ class PluginOrchestrationService:
                 f"Auto-scale down: {scale_down_reason}",
             )
 
-    async def _update_circuit_breaker(self, cluster: PluginCluster):
-        """Update circuit breaker status for cluster"""
+    async def _update_circuit_breaker(self, cluster: PluginCluster) -> None:
+        """Update circuit breaker status for cluster."""
 
         if not cluster.circuit_breaker_enabled:
             return
@@ -1262,16 +1265,16 @@ class PluginOrchestrationService:
             # This is handled in the routing logic
             pass
 
-    async def _record_cluster_metrics(self, cluster: PluginCluster):
-        """Record cluster metrics for analytics"""
+    async def _record_cluster_metrics(self, cluster: PluginCluster) -> None:
+        """Record cluster metrics for analytics."""
 
         metrics = await self.get_cluster_metrics(cluster.cluster_id)
 
         # Store in performance metrics history
         self.performance_metrics[cluster.cluster_id].append({"timestamp": datetime.utcnow(), "metrics": metrics})
 
-    async def _execute_optimization_job(self, job: OptimizationJob):
-        """Execute an optimization job"""
+    async def _execute_optimization_job(self, job: OptimizationJob) -> None:
+        """Execute an optimization job."""
 
         try:
             job.status = "running"
@@ -1280,7 +1283,7 @@ class PluginOrchestrationService:
             await job.save()
 
             # Collect baseline metrics
-            baseline_metrics = {}
+            baseline_metrics: Dict[str, Dict[str, Any]] = {}
             for cluster_id in job.cluster_ids:
                 cluster_metrics = await self.get_cluster_metrics(cluster_id)
                 baseline_metrics[cluster_id] = cluster_metrics
@@ -1317,8 +1320,8 @@ class PluginOrchestrationService:
             await asyncio.sleep(60)  # 1 minute
 
             # Collect post-optimization metrics
-            optimized_metrics = {}
-            improvement = {}
+            optimized_metrics: Dict[str, Dict[str, Any]] = {}
+            improvement: Dict[str, Dict[str, float]] = {}
             for cluster_id in job.cluster_ids:
                 cluster_metrics = await self.get_cluster_metrics(cluster_id)
                 optimized_metrics[cluster_id] = cluster_metrics
@@ -1406,10 +1409,13 @@ class PluginOrchestrationService:
         return recommendations
 
     async def _apply_optimization_recommendation(self, recommendation: Dict[str, Any]) -> bool:
-        """Apply an optimization recommendation"""
+        """Apply an optimization recommendation."""
 
         try:
-            cluster_id = recommendation.get("cluster_id")
+            cluster_id: Optional[str] = recommendation.get("cluster_id")
+            if not cluster_id:
+                return False
+
             cluster = self.clusters.get(cluster_id)
 
             if not cluster:

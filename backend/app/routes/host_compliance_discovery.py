@@ -35,10 +35,14 @@ class ComplianceDiscoveryResponse(BaseModel):
 
 
 class BulkComplianceDiscoveryRequest(BaseModel):
+    """Request model for bulk compliance discovery operations."""
+
     host_ids: List[str]
 
 
 class BulkComplianceDiscoveryResponse(BaseModel):
+    """Response model for bulk compliance discovery results."""
+
     total_hosts: int
     successful_discoveries: int
     failed_discoveries: int
@@ -47,6 +51,8 @@ class BulkComplianceDiscoveryResponse(BaseModel):
 
 
 class ComplianceCapabilityAssessment(BaseModel):
+    """Model for compliance capability assessment results."""
+
     host_id: str
     hostname: str
     overall_compliance_readiness: str  # ready, partial, not_ready
@@ -61,8 +67,10 @@ class ComplianceCapabilityAssessment(BaseModel):
 
 @router.post("/hosts/{host_id}/compliance-discovery", response_model=ComplianceDiscoveryResponse)
 async def discover_host_compliance_infrastructure(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ComplianceDiscoveryResponse:
     """
     Discover compliance infrastructure and tooling on a specific host
 
@@ -72,8 +80,8 @@ async def discover_host_compliance_infrastructure(
     Returns:
         ComplianceDiscoveryResponse containing discovered compliance information
     """
-    # Check permissions
-    check_permission(current_user, "hosts:read")
+    # Check permissions - RBAC requires role, resource, and action
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object
@@ -89,7 +97,7 @@ async def discover_host_compliance_infrastructure(
 
         # Perform compliance discovery
         compliance_service = HostComplianceDiscoveryService()
-        discovery_results = compliance_service.discover_compliance_infrastructure(host)
+        discovery_results: Dict[str, Any] = compliance_service.discover_compliance_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
         discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
@@ -119,20 +127,22 @@ async def discover_host_compliance_infrastructure(
 @router.post("/bulk-compliance-discovery", response_model=BulkComplianceDiscoveryResponse)
 async def bulk_discover_compliance_infrastructure(
     request: BulkComplianceDiscoveryRequest,
-    current_user=Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BulkComplianceDiscoveryResponse:
     """
-    Discover compliance infrastructure for multiple hosts in bulk
+    Discover compliance infrastructure for multiple hosts in bulk.
 
     Args:
         request: BulkComplianceDiscoveryRequest containing list of host IDs
+        current_user: Current authenticated user from JWT token
+        db: Database session for queries
 
     Returns:
         BulkComplianceDiscoveryResponse with results for all hosts
     """
-    # Check permissions
-    check_permission(current_user, "hosts:read")
+    # Check permissions - RBAC requires role, resource, and action
+    check_permission(current_user["role"], "hosts", "read")
 
     if not request.host_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No host IDs provided")
@@ -204,19 +214,23 @@ async def bulk_discover_compliance_infrastructure(
     response_model=ComplianceCapabilityAssessment,
 )
 async def assess_host_compliance_capability(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ComplianceCapabilityAssessment:
     """
-    Assess a host's compliance capability and readiness
+    Assess a host's compliance capability and readiness.
 
     Args:
         host_id: UUID of the host to assess
+        current_user: Current authenticated user from JWT token
+        db: Database session for queries
 
     Returns:
         ComplianceCapabilityAssessment with readiness evaluation
     """
-    # Check permissions
-    check_permission(current_user, "hosts:read")
+    # Check permissions - RBAC requires role, resource, and action
+    check_permission(current_user["role"], "hosts", "read")
 
     try:
         # Convert string UUID to UUID object
@@ -253,15 +267,20 @@ async def assess_host_compliance_capability(
 
 
 @router.get("/compliance-frameworks")
-async def get_supported_compliance_frameworks(current_user=Depends(get_current_user)):
+async def get_supported_compliance_frameworks(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Dict[str, Any]]:
     """
-    Get list of compliance frameworks that can be discovered and supported
+    Get list of compliance frameworks that can be discovered and supported.
+
+    Args:
+        current_user: Current authenticated user from JWT token
 
     Returns:
-        List of supported compliance frameworks with descriptions
+        Dictionary of supported compliance frameworks with descriptions
     """
-    # Check permissions
-    check_permission(current_user, "hosts:read")
+    # Check permissions - RBAC requires role, resource, and action
+    check_permission(current_user["role"], "hosts", "read")
 
     frameworks = {
         "NIST 800-53": {

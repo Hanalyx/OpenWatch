@@ -4,6 +4,7 @@ Enables targeted scanning of specific SCAP rules for efficient remediation verif
 """
 
 import asyncio
+import functools
 import json
 import logging
 import subprocess
@@ -11,7 +12,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from .compliance_framework_mapper import ComplianceFrameworkMapper
 from .scap_scanner import ScanExecutionError, SCAPScanner
@@ -47,8 +48,8 @@ class RuleSpecificScanner:
         content_path: str,
         profile_id: str,
         rule_ids: List[str],
-        connection_params: Optional[Dict] = None,
-    ) -> Dict:
+        connection_params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Scan specific rules on a host"""
         try:
             # Security Fix: Sanitize host_id to prevent path injection
@@ -57,7 +58,7 @@ class RuleSpecificScanner:
             logger.info(f"Starting rule-specific scan {scan_id} for {len(rule_ids)} rules")
 
             # Create scan results structure
-            results = {
+            results: Dict[str, Any] = {
                 "scan_id": scan_id,
                 "host_id": host_id,
                 "timestamp": datetime.now().isoformat(),
@@ -148,8 +149,8 @@ class RuleSpecificScanner:
         self,
         previous_scan_id: str,
         content_path: str,
-        connection_params: Optional[Dict] = None,
-    ) -> Dict:
+        connection_params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Re-scan only failed rules from a previous scan"""
         try:
             # Load previous scan results
@@ -171,11 +172,15 @@ class RuleSpecificScanner:
 
             logger.info(f"Re-scanning {len(failed_rules)} failed rules from scan {previous_scan_id}")
 
-            # Perform targeted scan
+            # Perform targeted scan - get values with defaults for type safety
+            host_id = previous_results.get("host_id", "")
+            profile_id = previous_results.get("profile_id", "")
+            if not host_id or not profile_id:
+                raise ValueError("Previous scan missing host_id or profile_id")
             return await self.scan_specific_rules(
-                host_id=previous_results.get("host_id"),
+                host_id=host_id,
                 content_path=content_path,
-                profile_id=previous_results.get("profile_id"),
+                profile_id=profile_id,
                 rule_ids=failed_rules,
                 connection_params=connection_params,
             )
@@ -190,8 +195,8 @@ class RuleSpecificScanner:
         content_path: str,
         aegis_remediation_id: str,
         remediated_rules: List[str],
-        connection_params: Optional[Dict] = None,
-    ) -> Dict:
+        connection_params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Verify specific rules after AEGIS remediation"""
         try:
             logger.info(f"Verifying remediation {aegis_remediation_id} for {len(remediated_rules)} rules")
@@ -248,7 +253,9 @@ class RuleSpecificScanner:
             logger.error(f"Error verifying remediation: {e}")
             raise
 
-    async def get_rule_scan_history(self, rule_id: str, host_id: Optional[str] = None, limit: int = 10) -> List[Dict]:
+    async def get_rule_scan_history(
+        self, rule_id: str, host_id: Optional[str] = None, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """Get scan history for a specific rule"""
         try:
             history = []
@@ -294,7 +301,7 @@ class RuleSpecificScanner:
 
     async def _scan_rules_local(
         self, scan_id: str, content_path: str, profile_id: str, rule_ids: List[str]
-    ) -> Dict[str, Dict]:
+    ) -> Dict[str, Dict[str, Any]]:
         """Scan specific rules locally"""
         results = {}
 
@@ -315,8 +322,10 @@ class RuleSpecificScanner:
             for rule_id, result in zip(rule_ids, rule_results):
                 if isinstance(result, Exception):
                     results[rule_id] = {"result": "error", "error": str(result)}
-                else:
+                elif isinstance(result, dict):
                     results[rule_id] = result
+                else:
+                    results[rule_id] = {"result": "error", "error": "Unknown result type"}
 
         return results
 
@@ -327,7 +336,7 @@ class RuleSpecificScanner:
         profile_id: str,
         rule_id: str,
         temp_dir: Path,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """Scan a single rule locally"""
         try:
             # Create unique result files for this rule
@@ -350,15 +359,13 @@ class RuleSpecificScanner:
 
             # Execute in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                self.executor,
+            run_subprocess = functools.partial(
                 subprocess.run,
                 cmd,
-                subprocess.PIPE,
-                subprocess.PIPE,
-                True,  # capture_output
-                300,  # timeout
+                capture_output=True,
+                timeout=300,
             )
+            result = await loop.run_in_executor(self.executor, run_subprocess)
 
             # Parse result
             if xml_result.exists():
@@ -395,8 +402,8 @@ class RuleSpecificScanner:
         content_path: str,
         profile_id: str,
         rule_ids: List[str],
-        connection_params: Dict,
-    ) -> Dict[str, Dict]:
+        connection_params: Dict[str, Any],
+    ) -> Dict[str, Dict[str, Any]]:
         """Scan specific rules on remote host"""
         results = {}
 
@@ -431,8 +438,8 @@ class RuleSpecificScanner:
         content_path: str,
         profile_id: str,
         rule_ids: List[str],
-        connection_params: Dict,
-    ) -> Dict[str, Dict]:
+        connection_params: Dict[str, Any],
+    ) -> Dict[str, Dict[str, Any]]:
         """Scan a batch of rules on remote host"""
         try:
             # Use the main scanner for remote execution
@@ -483,7 +490,7 @@ class RuleSpecificScanner:
             logger.error(f"Error in remote rule batch scan: {e}")
             raise
 
-    async def _save_scan_results(self, results: Dict):
+    async def _save_scan_results(self, results: Dict[str, Any]) -> None:
         """Save scan results to file"""
         try:
             result_file = self.results_dir / f"{results['scan_id']}.json"
@@ -497,7 +504,7 @@ class RuleSpecificScanner:
         except Exception as e:
             logger.error(f"Error saving scan results: {e}")
 
-    async def _load_scan_results(self, scan_id: str) -> Optional[Dict]:
+    async def _load_scan_results(self, scan_id: str) -> Optional[Dict[str, Any]]:
         """Load scan results from file"""
         try:
             # Security Fix: Sanitize scan_id to prevent path injection
@@ -514,7 +521,7 @@ class RuleSpecificScanner:
 
             if result_file.exists():
                 with open(result_file, "r") as f:
-                    return json.load(f)
+                    return cast(Dict[str, Any], json.load(f))
 
             return None
 
@@ -522,7 +529,7 @@ class RuleSpecificScanner:
             logger.error(f"Error loading scan results: {e}")
             return None
 
-    def get_rule_remediation_guidance(self, rule_id: str) -> Optional[Dict]:
+    def get_rule_remediation_guidance(self, rule_id: str) -> Optional[Dict[str, Any]]:
         """Get remediation guidance for a specific rule"""
         try:
             # Get framework mappings
@@ -531,7 +538,7 @@ class RuleSpecificScanner:
             if not control:
                 return None
 
-            guidance = {
+            guidance: Dict[str, Any] = {
                 "rule_id": rule_id,
                 "title": control.title,
                 "automated_remediation": control.automated_remediation,

@@ -5,6 +5,7 @@ Provides WebSocket endpoints for SSH terminal access to hosts
 """
 
 import logging
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy import text
@@ -27,22 +28,22 @@ def get_client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
         # Take the first IP if there are multiple
-        return forwarded_for.split(",")[0].strip()
+        return str(forwarded_for.split(",")[0].strip())
 
     # Check X-Real-IP header (nginx)
     real_ip = request.headers.get("x-real-ip")
     if real_ip:
-        return real_ip.strip()
+        return str(real_ip.strip())
 
     # Fallback to direct client IP
     if request.client and request.client.host:
-        return request.client.host
+        return str(request.client.host)
 
     return "unknown"
 
 
 @router.websocket("/api/hosts/{host_id}/terminal")
-async def host_terminal_websocket(websocket: WebSocket, host_id: str, db: Session = Depends(get_db)):
+async def host_terminal_websocket(websocket: WebSocket, host_id: str, db: Session = Depends(get_db)) -> None:
     """
     WebSocket endpoint for SSH terminal access to a specific host
 
@@ -91,7 +92,7 @@ async def host_terminal_websocket(websocket: WebSocket, host_id: str, db: Sessio
 
 
 @router.get("/api/hosts/{host_id}/terminal/status")
-async def get_terminal_status(host_id: str, db: Session = Depends(get_db)):
+async def get_terminal_status(host_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     Get terminal connection status for a host
 

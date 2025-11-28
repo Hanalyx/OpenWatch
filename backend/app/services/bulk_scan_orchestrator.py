@@ -22,7 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -78,16 +78,18 @@ class ScanSession:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     estimated_completion: Optional[datetime] = None
-    scan_ids: List[str] = None
+    scan_ids: Optional[List[str]] = None
     error_message: Optional[str] = None
     # Authorization metadata
     authorized_hosts: int = 0
     unauthorized_hosts: int = 0
-    authorization_failures: List[Dict] = None
+    authorization_failures: Optional[List[Dict[str, Any]]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.authorization_failures is None:
             self.authorization_failures = []
+        if self.scan_ids is None:
+            self.scan_ids = []
 
 
 @dataclass
@@ -98,9 +100,9 @@ class AuthorizationFailure:
     hostname: str
     reason: str
     user_id: str
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.utcnow()
 
@@ -127,7 +129,7 @@ class BulkScanOrchestrator:
         template_id: str = "auto",
         name_prefix: str = "Bulk Scan",
         priority: str = "normal",
-        user_id: str = None,
+        user_id: Optional[str] = None,
         stagger_delay: int = 30,
         auth_context: Optional[AuthorizationContext] = None,
     ) -> ScanSession:
@@ -212,7 +214,7 @@ class BulkScanOrchestrator:
                         "host_id": failure.host_id,
                         "hostname": failure.hostname,
                         "reason": failure.reason,
-                        "timestamp": failure.timestamp.isoformat(),
+                        "timestamp": failure.timestamp.isoformat() if failure.timestamp else None,
                     }
                     for failure in authorization_failures
                 ],
@@ -361,7 +363,7 @@ class BulkScanOrchestrator:
                 raise ValueError("No valid hosts found for bulk scan")
 
             # Group hosts by OS family for content optimization
-            os_groups = {}
+            os_groups: Dict[str, List[Any]] = {}
             for host in host_infos:
                 os_family = self._extract_os_family(host.operating_system)
                 if os_family not in os_groups:
@@ -382,7 +384,7 @@ class BulkScanOrchestrator:
                     batch_hosts = hosts[i : i + max_batch_size]
 
                     # Calculate estimated time based on host count and profile complexity
-                    estimated_time = len(batch_hosts) * 10  # Base 10 minutes per host
+                    estimated_time: float = len(batch_hosts) * 10  # Base 10 minutes per host
 
                     # Adjust for profile complexity
                     if "stig" in profile_id.lower():
@@ -962,7 +964,7 @@ class AuthorizedHost:
     hostname: str
     display_name: str
     authorization_reason: str
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
     def __post_init__(self):
         if self.timestamp is None:

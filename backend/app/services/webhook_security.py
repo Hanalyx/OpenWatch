@@ -101,17 +101,15 @@ class WebhookSecurity:
                 logger.debug("Webhook signature verified successfully")
             else:
                 logger.warning(
-                    "Webhook signature verification failed",
-                    expected=expected_signature[:16] + "...",
-                    received=received_signature[:16] + "...",
+                    f"Webhook signature verification failed: expected={expected_signature[:16]}..., "
+                    f"received={received_signature[:16]}..."
                 )
 
             return is_valid
 
         except Exception as e:
             logger.error(
-                "Error during webhook signature verification",
-                error=str(e),
+                f"Error during webhook signature verification: error={e}",
                 exc_info=True,
             )
             return False

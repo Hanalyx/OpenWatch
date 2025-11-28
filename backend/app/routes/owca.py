@@ -5,7 +5,7 @@ REST API for OpenWatch Compliance Algorithm (OWCA) functionality.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,8 +30,8 @@ router = APIRouter(prefix="/api/owca", tags=["OWCA"])
 async def get_host_compliance_score(
     host_id: UUID,
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[ComplianceScore]:
     """
     Get OWCA-calculated compliance score for a specific host.
 
@@ -88,8 +88,8 @@ async def get_host_compliance_score(
 )
 async def get_fleet_statistics(
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> FleetStatistics:
     """
     Get comprehensive fleet-wide compliance statistics.
 
@@ -140,8 +140,8 @@ async def get_fleet_statistics(
 async def detect_baseline_drift(
     host_id: UUID,
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[BaselineDrift]:
     """
     Detect compliance drift from active baseline.
 
@@ -197,8 +197,8 @@ async def get_hosts_with_drift(
         description="Minimum drift severity to include (critical, high, medium, low, none)",
     ),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[BaselineDrift]:
     """
     Get all hosts with significant baseline drift.
 
@@ -231,7 +231,8 @@ async def get_hosts_with_drift(
         owca = get_owca_service(db)
         # Access drift_detector directly from owca service
         drifted_hosts = await owca.drift_detector.get_hosts_with_drift(min_severity=min_severity)
-        return drifted_hosts
+        # Ensure proper type cast for mypy
+        return list(drifted_hosts)
 
     except Exception as e:
         logger.error(f"Error getting hosts with drift: {e}", exc_info=True)
@@ -240,15 +241,15 @@ async def get_hosts_with_drift(
 
 @router.get(
     "/fleet/priority-hosts",
-    response_model=List[dict],
+    response_model=List[Dict[str, Any]],
     summary="Get top priority hosts",
     description="Get hosts prioritized for remediation",
 )
 async def get_top_priority_hosts(
     limit: int = Query(10, ge=1, le=100, description="Maximum number of hosts to return"),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     """
     Get top priority hosts for remediation.
 
@@ -283,7 +284,9 @@ async def get_top_priority_hosts(
         owca = get_owca_service(db)
         # Access fleet_aggregator directly from owca service
         priority_hosts = await owca.fleet_aggregator.get_top_priority_hosts(limit=limit)
-        return priority_hosts
+        # Ensure proper type for mypy
+        result: List[Dict[str, Any]] = list(priority_hosts) if priority_hosts else []
+        return result
 
     except Exception as e:
         logger.error(f"Error getting top priority hosts: {e}", exc_info=True)
@@ -292,7 +295,7 @@ async def get_top_priority_hosts(
 
 @router.get(
     "/host/{host_id}/framework/{framework}",
-    response_model=dict,
+    response_model=Dict[str, Any],
     summary="Get framework-specific intelligence",
     description="Get detailed framework-specific compliance analysis for a host",
 )
@@ -300,8 +303,8 @@ async def get_host_framework_intelligence(
     host_id: UUID,
     framework: str,
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get framework-specific compliance intelligence for a host.
 
@@ -445,9 +448,12 @@ async def get_host_framework_intelligence(
             )
 
         # Convert Pydantic model to dict for JSON response
+        result: Dict[str, Any]
         if hasattr(intelligence, "dict"):
-            return intelligence.dict()
-        return intelligence
+            result = dict(intelligence.dict())
+        else:
+            result = dict(intelligence) if isinstance(intelligence, dict) else {"data": intelligence}
+        return result
 
     except HTTPException:
         raise
@@ -461,14 +467,14 @@ async def get_host_framework_intelligence(
 
 @router.get(
     "/frameworks",
-    response_model=dict,
+    response_model=Dict[str, Any],
     summary="List available frameworks",
     description="Get list of supported compliance frameworks",
 )
 async def list_available_frameworks(
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get list of all supported compliance frameworks.
 
@@ -558,7 +564,7 @@ async def list_available_frameworks(
 
 @router.get(
     "/host/{host_id}/trend",
-    response_model=Optional[dict],
+    response_model=Optional[Dict[str, Any]],
     summary="Analyze compliance trend",
     description="Analyze historical compliance trend for a host",
 )
@@ -566,8 +572,8 @@ async def analyze_host_trend(
     host_id: UUID,
     days: int = Query(30, ge=7, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[Dict[str, Any]]:
     """
     Analyze compliance trend over time for a host.
 
@@ -609,7 +615,9 @@ async def analyze_host_trend(
         if not trend:
             return None
 
-        return trend.dict() if hasattr(trend, "dict") else trend
+        # Convert to dict with proper type annotation
+        result: Dict[str, Any] = dict(trend.dict()) if hasattr(trend, "dict") else dict(trend)
+        return result
 
     except Exception as e:
         logger.error(f"Error analyzing trend for host {host_id}: {e}", exc_info=True)
@@ -618,7 +626,7 @@ async def analyze_host_trend(
 
 @router.get(
     "/host/{host_id}/risk",
-    response_model=Optional[dict],
+    response_model=Optional[Dict[str, Any]],
     summary="Calculate host risk score",
     description="Calculate composite risk score for remediation prioritization",
 )
@@ -628,8 +636,8 @@ async def calculate_host_risk(
         None, description="Business tier (production, staging, development, testing)"
     ),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[Dict[str, Any]]:
     """
     Calculate composite risk score for a host.
 
@@ -670,7 +678,9 @@ async def calculate_host_risk(
         if not risk:
             raise HTTPException(status_code=404, detail=f"No compliance data available for host {host_id}")
 
-        return risk.dict() if hasattr(risk, "dict") else risk
+        # Convert to dict with proper type annotation
+        result: Dict[str, Any] = dict(risk.dict()) if hasattr(risk, "dict") else dict(risk)
+        return result
 
     except HTTPException:
         raise
@@ -681,15 +691,15 @@ async def calculate_host_risk(
 
 @router.get(
     "/fleet/risk-ranking",
-    response_model=List[dict],
+    response_model=List[Dict[str, Any]],
     summary="Rank hosts by risk",
     description="Get all hosts ranked by risk score for prioritization",
 )
 async def rank_fleet_by_risk(
-    limit: int = Query(None, ge=1, le=100, description="Maximum number of hosts to return"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Maximum number of hosts to return"),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     """
     Rank all hosts by composite risk score.
 
@@ -715,7 +725,7 @@ async def rank_fleet_by_risk(
 
 @router.get(
     "/host/{host_id}/forecast",
-    response_model=Optional[dict],
+    response_model=Optional[Dict[str, Any]],
     summary="Forecast compliance",
     description="Predict future compliance scores using statistical forecasting",
 )
@@ -723,8 +733,8 @@ async def forecast_host_compliance(
     host_id: UUID,
     days_ahead: int = Query(30, ge=7, le=90, description="Number of days to forecast (7-90)"),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[Dict[str, Any]]:
     """
     Forecast future compliance scores using linear regression.
 
@@ -766,7 +776,9 @@ async def forecast_host_compliance(
                 detail="Insufficient historical data for forecasting (need at least 5 scans)",
             )
 
-        return forecast.dict() if hasattr(forecast, "dict") else forecast
+        # Convert to dict with proper type annotation
+        result: Dict[str, Any] = dict(forecast.dict()) if hasattr(forecast, "dict") else dict(forecast)
+        return result
 
     except HTTPException:
         raise
@@ -777,7 +789,7 @@ async def forecast_host_compliance(
 
 @router.get(
     "/host/{host_id}/anomalies",
-    response_model=List[dict],
+    response_model=List[Dict[str, Any]],
     summary="Detect anomalies",
     description="Detect unusual compliance score changes using statistical analysis",
 )
@@ -785,8 +797,8 @@ async def detect_host_anomalies(
     host_id: UUID,
     lookback_days: int = Query(60, ge=30, le=180, description="Days of history to analyze (30-180)"),
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     """
     Detect anomalous compliance scores using z-score method.
 
@@ -827,14 +839,14 @@ async def detect_host_anomalies(
 
 @router.get(
     "/version",
-    response_model=dict,
+    response_model=Dict[str, Any],
     summary="Get OWCA version",
     description="Get current OWCA algorithm version",
 )
 async def get_owca_version(
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
-):
+    _current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get OWCA algorithm version information.
 

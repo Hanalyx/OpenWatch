@@ -17,7 +17,7 @@ Security:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -73,6 +73,32 @@ class BaselineResponse(BaseModel):
     class Config:
         from_attributes = True
 
+    @classmethod
+    def from_db_model(cls, baseline: Any) -> "BaselineResponse":
+        """Create BaselineResponse from database model with proper type coercion."""
+        return cls(
+            id=UUID(str(baseline.id)),
+            host_id=UUID(str(baseline.host_id)),
+            baseline_type=str(baseline.baseline_type),
+            established_at=baseline.established_at.isoformat(),
+            established_by=int(baseline.established_by) if baseline.established_by else None,
+            baseline_score=float(baseline.baseline_score),
+            baseline_passed_rules=int(baseline.baseline_passed_rules),
+            baseline_failed_rules=int(baseline.baseline_failed_rules),
+            baseline_total_rules=int(baseline.baseline_total_rules),
+            baseline_critical_passed=int(baseline.baseline_critical_passed),
+            baseline_critical_failed=int(baseline.baseline_critical_failed),
+            baseline_high_passed=int(baseline.baseline_high_passed),
+            baseline_high_failed=int(baseline.baseline_high_failed),
+            baseline_medium_passed=int(baseline.baseline_medium_passed),
+            baseline_medium_failed=int(baseline.baseline_medium_failed),
+            baseline_low_passed=int(baseline.baseline_low_passed),
+            baseline_low_failed=int(baseline.baseline_low_failed),
+            drift_threshold_major=float(baseline.drift_threshold_major),
+            drift_threshold_minor=float(baseline.drift_threshold_minor),
+            is_active=bool(baseline.is_active),
+        )
+
 
 @router.post(
     "/{host_id}/baseline",
@@ -86,8 +112,8 @@ async def establish_baseline(
     request_body: BaselineEstablishRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> BaselineResponse:
     """
     Establish compliance baseline for a host.
 
@@ -144,33 +170,12 @@ async def establish_baseline(
                 "scan_id": sanitize_id_for_log(request_body.scan_id),
                 "baseline_id": sanitize_id_for_log(baseline.id),
                 "baseline_type": sanitize_for_log(request_body.baseline_type),
-                "ip_address": sanitize_for_log(request.client.host),
+                "ip_address": sanitize_for_log(request.client.host if request.client else "unknown"),
             },
         )
 
-        # Convert to response model
-        return BaselineResponse(
-            id=baseline.id,
-            host_id=baseline.host_id,
-            baseline_type=baseline.baseline_type,
-            established_at=baseline.established_at.isoformat(),
-            established_by=baseline.established_by,
-            baseline_score=baseline.baseline_score,
-            baseline_passed_rules=baseline.baseline_passed_rules,
-            baseline_failed_rules=baseline.baseline_failed_rules,
-            baseline_total_rules=baseline.baseline_total_rules,
-            baseline_critical_passed=baseline.baseline_critical_passed,
-            baseline_critical_failed=baseline.baseline_critical_failed,
-            baseline_high_passed=baseline.baseline_high_passed,
-            baseline_high_failed=baseline.baseline_high_failed,
-            baseline_medium_passed=baseline.baseline_medium_passed,
-            baseline_medium_failed=baseline.baseline_medium_failed,
-            baseline_low_passed=baseline.baseline_low_passed,
-            baseline_low_failed=baseline.baseline_low_failed,
-            drift_threshold_major=baseline.drift_threshold_major,
-            drift_threshold_minor=baseline.drift_threshold_minor,
-            is_active=baseline.is_active,
-        )
+        # Convert to response model using helper method for proper type coercion
+        return BaselineResponse.from_db_model(baseline)
 
     except ValueError as e:
         # Invalid scan or host
@@ -207,8 +212,8 @@ async def establish_baseline(
 async def get_active_baseline(
     host_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Optional[BaselineResponse]:
     """
     Get active baseline for a host.
 
@@ -229,29 +234,8 @@ async def get_active_baseline(
         if not baseline:
             return None
 
-        # Convert to response model
-        return BaselineResponse(
-            id=baseline.id,
-            host_id=baseline.host_id,
-            baseline_type=baseline.baseline_type,
-            established_at=baseline.established_at.isoformat(),
-            established_by=baseline.established_by,
-            baseline_score=baseline.baseline_score,
-            baseline_passed_rules=baseline.baseline_passed_rules,
-            baseline_failed_rules=baseline.baseline_failed_rules,
-            baseline_total_rules=baseline.baseline_total_rules,
-            baseline_critical_passed=baseline.baseline_critical_passed,
-            baseline_critical_failed=baseline.baseline_critical_failed,
-            baseline_high_passed=baseline.baseline_high_passed,
-            baseline_high_failed=baseline.baseline_high_failed,
-            baseline_medium_passed=baseline.baseline_medium_passed,
-            baseline_medium_failed=baseline.baseline_medium_failed,
-            baseline_low_passed=baseline.baseline_low_passed,
-            baseline_low_failed=baseline.baseline_low_failed,
-            drift_threshold_major=baseline.drift_threshold_major,
-            drift_threshold_minor=baseline.drift_threshold_minor,
-            is_active=baseline.is_active,
-        )
+        # Convert to response model using helper method for proper type coercion
+        return BaselineResponse.from_db_model(baseline)
 
     except Exception as e:
         # Security: Sanitize user-controlled data and error messages to prevent log injection
@@ -273,8 +257,8 @@ async def reset_baseline(
     host_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Reset (deactivate) baseline for a host.
 
@@ -314,7 +298,7 @@ async def reset_baseline(
                 "user_id": sanitize_id_for_log(current_user.get("id")),
                 "username": sanitize_username_for_log(current_user.get("username")),
                 "host_id": sanitize_id_for_log(host_id),
-                "ip_address": sanitize_for_log(request.client.host),
+                "ip_address": sanitize_for_log(request.client.host if request.client else "unknown"),
             },
         )
 

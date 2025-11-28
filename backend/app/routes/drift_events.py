@@ -10,7 +10,7 @@ Endpoints:
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -77,8 +77,8 @@ async def list_drift_events(
     limit: int = Query(10, ge=1, le=100, description="Maximum number of events to return"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> DriftEventsListResponse:
     """
     Get list of drift events with optional filtering.
 
@@ -135,7 +135,8 @@ async def list_drift_events(
         count_builder.where("sde.drift_type != :stable", "stable", "stable")
 
     count_query, count_params = count_builder.count_query()
-    total = db.execute(text(count_query), count_params).fetchone().total
+    count_result = db.execute(text(count_query), count_params).fetchone()
+    total: int = count_result.total if count_result else 0
 
     # Apply pagination
     builder.paginate(page=(offset // limit) + 1, per_page=limit)
@@ -194,8 +195,8 @@ async def list_drift_events(
 async def get_drift_event(
     event_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> DriftEventResponse:
     """
     Get detailed information about a drift event.
 

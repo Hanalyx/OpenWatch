@@ -38,7 +38,8 @@ Usage:
     >>> print(f"Host compliance: {score.overall_score}% ({score.tier})")
 """
 
-from typing import Optional
+from typing import Optional, Union
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -118,17 +119,18 @@ class OWCAService:
         self.risk_scorer = RiskScorer(db, self.score_calculator, self.drift_detector)
         self.predictor = CompliancePredictor(db, self.score_calculator, self.trend_analyzer)
 
-    async def get_host_compliance_score(self, host_id: str) -> Optional[ComplianceScore]:
+    async def get_host_compliance_score(self, host_id: Union[str, UUID]) -> Optional[ComplianceScore]:
         """
         Get compliance score for a specific host.
 
         Args:
-            host_id: UUID of the host
+            host_id: UUID of the host (string or UUID)
 
         Returns:
             ComplianceScore with full breakdown or None if no scans
         """
-        return await self.score_calculator.get_host_compliance_score(host_id)
+        host_uuid = UUID(host_id) if isinstance(host_id, str) else host_id
+        return await self.score_calculator.get_host_compliance_score(host_uuid)
 
     async def get_fleet_statistics(self) -> FleetStatistics:
         """
@@ -139,17 +141,18 @@ class OWCAService:
         """
         return await self.fleet_aggregator.get_fleet_statistics()
 
-    async def detect_baseline_drift(self, host_id: str) -> Optional[BaselineDrift]:
+    async def detect_baseline_drift(self, host_id: Union[str, UUID]) -> Optional[BaselineDrift]:
         """
         Detect compliance drift from active baseline.
 
         Args:
-            host_id: UUID of the host
+            host_id: UUID of the host (string or UUID)
 
         Returns:
             BaselineDrift analysis or None if no baseline
         """
-        return await self.drift_detector.detect_drift(host_id)
+        host_uuid = UUID(host_id) if isinstance(host_id, str) else host_id
+        return await self.drift_detector.detect_drift(host_uuid)
 
     async def get_framework_intelligence(self, framework: str, host_id: str, scan_results: Optional[dict] = None):
         """
@@ -320,7 +323,7 @@ class OWCAService:
 
         return await self.predictor.detect_anomalies(UUID(entity_id), entity_type, lookback_days)
 
-    def extract_xccdf_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
+    async def extract_xccdf_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
         """
         Extract native XCCDF score from scan result XML file.
 
@@ -342,7 +345,7 @@ class OWCAService:
 
         Example:
             >>> owca = get_owca_service(db)
-            >>> result = owca.extract_xccdf_score("/app/data/results/scan_123.xml")
+            >>> result = await owca.extract_xccdf_score("/app/data/results/scan_123.xml")
             >>> if result.found:
             ...     print(f"XCCDF Score: {result.xccdf_score}/{result.xccdf_score_max}")
             ... else:
@@ -351,7 +354,7 @@ class OWCAService:
         # Check cache first to avoid re-parsing same file
         if self.cache:
             cache_key = f"xccdf_score:{result_file}"
-            cached_result = self.cache.get(cache_key)
+            cached_result = await self.cache.get(cache_key)
             if cached_result:
                 return XCCDFScoreResult(**cached_result)
 
@@ -362,7 +365,7 @@ class OWCAService:
         # Rationale: XML files don't change frequently, caching reduces file I/O
         if self.cache and result.found:
             cache_key = f"xccdf_score:{result_file}"
-            self.cache.set(cache_key, result.dict(), ttl=300)
+            await self.cache.set(cache_key, result.dict(), ttl=300)
 
         return result
 

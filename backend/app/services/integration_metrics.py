@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any, Dict, Generator, Optional
+from typing import Any, ContextManager, Dict, Generator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class IntegrationMetricsCollector:
         self.lock = threading.RLock()
 
         # In-memory counters for quick access
-        self.counters = defaultdict(int)
-        self.timers = defaultdict(list)
+        self.counters: defaultdict[str, int] = defaultdict(int)
+        self.timers: defaultdict[str, list] = defaultdict(list)
 
     def record_metric(
         self,
@@ -199,7 +199,7 @@ class IntegrationMetricsCollector:
             stats["recent_errors"] = recent_errors[-10:]  # Last 10 errors
 
             # Top operations by volume
-            operation_counts = defaultdict(int)
+            operation_counts: defaultdict[str, int] = defaultdict(int)
             for metric in self.metrics:
                 if metric.timestamp >= cutoff_time:
                     operation_counts[metric.operation] += 1
@@ -281,16 +281,16 @@ def record_remediation_job(job_id: str, status: str, duration: float, rules_coun
 
 
 # Context managers for easy timing
-def time_webhook_delivery(target: str) -> Generator[None, None, None]:
+def time_webhook_delivery(target: str) -> ContextManager[None]:
     """Create context manager for timing webhook delivery."""
     return metrics_collector.time_operation("webhook_delivery", {"target": target})
 
 
-def time_api_call(operation: str, service: str) -> Generator[None, None, None]:
+def time_api_call(operation: str, service: str) -> ContextManager[None]:
     """Create context manager for timing API calls."""
     return metrics_collector.time_operation(f"api_call_{operation}", {"service": service})
 
 
-def time_remediation(job_id: str) -> Generator[None, None, None]:
+def time_remediation(job_id: str) -> ContextManager[None]:
     """Create context manager for timing remediation execution."""
     return metrics_collector.time_operation("remediation_execution", {"job_id": job_id})

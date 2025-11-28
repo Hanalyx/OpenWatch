@@ -12,7 +12,7 @@ Design by Emily (Security Engineer) & Implementation by Daniel (Backend Engineer
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
@@ -34,7 +34,7 @@ security = HTTPBearer()
 
 
 class PermissionGrantRequest(BaseModel):
-    """Request to grant permission to a user/group/role"""
+    """Request to grant permission to a user/group/role."""
 
     user_id: Optional[str] = None
     group_id: Optional[str] = None
@@ -44,7 +44,7 @@ class PermissionGrantRequest(BaseModel):
     actions: Set[str] = Field(..., description="List of actions: read, write, execute, delete, manage, scan")
     effect: str = Field(default="allow", description="Permission effect: allow or deny")
     expires_at: Optional[datetime] = None
-    conditions: Dict = Field(default_factory=dict)
+    conditions: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PermissionResponse(BaseModel):
@@ -85,39 +85,50 @@ class PermissionCheckResponse(BaseModel):
 
 
 class BulkPermissionCheckRequest(BaseModel):
-    """Request for bulk permission checking"""
+    """Request for bulk permission checking."""
 
     user_id: Optional[str] = None
-    resources: List[Dict] = Field(..., description="List of {resource_type, resource_id} dicts")
+    resources: List[Dict[str, Any]] = Field(..., description="List of {resource_type, resource_id} dicts")
     action: str
     fail_fast: bool = True
 
 
 class BulkPermissionCheckResponse(BaseModel):
-    """Response for bulk permission check"""
+    """Response for bulk permission check."""
 
     overall_allowed: bool
-    allowed_resources: List[Dict]
-    denied_resources: List[Dict]
+    allowed_resources: List[Dict[str, Any]]
+    denied_resources: List[Dict[str, Any]]
     total_evaluation_time_ms: int
-    summary: Dict
+    summary: Dict[str, Any]
 
 
 # Permission Management Endpoints
 
 
-@router.post("/permissions/host", response_model=Dict)
+@router.post("/permissions/host", response_model=Dict[str, Any])
 @require_permission(Permission.HOST_MANAGE_ACCESS)
 async def grant_host_permission(
     request: PermissionGrantRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """
-    Grant permission for a specific host
+    Grant permission for a specific host.
 
     SECURITY REQUIREMENT: Only users with HOST_MANAGE_ACCESS permission
     can grant host-level permissions to other users.
+
+    Args:
+        request: Permission grant request with subject and actions.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with success status, permission_id, and grant metadata.
+
+    Raises:
+        HTTPException: 400 if request validation fails, 500 on server error.
     """
     try:
         if not request.host_id:
@@ -152,7 +163,7 @@ async def grant_host_permission(
             )
 
         # Convert string actions to ActionType enums
-        action_types = set()
+        action_types: Set[ActionType] = set()
         action_map = {
             "read": ActionType.READ,
             "write": ActionType.WRITE,
@@ -166,28 +177,29 @@ async def grant_host_permission(
         for action in request.actions:
             action_types.add(action_map[action])
 
-        # Grant permission using authorization service
+        # Grant permission using authorization service (sync method, no await)
         auth_service = get_authorization_service(db)
-        permission_id = await auth_service.grant_host_permission(
+        permission_id = auth_service.grant_host_permission(
             user_id=request.user_id,
             group_id=request.group_id,
             role_name=request.role_name,
             host_id=request.host_id,
             actions=action_types,
-            granted_by=current_user["id"],
+            granted_by=str(current_user.get("id", "")),
             expires_at=request.expires_at,
             conditions=request.conditions,
         )
 
         logger.info(
-            f"Host permission granted by {current_user['username']}: {permission_id} for host {request.host_id}"
+            f"Host permission granted by {current_user.get('username', 'unknown')}: "
+            f"{permission_id} for host {request.host_id}"
         )
 
         return {
             "success": True,
             "permission_id": permission_id,
             "message": f"Permission granted for host {request.host_id}",
-            "granted_by": current_user["username"],
+            "granted_by": current_user.get("username", "unknown"),
             "granted_at": datetime.utcnow().isoformat(),
         }
 
@@ -205,15 +217,27 @@ async def grant_host_permission(
 @require_permission(Permission.HOST_MANAGE_ACCESS)
 async def revoke_permission(
     permission_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """
-    Revoke a specific permission
+    Revoke a specific permission.
+
+    Args:
+        permission_id: The unique ID of the permission to revoke.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with success status and revocation metadata.
+
+    Raises:
+        HTTPException: 404 if permission not found, 500 on server error.
     """
     try:
+        # Revoke permission using authorization service (sync method, no await)
         auth_service = get_authorization_service(db)
-        success = await auth_service.revoke_permission(permission_id)
+        success = auth_service.revoke_permission(permission_id)
 
         if not success:
             raise HTTPException(
@@ -221,12 +245,12 @@ async def revoke_permission(
                 detail=f"Permission {permission_id} not found",
             )
 
-        logger.info(f"Permission {permission_id} revoked by {current_user['username']}")
+        logger.info(f"Permission {permission_id} revoked by {current_user.get('username', 'unknown')}")
 
         return {
             "success": True,
             "message": f"Permission {permission_id} revoked",
-            "revoked_by": current_user["username"],
+            "revoked_by": current_user.get("username", "unknown"),
             "revoked_at": datetime.utcnow().isoformat(),
         }
 
@@ -244,11 +268,22 @@ async def revoke_permission(
 @require_permission(Permission.HOST_READ)
 async def get_host_permissions(
     host_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """
-    Get all permissions for a specific host
+    Get all permissions for a specific host.
+
+    Args:
+        host_id: The unique ID of the host to get permissions for.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary containing host_id, list of permissions, and total count.
+
+    Raises:
+        HTTPException: 500 on server error.
     """
     try:
         from sqlalchemy import text
@@ -319,15 +354,26 @@ async def get_host_permissions(
 @router.post("/check", response_model=PermissionCheckResponse)
 async def check_permission(
     request: PermissionCheckRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> PermissionCheckResponse:
     """
-    Check if a user has permission to perform an action on a resource
+    Check if a user has permission to perform an action on a resource.
+
+    Args:
+        request: Permission check request with resource and action details.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        PermissionCheckResponse with allowed status and decision details.
+
+    Raises:
+        HTTPException: 400 if invalid resource/action, 500 on server error.
     """
     try:
         # Use current user if no user_id specified
-        user_id = request.user_id or current_user["id"]
+        user_id = request.user_id or str(current_user.get("id", ""))
 
         # Validate resource type and action
         try:
@@ -346,11 +392,14 @@ async def check_permission(
         auth_service = get_authorization_service(db)
         result = await auth_service.check_permission(user_id, resource, action)
 
+        # PermissionPolicy is a dataclass with id attribute, not a dict
+        evaluated_policy_ids = [getattr(p, "id", "unknown") for p in result.applied_policies]
+
         return PermissionCheckResponse(
             allowed=(result.decision.value == "allow"),
             decision=result.decision.value,
             reason=result.reason,
-            evaluated_policies=[p.get("id", "unknown") for p in result.applied_policies],
+            evaluated_policies=evaluated_policy_ids,
             evaluation_time_ms=result.evaluation_time_ms,
             timestamp=result.timestamp,
         )
@@ -368,22 +417,33 @@ async def check_permission(
 @router.post("/check/bulk", response_model=BulkPermissionCheckResponse)
 async def check_bulk_permissions(
     request: BulkPermissionCheckRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BulkPermissionCheckResponse:
     """
-    Check permissions for multiple resources in bulk
+    Check permissions for multiple resources in bulk.
 
     CRITICAL SECURITY IMPLEMENTATION:
     This endpoint demonstrates the fixed bulk authorization logic that
     prevents users from accessing resources they don't have permissions for.
+
+    Args:
+        request: Bulk permission check request with resources and action.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        BulkPermissionCheckResponse with allowed/denied resources and summary.
+
+    Raises:
+        HTTPException: 400 if invalid resources/action, 500 on server error.
     """
     try:
         # Use current user if no user_id specified
-        user_id = request.user_id or current_user["id"]
+        user_id = request.user_id or str(current_user.get("id", ""))
 
         # Validate and convert resources
-        resources = []
+        resources: List[ResourceIdentifier] = []
         for res_data in request.resources:
             try:
                 resource = ResourceIdentifier(
@@ -405,9 +465,9 @@ async def check_bulk_permissions(
                 detail=f"Invalid action: {request.action}",
             )
 
-        # Build authorization context
+        # Build authorization context (sync method, no await)
         auth_service = get_authorization_service(db)
-        auth_context = await auth_service._build_user_context(user_id)
+        auth_context = auth_service._build_user_context(user_id)
 
         # Perform bulk authorization check
         from ..models.authorization_models import BulkAuthorizationRequest
@@ -424,12 +484,12 @@ async def check_bulk_permissions(
         result = await auth_service.check_bulk_permissions(bulk_request)
 
         # Format response
-        allowed_resources = [
+        allowed_resources_list: List[Dict[str, Any]] = [
             {"resource_type": res.resource_type.value, "resource_id": res.resource_id}
             for res in result.allowed_resources
         ]
 
-        denied_resources = [
+        denied_resources_list: List[Dict[str, Any]] = [
             {
                 "resource_type": res.resource_type.value,
                 "resource_id": res.resource_id,
@@ -443,13 +503,13 @@ async def check_bulk_permissions(
 
         return BulkPermissionCheckResponse(
             overall_allowed=(result.overall_decision.value == "allow"),
-            allowed_resources=allowed_resources,
-            denied_resources=denied_resources,
+            allowed_resources=allowed_resources_list,
+            denied_resources=denied_resources_list,
             total_evaluation_time_ms=result.total_evaluation_time_ms,
             summary={
                 "total_resources": len(request.resources),
-                "allowed_count": len(allowed_resources),
-                "denied_count": len(denied_resources),
+                "allowed_count": len(allowed_resources_list),
+                "denied_count": len(denied_resources_list),
                 "cached_results": result.cached_results,
                 "fresh_evaluations": result.fresh_evaluations,
             },
@@ -478,18 +538,35 @@ async def get_authorization_audit_log(
     decision: Optional[str] = Query(None, description="Filter by decision: allow/deny"),
     start_date: Optional[datetime] = Query(None, description="Filter from date"),
     end_date: Optional[datetime] = Query(None, description="Filter to date"),
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Dict[str, Any]:
     """
-    Get authorization audit log for security monitoring
+    Get authorization audit log for security monitoring.
+
+    Args:
+        limit: Maximum number of records to return (max 1000).
+        offset: Number of records to skip for pagination.
+        user_id: Optional filter by user ID.
+        resource_type: Optional filter by resource type.
+        decision: Optional filter by decision (allow/deny).
+        start_date: Optional filter for entries after this date.
+        end_date: Optional filter for entries before this date.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with audit_entries list and pagination metadata.
+
+    Raises:
+        HTTPException: 500 on server error.
     """
     try:
         from sqlalchemy import text
 
-        # Build WHERE clause
-        conditions = ["1=1"]  # Always true base condition
-        params = {"limit": limit, "offset": offset}
+        # Build WHERE clause with typed params dict
+        conditions: List[str] = ["1=1"]  # Always true base condition
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
 
         if user_id:
             conditions.append("user_id = :user_id")
@@ -529,7 +606,7 @@ async def get_authorization_audit_log(
             params,
         )
 
-        audit_entries = []
+        audit_entries: List[Dict[str, Any]] = []
         for row in result:
             audit_entries.append(
                 {
@@ -552,7 +629,7 @@ async def get_authorization_audit_log(
                 }
             )
 
-        # Get total count
+        # Get total count with null safety
         count_result = db.execute(
             text(
                 f"""
@@ -564,7 +641,8 @@ async def get_authorization_audit_log(
             params,
         )
 
-        total_count = count_result.fetchone().total
+        count_row = count_result.fetchone()
+        total_count: int = count_row.total if count_row else 0
 
         return {
             "audit_entries": audit_entries,
@@ -586,15 +664,28 @@ async def get_authorization_audit_log(
 
 @router.get("/summary")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_authorization_summary(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_authorization_summary(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
-    Get authorization system summary and statistics
+    Get authorization system summary and statistics.
+
+    Args:
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with permission_statistics, recent_activity, and most_active_users.
+
+    Raises:
+        HTTPException: 500 on server error.
     """
     try:
         from sqlalchemy import text
 
-        # Get permission statistics
-        perm_stats = db.execute(
+        # Get permission statistics with null safety
+        perm_stats_result = db.execute(
             text(
                 """
             SELECT
@@ -608,10 +699,11 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
             WHERE is_active = true
         """
             )
-        ).fetchone()
+        )
+        perm_stats = perm_stats_result.fetchone()
 
-        # Get recent audit statistics
-        audit_stats = db.execute(
+        # Get recent audit statistics with null safety
+        audit_stats_result = db.execute(
             text(
                 """
             SELECT
@@ -624,7 +716,8 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
             WHERE timestamp > NOW() - INTERVAL '24 hours'
         """
             )
-        ).fetchone()
+        )
+        audit_stats = audit_stats_result.fetchone()
 
         # Get most active users
         active_users = db.execute(
@@ -641,25 +734,36 @@ async def get_authorization_summary(current_user: dict = Depends(get_current_use
             )
         ).fetchall()
 
+        # Build response with null safety for fetchone results
+        permission_statistics: Dict[str, int] = {
+            "total_permissions": getattr(perm_stats, "total_permissions", 0) or 0 if perm_stats else 0,
+            "user_permissions": getattr(perm_stats, "user_permissions", 0) or 0 if perm_stats else 0,
+            "group_permissions": getattr(perm_stats, "group_permissions", 0) or 0 if perm_stats else 0,
+            "role_permissions": getattr(perm_stats, "role_permissions", 0) or 0 if perm_stats else 0,
+            "temporary_permissions": getattr(perm_stats, "temporary_permissions", 0) or 0 if perm_stats else 0,
+            "deny_permissions": getattr(perm_stats, "deny_permissions", 0) or 0 if perm_stats else 0,
+        }
+
+        # Calculate avg_evaluation_time_ms safely
+        avg_eval_time = getattr(audit_stats, "avg_evaluation_time", None) if audit_stats else None
+        avg_risk = getattr(audit_stats, "avg_risk_score", None) if audit_stats else None
+
+        recent_activity: Dict[str, Any] = {
+            "total_checks_24h": getattr(audit_stats, "total_checks", 0) or 0 if audit_stats else 0,
+            "allowed_checks_24h": getattr(audit_stats, "allowed_checks", 0) or 0 if audit_stats else 0,
+            "denied_checks_24h": getattr(audit_stats, "denied_checks", 0) or 0 if audit_stats else 0,
+            "avg_evaluation_time_ms": float(avg_eval_time) if avg_eval_time else 0.0,
+            "avg_risk_score": float(avg_risk) if avg_risk else 0.0,
+        }
+
+        most_active_users: List[Dict[str, Any]] = [
+            {"username": row.username, "check_count": row.check_count} for row in active_users
+        ]
+
         return {
-            "permission_statistics": {
-                "total_permissions": perm_stats.total_permissions or 0,
-                "user_permissions": perm_stats.user_permissions or 0,
-                "group_permissions": perm_stats.group_permissions or 0,
-                "role_permissions": perm_stats.role_permissions or 0,
-                "temporary_permissions": perm_stats.temporary_permissions or 0,
-                "deny_permissions": perm_stats.deny_permissions or 0,
-            },
-            "recent_activity": {
-                "total_checks_24h": audit_stats.total_checks or 0,
-                "allowed_checks_24h": audit_stats.allowed_checks or 0,
-                "denied_checks_24h": audit_stats.denied_checks or 0,
-                "avg_evaluation_time_ms": (
-                    float(audit_stats.avg_evaluation_time) if audit_stats.avg_evaluation_time else 0
-                ),
-                "avg_risk_score": (float(audit_stats.avg_risk_score) if audit_stats.avg_risk_score else 0),
-            },
-            "most_active_users": [{"username": row.username, "check_count": row.check_count} for row in active_users],
+            "permission_statistics": permission_statistics,
+            "recent_activity": recent_activity,
+            "most_active_users": most_active_users,
         }
 
     except Exception as e:

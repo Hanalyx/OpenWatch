@@ -128,7 +128,7 @@ class SystemInfoAuditEvent(BaseModel):
     sanitization_applied: bool = True
 
 
-class SystemSettings(Base):
+class SystemSettings(Base):  # type: ignore[valid-type, misc]
     """System configuration settings for SSH and other services"""
 
     __tablename__ = "system_settings"

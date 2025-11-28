@@ -26,7 +26,7 @@ router = APIRouter(tags=["compliance"])
 
 
 class SemanticRule(BaseModel):
-    """Semantic rule response model"""
+    """Semantic rule response model."""
 
     id: str
     semantic_name: str
@@ -43,7 +43,7 @@ class SemanticRule(BaseModel):
 
 
 class FrameworkIntelligence(BaseModel):
-    """Framework intelligence response model"""
+    """Framework intelligence response model."""
 
     framework: str
     display_name: str
@@ -57,7 +57,7 @@ class FrameworkIntelligence(BaseModel):
 
 
 class ComplianceOverview(BaseModel):
-    """Compliance intelligence overview response model"""
+    """Compliance intelligence overview response model."""
 
     total_frameworks: int
     semantic_rules_count: int
@@ -72,9 +72,9 @@ async def get_semantic_rules(
     business_impact: Optional[str] = Query(None, description="Filter by business impact"),
     remediation_available: Optional[bool] = Query(None, description="Filter by remediation availability"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get semantic rules from the rule intelligence database"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get semantic rules from the rule intelligence database."""
     try:
         # Build query with optional filters
         query = """
@@ -86,7 +86,7 @@ async def get_semantic_rules(
             FROM rule_intelligence
             WHERE 1=1
         """
-        params = {}
+        params: Dict[str, Any] = {}
 
         if framework:
             query += " AND :framework = ANY(applicable_frameworks)"
@@ -141,8 +141,11 @@ async def get_semantic_rules(
 
 
 @router.get("/framework-intelligence")
-async def get_framework_intelligence(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Get framework intelligence overview and statistics"""
+async def get_framework_intelligence(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get framework intelligence overview and statistics."""
     try:
         # Get all semantic rules grouped by framework
         query = """
@@ -184,7 +187,8 @@ async def get_framework_intelligence(db: Session = Depends(get_db), current_user
                 AND array_length(applicable_frameworks, 1) > 1
             """
             cross_result = db.execute(text(cross_framework_query), {"framework": framework_key})
-            cross_framework_count = cross_result.fetchone().cross_framework_count or 0
+            cross_row = cross_result.fetchone()
+            cross_framework_count = cross_row.cross_framework_count if cross_row else 0
 
             remediation_coverage = 0
             if stats.rule_count > 0:
@@ -223,8 +227,11 @@ async def get_framework_intelligence(db: Session = Depends(get_db), current_user
 
 
 @router.get("/overview")
-async def get_compliance_overview(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Get overall compliance intelligence overview metrics"""
+async def get_compliance_overview(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get overall compliance intelligence overview metrics."""
     try:
         # Get total semantic rules count
         rules_query = """
@@ -237,8 +244,8 @@ async def get_compliance_overview(db: Session = Depends(get_db), current_user: d
         result = db.execute(text(rules_query))
         stats = result.fetchone()
 
-        total_rules = stats.total_rules or 0
-        remediation_ready = stats.remediation_ready_count or 0
+        total_rules = stats.total_rules if stats else 0
+        remediation_ready = stats.remediation_ready_count if stats else 0
 
         # Calculate universal coverage
         universal_coverage = 0
@@ -259,7 +266,8 @@ async def get_compliance_overview(db: Session = Depends(get_db), current_user: d
         """
 
         framework_result = db.execute(text(frameworks_query))
-        framework_count = framework_result.fetchone().framework_count or 0
+        framework_row = framework_result.fetchone()
+        framework_count = framework_row.framework_count if framework_row else 0
 
         return {
             "total_frameworks": framework_count,
@@ -278,9 +286,9 @@ async def get_compliance_overview(db: Session = Depends(get_db), current_user: d
 async def get_semantic_analysis(
     scan_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get semantic analysis results for a specific scan"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get semantic analysis results for a specific scan."""
     try:
         query = """
             SELECT
@@ -320,9 +328,9 @@ async def get_semantic_analysis(
 async def get_compliance_matrix(
     host_id: Optional[str] = Query(None, description="Filter by host ID"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get framework compliance matrix data"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get framework compliance matrix data."""
     try:
         query = """
             SELECT
@@ -378,9 +386,9 @@ async def get_compliance_matrix(
 async def create_remediation_strategy(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Create an intelligent remediation strategy based on semantic analysis"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Create an intelligent remediation strategy based on semantic analysis."""
     try:
         # Get the semantic SCAP engine
 
@@ -441,8 +449,8 @@ async def create_remediation_strategy(
 
 
 @router.get("/health")
-async def compliance_health_check():
-    """Health check endpoint for compliance intelligence services"""
+async def compliance_health_check() -> Dict[str, Any]:
+    """Health check endpoint for compliance intelligence services."""
     try:
         # Test semantic engine availability
 
@@ -472,8 +480,8 @@ async def upload_compliance_rules(
         DeduplicationStrategy.SKIP_UNCHANGED_UPDATE_CHANGED,
         description="Deduplication strategy: skip_unchanged_update_changed, skip_existing, update_all, fail_on_duplicate",
     ),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Upload compliance rules archive (tar.gz with BSON or JSON files)
 
@@ -493,6 +501,10 @@ async def upload_compliance_rules(
         Upload result with statistics and impact analysis
     """
     try:
+        # Validate filename exists before sanitization
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+
         # Sanitize filename to prevent path traversal
         safe_filename = sanitize_filename(file.filename)
 
@@ -578,8 +590,8 @@ async def upload_compliance_rules(
 @router.get("/upload-history")
 async def get_upload_history(
     limit: int = Query(100, ge=1, le=100, description="Maximum 100 records"),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get compliance bundle upload history (last 100 uploads)
 
@@ -634,7 +646,10 @@ async def get_upload_history(
 
 
 @router.get("/upload-history/{upload_id}/export")
-async def export_upload_report(upload_id: str, current_user: dict = Depends(get_current_user)):
+async def export_upload_report(
+    upload_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> JSONResponse:
     """
     Export upload report as JSON file
 

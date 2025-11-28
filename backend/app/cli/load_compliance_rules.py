@@ -17,7 +17,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from ..models.mongo_models import ComplianceRule, mongo_manager
 from ..repositories import ComplianceRuleRepository
@@ -32,8 +32,8 @@ class ComplianceRulesLoader:
     """Loads OpenWatch compliance rules into MongoDB"""
 
     def __init__(self):
-        self.mongo_service = None
-        self.repo = None  # OW-REFACTOR-002: Repository Pattern
+        self.mongo_service: Optional[MongoIntegrationService] = None
+        self.repo: Optional[ComplianceRuleRepository] = None  # OW-REFACTOR-002: Repository Pattern
         self.loaded_count = 0
         self.error_count = 0
         self.skipped_count = 0
@@ -119,6 +119,8 @@ class ComplianceRulesLoader:
             raise ValueError(f"Rule missing rule_id in {json_file}")
 
         # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        if not self.repo:
+            raise RuntimeError("Repository not initialized. Call initialize_mongodb() first.")
         # Check if rule already exists
         existing_rule = await self.repo.find_by_rule_id(rule_id)
         if existing_rule and not replace_existing:
@@ -214,6 +216,8 @@ class ComplianceRulesLoader:
         logger.info("Validating loaded compliance rules...")
 
         # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        if not self.repo:
+            raise RuntimeError("Repository not initialized. Call initialize_mongodb() first.")
         # Get basic statistics
         total_rules = await self.repo.count({})
 
@@ -224,7 +228,7 @@ class ComplianceRulesLoader:
             severity_counts[severity] = count
 
         # Count rules by category
-        category_pipeline = [
+        category_pipeline: list[Dict[str, Any]] = [
             {"$group": {"_id": "$category", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
             {"$limit": 10},
@@ -261,6 +265,10 @@ class ComplianceRulesLoader:
         """
         logger.info("Generating platform statistics...")
 
+        # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
+        if not self.repo:
+            raise RuntimeError("Repository not initialized. Call initialize_mongodb() first.")
+
         platform_stats = []
 
         # Analyze each major platform
@@ -285,7 +293,7 @@ class ComplianceRulesLoader:
                 continue
 
             # Get category breakdown
-            category_pipeline = [
+            category_pipeline: list[Dict[str, Any]] = [
                 {"$match": {f"platform_implementations.{platform_key}": {"$exists": True}}},
                 {"$group": {"_id": "$category", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
@@ -373,33 +381,37 @@ async def main():
             print(f"Total processed: {results['total']}")
 
         elif args.command == "validate":
-            results = await loader.validate_loaded_rules()
+            validation_results: Dict[str, Any] = await loader.validate_loaded_rules()
 
             print("\n=== Validation Results ===")
-            print(f"Total rules in database: {results['total_rules']}")
+            print(f"Total rules in database: {validation_results['total_rules']}")
             print("\nSeverity distribution:")
-            for severity, count in results["severity_distribution"].items():
+            severity_dist: Dict[str, int] = validation_results["severity_distribution"]
+            for severity, count in severity_dist.items():
                 print(f"  {severity}: {count}")
             print("\nFramework coverage:")
-            for framework, count in results["framework_coverage"].items():
+            framework_cov: Dict[str, int] = validation_results["framework_coverage"]
+            for framework, count in framework_cov.items():
                 print(f"  {framework}: {count}")
             print("\nPlatform coverage:")
-            for platform, count in results["platform_coverage"].items():
+            platform_cov: Dict[str, int] = validation_results["platform_coverage"]
+            for platform, count in platform_cov.items():
                 print(f"  {platform}: {count}")
 
         elif args.command == "stats":
-            results = await loader.get_platform_statistics()
+            stats_results: Dict[str, Any] = await loader.get_platform_statistics()
 
             print("\n=== Platform Statistics ===")
-            print(f"Total platforms: {results['total_platforms']}")
-            print(f"Total rules analyzed: {results['total_rules_analyzed']}")
+            print(f"Total platforms: {stats_results['total_platforms']}")
+            print(f"Total rules analyzed: {stats_results['total_rules_analyzed']}")
 
-            for platform in results["platforms"]:
-                print(f"\n{platform['name']} {platform['version']}:")
-                print(f"  Rules: {platform['ruleCount']}")
-                print(f"  Coverage: {platform['coverage']}%")
-                print(f"  Frameworks: {', '.join(platform['frameworks'])}")
-                print(f"  Top categories: {', '.join([cat['name'] for cat in platform['categories'][:3]])}")
+            platforms_data: List[Dict[str, Any]] = stats_results["platforms"]
+            for plat_data in platforms_data:
+                print(f"\n{plat_data['name']} {plat_data['version']}:")
+                print(f"  Rules: {plat_data['ruleCount']}")
+                print(f"  Coverage: {plat_data['coverage']}%")
+                print(f"  Frameworks: {', '.join(plat_data['frameworks'])}")
+                print(f"  Top categories: {', '.join([cat['name'] for cat in plat_data['categories'][:3]])}")
 
     except Exception as e:
         logger.error(f"Command failed: {e}")

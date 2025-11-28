@@ -97,7 +97,7 @@ class CredentialsResponse(BaseModel):
     requested_count: int
 
 
-@router.get("/hosts/{host_id}", response_model=SSHCredential)  # type: ignore[misc]
+@router.get("/hosts/{host_id}", response_model=SSHCredential)
 async def get_host_credentials(
     host_id: str,
     db: Session = Depends(get_db),
@@ -186,7 +186,7 @@ async def get_host_credentials(
         )
 
 
-@router.post("/hosts/batch", response_model=CredentialsResponse)  # type: ignore[misc]
+@router.post("/hosts/batch", response_model=CredentialsResponse)
 async def get_multiple_host_credentials(
     request: HostCredentialsRequest,
     db: Session = Depends(get_db),
@@ -285,7 +285,7 @@ async def get_multiple_host_credentials(
         )
 
 
-@router.get("/system/default", response_model=SSHCredential)  # type: ignore[misc]
+@router.get("/system/default", response_model=SSHCredential)
 async def get_default_system_credentials(
     response: Response,
     db: Session = Depends(get_db),
@@ -301,9 +301,13 @@ async def get_default_system_credentials(
 
     try:
         # WEEK 2 MIGRATION: Use CentralizedAuthService instead of system_credentials table
+        from ..config import get_settings
+        from ..encryption import create_encryption_service
         from ..services.auth_service import get_auth_service
 
-        auth_service = get_auth_service(db)
+        settings = get_settings()
+        encryption_service = create_encryption_service(settings.MASTER_KEY)
+        auth_service = get_auth_service(db, encryption_service)
         credential_data = auth_service.resolve_credential(use_default=True)
 
         if not credential_data:
@@ -346,7 +350,7 @@ async def get_default_system_credentials(
         )
 
 
-@router.get("/health")  # type: ignore[misc]
+@router.get("/health")
 async def credentials_health_check() -> Dict[str, str]:
     """Health check endpoint for credential sharing service."""
     return {

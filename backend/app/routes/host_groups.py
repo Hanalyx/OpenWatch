@@ -115,8 +115,26 @@ class CompatibilityValidationResponse(BaseModel):
 
 
 @router.get("/", response_model=List[HostGroupResponse])
-async def list_host_groups(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """List all host groups with host counts"""
+async def list_host_groups(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """
+    List all host groups with host counts.
+
+    Retrieves all host groups from the database with aggregated host counts
+    from the host_group_memberships table.
+
+    Args:
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        List of host group dictionaries with host counts.
+
+    Raises:
+        HTTPException: 500 if database query fails.
+    """
     try:
         result = db.execute(
             text(
@@ -175,9 +193,22 @@ async def list_host_groups(db: Session = Depends(get_db), current_user: dict = D
 async def get_host_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get a specific host group by ID"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get a specific host group by ID.
+
+    Args:
+        group_id: The ID of the host group to retrieve.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Host group dictionary with details.
+
+    Raises:
+        HTTPException: 404 if group not found, 500 if query fails.
+    """
     try:
         result = db.execute(
             text(
@@ -237,9 +268,22 @@ async def get_host_group(
 async def create_host_group(
     group_data: HostGroupCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Create a new host group"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Create a new host group.
+
+    Args:
+        group_data: Pydantic model with group creation data.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Created host group dictionary.
+
+    Raises:
+        HTTPException: 400 if name exists, 500 if creation fails.
+    """
     try:
         # Check if group name already exists
         existing = db.execute(
@@ -300,6 +344,10 @@ async def create_host_group(
         group = result.fetchone()
         db.commit()
 
+        # Guard against unexpected null result from INSERT...RETURNING
+        if group is None:
+            raise HTTPException(status_code=500, detail="Failed to create host group - no data returned")
+
         return {
             "id": group.id,
             "name": group.name,
@@ -333,9 +381,23 @@ async def update_host_group(
     group_id: int,
     group_data: HostGroupUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Update a host group"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Update a host group.
+
+    Args:
+        group_id: The ID of the host group to update.
+        group_data: Pydantic model with update data.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Updated host group dictionary.
+
+    Raises:
+        HTTPException: 400 if name conflict, 404 if not found, 500 if update fails.
+    """
     try:
         # Check if group exists
         existing = db.execute(
@@ -441,7 +503,11 @@ async def update_host_group(
         group = result.fetchone()
         db.commit()
 
-        # Get host count and SCAP content name
+        # Guard against unexpected null result from UPDATE...RETURNING
+        if group is None:
+            raise HTTPException(status_code=500, detail="Failed to update host group - no data returned")
+
+        # Get host count
         count_result = db.execute(
             text(
                 """
@@ -450,9 +516,8 @@ async def update_host_group(
             ),
             {"group_id": group_id},
         )
-        host_count = count_result.fetchone().host_count
-
-        # Note: SCAP content name lookup removed - column no longer exists
+        count_row = count_result.fetchone()
+        host_count: int = count_row.host_count if count_row else 0
 
         return {
             "id": group.id,
@@ -486,9 +551,24 @@ async def update_host_group(
 async def delete_host_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Delete a host group"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """
+    Delete a host group.
+
+    Removes all host-group memberships first, then deletes the group.
+
+    Args:
+        group_id: The ID of the host group to delete.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Success message dictionary.
+
+    Raises:
+        HTTPException: 404 if not found, 500 if deletion fails.
+    """
     try:
         # Check if group exists
         existing = db.execute(
@@ -539,9 +619,25 @@ async def assign_hosts_to_group(
     group_id: int,
     request: AssignHostsRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Assign hosts to a group"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """
+    Assign hosts to a group.
+
+    Removes hosts from any existing groups first since each host can only be in one group.
+
+    Args:
+        group_id: The ID of the target host group.
+        request: Request with list of host IDs to assign.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Success message dictionary.
+
+    Raises:
+        HTTPException: 404 if group not found, 500 if assignment fails.
+    """
     try:
         # Check if group exists
         existing = db.execute(
@@ -600,9 +696,23 @@ async def remove_host_from_group(
     group_id: int,
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Remove a host from a group"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """
+    Remove a host from a group.
+
+    Args:
+        group_id: The ID of the host group.
+        host_id: The ID of the host to remove.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Success message dictionary.
+
+    Raises:
+        HTTPException: 404 if host not in group, 500 if removal fails.
+    """
     try:
         # Remove the host from the group
         result = db.execute(
@@ -617,7 +727,9 @@ async def remove_host_from_group(
 
         db.commit()
 
-        if result.rowcount == 0:
+        # CursorResult has rowcount attribute (SQLAlchemy typing limitation)
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise HTTPException(status_code=404, detail="Host not found in group")
 
         return {"message": "Host removed from group successfully"}
@@ -637,13 +749,25 @@ async def validate_host_compatibility(
     group_id: int,
     request: ValidateHostsRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Validate host compatibility with a group
+    Validate host compatibility with a group.
 
-    Checks OS family, version, architecture, and SCAP content compatibility
-    Returns detailed validation results including suggestions for incompatible hosts
+    Checks OS family, version, architecture, and SCAP content compatibility.
+    Returns detailed validation results including suggestions for incompatible hosts.
+
+    Args:
+        group_id: The ID of the host group to validate against.
+        request: Request with list of host IDs to validate.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Compatibility validation response with compatible/incompatible hosts.
+
+    Raises:
+        HTTPException: 400 if validation fails, 500 if unexpected error.
     """
     try:
         validation_service = GroupValidationService(db)
@@ -656,7 +780,8 @@ async def validate_host_compatibility(
         return results
 
     except ValidationError as e:
-        raise HTTPException(status_code=e.status_code or 400, detail=e.message)
+        # ValidationError has category and severity, not status_code and message
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error validating host compatibility: {e}")
         raise HTTPException(status_code=500, detail="Failed to validate host compatibility")
@@ -666,13 +791,24 @@ async def validate_host_compatibility(
 async def create_smart_group(
     request: SmartGroupCreateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Create a smart group based on host characteristics
+    Create a smart group based on host characteristics.
 
     Analyzes selected hosts and automatically configures group settings
-    including OS requirements, SCAP content, and validation rules
+    including OS requirements, SCAP content, and validation rules.
+
+    Args:
+        request: SmartGroupCreateRequest with host IDs and group configuration.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Dictionary with created group and/or analysis results.
+
+    Raises:
+        HTTPException: 500 if smart group creation fails.
     """
     try:
         validation_service = GroupValidationService(db)
@@ -738,13 +874,24 @@ async def create_smart_group(
 async def get_group_compatibility_report(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Get a comprehensive compatibility report for a group
+    Get a comprehensive compatibility report for a group.
 
     Shows all hosts in the group with their compatibility status,
-    issues, and recommendations for improving group coherence
+    issues, and recommendations for improving group coherence.
+
+    Args:
+        group_id: The ID of the host group to report on.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Compatibility report dictionary.
+
+    Raises:
+        HTTPException: 404 if group not found, 500 if report generation fails.
     """
     try:
         validation_service = GroupValidationService(db)
@@ -753,7 +900,8 @@ async def get_group_compatibility_report(
         return report
 
     except ValidationError as e:
-        raise HTTPException(status_code=e.status_code or 404, detail=e.message)
+        # ValidationError has category and severity, not status_code and message
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error generating compatibility report: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate compatibility report")
@@ -764,13 +912,25 @@ async def validate_and_assign_hosts(
     group_id: int,
     request: AssignHostsRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Validate and assign hosts to a group with smart validation
+    Validate and assign hosts to a group with smart validation.
 
-    If validate_compatibility is True (default), checks compatibility before assignment
-    If force_assignment is True, assigns compatible hosts and rejects incompatible ones
+    If validate_compatibility is True (default), checks compatibility before assignment.
+    If force_assignment is True, assigns compatible hosts and rejects incompatible ones.
+
+    Args:
+        group_id: The ID of the target host group.
+        request: AssignHostsRequest with host IDs and validation options.
+        db: Database session dependency.
+        current_user: Authenticated user dictionary.
+
+    Returns:
+        Assignment result dictionary with status and counts.
+
+    Raises:
+        HTTPException: 404 if group not found, 500 if assignment fails.
     """
     try:
         if request.validate_compatibility:

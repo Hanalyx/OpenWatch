@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from beanie import Document, Indexed
+from beanie import Document
 from pydantic import BaseModel, Field, root_validator, validator
 from pymongo import ASCENDING, IndexModel
 
@@ -75,8 +75,19 @@ class PluginSignature(BaseModel):
     signed_at: datetime
 
     @validator("signature")
-    def validate_signature_format(cls, v):
-        """Ensure signature is valid hex"""
+    def validate_signature_format(cls, v: str) -> str:
+        """
+        Ensure signature is valid hex.
+
+        Args:
+            v: Signature value to validate.
+
+        Returns:
+            Lowercase hex-encoded signature.
+
+        Raises:
+            ValueError: If signature is not valid hexadecimal.
+        """
         try:
             bytes.fromhex(v)
         except ValueError:
@@ -100,11 +111,11 @@ class PluginManifest(BaseModel):
 
     # Compatibility
     openwatch_version: str = Field(..., description="Compatible OpenWatch version (e.g., >=2.0.0)")
-    platforms: List[str] = Field(..., min_items=1)
+    platforms: List[str] = Field(..., min_length=1)
 
     # Capabilities and requirements
     type: PluginType
-    capabilities: List[PluginCapability] = Field(..., min_items=1)
+    capabilities: List[PluginCapability] = Field(..., min_length=1)
     requirements: Dict[str, str] = Field(default_factory=dict)
 
     # Configuration schema
@@ -112,8 +123,19 @@ class PluginManifest(BaseModel):
     default_config: Dict[str, Any] = Field(default_factory=dict)
 
     @validator("platforms")
-    def validate_platforms(cls, v):
-        """Ensure valid platform names"""
+    def validate_platforms(cls, v: List[str]) -> List[str]:
+        """
+        Ensure valid platform names.
+
+        Args:
+            v: List of platform names to validate.
+
+        Returns:
+            Validated list of platform names.
+
+        Raises:
+            ValueError: If any platform name is invalid.
+        """
         valid_platforms = {"rhel", "ubuntu", "debian", "centos", "windows", "macos"}
         invalid = set(v) - valid_platforms
         if invalid:
@@ -121,8 +143,19 @@ class PluginManifest(BaseModel):
         return v
 
     @root_validator(skip_on_failure=True)
-    def validate_config_schema(cls, values):
-        """Validate config schema if provided"""
+    def validate_config_schema(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate config schema if provided.
+
+        Args:
+            values: Dictionary of all field values.
+
+        Returns:
+            Validated values dictionary.
+
+        Raises:
+            ValueError: If config_schema is not a valid JSON Schema.
+        """
         schema = values.get("config_schema")
         if schema:
             # Basic JSON Schema validation
@@ -149,8 +182,20 @@ class PluginExecutor(BaseModel):
     environment_variables: Dict[str, str] = Field(default_factory=dict)
 
     @validator("entry_point")
-    def validate_entry_point(cls, v, values):
-        """Validate entry point based on executor type"""
+    def validate_entry_point(cls, v: str, values: Dict[str, Any]) -> str:
+        """
+        Validate entry point based on executor type.
+
+        Args:
+            v: Entry point path to validate.
+            values: Dictionary of other field values.
+
+        Returns:
+            Validated entry point path.
+
+        Raises:
+            ValueError: If entry point doesn't match executor type.
+        """
         exec_type = values.get("type")
         if exec_type == PluginCapability.PYTHON and not v.endswith(".py"):
             raise ValueError("Python executor must have .py entry point")
@@ -163,7 +208,7 @@ class PluginPackage(BaseModel):
     """Complete plugin package for import"""
 
     manifest: PluginManifest
-    executors: Dict[str, PluginExecutor] = Field(..., min_items=1)
+    executors: Dict[str, PluginExecutor] = Field(..., min_length=1)
     files: Dict[str, str] = Field(..., description="File path to content mapping")
     signature: Optional[PluginSignature] = None
     checksum: str = Field(..., description="SHA256 checksum of package content")
@@ -185,8 +230,20 @@ class PluginPackage(BaseModel):
         return hasher.hexdigest()
 
     @root_validator(skip_on_failure=True)
-    def validate_checksum(cls, values):
-        """Validate package checksum"""
+    def validate_checksum(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate package checksum.
+
+        Args:
+            values: Dictionary of all field values.
+
+        Returns:
+            Validated values dictionary.
+
+        Note:
+            Checksum validation is skipped during construction from trusted sources.
+            Full validation is performed during import process.
+        """
         # Skip during construction from trusted sources
         if "checksum" in values and values.get("files"):
             # Will be validated during import
@@ -198,7 +255,7 @@ class InstalledPlugin(Document):
     """Installed plugin registry with full tracking"""
 
     # Identity
-    plugin_id: Indexed(str) = Field(..., unique=True, description="Unique plugin identifier")
+    plugin_id: str = Field(..., description="Unique plugin identifier")
     manifest: PluginManifest
 
     # Source tracking
@@ -229,7 +286,7 @@ class InstalledPlugin(Document):
     usage_count: int = Field(default=0)
     last_used: Optional[datetime] = None
     applied_to_rules: List[str] = Field(default_factory=list)
-    execution_history: List[Dict[str, Any]] = Field(default_factory=list, max_items=100)
+    execution_history: List[Dict[str, Any]] = Field(default_factory=list, max_length=100)
 
     # Versioning
     previous_versions: List[str] = Field(default_factory=list, description="Previous version IDs")
@@ -251,12 +308,25 @@ class InstalledPlugin(Document):
         """Generate unique plugin ID from name and version"""
         return f"{self.manifest.name}@{self.manifest.version}"
 
-    async def save(self, *args, **kwargs):
-        """Override save to set plugin_id and updated_at"""
+    async def save(self, *args: Any, **kwargs: Any) -> "InstalledPlugin":
+        """
+        Override save to set plugin_id and updated_at.
+
+        Sets plugin_id from manifest if not already set, and updates
+        the updated_at timestamp before saving.
+
+        Args:
+            *args: Positional arguments passed to parent save method.
+            **kwargs: Keyword arguments passed to parent save method.
+
+        Returns:
+            The saved InstalledPlugin document.
+        """
         if not self.plugin_id:
             self.plugin_id = self.generate_plugin_id()
         self.updated_at = datetime.utcnow()
-        return await super().save(*args, **kwargs)
+        result: InstalledPlugin = await super().save(*args, **kwargs)
+        return result
 
     def is_active(self) -> bool:
         """Check if plugin is active and ready for use"""
@@ -301,7 +371,7 @@ class PluginAssociation(BaseModel):
     added_by: str = Field(..., description="User who added the association")
 
     @validator("plugin_version")
-    def validate_version_format(cls, v):
+    def validate_version_format(cls, v: str) -> str:
         """Ensure semantic versioning"""
         import re
 
@@ -328,7 +398,7 @@ class PluginExecutionRequest(BaseModel):
     user: str = Field(..., description="User requesting execution")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "plugin_id": "aegis-ssh-remediation@1.2.0",
                 "rule_id": "ow-ssh-disable-root",

@@ -481,13 +481,13 @@ def create_custom_redoc(
     return HTMLResponse(content=enhanced_redoc)
 
 
-def setup_openapi_docs(app: FastAPI):
-    """Setup enhanced OpenAPI documentation for the FastAPI app"""
-
+def setup_openapi_docs(app: FastAPI) -> FastAPI:
+    """Setup enhanced OpenAPI documentation for the FastAPI app."""
     # Configure OpenAPI schema
     app.openapi_schema = None  # Reset to regenerate
 
-    def custom_openapi():
+    def custom_openapi() -> Dict[str, Any]:
+        """Generate custom OpenAPI schema."""
         if app.openapi_schema:
             return app.openapi_schema
 
@@ -500,14 +500,16 @@ def setup_openapi_docs(app: FastAPI):
 
     # Custom documentation endpoints
     @app.get("/docs", include_in_schema=False)
-    async def custom_swagger_ui_html():
+    async def custom_swagger_ui_html() -> HTMLResponse:
+        """Render custom Swagger UI documentation."""
         return create_custom_swagger_ui(
             openapi_url=app.openapi_url,
             title="OpenWatch API - Interactive Documentation",
         )
 
     @app.get("/redoc", include_in_schema=False)
-    async def custom_redoc_html():
+    async def custom_redoc_html() -> HTMLResponse:
+        """Render custom ReDoc documentation."""
         return create_custom_redoc(openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation")
 
     return app

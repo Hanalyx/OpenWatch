@@ -100,7 +100,7 @@ def sanitize_http_error(
         return HTTPException(status_code=status_code, detail=fallback_message)
 
 
-class ScanRequest(BaseModel):  # type: ignore[misc]
+class ScanRequest(BaseModel):
     name: str
     host_id: str  # Changed to str to handle UUID
     content_id: int
@@ -108,18 +108,18 @@ class ScanRequest(BaseModel):  # type: ignore[misc]
     scan_options: Optional[Dict[str, Any]] = {}
 
 
-class ScanUpdate(BaseModel):  # type: ignore[misc]
+class ScanUpdate(BaseModel):
     status: Optional[str] = None
     progress: Optional[int] = None
     error_message: Optional[str] = None
 
 
-class RuleRescanRequest(BaseModel):  # type: ignore[misc]
+class RuleRescanRequest(BaseModel):
     rule_id: str
     name: Optional[str] = None
 
 
-class VerificationScanRequest(BaseModel):  # type: ignore[misc]
+class VerificationScanRequest(BaseModel):
     host_id: str
     content_id: int
     profile_id: str
@@ -128,26 +128,26 @@ class VerificationScanRequest(BaseModel):  # type: ignore[misc]
     name: Optional[str] = None
 
 
-class ValidationRequest(BaseModel):  # type: ignore[misc]
+class ValidationRequest(BaseModel):
     host_id: str
     content_id: int
     profile_id: str
 
 
-class AutomatedFixRequest(BaseModel):  # type: ignore[misc]
+class AutomatedFixRequest(BaseModel):
     fix_id: str
     host_id: str
     validate_after: bool = True
 
 
-class QuickScanRequest(BaseModel):  # type: ignore[misc]
+class QuickScanRequest(BaseModel):
     template_id: Optional[str] = "auto"  # Auto-detect best profile
     priority: Optional[str] = "normal"
     name: Optional[str] = None
     email_notify: bool = False
 
 
-class QuickScanResponse(BaseModel):  # type: ignore[misc]
+class QuickScanResponse(BaseModel):
     id: str
     message: str
     status: str
@@ -155,7 +155,7 @@ class QuickScanResponse(BaseModel):  # type: ignore[misc]
     estimated_completion: Optional[float] = None
 
 
-class BulkScanRequest(BaseModel):  # type: ignore[misc]
+class BulkScanRequest(BaseModel):
     host_ids: List[str]
     template_id: Optional[str] = "auto"
     priority: Optional[str] = "normal"
@@ -163,7 +163,7 @@ class BulkScanRequest(BaseModel):  # type: ignore[misc]
     stagger_delay: int = 30  # seconds between scan starts
 
 
-class BulkScanResponse(BaseModel):  # type: ignore[misc]
+class BulkScanResponse(BaseModel):
     session_id: str
     message: str
     total_hosts: int
@@ -171,7 +171,7 @@ class BulkScanResponse(BaseModel):  # type: ignore[misc]
     scan_ids: List[str]
 
 
-@router.post("/validate")  # type: ignore[misc]
+@router.post("/validate")
 async def validate_scan_configuration(
     validation_request: ValidationRequest,
     request: Request,
@@ -311,7 +311,7 @@ async def validate_scan_configuration(
         raise HTTPException(status_code=500, detail=f"Validation failed: {sanitized_error.message}")
 
 
-@router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)  # type: ignore[misc]
+@router.post("/hosts/{host_id}/quick-scan", response_model=QuickScanResponse)
 async def quick_scan(
     host_id: str,
     quick_scan_request: QuickScanRequest,
@@ -536,7 +536,7 @@ async def _async_validation_check(scan_id: str, host_result: Any, credential_dat
     # Implementation would go here
 
 
-@router.post("/bulk-scan", response_model=BulkScanResponse)  # type: ignore[misc]
+@router.post("/bulk-scan", response_model=BulkScanResponse)
 async def create_bulk_scan(
     bulk_scan_request: BulkScanRequest,
     background_tasks: BackgroundTasks,
@@ -585,7 +585,7 @@ async def create_bulk_scan(
         raise HTTPException(status_code=500, detail=f"Failed to create bulk scan: {str(e)}")
 
 
-@router.get("/bulk-scan/{session_id}/progress")  # type: ignore[misc]
+@router.get("/bulk-scan/{session_id}/progress")
 async def get_bulk_scan_progress(
     session_id: str,
     db: Session = Depends(get_db),
@@ -604,7 +604,7 @@ async def get_bulk_scan_progress(
         raise HTTPException(status_code=500, detail="Failed to get bulk scan progress")
 
 
-@router.post("/bulk-scan/{session_id}/cancel")  # type: ignore[misc]
+@router.post("/bulk-scan/{session_id}/cancel")
 async def cancel_bulk_scan(
     session_id: str,
     db: Session = Depends(get_db),
@@ -623,7 +623,9 @@ async def cancel_bulk_scan(
             {"session_id": session_id},
         )
 
-        if result.rowcount == 0:
+        # CursorResult has rowcount attribute (SQLAlchemy typing limitation)
+        rowcount = getattr(result, "rowcount", 0)
+        if rowcount == 0:
             raise HTTPException(status_code=404, detail="Bulk scan session not found")
 
         # Cancel individual scans that are still pending
@@ -654,7 +656,7 @@ async def cancel_bulk_scan(
         raise HTTPException(status_code=500, detail="Failed to cancel bulk scan")
 
 
-@router.get("/sessions")  # type: ignore[misc]
+@router.get("/sessions")
 async def list_scan_sessions(
     status: Optional[str] = None,
     limit: int = 20,
@@ -720,10 +722,11 @@ async def list_scan_sessions(
             count_sessions_query += " WHERE " + " AND ".join(where_conditions)
 
         count_result = db.execute(text(count_sessions_query), params).fetchone()
+        total: int = count_result.total if count_result else 0
 
         return {
             "sessions": sessions,
-            "total": count_result.total,
+            "total": total,
             "limit": limit,
             "offset": offset,
         }
@@ -733,7 +736,7 @@ async def list_scan_sessions(
         raise HTTPException(status_code=500, detail="Failed to list scan sessions")
 
 
-@router.post("/{scan_id}/recover")  # type: ignore[misc]
+@router.post("/{scan_id}/recover")
 async def recover_scan(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -820,7 +823,7 @@ async def recover_scan(
         raise HTTPException(status_code=500, detail="Failed to create recovery scan")
 
 
-@router.post("/hosts/{host_id}/apply-fix")  # type: ignore[misc]
+@router.post("/hosts/{host_id}/apply-fix")
 async def apply_automated_fix(
     host_id: str,
     fix_request: AutomatedFixRequest,
@@ -882,7 +885,7 @@ async def apply_automated_fix(
         raise HTTPException(status_code=500, detail="Failed to apply automated fix")
 
 
-@router.get("/")  # type: ignore[misc]
+@router.get("/")
 async def list_scans(
     host_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -900,7 +903,8 @@ async def list_scans(
         count_check = QueryBuilder("scans")
         count_query, count_params = count_check.count_query()
         scan_count_result = db.execute(text(count_query), count_params).fetchone()
-        if scan_count_result.total == 0:
+        scan_total: int = scan_count_result.total if scan_count_result else 0
+        if scan_total == 0:
             return {"scans": [], "total": 0, "limit": limit, "offset": offset}
 
         # Build main query with QueryBuilder
@@ -1023,10 +1027,11 @@ async def list_scans(
 
         count_query, count_params = count_builder.count_query()
         total_result = db.execute(text(count_query), count_params).fetchone()
+        total_count: int = total_result.total if total_result else 0
 
         return {
             "scans": scans,
-            "total": total_result.total,
+            "total": total_count,
             "limit": limit,
             "offset": offset,
         }
@@ -1036,7 +1041,7 @@ async def list_scans(
         raise HTTPException(status_code=500, detail="Failed to retrieve scans")
 
 
-@router.post("/")  # type: ignore[misc]
+@router.post("/")
 async def create_scan(
     scan_request: ScanRequest,
     background_tasks: BackgroundTasks,
@@ -1141,7 +1146,7 @@ async def create_scan(
             },
             content_path=content_result.file_path,
             profile_id=scan_request.profile_id,
-            scan_options=scan_request.scan_options,
+            scan_options=scan_request.scan_options or {},
         )
 
         logger.info(f"Scan created and started: {scan_id}")
@@ -1174,7 +1179,7 @@ async def create_scan(
             raise HTTPException(status_code=500, detail=f"Failed to create scan: {str(e)}")
 
 
-@router.get("/{scan_id}")  # type: ignore[misc]
+@router.get("/{scan_id}")
 async def get_scan(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1283,7 +1288,7 @@ async def get_scan(
         raise HTTPException(status_code=500, detail="Failed to retrieve scan")
 
 
-@router.patch("/{scan_id}")  # type: ignore[misc]
+@router.patch("/{scan_id}")
 async def update_scan(
     scan_id: str,
     scan_update: ScanUpdate,
@@ -1343,7 +1348,7 @@ async def update_scan(
         raise HTTPException(status_code=500, detail="Failed to update scan")
 
 
-@router.delete("/{scan_id}")  # type: ignore[misc]
+@router.delete("/{scan_id}")
 async def delete_scan(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1410,7 +1415,7 @@ async def delete_scan(
         raise HTTPException(status_code=500, detail="Failed to delete scan")
 
 
-@router.post("/{scan_id}/stop")  # type: ignore[misc]
+@router.post("/{scan_id}/stop")
 async def stop_scan(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1467,7 +1472,7 @@ async def stop_scan(
         raise HTTPException(status_code=500, detail="Failed to stop scan")
 
 
-@router.get("/{scan_id}/report/html")  # type: ignore[misc]
+@router.get("/{scan_id}/report/html")
 async def get_scan_html_report(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1510,7 +1515,7 @@ async def get_scan_html_report(
         raise HTTPException(status_code=500, detail="Failed to retrieve report")
 
 
-@router.get("/{scan_id}/report/json")  # type: ignore[misc]
+@router.get("/{scan_id}/report/json")
 async def get_scan_json_report(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1602,7 +1607,7 @@ async def get_scan_json_report(
         raise HTTPException(status_code=500, detail="Failed to generate JSON report")
 
 
-@router.get("/{scan_id}/report/csv")  # type: ignore[misc]
+@router.get("/{scan_id}/report/csv")
 async def get_scan_csv_report(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1666,7 +1671,7 @@ async def get_scan_csv_report(
         raise HTTPException(status_code=500, detail="Failed to generate CSV report")
 
 
-@router.get("/{scan_id}/failed-rules")  # type: ignore[misc]
+@router.get("/{scan_id}/failed-rules")
 async def get_scan_failed_rules(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -1779,7 +1784,7 @@ async def get_scan_failed_rules(
         raise HTTPException(status_code=500, detail="Failed to retrieve failed rules")
 
 
-@router.post("/verify")  # type: ignore[misc]
+@router.post("/verify")
 async def create_verification_scan(
     verification_request: VerificationScanRequest,
     background_tasks: BackgroundTasks,
@@ -1864,7 +1869,10 @@ async def create_verification_scan(
         )
 
         # Get the generated scan ID
-        scan_id = result.fetchone().id
+        scan_row = result.fetchone()
+        if not scan_row:
+            raise HTTPException(status_code=500, detail="Failed to create verification scan")
+        scan_id = scan_row.id
         db.commit()
 
         # Start verification scan as background task
@@ -1909,7 +1917,7 @@ async def create_verification_scan(
         raise HTTPException(status_code=500, detail=f"Failed to create verification scan: {str(e)}")
 
 
-@router.post("/{scan_id}/rescan/rule")  # type: ignore[misc]
+@router.post("/{scan_id}/rescan/rule")
 async def rescan_rule(
     scan_id: str,
     rescan_request: RuleRescanRequest,
@@ -1957,7 +1965,7 @@ async def rescan_rule(
         raise HTTPException(status_code=500, detail="Failed to initiate rule rescan")
 
 
-@router.post("/{scan_id}/remediate")  # type: ignore[misc]
+@router.post("/{scan_id}/remediate")
 async def start_remediation(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -2047,7 +2055,7 @@ async def start_remediation(
 # ============================================================================
 
 
-@router.post("/readiness/validate-bulk", response_model=Dict[str, Any])  # type: ignore[misc]
+@router.post("/readiness/validate-bulk", response_model=Dict[str, Any])
 async def validate_bulk_readiness(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
@@ -2234,7 +2242,7 @@ async def validate_bulk_readiness(
         raise HTTPException(status_code=500, detail="Failed to execute bulk readiness validation")
 
 
-@router.get("/{scan_id}/pre-flight-check", response_model=Dict[str, Any])  # type: ignore[misc]
+@router.get("/{scan_id}/pre-flight-check", response_model=Dict[str, Any])
 async def pre_flight_check(
     scan_id: str,
     db: Session = Depends(get_db),
@@ -2341,7 +2349,7 @@ async def pre_flight_check(
         raise HTTPException(status_code=500, detail="Failed to execute pre-flight check")
 
 
-@router.get("/capabilities")  # type: ignore[misc]
+@router.get("/capabilities")
 async def get_scan_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -2390,7 +2398,7 @@ async def get_scan_capabilities(
     }
 
 
-@router.get("/summary")  # type: ignore[misc]
+@router.get("/summary")
 async def get_scans_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -2411,7 +2419,7 @@ async def get_scans_summary(
     }
 
 
-@router.get("/profiles")  # type: ignore[misc]
+@router.get("/profiles")
 async def get_available_profiles(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:

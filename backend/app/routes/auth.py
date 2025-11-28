@@ -4,10 +4,10 @@ Authentication Routes - FIPS Compliant
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -27,31 +27,40 @@ router = APIRouter()
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request"""
+    """Extract client IP address from request."""
     if "x-forwarded-for" in request.headers:
-        return request.headers["x-forwarded-for"].split(",")[0].strip()
+        # Explicit str() to satisfy mypy (headers values may be Any)
+        return str(request.headers["x-forwarded-for"]).split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
 class LoginRequest(BaseModel):
+    """Request model for user login."""
+
     username: str
     password: str
     mfa_code: Optional[str] = None
 
 
 class LoginResponse(BaseModel):
+    """Response model for successful login."""
+
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
-    user: dict
+    user: Dict[str, Any]
 
 
 class RefreshRequest(BaseModel):
+    """Request model for token refresh."""
+
     refresh_token: str
 
 
 class RegisterRequest(BaseModel):
+    """Request model for user registration."""
+
     username: str
     email: EmailStr
     password: str
@@ -59,8 +68,12 @@ class RegisterRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, http_request: Request, db: Session = Depends(get_db)):
-    """Authenticate user with username/password and optional MFA"""
+async def login(
+    request: LoginRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    """Authenticate user with username/password and optional MFA."""
     client_ip = get_client_ip(http_request)
     user_agent = http_request.headers.get("user-agent")
 
@@ -260,8 +273,11 @@ async def login(request: LoginRequest, http_request: Request, db: Session = Depe
 
 
 @router.post("/register", response_model=LoginResponse)
-async def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    """Register a new user (guest role by default)"""
+async def register(
+    request: RegisterRequest,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    """Register a new user (guest role by default)."""
     try:
         # Check if username or email already exists
         result = db.execute(
@@ -295,19 +311,25 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
                 "username": request.username,
                 "email": request.email,
                 "password": hashed_password,
-                "role": request.role.value,
+                # Null guard: role is Optional, use GUEST as fallback
+                "role": request.role.value if request.role else UserRole.GUEST.value,
             },
         )
 
-        user_id = result.fetchone().id
+        user_id_row = result.fetchone()
+        if user_id_row is None:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+        user_id = user_id_row.id
         db.commit()
 
-        user_data = {
+        # Determine role value with null guard
+        role_value = request.role.value if request.role else UserRole.GUEST.value
+        user_data: Dict[str, Any] = {
             "sub": request.username,  # Standard JWT subject field
             "id": user_id,
             "username": request.username,
             "email": request.email,
-            "role": request.role.value,
+            "role": role_value,
             "mfa_enabled": False,
         }
 
@@ -336,8 +358,11 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh")
-async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
-    """Refresh access token using refresh token"""
+async def refresh_token(
+    request: RefreshRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Refresh access token using refresh token."""
     try:
         # Validate refresh token and get user
         user_data = jwt_manager.validate_refresh_token(request.refresh_token)
@@ -396,8 +421,10 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-async def logout(token: str = Depends(security)):
-    """Logout user and invalidate tokens"""
+async def logout(
+    token: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict[str, str]:
+    """Logout user and invalidate tokens."""
     try:
         # In production, add token to blacklist
         audit_logger.log_security_event("LOGOUT", "User logged out", "127.0.0.1")
@@ -410,10 +437,12 @@ async def logout(token: str = Depends(security)):
 
 
 @router.get("/me")
-async def get_current_user(token: str = Depends(security)):
-    """Get current user information"""
+async def get_current_user(
+    token: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict[str, Any]:
+    """Get current user information."""
     try:
-        # Validate token and get user data
+        # Validate token and get user data (token.credentials contains the actual JWT)
         user_data = jwt_manager.validate_access_token(token.credentials)
 
         from ..rbac import RBACManager, UserRole

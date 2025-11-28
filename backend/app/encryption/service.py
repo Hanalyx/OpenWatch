@@ -211,12 +211,13 @@ class EncryptionService:
             This method uses the algorithm and iteration count from self.config.
         """
         # Select hash algorithm based on config
+        algorithm: hashes.HashAlgorithm
         if self.config.kdf_algorithm == KDFAlgorithm.SHA256:
             algorithm = hashes.SHA256()
         elif self.config.kdf_algorithm == KDFAlgorithm.SHA512:
             algorithm = hashes.SHA512()
         else:
-            # Should never happen due to enum validation
+            # Default to SHA256 (should never happen due to enum validation)
             algorithm = hashes.SHA256()
 
         kdf = PBKDF2HMAC(

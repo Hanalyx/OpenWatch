@@ -19,7 +19,7 @@ from .models import STIGFrameworkIntelligence, STIGSeverity, STIGSeverityScore
 logger = logging.getLogger(__name__)
 
 
-class STIGFrameworkIntelligence(BaseFrameworkIntelligence):
+class STIGFrameworkIntelligenceProvider(BaseFrameworkIntelligence):
     """
     STIG Framework Intelligence Provider.
 
@@ -99,7 +99,7 @@ class STIGFrameworkIntelligence(BaseFrameworkIntelligence):
 
     def _analyze_severity_categories(self, stig_rules: List[Dict]) -> List[STIGSeverityScore]:
         """Analyze STIG CAT I/II/III severity categories."""
-        severity_rules = {
+        severity_rules: Dict[STIGSeverity, List[Dict]] = {
             STIGSeverity.CAT_I: [],
             STIGSeverity.CAT_II: [],
             STIGSeverity.CAT_III: [],

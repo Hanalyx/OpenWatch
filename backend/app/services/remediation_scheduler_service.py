@@ -93,15 +93,23 @@ class MaintenanceWindow(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     @validator("timezone")
-    def validate_timezone(cls, v):
+    def validate_timezone(cls, v: str) -> str:
+        """Validate timezone string is valid."""
         try:
             ZoneInfo(v)
             return v
         except Exception:
             raise ValueError(f"Invalid timezone: {v}")
 
-    def get_next_window_start(self, after: datetime = None) -> Optional[datetime]:
-        """Calculate the next window start time"""
+    def get_next_window_start(self, after: Optional[datetime] = None) -> Optional[datetime]:
+        """Calculate the next window start time.
+
+        Args:
+            after: Calculate next window after this datetime (defaults to now)
+
+        Returns:
+            Next window start datetime in UTC, or None if inactive
+        """
         if not self.is_active:
             return None
 
@@ -113,7 +121,9 @@ class MaintenanceWindow(BaseModel):
 
         if self.window_type == MaintenanceWindowType.WEEKLY:
             # Calculate next weekly occurrence
-            days_ahead = self.day_of_week - after_tz.weekday()
+            # day_of_week is guaranteed to be set for weekly windows
+            day_of_week = self.day_of_week if self.day_of_week is not None else 0
+            days_ahead = day_of_week - after_tz.weekday()
             if days_ahead <= 0:  # Target day already happened this week
                 days_ahead += 7
 
@@ -129,7 +139,9 @@ class MaintenanceWindow(BaseModel):
             import calendar
 
             max_day = calendar.monthrange(next_month.year, next_month.month)[1]
-            target_day = min(self.day_of_month, max_day)
+            # day_of_month is guaranteed to be set for monthly windows
+            day_of_month = self.day_of_month if self.day_of_month is not None else 1
+            target_day = min(day_of_month, max_day)
 
             next_datetime = next_month.replace(day=target_day, hour=self.start_time.hour, minute=self.start_time.minute)
 
@@ -150,9 +162,9 @@ class MaintenanceWindow(BaseModel):
 
 
 class RemediationSchedule(Document):
-    """Scheduled remediation job"""
+    """Scheduled remediation job."""
 
-    schedule_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    schedule_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., description="Human-readable schedule name")
     description: Optional[str] = None
 
@@ -212,9 +224,9 @@ class RemediationSchedule(Document):
 
 
 class ScheduleExecution(Document):
-    """Record of schedule execution"""
+    """Record of schedule execution."""
 
-    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     schedule_id: str = Field(..., description="Associated schedule ID")
 
     # Execution details
@@ -253,14 +265,15 @@ class RemediationSchedulerService:
     - Notification integration
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the remediation scheduler service."""
         self.bulk_remediation_service = BulkRemediationService()
         self.maintenance_windows: Dict[str, MaintenanceWindow] = {}
-        self.scheduler_task: Optional[asyncio.Task] = None
+        self.scheduler_task: Optional[asyncio.Task[None]] = None
         self.running = False
 
-    async def start_scheduler(self):
-        """Start the background scheduler task"""
+    async def start_scheduler(self) -> None:
+        """Start the background scheduler task."""
         if self.running:
             logger.warning("Scheduler is already running")
             return
@@ -269,8 +282,8 @@ class RemediationSchedulerService:
         self.scheduler_task = asyncio.create_task(self._scheduler_loop())
         logger.info("Remediation scheduler started")
 
-    async def stop_scheduler(self):
-        """Stop the background scheduler task"""
+    async def stop_scheduler(self) -> None:
+        """Stop the background scheduler task."""
         if not self.running:
             return
 
@@ -285,23 +298,29 @@ class RemediationSchedulerService:
         logger.info("Remediation scheduler stopped")
 
     async def create_schedule(self, schedule: RemediationSchedule) -> RemediationSchedule:
-        """Create a new remediation schedule"""
+        """Create a new remediation schedule."""
         try:
             # Calculate next execution time
             if schedule.schedule_type == ScheduleType.ONE_TIME:
                 schedule.next_execution_at = schedule.scheduled_at
             elif schedule.schedule_type == ScheduleType.RECURRING:
-                schedule.next_execution_at = self._calculate_next_cron_execution(
-                    schedule.cron_expression, schedule.timezone
-                )
+                # cron_expression is required for recurring schedules
+                if schedule.cron_expression:
+                    schedule.next_execution_at = self._calculate_next_cron_execution(
+                        schedule.cron_expression, schedule.timezone
+                    )
             elif schedule.schedule_type == ScheduleType.MAINTENANCE_WINDOW:
-                window = self.maintenance_windows.get(schedule.maintenance_window_id)
-                if window:
-                    schedule.next_execution_at = window.get_next_window_start()
+                # maintenance_window_id is required for maintenance window schedules
+                if schedule.maintenance_window_id:
+                    window = self.maintenance_windows.get(schedule.maintenance_window_id)
+                    if window:
+                        schedule.next_execution_at = window.get_next_window_start()
 
             # Set approval deadline if required
             if schedule.requires_approval and schedule.next_execution_at:
-                window = self.maintenance_windows.get(schedule.maintenance_window_id)
+                window = None
+                if schedule.maintenance_window_id:
+                    window = self.maintenance_windows.get(schedule.maintenance_window_id)
                 approval_hours = window.approval_window_hours if window else 24
                 schedule.approval_required_by = schedule.next_execution_at - timedelta(hours=approval_hours)
 
@@ -316,8 +335,13 @@ class RemediationSchedulerService:
             raise
 
     async def get_schedule(self, schedule_id: str) -> Optional[RemediationSchedule]:
-        """Get a remediation schedule by ID"""
-        return await RemediationSchedule.find_one(RemediationSchedule.schedule_id == schedule_id)
+        """Get a remediation schedule by ID."""
+        # Beanie find_one returns Any, cast to proper type
+        result = await RemediationSchedule.find_one(RemediationSchedule.schedule_id == schedule_id)
+        if result is None:
+            return None
+        schedule: RemediationSchedule = result
+        return schedule
 
     async def list_schedules(
         self,
@@ -326,20 +350,21 @@ class RemediationSchedulerService:
         created_by: Optional[str] = None,
         limit: int = 50,
     ) -> List[RemediationSchedule]:
-        """List remediation schedules with filtering"""
-        query = {}
+        """List remediation schedules with filtering."""
+        query: Dict[str, Any] = {}
 
         if status:
-            query["status"] = status
+            query["status"] = status.value
         if schedule_type:
-            query["schedule_type"] = schedule_type
+            query["schedule_type"] = schedule_type.value
         if created_by:
             query["created_by"] = created_by
 
-        return await RemediationSchedule.find(query).limit(limit).to_list()
+        results = await RemediationSchedule.find(query).limit(limit).to_list()
+        return results
 
     async def update_schedule(self, schedule_id: str, updates: Dict[str, Any]) -> Optional[RemediationSchedule]:
-        """Update a remediation schedule"""
+        """Update a remediation schedule."""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
             return None
@@ -356,19 +381,23 @@ class RemediationSchedulerService:
             if schedule.schedule_type == ScheduleType.ONE_TIME:
                 schedule.next_execution_at = schedule.scheduled_at
             elif schedule.schedule_type == ScheduleType.RECURRING:
-                schedule.next_execution_at = self._calculate_next_cron_execution(
-                    schedule.cron_expression, schedule.timezone
-                )
+                # cron_expression is required for recurring schedules
+                if schedule.cron_expression:
+                    schedule.next_execution_at = self._calculate_next_cron_execution(
+                        schedule.cron_expression, schedule.timezone
+                    )
             elif schedule.schedule_type == ScheduleType.MAINTENANCE_WINDOW:
-                window = self.maintenance_windows.get(schedule.maintenance_window_id)
-                if window:
-                    schedule.next_execution_at = window.get_next_window_start()
+                # maintenance_window_id is required for maintenance window schedules
+                if schedule.maintenance_window_id:
+                    window = self.maintenance_windows.get(schedule.maintenance_window_id)
+                    if window:
+                        schedule.next_execution_at = window.get_next_window_start()
 
         await schedule.save()
         return schedule
 
     async def delete_schedule(self, schedule_id: str) -> bool:
-        """Delete a remediation schedule"""
+        """Delete a remediation schedule."""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
             return False
@@ -377,8 +406,8 @@ class RemediationSchedulerService:
         logger.info(f"Deleted remediation schedule: {schedule_id}")
         return True
 
-    async def approve_schedule(self, schedule_id: str, approver: str, notes: str = None) -> bool:
-        """Approve a schedule for execution"""
+    async def approve_schedule(self, schedule_id: str, approver: str, notes: Optional[str] = None) -> bool:
+        """Approve a schedule for execution."""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
             return False
@@ -425,31 +454,35 @@ class RemediationSchedulerService:
         return list(self.maintenance_windows.values())
 
     async def get_schedule_executions(self, schedule_id: str, limit: int = 20) -> List[ScheduleExecution]:
-        """Get execution history for a schedule"""
-        return (
+        """Get execution history for a schedule."""
+        # Use string-based sorting (Beanie standard pattern)
+        results = (
             await ScheduleExecution.find(ScheduleExecution.schedule_id == schedule_id)
-            .sort(-ScheduleExecution.started_at)
+            .sort("-started_at")
             .limit(limit)
             .to_list()
         )
+        return results
 
     async def get_upcoming_schedules(self, hours_ahead: int = 24) -> List[RemediationSchedule]:
-        """Get schedules that will execute in the next N hours"""
+        """Get schedules that will execute in the next N hours."""
         cutoff = datetime.utcnow() + timedelta(hours=hours_ahead)
 
-        return (
+        # Use status enum value for query and string-based sorting
+        results = (
             await RemediationSchedule.find(
                 {
-                    "status": ScheduleStatus.ACTIVE,
+                    "status": ScheduleStatus.ACTIVE.value,
                     "next_execution_at": {"$lte": cutoff, "$gte": datetime.utcnow()},
                 }
             )
-            .sort(RemediationSchedule.next_execution_at)
+            .sort("next_execution_at")
             .to_list()
         )
+        return results
 
-    async def _scheduler_loop(self):
-        """Main scheduler loop - runs in background"""
+    async def _scheduler_loop(self) -> None:
+        """Main scheduler loop - runs in background."""
         while self.running:
             try:
                 await self._process_pending_schedules()
@@ -460,7 +493,7 @@ class RemediationSchedulerService:
                 logger.error(f"Error in scheduler loop: {e}")
                 await asyncio.sleep(60)
 
-    async def _process_pending_schedules(self):
+    async def _process_pending_schedules(self) -> None:
         """Process schedules that are due for execution"""
         now = datetime.utcnow()
 
@@ -551,18 +584,21 @@ class RemediationSchedulerService:
 
         return execution.bulk_job_id
 
-    async def _advance_schedule(self, schedule: RemediationSchedule):
-        """Calculate and set the next execution time for a schedule"""
+    async def _advance_schedule(self, schedule: RemediationSchedule) -> None:
+        """Calculate and set the next execution time for a schedule."""
         if schedule.schedule_type == ScheduleType.ONE_TIME:
             # One-time schedules are completed after execution
             schedule.status = ScheduleStatus.COMPLETED
             schedule.next_execution_at = None
 
         elif schedule.schedule_type == ScheduleType.RECURRING:
-            # Calculate next cron execution
-            schedule.next_execution_at = self._calculate_next_cron_execution(
-                schedule.cron_expression, schedule.timezone
-            )
+            # Calculate next cron execution (guard for Optional cron_expression)
+            if schedule.cron_expression:
+                schedule.next_execution_at = self._calculate_next_cron_execution(
+                    schedule.cron_expression, schedule.timezone
+                )
+            else:
+                schedule.next_execution_at = None
 
             # Reset approval status for next execution
             if schedule.requires_approval:
@@ -571,8 +607,10 @@ class RemediationSchedulerService:
                 schedule.approval_notes = None
 
         elif schedule.schedule_type == ScheduleType.MAINTENANCE_WINDOW:
-            # Calculate next maintenance window
-            window = self.maintenance_windows.get(schedule.maintenance_window_id)
+            # Calculate next maintenance window (guard for Optional maintenance_window_id)
+            window = None
+            if schedule.maintenance_window_id:
+                window = self.maintenance_windows.get(schedule.maintenance_window_id)
             if window:
                 schedule.next_execution_at = window.get_next_window_start()
 
@@ -591,13 +629,14 @@ class RemediationSchedulerService:
         await schedule.save()
 
     def _calculate_next_cron_execution(self, cron_expression: str, timezone: str) -> Optional[datetime]:
-        """Calculate next execution time from cron expression"""
+        """Calculate next execution time from cron expression."""
         try:
             tz = ZoneInfo(timezone)
             now_tz = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
 
             cron = croniter.croniter(cron_expression, now_tz)
-            next_time_tz = cron.get_next(datetime)
+            # Cast croniter result to datetime (returns Any)
+            next_time_tz: datetime = cron.get_next(datetime)
 
             # Convert back to UTC
             return next_time_tz.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
@@ -620,7 +659,7 @@ def create_weekly_maintenance_window(
     duration_hours: int = 2,
     timezone: str = "UTC",
 ) -> MaintenanceWindow:
-    """Create a weekly maintenance window"""
+    """Create a weekly maintenance window."""
     return MaintenanceWindow(
         name=name,
         window_type=MaintenanceWindowType.WEEKLY,
@@ -628,6 +667,7 @@ def create_weekly_maintenance_window(
         duration_minutes=duration_hours * 60,
         timezone=timezone,
         day_of_week=day_of_week,
+        day_of_month=None,  # Not used for weekly windows
     )
 
 
@@ -639,12 +679,13 @@ def create_monthly_maintenance_window(
     duration_hours: int = 4,
     timezone: str = "UTC",
 ) -> MaintenanceWindow:
-    """Create a monthly maintenance window"""
+    """Create a monthly maintenance window."""
     return MaintenanceWindow(
         name=name,
         window_type=MaintenanceWindowType.MONTHLY,
         start_time=dt_time(start_hour, start_minute),
         duration_minutes=duration_hours * 60,
         timezone=timezone,
+        day_of_week=None,  # Not used for monthly windows
         day_of_month=day_of_month,
     )

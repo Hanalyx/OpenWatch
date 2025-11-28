@@ -36,8 +36,8 @@ async def start_group_compliance_scan(
     scan_request: GroupComplianceScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> GroupComplianceScanResponse:
     """
     Start a comprehensive compliance scan for all hosts in a group
     Supports multiple compliance frameworks and custom configurations
@@ -160,8 +160,8 @@ async def get_group_compliance_report(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> GroupComplianceReportResponse:
     """
     Generate comprehensive compliance report for a host group
     Includes trend analysis, risk assessment, and compliance gaps
@@ -175,7 +175,8 @@ async def get_group_compliance_report(
 
     # Build date filters
     date_filter = ""
-    params = {"group_id": group_id}
+    # Explicit type annotation for params dict with mixed value types
+    params: Dict[str, Any] = {"group_id": group_id}
 
     if date_from:
         date_filter += " AND s.completed_at >= :date_from"
@@ -242,7 +243,8 @@ async def get_group_compliance_report(
     medium_risk_hosts = len([r for r in compliance_data if r.severity_medium > 0])
 
     # Compliance distribution by framework
-    framework_distribution = {}
+    # Type annotation for nested dict with mixed value types (int and float)
+    framework_distribution: Dict[str, Dict[str, Any]] = {}
     for row in compliance_data:
         framework = row.compliance_framework or "Unknown"
         if framework not in framework_distribution:
@@ -250,7 +252,7 @@ async def get_group_compliance_report(
                 "hosts": 0,
                 "total_rules": 0,
                 "passed_rules": 0,
-                "avg_score": 0,
+                "avg_score": 0.0,  # Float for avg score calculation
             }
         framework_distribution[framework]["hosts"] += 1
         framework_distribution[framework]["total_rules"] += row.total_rules
@@ -362,8 +364,8 @@ async def get_group_compliance_metrics(
     group_id: int,
     timeframe: str = Query("30d", regex="^(7d|30d|90d|1y)$"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> ComplianceMetricsResponse:
     """
     Get detailed compliance metrics and KPIs for a host group
     """
@@ -396,6 +398,10 @@ async def get_group_compliance_metrics(
         ),
         {"group_id": group_id, "start_date": start_date},
     ).fetchone()
+
+    # Guard against null metrics (shouldn't happen with aggregate, but safety first)
+    if metrics is None:
+        raise HTTPException(status_code=500, detail="Failed to retrieve compliance metrics")
 
     # Compliance trend over time
     trend_metrics = db.execute(
@@ -449,8 +455,8 @@ async def schedule_group_compliance_scan(
     group_id: int,
     schedule_request: GroupScanScheduleRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Schedule recurring compliance scans for a host group
     """
@@ -507,8 +513,8 @@ async def get_group_scan_history(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[GroupScanHistoryResponse]:
     """
     Get scan history for a host group
     """
@@ -646,7 +652,9 @@ def execute_group_compliance_scan(
         return {"status": "failed", "error": str(e)}
 
 
-async def send_compliance_scan_notification(session_id: str, group_id: int, config: Dict[str, Any], db: Session):
+async def send_compliance_scan_notification(
+    session_id: str, group_id: int, config: Dict[str, Any], db: Session
+) -> None:
     """
     Send email notification about completed compliance scan
     """

@@ -107,7 +107,9 @@ async def get_enrichment_service() -> ResultEnrichmentService:
     """Get or initialize enrichment service"""
     global enrichment_service
     if not enrichment_service:
-        enrichment_service = ResultEnrichmentService()
+        # Note: ResultEnrichmentService requires a db session but this is a singleton
+        # for background tasks. The service handles db creation internally.
+        enrichment_service = ResultEnrichmentService(db=None)
         await enrichment_service.initialize()
     return enrichment_service
 
@@ -195,8 +197,8 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
         # XCCDF namespace
         namespaces = {"xccdf": "http://checklists.nist.gov/xccdf/1.2"}
 
-        # Initialize counters
-        results = {
+        # Initialize counters with explicit type to allow Optional assignments later
+        results: Dict[str, Any] = {
             "rules_total": 0,
             "rules_passed": 0,
             "rules_failed": 0,
@@ -305,10 +307,10 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
         try:
             severity_calculator = SeverityCalculator()
             risk_result = severity_calculator.calculate_risk_score(
-                critical_count=results["failed_critical"],
-                high_count=results["failed_high"],
-                medium_count=results["failed_medium"],
-                low_count=results["failed_low"],
+                critical_count=int(results["failed_critical"]),
+                high_count=int(results["failed_high"]),
+                medium_count=int(results["failed_medium"]),
+                low_count=int(results["failed_low"]),
                 info_count=0,  # Informational findings don't affect risk score
             )
             results["risk_score"] = risk_result.risk_score
@@ -364,7 +366,7 @@ async def start_mongodb_scan(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
-):
+) -> MongoDBScanResponse:
     """
     Start a MongoDB rule-based SCAP scan
 
@@ -597,10 +599,11 @@ async def start_mongodb_scan(
 
         # Add background tasks for enrichment and reporting
         if scan_request.include_enrichment:
+            result_file_path = scan_result.get("result_file", "")
             background_tasks.add_task(
                 enrich_scan_results_task,
                 scan_id,
-                scan_result.get("result_file"),
+                str(result_file_path) if result_file_path else "",
                 scan_request.dict(),
                 scan_request.generate_report,
             )
@@ -620,7 +623,7 @@ async def start_mongodb_scan(
 
 async def enrich_scan_results_task(
     scan_id: str, result_file: str, scan_metadata: Dict[str, Any], generate_report: bool
-):
+) -> None:
     """Background task to enrich scan results and generate reports"""
     try:
         logger.info(f"Starting background enrichment for scan {scan_id}")
@@ -636,7 +639,8 @@ async def enrich_scan_results_task(
         # Generate compliance report if requested
         if generate_report:
             reporter = await get_compliance_reporter()
-            target_frameworks = [scan_metadata.get("framework")] if scan_metadata.get("framework") else None
+            framework = scan_metadata.get("framework")
+            target_frameworks: List[str] = [str(framework)] if framework else []
 
             compliance_report = await reporter.generate_compliance_report(
                 enriched_results=enriched_results,
@@ -657,7 +661,7 @@ async def enrich_scan_results_task(
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)):
+async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -684,7 +688,7 @@ async def get_scan_results(
     include_enrichment: bool = True,
     include_report: bool = True,
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """Get detailed results from a MongoDB scan"""
     try:
         # In a real implementation, this would retrieve stored results
@@ -730,7 +734,7 @@ async def get_compliance_report(
     format: str = "json",
     framework: Optional[str] = None,
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """Get compliance report for a scan"""
     try:
         if format not in ["json", "html", "pdf"]:
@@ -783,7 +787,7 @@ async def get_available_rules(
     severity: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
-):
+) -> Dict[str, Any]:
     """Get available MongoDB rules for scanning"""
     try:
         # Get rules from MongoDB based on filters
@@ -829,10 +833,10 @@ async def get_available_rules(
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(current_user: User = Depends(get_current_user)):
+async def get_scanner_health(request: Request, current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """Get MongoDB scanner service health"""
     try:
-        scanner = await get_mongodb_scanner()
+        scanner = await get_mongodb_scanner(request)
         enrichment = await get_enrichment_service()
         reporter = await get_compliance_reporter()
 

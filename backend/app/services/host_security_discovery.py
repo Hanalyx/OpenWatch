@@ -35,7 +35,7 @@ class HostSecurityDiscoveryService:
         """
         logger.info(f"Starting security infrastructure discovery for host: {host.hostname}")
 
-        discovery_results = {
+        discovery_results: Dict[str, Any] = {
             "package_managers": {},
             "service_manager": "Unknown",
             "selinux_status": "Unknown",
@@ -103,7 +103,7 @@ class HostSecurityDiscoveryService:
 
     def _discover_package_managers(self, host: Host) -> Dict[str, Any]:
         """Discover available package managers"""
-        result = {"package_managers": {}, "errors": []}
+        result: Dict[str, Any] = {"package_managers": {}, "errors": []}
 
         # Package managers to check
         package_managers = {
@@ -147,7 +147,7 @@ class HostSecurityDiscoveryService:
 
     def _discover_service_manager(self, host: Host) -> Dict[str, Any]:
         """Discover service manager (systemd vs init)"""
-        result = {"service_manager": "Unknown", "errors": []}
+        result: Dict[str, Any] = {"service_manager": "Unknown", "errors": []}
 
         try:
             # Check for systemd first (most common)
@@ -184,7 +184,7 @@ class HostSecurityDiscoveryService:
 
     def _discover_selinux_status(self, host: Host) -> Dict[str, Any]:
         """Discover SELinux status and enforcement mode"""
-        result = {"selinux_status": "Unknown", "errors": []}
+        result: Dict[str, Any] = {"selinux_status": "Unknown", "errors": []}
 
         try:
             # Try getenforce command first
@@ -240,7 +240,7 @@ class HostSecurityDiscoveryService:
 
     def _discover_apparmor_status(self, host: Host) -> Dict[str, Any]:
         """Discover AppArmor status and profiles"""
-        result = {"apparmor_status": "Unknown", "errors": []}
+        result: Dict[str, Any] = {"apparmor_status": "Unknown", "errors": []}
 
         try:
             # Check AppArmor status
@@ -249,7 +249,7 @@ class HostSecurityDiscoveryService:
                 status_text = output["stdout"]
 
                 # Parse aa-status output
-                apparmor_info = {"status": "enabled"}
+                apparmor_info: Dict[str, Any] = {"status": "enabled"}
 
                 # Extract profile counts
                 profiles_loaded_match = re.search(r"(\d+) profiles are loaded", status_text)
@@ -282,7 +282,7 @@ class HostSecurityDiscoveryService:
 
     def _discover_firewall_services(self, host: Host) -> Dict[str, Any]:
         """Discover active firewall services"""
-        result = {"firewall_services": {}, "errors": []}
+        result: Dict[str, Any] = {"firewall_services": {}, "errors": []}
 
         firewall_services = {
             "firewalld": "FirewallD (RHEL/Fedora)",
@@ -302,7 +302,7 @@ class HostSecurityDiscoveryService:
                         f"systemctl status {fw_service} --no-pager -l", timeout=10
                     )
 
-                    fw_info = {
+                    fw_info: Dict[str, Any] = {
                         "name": fw_name,
                         "status": "active",
                         "service": fw_service,

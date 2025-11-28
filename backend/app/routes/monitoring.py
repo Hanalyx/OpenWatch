@@ -25,7 +25,7 @@ class HostCheckRequest(BaseModel):
     host_id: str
 
 
-@router.post("/hosts/check")  # type: ignore[misc]
+@router.post("/hosts/check")
 async def check_host_status(
     request: HostCheckRequest,
     db: Session = Depends(get_db),
@@ -103,7 +103,7 @@ async def check_host_status(
         raise HTTPException(status_code=500, detail="Failed to check host status")
 
 
-@router.post("/hosts/check-all")  # type: ignore[misc]
+@router.post("/hosts/check-all")
 async def check_all_hosts_status(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -132,7 +132,7 @@ async def check_all_hosts_status(
         raise HTTPException(status_code=500, detail="Failed to start host monitoring")
 
 
-@router.get("/hosts/status")  # type: ignore[misc]
+@router.get("/hosts/status")
 async def get_hosts_status_summary(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
@@ -150,7 +150,7 @@ async def get_hosts_status_summary(
                 """
             SELECT
                 status,
-                COUNT(*) as count
+                COUNT(*) as host_count
             FROM hosts
             WHERE is_active = true
             GROUP BY status
@@ -158,11 +158,12 @@ async def get_hosts_status_summary(
             )
         )
 
-        status_counts = {}
-        total = 0
+        status_counts: Dict[str, int] = {}
+        total: int = 0
         for row in result:
-            status_counts[row.status] = row.count
-            total += row.count
+            row_count: int = row.host_count if row.host_count else 0
+            status_counts[row.status] = row_count
+            total += row_count
 
         # Calculate average response time from active hosts
         avg_response_result = db.execute(
@@ -196,10 +197,13 @@ async def get_hosts_status_summary(
         checks_today_row = checks_today_result.fetchone()
         checks_today = checks_today_row.check_count if checks_today_row else 0
 
+        online_count: int = status_counts.get("online", 0)
+        online_percentage = round((online_count / total * 100) if total > 0 else 0, 1)
+
         return {
             "total_hosts": total,
             "status_breakdown": status_counts,
-            "online_percentage": round((status_counts.get("online", 0) / total * 100) if total > 0 else 0, 1),
+            "online_percentage": online_percentage,
             "avg_response_time_ms": avg_response_time,
             "checks_today": checks_today,
         }
@@ -209,7 +213,7 @@ async def get_hosts_status_summary(
         raise HTTPException(status_code=500, detail="Failed to get host status summary")
 
 
-@router.post("/hosts/{host_id}/ping")  # type: ignore[misc]
+@router.post("/hosts/{host_id}/ping")
 async def ping_host(
     host_id: str,
     db: Session = Depends(get_db),
@@ -257,7 +261,7 @@ async def ping_host(
         raise HTTPException(status_code=500, detail="Failed to ping host")
 
 
-@router.post("/hosts/{host_id}/check-connectivity")  # type: ignore[misc]
+@router.post("/hosts/{host_id}/check-connectivity")
 async def jit_connectivity_check(
     host_id: str,
     db: Session = Depends(get_db),
@@ -353,7 +357,7 @@ async def jit_connectivity_check(
         raise HTTPException(status_code=500, detail=f"Failed to check connectivity: {str(e)}")
 
 
-@router.get("/hosts/{host_id}/state")  # type: ignore[misc]
+@router.get("/hosts/{host_id}/state")
 async def get_host_monitoring_state(
     host_id: str,
     db: Session = Depends(get_db),

@@ -257,7 +257,7 @@ class RuleService:
             offset: Results offset for pagination
         """
         # Build search pipeline
-        pipeline = []
+        pipeline: List[Dict[str, Any]] = []
 
         # Text search stage
         if search_query.strip():
@@ -275,7 +275,7 @@ class RuleService:
             pipeline.append({"$match": {f"frameworks.{framework_filter}": {"$exists": True}}})
 
         # Sort by relevance and severity
-        sort_stage = {"$sort": {}}
+        sort_stage: Dict[str, Any] = {"$sort": {}}
         if search_query.strip():
             sort_stage["$sort"]["search_score"] = {"$meta": "textScore"}
         sort_stage["$sort"]["severity_weight"] = -1
@@ -291,7 +291,7 @@ class RuleService:
         results = await cursor.to_list(length=None)
 
         # Get total count for pagination
-        count_pipeline = pipeline[:-2]  # Remove skip/limit
+        count_pipeline: List[Dict[str, Any]] = pipeline[:-2]  # Remove skip/limit
         count_pipeline.append({"$count": "total"})
         count_cursor = collection.aggregate(count_pipeline)
         count_result = await count_cursor.to_list(length=1)
@@ -383,7 +383,7 @@ class RuleService:
         category_filter: Optional[List[str]],
     ) -> Dict[str, Any]:
         """Build optimized MongoDB query for platform rules"""
-        query = {}
+        query: Dict[str, Any] = {}
 
         # CRITICAL: Filter by is_latest=True to get only active rule versions
         # MongoDB uses deduplication system with versioning (7221 total, 2013 latest)
@@ -578,7 +578,7 @@ class RuleService:
         visited.add(rule.rule_id)
         dependencies = rule.dependencies or {}
 
-        result = {"requires": [], "conflicts": [], "related": []}
+        result: Dict[str, List[Any]] = {"requires": [], "conflicts": [], "related": []}
 
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
         repo = ComplianceRuleRepository()

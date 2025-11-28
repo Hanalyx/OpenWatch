@@ -79,7 +79,7 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
 
 
-class Host(BaseModel):  # type: ignore[misc]
+class Host(BaseModel):
     id: Optional[str] = None
     hostname: str
     ip_address: str
@@ -142,7 +142,7 @@ class Host(BaseModel):  # type: ignore[misc]
     group_color: Optional[str] = None
 
 
-class HostCreate(BaseModel):  # type: ignore[misc]
+class HostCreate(BaseModel):
     hostname: str
     ip_address: str
     display_name: Optional[str] = None
@@ -157,7 +157,7 @@ class HostCreate(BaseModel):  # type: ignore[misc]
     owner: Optional[str] = None
 
 
-class HostUpdate(BaseModel):  # type: ignore[misc]
+class HostUpdate(BaseModel):
     hostname: Optional[str] = None
     ip_address: Optional[str] = None
     display_name: Optional[str] = None
@@ -173,7 +173,7 @@ class HostUpdate(BaseModel):  # type: ignore[misc]
     description: Optional[str] = None  # Allow description updates
 
 
-@router.post("/validate-credentials")  # type: ignore[misc]
+@router.post("/validate-credentials")
 async def validate_credentials(
     validation_data: Dict[str, Any],
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -265,7 +265,7 @@ async def validate_credentials(
         )
 
 
-@router.get("/", response_model=List[Host])  # type: ignore[misc]
+@router.get("/", response_model=List[Host])
 async def list_hosts(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -398,7 +398,7 @@ async def list_hosts(
         )
 
 
-@router.post("/", response_model=Host)  # type: ignore[misc]
+@router.post("/", response_model=Host)
 async def create_host(
     host: HostCreate,
     db: Session = Depends(get_db),
@@ -512,7 +512,7 @@ async def create_host(
         )
 
 
-@router.get("/{host_id}", response_model=Host)  # type: ignore[misc]
+@router.get("/{host_id}", response_model=Host)
 async def get_host(
     host_id: str,
     db: Session = Depends(get_db),
@@ -589,7 +589,7 @@ async def get_host(
         )
 
 
-@router.put("/{host_id}", response_model=Host)  # type: ignore[misc]
+@router.put("/{host_id}", response_model=Host)
 async def update_host(
     host_id: str,
     host_update: HostUpdate,
@@ -812,6 +812,14 @@ async def update_host(
         result = db.execute(text(select_query), select_params)
 
         row = result.fetchone()
+
+        # Null guard: fetchone() returns Optional[Row], validate before accessing attributes
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve updated host data",
+            )
+
         updated_host = Host(
             id=str(row.id),
             hostname=row.hostname,
@@ -848,7 +856,7 @@ async def update_host(
         )
 
 
-@router.delete("/{host_id}")  # type: ignore[misc]
+@router.delete("/{host_id}")
 async def delete_host(
     host_id: str,
     db: Session = Depends(get_db),
@@ -874,7 +882,10 @@ async def delete_host(
         count_query, count_params = count_query_builder.build()
         scan_result = db.execute(text(count_query), count_params)
 
-        scan_count = scan_result.fetchone().count
+        # Null guard: fetchone() returns Optional[Row], default to 0 if no result
+        # Note: Using getattr for type safety since Row.count attribute has complex type
+        scan_count_row = scan_result.fetchone()
+        scan_count: int = int(getattr(scan_count_row, "count", 0)) if scan_count_row else 0
         if scan_count > 0:
             # Cascade delete: Remove scan_results first (foreign key constraint)
             # Why: Must delete child records before parent to avoid FK violation
@@ -924,7 +935,7 @@ async def delete_host(
         )
 
 
-@router.delete("/{host_id}/ssh-key")  # type: ignore[misc]
+@router.delete("/{host_id}/ssh-key")
 async def delete_host_ssh_key(
     host_id: str,
     db: Session = Depends(get_db),
@@ -984,7 +995,7 @@ async def delete_host_ssh_key(
         )
 
 
-@router.get("/capabilities")  # type: ignore[misc]
+@router.get("/capabilities")
 async def get_host_management_capabilities(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -1020,7 +1031,7 @@ async def get_host_management_capabilities(
     }
 
 
-@router.get("/summary")  # type: ignore[misc]
+@router.get("/summary")
 async def get_hosts_summary(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:

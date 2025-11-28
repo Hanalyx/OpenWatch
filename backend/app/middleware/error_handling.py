@@ -59,9 +59,29 @@ class ErrorType:
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):
-    """Comprehensive error handling middleware with standardized responses"""
+    """
+    Comprehensive error handling middleware with standardized responses.
 
-    def __init__(self, app, include_debug_info: bool = False):
+    Provides consistent error formatting, logging, and monitoring for all API
+    endpoints. Implements OWASP A09:2021 - Security Logging and Monitoring Failures
+    by ensuring all errors are properly logged with correlation IDs.
+
+    Attributes:
+        include_debug_info: Whether to include stack traces in error responses.
+                          Should be False in production (prevents information disclosure).
+        error_mappings: Maps HTTP status codes to error type classifications.
+        user_messages: User-friendly error messages for each error type.
+    """
+
+    def __init__(self, app: Any, include_debug_info: bool = False) -> None:
+        """
+        Initialize the error handling middleware.
+
+        Args:
+            app: The FastAPI application instance.
+            include_debug_info: If True, include stack traces in responses.
+                              Should be False in production for security.
+        """
         super().__init__(app)
         self.include_debug_info = include_debug_info
 
@@ -95,8 +115,21 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             ErrorType.INTERNAL_ERROR: "Internal server error occurred",
         }
 
-    async def dispatch(self, request: Request, call_next):
-        """Handle errors and provide standardized responses"""
+    async def dispatch(self, request: Request, call_next: Any) -> JSONResponse:
+        """
+        Handle errors and provide standardized responses.
+
+        Intercepts all requests and wraps them in error handling. Ensures that
+        any exceptions are converted to consistent API error responses with
+        appropriate logging.
+
+        Args:
+            request: The incoming HTTP request.
+            call_next: The next middleware or route handler.
+
+        Returns:
+            JSONResponse with standardized error format, or the original response.
+        """
         try:
             response = await call_next(request)
 
@@ -212,8 +245,21 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
         return JSONResponse(status_code=status_code, content=error_response.dict())
 
-    async def _handle_error_response(self, request: Request, response) -> JSONResponse:
-        """Handle error responses that weren't caught as exceptions"""
+    async def _handle_error_response(self, request: Request, response: Any) -> Any:
+        """
+        Handle error responses that weren't caught as exceptions.
+
+        Transforms error responses from normal flow to standardized format.
+        Currently passes through the original response, but can be extended
+        for additional error transformation.
+
+        Args:
+            request: The incoming HTTP request.
+            response: The response object from the route handler.
+
+        Returns:
+            The original or transformed response.
+        """
         # This would be used to standardize error responses that come through normal flow
         return response
 
@@ -318,15 +364,34 @@ class APIAuthorizationError(Exception):
 
 
 class ErrorMonitor:
-    """Monitor and track API errors for analysis"""
+    """
+    Monitor and track API errors for analysis.
 
-    def __init__(self):
-        self.error_counts = {}
-        self.error_patterns = {}
+    Provides error counting, pattern detection, and summary reporting for
+    observability and alerting purposes. Implements part of OWASP A09:2021
+    Security Logging and Monitoring Failures.
+
+    Attributes:
+        error_counts: Running count of errors by key (type:path:status).
+        error_patterns: Detailed pattern tracking by type and status.
+        last_reset: Timestamp of last counter reset.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the error monitor with empty counters."""
+        self.error_counts: Dict[str, int] = {}
+        self.error_patterns: Dict[str, List[Dict[str, Any]]] = {}
         self.last_reset = datetime.utcnow()
 
-    def record_error(self, error_type: str, path: str, status_code: int):
-        """Record error occurrence for monitoring"""
+    def record_error(self, error_type: str, path: str, status_code: int) -> None:
+        """
+        Record error occurrence for monitoring.
+
+        Args:
+            error_type: Classification of the error (e.g., VALIDATION_ERROR).
+            path: URL path where the error occurred.
+            status_code: HTTP status code of the error response.
+        """
         key = f"{error_type}:{path}:{status_code}"
 
         if key not in self.error_counts:
@@ -370,8 +435,13 @@ class ErrorMonitor:
             "generated_at": datetime.utcnow().isoformat(),
         }
 
-    def reset_counters(self):
-        """Reset error counters (typically called daily)"""
+    def reset_counters(self) -> None:
+        """
+        Reset error counters.
+
+        Typically called daily or on a schedule to prevent unbounded growth
+        of the error tracking data structures.
+        """
         self.error_counts.clear()
         self.error_patterns.clear()
         self.last_reset = datetime.utcnow()
@@ -387,8 +457,18 @@ def get_error_monitor() -> ErrorMonitor:
 
 
 # Utility functions for common error scenarios
-def raise_validation_error(message: str, field: Optional[str] = None, code: Optional[str] = None):
-    """Raise standardized validation error"""
+def raise_validation_error(message: str, field: Optional[str] = None, code: Optional[str] = None) -> None:
+    """
+    Raise standardized validation error.
+
+    Args:
+        message: Human-readable error message.
+        field: Name of the field that failed validation.
+        code: Error code for programmatic handling.
+
+    Raises:
+        HTTPException: Always raises with 400 Bad Request status.
+    """
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail={
@@ -400,8 +480,17 @@ def raise_validation_error(message: str, field: Optional[str] = None, code: Opti
     )
 
 
-def raise_not_found_error(resource: str, identifier: Optional[str] = None):
-    """Raise standardized not found error"""
+def raise_not_found_error(resource: str, identifier: Optional[str] = None) -> None:
+    """
+    Raise standardized not found error.
+
+    Args:
+        resource: Type of resource that was not found (e.g., "Host", "Scan").
+        identifier: Identifier of the resource (e.g., UUID).
+
+    Raises:
+        HTTPException: Always raises with 404 Not Found status.
+    """
     message = f"{resource} not found"
     if identifier:
         message += f": {identifier}"
@@ -417,9 +506,19 @@ def raise_not_found_error(resource: str, identifier: Optional[str] = None):
     )
 
 
-def raise_service_error(message: str, service: Optional[str] = None, retry_after: Optional[int] = None):
-    """Raise standardized service error"""
-    headers = {}
+def raise_service_error(message: str, service: Optional[str] = None, retry_after: Optional[int] = None) -> None:
+    """
+    Raise standardized service error.
+
+    Args:
+        message: Human-readable error message.
+        service: Name of the service that failed.
+        retry_after: Seconds to wait before retrying (sets Retry-After header).
+
+    Raises:
+        HTTPException: Always raises with 503 Service Unavailable status.
+    """
+    headers: Dict[str, str] = {}
     if retry_after:
         headers["Retry-After"] = str(retry_after)
 
@@ -435,8 +534,19 @@ def raise_service_error(message: str, service: Optional[str] = None, retry_after
     )
 
 
-def raise_authorization_error(message: str = "Insufficient permissions", required_permission: Optional[str] = None):
-    """Raise standardized authorization error"""
+def raise_authorization_error(
+    message: str = "Insufficient permissions", required_permission: Optional[str] = None
+) -> None:
+    """
+    Raise standardized authorization error.
+
+    Args:
+        message: Human-readable error message.
+        required_permission: The permission that was required but not present.
+
+    Raises:
+        HTTPException: Always raises with 403 Forbidden status.
+    """
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail={

@@ -1,8 +1,11 @@
 """
 Scan Template Routes - Quick Scan Configuration
+
+Provides predefined scan templates for common compliance and security scanning
+use cases, enabling quick selection of appropriate SCAP profiles and settings.
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -15,6 +18,8 @@ router = APIRouter(prefix="/scan-templates", tags=["Scan Templates"])
 
 
 class ScanTemplate(BaseModel):
+    """Model representing a reusable scan template configuration."""
+
     id: str
     name: str
     description: str
@@ -28,7 +33,10 @@ class ScanTemplate(BaseModel):
 
 
 @router.get("/")
-async def list_scan_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+async def list_scan_templates(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, List[Dict[str, Any]]]:
     """List available scan templates"""
     # For now, return predefined templates
     # In a full implementation, these would be stored in database
@@ -75,12 +83,12 @@ async def list_scan_templates(db: Session = Depends(get_db), current_user: dict 
 async def get_host_scan_templates(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get scan templates available for a specific host"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Get scan templates available for a specific host."""
     # For now, return the same system templates
     # In full implementation, would include host-specific templates
-    templates = await list_scan_templates(db, current_user)
+    templates: Dict[str, List[Dict[str, Any]]] = await list_scan_templates(db, current_user)
     return templates
 
 
@@ -88,8 +96,8 @@ async def get_host_scan_templates(
 async def create_scan_template(
     template: ScanTemplate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Create a new scan template"""
     # Basic validation
     if not template.name or not template.profileId:
@@ -107,8 +115,8 @@ async def create_scan_template(
 async def delete_scan_template(
     template_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """Delete a scan template"""
     # In full implementation, would delete from database
     return {"message": f"Scan template {template_id} deleted successfully"}

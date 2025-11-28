@@ -14,15 +14,15 @@ Security Features:
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
-from ..database import get_async_db
+from ..database import get_db
 from ..rbac import Permission, check_permission_async
 from ..services.error_classification import AutomatedFix
 from ..services.secure_automated_fixes import SecureAutomatedFixExecutor
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/automated-fixes", tags=["Automated Fixes"])
 
 # Initialize the secure fix executor
-secure_fix_executor = SecureAutomatedFixExecutor()
+secure_fix_executor: SecureAutomatedFixExecutor = SecureAutomatedFixExecutor()
 
 
 def sanitize_for_log(value: Any) -> str:
@@ -77,17 +77,17 @@ class FixRollbackRequest(BaseModel):
 @router.post("/evaluate-options")
 async def evaluate_fix_options(
     request: FixEvaluationRequest,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Evaluate legacy automated fixes and convert to secure options
 
     Requires: scan:read permission
     """
     try:
-        # Check permissions
-        await check_permission_async(current_user, Permission.SCAN_READ, db)
+        # Check permissions (sync function, no await needed)
+        check_permission_async(current_user, Permission.SCAN_READ, db)
 
         # Convert legacy fixes to AutomatedFix objects
         legacy_fixes = []
@@ -133,17 +133,17 @@ async def evaluate_fix_options(
 @router.post("/request-execution")
 async def request_fix_execution(
     request: FixExecutionRequest,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Request execution of a secure automated fix
 
     Requires: scan:write permission
     """
     try:
-        # Check permissions
-        await check_permission_async(current_user, Permission.SCAN_WRITE, db)
+        # Check permissions (sync function, no await needed)
+        check_permission_async(current_user, Permission.SCAN_WRITE, db)
 
         # Request fix execution
         result = await secure_fix_executor.request_fix_execution(
@@ -173,9 +173,9 @@ async def request_fix_execution(
 async def approve_fix_request(
     request_id: str,
     approval_request: FixApprovalRequest,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Approve a pending fix execution request
 
@@ -185,7 +185,8 @@ async def approve_fix_request(
         # Check permissions - requires admin or special approval permission
         user_roles = current_user.get("roles", [])
         if "admin" not in user_roles:
-            await check_permission_async(current_user, Permission.SCAN_APPROVE, db)
+            # Sync function, no await needed
+            check_permission_async(current_user, Permission.SCAN_APPROVE, db)
 
         # Approve the request
         result = await secure_fix_executor.approve_fix_request(
@@ -214,17 +215,17 @@ async def approve_fix_request(
 @router.post("/execute/{request_id}")
 async def execute_approved_fix(
     request_id: str,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Execute an approved automated fix
 
     Requires: scan:write permission
     """
     try:
-        # Check permissions
-        await check_permission_async(current_user, Permission.SCAN_WRITE, db)
+        # Check permissions (sync function, no await needed)
+        check_permission_async(current_user, Permission.SCAN_WRITE, db)
 
         # Execute the fix
         result = await secure_fix_executor.execute_approved_fix(request_id)
@@ -250,9 +251,9 @@ async def execute_approved_fix(
 async def rollback_fix(
     request_id: str,
     rollback_request: FixRollbackRequest,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Rollback a previously executed fix
 
@@ -262,7 +263,8 @@ async def rollback_fix(
         # Check permissions - requires admin or special rollback permission
         user_roles = current_user.get("roles", [])
         if "admin" not in user_roles:
-            await check_permission_async(current_user, Permission.SCAN_ROLLBACK, db)
+            # Sync function, no await needed
+            check_permission_async(current_user, Permission.SCAN_ROLLBACK, db)
 
         # Rollback the fix
         result = await secure_fix_executor.rollback_fix(
@@ -289,17 +291,17 @@ async def rollback_fix(
 @router.get("/status/{request_id}")
 async def get_fix_status(
     request_id: str,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get status of a fix execution request
 
     Requires: scan:read permission
     """
     try:
-        # Check permissions
-        await check_permission_async(current_user, Permission.SCAN_READ, db)
+        # Check permissions (sync function, no await needed)
+        check_permission_async(current_user, Permission.SCAN_READ, db)
 
         # Get fix status
         status_info = await secure_fix_executor.get_fix_status(request_id)
@@ -321,9 +323,9 @@ async def get_fix_status(
 
 @router.get("/pending-approvals")
 async def list_pending_approvals(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     List all fixes pending approval
 
@@ -333,7 +335,8 @@ async def list_pending_approvals(
         # Check permissions
         user_roles = current_user.get("roles", [])
         if "admin" not in user_roles:
-            await check_permission_async(current_user, Permission.SCAN_APPROVE, db)
+            # Sync function, no await needed
+            check_permission_async(current_user, Permission.SCAN_APPROVE, db)
 
         # Get pending approvals
         pending_fixes = await secure_fix_executor.list_pending_approvals()
@@ -356,17 +359,17 @@ async def list_pending_approvals(
 
 @router.get("/secure-commands")
 async def get_secure_command_catalog(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get catalog of available secure commands
 
     Requires: scan:read permission
     """
     try:
-        # Check permissions
-        await check_permission_async(current_user, Permission.SCAN_READ, db)
+        # Check permissions (sync function, no await needed)
+        check_permission_async(current_user, Permission.SCAN_READ, db)
 
         # Get command catalog
         commands = await secure_fix_executor.get_secure_command_catalog()
@@ -392,9 +395,9 @@ async def get_secure_command_catalog(
 @router.delete("/cleanup")
 async def cleanup_old_requests(
     max_age_days: int = 30,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_async_db),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Clean up old execution requests
 
@@ -428,7 +431,7 @@ async def cleanup_old_requests(
 
 
 @router.get("/health")
-async def health_check():
+async def health_check() -> Union[Dict[str, Any], JSONResponse]:
     """Health check endpoint for automated fix service"""
     try:
         # Basic health checks

@@ -22,6 +22,8 @@ router = APIRouter(prefix="/host-network-discovery", tags=["Host Network Discove
 
 
 class NetworkDiscoveryResponse(BaseModel):
+    """Response model for network discovery results."""
+
     network_interfaces: Dict[str, Any]
     routing_table: List[Dict[str, Any]]
     dns_configuration: Dict[str, Any]
@@ -35,10 +37,14 @@ class NetworkDiscoveryResponse(BaseModel):
 
 
 class BulkNetworkDiscoveryRequest(BaseModel):
+    """Request model for bulk network discovery."""
+
     host_ids: List[str]
 
 
 class BulkNetworkDiscoveryResponse(BaseModel):
+    """Response model for bulk network discovery results."""
+
     total_hosts: int
     successful_discoveries: int
     failed_discoveries: int
@@ -47,6 +53,8 @@ class BulkNetworkDiscoveryResponse(BaseModel):
 
 
 class NetworkTopologyMap(BaseModel):
+    """Response model for network topology map."""
+
     hosts: List[Dict[str, Any]]
     network_segments: List[Dict[str, Any]]
     connectivity_matrix: Dict[str, Dict[str, bool]]
@@ -54,6 +62,8 @@ class NetworkTopologyMap(BaseModel):
 
 
 class NetworkSecurityAssessment(BaseModel):
+    """Response model for network security assessment."""
+
     host_id: str
     hostname: str
     security_score: float  # 0.0 to 1.0
@@ -66,8 +76,10 @@ class NetworkSecurityAssessment(BaseModel):
 
 @router.post("/hosts/{host_id}/network-discovery", response_model=NetworkDiscoveryResponse)
 async def discover_host_network_topology(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> NetworkDiscoveryResponse:
     """
     Discover network topology and configuration on a specific host
 
@@ -124,9 +136,9 @@ async def discover_host_network_topology(
 @router.post("/bulk-network-discovery", response_model=BulkNetworkDiscoveryResponse)
 async def bulk_discover_network_topology(
     request: BulkNetworkDiscoveryRequest,
-    current_user=Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BulkNetworkDiscoveryResponse:
     """
     Discover network topology for multiple hosts in bulk
 
@@ -209,8 +221,10 @@ async def bulk_discover_network_topology(
     response_model=NetworkSecurityAssessment,
 )
 async def assess_host_network_security(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> NetworkSecurityAssessment:
     """
     Assess network security for a specific host
 
@@ -260,9 +274,9 @@ async def assess_host_network_security(
 @router.post("/network-topology-map")
 async def generate_network_topology_map(
     request: BulkNetworkDiscoveryRequest,
-    current_user=Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> NetworkTopologyMap:
     """
     Generate a network topology map for multiple hosts
 
@@ -302,7 +316,9 @@ async def generate_network_topology_map(
 
 
 @router.get("/network-discovery-capabilities")
-async def get_network_discovery_capabilities(current_user=Depends(get_current_user)):
+async def get_network_discovery_capabilities(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get information about network discovery capabilities
 
@@ -481,11 +497,10 @@ def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> N
 
 
 def _generate_topology_map(discovery_results: Dict[str, NetworkDiscoveryResponse], db: Session) -> NetworkTopologyMap:
-    """Generate network topology map from discovery results"""
-
-    hosts = []
-    network_segments = []
-    connectivity_matrix = {}
+    """Generate network topology map from discovery results."""
+    hosts: List[Dict[str, Any]] = []
+    network_segments: List[Dict[str, Any]] = []
+    connectivity_matrix: Dict[str, Dict[str, bool]] = {}
 
     # Process each host
     for host_id, result in discovery_results.items():
@@ -549,13 +564,19 @@ def _generate_topology_map(discovery_results: Dict[str, NetworkDiscoveryResponse
             unique_segments.append(segment)
 
     # Generate network summary
-    network_summary = {
+    total_interfaces = sum(len(h["interfaces"]) for h in hosts)
+    connectivity_scores = [h["connectivity_score"] for h in hosts]
+    avg_score = sum(connectivity_scores) / len(hosts) if hosts else 0.0
+    hosts_with_gws = sum(1 for h in hosts if h["gateway_count"] > 0)
+    total_ports = sum(h["open_ports"] for h in hosts)
+
+    network_summary: Dict[str, Any] = {
         "total_hosts": len(hosts),
-        "total_interfaces": sum(len(h["interfaces"]) for h in hosts),
+        "total_interfaces": total_interfaces,
         "network_segments": len(unique_segments),
-        "average_connectivity_score": (sum(h["connectivity_score"] for h in hosts) / len(hosts) if hosts else 0),
-        "hosts_with_gateways": sum(1 for h in hosts if h["gateway_count"] > 0),
-        "total_open_ports": sum(h["open_ports"] for h in hosts),
+        "average_connectivity_score": avg_score,
+        "hosts_with_gateways": hosts_with_gws,
+        "total_open_ports": total_ports,
     }
 
     return NetworkTopologyMap(

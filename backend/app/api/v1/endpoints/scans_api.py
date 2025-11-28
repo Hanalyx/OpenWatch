@@ -6,7 +6,7 @@ Provides REST API for executing and managing compliance scans.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 async def execute_scan(
     config: ScanConfiguration,
     scan_name: Optional[str] = None,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> ScanResult:
     """
     Execute compliance scan
 
@@ -83,9 +83,9 @@ async def execute_scan(
 @router.get("/{scan_id}", response_model=ScanResult)
 async def get_scan(
     scan_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> ScanResult:
     """
     Get scan result by ID
 
@@ -115,9 +115,9 @@ async def list_scans(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     status: Optional[ScanStatus] = None,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[ScanResult]:
     """
     List scans with optional filters
 
@@ -145,9 +145,9 @@ async def list_scans(
 @router.delete("/{scan_id}")
 async def delete_scan(
     scan_id: str,
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Delete scan result
 
@@ -182,9 +182,9 @@ async def get_scan_statistics(
     framework: Optional[str] = None,
     target_type: Optional[ScanTargetType] = None,
     days: int = Query(30, ge=1, le=365),
-    mongo_service=Depends(get_mongo_service),
-    current_user: dict = Depends(get_current_user),
-):
+    mongo_service: Any = Depends(get_mongo_service),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Get scan statistics
 

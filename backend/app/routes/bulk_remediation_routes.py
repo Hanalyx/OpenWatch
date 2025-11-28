@@ -5,7 +5,7 @@ Provides endpoints for executing remediation across multiple hosts with various 
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, ValidationError
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bulk-remediation", tags=["bulk-remediation"])
 
 # Service instance
-bulk_remediation_service = BulkRemediationService()
+bulk_remediation_service: BulkRemediationService = BulkRemediationService()
 
 
 # ============================================================================
@@ -33,7 +33,7 @@ bulk_remediation_service = BulkRemediationService()
 
 
 class BulkRemediationJobRequest(BaseModel):
-    """Request to submit bulk remediation job"""
+    """Request to submit bulk remediation job."""
 
     host_ids: List[str] = Field(..., min_items=1, max_items=1000, description="Target host IDs")
     rule_ids: List[str] = Field(..., min_items=1, description="Rules to remediate")
@@ -51,11 +51,11 @@ class BulkRemediationJobRequest(BaseModel):
     )
     rollback_on_high_failure: bool = Field(default=False, description="Rollback changes if failure rate is high")
     scheduled_at: Optional[datetime] = Field(default=None, description="Schedule execution for later")
-    execution_context: dict = Field(default_factory=dict, description="Additional execution context")
+    execution_context: Dict[str, Any] = Field(default_factory=dict, description="Additional execution context")
 
 
 class BulkRemediationJobResponse(BaseModel):
-    """Response for bulk remediation job submission"""
+    """Response for bulk remediation job submission."""
 
     job_id: str
     status: BulkExecutionStatus
@@ -67,7 +67,7 @@ class BulkRemediationJobResponse(BaseModel):
 
 
 class BulkRemediationStatusResponse(BaseModel):
-    """Response for bulk remediation status check"""
+    """Response for bulk remediation status check."""
 
     job_id: str
     status: BulkExecutionStatus
@@ -92,7 +92,7 @@ class BulkRemediationStatusResponse(BaseModel):
 
 
 class BulkRemediationListResponse(BaseModel):
-    """Response for listing bulk remediation jobs"""
+    """Response for listing bulk remediation jobs."""
 
     jobs: List[BulkRemediationStatusResponse]
     total_count: int
@@ -101,7 +101,7 @@ class BulkRemediationListResponse(BaseModel):
 
 
 class HostExecutionSummary(BaseModel):
-    """Summary of host execution for detailed results"""
+    """Summary of host execution for detailed results."""
 
     host_id: str
     platform: str
@@ -118,7 +118,7 @@ class HostExecutionSummary(BaseModel):
 
 
 class DetailedBulkRemediationResponse(BaseModel):
-    """Detailed response including host-level results"""
+    """Detailed response including host-level results."""
 
     job_id: str
     status: BulkExecutionStatus
@@ -163,8 +163,9 @@ class DetailedBulkRemediationResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def submit_bulk_remediation_job(
-    request: BulkRemediationJobRequest, current_user: User = Depends(get_current_user)
-):
+    request: BulkRemediationJobRequest,
+    current_user: User = Depends(get_current_user),
+) -> BulkRemediationJobResponse:
     """
     Submit a bulk remediation job for execution across multiple hosts.
 
@@ -243,7 +244,10 @@ async def submit_bulk_remediation_job(
 
 
 @router.get("/jobs/{job_id}/status", response_model=BulkRemediationStatusResponse)
-async def get_bulk_job_status(job_id: str, current_user: User = Depends(get_current_user)):
+async def get_bulk_job_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+) -> BulkRemediationStatusResponse:
     """
     Get the current status of a bulk remediation job.
 
@@ -299,7 +303,10 @@ async def get_bulk_job_status(job_id: str, current_user: User = Depends(get_curr
 
 
 @router.get("/jobs/{job_id}/details", response_model=DetailedBulkRemediationResponse)
-async def get_detailed_bulk_job_results(job_id: str, current_user: User = Depends(get_current_user)):
+async def get_detailed_bulk_job_results(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+) -> DetailedBulkRemediationResponse:
     """
     Get detailed results of a bulk remediation job including host-level results.
 
@@ -392,7 +399,7 @@ async def cancel_bulk_job(
     job_id: str,
     reason: str = Query(default="User cancelled", description="Reason for cancellation"),
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """
     Cancel a running bulk remediation job.
 
@@ -429,7 +436,7 @@ async def list_bulk_jobs(
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
     current_user: User = Depends(get_current_user),
-):
+) -> BulkRemediationListResponse:
     """
     List bulk remediation jobs with filtering and pagination.
 
@@ -440,8 +447,9 @@ async def list_bulk_jobs(
     """
     try:
         # If no user specified and current user is not admin, filter to their jobs
-        if not user and not current_user.is_admin:
-            user = current_user.username
+        filter_user: Optional[str] = user
+        if not filter_user and not current_user.is_admin:
+            filter_user = str(current_user.username)
 
         # Get jobs with filtering
         jobs = await bulk_remediation_service.list_bulk_jobs(
@@ -493,8 +501,8 @@ async def list_bulk_jobs(
         )
 
 
-@router.get("/strategies", response_model=List[dict])
-async def get_execution_strategies():
+@router.get("/strategies", response_model=List[Dict[str, Any]])
+async def get_execution_strategies() -> List[Dict[str, Any]]:
     """
     Get available bulk execution strategies with descriptions.
 
@@ -574,11 +582,11 @@ async def get_execution_strategies():
     return strategies
 
 
-@router.get("/statistics", response_model=dict)
+@router.get("/statistics", response_model=Dict[str, Any])
 async def get_bulk_remediation_statistics(
     days: int = Query(default=30, ge=1, le=365, description="Days to include in statistics"),
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """
     Get bulk remediation execution statistics.
 

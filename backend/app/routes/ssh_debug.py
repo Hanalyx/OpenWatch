@@ -25,6 +25,8 @@ router = APIRouter(prefix="/ssh-debug", tags=["SSH Debug"])
 
 
 class SSHDebugRequest(BaseModel):
+    """Request model for SSH debug authentication testing."""
+
     host_id: str
     enable_paramiko_debug: Optional[bool] = True
     test_host_credentials: Optional[bool] = True
@@ -32,6 +34,8 @@ class SSHDebugRequest(BaseModel):
 
 
 class SSHDebugResponse(BaseModel):
+    """Response model for SSH debug authentication results."""
+
     host_info: Dict[str, Any]
     host_credentials_test: Optional[Dict[str, Any]]
     global_credentials_test: Optional[Dict[str, Any]]
@@ -45,8 +49,8 @@ async def debug_ssh_authentication(
     ssh_request: SSHDebugRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SSHDebugResponse:
     """
     Debug SSH authentication issues with detailed diagnostics
     """
@@ -82,7 +86,7 @@ async def debug_ssh_authentication(
             ssh_policy_info={
                 "current_policy": ssh_service.get_ssh_policy(),
                 "trusted_networks": ssh_service.get_trusted_networks(),
-                "is_host_trusted": ssh_service.is_host_in_trusted_network(host.ip_address),
+                "is_host_trusted": ssh_service.is_host_in_trusted_network(str(host.ip_address)),
             },
             recommendations=[],
         )
@@ -102,11 +106,11 @@ async def debug_ssh_authentication(
                 decrypted_data = decrypted_bytes.decode("utf-8")
                 cred_data = json.loads(decrypted_data)
 
-                # Validate key if present
-                key_info = None
+                # Validate key if present for host credentials
+                host_key_info: Optional[Dict[str, Any]] = None
                 if cred_data.get("ssh_key"):
                     validation_result = ssh_service.validate_ssh_key(cred_data["ssh_key"])
-                    key_info = {
+                    host_key_info = {
                         "valid": validation_result.is_valid,
                         "type": (validation_result.key_type.value if validation_result.key_type else None),
                         "size": validation_result.key_size,
@@ -120,12 +124,17 @@ async def debug_ssh_authentication(
                 auth_method = "key" if cred_data.get("ssh_key") else "password"
                 credential = cred_data.get("ssh_key") or cred_data.get("password")
 
+                # Cast SQLAlchemy column types to Python native types for SSH service
+                host_ip: str = str(host.ip_address)
+                host_port: int = int(host.port) if host.port else 22
+                host_username: str = str(cred_data.get("username", host.username))
+
                 connection_result = ssh_service.connect_with_credentials(
-                    hostname=host.ip_address,
-                    port=host.port or 22,
-                    username=cred_data.get("username", host.username),
+                    hostname=host_ip,
+                    port=host_port,
+                    username=host_username,
                     auth_method=auth_method,
-                    credential=credential,
+                    credential=credential if credential else "",
                     service_name="SSH_Debug_Host_Creds",
                     timeout=15,
                 )
@@ -134,7 +143,7 @@ async def debug_ssh_authentication(
                     "success": connection_result.success,
                     "auth_method": auth_method,
                     "username": cred_data.get("username", host.username),
-                    "key_info": key_info,
+                    "key_info": host_key_info,
                     "error_message": connection_result.error_message,
                     "error_type": connection_result.error_type,
                     "host_key_fingerprint": connection_result.host_key_fingerprint,
@@ -154,15 +163,15 @@ async def debug_ssh_authentication(
         if ssh_request.test_global_credentials:
             logger.info(f"Testing global credentials for {host.hostname}")
             try:
-                # Get global credentials
-                global_creds = auth_service.resolve_credential(target_id=None, use_default=True)
+                # Get global credentials - use empty string for target_id to get defaults
+                global_creds = auth_service.resolve_credential(target_id="", use_default=True)
 
                 if global_creds:
-                    # Validate key if present
-                    key_info = None
+                    # Validate key if present for global credentials
+                    global_key_info: Optional[Dict[str, Any]] = None
                     if global_creds.private_key:
                         validation_result = ssh_service.validate_ssh_key(global_creds.private_key)
-                        key_info = {
+                        global_key_info = {
                             "valid": validation_result.is_valid,
                             "type": (validation_result.key_type.value if validation_result.key_type else None),
                             "size": validation_result.key_size,
@@ -176,14 +185,18 @@ async def debug_ssh_authentication(
 
                     # Test connection
                     auth_method = "key" if global_creds.private_key else "password"
-                    credential = global_creds.private_key or global_creds.password
+                    credential_value: str = global_creds.private_key or global_creds.password or ""
+
+                    # Cast SQLAlchemy column types for global creds test
+                    global_host_ip: str = str(host.ip_address)
+                    global_host_port: int = int(host.port) if host.port else 22
 
                     connection_result = ssh_service.connect_with_credentials(
-                        hostname=host.ip_address,
-                        port=host.port or 22,
+                        hostname=global_host_ip,
+                        port=global_host_port,
                         username=global_creds.username,
                         auth_method=auth_method,
-                        credential=credential,
+                        credential=credential_value,
                         service_name="SSH_Debug_Global_Creds",
                         timeout=15,
                     )
@@ -192,7 +205,7 @@ async def debug_ssh_authentication(
                         "success": connection_result.success,
                         "auth_method": auth_method,
                         "username": global_creds.username,
-                        "key_info": key_info,
+                        "key_info": global_key_info,
                         "error_message": connection_result.error_message,
                         "error_type": connection_result.error_type,
                         "host_key_fingerprint": connection_result.host_key_fingerprint,
@@ -275,9 +288,19 @@ async def debug_ssh_authentication(
 
 @router.get("/paramiko-log")
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_paramiko_debug_log(lines: int = 100, current_user: dict = Depends(get_current_user)):
+async def get_paramiko_debug_log(
+    lines: int = 100,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
-    Retrieve the last N lines of the paramiko debug log
+    Retrieve the last N lines of the paramiko debug log.
+
+    Args:
+        lines: Number of lines to retrieve from end of log (default 100)
+        current_user: Current authenticated user from JWT token
+
+    Returns:
+        Dictionary with log file status and content
     """
     try:
         import os

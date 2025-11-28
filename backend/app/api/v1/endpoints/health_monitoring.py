@@ -169,12 +169,13 @@ async def get_service_health_history(
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
         # Query historical data
+        # Use string-based sorting for Beanie (ascending by timestamp)
         history = (
             await ServiceHealthDocument.find(
                 ServiceHealthDocument.scanner_id == health_service.scanner_id,
                 ServiceHealthDocument.health_check_timestamp >= cutoff_time,
             )
-            .sort(ServiceHealthDocument.health_check_timestamp)
+            .sort("health_check_timestamp")
             .to_list()
         )
 
@@ -205,12 +206,13 @@ async def get_content_health_history(
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
 
         # Query historical data
+        # Use string-based sorting for Beanie (ascending by timestamp)
         history = (
             await ContentHealthDocument.find(
                 ContentHealthDocument.scanner_id == health_service.scanner_id,
                 ContentHealthDocument.health_check_timestamp >= cutoff_time,
             )
-            .sort(ContentHealthDocument.health_check_timestamp)
+            .sort("health_check_timestamp")
             .to_list()
         )
 

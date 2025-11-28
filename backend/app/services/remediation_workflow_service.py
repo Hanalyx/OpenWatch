@@ -9,7 +9,7 @@ import logging
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from beanie import Document
 from pydantic import BaseModel, Field
@@ -78,24 +78,25 @@ class WorkflowCondition(BaseModel):
             stage_id = self.parameters.get("stage_id")
             if stage_id:
                 stage_result = workflow_context.get("stage_results", {}).get(stage_id)
-                return stage_result and stage_result.get("status") == "completed"
+                return bool(stage_result and stage_result.get("status") == "completed")
+            return False
 
         elif self.condition_type == "rule_count_threshold":
             min_rules = self.parameters.get("min_rules", 1)
             rule_count = len(workflow_context.get("target_rules", []))
-            return rule_count >= min_rules
+            return bool(rule_count >= min_rules)
 
         elif self.condition_type == "host_count_threshold":
             min_hosts = self.parameters.get("min_hosts", 1)
             host_count = len(workflow_context.get("target_hosts", []))
-            return host_count >= min_hosts
+            return bool(host_count >= min_hosts)
 
         elif self.condition_type == "time_window":
             # Execute only during specified time window
             start_hour = self.parameters.get("start_hour", 0)
             end_hour = self.parameters.get("end_hour", 23)
             current_hour = datetime.utcnow().hour
-            return start_hour <= current_hour <= end_hour
+            return bool(start_hour <= current_hour <= end_hour)
 
         elif self.condition_type == "always":
             return True
@@ -144,7 +145,7 @@ class WorkflowDefinition(BaseModel):
     version: str = Field(default="1.0")
 
     # Stages
-    stages: List[WorkflowStage] = Field(..., min_items=1)
+    stages: List[WorkflowStage] = Field(..., min_length=1)
 
     # Workflow-level configuration
     execution_mode: StageExecutionMode = StageExecutionMode.SEQUENTIAL
@@ -171,7 +172,8 @@ class WorkflowDefinition(BaseModel):
         # Check for circular dependencies
         stage_ids = {stage.stage_id for stage in self.stages}
         for stage in self.stages:
-            if self._has_circular_dependency(stage, self.stages, set()):
+            visited: Set[str] = set()
+            if self._has_circular_dependency(stage, self.stages, visited):
                 issues.append(f"Circular dependency detected in stage: {stage.name}")
 
             # Check if dependencies exist
@@ -181,7 +183,9 @@ class WorkflowDefinition(BaseModel):
 
         return issues
 
-    def _has_circular_dependency(self, stage: WorkflowStage, all_stages: List[WorkflowStage], visited: set) -> bool:
+    def _has_circular_dependency(
+        self, stage: WorkflowStage, all_stages: List[WorkflowStage], visited: Set[str]
+    ) -> bool:
         """Check for circular dependencies in workflow stages"""
         if stage.stage_id in visited:
             return True
@@ -200,7 +204,7 @@ class WorkflowDefinition(BaseModel):
 class WorkflowExecution(Document):
     """Active workflow execution instance"""
 
-    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    execution_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     workflow_id: str = Field(..., description="Workflow definition ID")
     workflow_definition: WorkflowDefinition
 
@@ -276,7 +280,7 @@ class RemediationWorkflowService:
     - Integration with bulk remediation and plugin services
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.bulk_remediation_service = BulkRemediationService()
         self.plugin_execution_service = PluginExecutionService()
         self.workflow_definitions: Dict[str, WorkflowDefinition] = {}
@@ -308,7 +312,7 @@ class RemediationWorkflowService:
         target_hosts: List[str],
         target_rules: List[str],
         user: str,
-        execution_context: Dict[str, Any] = None,
+        execution_context: Optional[Dict[str, Any]] = None,
     ) -> WorkflowExecution:
         """Execute a workflow"""
         workflow_def = self.workflow_definitions.get(workflow_id)
@@ -389,7 +393,7 @@ class RemediationWorkflowService:
 
         return await WorkflowExecution.find(query).sort(-WorkflowExecution.started_at).limit(limit).to_list()
 
-    async def _execute_workflow_stages(self, execution: WorkflowExecution):
+    async def _execute_workflow_stages(self, execution: WorkflowExecution) -> None:
         """Execute all stages of a workflow"""
         try:
             execution.status = WorkflowStatus.RUNNING
@@ -432,7 +436,7 @@ class RemediationWorkflowService:
             # Remove from active workflows
             self.active_workflows.pop(execution.execution_id, None)
 
-    async def _execute_stages_sequential(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
+    async def _execute_stages_sequential(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]) -> None:
         """Execute stages sequentially"""
         for stage in execution.workflow_definition.stages:
             if execution.status == WorkflowStatus.CANCELLED:
@@ -454,13 +458,13 @@ class RemediationWorkflowService:
             if stage_result.status == StageStatus.FAILED and execution.workflow_definition.stop_on_first_failure:
                 break
 
-    async def _execute_stages_parallel(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
+    async def _execute_stages_parallel(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]) -> None:
         """Execute stages in parallel with dependency management"""
         # Build dependency graph
         self._build_dependency_graph(execution.workflow_definition.stages)
 
         # Execute stages in topological order with parallelization
-        executed_stages = set()
+        executed_stages: Set[str] = set()
 
         while len(executed_stages) < len(execution.workflow_definition.stages):
             if execution.status == WorkflowStatus.CANCELLED:
@@ -500,7 +504,7 @@ class RemediationWorkflowService:
                     await self._record_stage_result(execution, stage, StageStatus.FAILED)
                     executed_stages.add(stage.stage_id)
 
-    async def _execute_stages_conditional(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]):
+    async def _execute_stages_conditional(self, execution: WorkflowExecution, workflow_context: Dict[str, Any]) -> None:
         """Execute stages with conditional logic"""
         # Similar to sequential but with additional condition checking
         await self._execute_stages_sequential(execution, workflow_context)
@@ -562,7 +566,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute pre-validation stage"""
         # Example: Check host connectivity, verify prerequisites
         validation_results = {}
@@ -584,7 +588,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute remediation stage using bulk remediation service"""
         # Create bulk remediation request
         bulk_request = BulkRemediationRequest(
@@ -610,7 +614,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute post-validation stage"""
         # Example: Verify remediation effectiveness
         validation_results = {}
@@ -631,7 +635,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute notification stage"""
         # Example: Send notifications about workflow completion
         notifications_sent = []
@@ -655,7 +659,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute rollback stage"""
         # Example: Rollback changes made by previous stages
         rollback_results = {}
@@ -682,7 +686,7 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         workflow_context: Dict[str, Any],
         stage_result: StageExecutionResult,
-    ):
+    ) -> None:
         """Execute custom stage with user-defined logic"""
         # Custom stages would implement specific business logic
         # This is a placeholder implementation
@@ -716,8 +720,8 @@ class RemediationWorkflowService:
         execution: WorkflowExecution,
         stage: WorkflowStage,
         status: StageStatus,
-        stage_result: StageExecutionResult = None,
-    ):
+        stage_result: Optional[StageExecutionResult] = None,
+    ) -> None:
         """Record stage execution result"""
         if stage_result:
             execution.stage_results[stage.stage_id] = stage_result.dict()
@@ -739,7 +743,7 @@ class RemediationWorkflowService:
 
         await execution.save()
 
-    async def _finalize_workflow_execution(self, execution: WorkflowExecution):
+    async def _finalize_workflow_execution(self, execution: WorkflowExecution) -> None:
         """Finalize workflow execution and determine final status"""
         execution.completed_at = datetime.utcnow()
         execution.current_stage = None
@@ -777,7 +781,7 @@ def create_standard_remediation_workflow(
     workflow_name: str,
     created_by: str,
     enable_rollback: bool = True,
-    notification_channels: List[str] = None,
+    notification_channels: Optional[List[str]] = None,
 ) -> WorkflowDefinition:
     """Create a standard remediation workflow with common stages"""
 

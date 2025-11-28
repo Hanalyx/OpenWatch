@@ -29,7 +29,7 @@ class XCCDFBenchmarkRequest(BaseModel):
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "benchmark_id": "openwatch-nist-800-53r5",
                 "title": "NIST SP 800-53 Revision 5 Security Controls",
@@ -63,7 +63,7 @@ class XCCDFTailoringRequest(BaseModel):
     description: Optional[str] = Field(None, description="Description of customizations")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tailoring_id": "custom_tailoring_production",
                 "benchmark_href": "openwatch-nist-800-53r5.xml",

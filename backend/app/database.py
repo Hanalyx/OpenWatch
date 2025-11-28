@@ -5,7 +5,7 @@ PostgreSQL with TLS and encrypted connections
 
 import logging
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Generator, Optional
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -72,7 +72,7 @@ Base = declarative_base()
 
 
 # Database Models
-class User(Base):
+class User(Base):  # type: ignore[valid-type, misc]
     """User model with secure password storage"""
 
     __tablename__ = "users"
@@ -81,7 +81,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)  # Argon2id hash
-    role = Column(
+    role: Column[str] = Column(
         Enum(
             "super_admin",
             "security_admin",
@@ -109,7 +109,7 @@ class User(Base):
     mfa_recovery_codes_generated_at = Column(DateTime, nullable=True)
 
 
-class MFAAuditLog(Base):
+class MFAAuditLog(Base):  # type: ignore[valid-type, misc]
     """MFA audit log for security monitoring"""
 
     __tablename__ = "mfa_audit_log"
@@ -125,7 +125,7 @@ class MFAAuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class MFAUsedCodes(Base):
+class MFAUsedCodes(Base):  # type: ignore[valid-type, misc]
     """TOTP replay protection"""
 
     __tablename__ = "mfa_used_codes"
@@ -136,7 +136,7 @@ class MFAUsedCodes(Base):
     used_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class Host(Base):
+class Host(Base):  # type: ignore[valid-type, misc]
     """Host model with encrypted credential storage
 
     Status values (aligned with frontend monitoring states):
@@ -199,7 +199,7 @@ class Host(Base):
     privilege_consecutive_successes = Column(Integer, default=0, nullable=False)
 
 
-class ScapContent(Base):
+class ScapContent(Base):  # type: ignore[valid-type, misc]
     """SCAP content metadata"""
 
     __tablename__ = "scap_content"
@@ -220,7 +220,7 @@ class ScapContent(Base):
     file_hash = Column(String(64), nullable=False)  # SHA-256 hash for integrity
 
 
-class Scan(Base):
+class Scan(Base):  # type: ignore[valid-type, misc]
     """Scan job tracking"""
 
     __tablename__ = "scans"
@@ -250,7 +250,7 @@ class Scan(Base):
     scan_metadata = Column(JSON, nullable=True)  # Additional metadata including remediation results
 
 
-class ScanResult(Base):
+class ScanResult(Base):  # type: ignore[valid-type, misc]
     """Scan results summary"""
 
     __tablename__ = "scan_results"
@@ -336,7 +336,7 @@ class ScanResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class ScanBaseline(Base):
+class ScanBaseline(Base):  # type: ignore[valid-type, misc]
     """
     Compliance baseline tracking for drift detection.
 
@@ -386,7 +386,7 @@ class ScanBaseline(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class SystemCredentials(Base):
+class SystemCredentials(Base):  # type: ignore[valid-type, misc]
     """System-wide SSH credentials for enterprise environments"""
 
     __tablename__ = "system_credentials"
@@ -411,7 +411,7 @@ class SystemCredentials(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class Role(Base):
+class Role(Base):  # type: ignore[valid-type, misc]
     """Role definitions with permissions"""
 
     __tablename__ = "roles"
@@ -426,7 +426,7 @@ class Role(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class UserGroup(Base):
+class UserGroup(Base):  # type: ignore[valid-type, misc]
     """User groups for organizing access to hosts and resources"""
 
     __tablename__ = "user_groups"
@@ -439,7 +439,7 @@ class UserGroup(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class UserGroupMembership(Base):
+class UserGroupMembership(Base):  # type: ignore[valid-type, misc]
     """Many-to-many relationship between users and groups"""
 
     __tablename__ = "user_group_memberships"
@@ -451,7 +451,7 @@ class UserGroupMembership(Base):
     assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class HostAccess(Base):
+class HostAccess(Base):  # type: ignore[valid-type, misc]
     """Host access control for users and groups"""
 
     __tablename__ = "host_access"
@@ -460,7 +460,7 @@ class HostAccess(Base):
     host_id = Column(UUID(as_uuid=True), ForeignKey("hosts.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Direct user access
     group_id = Column(Integer, ForeignKey("user_groups.id"), nullable=True)  # Group access
-    access_level = Column(
+    access_level: Column[str] = Column(
         Enum("read", "write", "admin", name="access_levels"),
         default="read",
         nullable=False,
@@ -470,7 +470,7 @@ class HostAccess(Base):
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
 
 
-class HostGroup(Base):
+class HostGroup(Base):  # type: ignore[valid-type, misc]
     """Host groups for organizing hosts"""
 
     __tablename__ = "host_groups"
@@ -495,7 +495,7 @@ class HostGroup(Base):
     validation_rules = Column(Text, nullable=True)  # JSON-encoded rules
 
 
-class HostGroupMembership(Base):
+class HostGroupMembership(Base):  # type: ignore[valid-type, misc]
     """Host group membership mapping"""
 
     __tablename__ = "host_group_memberships"
@@ -507,7 +507,7 @@ class HostGroupMembership(Base):
     assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class AuditLog(Base):
+class AuditLog(Base):  # type: ignore[valid-type, misc]
     """Security audit log"""
 
     __tablename__ = "audit_logs"
@@ -523,7 +523,7 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class WebhookEndpoint(Base):
+class WebhookEndpoint(Base):  # type: ignore[valid-type, misc]
     """Webhook endpoint management for AEGIS integration"""
 
     __tablename__ = "webhook_endpoints"
@@ -539,7 +539,7 @@ class WebhookEndpoint(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
-class WebhookDelivery(Base):
+class WebhookDelivery(Base):  # type: ignore[valid-type, misc]
     """Webhook delivery tracking"""
 
     __tablename__ = "webhook_deliveries"
@@ -559,7 +559,7 @@ class WebhookDelivery(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class ApiKey(Base):
+class ApiKey(Base):  # type: ignore[valid-type, misc]
     """API keys for service-to-service authentication"""
 
     __tablename__ = "api_keys"
@@ -575,7 +575,7 @@ class ApiKey(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class IntegrationAuditLog(Base):
+class IntegrationAuditLog(Base):  # type: ignore[valid-type, misc]
     """Audit log for cross-service operations"""
 
     __tablename__ = "integration_audit_log"
@@ -594,7 +594,7 @@ class IntegrationAuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
-class AlertSettings(Base):
+class AlertSettings(Base):  # type: ignore[valid-type, misc]
     """Alert settings for monitoring notifications"""
 
     __tablename__ = "alert_settings"
@@ -614,8 +614,16 @@ class AlertSettings(Base):
 
 
 # Database dependency for FastAPI
-def get_db() -> Session:
-    """Database session dependency"""
+def get_db() -> Generator[Session, None, None]:
+    """
+    Database session dependency for FastAPI endpoints.
+
+    Yields:
+        SQLAlchemy Session instance.
+
+    Note:
+        Session is automatically closed when the request completes.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -733,7 +741,7 @@ class DatabaseManager:
         auth_method: str,
         encrypted_credentials: bytes,
         created_by: int,
-        description: str = None,
+        description: Optional[str] = None,
     ) -> Host:
         """Create new host with encrypted credentials"""
         host = Host(

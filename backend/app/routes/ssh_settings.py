@@ -5,7 +5,7 @@ Handles SSH host key policy and known hosts management
 
 import ipaddress
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, validator
@@ -25,18 +25,24 @@ router = APIRouter(prefix="/ssh-settings", tags=["SSH Settings"])
 
 # Pydantic models
 class SSHPolicyRequest(BaseModel):
+    """Request model for SSH policy configuration."""
+
     policy: str
     trusted_networks: Optional[List[str]] = []
 
     @validator("policy")
-    def validate_policy(cls, v):
+    def validate_policy(cls, v: str) -> str:
+        """Validate that policy is one of the allowed values."""
         valid_policies = ["strict", "auto_add", "bypass_trusted"]
         if v not in valid_policies:
             raise ValueError(f"Policy must be one of: {valid_policies}")
         return v
 
     @validator("trusted_networks")
-    def validate_networks(cls, v):
+    def validate_networks(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate that all network addresses are valid CIDR ranges."""
+        if v is None:
+            return v
         for network in v:
             try:
                 ipaddress.ip_network(network, strict=False)
@@ -46,12 +52,16 @@ class SSHPolicyRequest(BaseModel):
 
 
 class SSHPolicyResponse(BaseModel):
+    """Response model for SSH policy configuration."""
+
     policy: str
     trusted_networks: List[str]
     description: str
 
 
 class KnownHostRequest(BaseModel):
+    """Request model for adding a known SSH host."""
+
     hostname: str
     ip_address: Optional[str] = None
     key_type: str
@@ -59,7 +69,8 @@ class KnownHostRequest(BaseModel):
     notes: Optional[str] = None
 
     @validator("key_type")
-    def validate_key_type(cls, v):
+    def validate_key_type(cls, v: str) -> str:
+        """Validate that key type is one of the allowed SSH key types."""
         valid_types = ["rsa", "ecdsa", "ed25519", "dsa"]
         if v not in valid_types:
             raise ValueError(f"Key type must be one of: {valid_types}")
@@ -67,6 +78,8 @@ class KnownHostRequest(BaseModel):
 
 
 class KnownHostResponse(BaseModel):
+    """Response model for SSH known host information."""
+
     id: int
     hostname: str
     ip_address: Optional[str]
@@ -80,8 +93,11 @@ class KnownHostResponse(BaseModel):
 
 @router.get("/policy", response_model=SSHPolicyResponse)
 @require_permission(Permission.SYSTEM_CONFIG)
-async def get_ssh_policy(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Get current SSH host key policy configuration"""
+async def get_ssh_policy(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SSHPolicyResponse:
+    """Get current SSH host key policy configuration."""
     try:
         service = SSHConfigService(db)
 
@@ -112,9 +128,9 @@ async def get_ssh_policy(db: Session = Depends(get_db), current_user: dict = Dep
 async def set_ssh_policy(
     policy_request: SSHPolicyRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Set SSH host key policy configuration"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SSHPolicyResponse:
+    """Set SSH host key policy configuration."""
     try:
         service = SSHConfigService(db)
 
@@ -168,7 +184,8 @@ async def set_ssh_policy(
         #     # Continue with operation - don't fail SSH updates due to audit issues
 
         # Return updated configuration
-        return await get_ssh_policy(db=db, current_user=current_user)
+        policy_response: SSHPolicyResponse = await get_ssh_policy(db=db, current_user=current_user)
+        return policy_response
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -185,9 +202,9 @@ async def set_ssh_policy(
 async def get_known_hosts(
     hostname: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get SSH known hosts, optionally filtered by hostname"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[KnownHostResponse]:
+    """Get SSH known hosts, optionally filtered by hostname."""
     try:
         service = SSHConfigService(db)
 
@@ -207,18 +224,19 @@ async def get_known_hosts(
 async def add_known_host(
     host_request: KnownHostRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Add a host key to SSH known hosts"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> KnownHostResponse:
+    """Add a host key to SSH known hosts."""
     try:
         service = SSHConfigService(db)
 
+        # Add known host (user_id logged separately for audit trail)
         success = service.add_known_host(
             hostname=host_request.hostname,
             ip_address=host_request.ip_address,
             key_type=host_request.key_type,
             public_key=host_request.public_key,
-            user_id=current_user.get("id"),
+            notes=host_request.notes,
         )
 
         if not success:
@@ -279,13 +297,14 @@ async def remove_known_host(
     hostname: str,
     key_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Remove a host key from SSH known hosts"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Remove a host key from SSH known hosts."""
     try:
         service = SSHConfigService(db)
 
-        success = service.remove_known_host(hostname, key_type)
+        # Pass empty string if key_type is None (removes all key types for hostname)
+        success = service.remove_known_host(hostname, key_type or "")
 
         if not success:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found")
@@ -325,9 +344,9 @@ async def remove_known_host(
 async def test_ssh_connectivity(
     host_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Test SSH connectivity to a host with current policy"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Test SSH connectivity to a host with current policy."""
     try:
         from ..database import Host
         from ..services.host_monitor import HostMonitor
@@ -337,14 +356,11 @@ async def test_ssh_connectivity(
         if not host:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
-        # Test connectivity
+        # Test connectivity using check_ssh_connectivity method
         monitor = HostMonitor()
-        is_connected, error_msg = await monitor.test_ssh_connection(
-            host.ip_address,
-            22,  # Default SSH port
-            None,  # Will use system credentials
-            None,
-            None,
+        is_connected, error_msg = await monitor.check_ssh_connectivity(
+            ip_address=str(host.ip_address),  # Cast SQLAlchemy Column to str
+            port=22,  # Default SSH port
         )
 
         # Enhanced audit logging

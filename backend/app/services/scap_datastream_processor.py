@@ -1,6 +1,25 @@
 """
 SCAP Data-Stream Processor Service
+
 Handles modern SCAP data-stream format processing with profile extraction
+for OpenWatch compliance scanning platform.
+
+This module provides:
+- SCAP data-stream validation and parsing
+- Profile extraction with metadata enhancement
+- Content component extraction (benchmarks, rules, CPE, OVAL)
+- Comprehensive validation reporting
+
+Security Considerations:
+- Path traversal prevention for all file operations (OWASP A01:2021)
+- Secure XML parsing with entity expansion limits
+- Safe ZIP extraction with content validation
+- Subprocess execution with argument lists (no shell=True)
+
+Example:
+    >>> processor = SCAPDataStreamProcessor()
+    >>> metadata = processor.validate_datastream("/path/to/content.xml")
+    >>> profiles = processor.extract_profiles_with_metadata("/path/to/content.xml")
 """
 
 import hashlib
@@ -11,9 +30,10 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import lxml.etree as etree
+from lxml.etree import _Element
 
 from ..utils.scap_xml_utils import extract_text_content
 
@@ -40,7 +60,7 @@ class SCAPDataStreamProcessor:
             "xlink": "http://www.w3.org/1999/xlink",
         }
 
-    def validate_datastream(self, file_path: str) -> Dict:
+    def validate_datastream(self, file_path: str) -> Dict[str, Any]:
         """Validate SCAP data-stream file and extract metadata"""
         try:
             # Validate file path to prevent path traversal attacks
@@ -88,7 +108,7 @@ class SCAPDataStreamProcessor:
             logger.error(f"Error validating data-stream: {e}")
             raise DataStreamError(f"Validation failed: {str(e)}")
 
-    def extract_profiles_with_metadata(self, file_path: str) -> List[Dict]:
+    def extract_profiles_with_metadata(self, file_path: str) -> List[Dict[str, Any]]:
         """Extract profiles with full metadata using oscap info --profiles"""
         try:
             # Validate file path to prevent path traversal attacks
@@ -130,14 +150,14 @@ class SCAPDataStreamProcessor:
             logger.error(f"Error extracting profiles: {e}")
             return []
 
-    def extract_content_components(self, file_path: str) -> Dict:
-        """Extract all components from SCAP content (data-streams, benchmarks, checks)"""
+    def extract_content_components(self, file_path: str) -> Dict[str, Any]:
+        """Extract all components from SCAP content (data-streams, benchmarks, checks)."""
         try:
             # Validate file path to prevent path traversal attacks
             if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
                 raise DataStreamError(f"Invalid or unsafe file path: {file_path}")
 
-            components = {
+            components: Dict[str, Any] = {
                 "data_streams": [],
                 "benchmarks": [],
                 "profiles": [],
@@ -176,7 +196,7 @@ class SCAPDataStreamProcessor:
             logger.error(f"Error extracting content components: {e}")
             raise DataStreamError(f"Failed to extract components: {str(e)}")
 
-    def create_content_validation_report(self, file_path: str) -> Dict:
+    def create_content_validation_report(self, file_path: str) -> Dict[str, Any]:
         """Create comprehensive validation report for SCAP content"""
         # Validate file path to prevent path traversal attacks
         if not isinstance(file_path, str) or ".." in file_path or not os.path.isfile(file_path):
@@ -190,7 +210,7 @@ class SCAPDataStreamProcessor:
                 "recommendations": [],
             }
 
-        report = {
+        report: Dict[str, Any] = {
             "file_path": file_path,
             "timestamp": datetime.now().isoformat(),
             "validation_status": "unknown",
@@ -250,7 +270,7 @@ class SCAPDataStreamProcessor:
             report["errors"].append(f"Validation error: {str(e)}")
             return report
 
-    def _process_zip_content(self, zip_path: str) -> Dict:
+    def _process_zip_content(self, zip_path: str) -> Dict[str, Any]:
         """Process SCAP content from ZIP file"""
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -294,7 +314,7 @@ class SCAPDataStreamProcessor:
             logger.error(f"Error processing ZIP content: {e}")
             raise DataStreamError(f"Failed to process ZIP: {str(e)}")
 
-    def _validate_xccdf_file(self, file_path: str) -> Dict:
+    def _validate_xccdf_file(self, file_path: str) -> Dict[str, Any]:
         """Validate as XCCDF file if not a data-stream"""
         try:
             result = subprocess.run(
@@ -340,9 +360,9 @@ class SCAPDataStreamProcessor:
             logger.error(f"Error extracting from ZIP: {e}")
             return None
 
-    def _parse_oscap_info(self, info_output: str) -> Dict:
-        """Parse oscap info command output"""
-        info = {}
+    def _parse_oscap_info(self, info_output: str) -> Dict[str, Any]:
+        """Parse oscap info command output."""
+        info: Dict[str, Any] = {}
         lines = info_output.split("\n")
 
         for line in lines:
@@ -362,10 +382,10 @@ class SCAPDataStreamProcessor:
 
         return info
 
-    def _parse_detailed_profiles(self, profiles_output: str) -> List[Dict]:
-        """Parse detailed profiles from oscap info --profiles output"""
-        profiles = []
-        current_profile = None
+    def _parse_detailed_profiles(self, profiles_output: str) -> List[Dict[str, Any]]:
+        """Parse detailed profiles from oscap info --profiles output."""
+        profiles: List[Dict[str, Any]] = []
+        current_profile: Optional[Dict[str, Any]] = None
 
         lines = profiles_output.split("\n")
 
@@ -374,7 +394,7 @@ class SCAPDataStreamProcessor:
 
             if line.startswith("Profile:"):
                 # Save previous profile if exists
-                if current_profile:
+                if current_profile is not None:
                     profiles.append(current_profile)
 
                 # Extract profile ID (format: "Profile: profile_id")
@@ -388,20 +408,20 @@ class SCAPDataStreamProcessor:
                     "metadata": {},
                 }
 
-            elif line.startswith("Title:") and current_profile:
+            elif line.startswith("Title:") and current_profile is not None:
                 current_profile["title"] = line.split(":", 1)[1].strip()
 
-            elif line.startswith("Description:") and current_profile:
+            elif line.startswith("Description:") and current_profile is not None:
                 # Description might span multiple lines
                 desc_start = line.split(":", 1)[1].strip()
                 current_profile["description"] = desc_start
 
-            elif line.startswith("Extends:") and current_profile:
+            elif line.startswith("Extends:") and current_profile is not None:
                 current_profile["extends"] = line.split(":", 1)[1].strip()
 
             elif (
                 line
-                and current_profile
+                and current_profile is not None
                 and not any(line.startswith(prefix) for prefix in ["Profile:", "Title:", "Description:", "Extends:"])
             ):
                 # Continue description if no new field
@@ -409,12 +429,12 @@ class SCAPDataStreamProcessor:
                     current_profile["description"] += " " + line
 
         # Don't forget the last profile
-        if current_profile:
+        if current_profile is not None:
             profiles.append(current_profile)
 
         return profiles
 
-    def _enhance_profiles_from_xml(self, file_path: str, profiles: List[Dict]) -> List[Dict]:
+    def _enhance_profiles_from_xml(self, file_path: str, profiles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Enhance profile information by parsing XML directly"""
         try:
             tree = etree.parse(file_path)
@@ -458,7 +478,7 @@ class SCAPDataStreamProcessor:
             logger.warning(f"Could not enhance profiles from XML: {e}")
             return profiles
 
-    def _extract_profile_from_element(self, profile_elem) -> Dict:
+    def _extract_profile_from_element(self, profile_elem: _Element) -> Dict[str, Any]:
         """Extract profile information from XML element"""
         profile = {
             "id": profile_elem.get("id", ""),
@@ -485,13 +505,13 @@ class SCAPDataStreamProcessor:
 
         return profile
 
-    def _extract_text_content(self, element) -> str:
+    def _extract_text_content(self, element: _Element) -> str:
         """Extract clean text content from XML element"""
         return extract_text_content(element)
 
-    def _extract_xml_metadata(self, file_path: str) -> Dict:
-        """Extract additional metadata from XML structure"""
-        metadata = {}
+    def _extract_xml_metadata(self, file_path: str) -> Dict[str, Any]:
+        """Extract additional metadata from XML structure."""
+        metadata: Dict[str, Any] = {}
 
         try:
             tree = etree.parse(file_path)
@@ -532,7 +552,7 @@ class SCAPDataStreamProcessor:
             logger.warning(f"Could not extract XML metadata: {e}")
             return metadata
 
-    def _extract_datastreams(self, root) -> List[Dict]:
+    def _extract_datastreams(self, root: _Element) -> List[Dict[str, Any]]:
         """Extract data-stream information"""
         datastreams = []
 
@@ -559,7 +579,7 @@ class SCAPDataStreamProcessor:
 
         return datastreams
 
-    def _extract_benchmark_info(self, benchmark_elem) -> Dict:
+    def _extract_benchmark_info(self, benchmark_elem: _Element) -> Dict[str, Any]:
         """Extract benchmark information"""
         benchmark = {
             "id": benchmark_elem.get("id", ""),
@@ -586,7 +606,7 @@ class SCAPDataStreamProcessor:
 
         return benchmark
 
-    def _extract_profiles_from_tree(self, root) -> List[Dict]:
+    def _extract_profiles_from_tree(self, root: _Element) -> List[Dict[str, Any]]:
         """Extract all profiles from XML tree"""
         profiles = []
 
@@ -596,7 +616,7 @@ class SCAPDataStreamProcessor:
 
         return profiles
 
-    def _extract_rules_with_metadata(self, root) -> List[Dict]:
+    def _extract_rules_with_metadata(self, root: _Element) -> List[Dict[str, Any]]:
         """Extract rules with compliance metadata"""
         rules = []
 
@@ -635,7 +655,7 @@ class SCAPDataStreamProcessor:
 
         return rules
 
-    def _extract_cpe_references(self, root) -> List[str]:
+    def _extract_cpe_references(self, root: _Element) -> List[str]:
         """Extract CPE (platform) references"""
         cpe_refs = set()
 
@@ -648,7 +668,7 @@ class SCAPDataStreamProcessor:
 
         return list(cpe_refs)
 
-    def _extract_oval_references(self, root) -> List[str]:
+    def _extract_oval_references(self, root: _Element) -> List[str]:
         """Extract OVAL definition references"""
         oval_refs = set()
 
@@ -669,7 +689,7 @@ class SCAPDataStreamProcessor:
                 sha256_hash.update(byte_block)
         return sha256_hash.hexdigest()
 
-    def _check_common_issues(self, file_path: str, report: Dict):
+    def _check_common_issues(self, file_path: str, report: Dict[str, Any]) -> None:
         """Check for common SCAP content issues"""
         try:
             tree = etree.parse(file_path)
@@ -700,7 +720,7 @@ class SCAPDataStreamProcessor:
         except Exception as e:
             report["warnings"].append(f"Could not perform content checks: {str(e)}")
 
-    def _generate_recommendations(self, report: Dict):
+    def _generate_recommendations(self, report: Dict[str, Any]) -> None:
         """Generate recommendations based on validation report"""
         if report["validation_status"] == "valid_datastream":
             report["recommendations"].append("Content is valid SCAP data-stream format")

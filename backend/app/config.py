@@ -108,7 +108,7 @@ class Settings(BaseSettings):
         return v
 
     @validator("allowed_origins")
-    def validate_origins(cls, v: list[str]) -> list[str]:
+    def validate_origins(cls, v: List[str]) -> List[str]:
         """Validate that all CORS origins use HTTPS except localhost."""
         for origin in v:
             if not origin.startswith(("https://", "http://localhost")):

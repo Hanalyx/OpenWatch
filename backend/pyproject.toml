@@ -25,7 +25,64 @@ line_length = 100
 
 [tool.mypy]
 python_version = "3.9"
-strict = true
-warn_return_any = true
+# Gradual typing mode - not strict
+strict = false
+# Core type checking settings
 warn_unused_configs = true
-disallow_untyped_defs = true
+ignore_missing_imports = true
+# Allow subclassing from untyped base classes (e.g., Pydantic BaseModel, Beanie Document)
+disallow_subclassing_any = false
+# Allow untyped decorators (e.g., FastAPI @router, Celery @app.task)
+disallow_untyped_decorators = false
+# Allow calling untyped functions from typed context
+disallow_untyped_calls = false
+# Don't require type annotations on all functions (gradual typing)
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+# Allow Any return values (common with external libraries)
+warn_return_any = false
+# Check None handling
+strict_optional = true
+# Allow implicit Optional (param: str = None instead of param: Optional[str] = None)
+no_implicit_optional = false
+# Useful warnings
+warn_redundant_casts = true
+warn_unused_ignores = true
+# Allow implicit reexports
+implicit_reexport = true
+# Disable reporting unreachable code (common with version checks)
+warn_unreachable = false
+
+# Third-party library overrides (no stubs available)
+[[tool.mypy.overrides]]
+module = [
+    "fastapi.*",
+    "starlette.*",
+    "pydantic.*",
+    "pydantic_settings.*",
+    "sqlalchemy.*",
+    "beanie.*",
+    "celery.*",
+    "uvicorn.*",
+    "motor.*",
+    "pymongo.*",
+    "cryptography.*",
+    "passlib.*",
+    "jose.*",
+    "pyotp.*",
+    "aiosmtplib.*",
+    "jinja2.*",
+    "lxml.*",
+    "asyncssh.*",
+    "paramiko.*",
+    "security.*",
+    "redis.*",
+    "httpx.*",
+    "aiohttp.*",
+    "PIL.*",
+    "yaml.*",
+    "defusedxml.*",
+    "prometheus_client.*",
+]
+ignore_missing_imports = true

@@ -8,7 +8,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, validator
@@ -24,13 +24,16 @@ router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
 
 class WebhookEndpointCreate(BaseModel):
+    """Request model for creating a webhook endpoint."""
+
     name: str
     url: str
     event_types: List[str]
     secret: str
 
     @validator("event_types")
-    def validate_event_types(cls, v):
+    def validate_event_types(cls, v: List[str]) -> List[str]:
+        """Validate that event types are from the allowed list."""
         valid_events = [
             "scan.completed",
             "scan.failed",
@@ -43,13 +46,16 @@ class WebhookEndpointCreate(BaseModel):
         return v
 
     @validator("url")
-    def validate_url(cls, v):
+    def validate_url(cls, v: str) -> str:
+        """Validate that URL uses http or https protocol."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
 
 
 class WebhookEndpointUpdate(BaseModel):
+    """Request model for updating a webhook endpoint."""
+
     name: Optional[str] = None
     url: Optional[str] = None
     event_types: Optional[List[str]] = None
@@ -57,7 +63,8 @@ class WebhookEndpointUpdate(BaseModel):
     is_active: Optional[bool] = None
 
     @validator("event_types")
-    def validate_event_types(cls, v):
+    def validate_event_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate that event types are from the allowed list."""
         if v is None:
             return v
         valid_events = [
@@ -72,7 +79,8 @@ class WebhookEndpointUpdate(BaseModel):
         return v
 
     @validator("url")
-    def validate_url(cls, v):
+    def validate_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that URL uses http or https protocol."""
         if v and not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
@@ -85,13 +93,14 @@ async def list_webhook_endpoints(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """List webhook endpoints with optional filtering"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """List webhook endpoints with optional filtering."""
     try:
         # Build query conditions
-        where_conditions = []
-        params = {"limit": limit, "offset": offset}
+        where_conditions: List[str] = []
+        # Type annotation: Dict with mixed value types (int, bool, str)
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
 
         if is_active is not None:
             where_conditions.append("is_active = :is_active")
@@ -135,10 +144,12 @@ async def list_webhook_endpoints(
             {where_clause}
         """
         total_result = db.execute(text(count_query), params).fetchone()
+        # Null guard for fetchone() result
+        total_count: int = total_result.total if total_result else 0
 
         return {
             "webhooks": webhooks,
-            "total": total_result.total,
+            "total": total_count,
             "limit": limit,
             "offset": offset,
         }
@@ -152,9 +163,9 @@ async def list_webhook_endpoints(
 async def create_webhook_endpoint(
     webhook_request: WebhookEndpointCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Create a new webhook endpoint"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Create a new webhook endpoint."""
     try:
         # Hash the secret for secure storage
         secret_hash = hashlib.sha256(webhook_request.secret.encode()).hexdigest()
@@ -182,7 +193,10 @@ async def create_webhook_endpoint(
             },
         )
 
-        webhook_id = result.fetchone().id
+        row = result.fetchone()
+        if row is None:
+            raise HTTPException(status_code=500, detail="Failed to create webhook - no data returned")
+        webhook_id = row.id
         db.commit()
 
         logger.info(f"Webhook endpoint created: {webhook_id}")
@@ -205,9 +219,9 @@ async def create_webhook_endpoint(
 async def get_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get webhook endpoint details"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get webhook endpoint details."""
     try:
         result = db.execute(
             text(
@@ -247,9 +261,9 @@ async def update_webhook_endpoint(
     webhook_id: str,
     webhook_update: WebhookEndpointUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Update webhook endpoint"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Update webhook endpoint."""
     try:
         # Check if webhook exists
         existing = db.execute(
@@ -319,9 +333,9 @@ async def update_webhook_endpoint(
 async def delete_webhook_endpoint(
     webhook_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Delete webhook endpoint and its delivery history"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Delete webhook endpoint and its delivery history."""
     try:
         # Check if webhook exists
         result = db.execute(
@@ -375,9 +389,9 @@ async def get_webhook_deliveries(
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Get webhook delivery history"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get webhook delivery history."""
     try:
         # Verify webhook exists
         webhook_result = db.execute(
@@ -435,10 +449,12 @@ async def get_webhook_deliveries(
             {where_clause}
         """
         total_result = db.execute(text(count_query), params).fetchone()
+        # Null guard for fetchone() result
+        total_count: int = total_result.total if total_result else 0
 
         return {
             "deliveries": deliveries,
-            "total": total_result.total,
+            "total": total_count,
             "limit": limit,
             "offset": offset,
         }
@@ -455,9 +471,9 @@ async def test_webhook_endpoint(
     webhook_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Send a test webhook to verify connectivity"""
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Send a test webhook to verify connectivity."""
     try:
         # Get webhook details
         webhook_result = db.execute(

@@ -27,7 +27,7 @@ router = APIRouter(prefix="/system", tags=["System Settings"])
 
 
 # Pydantic models (keeping same interface for frontend compatibility)
-class SystemCredentialsBase(BaseModel):  # type: ignore[misc]
+class SystemCredentialsBase(BaseModel):
     name: str
     description: Optional[str] = None
     username: str
@@ -41,7 +41,7 @@ class SystemCredentialsCreate(SystemCredentialsBase):
     private_key_passphrase: Optional[str] = None
 
 
-class SystemCredentialsUpdate(BaseModel):  # type: ignore[misc]
+class SystemCredentialsUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     username: Optional[str] = None
@@ -92,7 +92,7 @@ def find_uuid_by_int(db: Session, target_int: int) -> Optional[str]:
     return None
 
 
-@router.get("/credentials", response_model=List[SystemCredentialsResponse])  # type: ignore[misc]
+@router.get("/credentials", response_model=List[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def list_system_credentials(
     request: Request,
@@ -141,7 +141,7 @@ async def list_system_credentials(
         )
 
 
-@router.post("/credentials", response_model=SystemCredentialsResponse)  # type: ignore[misc]
+@router.post("/credentials", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def create_system_credential(
     request: Request,
@@ -255,7 +255,7 @@ async def create_system_credential(
         )
 
 
-@router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)  # type: ignore[misc]
+@router.get("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_system_credential(
     request: Request,
@@ -313,7 +313,7 @@ async def get_system_credential(
         )
 
 
-@router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])  # type: ignore[misc]
+@router.get("/credentials/default", response_model=Optional[SystemCredentialsResponse])
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def get_default_system_credential(
     request: Request,
@@ -357,7 +357,7 @@ async def get_default_system_credential(
         )
 
 
-@router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)  # type: ignore[misc]
+@router.put("/credentials/{credential_id}", response_model=SystemCredentialsResponse)
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def update_system_credential(
     request: Request,
@@ -518,7 +518,7 @@ async def update_system_credential(
         )
 
 
-@router.delete("/credentials/{credential_id}")  # type: ignore[misc]
+@router.delete("/credentials/{credential_id}")
 @require_permission(Permission.SYSTEM_CREDENTIALS)
 async def delete_system_credential(
     request: Request,
@@ -566,7 +566,7 @@ async def delete_system_credential(
 
 
 # Scheduler endpoints for host monitoring
-class SchedulerStatus(BaseModel):  # type: ignore[misc]
+class SchedulerStatus(BaseModel):
     enabled: bool
     interval_minutes: int
     status: str  # "running", "stopped", "error"
@@ -574,11 +574,11 @@ class SchedulerStatus(BaseModel):  # type: ignore[misc]
     uptime: Optional[str] = None
 
 
-class SchedulerStartRequest(BaseModel):  # type: ignore[misc]
+class SchedulerStartRequest(BaseModel):
     interval_minutes: int = 5
 
 
-class SchedulerUpdateRequest(BaseModel):  # type: ignore[misc]
+class SchedulerUpdateRequest(BaseModel):
     interval_minutes: int
 
 
@@ -591,11 +591,11 @@ def get_scheduler() -> Any:
     """Get or create the global scheduler instance"""
     global _scheduler
     if _scheduler is None:
-        _scheduler = setup_host_monitoring_scheduler()  # type: ignore[no-untyped-call]
+        _scheduler = setup_host_monitoring_scheduler()
     return _scheduler
 
 
-@router.get("/scheduler", response_model=SchedulerStatus)  # type: ignore[misc]
+@router.get("/scheduler", response_model=SchedulerStatus)
 @require_permission(Permission.SYSTEM_MAINTENANCE)
 async def get_scheduler_status(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -656,7 +656,7 @@ async def get_scheduler_status(
         )
 
 
-@router.post("/scheduler/start")  # type: ignore[misc]
+@router.post("/scheduler/start")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
 async def start_scheduler(
     request: SchedulerStartRequest,
@@ -670,7 +670,7 @@ async def start_scheduler(
 
         if scheduler is None:
             # Try to create a new scheduler
-            _scheduler = setup_host_monitoring_scheduler()  # type: ignore[no-untyped-call]
+            _scheduler = setup_host_monitoring_scheduler()
             scheduler = _scheduler
 
             if scheduler is None:
@@ -747,7 +747,7 @@ async def start_scheduler(
         )
 
 
-@router.post("/scheduler/stop")  # type: ignore[misc]
+@router.post("/scheduler/stop")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
 async def stop_scheduler(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -798,7 +798,7 @@ async def stop_scheduler(
         )
 
 
-@router.put("/scheduler")  # type: ignore[misc]
+@router.put("/scheduler")
 @require_permission(Permission.SYSTEM_MAINTENANCE)
 async def update_scheduler(
     request: SchedulerUpdateRequest,

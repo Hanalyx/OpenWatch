@@ -54,29 +54,37 @@ class SCAPParserService:
         },
     }
 
-    def __init__(self):
-        self.rules_parsed = 0
-        self.errors = []
-        self.warnings = []
+    def __init__(self) -> None:
+        """Initialize SCAP Parser Service."""
+        self.rules_parsed: int = 0
+        self.errors: List[Dict[str, Any]] = []
+        self.warnings: List[str] = []
 
     def parse_scap_file(self, file_path: str) -> Dict[str, Any]:
         """Parse a SCAP datastream file and extract all rules"""
         logger.info(f"Starting SCAP file parsing: {file_path}")
 
-        result = {
+        # Initialize result with explicit types to avoid Collection[str] inference issues
+        rules_list: List[Dict[str, Any]] = []
+        metadata_dict: Dict[str, Any] = {}
+        statistics_dict: Dict[str, Any] = {
+            "total_rules": 0,
+            "rules_by_severity": {},
+            "rules_by_category": {},
+            "framework_coverage": {},
+        }
+        errors_list: List[Dict[str, Any]] = []
+        warnings_list: List[str] = []
+
+        result: Dict[str, Any] = {
             "file_path": file_path,
             "file_hash": self._calculate_file_hash(file_path),
             "parsed_at": datetime.utcnow().isoformat(),
-            "rules": [],
-            "metadata": {},
-            "statistics": {
-                "total_rules": 0,
-                "rules_by_severity": {},
-                "rules_by_category": {},
-                "framework_coverage": {},
-            },
-            "errors": [],
-            "warnings": [],
+            "rules": rules_list,
+            "metadata": metadata_dict,
+            "statistics": statistics_dict,
+            "errors": errors_list,
+            "warnings": warnings_list,
         }
 
         try:
@@ -93,7 +101,9 @@ class SCAPParserService:
                 raise ValueError("No Benchmark element found in SCAP file")
 
             # Extract benchmark metadata
-            result["metadata"]["benchmark"] = self._extract_benchmark_metadata(benchmark)
+            metadata = result["metadata"]
+            if isinstance(metadata, dict):
+                metadata["benchmark"] = self._extract_benchmark_metadata(benchmark)
 
             # Parse all rules
             rules = self._parse_all_rules(benchmark)
@@ -101,7 +111,9 @@ class SCAPParserService:
 
             # Calculate statistics
             result["statistics"] = self._calculate_statistics(rules)
-            result["statistics"]["total_rules"] = len(rules)
+            stats = result["statistics"]
+            if isinstance(stats, dict):
+                stats["total_rules"] = len(rules)
 
             # Add any errors/warnings
             result["errors"] = self.errors
@@ -111,7 +123,9 @@ class SCAPParserService:
 
         except Exception as e:
             logger.error(f"Failed to parse SCAP file: {str(e)}")
-            result["errors"].append({"type": "parse_error", "message": str(e), "file": file_path})
+            errors = result["errors"]
+            if isinstance(errors, list):
+                errors.append({"type": "parse_error", "message": str(e), "file": file_path})
 
         return result
 
@@ -143,16 +157,17 @@ class SCAPParserService:
         return None
 
     def _extract_datastream_metadata(self, root: ET.Element) -> Dict[str, Any]:
-        """Extract metadata from the datastream"""
-        metadata = {
+        """Extract metadata from the datastream."""
+        components_list: List[Dict[str, Any]] = []
+        metadata: Dict[str, Any] = {
             "datastream_id": root.get("id", "unknown"),
             "schematron_version": root.get("schematron-version"),
-            "components": [],
+            "components": components_list,
         }
 
         # Find datastream components
         for ds in root.findall(".//ds:data-stream", self.NAMESPACES):
-            metadata["components"].append(
+            components_list.append(
                 {
                     "id": ds.get("id"),
                     "scap_version": ds.get("scap-version"),
@@ -226,8 +241,8 @@ class SCAPParserService:
 
         return rules
 
-    def _parse_rule(self, rule_elem: ET.Element) -> Dict[str, Any]:
-        """Parse a single Rule element"""
+    def _parse_rule(self, rule_elem: ET.Element) -> Optional[Dict[str, Any]]:
+        """Parse a single Rule element."""
         rule_id = rule_elem.get("id", "")
         if not rule_id:
             return None
@@ -302,26 +317,28 @@ class SCAPParserService:
 
         return text.strip()
 
-    def _extract_references(self, rule_elem: ET.Element) -> Dict[str, List[str]]:
-        """Extract all references from the rule"""
-        references = {}
+    def _extract_references(self, rule_elem: ET.Element) -> Dict[str, List[Dict[str, Any]]]:
+        """Extract all references from the rule."""
+        references: Dict[str, List[Dict[str, Any]]] = {}
 
         for ref in rule_elem.findall(".//xccdf-1.2:reference", self.NAMESPACES):
-            ref_text = ref.text
+            ref_text = ref.text or ""
             href = ref.get("href", "")
+            ref_text_lower = ref_text.lower()
+            href_lower = href.lower()
 
             # Try to categorize the reference
-            if "nist" in ref_text.lower() or "nist" in href.lower():
+            if "nist" in ref_text_lower or "nist" in href_lower:
                 framework = "nist"
-            elif "cis" in ref_text.lower() or "cis" in href.lower():
+            elif "cis" in ref_text_lower or "cis" in href_lower:
                 framework = "cis"
-            elif "stig" in ref_text.lower() or "disa" in ref_text.lower():
+            elif "stig" in ref_text_lower or "disa" in ref_text_lower:
                 framework = "stig"
-            elif "pci" in ref_text.lower():
+            elif "pci" in ref_text_lower:
                 framework = "pci_dss"
-            elif "hipaa" in ref_text.lower():
+            elif "hipaa" in ref_text_lower:
                 framework = "hipaa"
-            elif "iso" in ref_text.lower() and "27001" in ref_text:
+            elif "iso" in ref_text_lower and "27001" in ref_text:
                 framework = "iso27001"
             else:
                 framework = "other"
@@ -332,9 +349,9 @@ class SCAPParserService:
 
         return references
 
-    def _extract_identifiers(self, rule_elem: ET.Element) -> Dict[str, str]:
-        """Extract rule identifiers"""
-        identifiers = {}
+    def _extract_identifiers(self, rule_elem: ET.Element) -> Dict[str, Optional[str]]:
+        """Extract rule identifiers."""
+        identifiers: Dict[str, Optional[str]] = {}
 
         for ident in rule_elem.findall(".//xccdf-1.2:ident", self.NAMESPACES):
             system = ident.get("system", "unknown")
@@ -353,8 +370,8 @@ class SCAPParserService:
         return identifiers
 
     def _extract_check_content(self, rule_elem: ET.Element) -> Dict[str, Any]:
-        """Extract check content from the rule"""
-        check_content = {"system": None, "content": {}, "multi_check": False}
+        """Extract check content from the rule."""
+        check_content: Dict[str, Any] = {"system": None, "content": {}, "multi_check": False}
 
         # Find check element
         check = rule_elem.find(".//xccdf-1.2:check", self.NAMESPACES)
@@ -370,15 +387,16 @@ class SCAPParserService:
                 ref = check.find(".//xccdf:check-content-ref", self.NAMESPACES)
 
             if ref is not None:
-                check_content["content"] = {
+                content_dict: Dict[str, Any] = {
                     "href": ref.get("href", ""),
                     "name": ref.get("name", ""),
                     "multi_check": ref.get("multi-check", "false") == "true",
                 }
-                check_content["multi_check"] = check_content["content"]["multi_check"]
+                check_content["content"] = content_dict
+                check_content["multi_check"] = content_dict["multi_check"]
 
             # Extract check-export
-            exports = {}
+            exports: Dict[str, str] = {}
             for export in check.findall(".//xccdf-1.2:check-export", self.NAMESPACES):
                 var_name = export.get("export-name", "")
                 value_id = export.get("value-id", "")
@@ -390,15 +408,16 @@ class SCAPParserService:
         return check_content
 
     def _extract_fix_content(self, rule_elem: ET.Element) -> Dict[str, Any]:
-        """Extract fix content from the rule"""
-        fix_content = {"available": False, "fixes": []}
+        """Extract fix content from the rule."""
+        fixes_list: List[Dict[str, Any]] = []
+        fix_content: Dict[str, Any] = {"available": False, "fixes": fixes_list}
 
         fixes = rule_elem.findall(".//xccdf-1.2:fix", self.NAMESPACES)
         if not fixes:
             fixes = rule_elem.findall(".//xccdf:fix", self.NAMESPACES)
 
         for fix in fixes:
-            fix_data = {
+            fix_data: Dict[str, Any] = {
                 "system": fix.get("system", ""),
                 "platform": fix.get("platform", ""),
                 "complexity": fix.get("complexity", "low"),
@@ -407,16 +426,17 @@ class SCAPParserService:
                 "strategy": fix.get("strategy", ""),
                 "content": self._extract_text_content(fix),
             }
-            fix_content["fixes"].append(fix_data)
+            fixes_list.append(fix_data)
 
-        if fix_content["fixes"]:
+        if fixes_list:
             fix_content["available"] = True
 
         return fix_content
 
-    def _extract_complex_check(self, rule_elem: ET.Element) -> Dict[str, Any]:
-        """Extract complex check with boolean logic"""
-        complex_check = {"operator": "AND", "checks": []}
+    def _extract_complex_check(self, rule_elem: ET.Element) -> Optional[Dict[str, Any]]:
+        """Extract complex check with boolean logic."""
+        checks_list: List[Dict[str, Any]] = []
+        complex_check: Dict[str, Any] = {"operator": "AND", "checks": checks_list}
 
         # Look for complex-check element
         complex = rule_elem.find(".//xccdf-1.2:complex-check", self.NAMESPACES)
@@ -428,7 +448,7 @@ class SCAPParserService:
 
             # Extract all checks within complex check
             for check in complex.findall(".//xccdf-1.2:check", self.NAMESPACES):
-                check_data = {
+                check_data: Dict[str, Any] = {
                     "system": check.get("system", ""),
                     "negate": check.get("negate", "false") == "true",
                 }
@@ -440,9 +460,9 @@ class SCAPParserService:
                         "name": ref.get("name", ""),
                     }
 
-                complex_check["checks"].append(check_data)
+                checks_list.append(check_data)
 
-        return complex_check if complex_check["checks"] else None
+        return complex_check if checks_list else None
 
     def _extract_platform_info(self, rule_elem: ET.Element) -> List[str]:
         """Extract platform information"""
@@ -490,9 +510,9 @@ class SCAPParserService:
 
         return list(set(tags))
 
-    def _map_to_frameworks(self, rule_elem: ET.Element) -> Dict[str, Dict[str, List[str]]]:
-        """Map references to framework versions"""
-        frameworks = {
+    def _map_to_frameworks(self, rule_elem: ET.Element) -> Dict[str, Dict[str, Any]]:
+        """Map references to framework versions."""
+        frameworks: Dict[str, Dict[str, Any]] = {
             "nist": {},
             "cis": {},
             "stig": {},
@@ -505,8 +525,9 @@ class SCAPParserService:
 
         # Process NIST references
         if "nist" in references:
+            nist_dict: Dict[str, List[str]] = {}
             for ref in references["nist"]:
-                ref_text = ref["text"]
+                ref_text = str(ref.get("text", ""))
 
                 # Extract control IDs (e.g., AC-2, IA-5)
                 control_ids = re.findall(r"([A-Z]{2}-\d+(?:\(\d+\))?)", ref_text)
@@ -520,14 +541,16 @@ class SCAPParserService:
                     version = "800-53r5"  # Default to r5
 
                 if control_ids:
-                    if version not in frameworks["nist"]:
-                        frameworks["nist"][version] = []
-                    frameworks["nist"][version].extend(control_ids)
+                    if version not in nist_dict:
+                        nist_dict[version] = []
+                    nist_dict[version].extend(control_ids)
+            frameworks["nist"] = nist_dict
 
         # Process CIS references
         if "cis" in references:
+            cis_dict: Dict[str, List[str]] = {}
             for ref in references["cis"]:
-                ref_text = ref["text"]
+                ref_text = str(ref.get("text", ""))
 
                 # Extract CIS control numbers
                 control_nums = re.findall(r"(\d+(?:\.\d+)+)", ref_text)
@@ -540,14 +563,16 @@ class SCAPParserService:
                     version = "v2.0.0"  # Default version
 
                 if control_nums:
-                    if version not in frameworks["cis"]:
-                        frameworks["cis"][version] = []
-                    frameworks["cis"][version].extend(control_nums)
+                    if version not in cis_dict:
+                        cis_dict[version] = []
+                    cis_dict[version].extend(control_nums)
+            frameworks["cis"] = cis_dict
 
         # Process STIG references
         if "stig" in references:
+            stig_dict: Dict[str, Any] = {}
             for ref in references["stig"]:
-                ref_text = ref["text"]
+                ref_text = str(ref.get("text", ""))
 
                 # Extract STIG IDs
                 stig_ids = re.findall(r"([A-Z]+-\d+-\d+)", ref_text)
@@ -562,7 +587,8 @@ class SCAPParserService:
                         else:
                             version = "generic"
 
-                        frameworks["stig"][version] = stig_id
+                        stig_dict[version] = stig_id
+            frameworks["stig"] = stig_dict
 
         # Process identifiers for additional mappings
         self._extract_identifiers(rule_elem)
@@ -624,48 +650,54 @@ class SCAPParserService:
 
     def _calculate_statistics(self, rules: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate statistics from parsed rules"""
-        stats = {
-            "rules_by_severity": {},
-            "rules_by_category": {},
-            "framework_coverage": {},
-            "platforms": set(),
-            "fix_availability": {"with_fix": 0, "without_fix": 0},
-        }
+        # Initialize with explicit types to avoid Collection[str] inference issues
+        rules_by_severity: Dict[str, int] = {}
+        rules_by_category: Dict[str, int] = {}
+        framework_coverage: Dict[str, Dict[str, Any]] = {}
+        platforms_set: set[str] = set()
+        fix_availability: Dict[str, int] = {"with_fix": 0, "without_fix": 0}
 
         for rule in rules:
             # Severity stats
             severity = rule.get("severity", "unknown")
-            stats["rules_by_severity"][severity] = stats["rules_by_severity"].get(severity, 0) + 1
+            rules_by_severity[severity] = rules_by_severity.get(severity, 0) + 1
 
             # Category stats
             category = rule.get("category", "unknown")
-            stats["rules_by_category"][category] = stats["rules_by_category"].get(category, 0) + 1
+            rules_by_category[category] = rules_by_category.get(category, 0) + 1
 
             # Framework coverage
             for framework, versions in rule.get("frameworks", {}).items():
-                if framework not in stats["framework_coverage"]:
-                    stats["framework_coverage"][framework] = {
+                if framework not in framework_coverage:
+                    framework_coverage[framework] = {
                         "total_rules": 0,
                         "versions": {},
                     }
-                stats["framework_coverage"][framework]["total_rules"] += 1
+                framework_coverage[framework]["total_rules"] += 1
 
                 for version in versions:
-                    if version not in stats["framework_coverage"][framework]["versions"]:
-                        stats["framework_coverage"][framework]["versions"][version] = 0
-                    stats["framework_coverage"][framework]["versions"][version] += 1
+                    versions_dict = framework_coverage[framework]["versions"]
+                    if version not in versions_dict:
+                        versions_dict[version] = 0
+                    versions_dict[version] += 1
 
             # Platform stats
             for platform in rule.get("platform", []):
-                stats["platforms"].add(platform)
+                platforms_set.add(platform)
 
             # Fix availability
             if rule.get("fix", {}).get("available"):
-                stats["fix_availability"]["with_fix"] += 1
+                fix_availability["with_fix"] += 1
             else:
-                stats["fix_availability"]["without_fix"] += 1
+                fix_availability["without_fix"] += 1
 
-        # Convert set to list for JSON serialization
-        stats["platforms"] = list(stats["platforms"])
+        # Build result dict with proper types
+        stats: Dict[str, Any] = {
+            "rules_by_severity": rules_by_severity,
+            "rules_by_category": rules_by_category,
+            "framework_coverage": framework_coverage,
+            "platforms": list(platforms_set),
+            "fix_availability": fix_availability,
+        }
 
         return stats

@@ -39,9 +39,11 @@ Created: 2025-11-04 (Phase 3 of QueryBuilder migration)
 """
 
 import logging
-from typing import Optional
+from types import SimpleNamespace
+from typing import Any, Dict, Optional, Union
 
 from fastapi import HTTPException, status
+from sqlalchemy.engine.row import Row
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ def validate_user_id(user_id_str: str) -> int:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format")
 
 
-def serialize_user_row(row, include_sensitive: bool = False) -> dict:
+def serialize_user_row(row: Union[Row[Any], SimpleNamespace], include_sensitive: bool = False) -> Dict[str, Any]:
     """
     Convert database row to standardized user response dictionary.
 

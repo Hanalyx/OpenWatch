@@ -26,8 +26,8 @@ class RuleDependencyGraph:
     """
 
     def __init__(self):
-        # Core rule storage
-        self.rules: Dict[str, ComplianceRule] = {}
+        # Core rule storage (can be ComplianceRule objects or dicts during validation)
+        self.rules: Dict[str, Any] = {}
 
         # Inheritance relationships
         self.inheritance_parents: Dict[str, Optional[str]] = {}  # child → parent
@@ -209,7 +209,7 @@ class RuleDependencyGraph:
         Returns:
             Detailed impact analysis including affected rules
         """
-        impact = {
+        impact: Dict[str, Any] = {
             "updated_rules": updated_rules,
             "updated_rules_count": len(updated_rules),
             "total_affected_rules": 0,
@@ -285,7 +285,7 @@ class RuleDependencyGraph:
         Returns:
             Validation result with missing/circular dependencies
         """
-        validation = {"valid": True, "errors": [], "warnings": []}
+        validation: Dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
 
         # Build set of new rule IDs
         new_rule_ids = {rule.get("rule_id") for rule in new_rules if rule.get("rule_id")}
@@ -395,7 +395,7 @@ class RuleDependencyGraph:
             if rule_id in checked:
                 continue
 
-            visited = []
+            visited: List[str] = []
             current = rule_id
 
             # Follow inheritance chain
@@ -623,7 +623,7 @@ class InheritanceResolver:
         Returns:
             Results with counts of applied updates
         """
-        results = {"applied": 0, "failed": 0, "errors": []}
+        results: Dict[str, Any] = {"applied": 0, "failed": 0, "errors": []}
 
         for update_spec in updates:
             rule_id = update_spec["rule_id"]

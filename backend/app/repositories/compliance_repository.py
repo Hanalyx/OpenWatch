@@ -78,7 +78,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             # RHEL 8 rules only
             rules = await repo.find_by_platform("RHEL", version="8")
         """
-        query = {f"platforms.{platform}": {"$exists": True}}
+        query: Dict[str, Any] = {f"platforms.{platform}": {"$exists": True}}
 
         if version:
             query[f"platforms.{platform}.versions"] = version
@@ -226,7 +226,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
                     severity_counts[severity] = count
 
             # Count by framework using aggregation
-            framework_pipeline = [
+            framework_pipeline: List[Dict[str, Any]] = [
                 {"$project": {"frameworks": {"$objectToArray": "$frameworks"}}},
                 {"$unwind": "$frameworks"},
                 {"$group": {"_id": "$frameworks.k", "count": {"$sum": 1}}},
@@ -236,7 +236,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             framework_counts = {item["_id"]: item["count"] for item in framework_results}
 
             # Count by platform using aggregation
-            platform_pipeline = [
+            platform_pipeline: List[Dict[str, Any]] = [
                 {"$project": {"platforms": {"$objectToArray": "$platforms"}}},
                 {"$unwind": "$platforms"},
                 {"$group": {"_id": "$platforms.k", "count": {"$sum": 1}}},
@@ -270,7 +270,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             # Returns: ["1.0.0", "2.0.0"]
         """
         try:
-            pipeline = [
+            pipeline: List[Dict[str, Any]] = [
                 {"$match": {f"frameworks.{framework}": {"$exists": True}}},
                 {"$project": {"versions": {"$objectToArray": f"$frameworks.{framework}.versions"}}},
                 {"$unwind": "$versions"},
@@ -299,7 +299,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             # Returns: ["7", "8", "9"]
         """
         try:
-            pipeline = [
+            pipeline: List[Dict[str, Any]] = [
                 {"$match": {f"platforms.{platform}": {"$exists": True}}},
                 {"$project": {"versions": f"$platforms.{platform}.versions"}},
                 {"$unwind": "$versions"},
@@ -314,7 +314,10 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             raise
 
     async def bulk_upsert(
-        self, rules: List[ComplianceRule], batch_size: int = 100, progress_callback=None
+        self,
+        rules: List[ComplianceRule],
+        batch_size: int = 100,
+        progress_callback: Optional[Any] = None,
     ) -> Dict[str, int]:
         """
         Bulk upsert compliance rules with deduplication.
@@ -430,7 +433,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
             # ]
         """
         try:
-            pipeline = [
+            pipeline: List[Dict[str, Any]] = [
                 {"$group": {"_id": "$rule_id", "count": {"$sum": 1}, "ids": {"$push": "$_id"}}},
                 {"$match": {"count": {"$gt": 1}}},
                 {"$sort": {"count": -1}},
@@ -529,7 +532,7 @@ class ComplianceRuleRepository(BaseRepository[ComplianceRule]):
 
             # Delete matching rules
             # Note: delete_many returns DeleteResult, we need count
-            result = await self.model_class.find(query).delete()
+            result = await self.model.find(query).delete()
 
             logger.info(
                 f"Deleted {count_before} rules matching pattern '{pattern}' "

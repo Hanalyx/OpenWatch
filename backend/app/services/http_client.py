@@ -58,12 +58,12 @@ class HTTPClientStats(BaseModel):
 class CircuitBreaker:
     """Circuit breaker implementation for HTTP requests"""
 
-    def __init__(self, config: CircuitBreakerConfig):
+    def __init__(self, config: CircuitBreakerConfig) -> None:
         self.config = config
         self.state = CircuitBreakerState.CLOSED
-        self.failure_count = 0
-        self.success_count = 0
-        self.last_failure_time = None
+        self.failure_count: int = 0
+        self.success_count: int = 0
+        self.last_failure_time: Optional[float] = None
 
     def can_execute(self) -> bool:
         """Check if request can be executed"""
@@ -80,7 +80,7 @@ class CircuitBreaker:
         else:  # HALF_OPEN
             return True
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record successful request"""
         if self.state == CircuitBreakerState.HALF_OPEN:
             self.success_count += 1
@@ -91,7 +91,7 @@ class CircuitBreaker:
         elif self.state == CircuitBreakerState.CLOSED:
             self.failure_count = 0
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record failed request"""
         self.failure_count += 1
         self.last_failure_time = time.time()
@@ -127,7 +127,7 @@ class HttpClient:
             follow_redirects=True,
         )
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client"""
         await self.client.aclose()
 
@@ -157,7 +157,7 @@ class HttpClient:
             return 500 <= exception.response.status_code < 600
         return False
 
-    async def _execute_request(self, method: str, url: str, **kwargs) -> httpx.Response:
+    async def _execute_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Execute HTTP request with retry logic and circuit breaker"""
 
         # Check circuit breaker
@@ -169,17 +169,14 @@ class HttpClient:
             )
 
         self.stats.total_requests += 1
-        last_exception = None
+        last_exception: Optional[Exception] = None
 
         for attempt in range(self.retry_policy.max_retries + 1):
             try:
                 # Log request
                 logger.debug(
-                    "HTTP request",
-                    method=method,
-                    url=url,
-                    attempt=attempt + 1,
-                    max_attempts=self.retry_policy.max_retries + 1,
+                    f"HTTP request: method={method}, url={url}, "
+                    f"attempt={attempt + 1}/{self.retry_policy.max_retries + 1}"
                 )
 
                 # Execute request
@@ -193,11 +190,8 @@ class HttpClient:
                 self.circuit_breaker.record_success()
 
                 logger.debug(
-                    "HTTP request successful",
-                    method=method,
-                    url=url,
-                    status_code=response.status_code,
-                    attempt=attempt + 1,
+                    f"HTTP request successful: method={method}, url={url}, "
+                    f"status_code={response.status_code}, attempt={attempt + 1}"
                 )
 
                 return response
@@ -207,12 +201,8 @@ class HttpClient:
                 self.stats.total_retries += 1
 
                 logger.warning(
-                    "HTTP request failed",
-                    method=method,
-                    url=url,
-                    attempt=attempt + 1,
-                    error=str(e),
-                    error_type=type(e).__name__,
+                    f"HTTP request failed: method={method}, url={url}, "
+                    f"attempt={attempt + 1}, error={str(e)}, error_type={type(e).__name__}"
                 )
 
                 # Check if we should retry
@@ -233,32 +223,33 @@ class HttpClient:
         self.stats.consecutive_successes = 0
 
         logger.error(
-            "HTTP request failed after all retries",
-            method=method,
-            url=url,
-            total_attempts=self.retry_policy.max_retries + 1,
-            final_error=str(last_exception),
+            f"HTTP request failed after all retries: method={method}, url={url}, "
+            f"total_attempts={self.retry_policy.max_retries + 1}, final_error={str(last_exception)}"
         )
 
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        else:
+            # This should never happen, but mypy requires handling the None case
+            raise RuntimeError("Request failed without capturing exception")
 
-    async def get(self, url: str, **kwargs) -> httpx.Response:
+    async def get(self, url: str, **kwargs: Any) -> httpx.Response:
         """Execute GET request"""
         return await self._execute_request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs) -> httpx.Response:
+    async def post(self, url: str, **kwargs: Any) -> httpx.Response:
         """Execute POST request"""
         return await self._execute_request("POST", url, **kwargs)
 
-    async def put(self, url: str, **kwargs) -> httpx.Response:
+    async def put(self, url: str, **kwargs: Any) -> httpx.Response:
         """Execute PUT request"""
         return await self._execute_request("PUT", url, **kwargs)
 
-    async def delete(self, url: str, **kwargs) -> httpx.Response:
+    async def delete(self, url: str, **kwargs: Any) -> httpx.Response:
         """Execute DELETE request"""
         return await self._execute_request("DELETE", url, **kwargs)
 
-    async def patch(self, url: str, **kwargs) -> httpx.Response:
+    async def patch(self, url: str, **kwargs: Any) -> httpx.Response:
         """Execute PATCH request"""
         return await self._execute_request("PATCH", url, **kwargs)
 
@@ -267,7 +258,7 @@ class HttpClient:
         self.stats.circuit_breaker_state = self.circuit_breaker.state
         return self.stats.dict()
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """Reset client statistics"""
         self.stats = HTTPClientStats()
 
@@ -275,7 +266,7 @@ class HttpClient:
 class WebhookHttpClient(HttpClient):
     """Specialized HTTP client for webhook delivery"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Webhook-specific configuration
         retry_policy = RetryPolicy(
             max_retries=3,
@@ -332,7 +323,7 @@ async def get_webhook_client() -> WebhookHttpClient:
     return _webhook_client
 
 
-async def close_all_clients():
+async def close_all_clients() -> None:
     """Close all HTTP client instances"""
     global _default_client, _webhook_client
 

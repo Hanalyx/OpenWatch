@@ -4,7 +4,7 @@ Provides endpoints for discovering security infrastructure on hosts
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,6 +22,8 @@ router = APIRouter(prefix="/host-security-discovery", tags=["Host Security Disco
 
 
 class SecurityDiscoveryResponse(BaseModel):
+    """Response model for security discovery results."""
+
     package_managers: Dict[str, Any]
     service_manager: str
     selinux_status: Any
@@ -34,10 +36,14 @@ class SecurityDiscoveryResponse(BaseModel):
 
 
 class BulkSecurityDiscoveryRequest(BaseModel):
+    """Request model for bulk security discovery."""
+
     host_ids: List[str]
 
 
 class BulkSecurityDiscoveryResponse(BaseModel):
+    """Response model for bulk security discovery results."""
+
     total_hosts: int
     successful_discoveries: int
     failed_discoveries: int
@@ -47,8 +53,10 @@ class BulkSecurityDiscoveryResponse(BaseModel):
 
 @router.post("/hosts/{host_id}/security-discovery", response_model=SecurityDiscoveryResponse)
 async def discover_host_security_infrastructure(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SecurityDiscoveryResponse:
     """
     Discover security infrastructure and configurations on a specific host
 
@@ -105,9 +113,9 @@ async def discover_host_security_infrastructure(
 @router.post("/bulk-security-discovery", response_model=BulkSecurityDiscoveryResponse)
 async def bulk_discover_security_infrastructure(
     request: BulkSecurityDiscoveryRequest,
-    current_user=Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> BulkSecurityDiscoveryResponse:
     """
     Discover security infrastructure for multiple hosts in bulk
 
@@ -187,8 +195,10 @@ async def bulk_discover_security_infrastructure(
 
 @router.get("/hosts/{host_id}/security-summary")
 async def get_host_security_summary(
-    host_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
-):
+    host_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get a quick security summary for a host without running full discovery
 
@@ -214,7 +224,38 @@ async def get_host_security_summary(
             )
 
         # Generate security summary based on existing host information
-        summary = {
+        security_recommendations: List[str] = []
+
+        # Add security recommendations based on OS family
+        os_family_str: Optional[str] = str(host.os_family) if host.os_family else None
+        if os_family_str:
+            os_family_lower = os_family_str.lower()
+            if "rhel" in os_family_lower or "centos" in os_family_lower or "fedora" in os_family_lower:
+                security_recommendations.extend(
+                    [
+                        "Consider enabling SELinux if not already active",
+                        "Ensure firewalld is configured properly",
+                        "Keep system updated with dnf/yum",
+                    ]
+                )
+            elif "ubuntu" in os_family_lower or "debian" in os_family_lower:
+                security_recommendations.extend(
+                    [
+                        "Consider configuring AppArmor profiles",
+                        "Ensure UFW firewall is configured",
+                        "Keep system updated with apt",
+                    ]
+                )
+            elif "suse" in os_family_lower:
+                security_recommendations.extend(
+                    [
+                        "Configure AppArmor or SELinux as appropriate",
+                        "Ensure firewall is configured",
+                        "Keep system updated with zypper",
+                    ]
+                )
+
+        summary: Dict[str, Any] = {
             "host_id": str(host.id),
             "hostname": host.hostname,
             "os_family": host.os_family,
@@ -222,39 +263,8 @@ async def get_host_security_summary(
             "architecture": host.architecture,
             "last_os_detection": (host.last_os_detection.isoformat() if host.last_os_detection else None),
             "auth_method": host.auth_method,
-            "security_recommendations": [],
+            "security_recommendations": security_recommendations,
         }
-
-        # Add security recommendations based on OS family
-        if host.os_family:
-            if (
-                "rhel" in host.os_family.lower()
-                or "centos" in host.os_family.lower()
-                or "fedora" in host.os_family.lower()
-            ):
-                summary["security_recommendations"].extend(
-                    [
-                        "Consider enabling SELinux if not already active",
-                        "Ensure firewalld is configured properly",
-                        "Keep system updated with dnf/yum",
-                    ]
-                )
-            elif "ubuntu" in host.os_family.lower() or "debian" in host.os_family.lower():
-                summary["security_recommendations"].extend(
-                    [
-                        "Consider configuring AppArmor profiles",
-                        "Ensure UFW firewall is configured",
-                        "Keep system updated with apt",
-                    ]
-                )
-            elif "suse" in host.os_family.lower():
-                summary["security_recommendations"].extend(
-                    [
-                        "Configure AppArmor or SELinux as appropriate",
-                        "Ensure firewall is configured",
-                        "Keep system updated with zypper",
-                    ]
-                )
 
         return summary
 

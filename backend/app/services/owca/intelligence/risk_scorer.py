@@ -110,7 +110,7 @@ class RiskScorer:
             Uses QueryBuilder for SQL injection protection in all database queries.
         """
         # Get current compliance score
-        compliance_score_obj = await self.score_calculator.get_host_compliance_score(str(host_id))
+        compliance_score_obj = await self.score_calculator.get_host_compliance_score(host_id)
 
         if not compliance_score_obj:
             logger.warning(f"No compliance data available for host {host_id}")

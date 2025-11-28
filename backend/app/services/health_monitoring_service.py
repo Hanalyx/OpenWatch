@@ -20,6 +20,7 @@ from ..models.health_models import (
     ConnectionPool,
     ContentAlert,
     ContentHealthDocument,
+    ContentIntegrity,
     DatabaseHealth,
     FrameworkHealth,
     HealthStatus,
@@ -309,18 +310,18 @@ class HealthMonitoringService:
         return alerts
 
     def _calculate_overall_status(self, health_data: ServiceHealthDocument) -> HealthStatus:
-        """Calculate overall system health status"""
-        statuses = []
+        """Calculate overall system health status."""
+        statuses: List[HealthStatus] = []
 
         # Check all service statuses
-        for service in health_data.core_services.values():
-            statuses.append(service.status)
+        for core_service in health_data.core_services.values():
+            statuses.append(core_service.status)
 
-        for service in health_data.data_services.values():
-            statuses.append(service.status)
+        for data_service in health_data.data_services.values():
+            statuses.append(data_service.status)
 
-        for service in health_data.integration_services.values():
-            statuses.append(service.status)
+        for int_service in health_data.integration_services.values():
+            statuses.append(int_service.status)
 
         # Return worst status
         if HealthStatus.UNHEALTHY in statuses:
@@ -386,12 +387,19 @@ class HealthMonitoringService:
         repo = ComplianceRuleRepository()
         all_rules = await repo.find_many({})
 
-        # Analyze framework coverage
-        framework_configs = {
-            "nist_800_53r5": {"version": "revision_5", "total_controls": 334},
-            "cis_controls_v8": {"version": "8.0", "total_controls": 18},
-            "pci_dss_4.0": {"version": "4.0", "total_controls": 62},
-            "iso_27001_2013": {"version": "2013", "total_controls": 114},
+        # Analyze framework coverage - typed dict for mypy type safety
+        class FrameworkConfig:
+            """Framework configuration for health metrics."""
+
+            def __init__(self, version: str, total_controls: int) -> None:
+                self.version = version
+                self.total_controls = total_controls
+
+        framework_configs: Dict[str, FrameworkConfig] = {
+            "nist_800_53r5": FrameworkConfig("revision_5", 334),
+            "cis_controls_v8": FrameworkConfig("8.0", 18),
+            "pci_dss_4.0": FrameworkConfig("4.0", 62),
+            "iso_27001_2013": FrameworkConfig("2013", 114),
         }
 
         for framework_id, config in framework_configs.items():
@@ -407,23 +415,24 @@ class HealthMonitoringService:
 
             if framework_rules:
                 # Get unique controls
-                implemented_controls = set()
+                implemented_controls: set[str] = set()
                 for rule in framework_rules:
                     mappings = getattr(rule, "compliance_mappings", {}).get("frameworks", [])
                     for mapping in mappings:
                         if isinstance(mapping, dict) and mapping.get("framework") == framework_id:
                             implemented_controls.update(mapping.get("controls", []))
 
+                # Use typed config for guaranteed int type
                 frameworks[framework_id] = FrameworkHealth(
-                    version=config["version"],
+                    version=config.version,
                     status="active",
                     last_updated=max(
                         (r.updated_at for r in framework_rules),
                         default=datetime.utcnow(),
                     ),
-                    total_controls=config["total_controls"],
+                    total_controls=config.total_controls,
                     implemented_controls=len(implemented_controls),
-                    coverage_percentage=(len(implemented_controls) / config["total_controls"]) * 100,
+                    coverage_percentage=(len(implemented_controls) / config.total_controls) * 100,
                     rule_count=len(framework_rules),
                     benchmark_dependencies=[],  # TODO: Extract from mappings
                 )
@@ -443,20 +452,19 @@ class HealthMonitoringService:
         repo = ComplianceRuleRepository()
         all_rules = await repo.find_many({})
 
-        # Analyze benchmark coverage
-        benchmark_configs = {
-            "cis_rhel8_v2.0.0": {
-                "version": "2.0.0",
-                "source_framework": "cis_controls_v8",
-                "platform": "rhel8",
-                "total_rules": 245,
-            },
-            "stig_rhel8_v1r11": {
-                "version": "1.11",
-                "source_framework": "disa_stig",
-                "platform": "rhel8",
-                "total_rules": 334,
-            },
+        # Analyze benchmark coverage - typed config for mypy type safety
+        class BenchmarkConfig:
+            """Benchmark configuration for health metrics."""
+
+            def __init__(self, version: str, source_framework: str, platform: str, total_rules: int) -> None:
+                self.version = version
+                self.source_framework = source_framework
+                self.platform = platform
+                self.total_rules = total_rules
+
+        benchmark_configs: Dict[str, BenchmarkConfig] = {
+            "cis_rhel8_v2.0.0": BenchmarkConfig("2.0.0", "cis_controls_v8", "rhel8", 245),
+            "stig_rhel8_v1r11": BenchmarkConfig("1.11", "disa_stig", "rhel8", 334),
         }
 
         for benchmark_id, config in benchmark_configs.items():
@@ -468,15 +476,16 @@ class HealthMonitoringService:
                 last_update = max((r.updated_at for r in benchmark_rules), default=datetime.utcnow())
                 days_since_update = (datetime.utcnow() - last_update).days
 
+                # Use typed config for guaranteed int type
                 benchmarks[benchmark_id] = BenchmarkHealth(
-                    benchmark_version=config["version"],
-                    source_framework=config["source_framework"],
-                    platform=config["platform"],
+                    benchmark_version=config.version,
+                    source_framework=config.source_framework,
+                    platform=config.platform,
                     status="active" if days_since_update < 90 else "outdated",
                     last_updated=last_update,
-                    total_rules=config["total_rules"],
+                    total_rules=config.total_rules,
                     implemented_rules=len(benchmark_rules),
-                    coverage_percentage=(len(benchmark_rules) / config["total_rules"]) * 100,
+                    coverage_percentage=(len(benchmark_rules) / config.total_rules) * 100,
                     satisfies_frameworks=[],  # TODO: Extract from mappings
                     content_freshness={
                         "days_since_update": days_since_update,
@@ -499,10 +508,10 @@ class HealthMonitoringService:
 
         remediation_scripts = await RemediationScript.count()
 
-        # Count by severity
-        severity_counts = {}
-        category_counts = {}
-        platform_counts = {}
+        # Count by severity - explicit type annotations for mypy
+        severity_counts: Dict[str, int] = {}
+        category_counts: Dict[str, int] = {}
+        platform_counts: Dict[str, int] = {}
 
         for rule in all_rules:
             # Severity
@@ -534,9 +543,13 @@ class HealthMonitoringService:
             },
         }
 
-    async def _check_content_integrity(self) -> Dict[str, Any]:
-        """Check content integrity and consistency
+    async def _check_content_integrity(self) -> ContentIntegrity:
+        """Check content integrity and consistency.
+
         OW-REFACTOR-002: Uses Repository Pattern (MANDATORY per CLAUDE.md)
+
+        Returns:
+            ContentIntegrity model with validation results
         """
         # OW-REFACTOR-002: Use Repository Pattern for all MongoDB operations
         # Why: Centralized query logic, automatic performance monitoring, type safety
@@ -546,9 +559,9 @@ class HealthMonitoringService:
         all_rules = await repo.find_many({})
 
         # Check for issues
-        duplicate_ids = []
-        missing_fields = []
-        invalid_references = []
+        duplicate_ids: List[Optional[str]] = []
+        missing_fields: List[str] = []
+        invalid_references: List[str] = []
 
         rule_ids = [getattr(r, "rule_id", None) for r in all_rules]
         duplicate_ids = [rid for rid in rule_ids if rule_ids.count(rid) > 1]
@@ -558,19 +571,19 @@ class HealthMonitoringService:
             if not getattr(rule, "rule_id", None) or not getattr(rule, "metadata", None):
                 missing_fields.append(getattr(rule, "rule_id", "unknown"))
 
-        return {
-            "source_validation": {
+        return ContentIntegrity(
+            source_validation={
                 "scap_content_valid": True,
                 "signature_verification": "passed",
-                "last_validation": datetime.utcnow(),
+                "last_validation": datetime.utcnow().isoformat(),
             },
-            "rule_consistency": {
+            rule_consistency={
                 "schema_compliance": 100.0 if not missing_fields else 90.0,
                 "duplicate_rule_ids": len(set(duplicate_ids)),
                 "missing_required_fields": len(missing_fields),
                 "invalid_references": len(invalid_references),
             },
-        }
+        )
 
     async def _collect_content_performance(self) -> Dict[str, Any]:
         """Collect content processing performance metrics"""
@@ -691,54 +704,109 @@ class HealthMonitoringService:
 
     # Storage Methods
     async def save_service_health(self, health_data: ServiceHealthDocument) -> ServiceHealthDocument:
-        """Save service health data to MongoDB"""
-        return await health_data.save()
+        """Save service health data to MongoDB.
+
+        Args:
+            health_data: Service health document to save
+
+        Returns:
+            The saved ServiceHealthDocument
+        """
+        # Beanie .save() returns the document but is typed as Any
+        await health_data.save()
+        return health_data
 
     async def save_content_health(self, health_data: ContentHealthDocument) -> ContentHealthDocument:
-        """Save content health data to MongoDB"""
-        return await health_data.save()
+        """Save content health data to MongoDB.
+
+        Args:
+            health_data: Content health document to save
+
+        Returns:
+            The saved ContentHealthDocument
+        """
+        # Beanie .save() returns the document but is typed as Any
+        await health_data.save()
+        return health_data
 
     async def save_health_summary(self, summary: HealthSummaryDocument) -> HealthSummaryDocument:
-        """Save or update health summary"""
+        """Save or update health summary.
+
+        Args:
+            summary: Health summary document to save
+
+        Returns:
+            The saved HealthSummaryDocument
+        """
         # Upsert based on scanner_id
         existing = await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})
 
         if existing:
-            existing.last_updated = summary.last_updated
-            existing.service_health_status = summary.service_health_status
-            existing.content_health_status = summary.content_health_status
-            existing.overall_health_status = summary.overall_health_status
-            existing.key_metrics = summary.key_metrics
-            existing.active_issues_count = summary.active_issues_count
-            existing.critical_alerts = summary.critical_alerts
-            return await existing.save()
+            # Cast existing to proper type - Beanie find_one returns Any at runtime
+            # but we know it's HealthSummaryDocument if it exists
+            existing_doc: HealthSummaryDocument = existing
+            existing_doc.last_updated = summary.last_updated
+            existing_doc.service_health_status = summary.service_health_status
+            existing_doc.content_health_status = summary.content_health_status
+            existing_doc.overall_health_status = summary.overall_health_status
+            existing_doc.key_metrics = summary.key_metrics
+            existing_doc.active_issues_count = summary.active_issues_count
+            existing_doc.critical_alerts = summary.critical_alerts
+            # Beanie .save() returns the document but is typed as Any
+            await existing_doc.save()
+            return existing_doc
         else:
-            return await summary.save()
+            # Beanie .save() returns the document but is typed as Any
+            await summary.save()
+            return summary
 
     # Query Methods
     async def get_latest_service_health(self) -> Optional[ServiceHealthDocument]:
-        """Get the latest service health data"""
+        """Get the latest service health data.
+
+        Returns:
+            Most recent ServiceHealthDocument or None if not found
+        """
+        # Use string-based sorting (Beanie standard pattern)
+        # Prefix with "-" for descending order
         results = (
             await ServiceHealthDocument.find({"scanner_id": self.scanner_id})
-            .sort(-ServiceHealthDocument.health_check_timestamp)
+            .sort("-health_check_timestamp")
             .limit(1)
             .to_list()
         )
         return results[0] if results else None
 
     async def get_latest_content_health(self) -> Optional[ContentHealthDocument]:
-        """Get the latest content health data"""
+        """Get the latest content health data.
+
+        Returns:
+            Most recent ContentHealthDocument or None if not found
+        """
+        # Use string-based sorting (Beanie standard pattern)
+        # Prefix with "-" for descending order
         results = (
             await ContentHealthDocument.find({"scanner_id": self.scanner_id})
-            .sort(-ContentHealthDocument.health_check_timestamp)
+            .sort("-health_check_timestamp")
             .limit(1)
             .to_list()
         )
         return results[0] if results else None
 
     async def get_health_summary(self) -> Optional[HealthSummaryDocument]:
-        """Get the current health summary"""
-        return await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})
+        """Get the current health summary.
+
+        Returns:
+            Current HealthSummaryDocument or None if not found
+        """
+        # Beanie find_one returns Any at type level, but Optional[Document] at runtime
+        # Cast to proper type for mypy type safety
+        result = await HealthSummaryDocument.find_one({"scanner_id": self.scanner_id})
+        if result is None:
+            return None
+        # Explicit cast for type safety - we know find_one returns the document type
+        summary: HealthSummaryDocument = result
+        return summary
 
 
 # Singleton instance

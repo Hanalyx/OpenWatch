@@ -1,5 +1,3 @@
-import json
-
 """
 Rule-Specific Scanning API Routes
 Handles targeted scanning of specific SCAP rules
@@ -11,8 +9,9 @@ REFACTORING GUIDE: See docs/MONGODB_SCANNING_ARCHITECTURE.md
 All rule scanning should now use MongoDB compliance_rules collection directly.
 """
 
+import json
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -32,7 +31,7 @@ router = APIRouter(prefix="/rule-scanning", tags=["Rule Scanning"])
 # Initialize services
 rule_scanner = RuleSpecificScanner()
 aegis_mapper = SCAPAEGISMapper()
-framework_mapper = ComplianceFrameworkMapper()
+framework_mapper: ComplianceFrameworkMapper = ComplianceFrameworkMapper()
 
 
 class RuleScanRequest(BaseModel):
@@ -42,7 +41,7 @@ class RuleScanRequest(BaseModel):
     content_id: int
     profile_id: str
     rule_ids: List[str]
-    connection_params: Optional[dict] = None
+    connection_params: Optional[Dict[str, Any]] = None
 
 
 class RemediationVerificationRequest(BaseModel):
@@ -52,15 +51,15 @@ class RemediationVerificationRequest(BaseModel):
     content_id: int
     aegis_remediation_id: str
     remediated_rules: List[str]
-    connection_params: Optional[dict] = None
+    connection_params: Optional[Dict[str, Any]] = None
 
 
 @router.post("/scan-rules")
 async def scan_specific_rules(
     request: RuleScanRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Scan specific SCAP rules on a host"""
     try:
         logger.info(f"Rule-specific scan requested by {current_user['username']} for {len(request.rule_ids)} rules")
@@ -87,8 +86,8 @@ async def scan_specific_rules(
             connection_params=request.connection_params,
         )
 
-        # Store scan results in database
-        await _store_rule_scan_results(db, scan_results)
+        # Store scan results in database (sync function)
+        _store_rule_scan_results(db, scan_results)
 
         # Generate remediation recommendations
         failed_rules = [
@@ -120,10 +119,10 @@ async def scan_specific_rules(
 async def rescan_failed_rules(
     previous_scan_id: str,
     content_id: int,
-    connection_params: Optional[dict] = None,
+    connection_params: Optional[Dict[str, Any]] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Re-scan only failed rules from a previous scan"""
     try:
         # Get SCAP content file path
@@ -149,8 +148,8 @@ async def rescan_failed_rules(
         if "message" in scan_results:
             return scan_results  # No failed rules to re-scan
 
-        # Store results
-        await _store_rule_scan_results(db, scan_results)
+        # Store results (sync function)
+        _store_rule_scan_results(db, scan_results)
 
         return {
             "scan_results": scan_results,
@@ -166,8 +165,8 @@ async def rescan_failed_rules(
 async def verify_remediation(
     request: RemediationVerificationRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Verify specific rules after AEGIS remediation"""
     try:
         # Get SCAP content file path
@@ -192,8 +191,8 @@ async def verify_remediation(
             connection_params=request.connection_params,
         )
 
-        # Update remediation plan status if exists
-        await _update_remediation_plan_status(db, request.aegis_remediation_id, verification_report)
+        # Update remediation plan status if exists (sync function)
+        _update_remediation_plan_status(db, request.aegis_remediation_id, verification_report)
 
         return verification_report
 
@@ -208,8 +207,8 @@ async def get_rule_scan_history(
     host_id: Optional[str] = None,
     limit: int = 10,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Get scan history for a specific rule"""
     try:
         # Get from database first
@@ -218,7 +217,8 @@ async def get_rule_scan_history(
             FROM rule_scan_history
             WHERE rule_id = :rule_id
         """
-        params = {"rule_id": rule_id}
+        # Type annotation for mixed value types (str and int)
+        params: Dict[str, Any] = {"rule_id": rule_id}
 
         if host_id:
             query += " AND host_id = :host_id"
@@ -261,7 +261,10 @@ async def get_rule_scan_history(
 
 
 @router.get("/rule/{rule_id}/compliance-info")
-async def get_rule_compliance_info(rule_id: str, current_user: dict = Depends(get_current_user)):
+async def get_rule_compliance_info(
+    rule_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Get compliance framework information for a specific rule"""
     try:
         # Get unified control information
@@ -314,8 +317,8 @@ async def create_remediation_plan(
     host_id: str,
     platform: str = "rhel9",
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Create remediation plan for failed rules from a scan"""
     try:
         # Get failed rules from scan
@@ -369,8 +372,8 @@ async def create_remediation_plan(
             platform=platform,
         )
 
-        # Store plan in database
-        await _store_remediation_plan(db, plan, current_user["id"])
+        # Store plan in database (sync function)
+        _store_remediation_plan(db, plan, current_user["id"])
 
         # Generate AEGIS job request
         aegis_job_request = aegis_mapper.generate_aegis_job_request(plan)
@@ -396,7 +399,7 @@ async def create_remediation_plan(
         raise HTTPException(status_code=500, detail="Failed to create remediation plan")
 
 
-def _store_rule_scan_results(db: Session, scan_results: dict):
+def _store_rule_scan_results(db: Session, scan_results: Dict[str, Any]) -> None:
     """Store rule scan results in database"""
     try:
         for rule_result in scan_results.get("rule_results", []):
@@ -437,7 +440,7 @@ def _store_rule_scan_results(db: Session, scan_results: dict):
         db.rollback()
 
 
-def _store_remediation_plan(db: Session, plan, created_by: int):
+def _store_remediation_plan(db: Session, plan: Any, created_by: int) -> None:
     """Store remediation plan in database"""
     try:
         db.execute(
@@ -481,7 +484,9 @@ def _store_remediation_plan(db: Session, plan, created_by: int):
         db.rollback()
 
 
-def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, verification_report: dict):
+def _update_remediation_plan_status(
+    db: Session, aegis_remediation_id: str, verification_report: Dict[str, Any]
+) -> None:
     """Update remediation plan status after verification"""
     try:
         # Determine status based on verification results
@@ -518,7 +523,7 @@ def _update_remediation_plan_status(db: Session, aegis_remediation_id: str, veri
         db.rollback()
 
 
-def _analyze_improvement(previous_scan_id: str, current_results: dict) -> dict:
+def _analyze_improvement(previous_scan_id: str, current_results: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze improvement between scans"""
     # This would compare previous and current scan results
     # For now, return basic analysis

@@ -5,12 +5,15 @@ Generates detailed compliance reports based on MongoDB rules and scan results
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
 
 from .mongo_integration_service import MongoIntegrationService, get_mongo_service
 from .result_enrichment_service import ResultEnrichmentService
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +21,8 @@ logger = logging.getLogger(__name__)
 class ComplianceFrameworkReporter:
     """Service for generating compliance framework reports"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the compliance framework reporter."""
         self.mongo_service: Optional[MongoIntegrationService] = None
         self.enrichment_service: Optional[ResultEnrichmentService] = None
         self._initialized = False
@@ -69,15 +73,25 @@ class ComplianceFrameworkReporter:
             },
         }
 
-    async def initialize(self):
-        """Initialize the reporting service"""
+    async def initialize(self, db: Optional["Session"] = None) -> None:
+        """
+        Initialize the reporting service.
+
+        Args:
+            db: Optional SQLAlchemy database session for enrichment service.
+                If not provided, enrichment service functionality will be limited.
+        """
         if self._initialized:
             return
 
         try:
             self.mongo_service = await get_mongo_service()
-            self.enrichment_service = ResultEnrichmentService()
-            await self.enrichment_service.initialize()
+            # ResultEnrichmentService requires db session - only initialize if provided
+            if db is not None:
+                self.enrichment_service = ResultEnrichmentService(db)
+                # Type ignore: ResultEnrichmentService.initialize is async but
+                # mypy may not have visibility into its typing
+                await self.enrichment_service.initialize()
 
             self._initialized = True
             logger.info("Compliance Framework Reporter initialized successfully")
@@ -89,7 +103,7 @@ class ComplianceFrameworkReporter:
     async def generate_compliance_report(
         self,
         enriched_results: Dict[str, Any],
-        target_frameworks: List[str] = None,
+        target_frameworks: Optional[List[str]] = None,
         report_format: str = "json",
     ) -> Dict[str, Any]:
         """
@@ -170,7 +184,7 @@ class ComplianceFrameworkReporter:
         self, framework_mapping: Dict[str, Any], target_frameworks: List[str]
     ) -> Dict[str, Any]:
         """Analyze compliance posture for each framework"""
-        analysis = {}
+        analysis: Dict[str, Any] = {}
 
         for framework in target_frameworks:
             if framework not in self.frameworks:
@@ -279,7 +293,7 @@ class ComplianceFrameworkReporter:
             return "critical"
 
     async def _generate_framework_recommendations(
-        self, framework: str, compliance_rate: float, critical_failures: List[Dict]
+        self, framework: str, compliance_rate: float, critical_failures: List[Dict[str, Any]]
     ) -> List[str]:
         """Generate framework-specific recommendations"""
         recommendations = []
@@ -360,7 +374,7 @@ class ComplianceFrameworkReporter:
 
         return gap_analysis
 
-    async def _get_expected_controls(self, framework: str) -> set:
+    async def _get_expected_controls(self, framework: str) -> set[str]:
         """Get expected controls for a framework (mock implementation)"""
         # This would ideally come from a comprehensive baseline database
         expected_controls = {
@@ -522,7 +536,8 @@ class ComplianceFrameworkReporter:
         """Generate executive dashboard data"""
         compliance_scores = enriched_results.get("compliance_scores", {})
 
-        dashboard = {
+        # Explicit type annotation to allow heterogeneous dict values
+        dashboard: Dict[str, Any] = {
             "key_metrics": {
                 "overall_compliance_score": compliance_scores.get("overall", {}).get("score", 0),
                 "overall_grade": compliance_scores.get("overall", {}).get("grade", "F"),

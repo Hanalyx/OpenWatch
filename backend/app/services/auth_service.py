@@ -12,7 +12,7 @@ import logging
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -346,8 +346,8 @@ class CentralizedAuthService:
 
     def resolve_credential(
         self,
-        target_id: str = None,
-        required_auth_method: str = None,
+        target_id: Optional[str] = None,
+        required_auth_method: Optional[str] = None,
         use_default: bool = False,
     ) -> Optional[CredentialData]:
         """
@@ -613,21 +613,22 @@ class CentralizedAuthService:
             logger.error(f"Credential validation error: {e}")
             return False, f"Validation error: {str(e)}"
 
-    def _extract_ssh_key_metadata(self, private_key: str, passphrase: str = None) -> Dict:
+    def _extract_ssh_key_metadata(self, private_key: str, passphrase: Optional[str] = None) -> Dict[str, Any]:
         """Extract SSH key metadata for storage"""
         try:
             metadata = extract_ssh_key_metadata(private_key, passphrase)
+            key_bits_raw = metadata.get("key_bits")
             return {
                 "fingerprint": metadata.get("fingerprint"),
                 "key_type": metadata.get("key_type"),
-                "key_bits": (int(metadata.get("key_bits")) if metadata.get("key_bits") else None),
+                "key_bits": int(key_bits_raw) if key_bits_raw is not None else None,
                 "key_comment": metadata.get("key_comment"),
             }
         except Exception as e:
             logger.warning(f"Failed to extract SSH key metadata: {e}")
             return {}
 
-    def _unset_default_credentials(self, scope: CredentialScope, target_id: str = None):
+    def _unset_default_credentials(self, scope: CredentialScope, target_id: Optional[str] = None) -> None:
         """Unset existing default credentials in the same scope"""
         try:
             if scope == CredentialScope.SYSTEM:
@@ -657,11 +658,11 @@ class CentralizedAuthService:
 
     def list_credentials(
         self,
-        scope: CredentialScope = None,
-        target_id: str = None,
-        user_id: str = None,
+        scope: Optional[CredentialScope] = None,
+        target_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         include_inactive: bool = False,
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         List credentials with filtering options.
 
@@ -757,7 +758,9 @@ class CentralizedAuthService:
                 {"id": credential_id, "updated_at": datetime.utcnow()},
             )
 
-            if result.rowcount > 0:
+            # CursorResult.rowcount is available at runtime but mypy doesn't see it
+            rowcount: int = getattr(result, "rowcount", 0)
+            if rowcount > 0:
                 self.db.commit()
                 logger.info(f"Soft deleted credential {credential_id} (90-day retention)")
                 return True
@@ -797,7 +800,8 @@ class CentralizedAuthService:
                 {"cutoff_date": cutoff_date},
             )
 
-            purged_count = result.rowcount
+            # CursorResult.rowcount is available at runtime but mypy doesn't see it
+            purged_count: int = getattr(result, "rowcount", 0)
             if purged_count > 0:
                 self.db.commit()
                 logger.info(f"Purged {purged_count} inactive credentials older than {retention_days} days")

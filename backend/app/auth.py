@@ -42,8 +42,8 @@ class FIPSJWTManager:
 
     def __init__(self) -> None:
         """Initialize JWT manager with RSA keys."""
-        self.private_key = None
-        self.public_key = None
+        self.private_key: Any = None
+        self.public_key: Any = None
         self._load_or_generate_keys()
 
     def _load_or_generate_keys(self) -> None:
@@ -399,23 +399,23 @@ def require_permissions(current_user: Dict[str, Any], permissions: str) -> None:
         # For other roles, you would implement role-based permission checking
         # For now, allow basic permissions for authenticated users
         allowed_permissions = {
-            "scans:create": [UserRole.ADMIN.value, UserRole.SCANNER.value],
+            "scans:create": [UserRole.SECURITY_ADMIN.value, UserRole.SECURITY_ANALYST.value],
             "scans:view": [
-                UserRole.ADMIN.value,
-                UserRole.SCANNER.value,
-                UserRole.VIEWER.value,
+                UserRole.SECURITY_ADMIN.value,
+                UserRole.SECURITY_ANALYST.value,
+                UserRole.AUDITOR.value,
             ],
             "reports:view": [
-                UserRole.ADMIN.value,
-                UserRole.SCANNER.value,
-                UserRole.VIEWER.value,
+                UserRole.SECURITY_ADMIN.value,
+                UserRole.SECURITY_ANALYST.value,
+                UserRole.AUDITOR.value,
             ],
             "hosts:view": [
-                UserRole.ADMIN.value,
-                UserRole.SCANNER.value,
-                UserRole.VIEWER.value,
+                UserRole.SECURITY_ADMIN.value,
+                UserRole.SECURITY_ANALYST.value,
+                UserRole.AUDITOR.value,
             ],
-            "hosts:manage": [UserRole.ADMIN.value, UserRole.SCANNER.value],
+            "hosts:manage": [UserRole.SECURITY_ADMIN.value, UserRole.SECURITY_ANALYST.value],
         }
 
         if permissions not in allowed_permissions:

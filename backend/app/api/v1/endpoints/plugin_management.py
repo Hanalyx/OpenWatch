@@ -7,9 +7,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import status as http_status
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from ....auth import get_current_user
 from ....database import User
@@ -25,7 +26,7 @@ security = HTTPBearer()
 
 # Request/Response Models
 class PluginImportResponse(BaseModel):
-    """Response for plugin import operations"""
+    """Response for plugin import operations."""
 
     success: bool
     import_id: str
@@ -33,7 +34,7 @@ class PluginImportResponse(BaseModel):
     plugin_name: Optional[str] = None
     version: Optional[str] = None
     trust_level: Optional[str] = None
-    status: Optional[str] = None
+    plugin_status: Optional[str] = Field(default=None, alias="status")
     security_score: Optional[int] = None
     security_checks: Optional[int] = None
     total_checks: Optional[int] = None
@@ -43,7 +44,7 @@ class PluginImportResponse(BaseModel):
 
 
 class PluginListResponse(BaseModel):
-    """Response for plugin listing"""
+    """Response for plugin listing."""
 
     plugins: List[Dict[str, Any]]
     total_count: int
@@ -54,11 +55,11 @@ class PluginListResponse(BaseModel):
 
 
 class PluginDetailsResponse(BaseModel):
-    """Response for detailed plugin information"""
+    """Response for detailed plugin information."""
 
     plugin_id: str
     manifest: Dict[str, Any]
-    status: str
+    plugin_status: str = Field(alias="status")
     trust_level: str
     imported_at: str
     imported_by: str
@@ -68,21 +69,21 @@ class PluginDetailsResponse(BaseModel):
 
 
 class PluginStatusUpdateRequest(BaseModel):
-    """Request to update plugin status"""
+    """Request to update plugin status."""
 
-    status: PluginStatus
+    new_status: PluginStatus = Field(alias="status")
     reason: Optional[str] = None
 
 
 class PluginConfigUpdateRequest(BaseModel):
-    """Request to update plugin configuration"""
+    """Request to update plugin configuration."""
 
     config: Dict[str, Any]
     enabled_platforms: Optional[List[str]] = None
 
 
 class TrustedKeyAddRequest(BaseModel):
-    """Request to add trusted public key"""
+    """Request to add trusted public key."""
 
     public_key_pem: str = Field(..., min_length=200)
     key_name: str = Field(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9-_]+$")
@@ -90,8 +91,10 @@ class TrustedKeyAddRequest(BaseModel):
     organization: Optional[str] = None
     description: Optional[str] = None
 
-    @validator("public_key_pem")
-    def validate_pem_format(cls, v):
+    @field_validator("public_key_pem")
+    @classmethod
+    def validate_pem_format(cls, v: str) -> str:
+        """Validate that public key is in proper PEM format."""
         if not v.startswith("-----BEGIN PUBLIC KEY-----"):
             raise ValueError("Must be a valid PEM formatted public key")
         if not v.strip().endswith("-----END PUBLIC KEY-----"):
@@ -107,9 +110,9 @@ async def import_plugin_from_file(
     trust_level_override: Optional[PluginTrustLevel] = Query(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
-):
+) -> PluginImportResponse:
     """
-    Import plugin from uploaded file
+    Import plugin from uploaded file.
 
     Security measures:
     - File size limits enforced
@@ -118,26 +121,26 @@ async def import_plugin_from_file(
     - Sandbox validation
     """
     try:
-        # Check permissions
-        await check_permission(current_user, "plugin:import")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "import")
 
         # Admin-only trust level override
         if trust_level_override and current_user.role != "admin":
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Trust level override requires admin privileges",
             )
 
         # Validate file type
         if not file.filename:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
         allowed_extensions = {".tar.gz", ".tgz", ".zip", ".owplugin"}
         # file_extension extracted for potential future use (logging, validation)
         _file_extension = "".join(file.filename.lower().split(".")[1:])  # noqa: F841
         if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}",
             )
 
@@ -148,7 +151,7 @@ async def import_plugin_from_file(
         result = await import_service.import_plugin_from_file(
             file_content=file_content,
             filename=file.filename,
-            user_id=current_user.username,
+            user_id=str(current_user.username),
             verify_signature=verify_signature,
             trust_level_override=trust_level_override,
         )
@@ -157,7 +160,7 @@ async def import_plugin_from_file(
         logger.info(
             "Plugin import attempt",
             extra={
-                "user": current_user.username,
+                "user": str(current_user.username),
                 "filename": file.filename,
                 "success": result["success"],
                 "import_id": result["import_id"],
@@ -171,7 +174,7 @@ async def import_plugin_from_file(
     except Exception as e:
         logger.error(f"Plugin import error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Import failed: {str(e)}",
         )
 
@@ -183,9 +186,9 @@ async def import_plugin_from_url(
     max_size_mb: int = Query(50, ge=1, le=100, description="Maximum download size in MB"),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
-):
+) -> PluginImportResponse:
     """
-    Import plugin from URL
+    Import plugin from URL.
 
     Security measures:
     - HTTPS-only downloads
@@ -194,20 +197,20 @@ async def import_plugin_from_url(
     - Same security scanning as file uploads
     """
     try:
-        # Check permissions
-        await check_permission(current_user, "plugin:import")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "import")
 
         # Validate URL format
         if not plugin_url.startswith("https://"):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="Only HTTPS URLs are allowed for security",
             )
 
         # Import plugin
         result = await import_service.import_plugin_from_url(
             plugin_url=plugin_url,
-            user_id=current_user.username,
+            user_id=str(current_user.username),
             verify_signature=verify_signature,
             max_size=max_size_mb * 1024 * 1024,
         )
@@ -216,7 +219,7 @@ async def import_plugin_from_url(
         logger.info(
             "Plugin URL import attempt",
             extra={
-                "user": current_user.username,
+                "user": str(current_user.username),
                 "url": plugin_url,
                 "success": result["success"],
                 "import_id": result["import_id"],
@@ -230,7 +233,7 @@ async def import_plugin_from_url(
     except Exception as e:
         logger.error(f"Plugin URL import error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"URL import failed: {str(e)}",
         )
 
@@ -240,22 +243,23 @@ async def import_plugin_from_url(
 async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=100, description="Items per page"),
-    status: Optional[PluginStatus] = Query(None, description="Filter by status"),
+    filter_status: Optional[PluginStatus] = Query(None, alias="status", description="Filter by status"),
     trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
     plugin_type: Optional[PluginType] = Query(None, description="Filter by plugin type"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
     search: Optional[str] = Query(None, description="Search in name and description"),
     current_user: User = Depends(get_current_user),
-):
-    """List installed plugins with filtering and pagination"""
+) -> PluginListResponse:
+    """List installed plugins with filtering and pagination."""
     try:
-        await check_permission(current_user, "plugin:read")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "read")
 
         # Build query
-        query = {}
+        query: Dict[str, Any] = {}
 
-        if status:
-            query["status"] = status
+        if filter_status:
+            query["status"] = filter_status
         if trust_level:
             query["trust_level"] = trust_level
         if plugin_type:
@@ -271,16 +275,14 @@ async def list_plugins(
         # Get total count
         total_count = await InstalledPlugin.find(query).count()
 
-        # Get paginated results
+        # Get paginated results - use tuple syntax for MongoDB sorting
         skip = (page - 1) * page_size
-        plugins = (
-            await InstalledPlugin.find(query).skip(skip).limit(page_size).sort(-InstalledPlugin.imported_at).to_list()
-        )
+        plugins = await InstalledPlugin.find(query).skip(skip).limit(page_size).sort([("imported_at", -1)]).to_list()
 
         # Format response
-        plugin_list = []
+        plugin_list: List[Dict[str, Any]] = []
         for plugin in plugins:
-            plugin_data = {
+            plugin_data: Dict[str, Any] = {
                 "plugin_id": plugin.plugin_id,
                 "name": plugin.manifest.name,
                 "version": plugin.manifest.version,
@@ -309,7 +311,7 @@ async def list_plugins(
             page_size=page_size,
             has_next=has_next,
             filters_applied={
-                "status": status.value if status else None,
+                "status": filter_status.value if filter_status else None,
                 "trust_level": trust_level.value if trust_level else None,
                 "plugin_type": plugin_type.value if plugin_type else None,
                 "platform": platform,
@@ -322,26 +324,27 @@ async def list_plugins(
     except Exception as e:
         logger.error(f"Plugin listing error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list plugins: {str(e)}",
         )
 
 
 @router.get("/{plugin_id}", response_model=PluginDetailsResponse)
-async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_current_user)):
-    """Get detailed information about a specific plugin"""
+async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_current_user)) -> PluginDetailsResponse:
+    """Get detailed information about a specific plugin."""
     try:
-        await check_permission(current_user, "plugin:read")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "read")
 
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Plugin not found: {plugin_id}",
             )
 
         # Prepare security information
-        security_info = {
+        security_info: Dict[str, Any] = {
             "trust_level": plugin.trust_level.value,
             "signature_verified": plugin.signature_verified,
             "risk_score": plugin.get_risk_score(),
@@ -353,7 +356,7 @@ async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_cu
         }
 
         # Usage statistics
-        usage_stats = {
+        usage_stats: Dict[str, Any] = {
             "usage_count": plugin.usage_count,
             "last_used": plugin.last_used.isoformat() if plugin.last_used else None,
             "applied_to_rules": len(plugin.applied_to_rules),
@@ -361,7 +364,7 @@ async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_cu
         }
 
         # Recent execution history (limited)
-        execution_history = plugin.execution_history[-10:] if plugin.execution_history else []
+        execution_history: List[Dict[str, Any]] = plugin.execution_history[-10:] if plugin.execution_history else []
 
         return PluginDetailsResponse(
             plugin_id=plugin.plugin_id,
@@ -380,7 +383,7 @@ async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_cu
     except Exception as e:
         logger.error(f"Plugin details error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get plugin details: {str(e)}",
         )
 
@@ -390,24 +393,25 @@ async def update_plugin_status(
     plugin_id: str,
     status_update: PluginStatusUpdateRequest,
     current_user: User = Depends(get_current_user),
-):
-    """Update plugin status (enable/disable/quarantine)"""
+) -> Dict[str, str]:
+    """Update plugin status (enable/disable/quarantine)."""
     try:
-        await check_permission(current_user, "plugin:manage")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "manage")
 
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Plugin not found: {plugin_id}",
             )
 
         # Validate status transition
-        current_status = plugin.status
-        new_status = status_update.status
+        current_plugin_status = plugin.status
+        new_plugin_status = status_update.new_status
 
         # Define valid transitions
-        valid_transitions = {
+        valid_transitions: Dict[PluginStatus, List[PluginStatus]] = {
             PluginStatus.PENDING_VALIDATION: [
                 PluginStatus.ACTIVE,
                 PluginStatus.QUARANTINED,
@@ -418,14 +422,14 @@ async def update_plugin_status(
             PluginStatus.DEPRECATED: [PluginStatus.DISABLED],
         }
 
-        if new_status not in valid_transitions.get(current_status, []):
+        if new_plugin_status not in valid_transitions.get(current_plugin_status, []):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status transition from {current_status.value} to {new_status.value}",
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status transition from {current_plugin_status.value} to {new_plugin_status.value}",
             )
 
         # Update status
-        plugin.status = new_status
+        plugin.status = new_plugin_status
         plugin.updated_at = datetime.utcnow()
         await plugin.save()
 
@@ -434,17 +438,17 @@ async def update_plugin_status(
             "Plugin status updated",
             extra={
                 "plugin_id": plugin_id,
-                "old_status": current_status.value,
-                "new_status": new_status.value,
-                "user": current_user.username,
+                "old_status": current_plugin_status.value,
+                "new_status": new_plugin_status.value,
+                "user": str(current_user.username),
                 "reason": status_update.reason,
             },
         )
 
         return {
             "plugin_id": plugin_id,
-            "status": new_status.value,
-            "message": f"Plugin status updated to {new_status.value}",
+            "status": new_plugin_status.value,
+            "message": f"Plugin status updated to {new_plugin_status.value}",
         }
 
     except HTTPException:
@@ -452,7 +456,7 @@ async def update_plugin_status(
     except Exception as e:
         logger.error(f"Plugin status update error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update plugin status: {str(e)}",
         )
 
@@ -462,22 +466,23 @@ async def uninstall_plugin(
     plugin_id: str,
     remove_from_rules: bool = Query(False, description="Remove plugin associations from rules"),
     current_user: User = Depends(get_current_user),
-):
-    """Uninstall plugin and optionally remove rule associations"""
+) -> Dict[str, str]:
+    """Uninstall plugin and optionally remove rule associations."""
     try:
-        await check_permission(current_user, "plugin:delete")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "delete")
 
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Plugin not found: {plugin_id}",
             )
 
         # Check if plugin is in use
         if plugin.applied_to_rules and not remove_from_rules:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail=f"Plugin is applied to {len(plugin.applied_to_rules)} rules. Set remove_from_rules=true to force removal.",
             )
 
@@ -496,7 +501,7 @@ async def uninstall_plugin(
             extra={
                 "plugin_id": plugin_id,
                 "plugin_name": plugin.manifest.name,
-                "user": current_user.username,
+                "user": str(current_user.username),
                 "removed_from_rules": remove_from_rules,
             },
         )
@@ -508,7 +513,7 @@ async def uninstall_plugin(
     except Exception as e:
         logger.error(f"Plugin uninstall error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to uninstall plugin: {str(e)}",
         )
 
@@ -518,10 +523,11 @@ async def uninstall_plugin(
 async def list_trusted_keys(
     current_user: User = Depends(get_current_user),
     signature_service: PluginSignatureService = Depends(lambda: PluginSignatureService()),
-):
-    """List trusted public keys for signature verification"""
+) -> Dict[str, Any]:
+    """List trusted public keys for signature verification."""
     try:
-        await check_permission(current_user, "plugin:security")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "security")
 
         trusted_keys = signature_service.get_trusted_signers()
 
@@ -532,7 +538,7 @@ async def list_trusted_keys(
     except Exception as e:
         logger.error(f"Trusted keys listing error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list trusted keys: {str(e)}",
         )
 
@@ -542,21 +548,21 @@ async def add_trusted_key(
     key_request: TrustedKeyAddRequest,
     current_user: User = Depends(get_current_user),
     signature_service: PluginSignatureService = Depends(lambda: PluginSignatureService()),
-):
-    """Add a trusted public key for plugin signature verification (admin only)"""
+) -> Dict[str, Any]:
+    """Add a trusted public key for plugin signature verification (admin only)."""
     try:
         # Admin only
         if current_user.role != "admin":
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Adding trusted keys requires admin privileges",
             )
 
-        signer_info = {
+        signer_info: Dict[str, Any] = {
             "email": key_request.signer_email,
             "organization": key_request.organization,
             "description": key_request.description,
-            "added_by": current_user.username,
+            "added_by": str(current_user.username),
             "added_at": datetime.utcnow().isoformat(),
         }
 
@@ -567,7 +573,7 @@ async def add_trusted_key(
         )
 
         if not result["success"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=result["error"])
 
         # Log key addition
         logger.info(
@@ -576,7 +582,7 @@ async def add_trusted_key(
                 "key_id": result["key_id"],
                 "key_name": result["key_name"],
                 "signer_email": key_request.signer_email,
-                "added_by": current_user.username,
+                "added_by": str(current_user.username),
             },
         )
 
@@ -592,7 +598,7 @@ async def add_trusted_key(
     except Exception as e:
         logger.error(f"Add trusted key error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to add trusted key: {str(e)}",
         )
 
@@ -601,10 +607,11 @@ async def add_trusted_key(
 async def get_plugin_statistics(
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
-):
-    """Get plugin statistics and metrics"""
+) -> Dict[str, Any]:
+    """Get plugin statistics and metrics."""
     try:
-        await check_permission(current_user, "plugin:read")
+        # Check permissions - rbac.check_permission takes (role, resource, action)
+        check_permission(str(current_user.role), "plugins", "read")
 
         stats = await import_service.get_import_statistics()
 
@@ -621,6 +628,6 @@ async def get_plugin_statistics(
     except Exception as e:
         logger.error(f"Plugin statistics error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get statistics: {str(e)}",
         )

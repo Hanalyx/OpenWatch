@@ -286,7 +286,7 @@ def require_permission(permission: Permission) -> Callable[[F], F]:
 
             return await func(*args, **kwargs)
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -316,7 +316,7 @@ def require_any_permission(permissions: List[Permission]) -> Callable[[F], F]:
 
             return await func(*args, **kwargs)
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 
@@ -346,7 +346,7 @@ def require_role(required_roles: List[UserRole]) -> Callable[[F], F]:
 
             return await func(*args, **kwargs)
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

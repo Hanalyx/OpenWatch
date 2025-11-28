@@ -80,7 +80,7 @@ class SchedulerStatsResponse(BaseModel):
     maintenance_mode: str
 
 
-@router.get("/config", response_model=SchedulerConfigResponse)  # type: ignore[misc]
+@router.get("/config", response_model=SchedulerConfigResponse)
 async def get_scheduler_config(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> SchedulerConfigResponse:
@@ -108,7 +108,7 @@ async def get_scheduler_config(
         raise HTTPException(status_code=500, detail="Failed to retrieve scheduler configuration")
 
 
-@router.put("/config", response_model=SchedulerConfigResponse)  # type: ignore[misc]
+@router.put("/config", response_model=SchedulerConfigResponse)
 @require_permission(Permission.SYSTEM_CONFIG)
 async def update_scheduler_config(
     config_update: SchedulerConfigUpdate,
@@ -162,7 +162,7 @@ async def update_scheduler_config(
         raise HTTPException(status_code=500, detail="Failed to update scheduler configuration")
 
 
-@router.post("/start")  # type: ignore[misc]
+@router.post("/start")
 @require_permission(Permission.SYSTEM_CONFIG)
 async def start_scheduler(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
@@ -194,7 +194,7 @@ async def start_scheduler(
         raise HTTPException(status_code=500, detail="Failed to start scheduler")
 
 
-@router.post("/stop")  # type: ignore[misc]
+@router.post("/stop")
 @require_permission(Permission.SYSTEM_CONFIG)
 async def stop_scheduler(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
@@ -224,7 +224,7 @@ async def stop_scheduler(
         raise HTTPException(status_code=500, detail="Failed to stop scheduler")
 
 
-@router.get("/stats", response_model=SchedulerStatsResponse)  # type: ignore[misc]
+@router.get("/stats", response_model=SchedulerStatsResponse)
 async def get_scheduler_stats(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> SchedulerStatsResponse:
@@ -255,7 +255,7 @@ async def get_scheduler_stats(
         raise HTTPException(status_code=500, detail="Failed to retrieve scheduler statistics")
 
 
-@router.post("/reset-defaults")  # type: ignore[misc]
+@router.post("/reset-defaults")
 @require_permission(Permission.SYSTEM_CONFIG)
 async def reset_to_defaults(
     db: Session = Depends(get_db), current_user: Dict[str, Any] = Depends(get_current_user)

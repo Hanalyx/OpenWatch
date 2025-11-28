@@ -512,13 +512,13 @@ class GroupValidationService:
 
         for family, pattern in os_family_patterns.items():
             if re.search(pattern, os_string):
-                host.os_family = family  # type: ignore[assignment]
+                host.os_family = family
                 break
 
         # Detect OS version
         version_match = re.search(r"(\d+\.?\d*)", os_string)
         if version_match:
-            host.os_version = version_match.group(1)  # type: ignore[assignment]
+            host.os_version = version_match.group(1)
 
         # Detect architecture if present
         arch_patterns = {
@@ -530,11 +530,11 @@ class GroupValidationService:
 
         for arch, pattern in arch_patterns.items():
             if re.search(pattern, os_string):
-                host.architecture = arch  # type: ignore[assignment]
+                host.architecture = arch
                 break
 
         # Update last OS detection time
-        host.last_os_detection = datetime.utcnow()  # type: ignore[assignment]
+        host.last_os_detection = datetime.utcnow()
 
         # Commit changes
         self.db.add(host)

@@ -1,10 +1,12 @@
 """
-User Management API Routes
-Handles user CRUD operations with role-based access control
+User Management API Routes.
+
+Handles user CRUD operations with role-based access control.
+Provides endpoints for user creation, update, deletion, and password management.
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
@@ -74,8 +76,23 @@ class RoleInfo(BaseModel):
 
 
 @router.get("/roles", response_model=List[RoleInfo])
-async def list_roles(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """List all available roles (admin only)"""
+async def list_roles(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[RoleInfo]:
+    """
+    List all available roles (admin only).
+
+    Args:
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        List of RoleInfo objects with role details and permissions.
+
+    Raises:
+        HTTPException: 403 if insufficient permissions, 500 on server error.
+    """
     user_role = UserRole(current_user.get("role", "guest"))
     if not RBACManager.has_permission(user_role, Permission.USER_READ):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -128,10 +145,27 @@ async def list_users(
     search: Optional[str] = Query(None),
     role: Optional[UserRole] = Query(None),
     is_active: Optional[bool] = Query(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """List users with pagination and filtering"""
+) -> UserListResponse:
+    """
+    List users with pagination and filtering.
+
+    Args:
+        page: Page number (1-indexed).
+        page_size: Number of users per page (max 100).
+        search: Optional search term for username or email.
+        role: Optional role filter.
+        is_active: Optional active status filter.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserListResponse with users, total count, and pagination info.
+
+    Raises:
+        HTTPException: 403 if insufficient permissions, 500 on server error.
+    """
     user_role = UserRole(current_user.get("role", "guest"))
     if not RBACManager.has_permission(user_role, Permission.USER_READ):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -155,7 +189,9 @@ async def list_users(
 
         count_query, count_params = count_builder.count_query()
         count_result = db.execute(text(count_query), count_params)
-        total = count_result.fetchone().total
+        count_row = count_result.fetchone()
+        # Null safety for fetchone() which returns Optional[Row]
+        total: int = count_row.total if count_row else 0
 
         # OW-REFACTOR-001B: Use QueryBuilder for main query with same filters and pagination
         # Why: Reduces SQL injection risk, improves maintainability
@@ -204,18 +240,31 @@ async def list_users(
 @require_permission(Permission.USER_CREATE)
 async def create_user(
     user_data: UserCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Create a new user (super admin only)"""
+) -> UserResponse:
+    """
+    Create a new user (super admin only).
+
+    Args:
+        user_data: User creation data including username, email, password, role.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserResponse with newly created user details.
+
+    Raises:
+        HTTPException: 400 if username/email exists, 500 on server error.
+    """
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern, reduces SQL injection risk
         check_builder = QueryBuilder("users").select("id").where("username = :username OR email = :email", None, None)
         # Note: QueryBuilder doesn't support OR with different param values, use custom params
-        query, _ = check_builder.build()
+        check_query, _ = check_builder.build()
         result = db.execute(
-            text(query.replace(":username OR email = :email", ":username OR email = :email")),
+            text(check_query.replace(":username OR email = :email", ":username OR email = :email")),
             {"username": user_data.username, "email": user_data.email},
         )
 
@@ -227,7 +276,7 @@ async def create_user(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        query = text(
+        insert_query = text(
             """
             INSERT INTO users (username, email, hashed_password, role, is_active,
                              created_at, failed_login_attempts, mfa_enabled)
@@ -237,7 +286,7 @@ async def create_user(
         """
         )
         insert_result = db.execute(
-            query,
+            insert_query,
             {
                 "username": user_data.username,
                 "email": user_data.email,
@@ -251,6 +300,10 @@ async def create_user(
 
         row = insert_result.fetchone()
         db.commit()
+
+        # Null safety for INSERT...RETURNING result
+        if row is None:
+            raise HTTPException(status_code=500, detail="Failed to create user - no data returned")
 
         logger.info(f"User {user_data.username} created by {current_user.get('username')}")
 
@@ -284,10 +337,23 @@ async def create_user(
 @require_permission(Permission.USER_READ)
 async def get_user(
     user_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Get user by ID"""
+) -> UserResponse:
+    """
+    Get user by ID.
+
+    Args:
+        user_id: The numeric ID of the user to retrieve.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserResponse with user details.
+
+    Raises:
+        HTTPException: 404 if user not found, 500 on server error.
+    """
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT
         # Why: Consistent with Phase 1-3 pattern, eliminates manual SQL construction
@@ -329,10 +395,24 @@ async def get_user(
 async def update_user(
     user_id: int,
     user_data: UserUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Update user (admin only, or users can update themselves)"""
+) -> UserResponse:
+    """
+    Update user (admin only, or users can update themselves).
+
+    Args:
+        user_id: The numeric ID of the user to update.
+        user_data: Fields to update (username, email, role, is_active, password).
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserResponse with updated user details.
+
+    Raises:
+        HTTPException: 400/403/404 on validation errors, 500 on server error.
+    """
     try:
         # OW-REFACTOR-001B: Use QueryBuilder for existence check
         # Why: Consistent with Phase 1-3 pattern
@@ -355,7 +435,8 @@ async def update_user(
 
         # OW-REFACTOR-001B: Use QueryBuilder for conditional UPDATE
         # Why: Eliminates manual SQL construction, maintains security through parameterization
-        update_data = {}
+        # Type annotation: Dict with mixed value types (str, bool, etc.)
+        update_data: Dict[str, Any] = {}
 
         if user_data.username:
             update_data["username"] = user_data.username
@@ -392,7 +473,9 @@ async def update_user(
         db.commit()
 
         # Return updated user
-        return await get_user(user_id, current_user, db)
+        # Cast needed because @require_permission decorator returns Any
+        result = await get_user(user_id, current_user, db)
+        return cast(UserResponse, result)
 
     except HTTPException:
         raise
@@ -406,10 +489,25 @@ async def update_user(
 @require_permission(Permission.USER_DELETE)
 async def delete_user(
     user_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Delete user (super admin only)"""
+) -> Dict[str, str]:
+    """
+    Delete user (super admin only).
+
+    Performs a soft delete by setting is_active=False to preserve audit trails.
+
+    Args:
+        user_id: The numeric ID of the user to delete.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with success message.
+
+    Raises:
+        HTTPException: 400 if self-deletion, 404 if not found, 500 on server error.
+    """
     try:
         # Prevent self-deletion
         if current_user.get("id") == user_id:
@@ -452,10 +550,23 @@ async def delete_user(
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChangeRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Change current user's password"""
+) -> Dict[str, str]:
+    """
+    Change current user's password.
+
+    Args:
+        password_data: Current and new password.
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        Dictionary with success message.
+
+    Raises:
+        HTTPException: 400 if current password wrong, 404 if not found, 500 on error.
+    """
     try:
         user_id = current_user.get("id")
 
@@ -504,18 +615,54 @@ async def change_password(
 
 
 @router.get("/me/profile", response_model=UserResponse)
-async def get_my_profile(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get current user's profile"""
-    return await get_user(current_user.get("id"), current_user, db)
+async def get_my_profile(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    """
+    Get current user's profile.
+
+    Args:
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserResponse with current user's details.
+    """
+    user_id = current_user.get("id")
+    # User ID should always be present for authenticated users
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="User ID not found in token")
+    # Cast needed because @require_permission decorator returns Any
+    result = await get_user(user_id, current_user, db)
+    return cast(UserResponse, result)
 
 
 @router.put("/me/profile", response_model=UserResponse)
 async def update_my_profile(
     user_data: UserUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    """Update current user's profile"""
+) -> UserResponse:
+    """
+    Update current user's profile.
+
+    Note: Users cannot change their own role through this endpoint.
+
+    Args:
+        user_data: Fields to update (username, email, password only).
+        current_user: Authenticated user dictionary from token.
+        db: Database session dependency.
+
+    Returns:
+        UserResponse with updated user details.
+    """
     # Remove role from update data - users cannot change their own role
     user_data.role = None
-    return await update_user(current_user.get("id"), user_data, current_user, db)
+    user_id = current_user.get("id")
+    # User ID should always be present for authenticated users
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="User ID not found in token")
+    # Cast needed because @require_permission decorator returns Any
+    result = await update_user(user_id, user_data, current_user, db)
+    return cast(UserResponse, result)

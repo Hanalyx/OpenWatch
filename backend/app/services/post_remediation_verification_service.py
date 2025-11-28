@@ -9,7 +9,10 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from asyncio import Task
 
 from beanie import Document
 from pydantic import BaseModel, Field
@@ -119,7 +122,7 @@ class HostVerificationResult(BaseModel):
 class VerificationJob(Document):
     """Post-remediation verification job"""
 
-    verification_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    verification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     # Associated remediation job
     bulk_job_id: str = Field(..., description="Associated bulk remediation job ID")
@@ -171,7 +174,7 @@ class VerificationJob(Document):
 class ContinuousComplianceMonitor(Document):
     """Configuration for continuous compliance monitoring"""
 
-    monitor_id: str = Field(default_factory=lambda: str(uuid.uuid4()), unique=True)
+    monitor_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., description="Monitor name")
 
     # Monitoring scope
@@ -230,15 +233,15 @@ class PostRemediationVerificationService:
     - Integration with scan and remediation services
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.scan_service = ScanService()
         self.bulk_remediation_service = BulkRemediationService()
         self.active_verifications: Dict[str, VerificationJob] = {}
         self.continuous_monitors: Dict[str, ContinuousComplianceMonitor] = {}
-        self.monitor_task: Optional[asyncio.Task] = None
+        self.monitor_task: "Optional[Task[None]]" = None
         self.running = False
 
-    async def start_monitoring_service(self):
+    async def start_monitoring_service(self) -> None:
         """Start the continuous compliance monitoring service"""
         if self.running:
             logger.warning("Verification monitoring service is already running")
@@ -248,7 +251,7 @@ class PostRemediationVerificationService:
         self.monitor_task = asyncio.create_task(self._monitoring_loop())
         logger.info("Post-remediation verification monitoring service started")
 
-    async def stop_monitoring_service(self):
+    async def stop_monitoring_service(self) -> None:
         """Stop the continuous compliance monitoring service"""
         if not self.running:
             return
@@ -345,7 +348,7 @@ class PostRemediationVerificationService:
         if triggered_by:
             query["triggered_by"] = triggered_by
 
-        return await VerificationJob.find(query).sort(-VerificationJob.created_at).limit(limit).to_list()
+        return await VerificationJob.find(query).sort(-VerificationJob.created_at).limit(limit).to_list()  # type: ignore[operator]
 
     async def cancel_verification(self, verification_id: str) -> bool:
         """Cancel a pending or running verification job"""
@@ -379,8 +382,8 @@ class PostRemediationVerificationService:
         name: str,
         rule_ids: List[str],
         created_by: str,
-        host_group_ids: List[str] = None,
-        host_ids: List[str] = None,
+        host_group_ids: Optional[List[str]] = None,
+        host_ids: Optional[List[str]] = None,
         scan_frequency_hours: int = 24,
         auto_remediate: bool = False,
     ) -> ContinuousComplianceMonitor:
@@ -423,18 +426,18 @@ class PostRemediationVerificationService:
         query = {}
 
         if is_active is not None:
-            query["is_active"] = is_active
+            query["is_active"] = str(is_active).lower()
         if created_by:
             query["created_by"] = created_by
 
         return (
             await ContinuousComplianceMonitor.find(query)
-            .sort(-ContinuousComplianceMonitor.created_at)
+            .sort(-ContinuousComplianceMonitor.created_at)  # type: ignore[operator]
             .limit(limit)
             .to_list()
         )
 
-    async def _execute_verification_after_delay(self, verification: VerificationJob):
+    async def _execute_verification_after_delay(self, verification: VerificationJob) -> None:
         """Execute verification after configured delay"""
         if verification.delay_before_verification_seconds > 0:
             logger.info(
@@ -444,7 +447,7 @@ class PostRemediationVerificationService:
 
         await self._execute_verification(verification)
 
-    async def _execute_verification(self, verification: VerificationJob):
+    async def _execute_verification(self, verification: VerificationJob) -> None:
         """Execute the verification process"""
         try:
             verification.status = VerificationStatus.RUNNING
@@ -655,7 +658,7 @@ class PostRemediationVerificationService:
             remediation_effective=remediation_effective,
         )
 
-    async def _monitoring_loop(self):
+    async def _monitoring_loop(self) -> None:
         """Main continuous compliance monitoring loop"""
         while self.running:
             try:
@@ -667,7 +670,7 @@ class PostRemediationVerificationService:
                 logger.error(f"Error in monitoring loop: {e}")
                 await asyncio.sleep(300)
 
-    async def _check_continuous_monitors(self):
+    async def _check_continuous_monitors(self) -> None:
         """Check for monitors that need to run scans"""
         now = datetime.utcnow()
 
@@ -680,7 +683,7 @@ class PostRemediationVerificationService:
             except Exception as e:
                 logger.error(f"Continuous monitor execution failed: {monitor.monitor_id}: {e}")
 
-    async def _execute_continuous_monitor(self, monitor: ContinuousComplianceMonitor):
+    async def _execute_continuous_monitor(self, monitor: ContinuousComplianceMonitor) -> None:
         """Execute a continuous compliance monitor"""
         logger.info(f"Executing continuous monitor: {monitor.monitor_id} ({monitor.name})")
 

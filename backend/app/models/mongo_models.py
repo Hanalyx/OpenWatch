@@ -38,11 +38,11 @@ try:
     PHASE1_MODELS_AVAILABLE = True
 except ImportError:
     # Fallback if Phase 1 models not available
-    ScanTemplate = None
-    ScanResult = None
-    ScanSchedule = None
-    RemediationResult = None
-    BulkRemediationJob = None
+    ScanTemplate = None  # type: ignore[assignment, misc]
+    ScanResult = None  # type: ignore[assignment, misc]
+    ScanSchedule = None  # type: ignore[assignment, misc]
+    RemediationResult = None  # type: ignore[assignment, misc]
+    BulkRemediationJob = None  # type: ignore[assignment, misc]
     PHASE1_MODELS_AVAILABLE = False
 
 
@@ -77,7 +77,8 @@ class FrameworkVersions(BaseModel):
         """
         # Force exclude_none=True for all dumps
         kwargs["exclude_none"] = True
-        return super().model_dump(**kwargs)
+        result: Dict[str, Any] = super().model_dump(**kwargs)
+        return result
 
 
 class PlatformImplementation(BaseModel):
@@ -854,15 +855,15 @@ class MongoManager:
 
         # Add Phase 1 models if available
         if PHASE1_MODELS_AVAILABLE:
-            if ScanTemplate:
+            if ScanTemplate is not None:
                 document_models.append(ScanTemplate)
-            if ScanResult:
+            if ScanResult is not None:
                 document_models.append(ScanResult)
-            if ScanSchedule:
+            if ScanSchedule is not None:
                 document_models.append(ScanSchedule)
-            if RemediationResult:
+            if RemediationResult is not None:
                 document_models.append(RemediationResult)
-            if BulkRemediationJob:
+            if BulkRemediationJob is not None:
                 document_models.append(BulkRemediationJob)
             logger.info(f"Registered {len(document_models)} Beanie document models (including Phase 1)")
         else:
@@ -884,7 +885,8 @@ class MongoManager:
 
         try:
             # Test connection
-            await self.client.admin.command("ping")
+            if self.client is not None:
+                await self.client.admin.command("ping")
 
             # Get database stats
             stats = await self.database.command("dbStats")

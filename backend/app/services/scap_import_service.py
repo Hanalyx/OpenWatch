@@ -5,7 +5,7 @@ Handles bulk import of SCAP rules into MongoDB with progress tracking and dedupl
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from backend.app.models.mongo_models import ComplianceRule, RuleIntelligence
 from backend.app.repositories import ComplianceRuleRepository
@@ -29,8 +29,8 @@ class ImportProgress:
         self.start_time = datetime.utcnow()
         self.current_phase = "initializing"
         self.current_rule = ""
-        self.errors = []
-        self.warnings = []
+        self.errors: List[Any] = []
+        self.warnings: List[Any] = []
 
     def update(
         self,
@@ -39,9 +39,9 @@ class ImportProgress:
         updated: int = 0,
         skipped: int = 0,
         errors: int = 0,
-        phase: str = None,
-        current_rule: str = None,
-    ):
+        phase: Optional[str] = None,
+        current_rule: Optional[str] = None,
+    ) -> None:
         """Update progress counters"""
         if processed > 0:
             self.processed_rules += processed
@@ -96,12 +96,12 @@ class SCAPImportService:
         self.mongo_service = mongo_service
         self.parser = SCAPParserService()
         self.transformer = SCAPTransformationService()
-        self.progress = None
+        self.progress: Optional[ImportProgress] = None
 
     async def import_scap_file(
         self,
         file_path: str,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], Any]] = None,
         deduplication_strategy: str = "skip_existing",
         batch_size: int = 100,
     ) -> Dict[str, Any]:
@@ -116,7 +116,7 @@ class SCAPImportService:
         """
         logger.info(f"Starting SCAP import: {file_path}")
 
-        result = {
+        result: Dict[str, Any] = {
             "file_path": file_path,
             "start_time": datetime.utcnow().isoformat(),
             "status": "running",
@@ -189,7 +189,7 @@ class SCAPImportService:
         rules: List[Dict[str, Any]],
         deduplication_strategy: str,
         batch_size: int,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[Dict[str, Any]], Any]] = None,
     ) -> Dict[str, int]:
         """Import rules in batches with progress tracking"""
         stats = {"imported": 0, "updated": 0, "skipped": 0, "errors": 0}
@@ -204,18 +204,19 @@ class SCAPImportService:
                 stats[key] += batch_stats[key]
 
             # Update progress
-            self.progress.update(
-                processed=len(batch),
-                imported=batch_stats["imported"],
-                updated=batch_stats["updated"],
-                skipped=batch_stats["skipped"],
-                errors=batch_stats["errors"],
-                current_rule=f"Batch {i//batch_size + 1} of {(len(rules) + batch_size - 1)//batch_size}",
-            )
+            if self.progress:
+                self.progress.update(
+                    processed=len(batch),
+                    imported=batch_stats["imported"],
+                    updated=batch_stats["updated"],
+                    skipped=batch_stats["skipped"],
+                    errors=batch_stats["errors"],
+                    current_rule=f"Batch {i//batch_size + 1} of {(len(rules) + batch_size - 1)//batch_size}",
+                )
 
-            # Call progress callback
-            if progress_callback:
-                await progress_callback(self.progress.get_status())
+                # Call progress callback
+                if progress_callback:
+                    await progress_callback(self.progress.get_status())
 
             logger.info(f"Processed batch {i//batch_size + 1}: {batch_stats}")
 
@@ -233,7 +234,8 @@ class SCAPImportService:
             except Exception as e:
                 logger.error(f"Failed to import rule {rule_data.get('rule_id')}: {str(e)}")
                 stats["errors"] += 1
-                self.progress.errors.append({"rule_id": rule_data.get("rule_id"), "error": str(e)})
+                if self.progress:
+                    self.progress.errors.append({"rule_id": rule_data.get("rule_id"), "error": str(e)})
 
         return stats
 
@@ -262,6 +264,9 @@ class SCAPImportService:
                 await existing_rule.delete()
                 await self._create_new_rule(rule_data)
                 return "updated"
+            else:
+                # Unknown strategy, default to skip
+                return "skipped"
         else:
             # Create new rule
             await self._create_new_rule(rule_data)

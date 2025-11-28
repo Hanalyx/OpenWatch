@@ -35,7 +35,7 @@ class HostComplianceDiscoveryService:
         """
         logger.info(f"Starting compliance infrastructure discovery for host: {host.hostname}")
 
-        discovery_results = {
+        discovery_results: Dict[str, Any] = {
             "python_environments": {},
             "openscap_tools": {},
             "privilege_escalation": {},
@@ -108,7 +108,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_python_environments(self, host: Host) -> Dict[str, Any]:
         """Discover Python installations and versions"""
-        result = {"python_environments": {}, "errors": []}
+        result: Dict[str, Any] = {"python_environments": {}, "errors": []}
 
         # Python executables to check
         python_executables = [
@@ -165,7 +165,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_openscap_tools(self, host: Host) -> Dict[str, Any]:
         """Discover OpenSCAP tools and capabilities"""
-        result = {"openscap_tools": {}, "errors": []}
+        result: Dict[str, Any] = {"openscap_tools": {}, "errors": []}
 
         # OpenSCAP tools to check
         openscap_tools = {
@@ -253,7 +253,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_privilege_escalation(self, host: Host) -> Dict[str, Any]:
         """Discover privilege escalation capabilities (sudo, su, etc.)"""
-        result = {"privilege_escalation": {}, "errors": []}
+        result: Dict[str, Any] = {"privilege_escalation": {}, "errors": []}
 
         try:
             # Check for sudo
@@ -311,7 +311,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_compliance_scanners(self, host: Host) -> Dict[str, Any]:
         """Discover other compliance and security scanners"""
-        result = {"compliance_scanners": {}, "errors": []}
+        result: Dict[str, Any] = {"compliance_scanners": {}, "errors": []}
 
         # Compliance scanners to check
         scanners = {
@@ -360,7 +360,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_filesystem_capabilities(self, host: Host) -> Dict[str, Any]:
         """Discover filesystem capabilities relevant to compliance"""
-        result = {"filesystem_capabilities": {}, "errors": []}
+        result: Dict[str, Any] = {"filesystem_capabilities": {}, "errors": []}
 
         try:
             # Check mounted filesystems and their properties
@@ -414,7 +414,7 @@ class HostComplianceDiscoveryService:
 
     def _discover_audit_tools(self, host: Host) -> Dict[str, Any]:
         """Discover audit and logging tools"""
-        result = {"audit_tools": {}, "errors": []}
+        result: Dict[str, Any] = {"audit_tools": {}, "errors": []}
 
         # Audit tools to check
         audit_tools = {

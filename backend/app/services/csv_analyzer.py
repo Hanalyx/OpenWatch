@@ -54,9 +54,10 @@ class CSVAnalysis:
 
 
 class CSVAnalyzer:
-    """Intelligent CSV analysis for field mapping"""
+    """Intelligent CSV analysis for field mapping."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize CSV analyzer with regex patterns."""
         self.ip_patterns = [
             re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}$"),  # IPv4
             re.compile(r"^[0-9a-fA-F:]+$"),  # IPv6 (simplified)

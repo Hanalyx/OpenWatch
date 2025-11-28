@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -45,7 +45,7 @@ class RSAKeyMetadata:
     last_used: Optional[datetime] = None
     fingerprint: str = ""
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage"""
         data = asdict(self)
         data["status"] = self.status.value
@@ -62,7 +62,7 @@ class RSAKeyMetadata:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "RSAKeyMetadata":
+    def from_dict(cls, data: Dict[str, Any]) -> "RSAKeyMetadata":
         """Create from dictionary"""
         data["status"] = KeyStatus(data["status"])
         # Convert ISO strings back to datetime objects
@@ -81,7 +81,7 @@ class RSAKeyMetadata:
 class RSAKeyLifecycleManager:
     """FIPS-compliant RSA key lifecycle management"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.key_storage_path = Path("/app/security/keys")
         self.key_storage_path.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.key_size = 2048  # FIPS minimum
@@ -92,7 +92,7 @@ class RSAKeyLifecycleManager:
         """Generate unique key identifier"""
         return f"jwt_key_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(8)}"
 
-    def calculate_fingerprint(self, public_key) -> str:
+    def calculate_fingerprint(self, public_key: rsa.RSAPublicKey) -> str:
         """Calculate SHA-256 fingerprint of RSA public key"""
         public_der = public_key.public_bytes(
             encoding=serialization.Encoding.DER,
@@ -216,7 +216,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to load metadata for key {key_id}: {e}")
             return None
 
-    def update_key_metadata(self, key_id: str, metadata: RSAKeyMetadata):
+    def update_key_metadata(self, key_id: str, metadata: RSAKeyMetadata) -> None:
         """Update key metadata"""
         try:
             metadata_path = self.key_storage_path / key_id / "metadata.json"
@@ -314,7 +314,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to create new key: {e}")
             raise
 
-    def activate_key(self, key_id: str):
+    def activate_key(self, key_id: str) -> None:
         """
         Activate a pending key and deprecate the current active key
 
@@ -351,7 +351,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to activate key {key_id}: {e}")
             raise
 
-    def deprecate_key(self, key_id: str):
+    def deprecate_key(self, key_id: str) -> None:
         """Mark key as deprecated"""
         try:
             metadata = self.load_key_metadata(key_id)
@@ -369,7 +369,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to deprecate key {key_id}: {e}")
             raise
 
-    def revoke_key(self, key_id: str, reason: str = None):
+    def revoke_key(self, key_id: str, reason: Optional[str] = None) -> None:
         """Revoke a key immediately"""
         try:
             metadata = self.load_key_metadata(key_id)
@@ -386,7 +386,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to revoke key {key_id}: {e}")
             raise
 
-    def update_current_key_symlinks(self, key_id: str):
+    def update_current_key_symlinks(self, key_id: str) -> None:
         """Update symlinks to point to current active key"""
         try:
             # Create symlinks for current active key
@@ -460,7 +460,7 @@ class RSAKeyLifecycleManager:
             logger.error(f"Failed to check keys for rotation: {e}")
             return []
 
-    def cleanup_old_keys(self, retention_days: int = 90):
+    def cleanup_old_keys(self, retention_days: int = 90) -> None:
         """Clean up deprecated/revoked keys older than retention period"""
         cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
         cleaned_count = 0
@@ -488,7 +488,7 @@ class RSAKeyLifecycleManager:
         except Exception as e:
             logger.error(f"Failed during key cleanup: {e}")
 
-    def record_key_usage(self, key_id: str):
+    def record_key_usage(self, key_id: str) -> None:
         """Record key usage for analytics"""
         try:
             metadata = self.load_key_metadata(key_id)
@@ -500,7 +500,7 @@ class RSAKeyLifecycleManager:
         except Exception as e:
             logger.debug(f"Failed to record key usage for {key_id}: {e}")
 
-    def get_key_statistics(self) -> Dict:
+    def get_key_statistics(self) -> Dict[str, Any]:
         """Get key lifecycle statistics"""
         stats = {
             "total_keys": 0,

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 try:
     from beanie import PydanticObjectId
 except ImportError:
-    # Fallback when beanie is not available
+    # Fallback when beanie is not available - assigning str to module-level variable
     PydanticObjectId = str
 
 try:
@@ -34,29 +34,38 @@ except ImportError:
 
     # Fallback when mongo models are not available
     class MockComplianceRule:
+        """Mock class for ComplianceRule when beanie is not available."""
+
         @classmethod
-        async def find(cls):
+        async def find(cls) -> "MockCursor":
+            """Return empty mock cursor."""
             return MockCursor([])
 
         @classmethod
-        async def aggregate(cls, pipeline):
+        async def aggregate(cls, pipeline: List[Dict[str, Any]]) -> "MockCursor":
+            """Return empty mock cursor for aggregation."""
             return MockCursor([])
 
     class MockCursor:
-        def __init__(self, data):
+        """Mock cursor for MongoDB operations when beanie is not available."""
+
+        def __init__(self, data: List[Any]) -> None:
+            """Initialize mock cursor with data."""
             self.data = data
 
-        async def to_list(self):
+        async def to_list(self) -> List[Any]:
+            """Return mock data as list."""
             return self.data
 
-    ComplianceRule = MockComplianceRule
-    RuleIntelligence = None
-    RemediationScript = None
-    MongoManager = None
-    FrameworkVersions = None
-    PlatformImplementation = None
+    ComplianceRule = MockComplianceRule  # type: ignore[misc, assignment]
+    RuleIntelligence = None  # type: ignore[misc, assignment]
+    RemediationScript = None  # type: ignore[misc, assignment]
+    MongoManager = None  # type: ignore[misc, assignment]
+    FrameworkVersions = None  # type: ignore[misc, assignment]
+    PlatformImplementation = None  # type: ignore[misc, assignment]
 
-    async def get_mongo_manager():
+    async def get_mongo_manager() -> Optional[Any]:  # type: ignore[misc]
+        """Return None when MongoDB is not available."""
         return None
 
 
@@ -66,19 +75,24 @@ logger = logging.getLogger(__name__)
 
 
 class MongoIntegrationService:
-    """Service for MongoDB integration operations"""
+    """Service for MongoDB integration operations."""
 
-    def __init__(self):
-        self.mongo_manager: Optional[MongoManager] = None
-        self.initialized = False
+    def __init__(self) -> None:
+        """Initialize MongoDB integration service."""
+        self.mongo_manager: Optional[Any] = None  # MongoManager or None
+        self.initialized: bool = False
 
-    async def initialize(self):
-        """Initialize MongoDB connection"""
+    async def initialize(self) -> None:
+        """Initialize MongoDB connection."""
         if self.initialized:
             return
 
         settings = get_settings()
         self.mongo_manager = await get_mongo_manager()
+
+        if self.mongo_manager is None:
+            logger.warning("MongoDB manager not available")
+            return
 
         # Initialize with settings from config
         await self.mongo_manager.initialize(
@@ -95,11 +109,15 @@ class MongoIntegrationService:
         logger.info("MongoDB Integration Service initialized successfully")
 
     async def health_check(self) -> Dict[str, Any]:
-        """Perform MongoDB health check"""
+        """Perform MongoDB health check."""
         if not self.initialized:
             await self.initialize()
 
-        return await self.mongo_manager.health_check()
+        if self.mongo_manager is None:
+            return {"status": "unavailable", "error": "MongoDB manager not initialized"}
+
+        result: Dict[str, Any] = await self.mongo_manager.health_check()
+        return result
 
     async def create_test_compliance_rule(self) -> ComplianceRule:
         """Create a test compliance rule for validation"""
@@ -313,8 +331,8 @@ fi
             "remediation_scripts": [script.dict() for script in scripts],
         }
 
-    async def cleanup_test_data(self):
-        """Clean up test data"""
+    async def cleanup_test_data(self) -> None:
+        """Clean up test data."""
         if not self.initialized:
             return
 
@@ -322,14 +340,18 @@ fi
         # OW-REFACTOR-002: Repository Pattern for deletions
         repo = ComplianceRuleRepository()
         await repo.delete_many({"rule_id": {"$regex": "^ow-test-"}})
-        await RuleIntelligence.find(RuleIntelligence.rule_id.regex("^ow-test-")).delete()
-        await RemediationScript.find(RemediationScript.rule_id.regex("^ow-test-")).delete()
+
+        # Clean up rule intelligence and remediation scripts
+        if RuleIntelligence is not None:
+            await RuleIntelligence.find({"rule_id": {"$regex": "^ow-test-"}}).delete()
+        if RemediationScript is not None:
+            await RemediationScript.find({"rule_id": {"$regex": "^ow-test-"}}).delete()
 
         logger.info("Cleaned up test data")
 
     async def run_comprehensive_test(self) -> Dict[str, Any]:
-        """Run comprehensive MongoDB integration test"""
-        test_results = {
+        """Run comprehensive MongoDB integration test."""
+        test_results: Dict[str, Any] = {
             "status": "running",
             "tests": {},
             "errors": [],
@@ -432,7 +454,7 @@ fi
         """
         try:
             # MongoDB aggregation pipeline for platform statistics
-            pipeline = [
+            pipeline: List[Dict[str, Any]] = [
                 # Unwind platform implementations
                 {
                     "$unwind": {
@@ -480,7 +502,7 @@ fi
                     platform_stats = []
                     for result in aggregation_results:
                         # Process categories
-                        category_counts = {}
+                        category_counts: Dict[str, int] = {}
                         for cat in result.get("categories", []):
                             if cat:
                                 category_counts[cat] = category_counts.get(cat, 0) + 1
@@ -530,7 +552,7 @@ fi
             repo = ComplianceRuleRepository()
             all_rules = await repo.find_many({})
 
-            platform_analysis = {}
+            platform_analysis: Dict[str, Dict[str, Any]] = {}
 
             for rule in all_rules:
                 platforms = rule.platform_implementations or {}

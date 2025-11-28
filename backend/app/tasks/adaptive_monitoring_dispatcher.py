@@ -19,7 +19,7 @@ This design ensures:
 
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 
 from backend.app.celery_app import celery_app
 from backend.app.database import get_db
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(bind=True, name="backend.app.tasks.dispatch_host_checks")
-def dispatch_host_checks(self) -> Dict:
+def dispatch_host_checks(self: Any) -> Dict[str, Any]:
     """
     Dispatcher task that runs every 30 seconds via Celery Beat.
 

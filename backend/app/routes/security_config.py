@@ -26,7 +26,7 @@ router = APIRouter(prefix="/security/config", tags=["Security Configuration"])
 
 # Pydantic models
 class SecurityPolicyRequest(BaseModel):
-    """Request model for security policy configuration"""
+    """Request model for security policy configuration."""
 
     policy_level: SecurityPolicyLevel = Field(..., description="Security policy enforcement level")
     enforce_fips: bool = Field(True, description="Enforce FIPS 140-2 compliance")
@@ -38,7 +38,7 @@ class SecurityPolicyRequest(BaseModel):
 
 
 class SecurityConfigResponse(BaseModel):
-    """Response model for security configuration"""
+    """Response model for security configuration."""
 
     scope: str
     target_id: Optional[str]
@@ -49,7 +49,7 @@ class SecurityConfigResponse(BaseModel):
 
 
 class TemplateResponse(BaseModel):
-    """Response model for security templates"""
+    """Response model for security templates."""
 
     name: str
     description: str
@@ -59,7 +59,7 @@ class TemplateResponse(BaseModel):
 
 
 class ValidationResponse(BaseModel):
-    """Response model for SSH key validation"""
+    """Response model for SSH key validation."""
 
     is_valid: bool
     is_secure: bool
@@ -79,8 +79,8 @@ async def get_security_config(
     target_id: Optional[str] = None,
     target_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> SecurityConfigResponse:
     """
     Get effective security configuration for a target.
     Uses hierarchical inheritance to resolve final configuration.
@@ -113,8 +113,8 @@ async def update_security_config(
     scope: ConfigScope,
     target_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Update security configuration for a specific scope.
     """
@@ -168,8 +168,8 @@ async def apply_security_template(
     scope: ConfigScope,
     target_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, str]:
     """
     Apply a predefined security configuration template.
     """
@@ -199,10 +199,11 @@ async def apply_security_template(
 
 
 @router.get("/templates", response_model=List[TemplateResponse])
-async def list_security_templates(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """
-    List all available security configuration templates.
-    """
+async def list_security_templates(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> List[TemplateResponse]:
+    """List all available security configuration templates."""
     try:
         config_manager = get_security_config_manager(db)
         templates = config_manager.list_templates()
@@ -215,6 +216,8 @@ async def list_security_templates(db: Session = Depends(get_db), current_user: d
 
 
 class SSHKeyValidationRequest(BaseModel):
+    """Request model for SSH key validation."""
+
     key_content: str = Field(..., description="SSH private key content")
     passphrase: Optional[str] = Field(None, description="SSH key passphrase")
     target_id: Optional[str] = Field(None, description="Target ID for policy resolution")
@@ -225,8 +228,8 @@ class SSHKeyValidationRequest(BaseModel):
 async def validate_ssh_key(
     request: SSHKeyValidationRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> ValidationResponse:
     """
     Validate SSH key against current security policies.
     Provides comprehensive security assessment and FIPS compliance check.
@@ -273,8 +276,8 @@ async def audit_credential(
     target_id: Optional[str] = None,
     target_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """
     Perform comprehensive security audit of credentials.
     """
@@ -309,10 +312,11 @@ async def audit_credential(
 
 @router.get("/compliance/summary")
 @require_permission(Permission.AUDIT_READ)
-async def get_compliance_summary(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """
-    Get system-wide compliance summary.
-    """
+async def get_compliance_summary(
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get system-wide compliance summary."""
     try:
         config_manager = get_security_config_manager(db)
 

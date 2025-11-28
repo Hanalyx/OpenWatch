@@ -437,8 +437,8 @@ class ScanIntelligenceService:
                 }
 
             # Group by OS and environment for batching analysis
-            os_groups = {}
-            env_groups = {}
+            os_groups: Dict[str, List[Any]] = {}
+            env_groups: Dict[str, List[Any]] = {}
 
             for host in hosts_info:
                 os_key = host.operating_system.lower()

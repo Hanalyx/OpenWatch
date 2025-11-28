@@ -1,6 +1,17 @@
 """
 Direct MongoDB Compliance Rules API for Frontend
-Simplified API endpoints that connect directly to MongoDB for compliance rules
+
+Simplified API endpoints that connect directly to MongoDB for compliance rules.
+Provides filtering, pagination, and statistics for compliance rule management.
+
+This module implements:
+- List compliance rules with filtering and pagination
+- Get rule details by ID
+- Get platform and framework statistics
+- Provide filter options for frontend UI
+
+OW-REFACTOR-002: Uses Repository Pattern for all MongoDB operations
+per CLAUDE.md best practices for centralized query logic and type safety.
 """
 
 import logging
@@ -10,6 +21,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+# Type alias for mongo service to support both real and mock implementations
+MongoServiceType = Any  # Union of MongoIntegrationService and MockMongoService
+
 try:
     from ....repositories import ComplianceRuleRepository
     from ....services.mongo_integration_service import MongoIntegrationService, get_mongo_service
@@ -18,9 +32,12 @@ try:
 except ImportError:
     # Fallback when MongoDB dependencies are not available
     MONGO_AVAILABLE = False
+    ComplianceRuleRepository = None  # type: ignore[misc, assignment]
 
     class MockMongoService:
-        async def get_platform_statistics(self):
+        """Mock MongoDB service for when MongoDB dependencies are unavailable."""
+
+        async def get_platform_statistics(self) -> Dict[str, Any]:
             return {
                 "platforms": [
                     {
@@ -114,10 +131,28 @@ except ImportError:
                 "source": "mock_data",
             }
 
-    async def get_mongo_service():
+        async def get_framework_statistics(self) -> Dict[str, Any]:
+            """Return mock framework statistics when MongoDB is unavailable."""
+            return {
+                "frameworks": [],
+                "total_frameworks": 0,
+                "total_rules_analyzed": 0,
+                "source": "mock_data",
+            }
+
+        async def get_rule_with_intelligence(self, rule_id: str) -> Dict[str, Any]:
+            """Return mock rule intelligence when MongoDB is unavailable."""
+            return {"error": f"Rule {rule_id} not found (MongoDB unavailable)"}
+
+    # Note: This function shadows the imported get_mongo_service when MongoDB is unavailable
+    # The signature differs (returns MockMongoService instead of MongoIntegrationService)
+    # but both implement the same interface used by the endpoints
+    async def get_mongo_service() -> Any:  # type: ignore[misc]
+        """Get mock MongoDB service when real service is unavailable."""
         return MockMongoService()
 
-    MongoIntegrationService = MockMongoService
+    # Type alias for MongoIntegrationService when not available
+    MongoIntegrationService = MockMongoService  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +160,12 @@ router = APIRouter(prefix="/compliance-rules", tags=["Compliance Rules MongoDB"]
 
 
 class ComplianceRuleResponse(BaseModel):
-    """Frontend-compatible rule response"""
+    """
+    Frontend-compatible rule response model.
+
+    Represents a single compliance rule with all metadata,
+    framework mappings, and platform implementations.
+    """
 
     rule_id: str
     scap_rule_id: Optional[str] = None
@@ -145,7 +185,12 @@ class ComplianceRuleResponse(BaseModel):
 
 
 class ComplianceRulesListResponse(BaseModel):
-    """Paginated rules list response"""
+    """
+    Paginated rules list response model.
+
+    Used for all compliance rules API responses with pagination,
+    filtering metadata, and success/error information.
+    """
 
     success: bool = True
     data: Dict[str, Any] = {}
@@ -164,11 +209,29 @@ async def get_compliance_rules(
     search: Optional[str] = Query(None, description="Search in rule name, description, or ID"),
     is_latest: bool = Query(True, description="Filter by latest version of rules (default: True)"),
     view_mode: Optional[str] = Query(None, description="Special view mode: 'platform_statistics' for platform stats"),
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
-):
+    mongo_service: MongoServiceType = Depends(get_mongo_service),
+) -> ComplianceRulesListResponse:
     """
-    Get compliance rules directly from MongoDB with filtering and pagination
+    Get compliance rules directly from MongoDB with filtering and pagination.
+
     Special view_mode='platform_statistics' returns platform statistics instead
+    of the rule list. Supports filtering by framework, severity, category,
+    platform, and free-text search.
+
+    Args:
+        offset: Pagination offset (starting index)
+        limit: Number of rules to return (max 100)
+        framework: Filter by compliance framework (nist, cis, stig)
+        severity: Filter by rule severity (high, medium, low, info)
+        category: Filter by rule category
+        platform: Filter by target platform (rhel, ubuntu)
+        search: Free-text search in rule name, description, or ID
+        is_latest: Filter to only latest versions (default True)
+        view_mode: Special modes like 'platform_statistics'
+        mongo_service: Injected MongoDB service
+
+    Returns:
+        ComplianceRulesListResponse with rules data or statistics
     """
     try:
         # Handle special view mode requests
@@ -194,8 +257,10 @@ async def get_compliance_rules(
         if view_mode == "framework_statistics":
             try:
                 # Use MongoDB service for framework statistics
-                mongo_service = await get_mongo_service()
-                result = await mongo_service.get_framework_statistics()
+                # Note: get_framework_statistics may not exist on all service implementations
+                # This is handled by the mock service when MongoDB is unavailable
+                framework_service = await get_mongo_service()
+                result = await framework_service.get_framework_statistics()  # type: ignore[attr-defined]
                 return ComplianceRulesListResponse(
                     success=True,
                     data=result,
@@ -212,8 +277,9 @@ async def get_compliance_rules(
                     },
                     message="Failed to retrieve framework statistics",
                 )
-        # Build MongoDB query
-        query = {}
+
+        # Build MongoDB query with explicit Dict[str, Any] type to support mixed value types
+        query: Dict[str, Any] = {}
 
         # Filter by latest version (default behavior)
         if is_latest:
@@ -233,7 +299,7 @@ async def get_compliance_rules(
             query[f"platform_implementations.{platform}"] = {"$exists": True}
 
         if search:
-            # Search in multiple fields
+            # Search in multiple fields using MongoDB $or operator
             query["$or"] = [
                 {"rule_id": {"$regex": search, "$options": "i"}},
                 {"metadata.name": {"$regex": search, "$options": "i"}},
@@ -421,24 +487,31 @@ async def get_compliance_rules(
                 },
             ]
 
-            # Apply simple filtering for mock data
-            filtered_rules = mock_rules
+            # Apply simple filtering for mock data with explicit typing
+            filtered_rules: List[Dict[str, Any]] = list(mock_rules)
 
             if search:
                 search_lower = search.lower()
-                filtered_rules = [
-                    rule
-                    for rule in filtered_rules
-                    if search_lower in rule["metadata"]["name"].lower()
-                    or search_lower in rule["metadata"]["description"].lower()
-                    or search_lower in rule["rule_id"].lower()
-                ]
+                # Filter rules containing search term in name, description, or rule_id
+                filtered_result: List[Dict[str, Any]] = []
+                for rule in filtered_rules:
+                    metadata = rule.get("metadata", {})
+                    rule_name = str(metadata.get("name", ""))
+                    rule_desc = str(metadata.get("description", ""))
+                    rule_id_val = str(rule.get("rule_id", ""))
+                    if (
+                        search_lower in rule_name.lower()
+                        or search_lower in rule_desc.lower()
+                        or search_lower in rule_id_val.lower()
+                    ):
+                        filtered_result.append(rule)
+                filtered_rules = filtered_result
 
             if severity:
-                filtered_rules = [rule for rule in filtered_rules if rule["severity"] == severity]
+                filtered_rules = [rule for rule in filtered_rules if rule.get("severity") == severity]
 
             if category:
-                filtered_rules = [rule for rule in filtered_rules if rule["category"] == category]
+                filtered_rules = [rule for rule in filtered_rules if rule.get("category") == category]
 
             if framework:
                 filtered_rules = [rule for rule in filtered_rules if framework in rule.get("frameworks", {})]
@@ -448,40 +521,55 @@ async def get_compliance_rules(
                     rule for rule in filtered_rules if platform in rule.get("platform_implementations", {})
                 ]
 
-            # Apply pagination
+            # Apply pagination to mock rules
             start = offset
             end = offset + limit
-            rules = filtered_rules[start:end]
+            rules_list: List[Dict[str, Any]] = filtered_rules[start:end]
+            rules = rules_list  # type: ignore[assignment]
             total_count = len(filtered_rules)
 
-        # Convert to frontend format
-        rule_list = []
+        # Convert to frontend format with explicit typing
+        rule_list: List[Dict[str, Any]] = []
         for rule in rules:
-            rule_dict = rule.dict() if hasattr(rule, "dict") else rule
+            # Convert Beanie Document to dict if needed, or use as-is for mock data
+            # Mock data is already a dict, Beanie Documents have .dict() method
+            if hasattr(rule, "dict"):
+                rule_dict: Dict[str, Any] = rule.dict()
+            else:
+                # Mock data is already Dict[str, Any], safe conversion
+                rule_dict = dict(rule)
 
-            # Ensure required fields exist
-            rule_response = ComplianceRuleResponse(
-                rule_id=rule_dict.get("rule_id", "unknown"),
-                scap_rule_id=rule_dict.get("scap_rule_id"),
-                metadata=rule_dict.get("metadata", {}),
-                severity=rule_dict.get("severity", "medium"),
-                category=rule_dict.get("category", "system"),
-                tags=rule_dict.get("tags", []),
-                frameworks=rule_dict.get("frameworks", {}),
-                platform_implementations=rule_dict.get("platform_implementations", {}),
-                dependencies=rule_dict.get("dependencies", {"requires": [], "conflicts": [], "related": []}),
-                created_at=(
-                    rule_dict.get("created_at", datetime.utcnow()).isoformat()
-                    if isinstance(rule_dict.get("created_at"), datetime)
-                    else str(rule_dict.get("created_at", ""))
-                ),
-                updated_at=(
-                    rule_dict.get("updated_at", datetime.utcnow()).isoformat()
-                    if isinstance(rule_dict.get("updated_at"), datetime)
-                    else str(rule_dict.get("updated_at", ""))
-                ),
+            # Extract and format timestamps with proper null handling
+            created_at_raw = rule_dict.get("created_at")
+            updated_at_raw = rule_dict.get("updated_at")
+
+            created_at_str = (
+                created_at_raw.isoformat() if isinstance(created_at_raw, datetime) else str(created_at_raw or "")
             )
-            rule_list.append(rule_response.dict())
+            updated_at_str = (
+                updated_at_raw.isoformat() if isinstance(updated_at_raw, datetime) else str(updated_at_raw or "")
+            )
+
+            # Ensure required fields exist with safe defaults
+            rule_response = ComplianceRuleResponse(
+                rule_id=str(rule_dict.get("rule_id", "unknown")),
+                scap_rule_id=rule_dict.get("scap_rule_id"),
+                metadata=rule_dict.get("metadata") or {},
+                severity=str(rule_dict.get("severity", "medium")),
+                category=str(rule_dict.get("category", "system")),
+                tags=rule_dict.get("tags") or [],
+                frameworks=rule_dict.get("frameworks") or {},
+                platform_implementations=rule_dict.get("platform_implementations") or {},
+                dependencies=rule_dict.get("dependencies")
+                or {
+                    "requires": [],
+                    "conflicts": [],
+                    "related": [],
+                },
+                created_at=created_at_str,
+                updated_at=updated_at_str,
+            )
+            rule_list.append(rule_response.model_dump())
 
         # Calculate pagination info
         has_next = (offset + limit) < total_count
@@ -635,22 +723,31 @@ async def get_semantic_rules_for_scan(
     business_impact: Optional[str] = Query(None, description="Filter by business impact/severity"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
     limit: int = Query(1000, ge=1, le=5000, description="Maximum number of rules to return"),
-):
+) -> Dict[str, Any]:
     """
-    Get compliance rules for scan creation wizard (ComplianceScans.tsx)
+    Get compliance rules for scan creation wizard (ComplianceScans.tsx).
+
     Returns rules in format expected by frontend with semantic intelligence
+    for rule selection during scan configuration.
+
+    Args:
+        framework: Filter by compliance framework (nist, cis, stig)
+        business_impact: Filter by business impact/severity level
+        platform: Filter by target platform
+        limit: Maximum number of rules to return (max 5000)
+
+    Returns:
+        Dict with rules list and total count
     """
     try:
-        if not MONGO_AVAILABLE:
+        if not MONGO_AVAILABLE or ComplianceRuleRepository is None:
             logger.warning("MongoDB not available, returning empty rules list")
             return {"rules": [], "total": 0}
 
-        from ....repositories import ComplianceRuleRepository
-
         repo = ComplianceRuleRepository()
 
-        # Build MongoDB query
-        query = {"is_latest": True}
+        # Build MongoDB query with explicit typing
+        query: Dict[str, Any] = {"is_latest": True}
 
         # Apply framework filter
         if framework:
@@ -663,7 +760,7 @@ async def get_semantic_rules_for_scan(
         # Map business_impact to severity if provided
         if business_impact:
             # Map business impact terms to severity levels
-            severity_map = {
+            severity_map: Dict[str, str] = {
                 "critical": "critical",
                 "high": "high",
                 "medium": "medium",
@@ -704,9 +801,25 @@ async def get_semantic_rules_for_scan(
 
 
 @router.get("/{rule_id}", response_model=ComplianceRulesListResponse)
-async def get_compliance_rule_detail(rule_id: str, mongo_service: MongoIntegrationService = Depends(get_mongo_service)):
+async def get_compliance_rule_detail(
+    rule_id: str,
+    mongo_service: MongoServiceType = Depends(get_mongo_service),
+) -> ComplianceRulesListResponse:
     """
-    Get detailed information for a specific compliance rule from MongoDB
+    Get detailed information for a specific compliance rule from MongoDB.
+
+    Retrieves full rule data including intelligence metadata, framework
+    mappings, and platform implementations.
+
+    Args:
+        rule_id: Unique identifier for the compliance rule
+        mongo_service: Injected MongoDB service
+
+    Returns:
+        ComplianceRulesListResponse with rule details
+
+    Raises:
+        HTTPException: 404 if rule not found, 500 on internal error
     """
     try:
         # Get rule with full details from MongoDB
@@ -735,25 +848,28 @@ async def get_compliance_rule_detail(rule_id: str, mongo_service: MongoIntegrati
 
 
 @router.get("/frameworks/available")
-async def get_available_frameworks():
+async def get_available_frameworks() -> Dict[str, Any]:
     """
-    Get list of available frameworks from MongoDB compliance rules
-    Returns the top frameworks found in the database for scan wizard filtering
+    Get list of available frameworks from MongoDB compliance rules.
+
+    Returns the top frameworks found in the database for scan wizard filtering.
+    Each framework includes a value (internal ID) and label (display name).
+
+    Returns:
+        Dict with frameworks list and total count
     """
     try:
-        if not MONGO_AVAILABLE:
+        if not MONGO_AVAILABLE or ComplianceRuleRepository is None:
             logger.warning("MongoDB not available, returning empty frameworks list")
             return {"frameworks": []}
-
-        from ....repositories import ComplianceRuleRepository
 
         repo = ComplianceRuleRepository()
 
         # Get all latest rules to extract frameworks
         rules = await repo.find_many({"is_latest": True}, limit=2000)
 
-        # Extract unique frameworks
-        frameworks_set = set()
+        # Extract unique frameworks with explicit type annotation
+        frameworks_set: set[str] = set()
         for rule in rules:
             if rule.frameworks:
                 frameworks_set.update(rule.frameworks.keys())
@@ -807,17 +923,26 @@ async def get_available_frameworks():
 
 @router.get("/filters/options", response_model=ComplianceRulesListResponse)
 async def get_filter_options(
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
-):
+    mongo_service: MongoServiceType = Depends(get_mongo_service),
+) -> ComplianceRulesListResponse:
     """
-    Get available filter options for the frontend
+    Get available filter options for the frontend.
+
+    Returns lists of available values for framework, severity, category,
+    platform, and compliance status filters in the compliance rules UI.
+
+    Args:
+        mongo_service: Injected MongoDB service (unused but required for consistency)
+
+    Returns:
+        ComplianceRulesListResponse with filter options
     """
     try:
         # Get all unique values for filter options
         # This would typically be done with MongoDB aggregation
         # For now, return static options based on common values
 
-        filter_options = {
+        filter_options: Dict[str, List[str]] = {
             "frameworks": ["nist", "cis", "stig", "pci", "hipaa"],
             "severities": ["high", "medium", "low", "info"],
             "categories": [
@@ -855,11 +980,19 @@ async def get_filter_options(
 
 @router.get("/statistics/platforms", response_model=ComplianceRulesListResponse)
 async def get_platform_statistics(
-    mongo_service: MongoIntegrationService = Depends(get_mongo_service),
-):
+    mongo_service: MongoServiceType = Depends(get_mongo_service),
+) -> ComplianceRulesListResponse:
     """
-    Get compliance rule statistics grouped by platform
+    Get compliance rule statistics grouped by platform.
+
     Returns platform names with rule counts and category breakdowns
+    for compliance dashboard visualization.
+
+    Args:
+        mongo_service: Injected MongoDB service
+
+    Returns:
+        ComplianceRulesListResponse with platform statistics
     """
     try:
         # Use the mongo service to get platform statistics

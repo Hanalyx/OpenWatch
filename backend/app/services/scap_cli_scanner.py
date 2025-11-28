@@ -10,7 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncGenerator, Dict, List
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from .scap_scanner import SCAPContentError, SCAPScanner
 
@@ -40,8 +40,12 @@ class SCAPCLIScanner:
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     async def scan_single_host(
-        self, host_config: Dict, profile_id: str, content_path: str, rule_id: str = None
-    ) -> Dict:
+        self,
+        host_config: Dict[str, Any],
+        profile_id: str,
+        content_path: str,
+        rule_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Scan a single host with given configuration
 
@@ -91,12 +95,12 @@ class SCAPCLIScanner:
 
     async def scan_multiple_hosts(
         self,
-        hosts_configs: List[Dict],
+        hosts_configs: List[Dict[str, Any]],
         profile_id: str,
         content_path: str,
-        rule_id: str = None,
-        progress_callback=None,
-    ) -> AsyncGenerator[Dict, None]:
+        rule_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int, Dict[str, Any]], None]] = None,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Scan multiple hosts in parallel with configurable concurrency
 
@@ -118,7 +122,7 @@ class SCAPCLIScanner:
         # Create semaphore to limit concurrent scans
         semaphore = asyncio.Semaphore(self.max_parallel_scans)
 
-        async def scan_with_semaphore(host_config: Dict) -> Dict:
+        async def scan_with_semaphore(host_config: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
                 return await self.scan_single_host(host_config, profile_id, content_path, rule_id)
 
@@ -144,9 +148,9 @@ class SCAPCLIScanner:
         targets: List[str],
         profile_id: str,
         content_path: str,
-        rule_id: str = None,
-        default_credentials: Dict = None,
-    ) -> List[Dict]:
+        rule_id: Optional[str] = None,
+        default_credentials: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Perform batch scan from a list of target hostnames/IPs
 
@@ -178,17 +182,15 @@ class SCAPCLIScanner:
         # Collect all results
         results = []
 
-        def progress_callback(completed, total, result):
+        def progress_cb(completed: int, total: int, result: Dict[str, Any]) -> None:
             print(f"[OpenWatch] Progress: {completed}/{total} - {result.get('hostname', 'unknown')} completed")
 
-        async for result in self.scan_multiple_hosts(
-            hosts_configs, profile_id, content_path, rule_id, progress_callback
-        ):
+        async for result in self.scan_multiple_hosts(hosts_configs, profile_id, content_path, rule_id, progress_cb):
             results.append(result)
 
         return results
 
-    def get_available_profiles(self, content_path: str) -> List[Dict]:
+    def get_available_profiles(self, content_path: str) -> List[Dict[str, Any]]:
         """Get available SCAP profiles from content file"""
         try:
             return self.base_scanner.extract_profiles(content_path)
@@ -224,8 +226,8 @@ class SCAPCLIScanner:
         return str(self.content_dir / "default-content.xml")
 
     async def _execute_local_scan_async(
-        self, content_path: str, profile_id: str, scan_id: str, rule_id: str = None
-    ) -> Dict:
+        self, content_path: str, profile_id: str, scan_id: str, rule_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Execute local scan asynchronously"""
         loop = asyncio.get_event_loop()
 
@@ -261,8 +263,8 @@ class SCAPCLIScanner:
         content_path: str,
         profile_id: str,
         scan_id: str,
-        rule_id: str = None,
-    ) -> Dict:
+        rule_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Execute remote scan asynchronously"""
         loop = asyncio.get_event_loop()
 
@@ -293,7 +295,7 @@ class SCAPCLIScanner:
 
         return result
 
-    def generate_scan_summary(self, results: List[Dict]) -> Dict:
+    def generate_scan_summary(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate summary statistics from scan results"""
         if not results:
             return {"error": "No scan results provided"}
@@ -330,7 +332,7 @@ class SCAPCLIScanner:
             "timestamp": datetime.now().isoformat(),
         }
 
-    def export_results_json(self, results: List[Dict], output_file: str) -> bool:
+    def export_results_json(self, results: List[Dict[str, Any]], output_file: str) -> bool:
         """Export scan results to JSON file"""
         try:
             output_path = Path(output_file)

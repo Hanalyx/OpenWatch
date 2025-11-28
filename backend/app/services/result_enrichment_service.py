@@ -69,7 +69,9 @@ class ResultEnrichmentService:
             logger.error(f"Failed to initialize Result Enrichment Service: {e}")
             raise ScanResultEnrichmentError(f"Service initialization failed: {str(e)}")
 
-    async def enrich_scan_results(self, result_file_path: str, scan_metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def enrich_scan_results(
+        self, result_file_path: str, scan_metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Main method to enrich SCAP scan results with MongoDB intelligence
 
@@ -199,7 +201,7 @@ class ResultEnrichmentService:
 
     async def _extract_check_content(self, rule_elem: ET.Element, namespaces: Dict[str, str]) -> Dict[str, Any]:
         """Extract check information from rule element"""
-        check_content = {}
+        check_content: Dict[str, Any] = {}
 
         try:
             check_elem = rule_elem.find(".//xccdf:check", namespaces)
@@ -246,7 +248,11 @@ class ResultEnrichmentService:
 
     async def _gather_rule_intelligence(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Gather MongoDB intelligence data for each rule"""
-        intelligence_data = {}
+        intelligence_data: Dict[str, Any] = {}
+
+        if not self.mongo_service:
+            logger.warning("MongoDB service not available, skipping rule intelligence gathering")
+            return intelligence_data
 
         for rule_result in rule_results:
             rule_id = rule_result["rule_id"]
@@ -293,15 +299,19 @@ class ResultEnrichmentService:
         return intelligence_data
 
     async def _generate_framework_mapping(
-        self, rule_results: List[Dict[str, Any]], scan_metadata: Dict[str, Any] = None
+        self, rule_results: List[Dict[str, Any]], scan_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Generate compliance framework mapping for the scan"""
-        framework_mapping = {
+        framework_mapping: Dict[str, Any] = {
             "nist": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "cis": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "stig": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
             "pci": {"controls": {}, "coverage": 0.0, "compliance_rate": 0.0},
         }
+
+        if not self.mongo_service:
+            logger.warning("MongoDB service not available, skipping framework mapping")
+            return framework_mapping
 
         try:
             # Get framework mappings from MongoDB rules
@@ -359,7 +369,7 @@ class ResultEnrichmentService:
 
     async def _generate_remediation_guidance(self, rule_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate remediation guidance for failed rules"""
-        remediation_guidance = {
+        remediation_guidance: Dict[str, List[Any]] = {
             "critical_failures": [],
             "high_priority": [],
             "medium_priority": [],
@@ -367,6 +377,10 @@ class ResultEnrichmentService:
             "automated_fixes_available": [],
             "manual_intervention_required": [],
         }
+
+        if not self.mongo_service:
+            logger.warning("MongoDB service not available, skipping remediation guidance")
+            return remediation_guidance
 
         try:
             for rule_result in rule_results:
@@ -568,7 +582,7 @@ class ResultEnrichmentService:
         self,
         rule_results: List[Dict[str, Any]],
         compliance_scores: Dict[str, Any],
-        scan_metadata: Dict[str, Any] = None,
+        scan_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate executive summary of the scan using OWCA compliance tiers.

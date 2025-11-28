@@ -6,6 +6,7 @@ Scheduled tasks that periodically collect and store health metrics.
 
 import logging
 from datetime import datetime, timedelta
+from typing import Any, Dict
 
 from celery.schedules import crontab
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="collect_service_health")
-async def collect_service_health_task():
+async def collect_service_health_task() -> Dict[str, Any]:
     """
     Collect service health metrics.
 
@@ -49,7 +50,7 @@ async def collect_service_health_task():
 
 
 @celery_app.task(name="collect_content_health")
-async def collect_content_health_task():
+async def collect_content_health_task() -> Dict[str, Any]:
     """
     Collect content health metrics.
 
@@ -83,7 +84,7 @@ async def collect_content_health_task():
 
 
 @celery_app.task(name="update_health_summary")
-async def update_health_summary_task():
+async def update_health_summary_task() -> Dict[str, Any]:
     """
     Update combined health summary.
 
@@ -119,7 +120,7 @@ async def update_health_summary_task():
 
 
 @celery_app.task(name="cleanup_old_health_data")
-async def cleanup_old_health_data_task(retention_days: int = 7):
+async def cleanup_old_health_data_task(retention_days: int = 7) -> dict:
     """
     Clean up old health monitoring data.
 

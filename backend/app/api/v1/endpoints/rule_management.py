@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -213,7 +213,7 @@ async def list_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     List compliance rules with advanced filtering capabilities.
 
@@ -221,9 +221,9 @@ async def list_rules(
     Includes caching and inheritance resolution.
     """
     try:
-        # Get rules with filters
+        # Get rules with filters - provide defaults for Optional parameters
         rules = await service.get_rules_by_platform(
-            platform=query.platform,
+            platform=query.platform or "",
             platform_version=query.platform_version,
             framework=query.framework,
             framework_version=query.framework_version,
@@ -276,7 +276,7 @@ async def get_rule_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     Get detailed information for a specific rule.
 
@@ -347,7 +347,7 @@ async def search_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     Perform full-text search across rules with advanced filtering.
 
@@ -408,7 +408,7 @@ async def get_rule_dependencies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     Get complete dependency graph for a rule.
 
@@ -453,7 +453,7 @@ async def detect_platform_capabilities(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     platform_svc: PlatformCapabilityService = Depends(get_platform_service),
-):
+) -> APIResponse:
     """
     Detect platform capabilities for rule applicability assessment.
 
@@ -508,7 +508,7 @@ async def get_applicable_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     Get rules applicable to specific platform capabilities.
 
@@ -557,7 +557,7 @@ async def get_rule_statistics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """
     Get comprehensive rule statistics and performance metrics.
 
@@ -597,17 +597,17 @@ async def export_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> Response:
     """
     Export rules in JSON, CSV, or XML format.
 
     Supports filtering and includes inheritance resolution options.
     """
     try:
-        # Apply filters if provided
+        # Apply filters if provided - provide defaults for Optional parameters
         if export_options.filters:
             rules = await service.get_rules_by_platform(
-                platform=export_options.filters.platform,
+                platform=export_options.filters.platform or "",
                 platform_version=export_options.filters.platform_version,
                 framework=export_options.filters.framework,
                 framework_version=export_options.filters.framework_version,
@@ -692,7 +692,7 @@ async def warm_cache(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """Warm the rule cache with common queries."""
     try:
         if service.cache_service:
@@ -717,7 +717,7 @@ async def invalidate_cache(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """Invalidate rule cache by tags or patterns."""
     try:
         if not service.cache_service:
@@ -749,7 +749,7 @@ async def get_cache_info(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     service: RuleService = Depends(get_rule_service),
-):
+) -> APIResponse:
     """Get detailed cache performance information."""
     try:
         if service.cache_service:

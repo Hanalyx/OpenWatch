@@ -71,7 +71,7 @@ class ResourceIdentifier:
     resource_type: ResourceType
     resource_id: str
     parent_resource_id: Optional[str] = None
-    attributes: Dict[str, Any] = None
+    attributes: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         """Initialize default values for mutable fields."""
@@ -91,11 +91,11 @@ class PermissionPolicy:
     scope: PermissionScope
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     resource_id: Optional[str] = None  # None means all resources of this type
-    conditions: Dict[str, Any] = None
+    conditions: Optional[Dict[str, Any]] = None
     priority: int = 0  # Higher priority policies override lower priority
     created_at: datetime = Field(default_factory=datetime.utcnow)
     expires_at: Optional[datetime] = None
-    created_by: str = None
+    created_by: Optional[str] = None
     is_active: bool = True
 
     def __post_init__(self) -> None:
@@ -115,7 +115,7 @@ class AuthorizationContext:
     user_agent: Optional[str] = None
     session_id: Optional[str] = None
     request_time: datetime = Field(default_factory=datetime.utcnow)
-    additional_attributes: Dict[str, Any] = None
+    additional_attributes: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         """Initialize default values for mutable fields."""

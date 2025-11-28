@@ -4,10 +4,12 @@ Handles plugin import, management, and lifecycle operations
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import status as http_status  # Alias to avoid conflict with parameter name
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from ..audit_db import log_security_event
 from ..auth import get_current_user
@@ -20,7 +22,7 @@ from ..services.plugin_security_service import PluginSecurityService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])
 
-# Initialize services
+# Initialize services (type: ignore for untyped service constructors)
 plugin_import_service = PluginImportService()
 plugin_security_service = PluginSecurityService()
 plugin_execution_service = PluginExecutionService()
@@ -48,8 +50,8 @@ async def import_plugin_from_file(
     verify_signature: bool = Form(True, description="Whether to verify plugin signature"),
     trust_level_override: Optional[PluginTrustLevel] = Form(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
-):
+    db: Session = Depends(get_db),
+) -> PluginImportResponse:
     """
     Import a plugin from uploaded file
 
@@ -64,11 +66,14 @@ async def import_plugin_from_file(
         # Read file content
         content = await file.read()
 
+        # Extract user_id as int for logging (handles ORM Column type)
+        user_id: int = int(current_user.id) if current_user.id else 0
+
         # Log import attempt
         log_security_event(
             db=db,
             event_type="PLUGIN_IMPORT_ATTEMPT",
-            user_id=current_user.id,
+            user_id=user_id,
             ip_address="127.0.0.1",  # TODO: Get real IP
             details=f"Importing plugin: {file.filename}",
         )
@@ -76,7 +81,7 @@ async def import_plugin_from_file(
         # Check admin permissions for trust level override
         if trust_level_override and not current_user.is_admin:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="Only administrators can override trust levels",
             )
 
@@ -84,7 +89,7 @@ async def import_plugin_from_file(
         result = await plugin_import_service.import_plugin_from_file(
             file_content=content,
             filename=file.filename or "unknown.tar.gz",
-            user_id=current_user.id,
+            user_id=str(user_id),  # Convert to string as expected by service
             verify_signature=verify_signature,
             trust_level_override=trust_level_override,
         )
@@ -94,16 +99,16 @@ async def import_plugin_from_file(
             log_security_event(
                 db=db,
                 event_type="PLUGIN_IMPORTED",
-                user_id=current_user.id,
+                user_id=user_id,
                 ip_address="127.0.0.1",
                 details=f"Plugin imported: {result.get('plugin_id')}",
             )
-            logger.info(f"Plugin {result.get('plugin_id')} imported by user {current_user.id}")
+            logger.info(f"Plugin {result.get('plugin_id')} imported by user {user_id}")
         else:
             log_security_event(
                 db=db,
                 event_type="PLUGIN_IMPORT_FAILED",
-                user_id=current_user.id,
+                user_id=user_id,
                 ip_address="127.0.0.1",
                 details=f"Import failed: {result.get('error')}",
             )
@@ -115,7 +120,7 @@ async def import_plugin_from_file(
     except Exception as e:
         logger.error(f"Plugin import error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Plugin import failed",
         )
 
@@ -124,12 +129,12 @@ async def import_plugin_from_file(
 async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
-    status: Optional[PluginStatus] = Query(None, description="Filter by status"),
+    plugin_status: Optional[PluginStatus] = Query(None, alias="status", description="Filter by status"),
     trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
     search: Optional[str] = Query(None, description="Search in name/description"),
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """
     List installed plugins with filtering and pagination
 
@@ -137,11 +142,11 @@ async def list_plugins(
     Returns paginated results with plugin metadata.
     """
     try:
-        # Build query filters
-        query_filters = {}
+        # Build query filters with explicit type annotation for mixed-type dict
+        query_filters: Dict[str, Any] = {}
 
-        if status:
-            query_filters["status"] = status
+        if plugin_status:
+            query_filters["status"] = plugin_status
 
         if trust_level:
             query_filters["trust_level"] = trust_level
@@ -161,15 +166,13 @@ async def list_plugins(
 
         # Get paginated results
         skip = (page - 1) * per_page
-        plugins_cursor = (
-            InstalledPlugin.find(query_filters).sort(-InstalledPlugin.imported_at).skip(skip).limit(per_page)
-        )
+        plugins_cursor = InstalledPlugin.find(query_filters).sort([("imported_at", -1)]).skip(skip).limit(per_page)
         plugins = await plugins_cursor.to_list()
 
         # Format response
-        plugin_list = []
+        plugin_list: List[Dict[str, Any]] = []
         for plugin in plugins:
-            plugin_dict = {
+            plugin_dict: Dict[str, Any] = {
                 "plugin_id": plugin.plugin_id,
                 "name": plugin.manifest.name,
                 "version": plugin.manifest.version,
@@ -196,7 +199,7 @@ async def list_plugins(
             "page": page,
             "per_page": per_page,
             "filters_applied": {
-                "status": status.value if status else None,
+                "status": plugin_status.value if plugin_status else None,
                 "trust_level": trust_level.value if trust_level else None,
                 "platform": platform,
                 "search": search,
@@ -206,7 +209,7 @@ async def list_plugins(
     except Exception as e:
         logger.error(f"Plugin listing error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve plugins",
         )
 
@@ -216,7 +219,7 @@ async def get_plugin_details(
     plugin_id: str,
     include_files: bool = Query(False, description="Include plugin files in response"),
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """
     Get detailed information about a specific plugin
 
@@ -226,7 +229,7 @@ async def get_plugin_details(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Build detailed response
         plugin_details = {
@@ -277,7 +280,7 @@ async def get_plugin_details(
     except Exception as e:
         logger.error(f"Plugin details error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve plugin details",
         )
 
@@ -287,8 +290,8 @@ async def delete_plugin(
     plugin_id: str,
     force: bool = Query(False, description="Force delete even if plugin is in use"),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
-):
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Delete an installed plugin
 
@@ -298,12 +301,12 @@ async def delete_plugin(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plugin not found")
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Check if plugin is in use
         if plugin.applied_to_rules and not force:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail={
                     "message": "Plugin is associated with rules",
                     "applied_to_rules": plugin.applied_to_rules,
@@ -314,16 +317,19 @@ async def delete_plugin(
         # Delete plugin
         await plugin.delete()
 
+        # Extract user_id as int for logging (handles ORM Column type)
+        user_id: int = int(current_user.id) if current_user.id else 0
+
         # Log deletion
         log_security_event(
             db=db,
             event_type="PLUGIN_DELETED",
-            user_id=current_user.id,
+            user_id=user_id,
             ip_address="127.0.0.1",
             details=f"Plugin deleted: {plugin_id} (force={force})",
         )
 
-        logger.info(f"Plugin {plugin_id} deleted by user {current_user.id}")
+        logger.info(f"Plugin {plugin_id} deleted by user {user_id}")
 
         return {
             "success": True,
@@ -336,13 +342,13 @@ async def delete_plugin(
     except Exception as e:
         logger.error(f"Plugin deletion error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete plugin",
         )
 
 
 @router.get("/statistics/overview")
-async def get_plugin_statistics(current_user: User = Depends(get_current_user)):
+async def get_plugin_statistics(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Get plugin system statistics and metrics
 
@@ -376,7 +382,7 @@ async def get_plugin_statistics(current_user: User = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Plugin statistics error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve plugin statistics",
         )
 
@@ -386,8 +392,8 @@ async def execute_plugin(
     plugin_id: str,
     request: PluginExecutionRequest,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
-):
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Execute a plugin against a target host
 
@@ -398,15 +404,18 @@ async def execute_plugin(
         # Validate request
         if request.plugin_id != plugin_id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=http_status.HTTP_400_BAD_REQUEST,
                 detail="Plugin ID mismatch in request",
             )
+
+        # Extract user_id as int for logging (handles ORM Column type)
+        user_id: int = int(current_user.id) if current_user.id else 0
 
         # Log execution attempt
         log_security_event(
             db=db,
             event_type="PLUGIN_EXECUTION_REQUEST",
-            user_id=current_user.id,
+            user_id=user_id,
             ip_address="127.0.0.1",
             details=f"Plugin execution: {plugin_id} on host {request.host_id}",
         )
@@ -418,26 +427,28 @@ async def execute_plugin(
         log_security_event(
             db=db,
             event_type="PLUGIN_EXECUTED",
-            user_id=current_user.id,
+            user_id=user_id,
             ip_address="127.0.0.1",
             details=f"Plugin execution {result.execution_id}: {result.status}",
         )
 
-        return result.dict()
+        return dict(result.dict())
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Plugin execution error: {e}")
+        # Extract user_id for error logging
+        err_user_id: int = int(current_user.id) if current_user.id else 0
         log_security_event(
             db=db,
             event_type="PLUGIN_EXECUTION_ERROR",
-            user_id=current_user.id,
+            user_id=err_user_id,
             ip_address="127.0.0.1",
             details=f"Execution error: {str(e)}",
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Plugin execution failed",
         )
 
@@ -447,7 +458,7 @@ async def get_plugin_executions(
     plugin_id: str,
     limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
     current_user: User = Depends(get_current_user),
-):
+) -> Dict[str, Any]:
     """
     Get execution history for a plugin
 
@@ -465,6 +476,6 @@ async def get_plugin_executions(
     except Exception as e:
         logger.error(f"Failed to get plugin execution history: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve execution history",
         )

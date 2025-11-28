@@ -14,7 +14,7 @@ Security: All database queries use QueryBuilder for SQL injection protection.
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 
@@ -71,7 +71,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
         return "NIST_800_53"
 
     async def analyze_host_compliance(
-        self, host_id: str, scan_results: Optional[Dict] = None
+        self, host_id: str, scan_results: Optional[Dict[str, Any]] = None
     ) -> NISTFrameworkIntelligence:
         """
         Analyze host compliance using NIST 800-53 specific intelligence.
@@ -144,7 +144,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
 
         return intelligence
 
-    async def get_framework_summary(self, scan_results: Dict) -> Dict:
+    async def get_framework_summary(self, scan_results: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generate NIST 800-53 summary from scan results.
 
@@ -177,7 +177,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
             "controls_passed": sum(1 for r in nist_rules if r["result"] == "pass"),
         }
 
-    def _analyze_control_families(self, nist_rules: List[Dict]) -> List[NISTControlFamilyScore]:
+    def _analyze_control_families(self, nist_rules: List[Dict[str, Any]]) -> List[NISTControlFamilyScore]:
         """
         Analyze compliance by NIST 800-53 control family.
 
@@ -243,7 +243,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
         logger.debug(f"Analyzed {len(family_scores)} NIST control families")
         return family_scores
 
-    def _assess_baselines(self, nist_rules: List[Dict]) -> List[NISTBaselineScore]:
+    def _assess_baselines(self, nist_rules: List[Dict[str, Any]]) -> List[NISTBaselineScore]:
         """
         Assess compliance against NIST 800-53 baselines.
 
@@ -304,7 +304,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
         logger.debug(f"Assessed {len(baseline_scores)} NIST baselines")
         return baseline_scores
 
-    def _analyze_enhancements(self, nist_rules: List[Dict]) -> tuple:
+    def _analyze_enhancements(self, nist_rules: List[Dict[str, Any]]) -> Tuple[int, int]:
         """
         Analyze NIST 800-53 control enhancement coverage.
 
@@ -365,7 +365,7 @@ class NIST80053FrameworkIntelligence(BaseFrameworkIntelligence):
         logger.debug("No baselines met, recommending LOW baseline")
         return NISTBaseline.LOW
 
-    async def _fetch_latest_scan_results(self, host_id: str) -> Optional[Dict]:
+    async def _fetch_latest_scan_results(self, host_id: str) -> Optional[Dict[str, Any]]:
         """
         Fetch latest scan results for host from database.
 

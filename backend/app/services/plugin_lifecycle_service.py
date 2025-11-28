@@ -85,7 +85,8 @@ class PluginVersion(BaseModel):
     deprecation_date: Optional[datetime] = None
 
     @validator("version")
-    def validate_semver(cls, v):
+    def validate_semver(cls, v: str) -> str:
+        """Validate semantic versioning format."""
         try:
             semver.VersionInfo.parse(v)
             return v
@@ -242,16 +243,17 @@ class PluginLifecycleService:
     - Update planning and execution tracking
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize plugin lifecycle service."""
         self.plugin_registry_service = PluginRegistryService()
         self.plugin_execution_service = PluginExecutionService()
         self.active_updates: Dict[str, PluginUpdateExecution] = {}
-        self.health_monitors: Dict[str, asyncio.Task] = {}
+        self.health_monitors: Dict[str, asyncio.Task[None]] = {}
         self.version_cache: Dict[str, List[PluginVersion]] = {}
         self.monitoring_enabled = False
 
-    async def start_health_monitoring(self):
-        """Start continuous health monitoring for all plugins"""
+    async def start_health_monitoring(self) -> None:
+        """Start continuous health monitoring for all plugins."""
         if self.monitoring_enabled:
             logger.warning("Health monitoring is already running")
             return
@@ -266,8 +268,8 @@ class PluginLifecycleService:
 
         logger.info(f"Started health monitoring for {len(plugins)} plugins")
 
-    async def stop_health_monitoring(self):
-        """Stop continuous health monitoring"""
+    async def stop_health_monitoring(self) -> None:
+        """Stop continuous health monitoring."""
         if not self.monitoring_enabled:
             return
 
@@ -537,7 +539,10 @@ class PluginLifecycleService:
         if plugin_id:
             query["update_plan.plugin_id"] = plugin_id
 
-        return await PluginUpdateExecution.find(query).sort(-PluginUpdateExecution.started_at).limit(limit).to_list()
+        result: List[PluginUpdateExecution] = (
+            await PluginUpdateExecution.find(query).sort([("started_at", -1)]).limit(limit).to_list()
+        )
+        return result
 
     async def get_plugin_health_history(self, plugin_id: str, hours: int = 24) -> List[PluginHealthCheck]:
         """Get plugin health check history"""
@@ -547,8 +552,8 @@ class PluginLifecycleService:
         current_health = await self.check_plugin_health(plugin_id)
         return [current_health]
 
-    async def _execute_update_plan(self, execution: PluginUpdateExecution):
-        """Execute the update plan step by step"""
+    async def _execute_update_plan(self, execution: PluginUpdateExecution) -> None:
+        """Execute the update plan step by step."""
         try:
             execution.status = UpdateStatus.IN_PROGRESS
             execution.started_at = datetime.utcnow()
@@ -623,12 +628,12 @@ class PluginLifecycleService:
 
             logger.info(f"Update execution completed: {execution.execution_id} - {execution.status.value}")
 
-    async def _start_plugin_health_monitor(self, plugin_id: str):
-        """Start continuous health monitoring for a plugin"""
+    async def _start_plugin_health_monitor(self, plugin_id: str) -> None:
+        """Start continuous health monitoring for a plugin."""
         if plugin_id in self.health_monitors:
             return  # Already monitoring
 
-        async def monitor_loop():
+        async def monitor_loop() -> None:
             while self.monitoring_enabled:
                 try:
                     health_check = await self.check_plugin_health(plugin_id)
@@ -706,8 +711,8 @@ class PluginLifecycleService:
         except Exception:
             return False, None, None
 
-    async def _analyze_health_issues(self, plugin: InstalledPlugin, health_check: PluginHealthCheck):
-        """Analyze health check results and provide recommendations"""
+    async def _analyze_health_issues(self, plugin: InstalledPlugin, health_check: PluginHealthCheck) -> None:
+        """Analyze health check results and provide recommendations."""
 
         if not health_check.connectivity_check:
             health_check.issues.append("Plugin connectivity check failed")
@@ -752,8 +757,8 @@ class PluginLifecycleService:
 
         return issues
 
-    async def _add_execution_step(self, execution: PluginUpdateExecution, step_name: str, status: str):
-        """Add an execution step to the update record"""
+    async def _add_execution_step(self, execution: PluginUpdateExecution, step_name: str, status: str) -> None:
+        """Add an execution step to the update record."""
         step = {
             "step": step_name,
             "status": status,
@@ -764,8 +769,8 @@ class PluginLifecycleService:
         execution.current_step = step_name
         await execution.save()
 
-    async def _run_validation_steps(self, validation_steps: List[str], execution: PluginUpdateExecution):
-        """Run validation steps"""
+    async def _run_validation_steps(self, validation_steps: List[str], execution: PluginUpdateExecution) -> None:
+        """Run validation steps."""
         for step in validation_steps:
             try:
                 # This would run actual validation logic
@@ -775,32 +780,32 @@ class PluginLifecycleService:
                 execution.execution_errors.append(f"Validation step {step} failed: {str(e)}")
                 raise
 
-    async def _execute_immediate_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
-        """Execute immediate update strategy"""
+    async def _execute_immediate_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution) -> None:
+        """Execute immediate update strategy."""
         # This would perform the actual plugin update
         logger.info(f"Executing immediate update for {plan.plugin_id}")
         await asyncio.sleep(5)  # Simulate update time
 
-    async def _execute_rolling_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
-        """Execute rolling update strategy"""
+    async def _execute_rolling_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution) -> None:
+        """Execute rolling update strategy."""
         # This would perform rolling update with gradual deployment
         logger.info(f"Executing rolling update for {plan.plugin_id}")
         await asyncio.sleep(10)  # Simulate update time
 
-    async def _execute_blue_green_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
-        """Execute blue-green update strategy"""
+    async def _execute_blue_green_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution) -> None:
+        """Execute blue-green update strategy."""
         # This would perform blue-green deployment
         logger.info(f"Executing blue-green update for {plan.plugin_id}")
         await asyncio.sleep(15)  # Simulate update time
 
-    async def _execute_canary_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution):
-        """Execute canary update strategy"""
+    async def _execute_canary_update(self, plan: PluginUpdatePlan, execution: PluginUpdateExecution) -> None:
+        """Execute canary update strategy."""
         # This would perform canary deployment with gradual traffic shift
         logger.info(f"Executing canary update for {plan.plugin_id}")
         await asyncio.sleep(20)  # Simulate update time
 
-    async def _trigger_automatic_rollback(self, execution: PluginUpdateExecution, reason: str):
-        """Trigger automatic rollback due to failure"""
+    async def _trigger_automatic_rollback(self, execution: PluginUpdateExecution, reason: str) -> None:
+        """Trigger automatic rollback due to failure."""
         logger.warning(f"Triggering automatic rollback for {execution.update_plan.plugin_id}: {reason}")
 
         execution.rollback_performed = True

@@ -36,7 +36,8 @@ class BulkHostImport(BaseModel):
     owner: Optional[str] = Field(None, max_length=100)
 
     @validator("ip_address")
-    def validate_ip(cls, v):
+    def validate_ip(cls, v: str) -> str:
+        """Validate IP address format."""
         try:
             ipaddress.ip_address(v)
             return v
@@ -106,12 +107,12 @@ class EnhancedImportRequest(BaseModel):
 
 
 @router.post("/hosts/bulk-import", response_model=BulkImportResult)
-@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def bulk_import_hosts(
     request: BulkImportRequest,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> BulkImportResult:
     """
     Bulk import hosts from JSON payload
 
@@ -229,7 +230,7 @@ async def bulk_import_hosts(
 
 
 @router.get("/hosts/import-template")
-async def download_import_template():
+async def download_import_template() -> Response:
     """
     Download CSV template for bulk host import
     """
@@ -304,15 +305,15 @@ async def download_import_template():
 @router.get("/hosts/export-csv")
 @require_role(
     [
-        UserRole.SUPER_ADMIN.value,
-        UserRole.SECURITY_ADMIN.value,
-        UserRole.SECURITY_ANALYST.value,
+        UserRole.SUPER_ADMIN,
+        UserRole.SECURITY_ADMIN,
+        UserRole.SECURITY_ANALYST,
     ]
 )
 async def export_hosts_csv(
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> Response:
     """
     Export all hosts to CSV format
     Useful for backing up host configurations or as a template
@@ -373,11 +374,11 @@ async def export_hosts_csv(
 
 # Enhanced CSV Import Endpoints
 @router.post("/hosts/analyze-csv", response_model=CSVAnalysisResponse)
-@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def analyze_csv(
     file: UploadFile = File(...),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> CSVAnalysisResponse:
     """
     Analyze uploaded CSV file and provide intelligent field mapping suggestions
 
@@ -427,12 +428,12 @@ async def analyze_csv(
 
 
 @router.post("/hosts/import-with-mapping", response_model=BulkImportResult)
-@require_role([UserRole.SUPER_ADMIN.value, UserRole.SECURITY_ADMIN.value])
+@require_role([UserRole.SUPER_ADMIN, UserRole.SECURITY_ADMIN])
 async def import_with_mapping(
     request: EnhancedImportRequest,
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
-):
+) -> BulkImportResult:
     """
     Import hosts using custom field mappings
 
@@ -469,7 +470,8 @@ async def import_with_mapping(
         for idx, row in enumerate(rows):
             try:
                 # Map fields according to user configuration
-                mapped_data = {}
+                # Dict contains mixed types (str for most fields, int for port)
+                mapped_data: Dict[str, Any] = {}
 
                 # Apply field mappings
                 for source_col, target_field in field_map.items():
