@@ -1349,11 +1349,18 @@ class UnifiedSSHService:
             except Exception as e:
                 logger.debug(f"Could not load system host keys: {e}")
 
-            # Load user host keys
-            try:
-                ssh.load_host_keys(os.path.expanduser("~/.ssh/known_hosts"))
-            except Exception as e:
-                logger.debug(f"Could not load user host keys: {e}")
+            # Load user host keys - only if file exists
+            # IMPORTANT: paramiko's load_host_keys() sets _host_keys_filename BEFORE
+            # attempting to load, which causes AutoAddPolicy to fail when trying to
+            # save to a non-existent file. We must check file existence first.
+            known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
+            if os.path.exists(known_hosts_path):
+                try:
+                    ssh.load_host_keys(known_hosts_path)
+                except Exception as e:
+                    logger.debug(f"Could not load user host keys: {e}")
+            else:
+                logger.debug(f"Known hosts file does not exist: {known_hosts_path}")
 
         except Exception as e:
             logger.warning(f"Error configuring SSH client: {e}")
