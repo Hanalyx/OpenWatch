@@ -97,7 +97,9 @@ class MongoDBSCAPScanner(SCAPScanner):
                         rule = ComplianceRule(**rule_data)
                         mongodb_rules.append(rule)
                     except Exception as e:
-                        logger.warning(f"Failed to convert rule {rule_data.get('rule_id', 'unknown')}: {e}")
+                        logger.warning(
+                            f"Failed to convert rule {rule_data.get('rule_id', 'unknown')}: {e}"
+                        )
                         continue
                 else:
                     mongodb_rules.append(rule_data)
@@ -143,7 +145,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             logger.error(f"Failed to get rules by IDs: {e}")
             raise SCAPContentError(f"Rule retrieval failed: {str(e)}")
 
-    async def resolve_rule_inheritance(self, rules: List[ComplianceRule], platform: str) -> List[ComplianceRule]:
+    async def resolve_rule_inheritance(
+        self, rules: List[ComplianceRule], platform: str
+    ) -> List[ComplianceRule]:
         """Resolve rule inheritance and parameter overrides"""
         try:
             logger.info(f"Resolving inheritance for {len(rules)} rules on {platform}")
@@ -161,11 +165,15 @@ class MongoDBSCAPScanner(SCAPScanner):
                         )
 
                         # Merge parent and child rule configurations
-                        resolved_rule = await self._merge_inherited_rule(rule, parent_data, platform)
+                        resolved_rule = await self._merge_inherited_rule(
+                            rule, parent_data, platform
+                        )
                         resolved_rules.append(resolved_rule)
 
                     except Exception as e:
-                        logger.warning(f"Failed to resolve inheritance for rule {rule.rule_id}: {e}")
+                        logger.warning(
+                            f"Failed to resolve inheritance for rule {rule.rule_id}: {e}"
+                        )
                         # Use original rule if inheritance resolution fails
                         resolved_rules.append(rule)
                 else:
@@ -248,7 +256,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             temp_dir = Path(tempfile.mkdtemp(prefix="openwatch_scap_"))
 
             # Generate OVAL definitions document first to get the mapping
-            oval_definitions_path, rule_to_oval_id_map = self._generate_oval_definitions(rules, platform, temp_dir)
+            oval_definitions_path, rule_to_oval_id_map = self._generate_oval_definitions(
+                rules, platform, temp_dir
+            )
 
             if oval_definitions_path:
                 logger.info(f"Generated OVAL definitions: {oval_definitions_path}")
@@ -257,7 +267,9 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             # Generate XCCDF profile with OVAL ID mapping
             profile_path = temp_dir / "xccdf-profile.xml"
-            xml_content = self._generate_xccdf_profile_xml(rules, profile_name, platform, rule_to_oval_id_map)
+            xml_content = self._generate_xccdf_profile_xml(
+                rules, profile_name, platform, rule_to_oval_id_map
+            )
             with open(profile_path, "w", encoding="utf-8") as f:
                 f.write(xml_content)
 
@@ -317,7 +329,9 @@ class MongoDBSCAPScanner(SCAPScanner):
                         )
                         rules_with_oval += 1
                     else:
-                        logger.warning(f"OVAL file not found for rule {rule.rule_id}: {oval_file_path}")
+                        logger.warning(
+                            f"OVAL file not found for rule {rule.rule_id}: {oval_file_path}"
+                        )
                         rules_missing_oval += 1
                 else:
                     # Rule has no platform-specific OVAL
@@ -325,10 +339,14 @@ class MongoDBSCAPScanner(SCAPScanner):
                     logger.debug(f"Rule {rule.rule_id} has no OVAL for platform {platform}")
 
             if not oval_definitions_found:
-                logger.warning(f"No OVAL definitions found for {len(rules)} rules on platform {platform}")
+                logger.warning(
+                    f"No OVAL definitions found for {len(rules)} rules on platform {platform}"
+                )
                 return (None, {})
 
-            logger.info(f"Found {len(oval_definitions_found)} OVAL definitions for {rules_with_oval} rules")
+            logger.info(
+                f"Found {len(oval_definitions_found)} OVAL definitions for {rules_with_oval} rules"
+            )
 
             # Generate combined OVAL definitions document
             # Create root element with OVAL namespaces
@@ -352,10 +370,14 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             # Add generator info (use oval-common namespace per OVAL 5.11 spec)
             generator = ET.SubElement(root, f"{{{oval_ns}}}generator")
-            ET.SubElement(generator, f"{{{oval_common_ns}}}product_name").text = "OpenWatch MongoDB SCAP Scanner"
+            ET.SubElement(generator, f"{{{oval_common_ns}}}product_name").text = (
+                "OpenWatch MongoDB SCAP Scanner"
+            )
             ET.SubElement(generator, f"{{{oval_common_ns}}}product_version").text = "1.0.0"
             ET.SubElement(generator, f"{{{oval_common_ns}}}schema_version").text = "5.11"
-            ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp").text = datetime.utcnow().isoformat() + "Z"
+            ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp").text = (
+                datetime.utcnow().isoformat() + "Z"
+            )
 
             # Create definitions container
             definitions = ET.SubElement(root, "definitions")
@@ -438,7 +460,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             logger.error(f"Failed to generate OVAL definitions document: {e}", exc_info=True)
             return (None, {})
 
-    def _get_platform_oval_filename(self, rule: ComplianceRule, target_platform: str) -> Optional[str]:
+    def _get_platform_oval_filename(
+        self, rule: ComplianceRule, target_platform: str
+    ) -> Optional[str]:
         """
         Get platform-specific OVAL filename from Option B schema.
 
@@ -582,7 +606,9 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             # Strip HTML tags from description and rationale for XCCDF compliance
             description = self._strip_html_tags(rule.metadata.get("description", "No description"))
-            rationale = self._strip_html_tags(rule.metadata.get("rationale", "No rationale provided"))
+            rationale = self._strip_html_tags(
+                rule.metadata.get("rationale", "No rationale provided")
+            )
 
             xml_lines.extend(
                 [
@@ -612,7 +638,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             else:
                 # Rule has no platform-specific OVAL - it will be marked as "not applicable"
                 # This is expected for rules that don't have OVAL definitions for the target platform
-                logger.debug(f"Rule {rule.rule_id} has no OVAL definition for target platform (skipped)")
+                logger.debug(
+                    f"Rule {rule.rule_id} has no OVAL definition for target platform (skipped)"
+                )
 
             xml_lines.append("  </xccdf:Rule>")
 
@@ -655,7 +683,9 @@ class MongoDBSCAPScanner(SCAPScanner):
                 )
 
             if not rules:
-                error_message = f"No compliance rules found for platform {platform} {platform_version}"
+                error_message = (
+                    f"No compliance rules found for platform {platform} {platform_version}"
+                )
                 if framework:
                     error_message += f" with framework '{framework}'"
                 error_message += (
@@ -682,7 +712,9 @@ class MongoDBSCAPScanner(SCAPScanner):
 
             # Step 3: Generate SCAP profile from MongoDB rules
             profile_name = f"MongoDB {framework or 'Standard'} Profile"
-            profile_path, oval_path = await self.generate_mongodb_scan_profile(resolved_rules, profile_name, platform)
+            profile_path, oval_path = await self.generate_mongodb_scan_profile(
+                resolved_rules, profile_name, platform
+            )
 
             # Step 4: Execute SCAP scan with generated profile
             scan_result = await self._execute_mongodb_scan(
@@ -746,7 +778,9 @@ class MongoDBSCAPScanner(SCAPScanner):
                     ).fetchone()
 
                     if not host_result:
-                        raise ScanExecutionError(f"Host {connection_params.get('host_id')} not found")
+                        raise ScanExecutionError(
+                            f"Host {connection_params.get('host_id')} not found"
+                        )
 
                     host_auth_method = host_result[0]
                     use_default = host_auth_method in ["system_default", "default"]
@@ -756,11 +790,15 @@ class MongoDBSCAPScanner(SCAPScanner):
 
                     # Ensure encryption service is available
                     if not self.encryption_service:
-                        raise ScanExecutionError("MongoDBSCAPScanner requires encryption_service to be set")
+                        raise ScanExecutionError(
+                            "MongoDBSCAPScanner requires encryption_service to be set"
+                        )
 
                     # Use CentralizedAuthService to resolve credentials
                     auth_service = get_auth_service(db, self.encryption_service)
-                    credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+                    credential_data = auth_service.resolve_credential(
+                        target_id=target_id, use_default=use_default
+                    )
 
                     if not credential_data:
                         raise ScanExecutionError(
@@ -807,7 +845,11 @@ class MongoDBSCAPScanner(SCAPScanner):
                     "stdout": remote_result.stdout,
                     "stderr": remote_result.stderr,
                     "result_file": str(result_xml) if result_xml else str(result_file),
-                    "report_file": (str(result_html) if result_html else str(result_file).replace(".xml", ".html")),
+                    "report_file": (
+                        str(result_html)
+                        if result_html
+                        else str(result_file).replace(".xml", ".html")
+                    ),
                     "execution_time": remote_result.execution_time_seconds,
                     "files_transferred": remote_result.files_transferred,
                 }
@@ -897,7 +939,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             scan_result["mongodb_rules_used"] = len(rules)
             scan_result["enriched_at"] = datetime.utcnow().isoformat()
 
-            logger.info(f"Enriched scan results with {len(enrichment_data)} rule intelligence entries")
+            logger.info(
+                f"Enriched scan results with {len(enrichment_data)} rule intelligence entries"
+            )
             return scan_result
 
         except Exception as e:
@@ -905,7 +949,9 @@ class MongoDBSCAPScanner(SCAPScanner):
             # Return original results if enrichment fails
             return scan_result
 
-    async def _gather_rule_intelligence(self, rule_lookup: Dict[str, ComplianceRule]) -> Dict[str, Any]:
+    async def _gather_rule_intelligence(
+        self, rule_lookup: Dict[str, ComplianceRule]
+    ) -> Dict[str, Any]:
         """Gather intelligence data for rules"""
         intelligence_data = {}
 
@@ -918,8 +964,12 @@ class MongoDBSCAPScanner(SCAPScanner):
                     intelligence_data[rule_id] = {
                         "rule_id": rule.rule_id,
                         "business_impact": intel_result["intelligence"].get("business_impact"),
-                        "compliance_importance": intel_result["intelligence"].get("compliance_importance"),
-                        "false_positive_rate": intel_result["intelligence"].get("false_positive_rate"),
+                        "compliance_importance": intel_result["intelligence"].get(
+                            "compliance_importance"
+                        ),
+                        "false_positive_rate": intel_result["intelligence"].get(
+                            "false_positive_rate"
+                        ),
                         "remediation_complexity": rule.remediation_complexity,
                         "remediation_risk": rule.remediation_risk,
                         "frameworks": rule.frameworks,
