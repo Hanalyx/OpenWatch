@@ -37,12 +37,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -384,9 +380,7 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
@@ -403,6 +397,81 @@ async def start_mongodb_scan(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported framework: {scan_request.framework}. Framework must be one of the supported compliance frameworks.",
             )
+
+        # Phase 3/4: Resolve platform_identifier for OVAL selection
+        # Priority order:
+        # 1. Host's persisted platform_identifier (from OS discovery)
+        # 2. Computed from host's os_family + os_version (if available)
+        # 3. Computed from scan_request.platform + platform_version (fallback)
+        # This ensures we get normalized identifiers like "rhel8" not just "rhel"
+        effective_platform = scan_request.platform
+        effective_platform_version = scan_request.platform_version
+
+        # Import normalize function for computing platform_identifier
+        from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+
+        try:
+            host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
+            host_result = db.execute(host_query, {"host_id": scan_request.host_id}).fetchone()
+
+            if host_result:
+                db_platform_id = host_result[0]  # platform_identifier column
+                db_os_family = host_result[1]  # os_family column
+                db_os_version = host_result[2]  # os_version column
+
+                if db_platform_id:
+                    # Priority 1: Use persisted platform_identifier from OS discovery
+                    effective_platform = db_platform_id
+                    if db_os_version:
+                        effective_platform_version = db_os_version
+                    logger.info(
+                        f"Host {scan_request.host_id} using persisted platform_identifier: "
+                        f"{effective_platform} (version: {effective_platform_version})"
+                    )
+                elif db_os_family and db_os_version:
+                    # Priority 2: Compute from os_family + os_version
+                    computed_platform = _normalize_platform_identifier(db_os_family, db_os_version)
+                    if computed_platform:
+                        effective_platform = computed_platform
+                        effective_platform_version = db_os_version
+                        logger.info(
+                            f"Host {scan_request.host_id} computed platform_identifier from "
+                            f"os_family={db_os_family}, os_version={db_os_version}: {effective_platform}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Host {scan_request.host_id} could not compute platform_identifier "
+                            f"from os_family={db_os_family}, os_version={db_os_version}"
+                        )
+                else:
+                    logger.info(
+                        f"Host {scan_request.host_id} has no OS discovery data, "
+                        f"using request platform: {scan_request.platform}"
+                    )
+            else:
+                logger.warning(
+                    f"Host {scan_request.host_id} not found in database, "
+                    f"using request platform: {scan_request.platform}"
+                )
+        except Exception as platform_err:
+            logger.warning(
+                f"Could not check host platform_identifier: {platform_err}. "
+                f"Using request platform: {scan_request.platform}"
+            )
+
+        # Priority 3: If still using raw platform (not normalized), compute from request
+        # This handles cases where host has no OS discovery data
+        if effective_platform == scan_request.platform and scan_request.platform_version:
+            # Check if platform is not already normalized (e.g., "rhel" vs "rhel8")
+            # Normalized platforms contain version numbers like "rhel8", "ubuntu2204"
+            if not any(char.isdigit() for char in effective_platform):
+                computed_platform = _normalize_platform_identifier(scan_request.platform, scan_request.platform_version)
+                if computed_platform:
+                    effective_platform = computed_platform
+                    logger.info(
+                        f"Computed platform_identifier from request: "
+                        f"{scan_request.platform} + {scan_request.platform_version} = {effective_platform}"
+                    )
 
         # Create initial PostgreSQL scan record (status: running)
         scan_name = f"MongoDB Scan - {scan_request.platform} {scan_request.platform_version} - {scan_request.framework or 'all frameworks'}"
@@ -449,13 +518,17 @@ async def start_mongodb_scan(
             )
 
         # Start the scan process
-        logger.info(f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id}")
+        # Phase 3: Use effective_platform (from host's platform_identifier if available)
+        logger.info(
+            f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id} "
+            f"with platform={effective_platform} (original: {scan_request.platform})"
+        )
         try:
             scan_result = await scanner.scan_with_mongodb_rules(
                 host_id=scan_request.host_id,
                 hostname=scan_request.hostname,
-                platform=scan_request.platform,
-                platform_version=scan_request.platform_version,
+                platform=effective_platform,  # Use discovered platform for OVAL selection
+                platform_version=effective_platform_version,
                 framework=scan_request.framework,
                 connection_params=scan_request.connection_params,
                 severity_filter=scan_request.severity_filter,
@@ -667,9 +740,7 @@ async def enrich_scan_results_task(
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(
-    scan_id: str, current_user: User = Depends(get_current_user)
-) -> ScanStatusResponse:
+async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -817,11 +888,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 
@@ -845,9 +912,7 @@ async def get_available_rules(
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(
-    request: Request, current_user: User = Depends(get_current_user)
-) -> Dict[str, Any]:
+async def get_scanner_health(request: Request, current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """Get MongoDB scanner service health"""
     try:
         scanner = await get_mongodb_scanner(request)

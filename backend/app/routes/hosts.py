@@ -73,9 +73,7 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
         # Log detailed error server-side for debugging
         logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
         # Return generic error to client (security best practice)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
 
 
 # NOTE: Old encrypt_credentials function removed - now using centralized auth service
@@ -218,14 +216,10 @@ async def validate_credentials(
             return {
                 "is_valid": validation_result.is_valid,
                 "auth_method": "ssh_key",
-                "key_type": (
-                    validation_result.key_type.value if validation_result.key_type else None
-                ),
+                "key_type": (validation_result.key_type.value if validation_result.key_type else None),
                 "key_bits": validation_result.key_size,
                 "security_level": (
-                    validation_result.security_level.value
-                    if validation_result.security_level
-                    else None
+                    validation_result.security_level.value if validation_result.security_level else None
                 ),
                 "error_message": validation_result.error_message,
                 "warnings": validation_result.warnings,
@@ -248,11 +242,7 @@ async def validate_credentials(
                 "is_valid": True,
                 "auth_method": "password",
                 "error_message": None,
-                "warnings": (
-                    []
-                    if len(password) >= 12
-                    else ["Password should be at least 12 characters for security"]
-                ),
+                "warnings": ([] if len(password) >= 12 else ["Password should be at least 12 characters for security"]),
                 "recommendations": [
                     "Use a password manager",
                     "Consider using SSH key authentication instead",
@@ -484,9 +474,7 @@ async def create_host(
         if credential_info:
             # Get user UUID for audit trail (QueryBuilder for consistent parameterization)
             user_query_builder = (
-                QueryBuilder("users")
-                .select("id")
-                .where("id = :user_id", current_user.get("id"), "user_id")
+                QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
             )
             user_query, user_params = user_query_builder.build()
             user_id_result = db.execute(text(user_query), user_params)
@@ -513,6 +501,28 @@ async def create_host(
         )
 
         logger.info(f"Created new host in database: {host.hostname}")
+
+        # Trigger async OS discovery if credentials were provided
+        # This populates os_family, os_version, architecture fields
+        # for accurate platform-specific OVAL selection during scanning
+        if credential_info:
+            try:
+                from ..tasks.os_discovery_tasks import trigger_os_discovery
+
+                trigger_os_discovery.apply_async(
+                    args=[host_id],
+                    countdown=5,  # Delay 5 seconds to ensure credential is stored
+                    queue="default",
+                )
+                logger.info(f"Queued OS discovery task for new host {host.hostname} ({host_id})")
+            except Exception as e:
+                # Non-blocking: Log warning but don't fail host creation
+                # OS discovery can be triggered manually later via /hosts/{id}/discover-os
+                logger.warning(
+                    f"Failed to queue OS discovery for host {host.hostname}: {e}. "
+                    f"OS detection can be triggered manually via API."
+                )
+
         return new_host
 
     except Exception as e:
@@ -537,9 +547,7 @@ async def get_host(
 
         # OW-REFACTOR-001B: Use QueryBuilder for parameterized SELECT with JOINs
         # Why: Consistent with Phase 2 pattern, eliminates dual code paths, maintains SQL injection protection
-        logger.info(
-            f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})"
-        )
+        logger.info(f"Using QueryBuilder for get_host endpoint (host_id: {sanitize_id_for_log(host_id)})")
         builder = (
             QueryBuilder("hosts h")
             .select(
@@ -649,9 +657,7 @@ async def update_host(
         current_time = datetime.utcnow()
 
         # Handle display_name logic properly
-        new_hostname = (
-            host_update.hostname if host_update.hostname is not None else current_host.hostname
-        )
+        new_hostname = host_update.hostname if host_update.hostname is not None else current_host.hostname
         new_display_name = (
             host_update.display_name
             if host_update.display_name is not None
@@ -674,14 +680,10 @@ async def update_host(
             if host_update.auth_method == "system_default":
                 # Delete host-specific credentials when switching to system default
                 try:
-                    existing_creds = auth_service.list_credentials(
-                        scope=CredentialScope.HOST, target_id=str(host_uuid)
-                    )
+                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
                     for cred in existing_creds:
                         auth_service.delete_credential(cred["id"])
-                    logger.info(
-                        f"Deleted host-specific credentials for system default on host {host_id}"
-                    )
+                    logger.info(f"Deleted host-specific credentials for system default on host {host_id}")
                 except Exception as e:
                     logger.error(f"Failed to delete host-specific credentials: {e}")
 
@@ -709,16 +711,8 @@ async def update_host(
                 credential_data = CredentialData(
                     username=host_update.username or current_host.username,
                     auth_method=AuthMethod(host_update.auth_method),
-                    password=(
-                        host_update.password
-                        if host_update.auth_method in ["password", "both"]
-                        else None
-                    ),
-                    private_key=(
-                        host_update.ssh_key
-                        if host_update.auth_method in ["ssh_key", "both"]
-                        else None
-                    ),
+                    password=(host_update.password if host_update.auth_method in ["password", "both"] else None),
+                    private_key=(host_update.ssh_key if host_update.auth_method in ["ssh_key", "both"] else None),
                     private_key_passphrase=None,
                 )
 
@@ -733,15 +727,11 @@ async def update_host(
 
                 # Check if host-specific credential already exists
                 try:
-                    existing_creds = auth_service.list_credentials(
-                        scope=CredentialScope.HOST, target_id=str(host_uuid)
-                    )
+                    existing_creds = auth_service.list_credentials(scope=CredentialScope.HOST, target_id=str(host_uuid))
 
                     # Get user UUID for created_by field (QueryBuilder for parameterization)
                     user_query_builder = (
-                        QueryBuilder("users")
-                        .select("id")
-                        .where("id = :user_id", current_user.get("id"), "user_id")
+                        QueryBuilder("users").select("id").where("id = :user_id", current_user.get("id"), "user_id")
                     )
                     user_query, user_params = user_query_builder.build()
                     user_id_result = db.execute(text(user_query), user_params)
@@ -752,9 +742,7 @@ async def update_host(
                         # Delete old credential and create new one (simpler than update)
                         for cred in existing_creds:
                             auth_service.delete_credential(cred["id"])
-                        logger.info(
-                            f"Deleted old host-specific credential for {current_host.hostname}"
-                        )
+                        logger.info(f"Deleted old host-specific credential for {current_host.hostname}")
 
                     # Store new credential
                     cred_id = auth_service.store_credential(
@@ -762,9 +750,7 @@ async def update_host(
                         metadata=metadata,
                         created_by=user_uuid or "",
                     )
-                    logger.info(
-                        f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})"
-                    )
+                    logger.info(f"Stored updated host-specific credential for {current_host.hostname} (id: {cred_id})")
 
                 except Exception as e:
                     logger.error(f"Failed to update host-specific credential: {e}")
@@ -774,11 +760,7 @@ async def update_host(
         update_params = {
             "id": host_uuid,
             "hostname": new_hostname,
-            "ip_address": (
-                host_update.ip_address
-                if host_update.ip_address is not None
-                else current_host.ip_address
-            ),
+            "ip_address": (host_update.ip_address if host_update.ip_address is not None else current_host.ip_address),
             "display_name": new_display_name,
             "operating_system": (
                 host_update.operating_system
@@ -786,18 +768,12 @@ async def update_host(
                 else current_host.operating_system
             ),
             "port": (host_update.port if host_update.port is not None else current_host.port),
-            "username": (
-                host_update.username if host_update.username is not None else current_host.username
-            ),
+            "username": (host_update.username if host_update.username is not None else current_host.username),
             "auth_method": (
-                host_update.auth_method
-                if host_update.auth_method is not None
-                else current_host.auth_method
+                host_update.auth_method if host_update.auth_method is not None else current_host.auth_method
             ),
             "description": (
-                host_update.description
-                if host_update.description is not None
-                else current_host.description
+                host_update.description if host_update.description is not None else current_host.description
             ),
             "updated_at": current_time,
         }
@@ -923,9 +899,7 @@ async def delete_host(
 
         # Check if host has scans (for cascade delete)
         count_query_builder = (
-            QueryBuilder("scans")
-            .select("COUNT(*) as count")
-            .where("host_id = :host_id", host_uuid, "host_id")
+            QueryBuilder("scans").select("COUNT(*) as count").where("host_id = :host_id", host_uuid, "host_id")
         )
         count_query, count_params = count_query_builder.build()
         scan_result = db.execute(text(count_query), count_params)
@@ -996,9 +970,7 @@ async def delete_host_ssh_key(
 
         # Verify host exists and has SSH key to delete
         select_query_builder = (
-            QueryBuilder("hosts")
-            .select("id", "auth_method", "ssh_key_fingerprint")
-            .where("id = :id", host_uuid, "id")
+            QueryBuilder("hosts").select("id", "auth_method", "ssh_key_fingerprint").where("id = :id", host_uuid, "id")
         )
         select_query, select_params = select_query_builder.build()
         result = db.execute(text(select_query), select_params)
@@ -1077,6 +1049,8 @@ async def get_host_management_capabilities(
             "delete_host": "DELETE /api/hosts/{host_id}",
             "bulk_import": "POST /api/hosts/bulk",
             "capabilities": "GET /api/hosts/capabilities",
+            "discover_os": "POST /api/hosts/{host_id}/discover-os",
+            "get_os_info": "GET /api/hosts/{host_id}/os-info",
         },
     }
 
@@ -1100,3 +1074,305 @@ async def get_hosts_summary(
         "os_distribution": {},
         "scan_status": {"never_scanned": 0, "recently_scanned": 0, "outdated_scans": 0},
     }
+
+
+# =============================================================================
+# OS Discovery Endpoints
+# =============================================================================
+# Phase 2: Host OS Detection and OVAL Alignment
+# These endpoints enable manual OS discovery for hosts, populating os_family,
+# os_version, and architecture fields for platform-specific OVAL selection.
+
+
+class OSDiscoveryResponse(BaseModel):
+    """
+    Response model for OS discovery operations.
+
+    Contains the discovered OS information and task status for async operations.
+    Used by both immediate discovery results and task status checks.
+    """
+
+    host_id: str = Field(..., description="UUID of the host")
+    task_id: Optional[str] = Field(None, description="Celery task ID for async tracking")
+    status: str = Field(..., description="Discovery status: queued, in_progress, completed, failed")
+    os_family: Optional[str] = Field(None, description="Detected OS family (rhel, ubuntu, debian)")
+    os_version: Optional[str] = Field(None, description="Detected OS version (9.3, 22.04)")
+    platform_identifier: Optional[str] = Field(
+        None, description="Normalized platform ID for OVAL selection (rhel9, ubuntu2204)"
+    )
+    architecture: Optional[str] = Field(None, description="CPU architecture (x86_64, aarch64)")
+    discovered_at: Optional[str] = Field(None, description="ISO timestamp of discovery")
+    error: Optional[str] = Field(None, description="Error message if discovery failed")
+
+
+@router.post("/{host_id}/discover-os", response_model=OSDiscoveryResponse)
+async def trigger_host_os_discovery(
+    host_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> OSDiscoveryResponse:
+    """
+    Trigger OS discovery for a specific host.
+
+    This endpoint queues an asynchronous Celery task to discover the host's
+    operating system information via SSH. The discovered os_family, os_version,
+    and architecture are used for platform-specific OVAL selection during
+    compliance scanning.
+
+    The task performs:
+    1. SSH connection to the host using configured credentials
+    2. Detection of OS family (rhel, ubuntu, debian, etc.)
+    3. Detection of OS version (9.3, 22.04, 12, etc.)
+    4. Detection of CPU architecture (x86_64, aarch64)
+    5. Normalization to platform identifier (rhel9, ubuntu2204)
+    6. Database update with discovered values
+
+    Args:
+        host_id: UUID of the host to discover OS information for
+
+    Returns:
+        OSDiscoveryResponse with task_id for status tracking
+
+    Raises:
+        HTTPException 400: Invalid host ID format
+        HTTPException 404: Host not found
+        HTTPException 400: Host has no credentials configured
+        HTTPException 500: Failed to queue discovery task
+
+    Example:
+        POST /api/hosts/550e8400-e29b-41d4-a716-446655440000/discover-os
+
+        Response:
+        {
+            "host_id": "550e8400-e29b-41d4-a716-446655440000",
+            "task_id": "abc123-def456-ghi789",
+            "status": "queued",
+            "os_family": null,
+            "os_version": null,
+            "platform_identifier": null,
+            "architecture": null,
+            "discovered_at": null,
+            "error": null
+        }
+
+    Security:
+        - Requires authenticated user (JWT token)
+        - Validates host exists and is accessible
+        - Uses encrypted credentials from unified_credentials table
+        - Logs all discovery attempts for audit trail
+    """
+    try:
+        # Validate host UUID format
+        host_uuid = validate_host_uuid(host_id)
+
+        # Verify host exists and check for credentials
+        # QueryBuilder for consistent parameterized SELECT
+        host_query_builder = (
+            QueryBuilder("hosts h")
+            .select(
+                "h.id",
+                "h.hostname",
+                "h.ip_address",
+                "h.status",
+                "h.os_family",
+                "h.os_version",
+                "h.architecture",
+            )
+            .where("h.id = :id", host_uuid, "id")
+            .where("h.is_active = :is_active", True, "is_active")
+        )
+        host_query, host_params = host_query_builder.build()
+        result = db.execute(text(host_query), host_params)
+        host_row = result.fetchone()
+
+        if not host_row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Host not found or inactive",
+            )
+
+        # Check if host has credentials configured (unified_credentials table)
+        # Must have credentials to perform SSH-based OS discovery
+        cred_query_builder = (
+            QueryBuilder("unified_credentials")
+            .select("id")
+            .where("target_id = :target_id", str(host_uuid), "target_id")
+            .where("scope = :scope", "host", "scope")
+        )
+        cred_query, cred_params = cred_query_builder.build()
+        cred_result = db.execute(text(cred_query), cred_params)
+        cred_row = cred_result.fetchone()
+
+        # Also check for system default credentials as fallback
+        if not cred_row:
+            system_cred_query_builder = (
+                QueryBuilder("unified_credentials")
+                .select("id")
+                .where("scope = :scope", "system", "scope")
+                .where("is_default = :is_default", True, "is_default")
+            )
+            system_cred_query, system_cred_params = system_cred_query_builder.build()
+            system_cred_result = db.execute(text(system_cred_query), system_cred_params)
+            cred_row = system_cred_result.fetchone()
+
+        if not cred_row:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No credentials configured for this host. "
+                "Configure host-specific or system default credentials first.",
+            )
+
+        # Queue OS discovery Celery task
+        try:
+            from ..tasks.os_discovery_tasks import trigger_os_discovery
+
+            task = trigger_os_discovery.apply_async(
+                args=[host_id],
+                queue="default",
+            )
+
+            logger.info(
+                f"Queued OS discovery task {task.id} for host {host_row.hostname} ({host_id}) "
+                f"by user {current_user.get('username', 'unknown')}"
+            )
+
+            return OSDiscoveryResponse(
+                host_id=host_id,
+                task_id=task.id,
+                status="queued",
+                os_family=None,
+                os_version=None,
+                platform_identifier=None,
+                architecture=None,
+                discovered_at=None,
+                error=None,
+            )
+
+        except Exception as task_error:
+            logger.error(f"Failed to queue OS discovery task for host {host_id}: {task_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to queue OS discovery task. Check Celery worker status.",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in OS discovery for host {host_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate OS discovery",
+        )
+
+
+@router.get("/{host_id}/os-info", response_model=OSDiscoveryResponse)
+async def get_host_os_info(
+    host_id: str,
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> OSDiscoveryResponse:
+    """
+    Get current OS information for a host.
+
+    Returns the currently stored OS information for a host, including
+    os_family, os_version, architecture, and the last discovery timestamp.
+    This endpoint does NOT trigger a new discovery - use POST /discover-os
+    for that.
+
+    Args:
+        host_id: UUID of the host to get OS information for
+
+    Returns:
+        OSDiscoveryResponse with current OS information
+
+    Raises:
+        HTTPException 400: Invalid host ID format
+        HTTPException 404: Host not found
+
+    Example:
+        GET /api/hosts/550e8400-e29b-41d4-a716-446655440000/os-info
+
+        Response:
+        {
+            "host_id": "550e8400-e29b-41d4-a716-446655440000",
+            "task_id": null,
+            "status": "completed",
+            "os_family": "rhel",
+            "os_version": "9.3",
+            "platform_identifier": "rhel9",
+            "architecture": "x86_64",
+            "discovered_at": "2025-11-28T10:30:00Z",
+            "error": null
+        }
+
+    Security:
+        - Requires authenticated user (JWT token)
+        - Read-only operation (no state changes)
+        - Logs access for audit trail
+    """
+    try:
+        # Validate host UUID format
+        host_uuid = validate_host_uuid(host_id)
+
+        # Query host OS information
+        # Phase 4: Include platform_identifier from database (persisted during OS discovery)
+        # QueryBuilder for consistent parameterized SELECT
+        host_query_builder = (
+            QueryBuilder("hosts")
+            .select(
+                "id",
+                "hostname",
+                "os_family",
+                "os_version",
+                "architecture",
+                "platform_identifier",
+                "last_os_detection",
+            )
+            .where("id = :id", host_uuid, "id")
+        )
+        host_query, host_params = host_query_builder.build()
+        result = db.execute(text(host_query), host_params)
+        host_row = result.fetchone()
+
+        if not host_row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Host not found",
+            )
+
+        # Phase 4: Use platform_identifier from database if available,
+        # otherwise compute it on-the-fly for backward compatibility
+        platform_identifier = host_row.platform_identifier
+        if not platform_identifier and host_row.os_family and host_row.os_version:
+            from ..tasks.os_discovery_tasks import _normalize_platform_identifier
+
+            platform_identifier = _normalize_platform_identifier(host_row.os_family, host_row.os_version)
+
+        # Determine status based on whether OS info exists
+        if host_row.os_family and host_row.os_version:
+            discovery_status = "completed"
+        elif host_row.last_os_detection:
+            discovery_status = "failed"  # Had detection but no valid OS info
+        else:
+            discovery_status = "pending"  # Never discovered
+
+        return OSDiscoveryResponse(
+            host_id=host_id,
+            task_id=None,
+            status=discovery_status,
+            os_family=host_row.os_family,
+            os_version=host_row.os_version,
+            platform_identifier=platform_identifier,
+            architecture=host_row.architecture,
+            discovered_at=(host_row.last_os_detection.isoformat() + "Z" if host_row.last_os_detection else None),
+            error=None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get OS info for host {host_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve host OS information",
+        )
