@@ -32,7 +32,9 @@ from sqlalchemy.orm import Session
 
 from .auth_service import CredentialData
 from .scap_dependency_resolver import SCAPDependency, SCAPDependencyResolver
-from .unified_ssh_service import UnifiedSSHService
+
+# SSHConnectionManager provides connect_with_credentials() and connection management
+from .ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,8 @@ class RemoteSCAPExecutor:
             db: Database session for credential resolution and SSH service
         """
         self.db = db
-        self.ssh_service = UnifiedSSHService(db)
+        # SSHConnectionManager handles SSH connections with credential management and policies
+        self.ssh_service = SSHConnectionManager(db)
         self.dependency_resolver = SCAPDependencyResolver()
 
     def execute_scan(
@@ -140,7 +143,7 @@ class RemoteSCAPExecutor:
             dependencies = self._resolve_dependencies(xccdf_file)
             logger.info(f"Resolved {len(dependencies)} SCAP dependencies for transfer")
 
-            # Step 2: Establish SSH connection using UnifiedSSHService
+            # Step 2: Establish SSH connection using SSHConnectionManager
             port = connection_params.get("port", 22)
             username = credential_data.username
             auth_method = credential_data.auth_method.value
@@ -156,9 +159,7 @@ class RemoteSCAPExecutor:
                 raise RemoteSCAPExecutionError(f"Unsupported auth method: {auth_method}")
 
             if not credential_value:
-                raise RemoteSCAPExecutionError(
-                    f"No credential available for auth method: {auth_method}"
-                )
+                raise RemoteSCAPExecutionError(f"No credential available for auth method: {auth_method}")
 
             logger.info(f"Connecting to {hostname}:{port} as {username} via {auth_method}")
 
@@ -173,9 +174,7 @@ class RemoteSCAPExecutor:
             )
 
             if not connection_result.success:
-                raise RemoteSCAPExecutionError(
-                    f"SSH connection failed: {connection_result.error_message}"
-                )
+                raise RemoteSCAPExecutionError(f"SSH connection failed: {connection_result.error_message}")
 
             ssh = connection_result.connection
             logger.info("SSH connection established successfully")
@@ -230,8 +229,7 @@ class RemoteSCAPExecutor:
                 )
 
                 logger.info(
-                    f"Remote SCAP scan {scan_id} completed: "
-                    f"exit_code={exit_code}, time={execution_time:.1f}s"
+                    f"Remote SCAP scan {scan_id} completed: " f"exit_code={exit_code}, time={execution_time:.1f}s"
                 )
 
                 return result

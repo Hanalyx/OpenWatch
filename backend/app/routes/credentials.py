@@ -32,9 +32,7 @@ router = APIRouter(prefix="/credentials", tags=["Credential Sharing"])
 def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> bool:
     """Verify HMAC-SHA256 signature from AEGIS."""
     try:
-        expected_signature = hmac.new(
-            secret_key.encode("utf-8"), payload, hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(secret_key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
         # Remove 'sha256=' prefix if present
         if signature.startswith("sha256="):
@@ -46,9 +44,7 @@ def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> b
         return False
 
 
-def validate_aegis_request(
-    signature: Optional[str] = Header(None, alias="X-AEGIS-Signature")
-) -> bool:
+def validate_aegis_request(signature: Optional[str] = Header(None, alias="X-AEGIS-Signature")) -> bool:
     """Validate incoming AEGIS request signature."""
     if not signature:
         raise HTTPException(
@@ -151,7 +147,7 @@ async def get_host_credentials(
 
                 # Determine key type if SSH key is present
                 if ssh_key:
-                    from ..services.unified_ssh_service import detect_key_type
+                    from ..services.ssh import detect_key_type
 
                     detected_type = detect_key_type(ssh_key)
                     key_type = detected_type.value if detected_type else None
@@ -174,9 +170,7 @@ async def get_host_credentials(
             key_type=key_type,
             password=password,
             source="openwatch",
-            last_updated=(
-                row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()
-            ),
+            last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
         )
 
         logger.info(f"Provided SSH credentials for host {row.hostname} to AEGIS")
@@ -234,7 +228,7 @@ async def get_multiple_host_credentials(
         )
 
         credentials = []
-        from ..services.unified_ssh_service import detect_key_type
+        from ..services.ssh import detect_key_type
 
         for row in result:
             ssh_key = None
@@ -268,9 +262,7 @@ async def get_multiple_host_credentials(
                 key_type=key_type,
                 password=password,
                 source="openwatch",
-                last_updated=(
-                    row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()
-                ),
+                last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
             )
 
             credentials.append(credential)
@@ -327,7 +319,7 @@ async def get_default_system_credentials(
         # Determine key type if SSH key is present
         key_type = None
         if credential_data.private_key:
-            from ..services.unified_ssh_service import detect_key_type
+            from ..services.ssh import detect_key_type
 
             detected_type = detect_key_type(credential_data.private_key)
             key_type = detected_type.value if detected_type else None

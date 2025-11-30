@@ -9,7 +9,9 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from ..database import Host
-from ..services.unified_ssh_service import UnifiedSSHService as SSHService
+
+# SSHConnectionManager aliased as SSHService for backward compatibility with existing code
+from ..services.ssh import SSHConnectionManager as SSHService
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +129,7 @@ class HostBasicDiscoveryService:
                     result["hostname"] = hostname
                     logger.debug(f"Discovered hostname: {hostname}")
             else:
-                result["discovery_errors"] = [
-                    f"Hostname command failed: {output.get('stderr', 'Unknown error')}"
-                ]
+                result["discovery_errors"] = [f"Hostname command failed: {output.get('stderr', 'Unknown error')}"]
 
         except Exception as e:
             logger.warning(f"Failed to discover hostname for {host.hostname}: {str(e)}")
@@ -242,9 +242,7 @@ class HostBasicDiscoveryService:
                     result["architecture"] = arch_normalized
                     logger.debug(f"Discovered architecture: {arch_normalized}")
             else:
-                result["discovery_errors"] = [
-                    f"Architecture command failed: {output.get('stderr', 'Unknown error')}"
-                ]
+                result["discovery_errors"] = [f"Architecture command failed: {output.get('stderr', 'Unknown error')}"]
 
         except Exception as e:
             logger.warning(f"Failed to discover architecture for {host.hostname}: {str(e)}")
@@ -281,9 +279,7 @@ class HostBasicDiscoveryService:
                     result["kernel_version"] = kernel
                     logger.debug(f"Discovered kernel version: {kernel}")
             else:
-                result["discovery_errors"] = [
-                    f"Kernel version command failed: {output.get('stderr', 'Unknown error')}"
-                ]
+                result["discovery_errors"] = [f"Kernel version command failed: {output.get('stderr', 'Unknown error')}"]
 
         except Exception as e:
             logger.warning(f"Failed to discover kernel version for {host.hostname}: {str(e)}")

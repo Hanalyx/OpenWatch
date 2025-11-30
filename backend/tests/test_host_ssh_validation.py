@@ -58,7 +58,7 @@ def generate_rsa_key(key_size: int = 2048) -> str:
 
 def test_host_ssh_key_validation_import(db_session: Session):
     """
-    CRITICAL: Verify that hosts.py imports validate_ssh_key from unified_ssh_service.
+    CRITICAL: Verify that hosts.py imports validate_ssh_key from ssh module.
 
     This test ensures the validation function is available in the hosts module.
     """
@@ -66,16 +66,15 @@ def test_host_ssh_key_validation_import(db_session: Session):
 
     # Verify the module has the validate_ssh_key function
     assert hasattr(hosts, "validate_ssh_key"), (
-        "[CRITICAL] hosts.py must import validate_ssh_key from unified_ssh_service!\n\n"
+        "[CRITICAL] hosts.py must import validate_ssh_key from ssh module!\n\n"
         "Without this import, SSH keys cannot be validated."
     )
 
-    # Verify it's the correct function from unified_ssh_service
-    from app.services.unified_ssh_service import validate_ssh_key
+    # Verify it's the correct function from ssh module
+    from app.services.ssh import validate_ssh_key
 
     assert hosts.validate_ssh_key == validate_ssh_key, (
-        "[CRITICAL] hosts.py imports wrong validate_ssh_key function!\n\n"
-        "Must import from unified_ssh_service, not elsewhere."
+        "[CRITICAL] hosts.py imports wrong validate_ssh_key function!\n\n" "Must import from ssh module."
     )
 
 
@@ -85,7 +84,7 @@ def test_valid_ssh_key_passes_validation():
 
     This uses the same validation logic that should be in hosts.py.
     """
-    from app.services.unified_ssh_service import validate_ssh_key
+    from app.services.ssh import validate_ssh_key
 
     # Generate a valid Ed25519 key for testing
     key_content = generate_ed25519_key()
@@ -105,7 +104,7 @@ def test_invalid_ssh_key_fails_validation():
     """
     Test that an invalid SSH key fails paramiko validation.
     """
-    from app.services.unified_ssh_service import validate_ssh_key
+    from app.services.ssh import validate_ssh_key
 
     invalid_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nINVALID_GARBAGE\n-----END OPENSSH PRIVATE KEY-----"
 
@@ -122,7 +121,7 @@ def test_empty_ssh_key_fails_validation():
     """
     Test that an empty SSH key fails validation.
     """
-    from app.services.unified_ssh_service import validate_ssh_key
+    from app.services.ssh import validate_ssh_key
 
     result = validate_ssh_key("")
 
@@ -136,7 +135,7 @@ def test_rsa_2048_key_validation():
     """
     Test that RSA-2048 keys are validated (acceptable security level).
     """
-    from app.services.unified_ssh_service import validate_ssh_key
+    from app.services.ssh import validate_ssh_key
 
     # Generate RSA-2048 key
     key_content = generate_rsa_key(key_size=2048)
@@ -148,7 +147,7 @@ def test_rsa_2048_key_validation():
 
     # RSA-2048 should be "acceptable" not "secure"
     # (RSA-4096 is "secure", RSA-2048 is "acceptable")
-    from app.services.unified_ssh_service import SSHKeySecurityLevel
+    from app.services.ssh import SSHKeySecurityLevel
 
     assert result.security_level in [
         SSHKeySecurityLevel.ACCEPTABLE,
@@ -160,7 +159,7 @@ def test_rsa_1024_key_rejected():
     """
     Test that weak RSA-1024 keys are rejected as deprecated.
     """
-    from app.services.unified_ssh_service import SSHKeySecurityLevel, validate_ssh_key
+    from app.services.ssh import SSHKeySecurityLevel, validate_ssh_key
 
     # Generate weak RSA-1024 key
     key_content = generate_rsa_key(key_size=1024)
@@ -282,7 +281,7 @@ def test_hosts_table_does_not_store_invalid_keys(db_session: Session):
 
     This test ensures our validation prevents bad data from entering the database.
     """
-    from app.services.unified_ssh_service import validate_ssh_key
+    from app.services.ssh import validate_ssh_key
 
     invalid_key = "NOT_A_VALID_SSH_KEY"
 
@@ -310,7 +309,7 @@ def test_security_levels_are_assessed():
     """
     Test that security levels are properly assessed for different key types.
     """
-    from app.services.unified_ssh_service import SSHKeySecurityLevel, validate_ssh_key
+    from app.services.ssh import SSHKeySecurityLevel, validate_ssh_key
 
     # Test Ed25519 (should be SECURE)
     ed25519_key_content = generate_ed25519_key()

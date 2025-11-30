@@ -82,10 +82,7 @@ class UnifiedAlertService:
         """
         # Validate alert type
         if alert_type not in self.ALERT_SEVERITIES:
-            raise ValueError(
-                f"Invalid alert_type: {alert_type}. "
-                f"Valid types: {list(self.ALERT_SEVERITIES.keys())}"
-            )
+            raise ValueError(f"Invalid alert_type: {alert_type}. " f"Valid types: {list(self.ALERT_SEVERITIES.keys())}")
 
         # Check if alert is enabled
         if not self._is_alert_enabled(db, alert_type, user_id):
@@ -172,11 +169,7 @@ class UnifiedAlertService:
         Returns:
             Dict with hostname and ip_address, or None if not found
         """
-        builder = (
-            QueryBuilder("hosts")
-            .select("hostname", "ip_address")
-            .where("id = :host_id", host_id, "host_id")
-        )
+        builder = QueryBuilder("hosts").select("hostname", "ip_address").where("id = :host_id", host_id, "host_id")
 
         query, params = builder.build()
         result = db.execute(text(query), params)
@@ -199,9 +192,7 @@ class UnifiedAlertService:
         hostname = alert_payload["hostname"]
         details = alert_payload["details"]
 
-        log_message = (
-            f"ALERT [{severity.upper()}] - {alert_type} - Host: {hostname} - " f"Details: {details}"
-        )
+        log_message = f"ALERT [{severity.upper()}] - {alert_type} - Host: {hostname} - " f"Details: {details}"
 
         if severity == "high":
             logger.error(log_message, extra=alert_payload)
@@ -258,14 +249,10 @@ class UnifiedAlertService:
                 if response.status_code in [200, 201, 202, 204]:
                     success_count += 1
                     logger.debug(
-                        f"Webhook {webhook['id']} dispatched successfully "
-                        f"(status: {response.status_code})"
+                        f"Webhook {webhook['id']} dispatched successfully " f"(status: {response.status_code})"
                     )
                 else:
-                    logger.warning(
-                        f"Webhook {webhook['id']} returned non-success status: "
-                        f"{response.status_code}"
-                    )
+                    logger.warning(f"Webhook {webhook['id']} returned non-success status: " f"{response.status_code}")
 
             except requests.exceptions.RequestException as e:
                 logger.error(
@@ -319,8 +306,7 @@ class UnifiedAlertService:
             "score_delta": score_delta,
             "scan_id": str(scan_id),
             "message": (
-                f"Compliance score changed by {score_delta:+.2f}pp "
-                f"({baseline_score:.1f}% → {current_score:.1f}%)"
+                f"Compliance score changed by {score_delta:+.2f}pp " f"({baseline_score:.1f}% → {current_score:.1f}%)"
             ),
         }
 

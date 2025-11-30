@@ -17,7 +17,8 @@ from ..auth import get_current_user
 from ..database import get_db
 
 # NOTE: json and base64 imports removed - using centralized auth service
-from ..services.unified_ssh_service import validate_ssh_key
+# validate_ssh_key validates key format and security level for SSH authentication
+from ..services.ssh import validate_ssh_key
 from ..utils.logging_security import sanitize_id_for_log
 from ..utils.query_builder import QueryBuilder
 

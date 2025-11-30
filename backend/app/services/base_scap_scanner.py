@@ -18,7 +18,10 @@ import paramiko
 from paramiko.ssh_exception import SSHException
 
 from ..config import get_settings
-from .unified_ssh_service import SSHConfigService, SSHKeyError, parse_ssh_key, validate_ssh_key
+
+# SSHConfigManager provides SSH client configuration with security policies
+# SSHKeyError for key parsing exceptions, parse_ssh_key/validate_ssh_key for key handling
+from .ssh import SSHConfigManager, SSHKeyError, parse_ssh_key, validate_ssh_key
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -57,9 +60,9 @@ class SCAPConnectionManager:
         """Create SSH client with configurable host key policy"""
         ssh = paramiko.SSHClient()
 
-        # Use configurable SSH host key policy instead of hardcoded RejectPolicy
-        ssh_config_service = SSHConfigService()
-        ssh_config_service.configure_ssh_client(ssh, host_ip or "")
+        # SSHConfigManager applies host key policy based on security configuration
+        ssh_config_manager = SSHConfigManager()
+        ssh_config_manager.configure_ssh_client(ssh, host_ip or "")
 
         return ssh
 
@@ -250,9 +253,7 @@ class BaseSCAPScanner(ABC):
     and result processing.
     """
 
-    def __init__(
-        self, content_dir: Optional[str] = None, results_dir: Optional[str] = None
-    ) -> None:
+    def __init__(self, content_dir: Optional[str] = None, results_dir: Optional[str] = None) -> None:
         # Use provided paths or fall back to configuration
         content_path = content_dir or settings.scap_content_dir
         results_path = results_dir or settings.scan_results_dir
@@ -268,9 +269,7 @@ class BaseSCAPScanner(ABC):
         try:
             self.content_dir.mkdir(parents=True, exist_ok=True)
             self.results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(
-                f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}"
-            )
+            logger.info(f"SCAP Scanner initialized - Content: {self.content_dir}, Results: {self.results_dir}")
         except Exception as e:
             logger.error(f"Failed to create SCAP directories: {e}")
             raise SCAPBaseError(f"Directory creation failed: {str(e)}")
@@ -287,9 +286,7 @@ class BaseSCAPScanner(ABC):
         self, hostname: str, port: int, username: str, auth_method: str, credential: str
     ) -> Dict[str, Any]:
         """Test SSH connection - delegates to connection manager"""
-        return self.connection_manager.test_connection(
-            hostname, port, username, auth_method, credential
-        )
+        return self.connection_manager.test_connection(hostname, port, username, auth_method, credential)
 
     def create_scan_directory(self, scan_id: str) -> Path:
         """Create directory for scan results"""
@@ -371,12 +368,8 @@ class BaseSCAPScanner(ABC):
             if hostname:
                 # Remote system info - validate required parameters
                 if not username or not auth_method or not credential:
-                    return {
-                        "error": "Remote system info requires username, auth_method, and credential"
-                    }
-                return self._get_remote_system_info(
-                    hostname, port, username, auth_method, credential
-                )
+                    return {"error": "Remote system info requires username, auth_method, and credential"}
+                return self._get_remote_system_info(hostname, port, username, auth_method, credential)
             else:
                 # Local system info
                 return self._get_local_system_info()

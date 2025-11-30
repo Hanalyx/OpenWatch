@@ -107,9 +107,7 @@ class TrustedKeyAddRequest(BaseModel):
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.tar.gz, .zip, .owplugin)"),
     verify_signature: bool = Query(True, description="Verify plugin signature"),
-    trust_level_override: Optional[PluginTrustLevel] = Query(
-        None, description="Override trust level (admin only)"
-    ),
+    trust_level_override: Optional[PluginTrustLevel] = Query(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
     import_service: PluginImportService = Depends(lambda: PluginImportService()),
 ) -> PluginImportResponse:
@@ -135,9 +133,7 @@ async def import_plugin_from_file(
 
         # Validate file type
         if not file.filename:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST, detail="Filename is required"
-            )
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
         allowed_extensions = {".tar.gz", ".tgz", ".zip", ".owplugin"}
         # file_extension extracted for potential future use (logging, validation)
@@ -247,9 +243,7 @@ async def import_plugin_from_url(
 async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(25, ge=1, le=100, description="Items per page"),
-    filter_status: Optional[PluginStatus] = Query(
-        None, alias="status", description="Filter by status"
-    ),
+    filter_status: Optional[PluginStatus] = Query(None, alias="status", description="Filter by status"),
     trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
     plugin_type: Optional[PluginType] = Query(None, description="Filter by plugin type"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
@@ -283,13 +277,7 @@ async def list_plugins(
 
         # Get paginated results - use tuple syntax for MongoDB sorting
         skip = (page - 1) * page_size
-        plugins = (
-            await InstalledPlugin.find(query)
-            .skip(skip)
-            .limit(page_size)
-            .sort([("imported_at", -1)])
-            .to_list()
-        )
+        plugins = await InstalledPlugin.find(query).skip(skip).limit(page_size).sort([("imported_at", -1)]).to_list()
 
         # Format response
         plugin_list: List[Dict[str, Any]] = []
@@ -342,9 +330,7 @@ async def list_plugins(
 
 
 @router.get("/{plugin_id}", response_model=PluginDetailsResponse)
-async def get_plugin_details(
-    plugin_id: str, current_user: User = Depends(get_current_user)
-) -> PluginDetailsResponse:
+async def get_plugin_details(plugin_id: str, current_user: User = Depends(get_current_user)) -> PluginDetailsResponse:
     """Get detailed information about a specific plugin."""
     try:
         # Check permissions - rbac.check_permission takes (role, resource, action)
@@ -365,9 +351,7 @@ async def get_plugin_details(
             "security_checks": len(plugin.security_checks),
             "checks_passed": len([c for c in plugin.security_checks if c.passed]),
             "last_security_scan": (
-                max([c.timestamp for c in plugin.security_checks]).isoformat()
-                if plugin.security_checks
-                else None
+                max([c.timestamp for c in plugin.security_checks]).isoformat() if plugin.security_checks else None
             ),
         }
 
@@ -380,9 +364,7 @@ async def get_plugin_details(
         }
 
         # Recent execution history (limited)
-        execution_history: List[Dict[str, Any]] = (
-            plugin.execution_history[-10:] if plugin.execution_history else []
-        )
+        execution_history: List[Dict[str, Any]] = plugin.execution_history[-10:] if plugin.execution_history else []
 
         return PluginDetailsResponse(
             plugin_id=plugin.plugin_id,
@@ -508,9 +490,7 @@ async def uninstall_plugin(
         if remove_from_rules and plugin.applied_to_rules:
             # This would integrate with the compliance rules system
             # For now, just log the action
-            logger.info(
-                f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules"
-            )
+            logger.info(f"Would remove plugin {plugin_id} from {len(plugin.applied_to_rules)} rules")
 
         # Delete plugin
         await plugin.delete()
@@ -593,9 +573,7 @@ async def add_trusted_key(
         )
 
         if not result["success"]:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST, detail=result["error"]
-            )
+            raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=result["error"])
 
         # Log key addition
         logger.info(

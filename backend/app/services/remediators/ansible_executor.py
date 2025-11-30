@@ -14,11 +14,7 @@ from typing import Dict, List, Optional
 
 import yaml
 
-from backend.app.models.remediation_models import (
-    RemediationExecutionResult,
-    RemediationTarget,
-    ScanTargetType,
-)
+from backend.app.models.remediation_models import RemediationExecutionResult, RemediationTarget, ScanTargetType
 from backend.app.services.remediators.base_executor import (
     BaseRemediationExecutor,
     ExecutorCapability,
@@ -58,9 +54,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
                 return version
             return "unknown"
         except Exception as e:
-            raise ExecutorNotAvailableError(
-                f"Ansible not available: {e}. Install with: pip install ansible-core"
-            )
+            raise ExecutorNotAvailableError(f"Ansible not available: {e}. Install with: pip install ansible-core")
 
     def _get_capabilities(self) -> set[ExecutorCapability]:
         """Get Ansible executor capabilities."""
@@ -147,9 +141,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
 
         # Check target type
         if not self.supports_target(target.type):
-            raise UnsupportedTargetError(
-                f"Ansible executor does not support target type: {target.type}"
-            )
+            raise UnsupportedTargetError(f"Ansible executor does not support target type: {target.type}")
 
         # Create temporary files for playbook, inventory, SSH key
         try:
@@ -194,9 +186,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
                 return execution_result
 
         except asyncio.TimeoutError:
-            raise ExecutorExecutionError(
-                f"Ansible execution exceeded timeout of {timeout_seconds}s"
-            )
+            raise ExecutorExecutionError(f"Ansible execution exceeded timeout of {timeout_seconds}s")
         except Exception as e:
             self.logger.error(f"Ansible execution failed: {e}")
             raise ExecutorExecutionError(f"Ansible execution failed: {e}")
@@ -378,9 +368,7 @@ class AnsibleExecutor(BaseRemediationExecutor):
                     parts = line.split()
                     if parts:
                         host = parts[0]
-                        changed_count = next(
-                            (p.split("=")[1] for p in parts if "changed=" in p), "0"
-                        )
+                        changed_count = next((p.split("=")[1] for p in parts if "changed=" in p), "0")
                         if int(changed_count) > 0:
                             changes.append(f"{host}: {changed_count} changes")
 

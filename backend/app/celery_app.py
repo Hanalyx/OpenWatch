@@ -124,6 +124,9 @@ celery_app.conf.update(
     # Result backend settings
     result_expires=3600,  # 1 hour
     result_backend_transport_options={"retry_policy": {"timeout": 5.0}},
+    # Broker connection retry settings (Celery 6.0 forward compatibility)
+    # Explicitly set to maintain current behavior when upgrading to Celery 6.0
+    broker_connection_retry_on_startup=True,
     # Worker settings
     worker_max_tasks_per_child=1000,
     worker_disable_rate_limits=False,

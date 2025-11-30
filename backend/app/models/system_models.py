@@ -136,14 +136,10 @@ class SystemSettings(Base):  # type: ignore[valid-type, misc]
     id = Column(Integer, primary_key=True, index=True)
     setting_key = Column(String(100), unique=True, nullable=False, index=True)
     setting_value = Column(Text, nullable=True)
-    setting_type = Column(
-        String(20), default="string", nullable=False
-    )  # string, json, boolean, integer
+    setting_type = Column(String(20), default="string", nullable=False)  # string, json, boolean, integer
     description = Column(Text, nullable=True)
     created_by = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     modified_by = Column(Integer, nullable=True)
-    modified_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    modified_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     is_secure = Column(Boolean, default=False, nullable=False)  # Encrypt sensitive values

@@ -137,10 +137,7 @@ async def bulk_import_hosts(
             # Check if host already exists
             existing_host = (
                 db.query(Host)
-                .filter(
-                    (Host.hostname == host_data.hostname)
-                    | (Host.ip_address == host_data.ip_address)
-                )
+                .filter((Host.hostname == host_data.hostname) | (Host.ip_address == host_data.ip_address))
                 .first()
             )
 
@@ -213,9 +210,7 @@ async def bulk_import_hosts(
             result.errors.append(
                 {
                     "row": idx + 1,
-                    "hostname": (
-                        host_data.hostname if hasattr(host_data, "hostname") else "unknown"
-                    ),
+                    "hostname": (host_data.hostname if hasattr(host_data, "hostname") else "unknown"),
                     "error": str(e),
                 }
             )
@@ -512,10 +507,7 @@ async def import_with_mapping(
                 # Check for existing host
                 existing_host = (
                     db.query(Host)
-                    .filter(
-                        (Host.hostname == mapped_data["hostname"])
-                        | (Host.ip_address == mapped_data["ip_address"])
-                    )
+                    .filter((Host.hostname == mapped_data["hostname"]) | (Host.ip_address == mapped_data["ip_address"]))
                     .first()
                 )
 

@@ -9,7 +9,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ..database import Host
-from ..services.unified_ssh_service import UnifiedSSHService as SSHService
+
+# SSHConnectionManager aliased as SSHService for backward compatibility with existing code
+from ..services.ssh import SSHConnectionManager as SSHService
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +152,8 @@ class HostNetworkDiscoveryService:
                 if stats_output and stats_output["success"]:
                     lines = stats_output["stdout"].strip().split("\\n")
                     if len(lines) >= 2:
-                        interfaces[interface_name]["rx_bytes"] = (
-                            int(lines[0]) if lines[0].isdigit() else 0
-                        )
-                        interfaces[interface_name]["tx_bytes"] = (
-                            int(lines[1]) if lines[1].isdigit() else 0
-                        )
+                        interfaces[interface_name]["rx_bytes"] = int(lines[0]) if lines[0].isdigit() else 0
+                        interfaces[interface_name]["tx_bytes"] = int(lines[1]) if lines[1].isdigit() else 0
 
                 # Get interface speed and duplex
                 speed_output = self.ssh_service.execute_command(
@@ -221,20 +219,12 @@ class HostNetworkDiscoveryService:
                 dns_configuration.update(dns_config)
 
             # Check systemd-resolved status (if available)
-            systemd_resolved = self.ssh_service.execute_command(
-                "systemctl is-active systemd-resolved", timeout=5
-            )
-            if (
-                systemd_resolved
-                and systemd_resolved["success"]
-                and "active" in systemd_resolved["stdout"]
-            ):
+            systemd_resolved = self.ssh_service.execute_command("systemctl is-active systemd-resolved", timeout=5)
+            if systemd_resolved and systemd_resolved["success"] and "active" in systemd_resolved["stdout"]:
                 dns_configuration["resolver"] = "systemd-resolved"
 
                 # Get resolved status
-                resolved_status = self.ssh_service.execute_command(
-                    "systemd-resolve --status", timeout=10
-                )
+                resolved_status = self.ssh_service.execute_command("systemd-resolve --status", timeout=10)
                 if resolved_status and resolved_status["success"]:
                     resolved_info = self._parse_systemd_resolved_status(resolved_status["stdout"])
                     dns_configuration["resolved_info"] = resolved_info
@@ -265,14 +255,8 @@ class HostNetworkDiscoveryService:
             active_service = None
 
             for service in ntp_services:
-                service_check = self.ssh_service.execute_command(
-                    f"systemctl is-active {service}", timeout=5
-                )
-                if (
-                    service_check
-                    and service_check["success"]
-                    and "active" in service_check["stdout"]
-                ):
+                service_check = self.ssh_service.execute_command(f"systemctl is-active {service}", timeout=5)
+                if service_check and service_check["success"] and "active" in service_check["stdout"]:
                     active_service = service
                     break
 
@@ -305,26 +289,20 @@ class HostNetworkDiscoveryService:
 
             elif active_service == "systemd-timesyncd":
                 # systemd-timesyncd configuration
-                timesyncd_config = self.ssh_service.execute_command(
-                    "cat /etc/systemd/timesyncd.conf", timeout=5
-                )
+                timesyncd_config = self.ssh_service.execute_command("cat /etc/systemd/timesyncd.conf", timeout=5)
                 if timesyncd_config and timesyncd_config["success"]:
                     ntp_servers = self._parse_timesyncd_config(timesyncd_config["stdout"])
                     ntp_configuration["servers"] = ntp_servers
 
                 # Timesyncd status
-                timesyncd_status = self.ssh_service.execute_command(
-                    "timedatectl show-timesync", timeout=10
-                )
+                timesyncd_status = self.ssh_service.execute_command("timedatectl show-timesync", timeout=10)
                 if timesyncd_status and timesyncd_status["success"]:
                     ntp_configuration["timesyncd_status"] = timesyncd_status["stdout"]
 
             # General time synchronization status
             timedatectl_output = self.ssh_service.execute_command("timedatectl status", timeout=5)
             if timedatectl_output and timedatectl_output["success"]:
-                ntp_configuration["time_status"] = self._parse_timedatectl_status(
-                    timedatectl_output["stdout"]
-                )
+                ntp_configuration["time_status"] = self._parse_timedatectl_status(timedatectl_output["stdout"])
 
         except Exception as e:
             logger.warning(f"Error discovering NTP configuration for {host.hostname}: {str(e)}")
@@ -356,14 +334,8 @@ class HostNetworkDiscoveryService:
             running_services: Dict[str, str] = {}
 
             for service in common_services:
-                service_check = self.ssh_service.execute_command(
-                    f"systemctl is-active {service}*", timeout=5
-                )
-                if (
-                    service_check
-                    and service_check["success"]
-                    and "active" in service_check["stdout"]
-                ):
+                service_check = self.ssh_service.execute_command(f"systemctl is-active {service}*", timeout=5)
+                if service_check and service_check["success"] and "active" in service_check["stdout"]:
                     running_services[service] = "active"
                 else:
                     running_services[service] = "inactive"
@@ -392,14 +364,8 @@ class HostNetworkDiscoveryService:
 
             for destination in test_destinations:
                 # Ping test
-                ping_output = self.ssh_service.execute_command(
-                    f'ping -c 3 -W 5 {destination["target"]}', timeout=20
-                )
-                ping_success = (
-                    ping_output
-                    and ping_output["success"]
-                    and "0% packet loss" in ping_output["stdout"]
-                )
+                ping_output = self.ssh_service.execute_command(f'ping -c 3 -W 5 {destination["target"]}', timeout=20)
+                ping_success = ping_output and ping_output["success"] and "0% packet loss" in ping_output["stdout"]
 
                 # Extract ping statistics
                 ping_stats: Dict[str, Any] = {}
@@ -413,10 +379,7 @@ class HostNetworkDiscoveryService:
                 }
 
                 # For domain names, also test HTTP/HTTPS connectivity
-                if (
-                    "." in destination["target"]
-                    and not destination["target"].replace(".", "").isdigit()
-                ):
+                if "." in destination["target"] and not destination["target"].replace(".", "").isdigit():
                     curl_test = self.ssh_service.execute_command(
                         f'curl -I --connect-timeout 10 https://{destination["target"]}',
                         timeout=15,
@@ -438,23 +401,15 @@ class HostNetworkDiscoveryService:
 
         try:
             # Check IP forwarding status
-            ip_forward_output = self.ssh_service.execute_command(
-                "sysctl net.ipv4.ip_forward", timeout=5
-            )
+            ip_forward_output = self.ssh_service.execute_command("sysctl net.ipv4.ip_forward", timeout=5)
             if ip_forward_output and ip_forward_output["success"]:
                 ip_forward = "1" in ip_forward_output["stdout"]
                 network_security["ip_forwarding"] = ip_forward
 
             # Check for open ports and potential security issues
-            if hasattr(self, "_network_services") and "listening_ports" in result.get(
-                "network_services", {}
-            ):
+            if hasattr(self, "_network_services") and "listening_ports" in result.get("network_services", {}):
                 net_services = result.get("network_services", {})
-                listening_ports = (
-                    net_services.get("listening_ports", [])
-                    if isinstance(net_services, dict)
-                    else []
-                )
+                listening_ports = net_services.get("listening_ports", []) if isinstance(net_services, dict) else []
 
                 # Identify potentially risky open ports
                 risky_ports: List[Dict[str, Any]] = []
@@ -552,9 +507,7 @@ class HostNetworkDiscoveryService:
                 if addr_match:
                     address = addr_match.group(1)
                     addr_type = "ipv6" if "inet6" in line else "ipv4"
-                    interfaces[current_interface]["addresses"].append(
-                        {"address": address, "type": addr_type}
-                    )
+                    interfaces[current_interface]["addresses"].append({"address": address, "type": addr_type})
 
         return interfaces
 
@@ -579,16 +532,12 @@ class HostNetworkDiscoveryService:
                 # IPv4 address
                 ipv4_match = re.search(r"inet (\\d+\\.\\d+\\.\\d+\\.\\d+)", line)
                 if ipv4_match:
-                    interfaces[current_interface]["addresses"].append(
-                        {"address": ipv4_match.group(1), "type": "ipv4"}
-                    )
+                    interfaces[current_interface]["addresses"].append({"address": ipv4_match.group(1), "type": "ipv4"})
 
                 # IPv6 address
                 ipv6_match = re.search(r"inet6 ([\\w:]+)", line)
                 if ipv6_match:
-                    interfaces[current_interface]["addresses"].append(
-                        {"address": ipv6_match.group(1), "type": "ipv6"}
-                    )
+                    interfaces[current_interface]["addresses"].append({"address": ipv6_match.group(1), "type": "ipv6"})
 
         return interfaces
 

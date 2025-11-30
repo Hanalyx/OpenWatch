@@ -390,14 +390,10 @@ def check_permission(user_role: str, resource_type: str, action: str) -> None:
         )
 
 
-def check_permission_async(
-    current_user: Dict[str, Any], required_permission: Permission, db: Any = None
-) -> bool:
+def check_permission_async(current_user: Dict[str, Any], required_permission: Permission, db: Any = None) -> bool:
     """Async permission check for specific permissions"""
     if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     user_roles = current_user.get("roles", [current_user.get("role", "guest")])
 

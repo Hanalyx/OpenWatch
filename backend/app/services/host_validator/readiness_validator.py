@@ -6,7 +6,7 @@ This service coordinates the execution of individual check modules and
 aggregates results into comprehensive readiness reports.
 
 Architecture:
-- Uses UnifiedSSHService for SSH operations (follows OpenWatch pattern)
+- Uses SSHConnectionManager for SSH operations with configurable policies
 - Executes modular checks from host_validator/checks/
 - Stores results in PostgreSQL for audit trail and smart caching
 - Integrates with CentralizedAuthService for credential resolution
@@ -28,16 +28,13 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import get_settings
 from backend.app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
-from backend.app.models.readiness_models import (
-    HostReadiness,
-    ReadinessCheckResult,
-    ReadinessCheckType,
-    ReadinessStatus,
-)
+from backend.app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckType, ReadinessStatus
 from backend.app.repositories.readiness_repository import ReadinessRepository
 from backend.app.services.auth_service import CentralizedAuthService
+
+# SSHConnectionManager provides SSH connection management with configurable policies
+from backend.app.services.ssh import SSHConnectionManager
 from backend.app.services.ssh_connection_context import SSHConnectionContext
-from backend.app.services.unified_ssh_service import UnifiedSSHService
 
 # Import check modules
 from .checks import (
@@ -66,7 +63,7 @@ class ReadinessValidatorService:
     def __init__(
         self,
         db: Session,
-        ssh_service: Optional[UnifiedSSHService] = None,
+        ssh_service: Optional[SSHConnectionManager] = None,
         auth_service: Optional[CentralizedAuthService] = None,
         repository: Optional[ReadinessRepository] = None,
         encryption_service: Optional[EncryptionService] = None,
@@ -76,22 +73,21 @@ class ReadinessValidatorService:
 
         Args:
             db: Database session (synchronous)
-            ssh_service: Optional UnifiedSSHService instance (created if not provided)
+            ssh_service: Optional SSHConnectionManager instance (created if not provided)
             auth_service: Optional CentralizedAuthService instance (created if not provided)
             repository: Optional ReadinessRepository instance (created if not provided)
             encryption_service: Optional EncryptionService instance (created if not provided, needed for auth_service)
         """
         self.db = db
-        self.ssh_service = ssh_service or UnifiedSSHService()
+        # SSHConnectionManager handles SSH connections with configurable policies
+        self.ssh_service = ssh_service or SSHConnectionManager()
 
         # Create auth_service if not provided (requires encryption_service)
         if auth_service is None:
             if encryption_service is None:
                 # Load master key from settings (environment variable)
                 settings = get_settings()
-                enc_service = create_encryption_service(
-                    master_key=settings.master_key, config=EncryptionConfig()
-                )
+                enc_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
             else:
                 enc_service = encryption_service
             self.auth_service = CentralizedAuthService(db, enc_service)
@@ -158,9 +154,7 @@ class ReadinessValidatorService:
         # Resolve credentials  # pragma: allowlist secret
         credentials = self.auth_service.resolve_credential(str(host_id))  # pragma: allowlist secret
         if not credentials:  # pragma: allowlist secret
-            raise ValueError(
-                f"No credentials configured for host {host_id}"
-            )  # pragma: allowlist secret
+            raise ValueError(f"No credentials configured for host {host_id}")  # pragma: allowlist secret
 
         # Determine which checks to run
         checks_to_run = check_types or list(self.all_checks.keys())
@@ -168,9 +162,7 @@ class ReadinessValidatorService:
         # Open SSH connection ONCE using context manager
         # This eliminates redundant SSH handshakes (7 checks = 1 connection, not 7 connections)
         try:
-            async with SSHConnectionContext(
-                self.ssh_service, host, credentials
-            ) as ssh_ctx:  # pragma: allowlist secret
+            async with SSHConnectionContext(self.ssh_service, host, credentials) as ssh_ctx:  # pragma: allowlist secret
                 # Execute all checks with shared connection
                 check_results = await self._execute_checks(
                     host=host,
@@ -207,9 +199,7 @@ class ReadinessValidatorService:
         failed_checks = total_checks - passed_checks
         # Handle both enum and string values for severity
         warnings_count = sum(
-            1
-            for r in check_results
-            if (r.severity if isinstance(r.severity, str) else r.severity.value) == "warning"
+            1 for r in check_results if (r.severity if isinstance(r.severity, str) else r.severity.value) == "warning"
         )
 
         # Determine overall status
@@ -217,8 +207,7 @@ class ReadinessValidatorService:
         if overall_passed:
             status = ReadinessStatus.READY
         elif any(
-            (r.severity if isinstance(r.severity, str) else r.severity.value) == "error"
-            and not r.passed
+            (r.severity if isinstance(r.severity, str) else r.severity.value) == "error" and not r.passed
             for r in check_results
         ):
             status = ReadinessStatus.NOT_READY

@@ -11,7 +11,7 @@ This module supports:
 - Integration with host creation workflow for automatic discovery
 
 Security Considerations:
-- Uses UnifiedSSHService for secure credential handling
+- Uses SSHConnectionManager for secure credential handling
 - Credentials are decrypted only during SSH connection (not logged)
 - Discovery results are validated before database persistence
 
@@ -39,7 +39,9 @@ from backend.app.config import get_settings
 from backend.app.database import get_db_session
 from backend.app.encryption import EncryptionConfig, create_encryption_service
 from backend.app.services.host_discovery_service import HostBasicDiscoveryService
-from backend.app.services.unified_ssh_service import UnifiedSSHService
+
+# SSHConnectionManager provides modular SSH connection handling with better testability
+from backend.app.services.ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -200,8 +202,8 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
             host_proxy = HostProxy(host_row, encryption_service)
 
-            # Create SSH service and discovery service
-            ssh_service = UnifiedSSHService()
+            # SSHConnectionManager handles SSH connections with configurable policies
+            ssh_service = SSHConnectionManager()
             discovery_service = HostBasicDiscoveryService(ssh_service=ssh_service)
 
             # Perform OS discovery

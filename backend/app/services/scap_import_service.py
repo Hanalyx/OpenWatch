@@ -69,9 +69,7 @@ class ImportProgress:
             "updated_rules": self.updated_rules,
             "skipped_rules": self.skipped_rules,
             "error_count": self.error_count,
-            "progress_percentage": (
-                (self.processed_rules / self.total_rules * 100) if self.total_rules > 0 else 0
-            ),
+            "progress_percentage": ((self.processed_rules / self.total_rules * 100) if self.total_rules > 0 else 0),
             "current_phase": self.current_phase,
             "current_rule": self.current_rule,
             "elapsed_seconds": elapsed,
@@ -153,14 +151,10 @@ class SCAPImportService:
 
             if self.transformer.errors:
                 result["errors"].extend(self.transformer.errors)
-                logger.warning(
-                    f"Transformation completed with {len(self.transformer.errors)} errors"
-                )
+                logger.warning(f"Transformation completed with {len(self.transformer.errors)} errors")
 
             # Phase 3: Import rules in batches
-            logger.info(
-                f"Phase 3: Importing {len(transformed_rules)} rules in batches of {batch_size}"
-            )
+            logger.info(f"Phase 3: Importing {len(transformed_rules)} rules in batches of {batch_size}")
             self.progress.update(phase="importing")
 
             import_stats = await self._import_rules_batched(
@@ -228,9 +222,7 @@ class SCAPImportService:
 
         return stats
 
-    async def _process_rule_batch(
-        self, batch: List[Dict[str, Any]], deduplication_strategy: str
-    ) -> Dict[str, int]:
+    async def _process_rule_batch(self, batch: List[Dict[str, Any]], deduplication_strategy: str) -> Dict[str, int]:
         """Process a single batch of rules"""
         stats = {"imported": 0, "updated": 0, "skipped": 0, "errors": 0}
 
@@ -243,15 +235,11 @@ class SCAPImportService:
                 logger.error(f"Failed to import rule {rule_data.get('rule_id')}: {str(e)}")
                 stats["errors"] += 1
                 if self.progress:
-                    self.progress.errors.append(
-                        {"rule_id": rule_data.get("rule_id"), "error": str(e)}
-                    )
+                    self.progress.errors.append({"rule_id": rule_data.get("rule_id"), "error": str(e)})
 
         return stats
 
-    async def _import_single_rule(
-        self, rule_data: Dict[str, Any], deduplication_strategy: str
-    ) -> str:
+    async def _import_single_rule(self, rule_data: Dict[str, Any], deduplication_strategy: str) -> str:
         """
         Import a single rule with deduplication
 
@@ -308,9 +296,7 @@ class SCAPImportService:
     async def _create_rule_intelligence(self, rule_data: Dict[str, Any]):
         """Create basic rule intelligence record"""
         # Check if intelligence already exists
-        existing_intel = await RuleIntelligence.find_one(
-            RuleIntelligence.rule_id == rule_data["rule_id"]
-        )
+        existing_intel = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_data["rule_id"])
 
         if existing_intel:
             return  # Skip if already exists
@@ -320,9 +306,7 @@ class SCAPImportService:
             rule_id=rule_data["rule_id"],
             business_impact=self._generate_business_impact(rule_data),
             compliance_importance=self._assess_compliance_importance(rule_data),
-            implementation_notes=rule_data["metadata"].get(
-                "rationale", "No specific implementation notes available"
-            ),
+            implementation_notes=rule_data["metadata"].get("rationale", "No specific implementation notes available"),
             testing_guidance=f"Verify the rule '{rule_data['metadata']['name']}' is properly configured",
             scan_duration_avg_ms=self._estimate_scan_duration(rule_data),
             resource_impact=rule_data.get("remediation_risk", "low"),
@@ -343,9 +327,7 @@ class SCAPImportService:
             "info": f"Informational {category} check that provides compliance visibility",
         }
 
-        return impact_templates.get(
-            severity, f"Standard {category} security configuration requirement"
-        )
+        return impact_templates.get(severity, f"Standard {category} security configuration requirement")
 
     def _assess_compliance_importance(self, rule_data: Dict[str, Any]) -> int:
         """Assess compliance importance (1-10 scale)"""

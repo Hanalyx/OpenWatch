@@ -15,13 +15,7 @@ from ...auth import get_current_user
 from ...database import get_db
 from ...encryption import EncryptionService
 from ...rbac import Permission, require_permission
-from ...services.auth_service import (
-    AuthMethod,
-    CredentialData,
-    CredentialMetadata,
-    CredentialScope,
-    get_auth_service,
-)
+from ...services.auth_service import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 logger = logging.getLogger(__name__)
 

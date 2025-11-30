@@ -356,9 +356,7 @@ class RuleCacheService:
                 "avg_hit_time_ms": round(self.metrics.avg_hit_time * 1000, 2),
                 "avg_miss_time_ms": round(self.metrics.avg_miss_time * 1000, 2),
                 "redis_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 2),
-                "last_updated": (
-                    self.metrics.last_updated.isoformat() if self.metrics.last_updated else None
-                ),
+                "last_updated": (self.metrics.last_updated.isoformat() if self.metrics.last_updated else None),
             }
 
             return cache_info

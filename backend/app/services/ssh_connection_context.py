@@ -47,7 +47,8 @@ from typing import TYPE_CHECKING, Optional
 import paramiko
 
 if TYPE_CHECKING:
-    from backend.app.services.unified_ssh_service import UnifiedSSHService
+    # Import SSHConnectionManager for type hints only to avoid circular imports
+    from backend.app.services.ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class SSHConnectionContext:
              7 commands with context = 0.4s overhead (5-6x faster)
 
     Attributes:
-        ssh_service: UnifiedSSHService instance for SSH operations
+        ssh_service: SSHConnectionManager instance for SSH operations
         host: Host model with ip_address, hostname, port
         credentials: CredentialData with username, auth_method, password/key
         connection: Active Paramiko SSH client (set during __aenter__)
@@ -76,12 +77,12 @@ class SSHConnectionContext:
         command_count: Number of commands executed using this context
     """
 
-    def __init__(self, ssh_service: "UnifiedSSHService", host, credentials):
+    def __init__(self, ssh_service: "SSHConnectionManager", host, credentials):
         """
         Initialize SSH connection context.
 
         Args:
-            ssh_service: UnifiedSSHService instance for SSH operations
+            ssh_service: SSHConnectionManager instance for SSH operations
             host: Host model with ip_address, hostname, port attributes
             credentials: CredentialData with username, auth_method, password/private_key
         """
@@ -107,29 +108,20 @@ class SSHConnectionContext:
             ConnectionError: If SSH connection fails
         """
         logger.info(
-            f"[{self.connection_id}] Establishing SSH connection to "
-            f"{self.host.hostname} ({self.host.ip_address})"
+            f"[{self.connection_id}] Establishing SSH connection to " f"{self.host.hostname} ({self.host.ip_address})"
         )
 
-        # Connect using UnifiedSSHService (runs in thread pool for async compatibility)
+        # Connect using SSHConnectionManager (runs in thread pool for async compatibility)
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, self._connect_sync)
 
         if not result["success"]:
             error_msg = result.get("error", "Unknown error")
-            logger.error(
-                f"[{self.connection_id}] SSH connection failed to "
-                f"{self.host.hostname}: {error_msg}"
-            )
-            raise ConnectionError(
-                f"Failed to establish SSH connection to {self.host.hostname}: {error_msg}"
-            )
+            logger.error(f"[{self.connection_id}] SSH connection failed to " f"{self.host.hostname}: {error_msg}")
+            raise ConnectionError(f"Failed to establish SSH connection to {self.host.hostname}: {error_msg}")
 
         self.connection = result["connection"]
-        logger.info(
-            f"[{self.connection_id}] SSH connection established successfully to "
-            f"{self.host.hostname}"
-        )
+        logger.info(f"[{self.connection_id}] SSH connection established successfully to " f"{self.host.hostname}")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -153,10 +145,7 @@ class SSHConnectionContext:
                     f"for {self.host.hostname} ({self.command_count} commands executed)"
                 )
             except Exception as e:
-                logger.warning(
-                    f"[{self.connection_id}] Error closing SSH connection "
-                    f"to {self.host.hostname}: {e}"
-                )
+                logger.warning(f"[{self.connection_id}] Error closing SSH connection " f"to {self.host.hostname}: {e}")
 
     def _connect_sync(self) -> dict:
         """
@@ -205,9 +194,7 @@ class SSHConnectionContext:
             logger.error(f"[{self.connection_id}] Exception during SSH connection: {e}")
             return {"success": False, "error": str(e)}
 
-    async def execute_command(
-        self, command: str, timeout: int = 30, use_sudo: bool = False
-    ) -> SimpleNamespace:
+    async def execute_command(self, command: str, timeout: int = 30, use_sudo: bool = False) -> SimpleNamespace:
         """
         Execute command using existing SSH connection (NO reconnect).
 
@@ -236,9 +223,7 @@ class SSHConnectionContext:
                     print(f"Disk usage: {result.stdout}")
         """
         if not self.connection:
-            raise RuntimeError(
-                "No active SSH connection. Must be used within 'async with' context."
-            )
+            raise RuntimeError("No active SSH connection. Must be used within 'async with' context.")
 
         self.command_count += 1
 
@@ -272,7 +257,7 @@ class SSHConnectionContext:
             SimpleNamespace with exit_code, stdout, stderr, success
         """
         try:
-            # Reuse UnifiedSSHService.execute_command_advanced with existing connection
+            # Reuse SSHConnectionManager.execute_command_advanced with existing connection
             result = self.ssh_service.execute_command_advanced(
                 ssh_connection=self.connection,  # ← Reuse existing connection (key optimization)
                 command=command,
@@ -288,9 +273,7 @@ class SSHConnectionContext:
             )
 
         except socket.timeout:
-            logger.error(
-                f"[{self.connection_id}] Command timeout after {timeout}s: " f"{command[:50]}..."
-            )
+            logger.error(f"[{self.connection_id}] Command timeout after {timeout}s: " f"{command[:50]}...")
             return SimpleNamespace(
                 exit_code=-1,
                 stdout="",

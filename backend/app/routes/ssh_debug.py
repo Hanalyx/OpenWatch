@@ -17,7 +17,9 @@ from ..database import Host, get_db
 from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
 from ..services.auth_service import get_auth_service
-from ..services.unified_ssh_service import UnifiedSSHService
+
+# SSHConnectionManager handles connections, SSHConfigManager handles policy/config
+from ..services.ssh import SSHConfigManager, SSHConnectionManager, validate_ssh_key
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +65,14 @@ async def debug_ssh_authentication(
         if not host:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
 
-        ssh_service = UnifiedSSHService(db)
+        # SSHConnectionManager handles connections, SSHConfigManager handles policy/config
+        ssh_connection_manager = SSHConnectionManager(db)
+        ssh_config_manager = SSHConfigManager(db)
         auth_service = get_auth_service(db, encryption_service)
 
         # Enable debug mode if requested
         if ssh_request.enable_paramiko_debug:
-            ssh_service.enable_debug_mode()
+            ssh_connection_manager.enable_debug_mode()
 
         response = SSHDebugResponse(
             host_info={
@@ -84,9 +88,9 @@ async def debug_ssh_authentication(
             host_credentials_test=None,
             global_credentials_test=None,
             ssh_policy_info={
-                "current_policy": ssh_service.get_ssh_policy(),
-                "trusted_networks": ssh_service.get_trusted_networks(),
-                "is_host_trusted": ssh_service.is_host_in_trusted_network(str(host.ip_address)),
+                "current_policy": ssh_config_manager.get_ssh_policy(),
+                "trusted_networks": ssh_config_manager.get_trusted_networks(),
+                "is_host_trusted": ssh_config_manager.is_host_in_trusted_network(str(host.ip_address)),
             },
             recommendations=[],
         )
@@ -109,17 +113,13 @@ async def debug_ssh_authentication(
                 # Validate key if present for host credentials
                 host_key_info: Optional[Dict[str, Any]] = None
                 if cred_data.get("ssh_key"):
-                    validation_result = ssh_service.validate_ssh_key(cred_data["ssh_key"])
+                    validation_result = validate_ssh_key(cred_data["ssh_key"])
                     host_key_info = {
                         "valid": validation_result.is_valid,
-                        "type": (
-                            validation_result.key_type.value if validation_result.key_type else None
-                        ),
+                        "type": (validation_result.key_type.value if validation_result.key_type else None),
                         "size": validation_result.key_size,
                         "security_level": (
-                            validation_result.security_level.value
-                            if validation_result.security_level
-                            else None
+                            validation_result.security_level.value if validation_result.security_level else None
                         ),
                         "error": validation_result.error_message,
                     }
@@ -133,7 +133,8 @@ async def debug_ssh_authentication(
                 host_port: int = int(host.port) if host.port else 22
                 host_username: str = str(cred_data.get("username", host.username))
 
-                connection_result = ssh_service.connect_with_credentials(
+                # Test SSH connection with the decrypted credentials
+                connection_result = ssh_connection_manager.connect_with_credentials(
                     hostname=host_ip,
                     port=host_port,
                     username=host_username,
@@ -174,19 +175,13 @@ async def debug_ssh_authentication(
                     # Validate key if present for global credentials
                     global_key_info: Optional[Dict[str, Any]] = None
                     if global_creds.private_key:
-                        validation_result = ssh_service.validate_ssh_key(global_creds.private_key)
+                        validation_result = validate_ssh_key(global_creds.private_key)
                         global_key_info = {
                             "valid": validation_result.is_valid,
-                            "type": (
-                                validation_result.key_type.value
-                                if validation_result.key_type
-                                else None
-                            ),
+                            "type": (validation_result.key_type.value if validation_result.key_type else None),
                             "size": validation_result.key_size,
                             "security_level": (
-                                validation_result.security_level.value
-                                if validation_result.security_level
-                                else None
+                                validation_result.security_level.value if validation_result.security_level else None
                             ),
                             "error": validation_result.error_message,
                             "warnings": validation_result.warnings,
@@ -201,7 +196,8 @@ async def debug_ssh_authentication(
                     global_host_ip: str = str(host.ip_address)
                     global_host_port: int = int(host.port) if host.port else 22
 
-                    connection_result = ssh_service.connect_with_credentials(
+                    # Test SSH connection with global credentials
+                    connection_result = ssh_connection_manager.connect_with_credentials(
                         hostname=global_host_ip,
                         port=global_host_port,
                         username=global_creds.username,
@@ -241,12 +237,8 @@ async def debug_ssh_authentication(
         recommendations = []
 
         # Check if any credentials succeeded
-        host_success = response.host_credentials_test and response.host_credentials_test.get(
-            "success"
-        )
-        global_success = response.global_credentials_test and response.global_credentials_test.get(
-            "success"
-        )
+        host_success = response.host_credentials_test and response.host_credentials_test.get("success")
+        global_success = response.global_credentials_test and response.global_credentials_test.get("success")
 
         if not host_success and not global_success:
             recommendations.append("No working SSH credentials found. Please verify:")
@@ -259,33 +251,21 @@ async def debug_ssh_authentication(
             if response.host_credentials_test:
                 error_type = response.host_credentials_test.get("error_type")
                 if error_type == "auth_failed":
-                    recommendations.append(
-                        "- Ensure the SSH key is added to ~/.ssh/authorized_keys on the target"
-                    )
-                    recommendations.append(
-                        "- Check SSH server configuration (PermitRootLogin, PubkeyAuthentication)"
-                    )
+                    recommendations.append("- Ensure the SSH key is added to ~/.ssh/authorized_keys on the target")
+                    recommendations.append("- Check SSH server configuration (PermitRootLogin, PubkeyAuthentication)")
                 elif error_type == "key_error":
-                    recommendations.append(
-                        "- Verify the SSH private key format (RSA, Ed25519, etc.)"
-                    )
+                    recommendations.append("- Verify the SSH private key format (RSA, Ed25519, etc.)")
                     recommendations.append("- Ensure the key is not corrupted")
 
         elif host_success and not global_success:
-            recommendations.append(
-                "Host-specific credentials work. Global credentials may need updating."
-            )
+            recommendations.append("Host-specific credentials work. Global credentials may need updating.")
 
         elif not host_success and global_success:
-            recommendations.append(
-                "Global credentials work. Consider using 'default' auth method for this host."
-            )
+            recommendations.append("Global credentials work. Consider using 'default' auth method for this host.")
 
         # Add SSH policy recommendations
         if response.ssh_policy_info["current_policy"] == "strict":
-            recommendations.append(
-                "SSH policy is set to 'strict' - ensure known_hosts is properly configured"
-            )
+            recommendations.append("SSH policy is set to 'strict' - ensure known_hosts is properly configured")
 
         # Check key security if available
         if response.global_credentials_test and response.global_credentials_test.get("key_info"):
@@ -295,12 +275,10 @@ async def debug_ssh_authentication(
 
         response.recommendations = recommendations
 
-        # Disable debug mode
+        # Disable debug mode after testing completes
         if ssh_request.enable_paramiko_debug:
-            ssh_service.disable_debug_mode()
-            recommendations.append(
-                "Check /tmp/paramiko_debug.log for detailed SSH protocol debugging"
-            )
+            ssh_connection_manager.disable_debug_mode()
+            recommendations.append("Check /tmp/paramiko_debug.log for detailed SSH protocol debugging")
 
         return response
 

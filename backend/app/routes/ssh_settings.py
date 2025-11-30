@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import get_db
 from ..rbac import Permission, require_permission
-from ..services.unified_ssh_service import SSHConfigService
+
+# SSHConfigManager handles SSH policy configuration, trusted networks, and known hosts
+from ..services.ssh import SSHConfigManager
 
 # from ..services.enhanced_audit_service import log_enhanced_ssh_event  # TODO: Create when needed
 
@@ -99,7 +101,7 @@ async def get_ssh_policy(
 ) -> SSHPolicyResponse:
     """Get current SSH host key policy configuration."""
     try:
-        service = SSHConfigService(db)
+        service = SSHConfigManager(db)
 
         policy = "default_policy"
         trusted_networks = service.get_trusted_networks()
@@ -132,7 +134,7 @@ async def set_ssh_policy(
 ) -> SSHPolicyResponse:
     """Set SSH host key policy configuration."""
     try:
-        service = SSHConfigService(db)
+        service = SSHConfigManager(db)
 
         # Set policy
         success = service.set_ssh_policy(policy_request.policy, current_user.get("id"))
@@ -144,9 +146,7 @@ async def set_ssh_policy(
 
         # Set trusted networks if provided
         if policy_request.trusted_networks is not None:
-            success = service.set_trusted_networks(
-                policy_request.trusted_networks, current_user.get("id")
-            )
+            success = service.set_trusted_networks(policy_request.trusted_networks, current_user.get("id"))
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -208,7 +208,7 @@ async def get_known_hosts(
 ) -> List[KnownHostResponse]:
     """Get SSH known hosts, optionally filtered by hostname."""
     try:
-        service = SSHConfigService(db)
+        service = SSHConfigManager(db)
 
         hosts = service.get_known_hosts(hostname)
         return [KnownHostResponse(**host) for host in hosts]
@@ -230,7 +230,7 @@ async def add_known_host(
 ) -> KnownHostResponse:
     """Add a host key to SSH known hosts."""
     try:
-        service = SSHConfigService(db)
+        service = SSHConfigManager(db)
 
         # Add known host (user_id logged separately for audit trail)
         success = service.add_known_host(
@@ -271,11 +271,7 @@ async def add_known_host(
         # Return the added host
         hosts = service.get_known_hosts(host_request.hostname)
         matching_host = next(
-            (
-                h
-                for h in hosts
-                if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type
-            ),
+            (h for h in hosts if h["hostname"] == host_request.hostname and h["key_type"] == host_request.key_type),
             None,
         )
 
@@ -307,15 +303,13 @@ async def remove_known_host(
 ) -> Dict[str, str]:
     """Remove a host key from SSH known hosts."""
     try:
-        service = SSHConfigService(db)
+        service = SSHConfigManager(db)
 
         # Pass empty string if key_type is None (removes all key types for hostname)
         success = service.remove_known_host(hostname, key_type or "")
 
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Known host not found")
 
         # Enhanced audit logging
         # FIXME: Disabled - log_enhanced_ssh_event function not yet implemented
