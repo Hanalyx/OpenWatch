@@ -90,7 +90,9 @@ class RateLimitStore:
 
         self.suspicious_activity[client_id][key] += 1
 
-    def get_suspicious_activity_count(self, client_id: str, activity_type: str, minutes: int = 1) -> int:
+    def get_suspicious_activity_count(
+        self, client_id: str, activity_type: str, minutes: int = 1
+    ) -> int:
         """Get count of suspicious activities within time window"""
         if client_id not in self.suspicious_activity:
             return 0
@@ -113,7 +115,9 @@ class RateLimitStore:
         cleanup_age = 3600  # Remove buckets unused for 1 hour
 
         # Clean up old token buckets
-        buckets_to_remove = [key for key, bucket in self.buckets.items() if now - bucket.last_update > cleanup_age]
+        buckets_to_remove = [
+            key for key, bucket in self.buckets.items() if now - bucket.last_update > cleanup_age
+        ]
 
         for key in buckets_to_remove:
             del self.buckets[key]
@@ -124,7 +128,11 @@ class RateLimitStore:
 
         for client_id in self.suspicious_activity.keys():
             activities = self.suspicious_activity[client_id]
-            old_keys = [key for key in activities.keys() if ":" in key and int(key.split(":")[1]) < cutoff_minute]
+            old_keys = [
+                key
+                for key in activities.keys()
+                if ":" in key and int(key.split(":")[1]) < cutoff_minute
+            ]
 
             for key in old_keys:
                 del activities[key]
@@ -147,7 +155,9 @@ class RateLimitingMiddleware:
         self.environment = os.getenv("OPENWATCH_ENVIRONMENT", "development").lower()
         self.limits_config = self._get_limits_configuration()
 
-        logger.info(f"Rate limiting initialized - Environment: {self.environment}, Enabled: {self.enabled}")
+        logger.info(
+            f"Rate limiting initialized - Environment: {self.environment}, Enabled: {self.enabled}"
+        )
 
     def _get_limits_configuration(self) -> Dict[str, Any]:
         """Get rate limits following industry patterns"""
@@ -196,7 +206,9 @@ class RateLimitingMiddleware:
             for category in base_config:
                 base_config[category]["requests_per_minute"] *= 10
                 base_config[category]["burst_capacity"] *= 5
-                base_config[category]["retry_after_seconds"] = min(30, base_config[category]["retry_after_seconds"])
+                base_config[category]["retry_after_seconds"] = min(
+                    30, base_config[category]["retry_after_seconds"]
+                )
 
         elif self.environment == "testing":
             # Lower limits for testing rate limiting
@@ -207,7 +219,9 @@ class RateLimitingMiddleware:
         elif self.environment == "staging":
             # Slightly higher limits than production
             for category in base_config:
-                base_config[category]["requests_per_minute"] = int(base_config[category]["requests_per_minute"] * 1.2)
+                base_config[category]["requests_per_minute"] = int(
+                    base_config[category]["requests_per_minute"] * 1.2
+                )
 
         return base_config
 
@@ -243,7 +257,9 @@ class RateLimitingMiddleware:
         # Get or create token bucket
         bucket_key = f"{client_id}:{endpoint_category}"
         rate_per_second = config["requests_per_minute"] / 60.0
-        bucket = self.store.get_or_create_bucket(bucket_key, config["burst_capacity"], rate_per_second)
+        bucket = self.store.get_or_create_bucket(
+            bucket_key, config["burst_capacity"], rate_per_second
+        )
 
         # Create headers for response
         headers = self._create_rate_limit_headers(bucket, config)
@@ -274,7 +290,9 @@ class RateLimitingMiddleware:
             return response
         else:
             # Rate limit exceeded
-            retry_after = min(config["retry_after_seconds"], int(bucket.time_until_available(1)) + 1)
+            retry_after = min(
+                config["retry_after_seconds"], int(bucket.time_until_available(1)) + 1
+            )
 
             client_ip = self._get_client_ip(request)
             audit_logger.log_rate_limit_event(
@@ -284,7 +302,9 @@ class RateLimitingMiddleware:
                 user_id=self._get_user_id(request),
             )
 
-            logger.warning(f"Rate limit exceeded for {client_id} on {endpoint} - retry after {retry_after}s")
+            logger.warning(
+                f"Rate limit exceeded for {client_id} on {endpoint} - retry after {retry_after}s"
+            )
 
             return self._create_rate_limit_response(retry_after, headers)
 
@@ -298,7 +318,9 @@ class RateLimitingMiddleware:
             import hmac
 
             secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
-            token_hash = hmac.new(secret_key.encode(), auth_header.encode(), hashlib.sha256).hexdigest()[:16]
+            token_hash = hmac.new(
+                secret_key.encode(), auth_header.encode(), hashlib.sha256
+            ).hexdigest()[:16]
             return f"auth:{token_hash}", "authenticated"
 
         # Anonymous user - use IP address with secure hashing
@@ -306,7 +328,9 @@ class RateLimitingMiddleware:
         import hmac
 
         secret_key = os.getenv("RATE_LIMIT_SECRET", secrets.token_hex(32))
-        ip_hash = hmac.new(secret_key.encode(), f"{client_ip}:anonymous".encode(), hashlib.sha256).hexdigest()[:16]
+        ip_hash = hmac.new(
+            secret_key.encode(), f"{client_ip}:anonymous".encode(), hashlib.sha256
+        ).hexdigest()[:16]
         return f"anon:{ip_hash}", "anonymous"
 
     def _get_client_ip(self, request: Request) -> str:
@@ -370,7 +394,9 @@ class RateLimitingMiddleware:
             "X-RateLimit-Burst": str(config["burst_capacity"]),
         }
 
-    def _create_rate_limit_response(self, retry_after: int, headers: Dict[str, str]) -> JSONResponse:
+    def _create_rate_limit_response(
+        self, retry_after: int, headers: Dict[str, str]
+    ) -> JSONResponse:
         """Create standardized rate limit exceeded response"""
         headers["Retry-After"] = str(retry_after)
         headers["X-RateLimit-Retry-After"] = str(retry_after)

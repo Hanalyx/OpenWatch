@@ -18,7 +18,11 @@ import croniter
 from beanie import Document
 from pydantic import BaseModel, Field, validator
 
-from .bulk_remediation_service import BulkExecutionStrategy, BulkRemediationRequest, BulkRemediationService
+from .bulk_remediation_service import (
+    BulkExecutionStrategy,
+    BulkRemediationRequest,
+    BulkRemediationService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +85,17 @@ class MaintenanceWindow(BaseModel):
 
     # Approval settings
     requires_approval: bool = Field(default=True, description="Require approval before execution")
-    approval_window_hours: int = Field(default=24, ge=1, le=168, description="Hours before window to require approval")
+    approval_window_hours: int = Field(
+        default=24, ge=1, le=168, description="Hours before window to require approval"
+    )
 
     # Notification settings
-    notify_before_minutes: List[int] = Field(default=[60, 15], description="Notification times before window")
-    notification_channels: List[str] = Field(default_factory=list, description="Notification channels")
+    notify_before_minutes: List[int] = Field(
+        default=[60, 15], description="Notification times before window"
+    )
+    notification_channels: List[str] = Field(
+        default_factory=list, description="Notification channels"
+    )
 
     # Status
     is_active: bool = Field(default=True)
@@ -143,7 +153,9 @@ class MaintenanceWindow(BaseModel):
             day_of_month = self.day_of_month if self.day_of_month is not None else 1
             target_day = min(day_of_month, max_day)
 
-            next_datetime = next_month.replace(day=target_day, hour=self.start_time.hour, minute=self.start_time.minute)
+            next_datetime = next_month.replace(
+                day=target_day, hour=self.start_time.hour, minute=self.start_time.minute
+            )
 
         elif self.window_type == MaintenanceWindowType.CUSTOM and self.cron_expression:
             # Use cron expression
@@ -322,7 +334,9 @@ class RemediationSchedulerService:
                 if schedule.maintenance_window_id:
                     window = self.maintenance_windows.get(schedule.maintenance_window_id)
                 approval_hours = window.approval_window_hours if window else 24
-                schedule.approval_required_by = schedule.next_execution_at - timedelta(hours=approval_hours)
+                schedule.approval_required_by = schedule.next_execution_at - timedelta(
+                    hours=approval_hours
+                )
 
             # Save schedule
             await schedule.save()
@@ -363,7 +377,9 @@ class RemediationSchedulerService:
         results = await RemediationSchedule.find(query).limit(limit).to_list()
         return results
 
-    async def update_schedule(self, schedule_id: str, updates: Dict[str, Any]) -> Optional[RemediationSchedule]:
+    async def update_schedule(
+        self, schedule_id: str, updates: Dict[str, Any]
+    ) -> Optional[RemediationSchedule]:
         """Update a remediation schedule."""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
@@ -377,7 +393,10 @@ class RemediationSchedulerService:
         schedule.updated_at = datetime.utcnow()
 
         # Recalculate next execution if timing changed
-        if any(field in updates for field in ["scheduled_at", "cron_expression", "maintenance_window_id"]):
+        if any(
+            field in updates
+            for field in ["scheduled_at", "cron_expression", "maintenance_window_id"]
+        ):
             if schedule.schedule_type == ScheduleType.ONE_TIME:
                 schedule.next_execution_at = schedule.scheduled_at
             elif schedule.schedule_type == ScheduleType.RECURRING:
@@ -406,7 +425,9 @@ class RemediationSchedulerService:
         logger.info(f"Deleted remediation schedule: {schedule_id}")
         return True
 
-    async def approve_schedule(self, schedule_id: str, approver: str, notes: Optional[str] = None) -> bool:
+    async def approve_schedule(
+        self, schedule_id: str, approver: str, notes: Optional[str] = None
+    ) -> bool:
         """Approve a schedule for execution."""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
@@ -431,7 +452,9 @@ class RemediationSchedulerService:
         logger.info(f"Schedule {schedule_id} approved by {approver}")
         return True
 
-    async def execute_schedule_now(self, schedule_id: str, triggered_by: str = "manual") -> Optional[str]:
+    async def execute_schedule_now(
+        self, schedule_id: str, triggered_by: str = "manual"
+    ) -> Optional[str]:
         """Execute a schedule immediately"""
         schedule = await self.get_schedule(schedule_id)
         if not schedule:
@@ -453,7 +476,9 @@ class RemediationSchedulerService:
         """List all maintenance windows"""
         return list(self.maintenance_windows.values())
 
-    async def get_schedule_executions(self, schedule_id: str, limit: int = 20) -> List[ScheduleExecution]:
+    async def get_schedule_executions(
+        self, schedule_id: str, limit: int = 20
+    ) -> List[ScheduleExecution]:
         """Get execution history for a schedule."""
         # Use string-based sorting (Beanie standard pattern)
         results = (
@@ -531,7 +556,9 @@ class RemediationSchedulerService:
                 # Disable schedule after too many failures
                 if schedule.failure_count >= schedule.max_retries:
                     schedule.status = ScheduleStatus.FAILED
-                    logger.error(f"Schedule {schedule.schedule_id} disabled after {schedule.failure_count} failures")
+                    logger.error(
+                        f"Schedule {schedule.schedule_id} disabled after {schedule.failure_count} failures"
+                    )
 
                 await schedule.save()
 
@@ -550,12 +577,16 @@ class RemediationSchedulerService:
             await execution.save()
 
             # Submit bulk remediation job
-            bulk_job_result = await self.bulk_remediation_service.submit_bulk_remediation(schedule.remediation_request)
+            bulk_job_result = await self.bulk_remediation_service.submit_bulk_remediation(
+                schedule.remediation_request
+            )
 
             execution.bulk_job_id = bulk_job_result.job_id
             execution.execution_status = "success"
             execution.completed_at = datetime.utcnow()
-            execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+            execution.duration_seconds = (
+                execution.completed_at - execution.started_at
+            ).total_seconds()
 
             # Update schedule tracking
             schedule.last_execution_at = execution.started_at
@@ -563,13 +594,17 @@ class RemediationSchedulerService:
             schedule.last_execution_status = "success"
             schedule.execution_count += 1
 
-            logger.info(f"Schedule {schedule.schedule_id} executed successfully, job ID: {bulk_job_result.job_id}")
+            logger.info(
+                f"Schedule {schedule.schedule_id} executed successfully, job ID: {bulk_job_result.job_id}"
+            )
 
         except Exception as e:
             execution.execution_status = "failed"
             execution.error_message = str(e)
             execution.completed_at = datetime.utcnow()
-            execution.duration_seconds = (execution.completed_at - execution.started_at).total_seconds()
+            execution.duration_seconds = (
+                execution.completed_at - execution.started_at
+            ).total_seconds()
 
             schedule.last_execution_at = execution.started_at
             schedule.last_execution_status = "failed"
@@ -628,7 +663,9 @@ class RemediationSchedulerService:
 
         await schedule.save()
 
-    def _calculate_next_cron_execution(self, cron_expression: str, timezone: str) -> Optional[datetime]:
+    def _calculate_next_cron_execution(
+        self, cron_expression: str, timezone: str
+    ) -> Optional[datetime]:
         """Calculate next execution time from cron expression."""
         try:
             tz = ZoneInfo(timezone)

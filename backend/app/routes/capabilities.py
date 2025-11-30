@@ -184,7 +184,9 @@ async def get_integration_status(
     try:
         integrations = await _check_integrations()
 
-        logger.debug(f"Integration status requested by user {current_user.get('user_id', 'unknown')}")
+        logger.debug(
+            f"Integration status requested by user {current_user.get('user_id', 'unknown')}"
+        )
 
         return integrations
 

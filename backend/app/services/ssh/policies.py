@@ -237,7 +237,9 @@ def create_host_key_policy(
     else:
         # Provide helpful error message with valid options
         valid_options = ["strict", "auto_add", "auto_add_warning", "warning"]
-        raise ValueError(f"Unknown host key policy type: {policy_type!r}. " f"Valid options: {valid_options}")
+        raise ValueError(
+            f"Unknown host key policy type: {policy_type!r}. " f"Valid options: {valid_options}"
+        )
 
 
 __all__ = [

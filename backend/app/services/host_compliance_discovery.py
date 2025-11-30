@@ -68,7 +68,9 @@ class HostComplianceDiscoveryService:
 
             # 3. Discover privilege escalation capabilities
             privilege_info = self._discover_privilege_escalation(host)
-            discovery_results["privilege_escalation"] = privilege_info.get("privilege_escalation", {})
+            discovery_results["privilege_escalation"] = privilege_info.get(
+                "privilege_escalation", {}
+            )
             discovery_results["discovery_errors"].extend(privilege_info.get("errors", []))
 
             # 4. Discover other compliance scanners
@@ -78,7 +80,9 @@ class HostComplianceDiscoveryService:
 
             # 5. Discover filesystem capabilities
             filesystem_info = self._discover_filesystem_capabilities(host)
-            discovery_results["filesystem_capabilities"] = filesystem_info.get("filesystem_capabilities", {})
+            discovery_results["filesystem_capabilities"] = filesystem_info.get(
+                "filesystem_capabilities", {}
+            )
             discovery_results["discovery_errors"].extend(filesystem_info.get("errors", []))
 
             # 6. Discover audit and logging tools
@@ -87,7 +91,9 @@ class HostComplianceDiscoveryService:
             discovery_results["discovery_errors"].extend(audit_info.get("errors", []))
 
             # 7. Compile compliance frameworks list
-            discovery_results["compliance_frameworks"] = self._compile_compliance_frameworks(discovery_results)
+            discovery_results["compliance_frameworks"] = self._compile_compliance_frameworks(
+                discovery_results
+            )
 
             # Update discovery success status
             discovery_results["discovery_success"] = len(discovery_results["discovery_errors"]) == 0
@@ -129,23 +135,32 @@ class HostComplianceDiscoveryService:
                 output = self.ssh_service.execute_command(f"which {py_exec}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get Python version
-                    version_output = self.ssh_service.execute_command(f"{py_exec} --version", timeout=5)
+                    version_output = self.ssh_service.execute_command(
+                        f"{py_exec} --version", timeout=5
+                    )
                     version = "Unknown"
                     if version_output and version_output["success"]:
-                        version_text = version_output["stdout"].strip() or version_output.get("stderr", "").strip()
+                        version_text = (
+                            version_output["stdout"].strip()
+                            or version_output.get("stderr", "").strip()
+                        )
                         version_match = re.search(r"Python (\\d+\\.\\d+\\.\\d+)", version_text)
                         if version_match:
                             version = version_match.group(1)
 
                     # Check for pip availability
                     pip_available = False
-                    pip_output = self.ssh_service.execute_command(f"{py_exec} -m pip --version", timeout=5)
+                    pip_output = self.ssh_service.execute_command(
+                        f"{py_exec} -m pip --version", timeout=5
+                    )
                     if pip_output and pip_output["success"]:
                         pip_available = True
 
                     # Check for virtual environment support
                     venv_available = False
-                    venv_output = self.ssh_service.execute_command(f"{py_exec} -m venv --help", timeout=5)
+                    venv_output = self.ssh_service.execute_command(
+                        f"{py_exec} -m venv --help", timeout=5
+                    )
                     if venv_output and venv_output["success"]:
                         venv_available = True
 
@@ -157,7 +172,9 @@ class HostComplianceDiscoveryService:
                         "executable": py_exec,
                     }
 
-                    logger.debug(f"Found Python: {py_exec} version {version} at {output['stdout'].strip()}")
+                    logger.debug(
+                        f"Found Python: {py_exec} version {version} at {output['stdout'].strip()}"
+                    )
 
         except Exception as e:
             logger.warning(f"Error discovering Python environments for {host.hostname}: {str(e)}")
@@ -183,7 +200,9 @@ class HostComplianceDiscoveryService:
                 output = self.ssh_service.execute_command(f"which {tool_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
-                    version_output = self.ssh_service.execute_command(f"{tool_cmd} --version", timeout=10)
+                    version_output = self.ssh_service.execute_command(
+                        f"{tool_cmd} --version", timeout=10
+                    )
                     version = "Unknown"
                     capabilities = []
 
@@ -197,12 +216,16 @@ class HostComplianceDiscoveryService:
                     # Check tool-specific capabilities
                     if tool_cmd == "oscap":
                         # Check for XCCDF support
-                        xccdf_output = self.ssh_service.execute_command("oscap xccdf --help", timeout=5)
+                        xccdf_output = self.ssh_service.execute_command(
+                            "oscap xccdf --help", timeout=5
+                        )
                         if xccdf_output and xccdf_output["success"]:
                             capabilities.append("XCCDF")
 
                         # Check for OVAL support
-                        oval_output = self.ssh_service.execute_command("oscap oval --help", timeout=5)
+                        oval_output = self.ssh_service.execute_command(
+                            "oscap oval --help", timeout=5
+                        )
                         if oval_output and oval_output["success"]:
                             capabilities.append("OVAL")
 
@@ -336,7 +359,9 @@ class HostComplianceDiscoveryService:
                 output = self.ssh_service.execute_command(f"which {scanner_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
-                    version_output = self.ssh_service.execute_command(f"{scanner_cmd} --version", timeout=10)
+                    version_output = self.ssh_service.execute_command(
+                        f"{scanner_cmd} --version", timeout=10
+                    )
                     version = "Unknown"
                     if version_output and version_output["success"]:
                         version_text = version_output["stdout"].strip()
@@ -366,7 +391,9 @@ class HostComplianceDiscoveryService:
 
         try:
             # Check mounted filesystems and their properties
-            mount_output = self.ssh_service.execute_command('mount | grep -E "ext[234]|xfs|btrfs|zfs"', timeout=10)
+            mount_output = self.ssh_service.execute_command(
+                'mount | grep -E "ext[234]|xfs|btrfs|zfs"', timeout=10
+            )
             if mount_output and mount_output["success"]:
                 filesystems = []
                 for line in mount_output["stdout"].strip().split("\\n"):
@@ -393,23 +420,31 @@ class HostComplianceDiscoveryService:
             # Check for extended attribute support
             xattr_output = self.ssh_service.execute_command("which getfattr", timeout=5)
             result["filesystem_capabilities"]["extended_attributes"] = {
-                "available": xattr_output and xattr_output["success"] and xattr_output["stdout"].strip()
+                "available": xattr_output
+                and xattr_output["success"]
+                and xattr_output["stdout"].strip()
             }
 
             # Check for SELinux filesystem labels (if SELinux is available)
             selinux_labels = self.ssh_service.execute_command("which restorecon", timeout=5)
             result["filesystem_capabilities"]["selinux_labels"] = {
-                "available": selinux_labels and selinux_labels["success"] and selinux_labels["stdout"].strip()
+                "available": selinux_labels
+                and selinux_labels["success"]
+                and selinux_labels["stdout"].strip()
             }
 
             # Check for file capabilities
             getcap_output = self.ssh_service.execute_command("which getcap", timeout=5)
             result["filesystem_capabilities"]["file_capabilities"] = {
-                "available": getcap_output and getcap_output["success"] and getcap_output["stdout"].strip()
+                "available": getcap_output
+                and getcap_output["success"]
+                and getcap_output["stdout"].strip()
             }
 
         except Exception as e:
-            logger.warning(f"Error discovering filesystem capabilities for {host.hostname}: {str(e)}")
+            logger.warning(
+                f"Error discovering filesystem capabilities for {host.hostname}: {str(e)}"
+            )
             result["errors"].append(f"Filesystem capability discovery error: {str(e)}")
 
         return result
@@ -438,9 +473,13 @@ class HostComplianceDiscoveryService:
                     # Get version if possible
                     version_output = None
                     if tool_cmd in ["auditctl", "ausearch", "aureport"]:
-                        version_output = self.ssh_service.execute_command(f"{tool_cmd} --version", timeout=5)
+                        version_output = self.ssh_service.execute_command(
+                            f"{tool_cmd} --version", timeout=5
+                        )
                     elif tool_cmd == "journalctl":
-                        version_output = self.ssh_service.execute_command("systemctl --version", timeout=5)
+                        version_output = self.ssh_service.execute_command(
+                            "systemctl --version", timeout=5
+                        )
                     elif tool_cmd == "rsyslog":
                         version_output = self.ssh_service.execute_command("rsyslogd -v", timeout=5)
 
@@ -454,8 +493,14 @@ class HostComplianceDiscoveryService:
                     # Check if service is running (for daemons)
                     running = False
                     if tool_cmd in ["auditd", "rsyslog", "syslog-ng"]:
-                        service_check = self.ssh_service.execute_command(f"systemctl is-active {tool_cmd}", timeout=5)
-                        if service_check and service_check["success"] and "active" in service_check["stdout"]:
+                        service_check = self.ssh_service.execute_command(
+                            f"systemctl is-active {tool_cmd}", timeout=5
+                        )
+                        if (
+                            service_check
+                            and service_check["success"]
+                            and "active" in service_check["stdout"]
+                        ):
                             running = True
 
                     result["audit_tools"][tool_cmd] = {
@@ -509,7 +554,10 @@ class HostComplianceDiscoveryService:
 
         # Check for file integrity monitors
         fim_tools = ["aide", "tripwire", "samhain"]
-        if any(discovery_results.get("compliance_scanners", {}).get(tool, {}).get("available") for tool in fim_tools):
+        if any(
+            discovery_results.get("compliance_scanners", {}).get(tool, {}).get("available")
+            for tool in fim_tools
+        ):
             frameworks.extend(["File Integrity Monitoring", "Change Detection"])
 
         return list(set(frameworks))  # Remove duplicates

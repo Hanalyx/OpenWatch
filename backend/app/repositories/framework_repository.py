@@ -81,7 +81,9 @@ class FrameworkRepository(BaseRepository[Framework]):
         query = {"framework_id": framework_id}
         return await self.find_one(query)
 
-    async def search_by_name(self, search_term: str, case_sensitive: bool = False) -> List[Framework]:
+    async def search_by_name(
+        self, search_term: str, case_sensitive: bool = False
+    ) -> List[Framework]:
         """
         Search frameworks by name (supports regex).
 
@@ -103,7 +105,9 @@ class FrameworkRepository(BaseRepository[Framework]):
         query = {"name": {"$regex": search_term, "$options": options}}
         return await self.find_many(query, sort=[("name", 1)])
 
-    async def search_by_description(self, search_term: str, case_sensitive: bool = False) -> List[Framework]:
+    async def search_by_description(
+        self, search_term: str, case_sensitive: bool = False
+    ) -> List[Framework]:
         """
         Search frameworks by description (supports regex).
 
@@ -272,7 +276,11 @@ class FrameworkRepository(BaseRepository[Framework]):
 
             pipeline = [
                 {"$match": {f"frameworks.{framework_id}": {"$exists": True}}},
-                {"$project": {"versions": {"$objectToArray": f"$frameworks.{framework_id}.versions"}}},
+                {
+                    "$project": {
+                        "versions": {"$objectToArray": f"$frameworks.{framework_id}.versions"}
+                    }
+                },
                 {"$unwind": "$versions"},
                 {"$group": {"_id": "$versions.k"}},
                 {"$sort": {"_id": 1}},
@@ -358,7 +366,9 @@ class FrameworkRepository(BaseRepository[Framework]):
             logger.error(f"Error creating framework {framework_id}: {e}")
             raise
 
-    async def update_framework_status(self, framework_id: str, is_active: bool) -> Optional[Framework]:
+    async def update_framework_status(
+        self, framework_id: str, is_active: bool
+    ) -> Optional[Framework]:
         """
         Update framework active status.
 

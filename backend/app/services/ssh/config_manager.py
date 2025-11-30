@@ -147,7 +147,9 @@ class SSHConfigManager:
             # SystemSettings model may not be available during initial setup
             from ..models.system_models import SystemSettings
 
-            setting = self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
+            setting = (
+                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
+            )
 
             if not setting:
                 return default
@@ -156,7 +158,11 @@ class SSHConfigManager:
             if setting.setting_type == "json":
                 return json.loads(setting.setting_value) if setting.setting_value else default
             elif setting.setting_type == "boolean":
-                return setting.setting_value.lower() in ("true", "1", "yes") if setting.setting_value else default
+                return (
+                    setting.setting_value.lower() in ("true", "1", "yes")
+                    if setting.setting_value
+                    else default
+                )
             elif setting.setting_type == "integer":
                 return int(setting.setting_value) if setting.setting_value else default
             else:
@@ -168,7 +174,9 @@ class SSHConfigManager:
             error_msg = str(e).lower()
             if "does not exist" in error_msg or "relation" in error_msg:
                 # Table doesn't exist yet - expected during setup, use default silently
-                logger.debug("system_settings table not found, using default for %s: %s", key, default)
+                logger.debug(
+                    "system_settings table not found, using default for %s: %s", key, default
+                )
             else:
                 # Unexpected error - log for investigation
                 logger.error("Error getting setting %s: %s", key, e)
@@ -229,7 +237,9 @@ class SSHConfigManager:
                 string_value = str(value)
 
             # Update existing or create new setting
-            setting = self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
+            setting = (
+                self.db.query(SystemSettings).filter(SystemSettings.setting_key == key).first()
+            )
 
             if setting:
                 # Update existing setting with audit fields

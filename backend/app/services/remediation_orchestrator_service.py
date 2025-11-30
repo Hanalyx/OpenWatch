@@ -80,7 +80,9 @@ class RemediationOrchestrator:
         """
         remediation_id = str(uuid.uuid4())
 
-        logger.info(f"Starting remediation {remediation_id} for rule {rule_id} " f"(dry_run={dry_run})")
+        logger.info(
+            f"Starting remediation {remediation_id} for rule {rule_id} " f"(dry_run={dry_run})"
+        )
 
         # Query rule from MongoDB
         rule = await self._get_rule(rule_id)
@@ -136,7 +138,9 @@ class RemediationOrchestrator:
             # Update result
             remediation_result.execution_result = execution_result
             remediation_result.status = (
-                RemediationStatus.COMPLETED if execution_result.success else RemediationStatus.FAILED
+                RemediationStatus.COMPLETED
+                if execution_result.success
+                else RemediationStatus.FAILED
             )
             remediation_result.completed_at = datetime.utcnow()
 
@@ -156,7 +160,9 @@ class RemediationOrchestrator:
                 },
             )
 
-            logger.info(f"Remediation {remediation_id} completed: " f"success={execution_result.success}")
+            logger.info(
+                f"Remediation {remediation_id} completed: " f"success={execution_result.success}"
+            )
 
             return remediation_result
 
@@ -164,7 +170,9 @@ class RemediationOrchestrator:
             # Update status to FAILED
             remediation_result.status = RemediationStatus.FAILED
             remediation_result.completed_at = datetime.utcnow()
-            remediation_result.execution_result = RemediationExecutionResult(success=False, error_message=str(e))
+            remediation_result.execution_result = RemediationExecutionResult(
+                success=False, error_message=str(e)
+            )
             await remediation_result.save()
             remediation_result.add_audit_entry("Failed", {"error": str(e)})
 
@@ -201,10 +209,14 @@ class RemediationOrchestrator:
         """
         job_id = str(uuid.uuid4())
 
-        logger.info(f"Starting bulk remediation job {job_id} " f"(scan_id={scan_id}, dry_run={dry_run})")
+        logger.info(
+            f"Starting bulk remediation job {job_id} " f"(scan_id={scan_id}, dry_run={dry_run})"
+        )
 
         # Get rules to remediate
-        rules = await self._get_rules_for_bulk_remediation(scan_id=scan_id, rule_ids=rule_ids, rule_filter=rule_filter)
+        rules = await self._get_rules_for_bulk_remediation(
+            scan_id=scan_id, rule_ids=rule_ids, rule_filter=rule_filter
+        )
 
         if not rules:
             raise ValueError("No rules matched remediation criteria")
@@ -261,7 +273,9 @@ class RemediationOrchestrator:
 
         return job
 
-    async def rollback_remediation(self, remediation_id: str, executed_by: str = None) -> RemediationResult:
+    async def rollback_remediation(
+        self, remediation_id: str, executed_by: str = None
+    ) -> RemediationResult:
         """
         Rollback a remediation.
 
@@ -279,7 +293,9 @@ class RemediationOrchestrator:
         logger.info(f"Rolling back remediation {remediation_id}")
 
         # Get original remediation
-        original = await RemediationResult.find_one(RemediationResult.remediation_id == remediation_id)
+        original = await RemediationResult.find_one(
+            RemediationResult.remediation_id == remediation_id
+        )
 
         if not original:
             raise ValueError(f"Remediation {remediation_id} not found")
@@ -310,7 +326,10 @@ class RemediationOrchestrator:
             {"executed_by": executed_by, "success": rollback_result.success},
         )
 
-        logger.info(f"Rollback for remediation {remediation_id} completed: " f"success={rollback_result.success}")
+        logger.info(
+            f"Rollback for remediation {remediation_id} completed: "
+            f"success={rollback_result.success}"
+        )
 
         return original
 
@@ -350,7 +369,9 @@ class RemediationOrchestrator:
         results = await RemediationResult.find(query).skip(skip).limit(limit).to_list()
         return results
 
-    async def get_remediation_statistics(self, days: int = 30, executed_by: Optional[str] = None) -> RemediationSummary:
+    async def get_remediation_statistics(
+        self, days: int = 30, executed_by: Optional[str] = None
+    ) -> RemediationSummary:
         """
         Get remediation statistics.
 
@@ -431,7 +452,9 @@ class RemediationOrchestrator:
             if not failed_rule_ids:
                 return []
 
-            return await self.collection.find({"rule_id": {"$in": failed_rule_ids}}).to_list(length=None)
+            return await self.collection.find({"rule_id": {"$in": failed_rule_ids}}).to_list(
+                length=None
+            )
 
         elif rule_ids:
             # Get specific rules
@@ -443,7 +466,9 @@ class RemediationOrchestrator:
 
         return []
 
-    def _prepare_variables(self, rule: Dict[str, Any], overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    def _prepare_variables(
+        self, rule: Dict[str, Any], overrides: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
         """
         Prepare variables for remediation execution.
 

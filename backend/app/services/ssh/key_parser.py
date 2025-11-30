@@ -76,7 +76,8 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
     """
     # Issue deprecation warning for new usage tracking
     warnings.warn(
-        "detect_key_type is deprecated. Use validate_ssh_key() from " "key_validator module instead.",
+        "detect_key_type is deprecated. Use validate_ssh_key() from "
+        "key_validator module instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -91,7 +92,9 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
         # Check for Ed25519 markers
         # OpenSSH format requires actual parsing to distinguish key types
         # NOTE: These are key format markers for detection, not actual keys
-        if "ssh-ed25519" in content_str or "BEGIN OPENSSH PRIVATE KEY" in content_str:  # pragma: allowlist secret
+        if (
+            "ssh-ed25519" in content_str or "BEGIN OPENSSH PRIVATE KEY" in content_str
+        ):  # pragma: allowlist secret
             try:
                 if "-----BEGIN OPENSSH PRIVATE KEY-----" in content_str:  # pragma: allowlist secret
                     # OpenSSH format - try to parse as Ed25519 first
@@ -108,19 +111,31 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
 
         # Check RSA markers (both PEM and public key formats)
         # NOTE: These are pattern strings for key detection, not actual secrets
-        rsa_markers = ["ssh-rsa", "BEGIN RSA PRIVATE KEY", "RSA PRIVATE KEY"]  # pragma: allowlist secret
+        rsa_markers = [
+            "ssh-rsa",
+            "BEGIN RSA PRIVATE KEY",
+            "RSA PRIVATE KEY",
+        ]  # pragma: allowlist secret
         if any(marker in content_str for marker in rsa_markers):
             return SSHKeyType.RSA
 
         # Check ECDSA markers
         # NOTE: These are pattern strings for key detection, not actual secrets
-        ecdsa_markers = ["ecdsa-sha2-", "BEGIN EC PRIVATE KEY", "EC PRIVATE KEY"]  # pragma: allowlist secret
+        ecdsa_markers = [
+            "ecdsa-sha2-",
+            "BEGIN EC PRIVATE KEY",
+            "EC PRIVATE KEY",
+        ]  # pragma: allowlist secret
         if any(marker in content_str for marker in ecdsa_markers):
             return SSHKeyType.ECDSA
 
         # Check DSA markers (deprecated but still supported)
         # NOTE: These are pattern strings for key detection, not actual secrets
-        dsa_markers = ["ssh-dss", "BEGIN DSA PRIVATE KEY", "DSA PRIVATE KEY"]  # pragma: allowlist secret
+        dsa_markers = [
+            "ssh-dss",
+            "BEGIN DSA PRIVATE KEY",
+            "DSA PRIVATE KEY",
+        ]  # pragma: allowlist secret
         if any(marker in content_str for marker in dsa_markers):
             return SSHKeyType.DSA
 

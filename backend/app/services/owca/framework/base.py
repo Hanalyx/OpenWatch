@@ -55,7 +55,9 @@ class BaseFrameworkIntelligence(ABC):
         """
 
     @abstractmethod
-    async def analyze_host_compliance(self, host_id: str, scan_results: Optional[Dict] = None) -> Dict:
+    async def analyze_host_compliance(
+        self, host_id: str, scan_results: Optional[Dict] = None
+    ) -> Dict:
         """
         Analyze host compliance using framework-specific intelligence.
 

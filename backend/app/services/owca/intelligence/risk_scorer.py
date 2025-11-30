@@ -86,7 +86,9 @@ class RiskScorer:
         self.score_calculator = score_calculator
         self.drift_detector = drift_detector
 
-    async def calculate_risk(self, host_id: UUID, business_criticality: Optional[str] = None) -> Optional[RiskScore]:
+    async def calculate_risk(
+        self, host_id: UUID, business_criticality: Optional[str] = None
+    ) -> Optional[RiskScore]:
         """
         Calculate composite risk score for a host.
 
@@ -204,7 +206,9 @@ class RiskScorer:
         if limit:
             risk_scores = risk_scores[:limit]
 
-        logger.info(f"Ranked {len(risk_scores)} hosts by risk " f"(limit={limit if limit else 'none'})")
+        logger.info(
+            f"Ranked {len(risk_scores)} hosts by risk " f"(limit={limit if limit else 'none'})"
+        )
 
         return risk_scores
 
@@ -261,7 +265,9 @@ class RiskScorer:
             drift_risk = min(abs(baseline_drift) * 5, 100) * self.WEIGHT_DRIFT
 
         # Factor 5: Business criticality
-        business_multiplier = self.BUSINESS_MULTIPLIERS.get(business_criticality, self.BUSINESS_MULTIPLIERS[None])
+        business_multiplier = self.BUSINESS_MULTIPLIERS.get(
+            business_criticality, self.BUSINESS_MULTIPLIERS[None]
+        )
         business_risk = business_multiplier * self.WEIGHT_BUSINESS
 
         # Composite score

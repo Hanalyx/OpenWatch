@@ -351,7 +351,9 @@ class ScanIntelligenceService:
             priority=ScanPriority.NORMAL,
         )
 
-    def _select_best_suggestion(self, suggestions: List[ProfileSuggestion], host_info: HostInfo) -> ProfileSuggestion:
+    def _select_best_suggestion(
+        self, suggestions: List[ProfileSuggestion], host_info: HostInfo
+    ) -> ProfileSuggestion:
         """Select the best suggestion from multiple options"""
         if not suggestions:
             return self._suggest_by_os(host_info)
@@ -367,7 +369,9 @@ class ScanIntelligenceService:
 
         return best
 
-    async def _enhance_suggestion_with_content(self, suggestion: ProfileSuggestion) -> ProfileSuggestion:
+    async def _enhance_suggestion_with_content(
+        self, suggestion: ProfileSuggestion
+    ) -> ProfileSuggestion:
         """Enhance suggestion with actual SCAP content metadata"""
         try:
             # Find matching content and profile
@@ -460,11 +464,15 @@ class ScanIntelligenceService:
 
             # Environment mixing warning
             if "production" in env_groups and len(env_groups) > 1:
-                recommendations.append("Production and non-production hosts mixed - consider separate scans")
+                recommendations.append(
+                    "Production and non-production hosts mixed - consider separate scans"
+                )
 
             # Large batch warning
             if len(hosts_info) > 20:
-                recommendations.append("Large batch detected - consider splitting into smaller groups")
+                recommendations.append(
+                    "Large batch detected - consider splitting into smaller groups"
+                )
 
             return {
                 "feasible": True,

@@ -203,12 +203,16 @@ async def get_compliance_rules(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(25, ge=1, le=100, description="Number of rules to return"),
     framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
-    severity: Optional[str] = Query(None, description="Filter by severity (high, medium, low, info)"),
+    severity: Optional[str] = Query(
+        None, description="Filter by severity (high, medium, low, info)"
+    ),
     category: Optional[str] = Query(None, description="Filter by category"),
     platform: Optional[str] = Query(None, description="Filter by platform (rhel, ubuntu)"),
     search: Optional[str] = Query(None, description="Search in rule name, description, or ID"),
     is_latest: bool = Query(True, description="Filter by latest version of rules (default: True)"),
-    view_mode: Optional[str] = Query(None, description="Special view mode: 'platform_statistics' for platform stats"),
+    view_mode: Optional[str] = Query(
+        None, description="Special view mode: 'platform_statistics' for platform stats"
+    ),
     mongo_service: MongoServiceType = Depends(get_mongo_service),
 ) -> ComplianceRulesListResponse:
     """
@@ -244,7 +248,9 @@ async def get_compliance_rules(
                     message=f"Retrieved statistics for {result.get('total_platforms', 0)} platforms",
                 )
             except Exception as e:
-                logger.warning(f"MongoDB platform statistics failed, using converted rules fallback: {e}")
+                logger.warning(
+                    f"MongoDB platform statistics failed, using converted rules fallback: {e}"
+                )
                 # Fallback to analyzing converted rules directly
                 result = await get_platform_statistics_from_files()
                 return ComplianceRulesListResponse(
@@ -508,17 +514,25 @@ async def get_compliance_rules(
                 filtered_rules = filtered_result
 
             if severity:
-                filtered_rules = [rule for rule in filtered_rules if rule.get("severity") == severity]
+                filtered_rules = [
+                    rule for rule in filtered_rules if rule.get("severity") == severity
+                ]
 
             if category:
-                filtered_rules = [rule for rule in filtered_rules if rule.get("category") == category]
+                filtered_rules = [
+                    rule for rule in filtered_rules if rule.get("category") == category
+                ]
 
             if framework:
-                filtered_rules = [rule for rule in filtered_rules if framework in rule.get("frameworks", {})]
+                filtered_rules = [
+                    rule for rule in filtered_rules if framework in rule.get("frameworks", {})
+                ]
 
             if platform:
                 filtered_rules = [
-                    rule for rule in filtered_rules if platform in rule.get("platform_implementations", {})
+                    rule
+                    for rule in filtered_rules
+                    if platform in rule.get("platform_implementations", {})
                 ]
 
             # Apply pagination to mock rules
@@ -544,10 +558,14 @@ async def get_compliance_rules(
             updated_at_raw = rule_dict.get("updated_at")
 
             created_at_str = (
-                created_at_raw.isoformat() if isinstance(created_at_raw, datetime) else str(created_at_raw or "")
+                created_at_raw.isoformat()
+                if isinstance(created_at_raw, datetime)
+                else str(created_at_raw or "")
             )
             updated_at_str = (
-                updated_at_raw.isoformat() if isinstance(updated_at_raw, datetime) else str(updated_at_raw or "")
+                updated_at_raw.isoformat()
+                if isinstance(updated_at_raw, datetime)
+                else str(updated_at_raw or "")
             )
 
             # Ensure required fields exist with safe defaults
@@ -903,7 +921,8 @@ async def get_available_frameworks() -> Dict[str, Any]:
         }
 
         frameworks_with_display = [
-            {"value": fw, "label": framework_display_map.get(fw, fw.upper())} for fw in frameworks_list
+            {"value": fw, "label": framework_display_map.get(fw, fw.upper())}
+            for fw in frameworks_list
         ]
 
         logger.info(f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB")

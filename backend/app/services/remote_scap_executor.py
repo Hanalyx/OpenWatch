@@ -159,7 +159,9 @@ class RemoteSCAPExecutor:
                 raise RemoteSCAPExecutionError(f"Unsupported auth method: {auth_method}")
 
             if not credential_value:
-                raise RemoteSCAPExecutionError(f"No credential available for auth method: {auth_method}")
+                raise RemoteSCAPExecutionError(
+                    f"No credential available for auth method: {auth_method}"
+                )
 
             logger.info(f"Connecting to {hostname}:{port} as {username} via {auth_method}")
 
@@ -174,7 +176,9 @@ class RemoteSCAPExecutor:
             )
 
             if not connection_result.success:
-                raise RemoteSCAPExecutionError(f"SSH connection failed: {connection_result.error_message}")
+                raise RemoteSCAPExecutionError(
+                    f"SSH connection failed: {connection_result.error_message}"
+                )
 
             ssh = connection_result.connection
             logger.info("SSH connection established successfully")
@@ -229,7 +233,8 @@ class RemoteSCAPExecutor:
                 )
 
                 logger.info(
-                    f"Remote SCAP scan {scan_id} completed: " f"exit_code={exit_code}, time={execution_time:.1f}s"
+                    f"Remote SCAP scan {scan_id} completed: "
+                    f"exit_code={exit_code}, time={execution_time:.1f}s"
                 )
 
                 return result
