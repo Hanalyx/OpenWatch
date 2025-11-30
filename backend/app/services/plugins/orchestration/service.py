@@ -610,7 +610,9 @@ class PluginOrchestrationService:
             if cached_instance_id:
                 for inst in available:
                     if inst.instance_id == cached_instance_id:
-                        return self._create_route_response(request, inst, cluster.strategy, start_time, False)
+                        return self._create_route_response(
+                            request, inst, cluster.strategy, start_time, False
+                        )
 
         # Select instance based on strategy
         instance = await self._select_instance(cluster, available, request)
@@ -626,7 +628,9 @@ class PluginOrchestrationService:
         instance.active_connections += 1
         instance.total_requests += 1
 
-        response = self._create_route_response(request, instance, cluster.strategy, start_time, False)
+        response = self._create_route_response(
+            request, instance, cluster.strategy, start_time, False
+        )
 
         logger.debug(
             "Routed request %s to %s:%d (strategy=%s)",
@@ -1262,7 +1266,9 @@ class PluginOrchestrationService:
             await job.save()
 
             # Generate recommendations based on target
-            recommendations = self._generate_recommendations(cluster, job.target, job.current_metrics)
+            recommendations = self._generate_recommendations(
+                cluster, job.target, job.current_metrics
+            )
             job.recommendations = recommendations
             job.progress = 0.8
             await job.save()
@@ -1397,7 +1403,10 @@ class PluginOrchestrationService:
                 )
 
         elif target == OptimizationTarget.RESOURCE_EFFICIENCY:
-            if metrics.get("load_factor", 0) < 0.3 and cluster.instance_count > cluster.min_instances:
+            if (
+                metrics.get("load_factor", 0) < 0.3
+                and cluster.instance_count > cluster.min_instances
+            ):
                 recommendations.append(
                     {
                         "type": "scaling",
@@ -1478,7 +1487,8 @@ class PluginOrchestrationService:
             "clusters": {
                 "total": len(self._clusters),
                 "by_strategy": {
-                    s.value: sum(1 for c in self._clusters.values() if c.strategy == s) for s in OrchestrationStrategy
+                    s.value: sum(1 for c in self._clusters.values() if c.strategy == s)
+                    for s in OrchestrationStrategy
                 },
             },
             "instances": {
