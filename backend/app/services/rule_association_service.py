@@ -18,7 +18,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from ..models.plugin_models import InstalledPlugin, PluginStatus
-from .plugin_registry_service import PluginRegistryService
+from .plugins import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

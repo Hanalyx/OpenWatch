@@ -15,7 +15,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from .bulk_remediation_service import BulkRemediationRequest, BulkRemediationService
-from .plugin_execution_service import PluginExecutionService
+from .plugins import PluginExecutionService
 
 logger = logging.getLogger(__name__)
 

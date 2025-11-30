@@ -23,8 +23,7 @@ from ..models.plugin_models import (
     PluginExecutionResult,
     PluginStatus,
 )
-from .plugin_execution_service import PluginExecutionService
-from .plugin_registry_service import PluginRegistryService
+from .plugins import PluginExecutionService, PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

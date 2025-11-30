@@ -16,8 +16,9 @@ from ....auth import get_current_user
 from ....database import User
 from ....models.plugin_models import InstalledPlugin, PluginStatus, PluginTrustLevel, PluginType
 from ....rbac import check_permission
-from ....services.plugin_import_service import PluginImportService
-from ....services.plugin_signature_service import PluginSignatureService
+
+# Phase 2: Import all plugin services from modular plugins package
+from ....services.plugins import PluginImportService, PluginSignatureService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])

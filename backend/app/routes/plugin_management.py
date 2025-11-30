@@ -20,9 +20,9 @@ from ..models.plugin_models import (
     PluginStatus,
     PluginTrustLevel,
 )
-from ..services.plugin_execution_service import PluginExecutionService
-from ..services.plugin_import_service import PluginImportService
-from ..services.plugin_security_service import PluginSecurityService
+
+# Phase 2: Import all plugin services from modular plugins package
+from ..services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/plugins", tags=["Plugin Management"])
