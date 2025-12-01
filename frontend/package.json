@@ -34,7 +34,7 @@
     "react-hook-form": "^7.66.0",
     "react-redux": "^8.0.7",
     "react-router-dom": "^6.11.0",
-    "recharts": "^2.15.4",
+    "recharts": "^3.5.0",
     "redux-persist": "^6.0.0",
     "typescript": "^5.9.3"
   },
