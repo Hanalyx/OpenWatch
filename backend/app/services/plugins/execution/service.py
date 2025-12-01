@@ -12,16 +12,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..config import get_settings
-from ..models.plugin_models import (
+from backend.app.config import get_settings
+from backend.app.models.plugin_models import (
     InstalledPlugin,
     PluginCapability,
     PluginExecutionRequest,
     PluginExecutionResult,
     PluginStatus,
 )
-from .command_sandbox import CommandSandbox
-from .plugin_registry_service import PluginRegistryService
+from backend.app.services.command_sandbox import CommandSandbox
+from backend.app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -53,9 +53,7 @@ class PluginExecutionService:
             # Get plugin
             plugin = await self.registry_service.get_plugin(request.plugin_id)
             if not plugin:
-                return self._create_error_result(
-                    execution_id, started_at, f"Plugin not found: {request.plugin_id}"
-                )
+                return self._create_error_result(execution_id, started_at, f"Plugin not found: {request.plugin_id}")
 
             # Validate plugin status
             if plugin.status != PluginStatus.ACTIVE:
@@ -95,9 +93,7 @@ class PluginExecutionService:
                 )
 
             # Execute plugin
-            execution_result = await self._execute_with_sandbox(
-                plugin, executor, request, execution_env, execution_id
-            )
+            execution_result = await self._execute_with_sandbox(plugin, executor, request, execution_env, execution_id)
 
             # Update plugin usage statistics
             await self._update_usage_statistics(plugin, execution_result)
@@ -112,9 +108,7 @@ class PluginExecutionService:
 
         except Exception as e:
             logger.error(f"Plugin execution {execution_id} failed: {e}")
-            return self._create_error_result(
-                execution_id, started_at, f"Execution failed: {str(e)}"
-            )
+            return self._create_error_result(execution_id, started_at, f"Execution failed: {str(e)}")
 
         finally:
             # Remove from active executions
@@ -150,9 +144,7 @@ class PluginExecutionService:
             logger.error(f"Failed to cancel execution {execution_id}: {e}")
             return {"success": False, "error": str(e)}
 
-    async def get_plugin_execution_history(
-        self, plugin_id: str, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    async def get_plugin_execution_history(self, plugin_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """Get execution history for a plugin"""
         plugin = await self.registry_service.get_plugin(plugin_id)
         if not plugin:
@@ -213,9 +205,7 @@ class PluginExecutionService:
             "context": context,
         }
 
-    async def _select_executor(
-        self, plugin: InstalledPlugin, platform: str
-    ) -> Optional[Dict[str, Any]]:
+    async def _select_executor(self, plugin: InstalledPlugin, platform: str) -> Optional[Dict[str, Any]]:
         """Select best executor for platform"""
         # Find executors that support the target platform
         compatible_executors = []
@@ -269,9 +259,7 @@ class PluginExecutionService:
             elif executor.type == PluginCapability.PYTHON:
                 result = await self._execute_python_plugin(plugin, executor, request, execution_env)
             elif executor.type == PluginCapability.ANSIBLE:
-                result = await self._execute_ansible_plugin(
-                    plugin, executor, request, execution_env
-                )
+                result = await self._execute_ansible_plugin(plugin, executor, request, execution_env)
             elif executor.type == PluginCapability.API:
                 result = await self._execute_api_plugin(plugin, executor, request, execution_env)
             else:
@@ -456,9 +444,7 @@ class PluginExecutionService:
         timeout = request.timeout_override or executor.resource_limits.get("timeout", 600)
 
         try:
-            result = await sandbox.run_command(
-                command, cwd=str(plugin_dir), timeout=timeout, capture_output=True
-            )
+            result = await sandbox.run_command(command, cwd=str(plugin_dir), timeout=timeout, capture_output=True)
 
             return {
                 "success": result.returncode == 0,
@@ -485,9 +471,7 @@ class PluginExecutionService:
         # For now, return a placeholder implementation
         return {"success": False, "error": "API plugin execution not yet implemented"}
 
-    async def _update_usage_statistics(
-        self, plugin: InstalledPlugin, result: PluginExecutionResult
-    ) -> None:
+    async def _update_usage_statistics(self, plugin: InstalledPlugin, result: PluginExecutionResult) -> None:
         """Update plugin usage statistics."""
         plugin.usage_count += 1
         plugin.last_used = datetime.utcnow()
