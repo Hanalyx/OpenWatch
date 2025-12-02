@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ....auth import get_current_user
-from ....models.remediation_models import (
+from ..auth import get_current_user
+from ..models.remediation_models import (
     BulkRemediationJob,
     BulkRemediationRequest,
     RemediationRequest,
@@ -22,10 +22,10 @@ from ....models.remediation_models import (
     RemediationStatus,
     RemediationSummary,
 )
-from ....services.mongo_integration_service import get_mongo_service
-from ....services.remediation_orchestrator_service import RemediationOrchestrator
-from ....services.remediators import RemediationExecutorFactory
-from ....services.remediators.base_executor import (
+from ..services.mongo_integration_service import get_mongo_service
+from ..services.remediation_orchestrator_service import RemediationOrchestrator
+from ..services.remediators import RemediationExecutorFactory
+from ..services.remediators.base_executor import (
     ExecutorExecutionError,
     ExecutorNotAvailableError,
     ExecutorValidationError,

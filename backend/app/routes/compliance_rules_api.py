@@ -25,8 +25,8 @@ from pydantic import BaseModel, Field
 MongoServiceType = Any  # Union of MongoIntegrationService and MockMongoService
 
 try:
-    from ....repositories import ComplianceRuleRepository
-    from ....services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+    from ..repositories import ComplianceRuleRepository
+    from ..services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 
     MONGO_AVAILABLE = True
 except ImportError:

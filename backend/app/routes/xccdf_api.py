@@ -14,18 +14,18 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ....auth import get_current_user
-from ....database import get_db
-from ....models.readiness_models import ReadinessCheckType
-from ....schemas.xccdf_schemas import (
+from ..auth import get_current_user
+from ..database import get_db
+from ..models.readiness_models import ReadinessCheckType
+from ..schemas.xccdf_schemas import (
     XCCDFBenchmarkRequest,
     XCCDFBenchmarkResponse,
     XCCDFTailoringRequest,
     XCCDFTailoringResponse,
 )
-from ....services.host_validator.readiness_validator import ReadinessValidatorService
-from ....services.mongo_integration_service import get_mongo_service
-from ....services.xccdf_generator_service import XCCDFGeneratorService
+from ..services.host_validator.readiness_validator import ReadinessValidatorService
+from ..services.mongo_integration_service import get_mongo_service
+from ..services.xccdf_generator_service import XCCDFGeneratorService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

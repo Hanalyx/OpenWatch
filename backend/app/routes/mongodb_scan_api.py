@@ -1111,7 +1111,7 @@ async def get_scanner_health(
         mongo_status = "unknown"
         mongo_details = {}
         try:
-            from ....services.mongo_integration_service import get_mongo_service
+            from ..services.mongo_integration_service import get_mongo_service
 
             mongo_service = await get_mongo_service()
             mongo_health = await mongo_service.health_check()

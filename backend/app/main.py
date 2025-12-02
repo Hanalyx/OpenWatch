@@ -17,19 +17,9 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response
 
-# Import v1 endpoint routers (consolidated from v1/api.py)
-from .api.v1.endpoints import (
-    compliance_rules_api,
-    health_monitoring,
-    mongodb_scan_api,
-    mongodb_test,
-    remediation_api,
-    rule_management,
-    scan_config_api,
-    scans_api,
-    scap_import,
-    xccdf_api,
-)
+# Note: These were previously in api/v1/endpoints/ and have been
+# consolidated into routes/ as part of the API unification effort.
+# OpenWatch uses unified /api prefix (no URL-based versioning).
 from .audit_db import log_security_event
 from .auth import audit_logger, require_admin
 from .config import SECURITY_HEADERS, get_settings
@@ -46,10 +36,12 @@ from .routes import (
     bulk_remediation_routes,
     capabilities,
     compliance,
+    compliance_rules_api,
     content,
     credentials,
     drift_events,
     group_compliance,
+    health_monitoring,
     host_compliance_discovery,
     host_discovery,
     host_groups,
@@ -58,19 +50,27 @@ from .routes import (
     hosts,
     integration_metrics,
     mfa,
+    mongodb_scan_api,
+    mongodb_test,
     monitoring,
     os_discovery,
     owca,
     plugin_management,
+    remediation_api,
     remediation_callback,
     remediation_provider,
+    rule_management,
     rule_scanning,
+    scan_config_api,
     scan_templates,
     scans,
+    scans_api,
+    scap_import,
     ssh_debug,
     ssh_settings,
     users,
     webhooks,
+    xccdf_api,
 )
 from .routes.system_settings_unified import router as system_settings_router
 from .services.prometheus_metrics import get_metrics_instance

@@ -29,7 +29,8 @@ repos:
             security/certs/mongodb/backup-.*|
             backend/app/services/host_credential_handler\.py|
             backend/app/services/ssh/.*\.py|
-            backend/app/api/v1/endpoints/remediation_api\.py|
+            backend/app/routes/remediation_api\.py|
+            backend/app/routes/scan_config_api\.py|
             backend/tests/test_host_ssh_validation\.py|
             frontend/src/utils/hostValidation\.ts|
             frontend/src/pages/hosts/AddHost\.tsx|

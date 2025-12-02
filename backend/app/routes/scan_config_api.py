@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ....auth import get_current_user
-from ....models.scan_config_models import (
+from ..auth import get_current_user
+from ..models.scan_config_models import (
     ApplyTemplateRequest,
     CreateTemplateRequest,
     FrameworkMetadata,
@@ -23,9 +23,9 @@ from ....models.scan_config_models import (
     ValidationResult,
     VariableDefinition,
 )
-from ....services.framework_metadata_service import FrameworkMetadataService
-from ....services.mongo_integration_service import MongoIntegrationService, get_mongo_service
-from ....services.scan_template_service import ScanTemplateService
+from ..services.framework_metadata_service import FrameworkMetadataService
+from ..services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+from ..services.scan_template_service import ScanTemplateService
 
 router = APIRouter()
 

@@ -86,10 +86,10 @@ check_api_health() {
     log_info "Checking API health..."
 
     # Try different health endpoint variations
+    # Note: OpenWatch uses unified /api prefix (no versioned API paths)
     local health_endpoints=(
         "$TARGET_URL/api/health"
         "$TARGET_URL/health"
-        "$TARGET_URL/api/v1/health"
     )
 
     for endpoint in "${health_endpoints[@]}"; do

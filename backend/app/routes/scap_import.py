@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ....services.content import ContentImporter, ImportProgress, ImportResult, process_scap_content
+from ..services.content import ContentImporter, ImportProgress, ImportResult, process_scap_content
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 
@@ -215,7 +215,7 @@ async def get_import_statistics(
 
     try:
         # Get collection statistics from MongoDB
-        from ....models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+        from ..models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
 
         stats = {
             "total_rules": await ComplianceRule.count(),

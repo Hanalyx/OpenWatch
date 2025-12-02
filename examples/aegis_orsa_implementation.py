@@ -39,7 +39,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def get_system_info(self) -> RemediationSystemInfo:
         """Get AEGIS system information"""
         try:
-            system_data = await self._call_aegis_api("GET", "/api/v1/system/info")
+            system_data = await self._call_aegis_api("GET", "/api/system/info")
 
             return RemediationSystemInfo(
                 system_id="aegis-remediation-platform",
@@ -105,7 +105,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
             if category:
                 params['category'] = category
 
-            rules_data = await self._call_aegis_api("GET", "/api/v1/rules", params=params)
+            rules_data = await self._call_aegis_api("GET", "/api/rules", params=params)
 
             remediation_rules = []
             for rule_data in rules_data.get("rules", []):
@@ -158,7 +158,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
                 }
             }
 
-            result = await self._call_aegis_api("POST", "/api/v1/remediation/jobs", data=aegis_job_data)
+            result = await self._call_aegis_api("POST", "/api/remediation/jobs", data=aegis_job_data)
             return result.get("job_id")
 
         except Exception as e:
@@ -168,7 +168,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def get_job_status(self, job_id: str) -> RemediationJobResult:
         """Get AEGIS job status"""
         try:
-            job_data = await self._call_aegis_api("GET", f"/api/v1/remediation/jobs/{job_id}")
+            job_data = await self._call_aegis_api("GET", f"/api/remediation/jobs/{job_id}")
 
             # Convert AEGIS status to standard status
             status_mapping = {
@@ -234,7 +234,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel AEGIS remediation job"""
         try:
-            result = await self._call_aegis_api("POST", f"/api/v1/remediation/jobs/{job_id}/cancel")
+            result = await self._call_aegis_api("POST", f"/api/remediation/jobs/{job_id}/cancel")
             return result.get("cancelled", False)
 
         except Exception as e:
@@ -244,7 +244,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def validate_connectivity(self, host_id: str) -> Dict[str, Any]:
         """Validate AEGIS connectivity to target host"""
         try:
-            result = await self._call_aegis_api("POST", "/api/v1/hosts/connectivity-test", data={"host_id": host_id})
+            result = await self._call_aegis_api("POST", "/api/hosts/connectivity-test", data={"host_id": host_id})
 
             return {
                 "reachable": result.get("connection_successful", False),
@@ -267,7 +267,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def get_framework_specific_rules(self, framework: str, rule_id: str) -> Optional[RemediationRule]:
         """Get AEGIS rule by framework-specific ID"""
         try:
-            result = await self._call_aegis_api("GET", f"/api/v1/frameworks/{framework}/rules/{rule_id}")
+            result = await self._call_aegis_api("GET", f"/api/frameworks/{framework}/rules/{rule_id}")
 
             if result:
                 return RemediationRule(
@@ -290,7 +290,7 @@ class AegisRemediationSystem(RemediationSystemInterface):
     async def trigger_openwatch_verification_scan(self, host_id: str, scan_profile: str = "verification") -> bool:
         """Trigger OpenWatch verification scan after remediation"""
         try:
-            result = await self._call_aegis_api("POST", "/api/v1/integration/openwatch/trigger-scan", data={
+            result = await self._call_aegis_api("POST", "/api/integration/openwatch/trigger-scan", data={
                 "host_id": host_id,
                 "scan_type": "verification",
                 "scan_profile": scan_profile

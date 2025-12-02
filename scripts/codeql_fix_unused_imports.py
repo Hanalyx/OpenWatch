@@ -169,15 +169,15 @@ class UnusedImportFixer:
                 "fixes": [{"line": 26, "simple_import": "import re"}],
             },
             {
-                "file": "backend/app/api/v1/endpoints/xccdf_api.py",
+                "file": "backend/app/routes/xccdf_api.py",
                 "fixes": [{"line": 10, "remove_from_import": ["AsyncIOMotorDatabase", "AsyncIOMotorClient"]}],
             },
             {
-                "file": "backend/app/api/v1/endpoints/scans_api.py",
+                "file": "backend/app/routes/scans_api.py",
                 "fixes": [{"line": 9, "remove_from_import": ["AsyncIOMotorDatabase", "AsyncIOMotorClient"]}],
             },
             {
-                "file": "backend/app/api/v1/endpoints/scan_config_api.py",
+                "file": "backend/app/routes/scan_config_api.py",
                 "fixes": [{"line": 10, "remove_from_import": ["AsyncIOMotorDatabase"]}],
             },
             {
@@ -193,7 +193,7 @@ class UnusedImportFixer:
                 }],
             },
             {
-                "file": "backend/app/api/v1/endpoints/remediation_api.py",
+                "file": "backend/app/routes/remediation_api.py",
                 "fixes": [{"line": 14, "remove_from_import": ["AsyncIOMotorDatabase"]}],
             },
             {

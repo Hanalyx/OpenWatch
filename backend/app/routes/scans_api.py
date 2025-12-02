@@ -10,12 +10,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ....auth import get_current_user
-from ....models.scan_models import ScanConfiguration, ScanResult, ScanStatus, ScanTargetType
+from ..auth import get_current_user
+from ..models.scan_models import ScanConfiguration, ScanResult, ScanStatus, ScanTargetType
 
 # ScanOrchestrator is now part of the engine module (orchestration layer)
-from ....services.engine import ScanOrchestrator
-from ....services.mongo_integration_service import get_mongo_service
+from ..services.engine import ScanOrchestrator
+from ..services.mongo_integration_service import get_mongo_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
