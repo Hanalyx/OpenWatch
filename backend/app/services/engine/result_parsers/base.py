@@ -484,7 +484,9 @@ class BaseResultParser(ABC):
         is_allowed = any(path_str.startswith(prefix) for prefix in allowed_prefixes)
         if not is_allowed:
             # Log security event but don't expose path in error
-            self._logger.warning("Path traversal attempt blocked: %s", path_str[:50])  # Truncate for logging
+            self._logger.warning(
+                "Path traversal attempt blocked: %s", path_str[:50]
+            )  # Truncate for logging
             raise ValueError("File path not in allowed directory")
 
         # Check file exists

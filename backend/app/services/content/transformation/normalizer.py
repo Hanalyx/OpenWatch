@@ -554,10 +554,18 @@ class ContentNormalizer:
 
         # Clean text fields
         normalized_title = clean_text(rule.title, MAX_TITLE_LENGTH)
-        normalized_description = clean_text(rule.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True)
-        normalized_rationale = clean_text(rule.rationale, MAX_RATIONALE_LENGTH, preserve_formatting=True)
-        normalized_fix = clean_text(rule.fix_content, MAX_FIX_CONTENT_LENGTH, preserve_formatting=True)
-        normalized_check = clean_text(rule.check_content, MAX_CHECK_CONTENT_LENGTH, preserve_formatting=True)
+        normalized_description = clean_text(
+            rule.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True
+        )
+        normalized_rationale = clean_text(
+            rule.rationale, MAX_RATIONALE_LENGTH, preserve_formatting=True
+        )
+        normalized_fix = clean_text(
+            rule.fix_content, MAX_FIX_CONTENT_LENGTH, preserve_formatting=True
+        )
+        normalized_check = clean_text(
+            rule.check_content, MAX_CHECK_CONTENT_LENGTH, preserve_formatting=True
+        )
 
         self.stats.text_fields_cleaned += 5
 
@@ -590,7 +598,9 @@ class ContentNormalizer:
         """
         # Clean text fields
         normalized_title = clean_text(profile.title, MAX_TITLE_LENGTH)
-        normalized_description = clean_text(profile.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True)
+        normalized_description = clean_text(
+            profile.description, MAX_DESCRIPTION_LENGTH, preserve_formatting=True
+        )
 
         # Normalize metadata
         normalized_metadata = self._normalize_metadata(profile.metadata)
@@ -710,7 +720,8 @@ class ContentNormalizer:
             elif isinstance(value, list):
                 # Clean list items if strings
                 normalized[norm_key] = [
-                    clean_text(item, max_length=500) if isinstance(item, str) else item for item in value
+                    clean_text(item, max_length=500) if isinstance(item, str) else item
+                    for item in value
                 ]
             else:
                 normalized[norm_key] = value

@@ -64,13 +64,17 @@ class OSDiscoveryStatsResponse(BaseModel):
     hosts_with_platform: int = Field(description="Hosts with platform_identifier set")
     hosts_missing_platform: int = Field(description="Hosts missing platform data")
     pending_failures: int = Field(description="Number of unacknowledged discovery failures")
-    failures: List[DiscoveryFailure] = Field(default_factory=list, description="Recent discovery failures")
+    failures: List[DiscoveryFailure] = Field(
+        default_factory=list, description="Recent discovery failures"
+    )
 
 
 class AcknowledgeFailuresRequest(BaseModel):
     """Request to acknowledge discovery failures"""
 
-    host_ids: Optional[List[str]] = Field(None, description="Specific host IDs to acknowledge (None = all)")
+    host_ids: Optional[List[str]] = Field(
+        None, description="Specific host IDs to acknowledge (None = all)"
+    )
 
 
 @router.get("/config", response_model=OSDiscoveryConfigResponse)
@@ -296,7 +300,8 @@ async def trigger_os_discovery(
         task = discover_all_hosts_os.delay(force=True)
 
         logger.info(
-            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, " f"task_id={task.id}"
+            f"Manual OS discovery triggered by user {current_user.get('username', 'unknown')}, "
+            f"task_id={task.id}"
         )
 
         return {

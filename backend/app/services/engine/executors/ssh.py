@@ -54,7 +54,13 @@ if TYPE_CHECKING:
     from backend.app.services.auth_service import CredentialData
 
 from ..dependency_resolver import SCAPDependency, SCAPDependencyResolver
-from ..exceptions import DependencyError, FileTransferError, ScanExecutionError, ScanTimeoutError, SSHExecutionError
+from ..exceptions import (
+    DependencyError,
+    FileTransferError,
+    ScanExecutionError,
+    ScanTimeoutError,
+    SSHExecutionError,
+)
 from ..models import ExecutionContext, ExecutionMode, RemoteScanResult, ScanStatus
 from .base import BaseExecutor
 
@@ -310,7 +316,9 @@ class SSHExecutor(BaseExecutor):
                 cause=e,
             )
 
-    def _establish_connection(self, context: ExecutionContext, credential_data: "CredentialData") -> paramiko.SSHClient:
+    def _establish_connection(
+        self, context: ExecutionContext, credential_data: "CredentialData"
+    ) -> paramiko.SSHClient:
         """
         Establish SSH connection to the target host.
 
@@ -369,7 +377,9 @@ class SSHExecutor(BaseExecutor):
         self._logger.info("SSH connection established successfully")
         return connection_result.connection
 
-    def _get_credential_value(self, credential_data: "CredentialData", auth_method: str) -> Optional[str]:
+    def _get_credential_value(
+        self, credential_data: "CredentialData", auth_method: str
+    ) -> Optional[str]:
         """
         Extract the credential value based on authentication method.
 

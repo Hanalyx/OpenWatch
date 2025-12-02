@@ -172,7 +172,9 @@ class SSHConnectionManager:
         self._debug_mode = True
         # Enable paramiko debug logging to file
         paramiko.util.log_to_file("/tmp/paramiko_debug.log")
-        logger.info("SSH debug mode enabled - detailed logs will be written " "to /tmp/paramiko_debug.log")
+        logger.info(
+            "SSH debug mode enabled - detailed logs will be written " "to /tmp/paramiko_debug.log"
+        )
 
     def disable_debug_mode(self) -> None:
         """Disable SSH debugging."""
@@ -266,7 +268,9 @@ class SSHConnectionManager:
             connect_timeout = timeout or 30
 
             if self._debug_mode:
-                logger.info("[DEBUG] SSH connection attempt to %s:%d as %s", hostname, port, username)
+                logger.info(
+                    "[DEBUG] SSH connection attempt to %s:%d as %s", hostname, port, username
+                )
                 logger.info("[DEBUG] Auth method: %s, Timeout: %ds", auth_method, connect_timeout)
                 logger.info("[DEBUG] Service: %s", service_name)
 
@@ -285,7 +289,10 @@ class SSHConnectionManager:
                 if client is None:
                     return SSHConnectionResult(
                         success=False,
-                        error_message=("Both SSH key and password authentication " f"failed for {username}@{hostname}"),
+                        error_message=(
+                            "Both SSH key and password authentication "
+                            f"failed for {username}@{hostname}"
+                        ),
                         error_type="auth_failed",
                     )
 
@@ -388,10 +395,14 @@ class SSHConnectionManager:
         except socket.timeout:
             if client:
                 client.close()
-            logger.warning("SSH connection timeout to %s:%d after %ds", hostname, port, connect_timeout)
+            logger.warning(
+                "SSH connection timeout to %s:%d after %ds", hostname, port, connect_timeout
+            )
             return SSHConnectionResult(
                 success=False,
-                error_message=(f"Connection timeout to {hostname}:{port} " f"after {connect_timeout}s"),
+                error_message=(
+                    f"Connection timeout to {hostname}:{port} " f"after {connect_timeout}s"
+                ),
                 error_type="timeout",
             )
 
@@ -470,7 +481,9 @@ class SSHConnectionManager:
                     return client, "private_key"
 
                 except paramiko.AuthenticationException as e:
-                    logger.warning("SSH key authentication failed for %s@%s: %s", username, hostname, e)
+                    logger.warning(
+                        "SSH key authentication failed for %s@%s: %s", username, hostname, e
+                    )
                     # Close failed connection before retry
                     if client:
                         client.close()
@@ -518,7 +531,10 @@ class SSHConnectionManager:
             else:
                 if client:
                     client.close()
-                logger.error("SSH key authentication failed and no password provided " "for fallback (both method)")
+                logger.error(
+                    "SSH key authentication failed and no password provided "
+                    "for fallback (both method)"
+                )
                 return None, None
 
         return client, None
@@ -764,7 +780,9 @@ class SSHConnectionManager:
                     # Try to determine key type and load
                     pkey = self._load_private_key(key_file)
                     if pkey is None:
-                        return SimpleNamespace(exit_code=-1, stdout="", stderr="Failed to parse SSH key", success=False)
+                        return SimpleNamespace(
+                            exit_code=-1, stdout="", stderr="Failed to parse SSH key", success=False
+                        )
 
                     temp_client.connect(
                         hostname=hostname,

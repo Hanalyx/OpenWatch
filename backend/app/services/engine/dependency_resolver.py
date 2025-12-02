@@ -195,7 +195,9 @@ class SCAPDependencyResolver:
 
         # Detect file type and add primary file
         file_type = self._detect_file_type(primary_file)
-        primary_dep = SCAPDependency(file_path=primary_file, dependency_type=file_type, is_primary=True)
+        primary_dep = SCAPDependency(
+            file_path=primary_file, dependency_type=file_type, is_primary=True
+        )
         self.dependencies.append(primary_dep)
         self.resolved_files.add(primary_file)
 
@@ -205,9 +207,15 @@ class SCAPDependencyResolver:
         elif file_type == "datastream":
             self._resolve_datastream_dependencies(primary_file, base_dir)
         else:
-            self._logger.debug("File type '%s' does not have external dependencies: %s", file_type, primary_file.name)
+            self._logger.debug(
+                "File type '%s' does not have external dependencies: %s",
+                file_type,
+                primary_file.name,
+            )
 
-        self._logger.info("Resolved %d SCAP dependencies for %s", len(self.dependencies), primary_file.name)
+        self._logger.info(
+            "Resolved %d SCAP dependencies for %s", len(self.dependencies), primary_file.name
+        )
         return self.dependencies
 
     def _detect_file_type(self, file_path: Path) -> str:
@@ -249,7 +257,9 @@ class SCAPDependencyResolver:
                 return "other"
 
         except ET.ParseError as e:
-            self._logger.warning("XML parse error detecting file type for %s: %s", file_path, str(e))
+            self._logger.warning(
+                "XML parse error detecting file type for %s: %s", file_path, str(e)
+            )
             return "other"
         except Exception as e:
             self._logger.warning("Could not detect file type for %s: %s", file_path, str(e))
@@ -298,7 +308,9 @@ class SCAPDependencyResolver:
                 if ns:
                     ref_elements.extend(root.findall(f".//{{{ns}}}reference"))
 
-            self._logger.debug("Found %d check-content-ref elements in %s", len(ref_elements), xccdf_file.name)
+            self._logger.debug(
+                "Found %d check-content-ref elements in %s", len(ref_elements), xccdf_file.name
+            )
 
             # Extract href attributes and add dependencies
             for ref in ref_elements:
@@ -380,12 +392,17 @@ class SCAPDependencyResolver:
                 # Determine type and add dependency
                 dep_type = self._detect_file_type(found_file)
                 dep = SCAPDependency(
-                    file_path=found_file, dependency_type=dep_type, referenced_by=primary_file, is_primary=False
+                    file_path=found_file,
+                    dependency_type=dep_type,
+                    referenced_by=primary_file,
+                    is_primary=False,
                 )
                 self.dependencies.append(dep)
                 self.resolved_files.add(found_file)
 
-                self._logger.debug("Added co-located dependency: %s (type: %s)", found_file.name, dep_type)
+                self._logger.debug(
+                    "Added co-located dependency: %s (type: %s)", found_file.name, dep_type
+                )
 
     def _add_dependency(self, href: str, base_dir: Path, referenced_by: Path) -> None:
         """
@@ -421,14 +438,19 @@ class SCAPDependencyResolver:
         try:
             dep_path.relative_to(base_dir.parent)  # Allow siblings
         except ValueError:
-            self._logger.warning("Blocked potential path traversal: %s (resolved to %s)", href, dep_path)
+            self._logger.warning(
+                "Blocked potential path traversal: %s (resolved to %s)", href, dep_path
+            )
             return
 
         # Add if exists and not already resolved
         if dep_path.exists() and dep_path not in self.resolved_files:
             dep_type = self._detect_file_type(dep_path)
             dep = SCAPDependency(
-                file_path=dep_path, dependency_type=dep_type, referenced_by=referenced_by, is_primary=False
+                file_path=dep_path,
+                dependency_type=dep_type,
+                referenced_by=referenced_by,
+                is_primary=False,
             )
             self.dependencies.append(dep)
             self.resolved_files.add(dep_path)

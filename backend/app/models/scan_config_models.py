@@ -42,7 +42,9 @@ class ScanTemplate(Document):
     framework_version: str = Field(..., description="Framework version (e.g., 'rev5', '1.0.0')")
     target_type: ScanTargetType = Field(..., description="Target system type")
 
-    variable_overrides: Dict[str, str] = Field(default_factory=dict, description="Variable values overriding defaults")
+    variable_overrides: Dict[str, str] = Field(
+        default_factory=dict, description="Variable values overriding defaults"
+    )
 
     rule_filter: Optional[Dict[str, Any]] = Field(
         default=None,
@@ -106,7 +108,9 @@ class VariableDefinition(BaseModel):
     type: str = Field(..., description="Variable type: string, number, boolean")
     default: Any = Field(..., description="Default value")
 
-    constraints: Optional[VariableConstraint] = Field(default=None, description="Validation constraints")
+    constraints: Optional[VariableConstraint] = Field(
+        default=None, description="Validation constraints"
+    )
 
     interactive: bool = Field(default=True, description="Whether user input is required")
 
@@ -155,7 +159,9 @@ class FrameworkVersion(BaseModel):
 
     categories: List[str] = Field(default_factory=list, description="Available rule categories")
 
-    target_types: List[ScanTargetType] = Field(default_factory=list, description="Supported target types")
+    target_types: List[ScanTargetType] = Field(
+        default_factory=list, description="Supported target types"
+    )
 
 
 # API Request/Response Schemas
@@ -196,8 +202,12 @@ class ValidationResult(BaseModel):
     """Result of variable validation."""
 
     valid: bool = Field(..., description="Overall validation result")
-    errors: Dict[str, str] = Field(default_factory=dict, description="Variable ID -> error message mapping")
-    warnings: Dict[str, str] = Field(default_factory=dict, description="Variable ID -> warning message mapping")
+    errors: Dict[str, str] = Field(
+        default_factory=dict, description="Variable ID -> error message mapping"
+    )
+    warnings: Dict[str, str] = Field(
+        default_factory=dict, description="Variable ID -> warning message mapping"
+    )
 
 
 class ApplyTemplateRequest(BaseModel):

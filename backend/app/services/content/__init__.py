@@ -122,7 +122,13 @@ from .exceptions import (
 )
 
 # Re-export import components
-from .import_ import ContentImporter, DependencyValidator, ImportProgress, ImportResult, SCAPDependency
+from .import_ import (
+    ContentImporter,
+    DependencyValidator,
+    ImportProgress,
+    ImportResult,
+    SCAPDependency,
+)
 
 # Re-export models for convenient access
 # These are the core data structures used throughout content processing

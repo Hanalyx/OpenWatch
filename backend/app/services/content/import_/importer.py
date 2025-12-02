@@ -505,7 +505,9 @@ class ContentImporter:
             rule_data: Rule data dictionary
         """
         # Check if intelligence already exists
-        existing_intel = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_data["rule_id"])
+        existing_intel = await RuleIntelligence.find_one(
+            RuleIntelligence.rule_id == rule_data["rule_id"]
+        )
 
         if existing_intel:
             return  # Skip if already exists

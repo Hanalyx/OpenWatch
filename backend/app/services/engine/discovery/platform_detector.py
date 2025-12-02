@@ -213,7 +213,9 @@ class PlatformDetector:
         # Handle encrypted credentials
         if connection_params.get("encrypted_password"):
             try:
-                config["password"] = encryption_service.decrypt(connection_params["encrypted_password"])
+                config["password"] = encryption_service.decrypt(
+                    connection_params["encrypted_password"]
+                )
             except Exception as e:
                 logger.warning(f"Failed to decrypt password: {e}")
         elif connection_params.get("password"):
@@ -221,7 +223,9 @@ class PlatformDetector:
 
         if connection_params.get("encrypted_private_key"):
             try:
-                config["private_key"] = encryption_service.decrypt(connection_params["encrypted_private_key"])
+                config["private_key"] = encryption_service.decrypt(
+                    connection_params["encrypted_private_key"]
+                )
             except Exception as e:
                 logger.warning(f"Failed to decrypt private key: {e}")
         elif connection_params.get("private_key"):
@@ -380,7 +384,9 @@ class PlatformDetector:
                 return f"{os_family_lower}{major_version}"
 
         except (IndexError, ValueError) as e:
-            logger.warning(f"Failed to normalize platform identifier for {os_family} {os_version}: {e}")
+            logger.warning(
+                f"Failed to normalize platform identifier for {os_family} {os_version}: {e}"
+            )
             return None
 
 

@@ -310,7 +310,9 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         if "timeout" in exc_name:
             return status.HTTP_504_GATEWAY_TIMEOUT
 
-        if any(service_type in exc_name for service_type in ["connection", "service", "unavailable"]):
+        if any(
+            service_type in exc_name for service_type in ["connection", "service", "unavailable"]
+        ):
             return status.HTTP_503_SERVICE_UNAVAILABLE
 
         # Default to internal server error
@@ -457,7 +459,9 @@ def get_error_monitor() -> ErrorMonitor:
 
 
 # Utility functions for common error scenarios
-def raise_validation_error(message: str, field: Optional[str] = None, code: Optional[str] = None) -> None:
+def raise_validation_error(
+    message: str, field: Optional[str] = None, code: Optional[str] = None
+) -> None:
     """
     Raise standardized validation error.
 
@@ -506,7 +510,9 @@ def raise_not_found_error(resource: str, identifier: Optional[str] = None) -> No
     )
 
 
-def raise_service_error(message: str, service: Optional[str] = None, retry_after: Optional[int] = None) -> None:
+def raise_service_error(
+    message: str, service: Optional[str] = None, retry_after: Optional[int] = None
+) -> None:
     """
     Raise standardized service error.
 

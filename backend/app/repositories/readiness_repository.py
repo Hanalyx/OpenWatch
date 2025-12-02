@@ -111,7 +111,9 @@ class ReadinessRepository:
             row = result.fetchone()
 
             if not row:
-                self.logger.debug(f"No cached validation found for host {host_id} within {cache_ttl_hours}h TTL")
+                self.logger.debug(
+                    f"No cached validation found for host {host_id} within {cache_ttl_hours}h TTL"
+                )
                 return None
 
             validation_run_id = row[0]
@@ -145,7 +147,8 @@ class ReadinessRepository:
             )
 
             self.logger.info(
-                f"Retrieved cached validation for host {host_id} " f"(completed_at={row[8]}, status={row[1]})"
+                f"Retrieved cached validation for host {host_id} "
+                f"(completed_at={row[8]}, status={row[1]})"
             )
 
             return cached_validation
@@ -318,8 +321,14 @@ class ReadinessRepository:
 
             for result in check_results:
                 # Handle both enum and string values for check_type and severity
-                check_type_str = result.check_type if isinstance(result.check_type, str) else result.check_type.value
-                severity_str = result.severity if isinstance(result.severity, str) else result.severity.value
+                check_type_str = (
+                    result.check_type
+                    if isinstance(result.check_type, str)
+                    else result.check_type.value
+                )
+                severity_str = (
+                    result.severity if isinstance(result.severity, str) else result.severity.value
+                )
 
                 check_record = HostReadinessCheck(
                     id=uuid4(),
@@ -340,12 +349,16 @@ class ReadinessRepository:
 
             self.db.commit()
 
-            self.logger.info(f"Stored {len(check_results)} check results for validation run {validation_run_id}")
+            self.logger.info(
+                f"Stored {len(check_results)} check results for validation run {validation_run_id}"
+            )
 
             return len(check_results)
 
         except Exception as e:
-            self.logger.error(f"Error storing check results for validation run {validation_run_id}: {e}")
+            self.logger.error(
+                f"Error storing check results for validation run {validation_run_id}: {e}"
+            )
             self.db.rollback()
             raise
 
@@ -607,7 +620,9 @@ class ReadinessRepository:
             # Delete check results first (foreign key constraint)
             for validation_id in validation_ids:
                 self.db.execute(
-                    text("DELETE FROM host_readiness_checks WHERE validation_run_id = :validation_id"),
+                    text(
+                        "DELETE FROM host_readiness_checks WHERE validation_run_id = :validation_id"
+                    ),
                     {"validation_id": validation_id},
                 )
 
@@ -621,7 +636,9 @@ class ReadinessRepository:
 
             self.db.commit()
 
-            self.logger.info(f"Deleted {delete_count} validation records older than {retention_days} days")
+            self.logger.info(
+                f"Deleted {delete_count} validation records older than {retention_days} days"
+            )
 
             return delete_count
 

@@ -31,7 +31,9 @@ class IntervalConfig(BaseModel):
     degraded: int = Field(default=5, ge=1, le=15, description="Partial connectivity check interval")
     critical: int = Field(default=2, ge=1, le=10, description="Severe issues check interval")
     down: int = Field(default=30, ge=10, le=120, description="Completely down check interval")
-    maintenance: int = Field(default=60, ge=15, le=1440, description="Maintenance mode check interval")
+    maintenance: int = Field(
+        default=60, ge=15, le=1440, description="Maintenance mode check interval"
+    )
 
 
 class PriorityConfig(BaseModel):

@@ -439,7 +439,9 @@ class BaseContentParser(ABC):
         """
         # Basic sanity checks
         if content.rule_count == 0 and content.profile_count == 0:
-            logger.warning("Parsed content contains no rules or profiles - file may be empty or invalid")
+            logger.warning(
+                "Parsed content contains no rules or profiles - file may be empty or invalid"
+            )
             content.parse_warnings.append("Parsed content contains no rules or profiles")
 
         # Check for duplicate rule IDs
@@ -460,4 +462,6 @@ class BaseContentParser(ABC):
                 "Duplicate profile IDs found: %s",
                 ", ".join(list(duplicate_profile_ids)[:5]),
             )
-            content.parse_warnings.append(f"Found {len(duplicate_profile_ids)} duplicate profile IDs")
+            content.parse_warnings.append(
+                f"Found {len(duplicate_profile_ids)} duplicate profile IDs"
+            )

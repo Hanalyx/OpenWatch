@@ -28,7 +28,12 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import get_settings
 from backend.app.encryption import EncryptionConfig, EncryptionService, create_encryption_service
-from backend.app.models.readiness_models import HostReadiness, ReadinessCheckResult, ReadinessCheckType, ReadinessStatus
+from backend.app.models.readiness_models import (
+    HostReadiness,
+    ReadinessCheckResult,
+    ReadinessCheckType,
+    ReadinessStatus,
+)
 from backend.app.repositories.readiness_repository import ReadinessRepository
 from backend.app.services.auth_service import CentralizedAuthService
 
@@ -87,7 +92,9 @@ class ReadinessValidatorService:
             if encryption_service is None:
                 # Load master key from settings (environment variable)
                 settings = get_settings()
-                enc_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
+                enc_service = create_encryption_service(
+                    master_key=settings.master_key, config=EncryptionConfig()
+                )
             else:
                 enc_service = encryption_service
             self.auth_service = CentralizedAuthService(db, enc_service)
@@ -154,7 +161,9 @@ class ReadinessValidatorService:
         # Resolve credentials  # pragma: allowlist secret
         credentials = self.auth_service.resolve_credential(str(host_id))  # pragma: allowlist secret
         if not credentials:  # pragma: allowlist secret
-            raise ValueError(f"No credentials configured for host {host_id}")  # pragma: allowlist secret
+            raise ValueError(
+                f"No credentials configured for host {host_id}"
+            )  # pragma: allowlist secret
 
         # Determine which checks to run
         checks_to_run = check_types or list(self.all_checks.keys())
@@ -162,7 +171,9 @@ class ReadinessValidatorService:
         # Open SSH connection ONCE using context manager
         # This eliminates redundant SSH handshakes (7 checks = 1 connection, not 7 connections)
         try:
-            async with SSHConnectionContext(self.ssh_service, host, credentials) as ssh_ctx:  # pragma: allowlist secret
+            async with SSHConnectionContext(
+                self.ssh_service, host, credentials
+            ) as ssh_ctx:  # pragma: allowlist secret
                 # Execute all checks with shared connection
                 check_results = await self._execute_checks(
                     host=host,
@@ -199,7 +210,9 @@ class ReadinessValidatorService:
         failed_checks = total_checks - passed_checks
         # Handle both enum and string values for severity
         warnings_count = sum(
-            1 for r in check_results if (r.severity if isinstance(r.severity, str) else r.severity.value) == "warning"
+            1
+            for r in check_results
+            if (r.severity if isinstance(r.severity, str) else r.severity.value) == "warning"
         )
 
         # Determine overall status
@@ -207,7 +220,8 @@ class ReadinessValidatorService:
         if overall_passed:
             status = ReadinessStatus.READY
         elif any(
-            (r.severity if isinstance(r.severity, str) else r.severity.value) == "error" and not r.passed
+            (r.severity if isinstance(r.severity, str) else r.severity.value) == "error"
+            and not r.passed
             for r in check_results
         ):
             status = ReadinessStatus.NOT_READY

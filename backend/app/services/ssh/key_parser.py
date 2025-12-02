@@ -76,7 +76,8 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
     """
     # Issue deprecation warning for new usage tracking
     warnings.warn(
-        "detect_key_type is deprecated. Use validate_ssh_key() from " "key_validator module instead.",
+        "detect_key_type is deprecated. Use validate_ssh_key() from "
+        "key_validator module instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -91,7 +92,9 @@ def detect_key_type(key_content: Union[str, bytes, memoryview]) -> Optional[SSHK
         # Check for Ed25519 markers
         # OpenSSH format requires actual parsing to distinguish key types
         # NOTE: These are key format markers for detection, not actual keys
-        if "ssh-ed25519" in content_str or "BEGIN OPENSSH PRIVATE KEY" in content_str:  # pragma: allowlist secret
+        if (
+            "ssh-ed25519" in content_str or "BEGIN OPENSSH PRIVATE KEY" in content_str
+        ):  # pragma: allowlist secret
             try:
                 if "-----BEGIN OPENSSH PRIVATE KEY-----" in content_str:  # pragma: allowlist secret
                     # OpenSSH format - try to parse as Ed25519 first

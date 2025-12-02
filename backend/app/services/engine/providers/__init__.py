@@ -51,7 +51,12 @@ Usage (Future):
     await provider.push_findings(scan_results)
 """
 
-from backend.app.services.engine.providers.base import BaseProvider, ProviderCapability, ProviderConfig, ProviderError
+from backend.app.services.engine.providers.base import (
+    BaseProvider,
+    ProviderCapability,
+    ProviderConfig,
+    ProviderError,
+)
 
 __all__ = [
     "BaseProvider",

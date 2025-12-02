@@ -123,7 +123,8 @@ class ARFResultParser(BaseResultParser):
 
         if not HAS_DEFUSED:
             self._logger.warning(
-                "defusedxml not available - using standard XML parser. " "Install defusedxml for enhanced security."
+                "defusedxml not available - using standard XML parser. "
+                "Install defusedxml for enhanced security."
             )
 
     @property
@@ -193,7 +194,10 @@ class ARFResultParser(BaseResultParser):
             # Check file size
             file_size = file_path.stat().st_size
             if file_size > self.max_file_size:
-                raise ValueError(f"File too large: {file_size} bytes exceeds " f"maximum of {self.max_file_size} bytes")
+                raise ValueError(
+                    f"File too large: {file_size} bytes exceeds "
+                    f"maximum of {self.max_file_size} bytes"
+                )
 
             # Parse XML
             root = self._parse_xml(file_path)
@@ -450,14 +454,18 @@ class ARFResultParser(BaseResultParser):
             start_str = test_result.get("start-time")
             if start_str:
                 try:
-                    xccdf_metadata["scan_start"] = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    xccdf_metadata["scan_start"] = datetime.fromisoformat(
+                        start_str.replace("Z", "+00:00")
+                    )
                 except ValueError:
                     pass
 
             end_str = test_result.get("end-time")
             if end_str:
                 try:
-                    xccdf_metadata["scan_end"] = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                    xccdf_metadata["scan_end"] = datetime.fromisoformat(
+                        end_str.replace("Z", "+00:00")
+                    )
                 except ValueError:
                     pass
 

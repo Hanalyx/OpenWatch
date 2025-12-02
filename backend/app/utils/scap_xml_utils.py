@@ -78,7 +78,9 @@ SCAP_NAMESPACES = {
 }
 
 
-def safe_xml_find(root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None) -> Optional[Any]:
+def safe_xml_find(
+    root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None
+) -> Optional[Any]:
     """
     Safe XML element finder with error handling.
 
@@ -99,7 +101,9 @@ def safe_xml_find(root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = 
         return None
 
 
-def safe_xml_findall(root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None) -> List[Any]:
+def safe_xml_findall(
+    root: Any, xpath: str, namespaces: Optional[Dict[str, str]] = None
+) -> List[Any]:
     """
     Safe XML elements finder with error handling.
 

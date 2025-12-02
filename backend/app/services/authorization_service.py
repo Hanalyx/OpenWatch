@@ -112,7 +112,9 @@ class AuthorizationService:
             if self.config.cache_ttl_seconds > 0:
                 cached_result = self.permission_cache.get(user_id, resource, action)
                 if cached_result:
-                    logger.debug(f"Cache hit for {user_id}:{resource.resource_type}:{resource.resource_id}:{action}")
+                    logger.debug(
+                        f"Cache hit for {user_id}:{resource.resource_type}:{resource.resource_id}:{action}"
+                    )
                     return cached_result
 
             # Perform authorization evaluation
@@ -150,14 +152,17 @@ class AuthorizationService:
                 decision=AuthorizationDecision.DENY,
                 resource=resource,
                 action=action,
-                context=context or AuthorizationContext(user_id=user_id, user_roles=[], user_groups=[]),
+                context=context
+                or AuthorizationContext(user_id=user_id, user_roles=[], user_groups=[]),
                 applied_policies=[],
                 reason=f"Authorization system error: {str(e)}",
                 confidence_score=0.0,
                 evaluation_time_ms=int((time.time() - start_time) * 1000),
             )
 
-    async def check_bulk_permissions(self, request: BulkAuthorizationRequest) -> BulkAuthorizationResult:
+    async def check_bulk_permissions(
+        self, request: BulkAuthorizationRequest
+    ) -> BulkAuthorizationResult:
         """
         Check permissions for multiple resources in bulk.
 
@@ -187,7 +192,10 @@ class AuthorizationService:
             fresh_count = 0
 
             # Process resources based on configuration
-            if request.parallel_evaluation and len(request.resources) >= self.config.parallel_evaluation_threshold:
+            if (
+                request.parallel_evaluation
+                and len(request.resources) >= self.config.parallel_evaluation_threshold
+            ):
                 # Parallel evaluation for large requests
                 individual_results = await self._evaluate_parallel_permissions(
                     request.user_id, request.resources, request.action, request.context
@@ -195,7 +203,9 @@ class AuthorizationService:
             else:
                 # Sequential evaluation
                 for resource in request.resources:
-                    result = await self.check_permission(request.user_id, resource, request.action, request.context)
+                    result = await self.check_permission(
+                        request.user_id, resource, request.action, request.context
+                    )
                     individual_results.append(result)
 
                     if result.cached:
@@ -205,7 +215,9 @@ class AuthorizationService:
 
                     # Fail fast if configured and we hit a deny
                     if request.fail_fast and result.decision == AuthorizationDecision.DENY:
-                        logger.info(f"Fail-fast triggered: Access denied for resource {resource.resource_id}")
+                        logger.info(
+                            f"Fail-fast triggered: Access denied for resource {resource.resource_id}"
+                        )
                         # Still need to create placeholder results for remaining resources
                         remaining_resources = request.resources[len(individual_results) :]
                         for remaining_resource in remaining_resources:
@@ -230,7 +242,11 @@ class AuthorizationService:
                     denied_resources.append(result.resource)
 
             # Determine overall decision
-            overall_decision = AuthorizationDecision.ALLOW if len(denied_resources) == 0 else AuthorizationDecision.DENY
+            overall_decision = (
+                AuthorizationDecision.ALLOW
+                if len(denied_resources) == 0
+                else AuthorizationDecision.DENY
+            )
 
             total_time = int((time.time() - start_time) * 1000)
 
@@ -320,7 +336,9 @@ class AuthorizationService:
             applied_policies = policies
 
             # Step 4: Apply role-based permissions as additional validation
-            role_decision = await self._evaluate_role_permissions(user_id, resource, action, context)
+            role_decision = await self._evaluate_role_permissions(
+                user_id, resource, action, context
+            )
 
             # Step 5: Combine policy and role decisions
             final_decision, final_reason = self._combine_decisions(
@@ -439,7 +457,9 @@ class AuthorizationService:
                 try:
                     import json
 
-                    actions = json.loads(row.actions) if isinstance(row.actions, str) else row.actions
+                    actions = (
+                        json.loads(row.actions) if isinstance(row.actions, str) else row.actions
+                    )
                 except Exception:
                     actions = [row.actions] if row.actions else []
 
@@ -650,7 +670,9 @@ class AuthorizationService:
             logger.error(f"User validation error for {user_id}: {e}")
             return False
 
-    def _audit_authorization_decision(self, result: AuthorizationResult, context: AuthorizationContext):
+    def _audit_authorization_decision(
+        self, result: AuthorizationResult, context: AuthorizationContext
+    ):
         """
         Audit authorization decisions for security monitoring
         """
@@ -1000,16 +1022,22 @@ class AuthorizationService:
                 logger.info(f"Revoked permission {sanitize_for_log(permission_id)}")
                 return True
             else:
-                logger.warning(f"Permission {sanitize_for_log(permission_id)} not found for revocation")
+                logger.warning(
+                    f"Permission {sanitize_for_log(permission_id)} not found for revocation"
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Failed to revoke permission {sanitize_for_log(permission_id)}: {type(e).__name__}")
+            logger.error(
+                f"Failed to revoke permission {sanitize_for_log(permission_id)}: {type(e).__name__}"
+            )
             self.db.rollback()
             return False
 
 
 # Factory function
-def get_authorization_service(db: Session, config: Optional[AuthorizationConfiguration] = None) -> AuthorizationService:
+def get_authorization_service(
+    db: Session, config: Optional[AuthorizationConfiguration] = None
+) -> AuthorizationService:
     """Factory function to create AuthorizationService instance"""
     return AuthorizationService(db, config)

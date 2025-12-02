@@ -181,7 +181,9 @@ class KnownHostsManager:
                         "key_type": row.key_type,
                         "fingerprint": row.fingerprint,
                         "first_seen": (row.first_seen.isoformat() if row.first_seen else None),
-                        "last_verified": (row.last_verified.isoformat() if row.last_verified else None),
+                        "last_verified": (
+                            row.last_verified.isoformat() if row.last_verified else None
+                        ),
                         "is_trusted": row.is_trusted,
                         "notes": row.notes,
                     }
@@ -250,7 +252,9 @@ class KnownHostsManager:
             fingerprint = self._generate_fingerprint(public_key)
 
             if fingerprint is None:
-                logger.error("Failed to generate fingerprint for host %s - invalid key format", hostname)
+                logger.error(
+                    "Failed to generate fingerprint for host %s - invalid key format", hostname
+                )
                 return False
 
             # Insert new known host record

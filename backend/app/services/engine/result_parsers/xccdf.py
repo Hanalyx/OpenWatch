@@ -103,7 +103,8 @@ class XCCDFResultParser(BaseResultParser):
         # Log warning if defusedxml not available
         if not HAS_DEFUSED:
             self._logger.warning(
-                "defusedxml not available - using standard XML parser. " "Install defusedxml for enhanced security."
+                "defusedxml not available - using standard XML parser. "
+                "Install defusedxml for enhanced security."
             )
 
     @property
@@ -181,7 +182,10 @@ class XCCDFResultParser(BaseResultParser):
             # Check file size
             file_size = file_path.stat().st_size
             if file_size > self.max_file_size:
-                raise ValueError(f"File too large: {file_size} bytes exceeds " f"maximum of {self.max_file_size} bytes")
+                raise ValueError(
+                    f"File too large: {file_size} bytes exceeds "
+                    f"maximum of {self.max_file_size} bytes"
+                )
 
             # Parse XML
             root = self._parse_xml(file_path)
