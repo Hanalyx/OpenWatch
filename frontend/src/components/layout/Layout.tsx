@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -59,7 +59,9 @@ import {
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { logout } from '../../store/slices/authSlice';
+import { setOSDiscoveryFailures } from '../../store/slices/notificationSlice';
 import { useTheme as useCustomTheme } from '../../contexts/ThemeContext';
+import { api } from '../../services/api';
 
 const drawerWidth = 240;
 const collapsedDrawerWidth = 64;
@@ -170,6 +172,7 @@ const Layout: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user } = useAppSelector((state) => state.auth);
   const notifications = useAppSelector((state) => state.notifications.notifications);
+  const systemAlerts = useAppSelector((state) => state.notifications.systemAlerts);
   const { mode: themeMode, toggleTheme } = useCustomTheme();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -182,6 +185,27 @@ const Layout: React.FC = () => {
     mouseY: number;
   } | null>(null);
   const [contextMenuItem, setContextMenuItem] = useState<(typeof menuItems)[0] | null>(null);
+
+  // Fetch system alerts (OS discovery failures, etc.) periodically
+  const fetchSystemAlerts = useCallback(async () => {
+    try {
+      const response = await api.get('/api/system/os-discovery/failures/count');
+      dispatch(setOSDiscoveryFailures(response.count || 0));
+    } catch {
+      // Silently fail - alerts are not critical for app operation
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchSystemAlerts();
+    // Poll every 60 seconds for system alerts
+    const interval = setInterval(fetchSystemAlerts, 60000);
+    return () => clearInterval(interval);
+  }, [fetchSystemAlerts]);
+
+  // Calculate total badge count (toast notifications + system alerts)
+  const totalAlertCount = notifications.length + systemAlerts.osDiscoveryFailures;
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -449,11 +473,15 @@ const Layout: React.FC = () => {
             </IconButton>
           </Tooltip>
 
-          <IconButton sx={{ mr: 1, color: 'text.primary' }}>
-            <Badge badgeContent={notifications.length} color="error">
-              <Notifications />
-            </Badge>
-          </IconButton>
+          <Tooltip
+            title={totalAlertCount > 0 ? `${totalAlertCount} notification(s)` : 'No notifications'}
+          >
+            <IconButton sx={{ mr: 1, color: 'text.primary' }} onClick={() => navigate('/settings')}>
+              <Badge badgeContent={totalAlertCount} color="error">
+                <Notifications />
+              </Badge>
+            </IconButton>
+          </Tooltip>
 
           <IconButton onClick={handleProfileMenuOpen} sx={{ color: 'text.primary' }}>
             <Avatar

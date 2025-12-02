@@ -105,6 +105,62 @@ def _normalize_platform_identifier(os_family: str, os_version: str) -> Optional[
         return None
 
 
+def _record_discovery_failure(host_id: str, error_message: str) -> None:
+    """
+    Record a permanent discovery failure for notification purposes.
+
+    This function is called when all retry attempts for OS discovery have been
+    exhausted. It stores the failure in the system_settings table as a JSON
+    array of failed hosts, which can be polled by the frontend for notification.
+
+    Args:
+        host_id: UUID of the host that failed discovery
+        error_message: Error message from the final failure
+    """
+    try:
+        import json
+
+        with get_db_session() as db:
+            # Get current failures list
+            query = text("SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_failures'")
+            result = db.execute(query).fetchone()
+
+            if result and result[0]:
+                try:
+                    failures = json.loads(result[0])
+                except json.JSONDecodeError:
+                    failures = []
+            else:
+                failures = []
+
+            # Add new failure (limit to last 50 failures)
+            failure_entry = {
+                "host_id": host_id,
+                "error": error_message[:500],  # Truncate long errors
+                "failed_at": datetime.utcnow().isoformat(),
+            }
+            failures.append(failure_entry)
+            failures = failures[-50:]  # Keep only last 50
+
+            # Upsert the failures list
+            upsert_query = text(
+                """
+                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, modified_at)
+                VALUES ('os_discovery_failures', :value, 'json', 'Failed OS discovery attempts', :now, :now)
+                ON CONFLICT (setting_key)
+                DO UPDATE SET setting_value = :value, modified_at = :now
+            """
+            )
+            db.execute(upsert_query, {"value": json.dumps(failures), "now": datetime.utcnow()})
+            db.commit()
+
+            logger.info(f"Recorded OS discovery failure for host {host_id}")
+
+    except Exception as e:
+        # Don't fail silently but also don't propagate - this is best-effort
+        logger.warning(f"Failed to record OS discovery failure for {host_id}: {e}")
+
+
 @celery_app.task(bind=True, name="backend.app.tasks.trigger_os_discovery")
 def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     """
@@ -176,9 +232,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
             # Create encryption service for credential decryption
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
             # Create a Host-like object for the discovery service
             # HostBasicDiscoveryService expects a Host model instance
@@ -212,9 +266,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             if not discovery_results.get("discovery_success", False):
                 errors = discovery_results.get("discovery_errors", ["Unknown error"])
                 result["error"] = "; ".join(errors)
-                logger.warning(
-                    f"OS discovery failed for host {host_id} ({host_row.hostname}): {result['error']}"
-                )
+                logger.warning(f"OS discovery failed for host {host_id} ({host_row.hostname}): {result['error']}")
                 return result
 
             # Extract discovered values
@@ -224,9 +276,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             discovered_os_name = discovery_results.get("os_name", "Unknown")
 
             # Normalize to platform identifier for OVAL selection
-            platform_identifier = _normalize_platform_identifier(
-                discovered_os_family, discovered_os_version
-            )
+            platform_identifier = _normalize_platform_identifier(discovered_os_family, discovered_os_version)
 
             # Update host record in database
             # Phase 4: Include platform_identifier for OVAL selection during scans
@@ -247,18 +297,10 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                 update_query,
                 {
                     "host_id": host_id,
-                    "os_family": (
-                        discovered_os_family if discovered_os_family != "Unknown" else None
-                    ),
-                    "os_version": (
-                        discovered_os_version if discovered_os_version != "Unknown" else None
-                    ),
-                    "architecture": (
-                        discovered_architecture if discovered_architecture != "Unknown" else None
-                    ),
-                    "operating_system": (
-                        discovered_os_name if discovered_os_name != "Unknown" else None
-                    ),
+                    "os_family": (discovered_os_family if discovered_os_family != "Unknown" else None),
+                    "os_version": (discovered_os_version if discovered_os_version != "Unknown" else None),
+                    "architecture": (discovered_architecture if discovered_architecture != "Unknown" else None),
+                    "operating_system": (discovered_os_name if discovered_os_name != "Unknown" else None),
                     "platform_identifier": platform_identifier,  # Phase 4: Persisted for scan OVAL selection
                     "last_os_detection": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
@@ -284,6 +326,16 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
     except Exception as exc:
         logger.error(f"Critical error in OS discovery for host {host_id}: {exc}")
         result["error"] = str(exc)
+
+        # Check if we've exhausted all retries
+        if self.request.retries >= 3:
+            # All retries exhausted - record failure for notification
+            logger.error(
+                f"OS discovery permanently failed for host {host_id} after "
+                f"{self.request.retries + 1} attempts: {exc}"
+            )
+            _record_discovery_failure(host_id, str(exc))
+            return result
 
         # Retry with exponential backoff on transient failures
         # Max 3 retries: 60s, 120s, 240s delays
@@ -333,9 +385,7 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
                 UUID(host_id)
             except ValueError:
                 result["failed"] += 1
-                result["dispatch_errors"].append(
-                    {"host_id": host_id, "error": "Invalid UUID format"}
-                )
+                result["dispatch_errors"].append({"host_id": host_id, "error": "Invalid UUID format"})
                 continue
 
             # Dispatch individual discovery task
@@ -367,8 +417,12 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
     This task queries all active hosts and dispatches OS discovery tasks
     for hosts that either have no OS information or when force=True.
 
+    The task respects the system_settings.os_discovery_enabled setting.
+    If disabled, the task will skip execution (unless force=True).
+
     Args:
-        force: If True, rediscover OS for all hosts regardless of existing data.
+        force: If True, rediscover OS for all hosts regardless of existing data
+               and ignore the os_discovery_enabled setting.
                If False (default), only discover for hosts with missing OS info.
 
     Returns:
@@ -377,6 +431,7 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
         - hosts_needing_discovery: Number of hosts that need OS discovery
         - dispatched: Number of discovery tasks dispatched
         - skipped: Number of hosts skipped (already have OS info)
+        - disabled: True if task was skipped due to system setting
 
     Example:
         >>> # Discover OS for hosts with missing info only
@@ -391,11 +446,28 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
         "hosts_needing_discovery": 0,
         "dispatched": 0,
         "skipped": 0,
+        "disabled": False,
         "started_at": datetime.utcnow().isoformat(),
     }
 
     try:
         with get_db_session() as db:
+            # Check system setting (unless force=True)
+            if not force:
+                setting_query = text(
+                    "SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_enabled'"
+                )
+                setting_result = db.execute(setting_query).fetchone()
+
+                # Default to enabled if setting doesn't exist
+                if setting_result:
+                    is_enabled = setting_result[0].lower() in ("true", "1", "yes", "enabled")
+                    if not is_enabled:
+                        logger.info(
+                            "Scheduled OS discovery is disabled via system_settings. " "Use force=True to override."
+                        )
+                        result["disabled"] = True
+                        return result
             # Build query based on force flag
             if force:
                 # Get all active hosts with credentials

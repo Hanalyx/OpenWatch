@@ -1,6 +1,8 @@
 """
 SCAP Import API Endpoints for OpenWatch
 REST API for importing SCAP files into MongoDB
+
+This module uses the unified content module for SCAP processing.
 """
 
 from datetime import datetime
@@ -10,13 +12,12 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ....services.mongo_integration_service import MongoIntegrationService
-from ....services.scap_import_service import SCAPImportService
+from ....services.content import ContentImporter, ImportProgress, ImportResult, process_scap_content
 
 router = APIRouter(prefix="/scap-import", tags=["SCAP Import"])
 
 # Global import service (will be initialized on first use)
-import_service: Optional[SCAPImportService] = None
+import_service: Optional[ContentImporter] = None
 active_imports: Dict[str, Dict[str, Any]] = {}
 
 
@@ -55,14 +56,12 @@ class ImportStatus(BaseModel):
     result: Optional[Dict[str, Any]] = None
 
 
-async def get_import_service() -> SCAPImportService:
+async def get_import_service() -> ContentImporter:
     """Get or initialize the import service"""
     global import_service
 
     if import_service is None:
-        mongo_service = MongoIntegrationService()
-        await mongo_service.initialize()
-        import_service = SCAPImportService(mongo_service)
+        import_service = ContentImporter()
 
     return import_service
 
@@ -71,7 +70,7 @@ async def get_import_service() -> SCAPImportService:
 async def import_scap_file(
     request: ImportRequest,
     background_tasks: BackgroundTasks,
-    service: SCAPImportService = Depends(get_import_service),
+    service: ContentImporter = Depends(get_import_service),
 ) -> ImportResponse:
     """
     Import a SCAP XML file into MongoDB
@@ -117,9 +116,7 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(
-    import_id: str, service: SCAPImportService = Depends(get_import_service)
-) -> ImportStatus:
+async def get_import_status(import_id: str, service: ContentImporter = Depends(get_import_service)) -> ImportStatus:
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
@@ -127,12 +124,8 @@ async def get_import_status(
 
     import_info = active_imports[import_id]
 
-    # Get progress from service if import is running
-    progress_data = {}
-    if import_info["status"] == "running":
-        current_progress = await service.get_import_status()
-        if current_progress:
-            progress_data = current_progress
+    # Get progress from active imports tracking
+    progress_data = import_info.get("progress", {})
 
     return ImportStatus(
         import_id=import_id,
@@ -180,7 +173,7 @@ async def cancel_import(import_id: str) -> Dict[str, str]:
 
 @router.get("/files")
 async def list_imported_files(
-    service: SCAPImportService = Depends(get_import_service),
+    service: ContentImporter = Depends(get_import_service),
 ) -> Dict[str, Any]:
     """List all previously imported SCAP files"""
 
@@ -192,9 +185,7 @@ async def list_imported_files(
 
 
 @router.post("/validate/{import_id}")
-async def validate_import(
-    import_id: str, service: SCAPImportService = Depends(get_import_service)
-) -> Dict[str, Any]:
+async def validate_import(import_id: str, service: ContentImporter = Depends(get_import_service)) -> Dict[str, Any]:
     """Validate the integrity of an imported file"""
 
     if import_id not in active_imports:
@@ -206,7 +197,7 @@ async def validate_import(
         raise HTTPException(status_code=400, detail="Can only validate completed imports")
 
     try:
-        validation = await service.validate_import_integrity(import_info["file_path"])
+        validation = await service.validate_import_integrity_by_path(import_info["file_path"])
         return validation
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
@@ -214,7 +205,7 @@ async def validate_import(
 
 @router.get("/statistics")
 async def get_import_statistics(
-    service: SCAPImportService = Depends(get_import_service),
+    service: ContentImporter = Depends(get_import_service),
 ) -> Dict[str, Any]:
     """Get overall import statistics"""
 
@@ -271,7 +262,7 @@ async def run_import_task(
     file_path: str,
     deduplication_strategy: str,
     batch_size: int,
-    service: SCAPImportService,
+    service: ContentImporter,
 ) -> None:
     """Run the import task in the background"""
 
@@ -281,20 +272,33 @@ async def run_import_task(
         active_imports[import_id]["progress"] = {"current_phase": "starting"}
 
         # Progress callback to update status
-        async def progress_callback(progress_data: Dict[str, Any]):
-            active_imports[import_id]["progress"] = progress_data
+        def progress_callback(progress: ImportProgress) -> None:
+            active_imports[import_id]["progress"] = {
+                "current_phase": progress.stage.value if progress.stage else "processing",
+                "processed_rules": progress.processed_count,
+                "total_rules": progress.total_count,
+                "progress_percentage": progress.percent_complete,
+            }
 
-        # Run the import
-        result = await service.import_scap_file(
-            file_path=file_path,
+        # Run the import using content module
+        result: ImportResult = process_scap_content(
+            source_path=file_path,
             progress_callback=progress_callback,
-            deduplication_strategy=deduplication_strategy,
             batch_size=batch_size,
+            deduplication=deduplication_strategy,
         )
 
         # Update final status
-        active_imports[import_id]["status"] = result["status"]
-        active_imports[import_id]["result"] = result
+        active_imports[import_id]["status"] = "completed"
+        active_imports[import_id]["result"] = {
+            "status": "completed",
+            "statistics": {
+                "imported": result.imported_count,
+                "updated": result.updated_count,
+                "skipped": result.skipped_count,
+                "errors": result.failed_count,
+            },
+        }
         active_imports[import_id]["completed_at"] = datetime.utcnow().isoformat()
 
     except Exception as e:

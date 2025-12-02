@@ -89,10 +89,7 @@ class TrendAnalyzer:
         data_points = await self._get_historical_data(entity_id, days)
 
         if len(data_points) < 2:
-            logger.info(
-                f"Insufficient data for trend analysis: {len(data_points)} points "
-                f"(need at least 2)"
-            )
+            logger.info(f"Insufficient data for trend analysis: {len(data_points)} points " f"(need at least 2)")
             return None
 
         # Calculate trend direction and improvement rate
@@ -211,9 +208,7 @@ class TrendAnalyzer:
         logger.info(f"Retrieved {len(data_points)} historical data points for trend analysis")
         return data_points
 
-    def _calculate_trend(
-        self, data_points: List[TrendDataPoint]
-    ) -> tuple[TrendDirection, Optional[float]]:
+    def _calculate_trend(self, data_points: List[TrendDataPoint]) -> tuple[TrendDirection, Optional[float]]:
         """
         Calculate trend direction and improvement rate using linear regression.
 
@@ -266,10 +261,7 @@ class TrendAnalyzer:
         # Round improvement rate to 3 decimal places
         improvement_rate = round(slope, 3)
 
-        logger.debug(
-            f"Trend analysis: direction={trend_direction}, "
-            f"rate={improvement_rate}%/day (n={n} points)"
-        )
+        logger.debug(f"Trend analysis: direction={trend_direction}, " f"rate={improvement_rate}%/day (n={n} points)")
 
         return trend_direction, improvement_rate
 
@@ -328,9 +320,7 @@ class TrendAnalyzer:
             """
         )
 
-        results = self.db.execute(
-            query, {"start_date": start_date, "end_date": end_date}
-        ).fetchall()
+        results = self.db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
 
         if len(results) < 2:
             logger.info(f"Insufficient fleet data for trend analysis: {len(results)} points")

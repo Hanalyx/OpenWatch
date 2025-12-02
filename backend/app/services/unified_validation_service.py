@@ -22,9 +22,11 @@ from ..models.error_models import (
     ValidationResultResponse,
 )
 from .auth_service import CentralizedAuthService, CredentialData
+
+# UnifiedSCAPScanner provides test_ssh_connection and legacy compatibility
+from .engine.scanners import UnifiedSCAPScanner
 from .error_classification import ErrorClassificationService
 from .error_sanitization import get_error_sanitization_service
-from .scap_scanner import SCAPScanner
 from .system_info_sanitization import sanitize_system_info
 
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ class UnifiedValidationService:
         self.auth_service = CentralizedAuthService(db)
         self.error_classifier = ErrorClassificationService()
         self.sanitization_service = get_error_sanitization_service()
-        self.scap_scanner = SCAPScanner()
+        self.scap_scanner = UnifiedSCAPScanner()
 
     async def validate_scan_prerequisites(
         self, request: ValidationRequest, current_user: dict
@@ -81,9 +83,7 @@ class UnifiedValidationService:
             validation_checks["credential_resolution"] = True
 
             # Step 2: Network connectivity test
-            network_result = await self._test_network_connectivity(
-                request.target_hostname, request.target_port
-            )
+            network_result = await self._test_network_connectivity(request.target_hostname, request.target_port)
             validation_checks["network_connectivity"] = network_result["success"]
 
             if not network_result["success"]:
@@ -196,9 +196,7 @@ class UnifiedValidationService:
                 "error": f"Network connectivity test failed: {str(e)}",
             }
 
-    async def _test_ssh_authentication(
-        self, hostname: str, port: int, credential_data: CredentialData
-    ) -> Dict:
+    async def _test_ssh_authentication(self, hostname: str, port: int, credential_data: CredentialData) -> Dict:
         """Test SSH authentication using unified credentials"""
         try:
             # Use existing SCAP scanner's SSH connection test
@@ -219,9 +217,7 @@ class UnifiedValidationService:
             logger.error(f"SSH authentication test failed: {e}")
             return {"success": False, "error": f"SSH authentication failed: {str(e)}"}
 
-    async def _test_system_privileges(
-        self, hostname: str, port: int, credential_data: CredentialData
-    ) -> Dict:
+    async def _test_system_privileges(self, hostname: str, port: int, credential_data: CredentialData) -> Dict:
         """Test system privileges (sudo/root access)"""
         try:
             # This would typically test sudo access
@@ -241,9 +237,7 @@ class UnifiedValidationService:
                 "error": f"Privilege test failed: {str(e)}",
             }
 
-    async def _test_system_resources(
-        self, hostname: str, port: int, credential_data: CredentialData
-    ) -> Dict:
+    async def _test_system_resources(self, hostname: str, port: int, credential_data: CredentialData) -> Dict:
         """Test system resources (disk space, memory)"""
         try:
             # Basic resource check - would normally test disk space, etc.
@@ -251,9 +245,7 @@ class UnifiedValidationService:
         except Exception as e:
             return {"success": False, "error": f"Resource check failed: {str(e)}"}
 
-    async def _test_openscap_dependencies(
-        self, hostname: str, port: int, credential_data: CredentialData
-    ) -> Dict:
+    async def _test_openscap_dependencies(self, hostname: str, port: int, credential_data: CredentialData) -> Dict:
         """Test OpenSCAP tool availability"""
         try:
             # This would test for oscap command availability
@@ -421,9 +413,7 @@ class UnifiedValidationService:
                 severity=warning.severity,
                 message=warning.message,
                 user_guidance=warning.user_guidance,
-                automated_fixes=[
-                    self._sanitize_automated_fix(fix) for fix in warning.automated_fixes
-                ],
+                automated_fixes=[self._sanitize_automated_fix(fix) for fix in warning.automated_fixes],
                 can_retry=warning.can_retry,
                 retry_after=warning.retry_after,
                 documentation_url=warning.documentation_url,

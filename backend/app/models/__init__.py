@@ -19,11 +19,7 @@ from .enhanced_mongo_models import (  # noqa: E402
     PlatformImplementation,
 )
 from .enhanced_mongo_models import RuleIntelligence as EnhancedRuleIntelligence  # noqa: E402
-from .health_models import (
-    ContentHealthDocument,
-    HealthSummaryDocument,
-    ServiceHealthDocument,
-)  # noqa: E402
+from .health_models import ContentHealthDocument, HealthSummaryDocument, ServiceHealthDocument  # noqa: E402
 from .mongo_models import (  # noqa: E402
     ComplianceRule,
     MongoManager,

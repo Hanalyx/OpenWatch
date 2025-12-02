@@ -14,12 +14,7 @@ from sqlalchemy.orm import Session
 from ..audit_db import log_security_event
 from ..auth import get_current_user
 from ..database import User, get_db
-from ..models.plugin_models import (
-    InstalledPlugin,
-    PluginExecutionRequest,
-    PluginStatus,
-    PluginTrustLevel,
-)
+from ..models.plugin_models import InstalledPlugin, PluginExecutionRequest, PluginStatus, PluginTrustLevel
 
 # Phase 2: Import all plugin services from modular plugins package
 from ..services.plugins import PluginExecutionService, PluginImportService, PluginSecurityService
@@ -53,9 +48,7 @@ class PluginImportResponse(BaseModel):
 async def import_plugin_from_file(
     file: UploadFile = File(..., description="Plugin package file (.zip, .tar.gz, .owplugin)"),
     verify_signature: bool = Form(True, description="Whether to verify plugin signature"),
-    trust_level_override: Optional[PluginTrustLevel] = Form(
-        None, description="Override trust level (admin only)"
-    ),
+    trust_level_override: Optional[PluginTrustLevel] = Form(None, description="Override trust level (admin only)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PluginImportResponse:
@@ -136,9 +129,7 @@ async def import_plugin_from_file(
 async def list_plugins(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
-    plugin_status: Optional[PluginStatus] = Query(
-        None, alias="status", description="Filter by status"
-    ),
+    plugin_status: Optional[PluginStatus] = Query(None, alias="status", description="Filter by status"),
     trust_level: Optional[PluginTrustLevel] = Query(None, description="Filter by trust level"),
     platform: Optional[str] = Query(None, description="Filter by supported platform"),
     search: Optional[str] = Query(None, description="Search in name/description"),
@@ -175,12 +166,7 @@ async def list_plugins(
 
         # Get paginated results
         skip = (page - 1) * per_page
-        plugins_cursor = (
-            InstalledPlugin.find(query_filters)
-            .sort([("imported_at", -1)])
-            .skip(skip)
-            .limit(per_page)
-        )
+        plugins_cursor = InstalledPlugin.find(query_filters).sort([("imported_at", -1)]).skip(skip).limit(per_page)
         plugins = await plugins_cursor.to_list()
 
         # Format response
@@ -243,9 +229,7 @@ async def get_plugin_details(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found"
-            )
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Build detailed response
         plugin_details = {
@@ -317,9 +301,7 @@ async def delete_plugin(
     try:
         plugin = await InstalledPlugin.find_one(InstalledPlugin.plugin_id == plugin_id)
         if not plugin:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found"
-            )
+            raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Plugin not found")
 
         # Check if plugin is in use
         if plugin.applied_to_rules and not force:
@@ -390,8 +372,7 @@ async def get_plugin_statistics(current_user: User = Depends(get_current_user)) 
                 "security_metrics": {
                     "high_risk_plugins": high_risk_count,
                     "total_security_checks": total_security_checks,
-                    "average_checks_per_plugin": total_security_checks
-                    / max(stats["total_plugins"], 1),
+                    "average_checks_per_plugin": total_security_checks / max(stats["total_plugins"], 1),
                 }
             }
         )

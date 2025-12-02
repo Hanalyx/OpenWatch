@@ -161,9 +161,7 @@ class XCCDFGeneratorService:
             # Platform-aware OVAL filtering without component filtering
             # This ensures only rules with platform-specific OVAL are included
             original_count = len(rules)
-            rules, filter_stats = self._filter_by_platform_oval(
-                rules, oval_base_path, target_platform
-            )
+            rules, filter_stats = self._filter_by_platform_oval(rules, oval_base_path, target_platform)
 
             filtered_count = original_count - len(rules)
             logger.info(
@@ -272,9 +270,7 @@ class XCCDFGeneratorService:
 
         # Add variable overrides
         for var_id, var_value in variable_overrides.items():
-            set_value = ET.SubElement(
-                profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id}
-            )
+            set_value = ET.SubElement(profile, f"{{{self.NAMESPACES['xccdf']}}}set-value", {"idref": var_id})
             set_value.text = str(var_value)
 
         return self._prettify_xml(tailoring)
@@ -499,9 +495,7 @@ class XCCDFGeneratorService:
             logger.error(f"Failed to parse OVAL file {oval_filename}: {e}")
             return None
 
-    def _create_benchmark_element(
-        self, benchmark_id: str, title: str, description: str, version: str
-    ) -> ET.Element:
+    def _create_benchmark_element(self, benchmark_id: str, title: str, description: str, version: str) -> ET.Element:
         """Create root Benchmark element with metadata"""
         # XCCDF 1.2 requires benchmark IDs to follow xccdf_<reverse-DNS>_benchmark_<name>
         if not benchmark_id.startswith("xccdf_"):
@@ -687,9 +681,7 @@ class XCCDFGeneratorService:
             # Read OVAL definition ID from file
             oval_def_id = self._read_oval_definition_id(oval_filename)
 
-            check = ET.SubElement(
-                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-            )
+            check = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system})
 
             # Reference aggregated oval-definitions.xml file
             check_ref_attrs = {"href": "oval-definitions.xml"}
@@ -698,12 +690,10 @@ class XCCDFGeneratorService:
             if oval_def_id:
                 check_ref_attrs["name"] = oval_def_id
 
-            _check_ref_oval = (
-                ET.SubElement(  # noqa: F841 - required by XCCDF spec, unused in Python
-                    check,
-                    f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
-                    check_ref_attrs,
-                )
+            _check_ref_oval = ET.SubElement(  # noqa: F841 - required by XCCDF spec, unused in Python
+                check,
+                f"{{{self.NAMESPACES['xccdf']}}}check-content-ref",
+                check_ref_attrs,
             )
         else:
             # Fallback to legacy scanner-specific check
@@ -714,9 +704,7 @@ class XCCDFGeneratorService:
             else:
                 check_system = f"http://openwatch.hanalyx.com/scanner/{scanner_type}"
 
-            check = ET.SubElement(
-                rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system}
-            )
+            check = ET.SubElement(rule_elem, f"{{{self.NAMESPACES['xccdf']}}}check", {"system": check_system})
 
             _check_ref = ET.SubElement(  # noqa: F841 - required by XCCDF spec, unused in Python
                 check,
@@ -795,10 +783,7 @@ class XCCDFGeneratorService:
         """Create a single XCCDF Profile for a framework"""
         # Filter rules that belong to this framework version
         matching_rules = [
-            r
-            for r in rules
-            if framework in r.get("frameworks", {})
-            and framework_version in r["frameworks"][framework]
+            r for r in rules if framework in r.get("frameworks", {}) and framework_version in r["frameworks"][framework]
         ]
 
         if not matching_rules:
@@ -964,9 +949,7 @@ class XCCDFGeneratorService:
             # from platform_implementations.{platform}.oval_filename (Option B schema).
             # No fallback to rule-level oval_filename for compliance accuracy.
             if not self._has_oval_check(rule, oval_base_path, target_platform):
-                logger.debug(
-                    f"Rule {rule_id} notchecked: missing OVAL for platform {target_platform}"
-                )
+                logger.debug(f"Rule {rule_id} notchecked: missing OVAL for platform {target_platform}")
                 stats["notchecked"] += 1
                 continue
 
@@ -1048,9 +1031,7 @@ class XCCDFGeneratorService:
 
         return applicable_rules, stats
 
-    def _has_oval_check(
-        self, rule: Dict, oval_base_path: Path, target_platform: Optional[str] = None
-    ) -> bool:
+    def _has_oval_check(self, rule: Dict, oval_base_path: Path, target_platform: Optional[str] = None) -> bool:
         """
         Check if OVAL definition file exists for this rule.
 
@@ -1125,9 +1106,7 @@ class XCCDFGeneratorService:
         if not exists:
             # File path is in MongoDB but file missing from disk
             # This should be rare - log as warning for investigation
-            logger.warning(
-                f"OVAL file referenced but missing for rule {rule.get('rule_id')}: {oval_path}"
-            )
+            logger.warning(f"OVAL file referenced but missing for rule {rule.get('rule_id')}: {oval_path}")
 
         return exists
 

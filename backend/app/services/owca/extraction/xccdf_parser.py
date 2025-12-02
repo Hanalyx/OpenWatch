@@ -47,14 +47,10 @@ class XCCDFScoreResult(BaseModel):
     """
 
     xccdf_score: Optional[float] = Field(None, ge=0.0, description="Actual XCCDF score")
-    xccdf_score_system: Optional[str] = Field(
-        None, max_length=255, description="Scoring system URN"
-    )
+    xccdf_score_system: Optional[str] = Field(None, max_length=255, description="Scoring system URN")
     xccdf_score_max: Optional[float] = Field(None, ge=0.0, description="Maximum possible score")
     found: bool = Field(False, description="Whether score was found in XML")
-    error: Optional[str] = Field(
-        None, max_length=500, description="Error message if extraction failed"
-    )
+    error: Optional[str] = Field(None, max_length=500, description="Error message if extraction failed")
 
     @validator("xccdf_score", "xccdf_score_max")
     def validate_score_range(cls, v):
@@ -102,9 +98,7 @@ class XCCDFParser:
             remove_pis=True,  # Remove processing instructions
         )
 
-    def extract_native_score(
-        self, result_file: str, user_id: Optional[str] = None
-    ) -> XCCDFScoreResult:
+    def extract_native_score(self, result_file: str, user_id: Optional[str] = None) -> XCCDFScoreResult:
         """
         Extract XCCDF native score from result file with security validation.
 
@@ -159,9 +153,7 @@ class XCCDFParser:
             # Security: Enforce file size limit (prevent DoS)
             file_size = file_path.stat().st_size
             if file_size > self.MAX_FILE_SIZE_BYTES:
-                error = "File too large: {} bytes (max {})".format(
-                    file_size, self.MAX_FILE_SIZE_BYTES
-                )
+                error = "File too large: {} bytes (max {})".format(file_size, self.MAX_FILE_SIZE_BYTES)
                 logger.warning(error)
                 audit_logger.warning(
                     "SECURITY: File size limit exceeded",

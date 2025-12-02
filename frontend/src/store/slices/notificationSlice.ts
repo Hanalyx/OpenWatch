@@ -7,12 +7,26 @@ interface Notification {
   duration?: number;
 }
 
+/**
+ * System alert counts from various subsystems (fetched from API)
+ */
+interface SystemAlerts {
+  osDiscoveryFailures: number;
+  // Future: Add more system alert counts here
+  // hostConnectivityIssues: number;
+  // pendingRemediations: number;
+}
+
 interface NotificationState {
   notifications: Notification[];
+  systemAlerts: SystemAlerts;
 }
 
 const initialState: NotificationState = {
   notifications: [],
+  systemAlerts: {
+    osDiscoveryFailures: 0,
+  },
 };
 
 const notificationSlice = createSlice({
@@ -35,9 +49,20 @@ const notificationSlice = createSlice({
     clearNotifications: (state) => {
       state.notifications = [];
     },
+    setOSDiscoveryFailures: (state, action: PayloadAction<number>) => {
+      state.systemAlerts.osDiscoveryFailures = action.payload;
+    },
+    setSystemAlerts: (state, action: PayloadAction<Partial<SystemAlerts>>) => {
+      state.systemAlerts = { ...state.systemAlerts, ...action.payload };
+    },
   },
 });
 
-export const { addNotification, removeNotification, clearNotifications } =
-  notificationSlice.actions;
+export const {
+  addNotification,
+  removeNotification,
+  clearNotifications,
+  setOSDiscoveryFailures,
+  setSystemAlerts,
+} = notificationSlice.actions;
 export default notificationSlice.reducer;

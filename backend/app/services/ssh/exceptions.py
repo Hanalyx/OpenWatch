@@ -78,10 +78,7 @@ class SSHKeyError(Exception):
 
     def __repr__(self) -> str:
         """Return detailed representation for debugging."""
-        return (
-            f"SSHKeyError(message={self.message!r}, "
-            f"key_type={self.key_type!r}, details={self.details!r})"
-        )
+        return f"SSHKeyError(message={self.message!r}, " f"key_type={self.key_type!r}, details={self.details!r})"
 
 
 class SSHConnectionError(Exception):
@@ -202,9 +199,7 @@ class SSHConfigurationError(Exception):
 
     def __repr__(self) -> str:
         """Return detailed representation for debugging."""
-        return (
-            f"SSHConfigurationError(message={self.message!r}, " f"setting_key={self.setting_key!r})"
-        )
+        return f"SSHConfigurationError(message={self.message!r}, " f"setting_key={self.setting_key!r})"
 
 
 class SSHCommandError(Exception):
@@ -267,10 +262,7 @@ class SSHCommandError(Exception):
 
     def __repr__(self) -> str:
         """Return detailed representation for debugging."""
-        return (
-            f"SSHCommandError(message={self.message!r}, "
-            f"hostname={self.hostname!r}, duration={self.duration!r})"
-        )
+        return f"SSHCommandError(message={self.message!r}, " f"hostname={self.hostname!r}, duration={self.duration!r})"
 
 
 __all__ = [

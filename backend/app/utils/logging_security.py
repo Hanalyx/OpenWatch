@@ -29,9 +29,7 @@ LOG_INJECTION_PATTERNS = [
 SAFE_LOG_PATTERN = re.compile(r"^[a-zA-Z0-9._@\-\s]+$")
 
 
-def sanitize_for_log(
-    value: Optional[Any], max_length: int = 100, allow_special: bool = False
-) -> str:
+def sanitize_for_log(value: Optional[Any], max_length: int = 100, allow_special: bool = False) -> str:
     """
     Sanitize any value for safe logging.
 
@@ -107,9 +105,7 @@ def sanitize_id_for_log(id_value: Optional[Any]) -> str:
     str_id = str(id_value)
 
     # UUIDs are generally safe
-    uuid_pattern = re.compile(
-        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-    )
+    uuid_pattern = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     if uuid_pattern.match(str_id):
         return str_id
 

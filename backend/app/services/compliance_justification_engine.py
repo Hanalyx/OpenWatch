@@ -9,11 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.models.unified_rule_models import (
-    ComplianceStatus,
-    RuleExecution,
-    UnifiedComplianceRule,
-)
+from backend.app.models.unified_rule_models import ComplianceStatus, RuleExecution, UnifiedComplianceRule
 from backend.app.services.multi_framework_scanner import ScanResult
 
 
@@ -217,15 +213,11 @@ class ComplianceJustificationEngine:
         justification_id = f"JUST-{framework_id}-{control_id}-{host_id}-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
 
         # Build technical evidence
-        evidence = await self._generate_technical_evidence(
-            rule_execution, unified_rule, platform_info
-        )
+        evidence = await self._generate_technical_evidence(rule_execution, unified_rule, platform_info)
 
         # Generate core justification text
-        summary, detailed_explanation, implementation_description = (
-            await self._generate_justification_text(
-                unified_rule, rule_execution, framework_id, platform_info, context_data
-            )
+        summary, detailed_explanation, implementation_description = await self._generate_justification_text(
+            unified_rule, rule_execution, framework_id, platform_info, context_data
         )
 
         # Analyze enhancement/exceeding scenarios
@@ -253,20 +245,12 @@ class ComplianceJustificationEngine:
             technical_details=self._extract_technical_details(rule_execution, unified_rule),
             # Risk and business context
             risk_assessment=await self._generate_risk_assessment(unified_rule, rule_execution),
-            business_justification=await self._generate_business_justification(
-                unified_rule, framework_id
-            ),
+            business_justification=await self._generate_business_justification(unified_rule, framework_id),
             impact_analysis=await self._generate_impact_analysis(unified_rule, rule_execution),
             # Enhancement details for exceeding compliance
-            enhancement_details=(
-                enhancement_analysis.enhancement_level if enhancement_analysis else None
-            ),
-            baseline_comparison=(
-                enhancement_analysis.baseline_requirement if enhancement_analysis else None
-            ),
-            exceeding_rationale=(
-                enhancement_analysis.audit_advantage if enhancement_analysis else None
-            ),
+            enhancement_details=(enhancement_analysis.enhancement_level if enhancement_analysis else None),
+            baseline_comparison=(enhancement_analysis.baseline_requirement if enhancement_analysis else None),
+            exceeding_rationale=(enhancement_analysis.audit_advantage if enhancement_analysis else None),
             # Regulatory context
             regulatory_citations=self.regulatory_mappings.get(framework_id, []),
             standards_references=self._get_standards_references(unified_rule, framework_id),
@@ -277,9 +261,7 @@ class ComplianceJustificationEngine:
 
         return justification
 
-    def _determine_justification_type(
-        self, compliance_status: ComplianceStatus
-    ) -> JustificationType:
+    def _determine_justification_type(self, compliance_status: ComplianceStatus) -> JustificationType:
         """Determine appropriate justification type"""
         status_mapping = {
             ComplianceStatus.COMPLIANT: JustificationType.COMPLIANT,
@@ -372,9 +354,7 @@ class ComplianceJustificationEngine:
                 **rule_execution.output_data if rule_execution.output_data else {},
             )
         else:
-            summary = (
-                f"{unified_rule.title} implemented on {platform_info.get('platform', 'system')}"
-            )
+            summary = f"{unified_rule.title} implemented on {platform_info.get('platform', 'system')}"
 
         # Generate detailed explanation
         detailed_explanation = f"""
@@ -441,15 +421,9 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
 
         # Determine enhancement level
         enhancement_level = "moderate"
-        if (
-            "significantly" in enhancement_details.lower()
-            or "substantially" in enhancement_details.lower()
-        ):
+        if "significantly" in enhancement_details.lower() or "substantially" in enhancement_details.lower():
             enhancement_level = "significant"
-        elif (
-            "exceptionally" in enhancement_details.lower()
-            or "far exceeds" in enhancement_details.lower()
-        ):
+        elif "exceptionally" in enhancement_details.lower() or "far exceeds" in enhancement_details.lower():
             enhancement_level = "exceptional"
         elif "minimal" in enhancement_details.lower() or "slightly" in enhancement_details.lower():
             enhancement_level = "minimal"
@@ -504,7 +478,9 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
     ) -> str:
         """Generate risk assessment for the control"""
 
-        base_risk = f"This {unified_rule.risk_level} risk control addresses {unified_rule.security_function} requirements."
+        base_risk = (
+            f"This {unified_rule.risk_level} risk control addresses {unified_rule.security_function} requirements."
+        )
 
         if rule_execution.compliance_status == ComplianceStatus.COMPLIANT:
             return f"{base_risk} Risk is effectively mitigated through proper implementation."
@@ -515,9 +491,7 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
         else:
             return f"{base_risk} Current non-compliance poses security risk requiring immediate attention."
 
-    async def _generate_business_justification(
-        self, unified_rule: UnifiedComplianceRule, framework_id: str
-    ) -> str:
+    async def _generate_business_justification(self, unified_rule: UnifiedComplianceRule, framework_id: str) -> str:
         """Generate business justification for the control"""
 
         framework_purpose = {
@@ -528,9 +502,7 @@ Execution Time: {rule_execution.execution_time:.3f} seconds
             "stig_rhel9": "DoD security requirements and government standards",
         }
 
-        purpose = framework_purpose.get(
-            framework_id, "regulatory compliance and security best practices"
-        )
+        purpose = framework_purpose.get(framework_id, "regulatory compliance and security best practices")
 
         return f"""
 Implementation of {unified_rule.title} supports {purpose}.
@@ -577,17 +549,13 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
             "execution_time": rule_execution.execution_time,
             "execution_success": rule_execution.execution_success,
             "compliance_status": rule_execution.compliance_status.value,
-            "output_summary": (
-                str(rule_execution.output_data)[:500] if rule_execution.output_data else None
-            ),
+            "output_summary": (str(rule_execution.output_data)[:500] if rule_execution.output_data else None),
             "error_details": rule_execution.error_message,
             "platform_count": len(unified_rule.platform_implementations),
             "framework_count": len(unified_rule.framework_mappings),
         }
 
-    def _get_standards_references(
-        self, unified_rule: UnifiedComplianceRule, framework_id: str
-    ) -> List[str]:
+    def _get_standards_references(self, unified_rule: UnifiedComplianceRule, framework_id: str) -> List[str]:
         """Get relevant standards references"""
         references = []
 
@@ -666,9 +634,7 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
                         control_id = None
                         for mapping in unified_rule.framework_mappings:
                             if mapping.framework_id == framework_id:
-                                control_id = (
-                                    mapping.control_ids[0] if mapping.control_ids else "unknown"
-                                )
+                                control_id = mapping.control_ids[0] if mapping.control_ids else "unknown"
                                 break
 
                         if control_id:
@@ -704,33 +670,11 @@ Current Impact: {unified_rule.security_function.title()} control requires attent
                     "regulatory_citations": self.regulatory_mappings.get(framework_id, []),
                 },
                 "compliance_summary": {
-                    "compliant": len(
-                        [
-                            j
-                            for j in justifications
-                            if j.compliance_status == ComplianceStatus.COMPLIANT
-                        ]
-                    ),
-                    "exceeds": len(
-                        [
-                            j
-                            for j in justifications
-                            if j.compliance_status == ComplianceStatus.EXCEEDS
-                        ]
-                    ),
-                    "partial": len(
-                        [
-                            j
-                            for j in justifications
-                            if j.compliance_status == ComplianceStatus.PARTIAL
-                        ]
-                    ),
+                    "compliant": len([j for j in justifications if j.compliance_status == ComplianceStatus.COMPLIANT]),
+                    "exceeds": len([j for j in justifications if j.compliance_status == ComplianceStatus.EXCEEDS]),
+                    "partial": len([j for j in justifications if j.compliance_status == ComplianceStatus.PARTIAL]),
                     "non_compliant": len(
-                        [
-                            j
-                            for j in justifications
-                            if j.compliance_status == ComplianceStatus.NON_COMPLIANT
-                        ]
+                        [j for j in justifications if j.compliance_status == ComplianceStatus.NON_COMPLIANT]
                     ),
                 },
                 "justifications": [

@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
 from .compliance_framework_mapper import ComplianceFrameworkMapper
-from .scap_scanner import ScanExecutionError, SCAPScanner
+
+# Engine module provides standardized exception types
+from .engine import ScanExecutionError
+
+# UnifiedSCAPScanner provides execute_remote_scan, _parse_scan_results, and legacy compatibility
+from .engine.scanners import UnifiedSCAPScanner
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +31,7 @@ class RuleSpecificScanner:
     def __init__(self, results_dir: str = "/app/data/results/rule_scans"):
         self.results_dir = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
-        self.scanner = SCAPScanner()
+        self.scanner = UnifiedSCAPScanner()
         self.framework_mapper = ComplianceFrameworkMapper()
         self.executor = ThreadPoolExecutor(max_workers=5)
 
@@ -83,9 +88,7 @@ class RuleSpecificScanner:
                 )
             else:
                 results["scan_mode"] = "local"
-                scan_results = await self._scan_rules_local(
-                    scan_id, content_path, profile_id, rule_ids
-                )
+                scan_results = await self._scan_rules_local(scan_id, content_path, profile_id, rule_ids)
 
             # Process results
             for rule_id, rule_result in scan_results.items():
@@ -114,9 +117,7 @@ class RuleSpecificScanner:
                                 "control_title": mapping.control_title,
                             }
                         )
-                    rule_entry["automated_remediation_available"] = (
-                        framework_info.automated_remediation
-                    )
+                    rule_entry["automated_remediation_available"] = framework_info.automated_remediation
                     rule_entry["aegis_rule_id"] = framework_info.aegis_rule_id
 
                 # Count results
@@ -135,9 +136,7 @@ class RuleSpecificScanner:
 
             # Calculate compliance score
             if results["scanned_rules"] > 0:
-                results["compliance_score"] = (
-                    results["passed_rules"] / results["scanned_rules"]
-                ) * 100
+                results["compliance_score"] = (results["passed_rules"] / results["scanned_rules"]) * 100
             else:
                 results["compliance_score"] = 0
 
@@ -176,9 +175,7 @@ class RuleSpecificScanner:
                     "previous_scan_id": previous_scan_id,
                 }
 
-            logger.info(
-                f"Re-scanning {len(failed_rules)} failed rules from scan {previous_scan_id}"
-            )
+            logger.info(f"Re-scanning {len(failed_rules)} failed rules from scan {previous_scan_id}")
 
             # Perform targeted scan - get values with defaults for type safety
             host_id = previous_results.get("host_id", "")
@@ -207,9 +204,7 @@ class RuleSpecificScanner:
     ) -> Dict[str, Any]:
         """Verify specific rules after AEGIS remediation"""
         try:
-            logger.info(
-                f"Verifying remediation {aegis_remediation_id} for {len(remediated_rules)} rules"
-            )
+            logger.info(f"Verifying remediation {aegis_remediation_id} for {len(remediated_rules)} rules")
 
             # Create verification scan
             scan_results = await self.scan_specific_rules(
@@ -236,8 +231,7 @@ class RuleSpecificScanner:
             # Calculate success rate
             if verification_report["total_rules_remediated"] > 0:
                 verification_report["remediation_success_rate"] = (
-                    verification_report["successfully_remediated"]
-                    / verification_report["total_rules_remediated"]
+                    verification_report["successfully_remediated"] / verification_report["total_rules_remediated"]
                 ) * 100
 
             # Categorize results
@@ -323,9 +317,7 @@ class RuleSpecificScanner:
             # Scan each rule individually for detailed results
             tasks = []
             for rule_id in rule_ids:
-                task = self._scan_single_rule_local(
-                    scan_id, content_path, profile_id, rule_id, temp_path
-                )
+                task = self._scan_single_rule_local(scan_id, content_path, profile_id, rule_id, temp_path)
                 tasks.append(task)
 
             # Execute scans concurrently

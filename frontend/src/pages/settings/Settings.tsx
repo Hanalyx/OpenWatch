@@ -43,6 +43,7 @@ import { SSHKeyDisplay } from '../../components/design-system';
 import { useSelector } from 'react-redux';
 import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
+import OSDiscoverySettings from '../../components/settings/OSDiscoverySettings';
 
 interface SystemCredentials {
   id: string; // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
@@ -455,6 +456,9 @@ const Settings: React.FC = () => {
         <TabPanel value={tabValue} index={0}>
           {/* Adaptive Scheduler Configuration Section */}
           <AdaptiveSchedulerSettings onSuccess={setSuccess} onError={setError} />
+
+          {/* OS Discovery Configuration Section */}
+          <OSDiscoverySettings onSuccess={setSuccess} onError={setError} />
 
           <Box
             sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}

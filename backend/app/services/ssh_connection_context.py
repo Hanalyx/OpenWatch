@@ -108,8 +108,7 @@ class SSHConnectionContext:
             ConnectionError: If SSH connection fails
         """
         logger.info(
-            f"[{self.connection_id}] Establishing SSH connection to "
-            f"{self.host.hostname} ({self.host.ip_address})"
+            f"[{self.connection_id}] Establishing SSH connection to " f"{self.host.hostname} ({self.host.ip_address})"
         )
 
         # Connect using SSHConnectionManager (runs in thread pool for async compatibility)
@@ -118,19 +117,11 @@ class SSHConnectionContext:
 
         if not result["success"]:
             error_msg = result.get("error", "Unknown error")
-            logger.error(
-                f"[{self.connection_id}] SSH connection failed to "
-                f"{self.host.hostname}: {error_msg}"
-            )
-            raise ConnectionError(
-                f"Failed to establish SSH connection to {self.host.hostname}: {error_msg}"
-            )
+            logger.error(f"[{self.connection_id}] SSH connection failed to " f"{self.host.hostname}: {error_msg}")
+            raise ConnectionError(f"Failed to establish SSH connection to {self.host.hostname}: {error_msg}")
 
         self.connection = result["connection"]
-        logger.info(
-            f"[{self.connection_id}] SSH connection established successfully to "
-            f"{self.host.hostname}"
-        )
+        logger.info(f"[{self.connection_id}] SSH connection established successfully to " f"{self.host.hostname}")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -154,10 +145,7 @@ class SSHConnectionContext:
                     f"for {self.host.hostname} ({self.command_count} commands executed)"
                 )
             except Exception as e:
-                logger.warning(
-                    f"[{self.connection_id}] Error closing SSH connection "
-                    f"to {self.host.hostname}: {e}"
-                )
+                logger.warning(f"[{self.connection_id}] Error closing SSH connection " f"to {self.host.hostname}: {e}")
 
     def _connect_sync(self) -> dict:
         """
@@ -206,9 +194,7 @@ class SSHConnectionContext:
             logger.error(f"[{self.connection_id}] Exception during SSH connection: {e}")
             return {"success": False, "error": str(e)}
 
-    async def execute_command(
-        self, command: str, timeout: int = 30, use_sudo: bool = False
-    ) -> SimpleNamespace:
+    async def execute_command(self, command: str, timeout: int = 30, use_sudo: bool = False) -> SimpleNamespace:
         """
         Execute command using existing SSH connection (NO reconnect).
 
@@ -237,9 +223,7 @@ class SSHConnectionContext:
                     print(f"Disk usage: {result.stdout}")
         """
         if not self.connection:
-            raise RuntimeError(
-                "No active SSH connection. Must be used within 'async with' context."
-            )
+            raise RuntimeError("No active SSH connection. Must be used within 'async with' context.")
 
         self.command_count += 1
 
@@ -289,9 +273,7 @@ class SSHConnectionContext:
             )
 
         except socket.timeout:
-            logger.error(
-                f"[{self.connection_id}] Command timeout after {timeout}s: " f"{command[:50]}..."
-            )
+            logger.error(f"[{self.connection_id}] Command timeout after {timeout}s: " f"{command[:50]}...")
             return SimpleNamespace(
                 exit_code=-1,
                 stdout="",

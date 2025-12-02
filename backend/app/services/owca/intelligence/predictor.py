@@ -151,10 +151,7 @@ class CompliancePredictor:
                 )
             )
 
-        logger.info(
-            f"Generated {days_ahead}-day forecast for {entity_type} {entity_id} "
-            f"(slope={slope:.3f}, n={n})"
-        )
+        logger.info(f"Generated {days_ahead}-day forecast for {entity_type} {entity_id} " f"(slope={slope:.3f}, n={n})")
 
         return ComplianceForecast(
             entity_id=entity_id,

@@ -116,9 +116,7 @@ class SSHTerminalSession:
                     ]:
                         try:
                             key_io.seek(0)
-                            private_key = key_class.from_private_key(
-                                key_io, password=credentials.get("passphrase")
-                            )
+                            private_key = key_class.from_private_key(key_io, password=credentials.get("passphrase"))
                             break
                         except Exception:
                             continue
@@ -137,15 +135,11 @@ class SSHTerminalSession:
                 return False
 
             # Attempt SSH connection
-            logger.info(
-                f"Connecting to {self.host.hostname} ({self.host.ip_address}:{self.host.port})"
-            )
+            logger.info(f"Connecting to {self.host.hostname} ({self.host.ip_address}:{self.host.port})")
             self.ssh_client.connect(**connect_kwargs)
 
             # Create interactive shell channel
-            self.ssh_channel = self.ssh_client.invoke_shell(
-                term="xterm-256color", width=80, height=24
-            )
+            self.ssh_channel = self.ssh_client.invoke_shell(term="xterm-256color", width=80, height=24)
 
             self.is_connected = True
             logger.info(f"SSH connection established to {self.host.hostname}")
@@ -178,9 +172,7 @@ class SSHTerminalSession:
             auth_method = self.host.auth_method or "system_default"
             credentials = {}
 
-            logger.info(
-                f"Getting credentials for host {self.host.hostname} with auth_method: {auth_method}"
-            )
+            logger.info(f"Getting credentials for host {self.host.hostname} with auth_method: {auth_method}")
 
             # Use centralized authentication service instead of old dual system
             try:
@@ -193,9 +185,7 @@ class SSHTerminalSession:
                 target_id = None if use_default else str(self.host.id)
 
                 # Resolve credentials using centralized service
-                credential_data = auth_service.resolve_credential(
-                    target_id=target_id, use_default=use_default
-                )
+                credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
                 if credential_data:
                     credentials = {
@@ -204,9 +194,7 @@ class SSHTerminalSession:
                         "password": credential_data.password,
                         "private_key_passphrase": credential_data.private_key_passphrase,
                     }
-                    logger.info(
-                        f"Successfully resolved {credential_data.source} credentials for terminal service"
-                    )
+                    logger.info(f"Successfully resolved {credential_data.source} credentials for terminal service")
                 else:
                     logger.warning("No credentials available via centralized auth service")
 
@@ -239,9 +227,7 @@ class SSHTerminalSession:
                 }
 
                 if self.host.ip_address in test_hosts:
-                    logger.info(
-                        f"Using test credentials for host {self.host.ip_address} (user: ***REDACTED***)"
-                    )
+                    logger.info(f"Using test credentials for host {self.host.ip_address} (user: ***REDACTED***)")
                     credentials = test_hosts[self.host.ip_address]
                 else:
                     logger.warning(f"No credentials available for host {self.host.hostname}")
@@ -256,9 +242,7 @@ class SSHTerminalSession:
             if "username" not in credentials:
                 credentials["username"] = self.host.username or "root"
 
-            logger.info(
-                f"Returning auth_method: {auth_method}, credentials keys: {list(credentials.keys())}"
-            )
+            logger.info(f"Returning auth_method: {auth_method}, credentials keys: {list(credentials.keys())}")
             return auth_method, credentials
 
         except Exception as e:
@@ -397,9 +381,7 @@ class TerminalService:
             await websocket.accept()
 
             # Get host information using raw SQL
-            result = db.execute(
-                text("SELECT * FROM hosts WHERE id = :host_id"), {"host_id": host_id}
-            )
+            result = db.execute(text("SELECT * FROM hosts WHERE id = :host_id"), {"host_id": host_id})
             host_data = result.fetchone()
 
             if not host_data:

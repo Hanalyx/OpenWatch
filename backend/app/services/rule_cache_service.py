@@ -1,6 +1,18 @@
 """
 Rule Cache Service for OpenWatch
-Provides advanced caching capabilities for rule queries with intelligent invalidation and warming
+
+Provides advanced caching capabilities for rule queries with intelligent
+invalidation and warming. Uses Redis for distributed caching across
+backend and worker containers.
+
+Redis Connection:
+    Uses settings from config.py (redis_host, redis_port, redis_db).
+    Falls back to graceful degradation if Redis unavailable.
+
+Security:
+    - No sensitive data cached (only rule metadata)
+    - Cache entries are pickle-serialized (internal use only)
+    - TTLs prevent stale data accumulation
 """
 
 import asyncio
@@ -14,6 +26,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import redis.asyncio as redis
+
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +81,50 @@ class CacheEntry:
 
 
 class RuleCacheService:
-    """Advanced cache service for rule queries"""
+    """
+    Advanced cache service for rule queries.
 
-    def __init__(self, redis_url: str = "redis://localhost:6379/2"):
-        self.redis_url = redis_url
+    Provides distributed caching for compliance rule queries using Redis.
+    Supports multiple cache strategies, automatic eviction, and cache warming.
+
+    Attributes:
+        redis_url: Redis connection URL (constructed from config)
+        redis_client: Async Redis client instance
+        cache_prefix: Key prefix for cache entries
+        max_memory_mb: Maximum cache memory limit
+        default_ttl: Default time-to-live for cache entries
+
+    Usage:
+        cache = RuleCacheService()
+        await cache.initialize()
+        await cache.set("key", data, priority=CachePriority.HIGH)
+        result = await cache.get("key")
+    """
+
+    def __init__(self, redis_url: Optional[str] = None):
+        """
+        Initialize the Rule Cache Service.
+
+        Args:
+            redis_url: Optional Redis URL override. If not provided,
+                uses redis_url from settings (includes authentication)
+                with database 2 for rule cache isolation.
+        """
+        # Build Redis URL from configuration if not provided
+        if redis_url is None:
+            settings = get_settings()
+            # Use redis_url from config which includes authentication
+            # e.g., redis://:password@redis:6379
+            base_url = settings.redis_url.rstrip("/")
+            # Database 2 is reserved for rule cache (separate from Celery db 0)
+            # Strip any existing database number and append /2
+            if base_url.count("/") >= 3:
+                # URL has format redis://[:password@]host:port/db - replace db
+                base_url = "/".join(base_url.rsplit("/", 1)[:-1])
+            self.redis_url = f"{base_url}/2"
+        else:
+            self.redis_url = redis_url
+
         self.redis_client: Optional[redis.Redis] = None
         self.cache_prefix = "openwatch:rules:"
 
@@ -90,7 +144,7 @@ class RuleCacheService:
         # Metrics tracking
         self.metrics = CacheMetrics(last_updated=datetime.utcnow())
 
-        # Warming queries
+        # Warming queries for common rule lookups
         self.warm_queries = [
             ("platform_rules", {"platform": "rhel", "version": "8"}),
             ("platform_rules", {"platform": "ubuntu", "version": "22.04"}),
@@ -356,9 +410,7 @@ class RuleCacheService:
                 "avg_hit_time_ms": round(self.metrics.avg_hit_time * 1000, 2),
                 "avg_miss_time_ms": round(self.metrics.avg_miss_time * 1000, 2),
                 "redis_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 2),
-                "last_updated": (
-                    self.metrics.last_updated.isoformat() if self.metrics.last_updated else None
-                ),
+                "last_updated": (self.metrics.last_updated.isoformat() if self.metrics.last_updated else None),
             }
 
             return cache_info

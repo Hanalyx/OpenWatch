@@ -359,8 +359,7 @@ class OVALReferenceMigrator:
                 update={"$set": updates},
             )
             logger.info(
-                f"Updated {rule_id} with per-platform OVAL references for: "
-                f"{', '.join(oval_mappings.keys())}"
+                f"Updated {rule_id} with per-platform OVAL references for: " f"{', '.join(oval_mappings.keys())}"
             )
 
         self.stats["rules_updated"] += 1
@@ -606,9 +605,7 @@ Examples:
             if args.dry_run and results.get("updated_rules"):
                 print(f"\nWould update {len(results['updated_rules'])} rules:")
                 for rule_info in results["updated_rules"][:10]:
-                    print(
-                        f"  - {rule_info['rule_id']}: {', '.join(rule_info['platforms_updated'])}"
-                    )
+                    print(f"  - {rule_info['rule_id']}: {', '.join(rule_info['platforms_updated'])}")
                 if len(results["updated_rules"]) > 10:
                     print(f"  ... and {len(results['updated_rules']) - 10} more")
 

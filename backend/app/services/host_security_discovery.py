@@ -62,9 +62,7 @@ class HostSecurityDiscoveryService:
 
             # 2. Discover service manager
             service_mgr_info = self._discover_service_manager(host)
-            discovery_results["service_manager"] = service_mgr_info.get(
-                "service_manager", "Unknown"
-            )
+            discovery_results["service_manager"] = service_mgr_info.get("service_manager", "Unknown")
             discovery_results["discovery_errors"].extend(service_mgr_info.get("errors", []))
 
             # 3. Discover SELinux status
@@ -125,9 +123,7 @@ class HostSecurityDiscoveryService:
                 output = self.ssh_service.execute_command(f"which {pm_cmd}", timeout=5)
                 if output and output["success"] and output["stdout"].strip():
                     # Get version if possible
-                    version_output = self.ssh_service.execute_command(
-                        f"{pm_cmd} --version", timeout=5
-                    )
+                    version_output = self.ssh_service.execute_command(f"{pm_cmd} --version", timeout=5)
                     version = "Unknown"
                     if version_output and version_output["success"]:
                         version_text = version_output["stdout"].strip()
@@ -204,9 +200,7 @@ class HostSecurityDiscoveryService:
                         status_text = status_output["stdout"]
                         # Parse sestatus output for more details
                         policy_match = re.search(r"Current mode:\s*(\w+)", status_text)
-                        policy_type_match = re.search(
-                            r"Policy from config file:\s*(\w+)", status_text
-                        )
+                        policy_type_match = re.search(r"Policy from config file:\s*(\w+)", status_text)
 
                         selinux_info = {
                             "enforcement_mode": enforcement_mode,
@@ -261,12 +255,8 @@ class HostSecurityDiscoveryService:
 
                 # Extract profile counts
                 profiles_loaded_match = re.search(r"(\d+) profiles are loaded", status_text)
-                profiles_enforce_match = re.search(
-                    r"(\d+) profiles are in enforce mode", status_text
-                )
-                profiles_complain_match = re.search(
-                    r"(\d+) profiles are in complain mode", status_text
-                )
+                profiles_enforce_match = re.search(r"(\d+) profiles are in enforce mode", status_text)
+                profiles_complain_match = re.search(r"(\d+) profiles are in complain mode", status_text)
 
                 if profiles_loaded_match:
                     apparmor_info["profiles_loaded"] = int(profiles_loaded_match.group(1))
@@ -276,9 +266,7 @@ class HostSecurityDiscoveryService:
                     apparmor_info["profiles_complain"] = int(profiles_complain_match.group(1))
 
                 result["apparmor_status"] = apparmor_info
-                logger.debug(
-                    f"AppArmor status: enabled with {apparmor_info.get('profiles_loaded', 0)} profiles"
-                )
+                logger.debug(f"AppArmor status: enabled with {apparmor_info.get('profiles_loaded', 0)} profiles")
                 return result
 
             # Check if AppArmor is installed but not running
@@ -309,9 +297,7 @@ class HostSecurityDiscoveryService:
         try:
             for fw_service, fw_name in firewall_services.items():
                 # Check if service is active using systemctl
-                output = self.ssh_service.execute_command(
-                    f"systemctl is-active {fw_service}", timeout=5
-                )
+                output = self.ssh_service.execute_command(f"systemctl is-active {fw_service}", timeout=5)
                 if output and output["success"] and "active" in output["stdout"].strip():
                     # Get additional status info
                     status_output = self.ssh_service.execute_command(
@@ -340,11 +326,7 @@ class HostSecurityDiscoveryService:
                 elif fw_service == "iptables":
                     output = self.ssh_service.execute_command("iptables -L -n | wc -l", timeout=10)
                     if output and output["success"]:
-                        rule_count = (
-                            int(output["stdout"].strip())
-                            if output["stdout"].strip().isdigit()
-                            else 0
-                        )
+                        rule_count = int(output["stdout"].strip()) if output["stdout"].strip().isdigit() else 0
                         if rule_count > 8:  # More than default empty chains
                             result["firewall_services"]["iptables"] = {
                                 "name": fw_name,
@@ -365,18 +347,10 @@ class HostSecurityDiscoveryService:
 
         # Add package managers
         if discovery_results.get("package_managers"):
-            tools.extend(
-                [
-                    f"Package Manager: {pm['name']}"
-                    for pm in discovery_results["package_managers"].values()
-                ]
-            )
+            tools.extend([f"Package Manager: {pm['name']}" for pm in discovery_results["package_managers"].values()])
 
         # Add service manager
-        if (
-            discovery_results.get("service_manager")
-            and discovery_results["service_manager"] != "Unknown"
-        ):
+        if discovery_results.get("service_manager") and discovery_results["service_manager"] != "Unknown":
             tools.append(f"Service Manager: {discovery_results['service_manager']}")
 
         # Add SELinux if enabled

@@ -10,10 +10,7 @@ import sys
 from typing import List
 
 from backend.app.services.multi_framework_scanner import ScanResult
-from backend.app.services.result_aggregation_service import (
-    AggregationLevel,
-    ResultAggregationService,
-)
+from backend.app.services.result_aggregation_service import AggregationLevel, ResultAggregationService
 
 
 async def load_scan_results(file_paths: List[str]) -> List[ScanResult]:
@@ -119,9 +116,7 @@ async def analyze_results(args):
     if aggregated_results.compliance_gaps:
         print("\nTop Compliance Gaps:")
         print("-" * 80)
-        for gap in sorted(aggregated_results.compliance_gaps, key=lambda g: g.remediation_priority)[
-            : args.max_gaps
-        ]:
+        for gap in sorted(aggregated_results.compliance_gaps, key=lambda g: g.remediation_priority)[: args.max_gaps]:
             print(f"{gap.gap_id} [{gap.severity.upper()}] {gap.description}")
             print(f"    Affected hosts: {len(gap.affected_hosts)}")
             print(f"    Framework: {gap.framework_id}")
@@ -150,8 +145,7 @@ async def analyze_results(args):
         for comparison in aggregated_results.framework_comparisons[:3]:
             print(f"{comparison.framework_a} vs {comparison.framework_b}")
             print(
-                f"    Overlap: {comparison.overlap_percentage:.1f}% "
-                f"({comparison.common_controls} common controls)"
+                f"    Overlap: {comparison.overlap_percentage:.1f}% " f"({comparison.common_controls} common controls)"
             )
             print(f"    Correlation: {comparison.compliance_correlation:.2f}")
             print(f"    Unique to {comparison.framework_a}: {comparison.framework_a_unique}")
@@ -171,9 +165,7 @@ async def analyze_results(args):
     # Export results if requested
     if args.export:
         export_format = args.export_format
-        output_data = await aggregation_service.export_aggregated_results(
-            aggregated_results, export_format
-        )
+        output_data = await aggregation_service.export_aggregated_results(aggregated_results, export_format)
 
         if args.output:
             with open(args.output, "w") as f:
@@ -256,9 +248,7 @@ async def trend_analysis(args):
                     if trend.trend_direction.value == "improving"
                     else "↘" if trend.trend_direction.value == "declining" else "→"
                 )
-                print(
-                    f"Change: {direction_symbol} {trend.change_percentage:+.1f}% ({trend.trend_direction.value})"
-                )
+                print(f"Change: {direction_symbol} {trend.change_percentage:+.1f}% ({trend.trend_direction.value})")
         print(f"Data Points: {len(trend.data_points)}")
 
         if args.show_data_points:
@@ -308,19 +298,11 @@ Examples:
         default="organization_level",
         help="Aggregation level (default: organization_level)",
     )
-    analyze_parser.add_argument(
-        "--time-period", default="current", help="Time period description for analysis"
-    )
+    analyze_parser.add_argument("--time-period", default="current", help="Time period description for analysis")
     analyze_parser.add_argument("--show-hosts", action="store_true", help="Show per-host breakdown")
-    analyze_parser.add_argument(
-        "--show-strategic", action="store_true", help="Show strategic recommendations"
-    )
-    analyze_parser.add_argument(
-        "--show-comparisons", action="store_true", help="Show framework comparisons"
-    )
-    analyze_parser.add_argument(
-        "--show-performance", action="store_true", help="Show performance metrics"
-    )
+    analyze_parser.add_argument("--show-strategic", action="store_true", help="Show strategic recommendations")
+    analyze_parser.add_argument("--show-comparisons", action="store_true", help="Show framework comparisons")
+    analyze_parser.add_argument("--show-performance", action="store_true", help="Show performance metrics")
     analyze_parser.add_argument(
         "--max-gaps",
         type=int,
@@ -359,9 +341,7 @@ Examples:
         default="historical",
         help="Time period description for trend analysis",
     )
-    trends_parser.add_argument(
-        "--show-data-points", action="store_true", help="Show historical data points"
-    )
+    trends_parser.add_argument("--show-data-points", action="store_true", help="Show historical data points")
 
     args = parser.parse_args()
 

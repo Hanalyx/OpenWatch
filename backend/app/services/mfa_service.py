@@ -74,8 +74,7 @@ class MFAService:
         for _ in range(self.backup_code_count):
             # Generate 8-character alphanumeric backup codes
             code = "".join(
-                secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-                for _ in range(self.backup_code_length)
+                secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") for _ in range(self.backup_code_length)
             )
             codes.append(code)
         return codes
@@ -89,9 +88,7 @@ class MFAService:
         """Generate QR code for TOTP setup"""
         try:
             # Create TOTP URI
-            totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
-                name=username, issuer_name=self.issuer_name
-            )
+            totp_uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name=self.issuer_name)
 
             # Generate QR code
             qr = qrcode.QRCode(
@@ -175,9 +172,7 @@ class MFAService:
             logger.error(f"TOTP validation error: {e}")
             return False
 
-    def validate_backup_code(
-        self, hashed_backup_codes: List[str], user_code: str
-    ) -> Tuple[bool, str]:
+    def validate_backup_code(self, hashed_backup_codes: List[str], user_code: str) -> Tuple[bool, str]:
         """
         Validate backup code against stored hashes
 
@@ -217,9 +212,7 @@ class MFAService:
             # Generate QR code
             qr_code_data = self.generate_qr_code(username, secret)
             if not qr_code_data:
-                return MFAEnrollmentResult(
-                    success=False, error_message="Failed to generate QR code"
-                )
+                return MFAEnrollmentResult(success=False, error_message="Failed to generate QR code")
 
             # Generate backup codes
             backup_codes = self.generate_backup_codes()
@@ -232,9 +225,7 @@ class MFAService:
             )
 
         except Exception as e:
-            logger.error(
-                f"MFA enrollment failed for {sanitize_username_for_log(username)}: {type(e).__name__}"
-            )
+            logger.error(f"MFA enrollment failed for {sanitize_username_for_log(username)}: {type(e).__name__}")
             return MFAEnrollmentResult(success=False, error_message=f"Enrollment failed: {str(e)}")
 
     def validate_mfa_code(
@@ -278,9 +269,7 @@ class MFAService:
                         backup_code_used=used_code_hash,
                     )
 
-            return MFAValidationResult(
-                valid=False, error_message="Invalid MFA code format or value"
-            )
+            return MFAValidationResult(valid=False, error_message="Invalid MFA code format or value")
 
         except Exception as e:
             logger.error(f"MFA validation error: {e}")

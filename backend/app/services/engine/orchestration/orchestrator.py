@@ -1,9 +1,28 @@
-#!/usr/bin/env python3
 """
-Scan Orchestrator Service
+Scan Orchestrator
 
 Central coordinator for multi-scanner compliance scanning.
 Routes rules to appropriate scanners and aggregates results.
+
+This module is part of the engine layer, providing core scanning orchestration
+that can be used by API endpoints, CLI tools, and background tasks.
+
+Responsibilities:
+    1. Query rules from MongoDB based on scan configuration
+    2. Group rules by scanner_type
+    3. Execute scanners in parallel
+    4. Aggregate results from all scanners
+    5. Store results in MongoDB
+
+Example:
+    from backend.app.services.engine import ScanOrchestrator
+
+    orchestrator = ScanOrchestrator(db=mongodb)
+    result = await orchestrator.execute_scan(
+        config=scan_config,
+        started_by="admin",
+        scan_name="Weekly STIG Compliance"
+    )
 """
 
 import asyncio
@@ -14,31 +33,51 @@ from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from ..models.scan_models import (
-    RuleResult,
-    ScanConfiguration,
-    ScanResult,
-    ScanResultSummary,
-    ScanStatus,
-)
-from .scanners import ScannerFactory
+from backend.app.models.scan_models import RuleResult, ScanConfiguration, ScanResult, ScanResultSummary, ScanStatus
+
+# Scanner factory from the parent engine module
+# Provides registry-based scanner instantiation for multi-scanner orchestration
+from ..scanners import ScannerFactory
 
 logger = logging.getLogger(__name__)
 
 
 class ScanOrchestrator:
     """
-    Orchestrates compliance scanning across multiple scanner types
+    Orchestrates compliance scanning across multiple scanner types.
 
-    Responsibilities:
+    The orchestrator is the central coordinator for multi-scanner compliance
+    scanning. It handles the complete scan lifecycle:
+
     1. Query rules from MongoDB based on scan configuration
-    2. Group rules by scanner_type
-    3. Execute scanners in parallel
+    2. Group rules by scanner_type (oscap, kubernetes, custom, etc.)
+    3. Execute scanners in parallel for efficiency
     4. Aggregate results from all scanners
-    5. Store results in MongoDB
+    5. Calculate overall compliance summary
+    6. Store results in MongoDB
+
+    Attributes:
+        db: AsyncIOMotorDatabase for MongoDB operations.
+        collection: MongoDB collection for compliance rules.
+        scanner_factory: Factory for creating scanner instances.
+
+    Example:
+        >>> orchestrator = ScanOrchestrator(db=mongodb)
+        >>> result = await orchestrator.execute_scan(
+        ...     config=scan_config,
+        ...     started_by="admin",
+        ...     scan_name="Weekly STIG Compliance"
+        ... )
+        >>> print(f"Compliance: {result.summary.compliance_percentage}%")
     """
 
     def __init__(self, db: AsyncIOMotorDatabase):
+        """
+        Initialize the scan orchestrator.
+
+        Args:
+            db: AsyncIOMotorDatabase instance for MongoDB operations.
+        """
         self.db = db
         self.collection = db.compliance_rules
         self.scanner_factory = ScannerFactory()
@@ -50,7 +89,10 @@ class ScanOrchestrator:
         scan_name: Optional[str] = None,
     ) -> ScanResult:
         """
-        Execute compliance scan
+        Execute compliance scan.
+
+        This is the main entry point for scan execution. It coordinates
+        the complete scan lifecycle from rule selection to result storage.
 
         Args:
             config: Scan configuration (target, framework, variables, etc.)
@@ -58,13 +100,26 @@ class ScanOrchestrator:
             scan_name: Optional human-readable scan name
 
         Returns:
-            ScanResult with complete scan execution details
+            ScanResult with complete scan execution details including:
+            - scan_id: Unique identifier for this scan
+            - status: Final scan status (COMPLETED, FAILED)
+            - summary: Compliance statistics
+            - results_by_rule: Individual rule results
+            - scanner_versions: Versions of scanners used
+            - errors: Any errors encountered
+            - warnings: Any warnings generated
+
+        Raises:
+            Exception: If scan execution fails critically.
         """
         # Generate scan ID
         scan_id = str(uuid.uuid4())
 
         logger.info(
-            f"Starting scan {scan_id}: framework={config.framework}, target={config.target.identifier}"
+            "Starting scan %s: framework=%s, target=%s",
+            scan_id,
+            config.framework,
+            config.target.identifier,
         )
 
         # Create initial scan result record
@@ -91,29 +146,31 @@ class ScanOrchestrator:
                 await scan_result.save()
                 return scan_result
 
-            logger.info(f"Scan {scan_id}: Found {len(rules)} rules")
+            logger.info("Scan %s: Found %d rules", scan_id, len(rules))
 
             # 2. Group rules by scanner_type
             rules_by_scanner = self._group_by_scanner(rules)
 
-            logger.info(f"Scan {scan_id}: Grouped into {len(rules_by_scanner)} scanner types")
+            logger.info(
+                "Scan %s: Grouped into %d scanner types",
+                scan_id,
+                len(rules_by_scanner),
+            )
 
             # 3. Execute scanners in parallel
             scanner_tasks = []
             for scanner_type, scanner_rules in rules_by_scanner.items():
-                task = self._execute_scanner(
-                    scanner_type=scanner_type, rules=scanner_rules, config=config
-                )
+                task = self._execute_scanner(scanner_type=scanner_type, rules=scanner_rules, config=config)
                 scanner_tasks.append(task)
 
             # Wait for all scanners to complete
             scanner_results = await asyncio.gather(*scanner_tasks, return_exceptions=True)
 
             # 4. Aggregate results
-            all_rule_results = []
-            scanner_versions = {}
-            errors = []
-            warnings = []
+            all_rule_results: List[RuleResult] = []
+            scanner_versions: Dict[str, str] = {}
+            errors: List[str] = []
+            warnings: List[str] = []
 
             for idx, result in enumerate(scanner_results):
                 if isinstance(result, Exception):
@@ -124,9 +181,7 @@ class ScanOrchestrator:
                 else:
                     rule_results, summary, version = result
                     all_rule_results.extend(rule_results)
-                    scanner_type = (
-                        rule_results[0].scanner_type if rule_results else f"scanner_{idx}"
-                    )
+                    scanner_type = rule_results[0].scanner_type if rule_results else f"scanner_{idx}"
                     scanner_versions[scanner_type] = version
 
             # 5. Calculate overall summary
@@ -135,9 +190,7 @@ class ScanOrchestrator:
             # 6. Update scan result
             scan_result.status = ScanStatus.COMPLETED
             scan_result.completed_at = datetime.now(timezone.utc)
-            scan_result.duration_seconds = (
-                scan_result.completed_at - scan_result.started_at
-            ).total_seconds()
+            scan_result.duration_seconds = (scan_result.completed_at - scan_result.started_at).total_seconds()
             scan_result.summary = overall_summary
             scan_result.results_by_rule = all_rule_results
             scan_result.scanner_versions = scanner_versions
@@ -147,15 +200,17 @@ class ScanOrchestrator:
             await scan_result.save()
 
             logger.info(
-                f"Scan {scan_id} completed: "
-                f"{overall_summary.passed}/{overall_summary.total_rules} passed "
-                f"({overall_summary.compliance_percentage:.1f}%)"
+                "Scan %s completed: %d/%d passed (%.1f%%)",
+                scan_id,
+                overall_summary.passed,
+                overall_summary.total_rules,
+                overall_summary.compliance_percentage,
             )
 
             return scan_result
 
         except Exception as e:
-            logger.error(f"Scan {scan_id} failed: {e}")
+            logger.error("Scan %s failed: %s", scan_id, e)
 
             # Update scan result with error
             scan_result.status = ScanStatus.FAILED
@@ -167,14 +222,20 @@ class ScanOrchestrator:
 
     async def _get_rules(self, config: ScanConfiguration) -> List[Dict[str, Any]]:
         """
-        Query rules from MongoDB based on scan configuration
+        Query rules from MongoDB based on scan configuration.
 
-        Filters:
+        Filters applied:
         - is_latest: true (only get current version)
         - framework/framework_version if specified
         - Additional rule_filter from config
+
+        Args:
+            config: Scan configuration with framework and filter settings.
+
+        Returns:
+            List of rule documents from MongoDB.
         """
-        query = {"is_latest": True}
+        query: Dict[str, Any] = {"is_latest": True}
 
         # Filter by framework
         if config.framework and config.framework_version:
@@ -189,13 +250,17 @@ class ScanOrchestrator:
 
         return rules
 
-    def _group_by_scanner(self, rules: List[Dict[str, Any]]) -> Dict[str, List[Dict]]:
+    def _group_by_scanner(self, rules: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Group rules by scanner_type
+        Group rules by scanner_type.
 
-        Returns: Dict mapping scanner_type to list of rules
+        Args:
+            rules: List of rule documents from MongoDB.
+
+        Returns:
+            Dict mapping scanner_type to list of rules for that scanner.
         """
-        groups = {}
+        groups: Dict[str, List[Dict[str, Any]]] = {}
 
         for rule in rules:
             scanner_type = rule.get("scanner_type", "oscap")  # Default to oscap
@@ -211,11 +276,17 @@ class ScanOrchestrator:
         self, scanner_type: str, rules: List[Dict[str, Any]], config: ScanConfiguration
     ) -> tuple[List[RuleResult], ScanResultSummary, str]:
         """
-        Execute a single scanner
+        Execute a single scanner.
 
-        Returns: (rule_results, summary, scanner_version)
+        Args:
+            scanner_type: Type of scanner to execute (e.g., "oscap", "kubernetes").
+            rules: List of rules for this scanner.
+            config: Scan configuration.
+
+        Returns:
+            Tuple of (rule_results, summary, scanner_version).
         """
-        logger.info(f"Executing {scanner_type} scanner with {len(rules)} rules")
+        logger.info("Executing %s scanner with %d rules", scanner_type, len(rules))
 
         # Get scanner instance
         scanner = self.scanner_factory.get_scanner(scanner_type)
@@ -231,7 +302,15 @@ class ScanOrchestrator:
         return rule_results, summary, scanner.version
 
     def _calculate_overall_summary(self, all_results: List[RuleResult]) -> ScanResultSummary:
-        """Calculate overall summary from all scanner results"""
+        """
+        Calculate overall summary from all scanner results.
+
+        Args:
+            all_results: Combined list of rule results from all scanners.
+
+        Returns:
+            ScanResultSummary with aggregated statistics.
+        """
         summary = ScanResultSummary(total_rules=len(all_results))
 
         # Count by status
@@ -267,8 +346,16 @@ class ScanOrchestrator:
         return summary
 
     def _group_by_severity(self, results: List[RuleResult]) -> Dict[str, Dict[str, int]]:
-        """Group results by severity"""
-        by_severity = {}
+        """
+        Group results by severity.
+
+        Args:
+            results: List of rule results.
+
+        Returns:
+            Dict mapping severity to status counts.
+        """
+        by_severity: Dict[str, Dict[str, int]] = {}
 
         for result in results:
             severity = result.severity
@@ -292,8 +379,16 @@ class ScanOrchestrator:
         return by_severity
 
     def _group_by_scanner_summary(self, results: List[RuleResult]) -> Dict[str, Dict[str, int]]:
-        """Group results by scanner type"""
-        by_scanner = {}
+        """
+        Group results by scanner type.
+
+        Args:
+            results: List of rule results.
+
+        Returns:
+            Dict mapping scanner_type to status counts.
+        """
+        by_scanner: Dict[str, Dict[str, int]] = {}
 
         for result in results:
             scanner = result.scanner_type
@@ -310,7 +405,15 @@ class ScanOrchestrator:
         return by_scanner
 
     async def get_scan_result(self, scan_id: str) -> Optional[ScanResult]:
-        """Get scan result by ID"""
+        """
+        Get scan result by ID.
+
+        Args:
+            scan_id: Unique scan identifier.
+
+        Returns:
+            ScanResult if found, None otherwise.
+        """
         return await ScanResult.find_one(ScanResult.scan_id == scan_id)
 
     async def list_scans(
@@ -320,8 +423,19 @@ class ScanOrchestrator:
         status: Optional[ScanStatus] = None,
         started_by: Optional[str] = None,
     ) -> List[ScanResult]:
-        """List scans with optional filters"""
-        query = {}
+        """
+        List scans with optional filters.
+
+        Args:
+            skip: Number of records to skip (for pagination).
+            limit: Maximum number of records to return.
+            status: Filter by scan status.
+            started_by: Filter by user who started the scan.
+
+        Returns:
+            List of ScanResult documents.
+        """
+        query: Dict[str, Any] = {}
 
         if status:
             query["status"] = status

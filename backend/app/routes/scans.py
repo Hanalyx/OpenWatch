@@ -41,10 +41,14 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models.error_models import ValidationResultResponse
 from ..services.bulk_scan_orchestrator import BulkScanOrchestrator
+
+# Engine module imports for SCAP scanning operations
+# These replace the legacy scap_scanner.py imports
+from ..services.engine import OSCAPScanner
+from ..services.engine.result_parsers import XCCDFResultParser
 from ..services.error_classification import ErrorClassificationService
 from ..services.error_sanitization import get_error_sanitization_service
 from ..services.scan_intelligence import ProfileSuggestion, ScanIntelligenceService, ScanPriority
-from ..services.scap_scanner import SCAPScanner
 from ..tasks.scan_tasks import execute_scan_task
 from ..utils.logging_security import sanitize_path_for_log
 from ..utils.query_builder import QueryBuilder
@@ -54,7 +58,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
 # Initialize services
-scap_scanner = SCAPScanner()
+# OSCAPScanner handles content validation and profile extraction
+oscap_scanner = OSCAPScanner()
+# XCCDFResultParser handles parsing scan result XML files
+xccdf_parser = XCCDFResultParser()
 error_service = ErrorClassificationService()
 sanitization_service = get_error_sanitization_service()
 
@@ -228,9 +235,7 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -323,9 +328,7 @@ async def quick_scan(
 ) -> QuickScanResponse:
     """Start scan with intelligent defaults - Zero to Scan in 3 Clicks"""
     try:
-        logger.info(
-            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
-        )
+        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -381,9 +384,7 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(
-                            f"Requested profile not found, using fallback: {template_id}"
-                        )
+                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -410,9 +411,7 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(
-                target_id=target_id, use_default=use_default
-            )
+            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
             if credential_data:
                 # Queue async validation
@@ -582,9 +581,7 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(
-                session.estimated_completion.timestamp() if session.estimated_completion else 0
-            ),
+            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
             scan_ids=session.scan_ids or [],
         )
 
@@ -977,9 +974,7 @@ async def list_scans(
 
                 try:
                     scan_metadata = (
-                        json.loads(row.scan_metadata)
-                        if isinstance(row.scan_metadata, str)
-                        else row.scan_metadata
+                        json.loads(row.scan_metadata) if isinstance(row.scan_metadata, str) else row.scan_metadata
                     )
                 except (ValueError, TypeError):
                     scan_metadata = {}
@@ -1373,9 +1368,7 @@ async def delete_scan(
 
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans")
-            .select("status", "result_file", "report_file")
-            .where("id = :id", scan_id, "id")
+            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -1395,9 +1388,7 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
-                    )
+                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
 
         # Delete scan results first (foreign key constraint)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
@@ -1453,9 +1444,7 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(
-                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
-            )
+            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -1567,20 +1556,37 @@ async def get_scan_json_report(
 
                 enhanced_results: Dict[str, Any] = {}
                 if enhanced_parsing_enabled and content_file is not None:
-                    # Use enhanced SCAP scanner parsing
-                    from ..services.scap_scanner import SCAPScanner
+                    # Use engine module's result parser for enhanced SCAP parsing
+                    # XCCDFResultParser provides parse_scan_results() for XCCDF result files
+                    from pathlib import Path
 
-                    scanner = SCAPScanner()
-                    enhanced_results = scanner._parse_scan_results(
-                        scan_data["result_file"], content_file
+                    from ..services.engine.result_parsers import XCCDFResultParser
+
+                    parser = XCCDFResultParser()
+                    parsed = parser.parse_scan_results(
+                        Path(scan_data["result_file"]),
+                        Path(content_file),
                     )
+                    # Convert parsed results to legacy format for compatibility
+                    enhanced_results = {
+                        "rule_details": [
+                            {
+                                "rule_id": r.rule_id,
+                                "result": r.result,
+                                "severity": r.severity,
+                                "title": r.title,
+                                "description": r.description,
+                                "rationale": r.rationale,
+                                "remediation": r.remediation,
+                            }
+                            for r in parsed.rules
+                        ]
+                    }
 
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(
-                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
-                    )
+                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
                 else:
                     # Fallback to basic parsing for backward compatibility
                     import os
@@ -1726,11 +1732,7 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if (
-            not scan_result.result_file
-            or not scan_result.failed_rules
-            or scan_result.failed_rules == 0
-        ):
+        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),
@@ -2145,9 +2147,7 @@ async def validate_bulk_readiness(
     """
     try:
         from backend.app.models.readiness_models import BulkReadinessRequest
-        from backend.app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Parse request
         bulk_request = BulkReadinessRequest(**request)
@@ -2228,11 +2228,7 @@ async def validate_bulk_readiness(
             for check in result.checks:
                 if not check.passed:
                     # Handle both enum and string values for check_type
-                    check_type = (
-                        check.check_type
-                        if isinstance(check.check_type, str)
-                        else check.check_type.value
-                    )
+                    check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
                     common_failures[check_type] = common_failures.get(check_type, 0) + 1
 
         # Calculate total duration
@@ -2240,9 +2236,7 @@ async def validate_bulk_readiness(
 
         # Build remediation priorities (top 5 most common failures)
         remediation_priorities = []
-        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[
-            :5
-        ]:
+        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[:5]:
             remediation_priorities.append(
                 {
                     "check_type": check_type,
@@ -2320,9 +2314,7 @@ async def pre_flight_check(
     """
     try:
         from backend.app.models.readiness_models import ReadinessCheckType
-        from backend.app.services.host_validator.readiness_validator import (
-            ReadinessValidatorService,
-        )
+        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
 
         # Get scan
         scan_result = db.execute(

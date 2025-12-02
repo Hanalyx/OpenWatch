@@ -17,12 +17,7 @@ from beanie import Document
 from pydantic import BaseModel, Field
 
 from ..database import Host
-from ..models.plugin_models import (
-    InstalledPlugin,
-    PluginExecutionRequest,
-    PluginExecutionResult,
-    PluginStatus,
-)
+from ..models.plugin_models import InstalledPlugin, PluginExecutionRequest, PluginExecutionResult, PluginStatus
 from .plugins import PluginExecutionService, PluginRegistryService
 
 logger = logging.getLogger(__name__)
@@ -180,9 +175,7 @@ class BulkRemediationService:
         self.active_jobs: Dict[str, BulkRemediationResult] = {}
         self.executor = ThreadPoolExecutor(max_workers=50)
 
-    async def submit_bulk_remediation(
-        self, request: BulkRemediationRequest
-    ) -> BulkRemediationResult:
+    async def submit_bulk_remediation(self, request: BulkRemediationRequest) -> BulkRemediationResult:
         """
         Submit bulk remediation job
 
@@ -284,12 +277,7 @@ class BulkRemediationService:
         if status:
             query["status"] = status
 
-        return (
-            await BulkRemediationResult.find(query)
-            .sort(-BulkRemediationResult.created_at)
-            .limit(limit)
-            .to_list()
-        )
+        return await BulkRemediationResult.find(query).sort(-BulkRemediationResult.created_at).limit(limit).to_list()
 
     async def _validate_bulk_request(self, request: BulkRemediationRequest):
         """Validate bulk remediation request"""
@@ -304,9 +292,7 @@ class BulkRemediationService:
         # Validate rules exist and are applicable
         for rule_id in request.rule_ids:
             # Check if any plugins can handle this rule
-            plugins = await self.plugin_registry_service.find_plugins(
-                {"status": PluginStatus.ACTIVE}
-            )
+            plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
 
             rule_supported = False
             for plugin in plugins:
@@ -325,9 +311,7 @@ class BulkRemediationService:
         if request.max_parallel > len(request.host_ids):
             request.max_parallel = len(request.host_ids)
 
-    async def _execute_bulk_remediation(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_bulk_remediation(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute bulk remediation based on strategy"""
         try:
             # Mark as started
@@ -367,9 +351,7 @@ class BulkRemediationService:
             # Remove from active jobs
             self.active_jobs.pop(request.job_id, None)
 
-    async def _execute_parallel(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_parallel(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute all hosts in parallel with concurrency control"""
         semaphore = asyncio.Semaphore(request.max_parallel)
 
@@ -396,9 +378,7 @@ class BulkRemediationService:
             else:
                 result.host_results.append(host_result)
 
-    async def _execute_sequential(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_sequential(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute hosts one by one"""
         for host_id in request.host_ids:
             if result.status == BulkExecutionStatus.CANCELLED:
@@ -414,9 +394,7 @@ class BulkRemediationService:
             if await self._should_stop_on_failure(request, result):
                 break
 
-    async def _execute_batched(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_batched(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute hosts in batches"""
         # Create batches
         batches = []
@@ -429,9 +407,7 @@ class BulkRemediationService:
             if result.status == BulkExecutionStatus.CANCELLED:
                 break
 
-            logger.info(
-                f"Executing batch {batch.batch_id + 1}/{len(batches)} with {len(batch.host_ids)} hosts"
-            )
+            logger.info(f"Executing batch {batch.batch_id + 1}/{len(batches)} with {len(batch.host_ids)} hosts")
 
             batch.started_at = datetime.utcnow()
             batch.status = "running"
@@ -475,9 +451,7 @@ class BulkRemediationService:
             if batch.batch_id < len(batches) - 1:
                 await asyncio.sleep(2)
 
-    async def _execute_rolling(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _execute_rolling(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Execute hosts in rolling deployment style"""
         # Start with small batch, increase on success
         current_batch_size = min(2, len(request.host_ids))
@@ -631,9 +605,7 @@ class BulkRemediationService:
                     plugins = await self._find_plugins_for_rule(rule_id, host.platform)
 
                     if not plugins:
-                        logger.warning(
-                            f"No plugins found for rule {rule_id} on platform {host.platform}"
-                        )
+                        logger.warning(f"No plugins found for rule {rule_id} on platform {host.platform}")
                         rules_failed += 1
                         continue
 
@@ -720,9 +692,7 @@ class BulkRemediationService:
 
     async def _find_plugins_for_rule(self, rule_id: str, platform: str) -> List[InstalledPlugin]:
         """Find plugins that can remediate a specific rule on a platform"""
-        plugins = await self.plugin_registry_service.find_plugins(
-            {"status": PluginStatus.ACTIVE, "platform": platform}
-        )
+        plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE, "platform": platform})
 
         # Simple matching - in production would be more sophisticated
         matching_plugins = []
@@ -749,9 +719,7 @@ class BulkRemediationService:
 
         await result.save()
 
-    async def _should_stop_on_failure(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ) -> bool:
+    async def _should_stop_on_failure(self, request: BulkRemediationRequest, result: BulkRemediationResult) -> bool:
         """Check if execution should stop due to high failure rate"""
         if not request.continue_on_failure:
             return result.failed_hosts > 0
@@ -762,9 +730,7 @@ class BulkRemediationService:
         failure_rate = result.failed_hosts / result.completed_hosts
         return failure_rate > request.max_failure_rate
 
-    async def _finalize_bulk_execution(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _finalize_bulk_execution(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Finalize bulk execution results"""
         result.completed_at = datetime.utcnow()
 
@@ -791,9 +757,7 @@ class BulkRemediationService:
             f"Duration: {result.duration_seconds:.1f}s"
         )
 
-    async def _schedule_execution(
-        self, request: BulkRemediationRequest, result: BulkRemediationResult
-    ):
+    async def _schedule_execution(self, request: BulkRemediationRequest, result: BulkRemediationResult):
         """Schedule bulk execution for later (placeholder implementation)"""
         # In production, would integrate with a job scheduler like Celery
         # For now, just log the scheduled time

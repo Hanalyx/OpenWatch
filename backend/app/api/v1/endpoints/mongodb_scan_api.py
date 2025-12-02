@@ -15,13 +15,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ....auth import get_current_user
-from ....constants import is_framework_supported
-from ....database import User, get_db
-from ....services.compliance_framework_reporting import ComplianceFrameworkReporter
-from ....services.mongodb_scap_scanner import MongoDBSCAPScanner
-from ....services.owca import SeverityCalculator, XCCDFParser
-from ....services.result_enrichment_service import ResultEnrichmentService
+from backend.app.auth import get_current_user
+from backend.app.constants import is_framework_supported
+from backend.app.database import User, get_db
+from backend.app.services.compliance_framework_reporting import ComplianceFrameworkReporter
+from backend.app.services.engine.scanners import UnifiedSCAPScanner
+from backend.app.services.owca import SeverityCalculator, XCCDFParser
+from backend.app.services.result_enrichment_service import ResultEnrichmentService
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +37,8 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(
-        None, description="Specific rule IDs to scan (from wizard selection)"
-    )
-    connection_params: Optional[Dict[str, Any]] = Field(
-        None, description="SSH connection parameters"
-    )
+    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
+    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -82,12 +78,12 @@ enrichment_service = None
 compliance_reporter = None
 
 
-async def get_mongodb_scanner(request: Request) -> MongoDBSCAPScanner:
+async def get_mongodb_scanner(request: Request) -> UnifiedSCAPScanner:
     """Get or initialize MongoDB scanner"""
     global mongodb_scanner
     try:
         if not mongodb_scanner:
-            logger.info("Initializing MongoDB scanner for the first time")
+            logger.info("Initializing Unified SCAP scanner for the first time")
             # Get encryption service from app state
             encryption_service = getattr(request.app.state, "encryption_service", None)
             if not encryption_service:
@@ -95,12 +91,12 @@ async def get_mongodb_scanner(request: Request) -> MongoDBSCAPScanner:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Encryption service not available",
                 )
-            mongodb_scanner = MongoDBSCAPScanner(encryption_service=encryption_service)
+            mongodb_scanner = UnifiedSCAPScanner(encryption_service=encryption_service)
             await mongodb_scanner.initialize()
-            logger.info("MongoDB scanner initialized successfully")
+            logger.info("Unified SCAP scanner initialized successfully")
         return mongodb_scanner
     except Exception as e:
-        logger.error(f"Failed to initialize MongoDB scanner: {e}", exc_info=True)
+        logger.error(f"Failed to initialize Unified SCAP scanner: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Scanner initialization failed: {str(e)}",
@@ -366,10 +362,11 @@ def parse_xccdf_results(result_file: str) -> Dict[str, Any]:
 @router.post("/start", response_model=MongoDBScanResponse)
 async def start_mongodb_scan(
     scan_request: MongoDBScanRequest,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
+    scanner: UnifiedSCAPScanner = Depends(get_mongodb_scanner),
 ) -> MongoDBScanResponse:
     """
     Start a MongoDB rule-based SCAP scan
@@ -384,9 +381,7 @@ async def start_mongodb_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(
-            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
-        )
+        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
 
         # Log request details safely
         try:
@@ -417,9 +412,7 @@ async def start_mongodb_scan(
         from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         try:
-            host_query = text(
-                "SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id"
-            )
+            host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
             host_result = db.execute(host_query, {"host_id": scan_request.host_id}).fetchone()
 
             if host_result:
@@ -452,10 +445,84 @@ async def start_mongodb_scan(
                             f"from os_family={db_os_family}, os_version={db_os_version}"
                         )
                 else:
+                    # Priority 3: JIT (Just-In-Time) platform detection
+                    # Host has no OS discovery data, attempt live detection
                     logger.info(
                         f"Host {scan_request.host_id} has no OS discovery data, "
-                        f"using request platform: {scan_request.platform}"
+                        f"attempting JIT platform detection..."
                     )
+                    try:
+                        from backend.app.services.auth_service import get_auth_service
+                        from backend.app.services.engine.discovery import detect_platform_for_scan
+
+                        # Get encryption service and resolve credentials using auth service
+                        # This uses the same credential resolution as the scan executor
+                        encryption_service = getattr(request.app.state, "encryption_service", None)
+                        if encryption_service:
+                            auth_service = get_auth_service(db, encryption_service)
+
+                            # Check host's auth_method to determine credential source
+                            auth_method_query = text("SELECT auth_method FROM hosts WHERE id = :host_id")
+                            auth_result = db.execute(auth_method_query, {"host_id": scan_request.host_id}).fetchone()
+                            host_auth_method = auth_result[0] if auth_result else "system_default"
+                            use_default = host_auth_method in ["system_default", "default"]
+                            target_id = None if use_default else scan_request.host_id
+
+                            # Resolve credentials using auth service (same as scan executor)
+                            credential_data = auth_service.resolve_credential(
+                                target_id=target_id, use_default=use_default
+                            )
+
+                            if credential_data:
+                                # Build connection_params from resolved credentials
+                                connection_params = {
+                                    "username": credential_data.username,
+                                    "port": 22,
+                                }
+                                if credential_data.private_key:
+                                    connection_params["private_key"] = credential_data.private_key
+                                if credential_data.password:
+                                    connection_params["password"] = credential_data.password
+                                if credential_data.private_key_passphrase:
+                                    connection_params["private_key_passphrase"] = credential_data.private_key_passphrase
+
+                                platform_info = await detect_platform_for_scan(
+                                    hostname=scan_request.hostname,
+                                    connection_params=connection_params,
+                                    encryption_service=encryption_service,
+                                    host_id=scan_request.host_id,
+                                )
+                                if platform_info.detection_success and platform_info.platform_identifier:
+                                    effective_platform = platform_info.platform_identifier
+                                    effective_platform_version = (
+                                        platform_info.platform_version or scan_request.platform_version
+                                    )
+                                    logger.info(
+                                        f"JIT platform detection successful for {scan_request.host_id}: "
+                                        f"{platform_info.platform} {platform_info.platform_version} "
+                                        f"-> {effective_platform}"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"JIT platform detection failed for {scan_request.host_id}: "
+                                        f"{platform_info.detection_error}. "
+                                        f"Using request platform: {scan_request.platform}"
+                                    )
+                            else:
+                                logger.warning(
+                                    f"JIT detection skipped (no credentials available). "
+                                    f"Using request platform: {scan_request.platform}"
+                                )
+                        else:
+                            logger.warning(
+                                f"JIT detection skipped (no encryption service). "
+                                f"Using request platform: {scan_request.platform}"
+                            )
+                    except Exception as jit_err:
+                        logger.warning(
+                            f"JIT platform detection error for {scan_request.host_id}: {jit_err}. "
+                            f"Using request platform: {scan_request.platform}"
+                        )
             else:
                 logger.warning(
                     f"Host {scan_request.host_id} not found in database, "
@@ -473,9 +540,7 @@ async def start_mongodb_scan(
             # Check if platform is not already normalized (e.g., "rhel" vs "rhel8")
             # Normalized platforms contain version numbers like "rhel8", "ubuntu2204"
             if not any(char.isdigit() for char in effective_platform):
-                computed_platform = _normalize_platform_identifier(
-                    scan_request.platform, scan_request.platform_version
-                )
+                computed_platform = _normalize_platform_identifier(scan_request.platform, scan_request.platform_version)
                 if computed_platform:
                     effective_platform = computed_platform
                     logger.info(
@@ -484,7 +549,9 @@ async def start_mongodb_scan(
                     )
 
         # Create initial PostgreSQL scan record (status: running)
-        scan_name = f"MongoDB Scan - {scan_request.platform} {scan_request.platform_version} - {scan_request.framework or 'all frameworks'}"
+        # Use effective_platform (detected/resolved) instead of request parameters
+        # Include hostname for uniqueness across hosts with same platform
+        scan_name = f"compliance-scan-{scan_request.hostname}-{effective_platform}-{effective_platform_version}"
         started_at = datetime.utcnow()
 
         try:
@@ -509,7 +576,7 @@ async def start_mongodb_scan(
                     "profile_id": scan_request.framework or "mongodb_custom",
                     "status": "running",
                     "progress": 0,
-                    "scan_options": f'{{"platform": "{scan_request.platform}", "platform_version": "{scan_request.platform_version}", "framework": "{scan_request.framework}"}}',
+                    "scan_options": f'{{"platform": "{effective_platform}", "platform_version": "{effective_platform_version}", "framework": "{scan_request.framework}"}}',
                     "started_by": int(current_user.get("id")) if current_user.get("id") else None,
                     "started_at": started_at,
                     "remediation_requested": False,
@@ -530,11 +597,11 @@ async def start_mongodb_scan(
         # Start the scan process
         # Phase 3: Use effective_platform (from host's platform_identifier if available)
         logger.info(
-            f"Calling scanner.scan_with_mongodb_rules for host {scan_request.host_id} "
+            f"Calling scanner.scan_with_rules for host {scan_request.host_id} "
             f"with platform={effective_platform} (original: {scan_request.platform})"
         )
         try:
-            scan_result = await scanner.scan_with_mongodb_rules(
+            scan_result = await scanner.scan_with_rules(
                 host_id=scan_request.host_id,
                 hostname=scan_request.hostname,
                 platform=effective_platform,  # Use discovered platform for OVAL selection
@@ -750,9 +817,7 @@ async def enrich_scan_results_task(
 
 
 @router.get("/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_scan_status(
-    scan_id: str, current_user: User = Depends(get_current_user)
-) -> ScanStatusResponse:
+async def get_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
     """Get status of a MongoDB scan"""
     try:
         # In a real implementation, this would query a database for scan status
@@ -874,17 +939,83 @@ async def get_compliance_report(
 @router.get("/available-rules")
 async def get_available_rules(
     platform: Optional[str] = None,
+    platform_version: Optional[str] = None,
+    host_id: Optional[str] = None,
     framework: Optional[str] = None,
     severity: Optional[str] = None,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    scanner: MongoDBSCAPScanner = Depends(get_mongodb_scanner),
+    scanner: UnifiedSCAPScanner = Depends(get_mongodb_scanner),
 ) -> Dict[str, Any]:
-    """Get available MongoDB rules for scanning"""
+    """
+    Get available MongoDB rules for scanning.
+
+    Platform Resolution Priority:
+    1. If host_id provided: Use host's persisted platform_identifier
+    2. If host_id provided but no platform_identifier: Compute from os_family + os_version
+    3. Use platform + platform_version query parameters
+    4. Fallback to "rhel" + "8" as last resort (for backwards compatibility)
+
+    Args:
+        platform: Target platform (rhel, ubuntu, etc.) - used if host_id not provided
+        platform_version: Platform version - used if host_id not provided
+        host_id: Optional host ID for automatic platform detection from database
+        framework: Filter by compliance framework
+        severity: Filter by severity level
+        db: Database session for host lookup
+        current_user: Authenticated user
+        scanner: MongoDB scanner instance
+
+    Returns:
+        Dictionary with available rules matching the filters
+    """
     try:
+        # Resolve effective platform using the same priority logic as /start endpoint
+        effective_platform = platform
+        effective_version = platform_version
+
+        # If host_id provided, try to get platform from database
+        if host_id:
+            try:
+                from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+
+                host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
+                host_result = db.execute(host_query, {"host_id": host_id}).fetchone()
+
+                if host_result:
+                    db_platform_id = host_result[0]  # platform_identifier column
+                    db_os_family = host_result[1]  # os_family column
+                    db_os_version = host_result[2]  # os_version column
+
+                    if db_platform_id:
+                        # Priority 1: Use persisted platform_identifier
+                        effective_platform = db_platform_id
+                        effective_version = db_os_version or platform_version
+                        logger.info(f"Using host {host_id} platform_identifier: {effective_platform}")
+                    elif db_os_family and db_os_version:
+                        # Priority 2: Compute from os_family + os_version
+                        computed = _normalize_platform_identifier(db_os_family, db_os_version)
+                        if computed:
+                            effective_platform = computed
+                            effective_version = db_os_version
+                            logger.info(f"Computed platform for host {host_id}: {effective_platform}")
+                else:
+                    logger.warning(f"Host {host_id} not found in database")
+            except Exception as host_err:
+                logger.warning(f"Failed to lookup host platform: {host_err}")
+
+        # Apply defaults only as last resort
+        if not effective_platform:
+            effective_platform = "rhel"
+            logger.info("No platform specified, defaulting to 'rhel'")
+        if not effective_version:
+            effective_version = "8"
+            logger.info("No platform version specified, defaulting to '8'")
+
         # Get rules from MongoDB based on filters
         rules = await scanner.select_platform_rules(
-            platform=platform or "rhel",
-            platform_version="8",  # Default version
+            platform=effective_platform,
+            platform_version=effective_version,
             framework=framework,
             severity_filter=[severity] if severity else None,
         )
@@ -900,11 +1031,7 @@ async def get_available_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": (list(rule.frameworks.keys()) if rule.frameworks else []),
-                    "platforms": (
-                        list(rule.platform_implementations.keys())
-                        if rule.platform_implementations
-                        else []
-                    ),
+                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
                 }
             )
 
@@ -914,8 +1041,19 @@ async def get_available_rules(
             "rules_sample": rule_summaries,
             "filters_applied": {
                 "platform": platform,
+                "platform_version": platform_version,
+                "host_id": host_id,
                 "framework": framework,
                 "severity": severity,
+            },
+            "resolved_platform": {
+                "platform": effective_platform,
+                "platform_version": effective_version,
+                "source": (
+                    "host_database"
+                    if host_id and effective_platform != platform
+                    else "query_parameter" if platform else "default"
+                ),
             },
         }
 
@@ -928,9 +1066,7 @@ async def get_available_rules(
 
 
 @router.get("/scanner/health")
-async def get_scanner_health(
-    request: Request, current_user: User = Depends(get_current_user)
-) -> Dict[str, Any]:
+async def get_scanner_health(request: Request, current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
     """Get MongoDB scanner service health"""
     try:
         scanner = await get_mongodb_scanner(request)

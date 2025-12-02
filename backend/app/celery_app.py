@@ -8,6 +8,7 @@ import ssl
 
 import redis
 from celery import Celery
+from celery.schedules import crontab
 from celery.signals import worker_ready, worker_shutdown
 from kombu import Queue
 
@@ -106,18 +107,27 @@ celery_app.conf.update(
         Queue("results", routing_key="results"),
         Queue("maintenance", routing_key="maintenance"),
         Queue("monitoring", routing_key="monitoring"),
-        Queue(
-            "host_monitoring", routing_key="host_monitoring"
-        ),  # Dedicated queue for adaptive monitoring
+        Queue("host_monitoring", routing_key="host_monitoring"),  # Dedicated queue for adaptive monitoring
     ],
-    # Celery Beat schedule for adaptive monitoring dispatcher
+    # Celery Beat schedule for periodic tasks
     beat_schedule={
+        # Adaptive host monitoring dispatcher
         "dispatch-host-checks-every-30-seconds": {
             "task": "backend.app.tasks.dispatch_host_checks",
             "schedule": 30.0,  # Run every 30 seconds
             "options": {
                 "queue": "host_monitoring",
                 "priority": 10,  # Highest priority for dispatcher
+            },
+        },
+        # Scheduled OS discovery for hosts with missing platform data
+        # Runs daily at 2 AM UTC to populate os_family, os_version, platform_identifier
+        # Controlled by system_settings.os_discovery_enabled
+        "discover-all-hosts-os-daily": {
+            "task": "backend.app.tasks.discover_all_hosts_os",
+            "schedule": crontab(hour=2, minute=0),  # Run at 2 AM daily
+            "options": {
+                "queue": "default",
             },
         },
     },
