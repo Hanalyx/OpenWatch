@@ -48,10 +48,21 @@ interface ScanProgressResponse {
 }
 
 /**
- * MongoDB-based scan response from backend
+ * SSH connection parameters for remote scan execution
+ * Required to execute scans on target hosts via SSH instead of locally
+ */
+interface ConnectionParams {
+  host_id: string;
+  username: string;
+  port: number;
+  auth_method: 'ssh_key' | 'password';
+}
+
+/**
+ * Compliance scan response from backend
  * Contains scan ID, execution status, and basic scan metadata
  */
-interface MongoDBScanResponse {
+interface ComplianceScanResponse {
   scan_id: string;
   status: 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   message?: string;
@@ -212,28 +223,31 @@ class ScanService {
   }
 
   /**
-   * Start a MongoDB-based compliance scan for a single host
+   * Start a compliance scan for a single host
    *
-   * This is the NEW scan API that uses MongoDB compliance rules.
-   * Use this method for all new scan creation workflows.
+   * Uses MongoDB-backed compliance rules for scanning.
+   * When connectionParams is provided, executes scan remotely via SSH.
+   * Without connectionParams, scan executes locally (not typical for production).
    *
    * @param hostId - UUID of the host to scan
-   * @param hostname - Hostname for display purposes
+   * @param hostname - Hostname or IP address for scan execution
    * @param platform - Platform identifier (e.g., 'rhel', 'ubuntu')
    * @param platformVersion - Platform version (e.g., '8', '22.04')
    * @param framework - Compliance framework (e.g., 'nist_800_53', 'cis')
+   * @param connectionParams - SSH connection parameters for remote execution
    * @param ruleIds - Optional array of specific rule IDs to scan
    * @returns Scan response with scan_id and status
    */
-  static async startMongoDBScan(
+  static async startComplianceScan(
     hostId: string,
     hostname: string,
     platform: string,
     platformVersion: string,
     framework: string,
+    connectionParams?: ConnectionParams,
     ruleIds?: string[]
-  ): Promise<MongoDBScanResponse> {
-    const response = await fetch('/api/mongodb-scans/start', {
+  ): Promise<ComplianceScanResponse> {
+    const response = await fetch('/api/scans/mongodb/start', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -243,6 +257,7 @@ class ScanService {
         platform_version: platformVersion,
         framework,
         rule_ids: ruleIds,
+        connection_params: connectionParams,
         include_enrichment: true,
         generate_report: true,
       }),
@@ -250,10 +265,33 @@ class ScanService {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.detail || 'Failed to start MongoDB scan');
+      throw new Error(error.detail || 'Failed to start compliance scan');
     }
 
     return response.json();
+  }
+
+  /**
+   * @deprecated Use startComplianceScan() instead.
+   * This alias is provided for backward compatibility during migration.
+   */
+  static async startMongoDBScan(
+    hostId: string,
+    hostname: string,
+    platform: string,
+    platformVersion: string,
+    framework: string,
+    ruleIds?: string[]
+  ): Promise<ComplianceScanResponse> {
+    return this.startComplianceScan(
+      hostId,
+      hostname,
+      platform,
+      platformVersion,
+      framework,
+      undefined,
+      ruleIds
+    );
   }
 
   /**
@@ -341,3 +379,4 @@ class ScanService {
 }
 
 export { ScanService };
+export type { ConnectionParams, ComplianceScanResponse };
