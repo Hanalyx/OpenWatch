@@ -110,6 +110,31 @@ const getStepColor = (status: string): 'success' | 'error' | 'warning' | 'primar
   }
 };
 
+/**
+ * Mapping from frontend step IDs to backend validation_checks keys
+ * Frontend groups related checks into logical categories for better UX
+ */
+const STEP_TO_CHECKS_MAP: Record<string, string[]> = {
+  network_connectivity: ['network_connectivity'],
+  authentication: [], // SSH auth is implicit - if we get results, auth worked
+  privileges: ['sudo_access', 'selinux_status'],
+  resources: ['disk_space', 'memory_availability'],
+  dependencies: ['oscap_installation', 'operating_system', 'component_detection'],
+};
+
+/**
+ * Mapping from error categories to frontend step IDs
+ */
+const CATEGORY_TO_STEP_MAP: Record<string, string> = {
+  network: 'network_connectivity',
+  authentication: 'authentication',
+  privilege: 'privileges',
+  resource: 'resources',
+  dependency: 'dependencies',
+  configuration: 'dependencies',
+  execution: 'dependencies',
+};
+
 export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps> = ({
   open,
   onClose,
@@ -204,38 +229,50 @@ export const PreFlightValidationDialog: React.FC<PreFlightValidationDialogProps>
       const result = await api.post<ValidationResult>('/api/scans/validate', validationRequest);
 
       // Update steps based on validation results
-      Object.entries(result.validation_checks).forEach(([stepId, success]) => {
-        // Check for specific errors/warnings for this step
+      // Use the mapping to convert backend check keys to frontend step IDs
+      const frontendSteps = [
+        'network_connectivity',
+        'authentication',
+        'privileges',
+        'resources',
+        'dependencies',
+      ];
+
+      frontendSteps.forEach((stepId) => {
+        const relatedChecks = STEP_TO_CHECKS_MAP[stepId] || [];
+
+        // Find errors and warnings for this step based on category mapping
         const stepErrors = result.errors.filter(
-          (e) =>
-            e.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
-            e.category.toLowerCase().includes(stepId.split('_')[0])
+          (e) => CATEGORY_TO_STEP_MAP[e.category.toLowerCase()] === stepId
         );
         const stepWarnings = result.warnings.filter(
-          (w) =>
-            w.error_code.toLowerCase().includes(stepId.toLowerCase()) ||
-            w.category.toLowerCase().includes(stepId.split('_')[0])
+          (w) => CATEGORY_TO_STEP_MAP[w.category.toLowerCase()] === stepId
         );
 
+        // Determine step status based on related backend checks
         let status: ValidationStep['status'] = 'success';
+        let details: string | undefined;
+
         if (stepErrors.length > 0) {
           status = 'error';
+          details = stepErrors[0].message;
         } else if (stepWarnings.length > 0) {
           status = 'warning';
-        } else if (!success) {
-          status = 'warning';
+          details = stepWarnings[0].message;
+        } else if (relatedChecks.length > 0) {
+          // Check if any related backend checks failed
+          const anyFailed = relatedChecks.some(
+            (checkKey) => result.validation_checks[checkKey] === false
+          );
+          if (anyFailed) {
+            status = 'warning';
+          }
+        } else if (stepId === 'authentication') {
+          // Authentication is implicit - if we got results, auth worked
+          status = 'success';
         }
 
-        updateStepStatus(
-          stepId,
-          status,
-          undefined,
-          stepErrors.length > 0
-            ? stepErrors[0].message
-            : stepWarnings.length > 0
-              ? stepWarnings[0].message
-              : undefined
-        );
+        updateStepStatus(stepId, status, undefined, details);
       });
 
       setValidationResult(result);

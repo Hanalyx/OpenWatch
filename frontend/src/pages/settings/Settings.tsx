@@ -189,7 +189,7 @@ const Settings: React.FC = () => {
   const loadSSHPolicy = async () => {
     try {
       setSSHLoading(true);
-      const response = await api.get('/api/ssh-settings/policy');
+      const response = await api.get('/api/ssh/settings/policy');
       setSSHPolicy(response);
     } catch (err: unknown) {
       setError('Failed to load SSH policy');
@@ -202,7 +202,7 @@ const Settings: React.FC = () => {
   const loadKnownHosts = async () => {
     try {
       setSSHLoading(true);
-      const response = await api.get('/api/ssh-settings/known-hosts');
+      const response = await api.get('/api/ssh/settings/known-hosts');
       setKnownHosts(response);
     } catch (err: unknown) {
       setError('Failed to load known hosts');
@@ -215,7 +215,7 @@ const Settings: React.FC = () => {
   const updateSSHPolicy = async (newPolicy: string, trustedNetworks: string[]) => {
     try {
       setSSHLoading(true);
-      const response = await api.post('/api/ssh-settings/policy', {
+      const response = await api.post('/api/ssh/settings/policy', {
         policy: newPolicy,
         trusted_networks: trustedNetworks,
       });
@@ -232,7 +232,7 @@ const Settings: React.FC = () => {
   const addKnownHost = async () => {
     try {
       setSSHLoading(true);
-      await api.post('/api/ssh-settings/known-hosts', newHostKey);
+      await api.post('/api/ssh/settings/known-hosts', newHostKey);
       setSuccess('Host key added successfully');
       setAddHostKeyOpen(false);
       setNewHostKey({
@@ -259,7 +259,7 @@ const Settings: React.FC = () => {
     try {
       setSSHLoading(true);
       const params = keyType ? `?key_type=${keyType}` : '';
-      await api.delete(`/api/ssh-settings/known-hosts/${hostname}${params}`);
+      await api.delete(`/api/ssh/settings/known-hosts/${hostname}${params}`);
       setSuccess('Host key removed successfully');
       await loadKnownHosts();
     } catch (err: unknown) {

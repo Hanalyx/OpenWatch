@@ -627,7 +627,7 @@ const ScanDetail: React.FC = () => {
       const framework = scan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
-      const response = await fetch('/api/mongodb-scans/start', {
+      const response = await fetch('/api/scans/mongodb/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

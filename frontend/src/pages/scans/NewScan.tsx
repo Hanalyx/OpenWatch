@@ -56,8 +56,8 @@ const NewScan: React.FC = () => {
   };
 
   const handleFullWizard = () => {
-    // Navigate to the full scan wizard (NewScapScan)
-    navigate('/scans/new-scap', { state });
+    // Navigate to the unified scan wizard (ComplianceScanWizard)
+    navigate('/scans/create', { state: { preselectedHostId: state?.hostId } });
   };
 
   // If in quick scan mode, render minimal UI

@@ -95,7 +95,7 @@ const DriftAlertsWidget: React.FC<DriftAlertsWidgetProps> = ({
         page: number;
         per_page: number;
         total_pages: number;
-      }>('/api/drift-events', {
+      }>('/api/compliance/drift', {
         params: {
           limit,
           exclude_stable: true,

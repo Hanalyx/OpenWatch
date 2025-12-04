@@ -426,7 +426,7 @@ const Scans: React.FC = () => {
       const framework = mostRecentScan.profile_id || DEFAULT_FRAMEWORK;
 
       // Call MongoDB scan API
-      const response = await fetch('/api/mongodb-scans/start', {
+      const response = await fetch('/api/scans/mongodb/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -582,7 +582,7 @@ const Scans: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate('/scans/compliance')}
+            onClick={() => navigate('/scans/create')}
             size="large"
           >
             New Scan
@@ -699,7 +699,7 @@ const Scans: React.FC = () => {
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => navigate('/scans/compliance')}
+                  onClick={() => navigate('/scans/create')}
                 >
                   Create Your First Scan
                 </Button>

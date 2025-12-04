@@ -72,7 +72,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
   const fetchScanTemplates = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/scan-templates/host/${hostId}`, {
+      const response = await fetch(`/api/scans/templates/host/${hostId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },

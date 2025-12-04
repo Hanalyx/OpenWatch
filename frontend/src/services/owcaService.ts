@@ -162,7 +162,7 @@ class OWCAService {
    */
   async getHostComplianceScore(hostId: string): Promise<ComplianceScore | null> {
     try {
-      const response = await api.get<ComplianceScore>(`/api/owca/host/${hostId}/score`);
+      const response = await api.get<ComplianceScore>(`/api/compliance/owca/host/${hostId}/score`);
       return response || null;
     } catch (error) {
       console.error(`Failed to fetch OWCA score for host ${hostId}:`, error);
@@ -183,7 +183,7 @@ class OWCAService {
    */
   async getFleetStatistics(): Promise<FleetStatistics> {
     try {
-      const response = await api.get<FleetStatistics>('/api/owca/fleet/statistics');
+      const response = await api.get<FleetStatistics>('/api/compliance/owca/fleet/statistics');
       return response;
     } catch (error) {
       console.error('Failed to fetch OWCA fleet statistics:', error);
@@ -205,7 +205,7 @@ class OWCAService {
    */
   async detectBaselineDrift(hostId: string): Promise<BaselineDrift | null> {
     try {
-      const response = await api.get<BaselineDrift>(`/api/owca/host/${hostId}/drift`);
+      const response = await api.get<BaselineDrift>(`/api/compliance/owca/host/${hostId}/drift`);
       return response || null;
     } catch (error) {
       console.error(`Failed to detect baseline drift for host ${hostId}:`, error);
@@ -228,7 +228,7 @@ class OWCAService {
   async getHostsWithDrift(minSeverity: DriftSeverity = 'medium'): Promise<BaselineDrift[]> {
     try {
       const response = await api.get<BaselineDrift[]>(
-        `/api/owca/fleet/drift?min_severity=${minSeverity}`
+        `/api/compliance/owca/fleet/drift?min_severity=${minSeverity}`
       );
       return response || [];
     } catch (error) {
@@ -254,7 +254,7 @@ class OWCAService {
   async getTopPriorityHosts(limit: number = 10): Promise<PriorityHost[]> {
     try {
       const response = await api.get<PriorityHost[]>(
-        `/api/owca/fleet/priority-hosts?limit=${limit}`
+        `/api/compliance/owca/fleet/priority-hosts?limit=${limit}`
       );
       return response || [];
     } catch (error) {
@@ -281,7 +281,7 @@ class OWCAService {
     layers: string[];
   }> {
     try {
-      const response = await api.get('/api/owca/version');
+      const response = await api.get('/api/compliance/owca/version');
       return response;
     } catch (error) {
       console.error('Failed to fetch OWCA version:', error);

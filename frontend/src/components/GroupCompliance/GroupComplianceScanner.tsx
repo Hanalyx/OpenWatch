@@ -174,7 +174,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
   const checkActiveScan = async () => {
     try {
-      const response = await fetch(`/api/group-compliance/${groupId}/active-scan`, {
+      const response = await fetch(`/api/host-groups/${groupId}/scan-sessions?status=running`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -199,7 +199,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/group-compliance/${groupId}/scan`, {
+      const response = await fetch(`/api/host-groups/${groupId}/scan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -243,11 +243,14 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
   const monitorScanProgress = async (sessionId: string) => {
     const pollProgress = async () => {
       try {
-        const response = await fetch(`/api/group-compliance/sessions/${sessionId}/progress`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-          },
-        });
+        const response = await fetch(
+          `/api/host-groups/${groupId}/scan-sessions/${sessionId}/progress`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+          }
+        );
 
         if (response.ok) {
           const progress = await response.json();
@@ -279,7 +282,7 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
 
     try {
       const response = await fetch(
-        `/api/group-compliance/sessions/${currentScan.session_id}/cancel`,
+        `/api/host-groups/${groupId}/scan-sessions/${currentScan.session_id}/cancel`,
         {
           method: 'POST',
           headers: {

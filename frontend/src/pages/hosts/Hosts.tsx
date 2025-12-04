@@ -505,14 +505,14 @@ const Hosts: React.FC = () => {
         );
       }
 
-      // Proceed with scan - navigate to scan creation page
+      // Proceed with scan - navigate to unified scan wizard
       setQuickScanDialog({ open: false, host: null });
-      navigate('/scans/new-scap', { state: { preselectedHostId: host.id } });
+      navigate('/scans/create', { state: { preselectedHostId: host.id } });
     } catch (error) {
       console.error('Pre-scan JIT check failed:', error);
       // Fallback: if JIT check fails, proceed anyway (don't block compliance workflow)
       setQuickScanDialog({ open: false, host: null });
-      navigate('/scans/new-scap', { state: { preselectedHostId: host.id } });
+      navigate('/scans/create', { state: { preselectedHostId: host.id } });
     }
   };
 

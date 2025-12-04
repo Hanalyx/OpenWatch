@@ -37,7 +37,7 @@ export const templateService = {
    * List templates with optional filters
    */
   list: async (params?: { framework?: string; tags?: string }): Promise<ScanTemplate[]> => {
-    const response = await api.get('/api/scan-config/templates', { params });
+    const response = await api.get('/api/scans/templates', { params });
     return response.data || [];
   },
 
@@ -45,7 +45,7 @@ export const templateService = {
    * Get a single template by ID
    */
   get: async (id: string): Promise<ScanTemplate> => {
-    const response = await api.get(`/api/scan-config/templates/${id}`);
+    const response = await api.get(`/api/scans/templates/${id}`);
     return response.data;
   },
 
@@ -53,7 +53,7 @@ export const templateService = {
    * Create a new template
    */
   create: async (data: CreateTemplateRequest): Promise<ScanTemplate> => {
-    const response = await api.post('/api/scan-config/templates', data);
+    const response = await api.post('/api/scans/templates', data);
     return response.data;
   },
 
@@ -61,7 +61,7 @@ export const templateService = {
    * Update an existing template
    */
   update: async (id: string, data: UpdateTemplateRequest): Promise<ScanTemplate> => {
-    const response = await api.put(`/api/scan-config/templates/${id}`, data);
+    const response = await api.put(`/api/scans/templates/${id}`, data);
     return response.data;
   },
 
@@ -69,14 +69,14 @@ export const templateService = {
    * Delete a template
    */
   delete: async (id: string): Promise<void> => {
-    await api.delete(`/api/scan-config/templates/${id}`);
+    await api.delete(`/api/scans/templates/${id}`);
   },
 
   /**
    * Apply a template to a target (returns scan configuration)
    */
   apply: async (id: string, request: ApplyTemplateRequest): Promise<AppliedTemplateResponse> => {
-    const response = await api.post(`/api/scan-config/templates/${id}/apply`, request);
+    const response = await api.post(`/api/scans/templates/${id}/apply`, request);
     return response.data;
   },
 
@@ -85,7 +85,7 @@ export const templateService = {
    */
   clone: async (id: string, newName: string): Promise<ScanTemplate> => {
     const response = await api.post(
-      `/api/scan-config/templates/${id}/clone?new_name=${encodeURIComponent(newName)}`
+      `/api/scans/templates/${id}/clone?new_name=${encodeURIComponent(newName)}`
     );
     return response.data;
   },
@@ -94,14 +94,14 @@ export const templateService = {
    * Set a template as the user's default
    */
   setDefault: async (id: string): Promise<void> => {
-    await api.post(`/api/scan-config/templates/${id}/set-default`);
+    await api.post(`/api/scans/templates/${id}/set-default`);
   },
 
   /**
    * Share a template (make public or share with specific users)
    */
   share: async (id: string, usernames?: string[]): Promise<void> => {
-    await api.post(`/api/scan-config/templates/${id}/share`, {
+    await api.post(`/api/scans/templates/${id}/share`, {
       shared_with: usernames || [],
     });
   },
@@ -110,7 +110,7 @@ export const templateService = {
    * Get template statistics
    */
   getStatistics: async (): Promise<TemplateStatistics> => {
-    const response = await api.get('/api/scan-config/statistics');
+    const response = await api.get('/api/scans/config/statistics');
     return response.data;
   },
 
@@ -118,7 +118,7 @@ export const templateService = {
    * Get templates created by a specific user
    */
   getByUser: async (username: string): Promise<ScanTemplate[]> => {
-    const response = await api.get(`/api/scan-config/templates/user/${username}`);
+    const response = await api.get(`/api/scans/templates/user/${username}`);
     return response.data || [];
   },
 };

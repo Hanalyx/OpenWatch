@@ -17,7 +17,7 @@ export const frameworkService = {
    * List all available compliance frameworks
    */
   listFrameworks: async (): Promise<Framework[]> => {
-    const response = await api.get('/api/scan-config/frameworks');
+    const response = await api.get('/api/scans/config/frameworks');
     return response.data || [];
   },
 
@@ -25,7 +25,7 @@ export const frameworkService = {
    * Get details for a specific framework version
    */
   getFrameworkDetails: async (framework: string, version: string): Promise<FrameworkDetails> => {
-    const response = await api.get(`/api/scan-config/frameworks/${framework}/${version}`);
+    const response = await api.get(`/api/scans/config/frameworks/${framework}/${version}`);
     return response.data;
   },
 
@@ -33,7 +33,9 @@ export const frameworkService = {
    * Get variable definitions for a framework version
    */
   getVariables: async (framework: string, version: string): Promise<VariableDefinition[]> => {
-    const response = await api.get(`/api/scan-config/frameworks/${framework}/${version}/variables`);
+    const response = await api.get(
+      `/api/scans/config/frameworks/${framework}/${version}/variables`
+    );
     return response.data || [];
   },
 
@@ -47,7 +49,7 @@ export const frameworkService = {
     variables: Record<string, VariableDefaultValue>
   ): Promise<ValidationResult> => {
     const response = await api.post(
-      `/api/scan-config/frameworks/${framework}/${version}/validate`,
+      `/api/scans/config/frameworks/${framework}/${version}/validate`,
       { variables }
     );
     return response.data || { valid: true, errors: {}, warnings: {} };

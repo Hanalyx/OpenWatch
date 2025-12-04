@@ -98,10 +98,10 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     try {
       setLoading(true);
       const endpoint = hostId
-        ? `/api/scan-templates/host/${hostId}`
+        ? `/api/scans/templates/host/${hostId}`
         : groupId
-          ? `/api/scan-templates/group/${groupId}`
-          : '/api/scan-templates/';
+          ? `/api/scans/templates/group/${groupId}`
+          : '/api/scans/templates';
 
       const response = await fetch(endpoint, {
         headers: {
@@ -129,7 +129,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
         scopeId: formData.scope === 'host' ? hostId : formData.scope === 'group' ? groupId : null,
       };
 
-      const response = await fetch('/api/scan-templates/', {
+      const response = await fetch('/api/scans/templates', {
         method: editingTemplate ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +162,7 @@ const ScanTemplateManager: React.FC<ScanTemplateManagerProps> = ({
     }
 
     try {
-      const response = await fetch(`/api/scan-templates/${templateId}`, {
+      const response = await fetch(`/api/scans/templates/${templateId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,

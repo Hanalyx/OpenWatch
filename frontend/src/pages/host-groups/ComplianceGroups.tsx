@@ -49,7 +49,7 @@ import GroupCompatibilityReport from '../../components/host-groups/GroupCompatib
 import ScanProgressDialog from '../../components/host-groups/ScanProgressDialog';
 import BulkConfigurationDialog from '../../components/host-groups/BulkConfigurationDialog';
 import { GroupComplianceScanner, GroupComplianceReport } from '../../components/GroupCompliance';
-// ScanService removed - using unified group-compliance API
+// ScanService removed - using unified host-groups API
 
 interface HostGroup {
   id: number;
@@ -198,8 +198,8 @@ const ComplianceGroups: React.FC = () => {
         return;
       }
 
-      // Use unified group-compliance API
-      const response = await fetch(`/api/group-compliance/${selectedGroup.id}/scan`, {
+      // Use unified host-groups API
+      const response = await fetch(`/api/host-groups/${selectedGroup.id}/scan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -782,7 +782,7 @@ const ComplianceGroups: React.FC = () => {
           onCancel={async (sessionId: string) => {
             try {
               const response = await fetch(
-                `/api/group-compliance/${selectedGroup.id}/cancel/${sessionId}`,
+                `/api/host-groups/${selectedGroup.id}/scan-sessions/${sessionId}/cancel`,
                 {
                   method: 'POST',
                   headers: {

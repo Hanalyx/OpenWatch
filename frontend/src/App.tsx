@@ -39,6 +39,7 @@ import ValidateReadiness from './pages/scans/ValidateReadiness';
 import ScanDetail from './pages/scans/ScanDetail';
 import NewScan from './pages/scans/NewScan';
 import NewScapScan from './pages/scans/NewScapScan';
+import ComplianceScanWizard from './pages/scans/ComplianceScanWizard';
 import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
 import Settings from './pages/settings/Settings';
@@ -94,6 +95,7 @@ function App() {
                 <Route path="/content/templates/new" element={<TemplateEditorPage />} />
                 <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
                 <Route path="/scans" element={<Scans />} />
+                <Route path="/scans/create" element={<ComplianceScanWizard />} />
                 <Route path="/scans/compliance" element={<ComplianceScans />} />
                 <Route path="/scans/validate-readiness" element={<ValidateReadiness />} />
                 <Route path="/scans/new" element={<NewScan />} />

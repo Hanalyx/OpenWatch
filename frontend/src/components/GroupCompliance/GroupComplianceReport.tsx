@@ -134,7 +134,7 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
         params.append('date_from', fromDate.toISOString());
       }
 
-      const response = await fetch(`/api/group-compliance/${groupId}/report?${params}`, {
+      const response = await fetch(`/api/host-groups/${groupId}/compliance/report?${params}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
@@ -158,11 +158,14 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
       const params = new URLSearchParams({ format });
       if (selectedFramework) params.append('framework', selectedFramework);
 
-      const response = await fetch(`/api/group-compliance/${groupId}/report/download?${params}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
+      const response = await fetch(
+        `/api/host-groups/${groupId}/compliance/report/download?${params}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+          },
+        }
+      );
 
       if (response.ok) {
         const blob = await response.blob();

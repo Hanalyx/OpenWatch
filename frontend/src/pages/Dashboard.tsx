@@ -193,7 +193,7 @@ const Dashboard: React.FC = () => {
         const requestUrl = (apiError as { config?: { url?: string } }).config?.url;
 
         // Detect OWCA-specific failures (compliance applications require accurate data)
-        if (requestUrl?.includes('/api/owca/')) {
+        if (requestUrl?.includes('/api/compliance/owca/')) {
           setOwcaError(
             'OWCA compliance service is unavailable. Dashboard metrics cannot be displayed without canonical compliance calculations. Please contact your administrator.'
           );
@@ -280,7 +280,7 @@ const Dashboard: React.FC = () => {
       // Use ComplianceTrendData interface for type-safe trend chart data
       // TODO(feature): Implement historical trend data from OWCA trend analysis API
       // Currently showing single data point (current state)
-      // Future: Replace with actual historical data from /api/owca/host/{id}/trend
+      // Future: Replace with actual historical data from /api/compliance/owca/host/{id}/trend
       const today = new Date().toISOString().split('T')[0];
       const trendDataArray: ComplianceTrendData[] =
         normalizedHosts.length > 0

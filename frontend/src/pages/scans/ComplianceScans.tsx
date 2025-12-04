@@ -237,9 +237,9 @@ const ComplianceScans: React.FC = () => {
       setLoading(true);
 
       if (targetType === 'groups') {
-        // Use group compliance endpoint for host groups
+        // Use host groups scan endpoint for group compliance
         for (const groupId of selectedGroups) {
-          const response = await api.post(`/api/group-compliance/${groupId}/scan`, {
+          const response = await api.post(`/api/host-groups/${groupId}/scan`, {
             rule_ids: selectedRules,
             scan_name: `Compliance Scan - ${new Date().toISOString()}`,
           });
@@ -291,7 +291,7 @@ const ComplianceScans: React.FC = () => {
               };
             }
 
-            const response = await api.post('/api/mongodb-scans/start', {
+            const response = await api.post('/api/scans/mongodb/start', {
               host_id: hostId,
               hostname: host.ip_address || host.hostname, // Prefer IP for DNS resolution
               platform,

@@ -295,7 +295,7 @@ const HostDetail: React.FC = () => {
   };
 
   const handleStartScan = () => {
-    navigate('/scans/new-scap', { state: { preselectedHostId: id } });
+    navigate('/scans/create', { state: { preselectedHostId: id } });
   };
 
   const handleDeleteSSHKey = async () => {
