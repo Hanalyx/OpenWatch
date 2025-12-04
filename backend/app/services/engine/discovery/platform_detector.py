@@ -8,14 +8,42 @@ The detection logic mirrors host_discovery_service.py but is optimized for:
 1. Single-use (no caching or persistence)
 2. Scan-specific return format (platform_identifier for OVAL selection)
 3. Integration with existing scanner SSH connections
+
+SSH Connection Pattern:
+    This module follows the SSH Connection Best Practices documented in CLAUDE.md.
+    It accepts CredentialData objects with pre-decrypted values - it does NOT
+    handle encryption/decryption internally.
+
+Usage:
+    from backend.app.services.auth import CentralizedAuthService, CredentialData
+    from backend.app.services.engine.discovery import PlatformDetector
+
+    # Step 1: Resolve credentials at the entry point (API/task)
+    auth_service = CentralizedAuthService(db, encryption_service)
+    credential_data = auth_service.resolve_credential(target_id=str(host.id))
+
+    # Step 2: Pass CredentialData to detector
+    detector = PlatformDetector(db)
+    info = await detector.detect(
+        hostname="192.168.1.100",
+        port=22,
+        credential_data=credential_data,
+    )
+    if info.detection_success:
+        print(f"Platform: {info.platform_identifier}")
 """
 
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+from sqlalchemy.orm import Session
 
 from backend.app.services.ssh import SSHConnectionManager
+
+if TYPE_CHECKING:
+    from backend.app.services.auth import CredentialData
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +82,26 @@ class PlatformDetector:
     This class is designed for just-in-time platform detection during scan
     operations. It does NOT persist any data to the database.
 
+    SSH Connection Pattern:
+        This detector follows the SSH Connection Best Practices from CLAUDE.md.
+        It accepts CredentialData objects with pre-decrypted values.
+        Credential resolution and decryption must happen at the calling layer
+        (API endpoint or task).
+
     Usage:
-        detector = PlatformDetector()
+        from backend.app.services.auth import CentralizedAuthService
+        from backend.app.services.engine.discovery import PlatformDetector
+
+        # At API endpoint - resolve credentials
+        auth_service = CentralizedAuthService(db, encryption_service)
+        credential_data = auth_service.resolve_credential(target_id=str(host.id))
+
+        # Pass CredentialData to detector
+        detector = PlatformDetector(db)
         info = await detector.detect(
             hostname="192.168.1.100",
-            connection_params={"username": "root", "port": 22},
-            encryption_service=enc_service,
+            port=22,
+            credential_data=credential_data,
         )
         if info.detection_success:
             print(f"Platform: {info.platform_identifier}")
@@ -90,72 +132,81 @@ class PlatformDetector:
         "amazon linux ami": "rhel",
     }
 
-    def __init__(self, ssh_manager: Optional[SSHConnectionManager] = None):
+    def __init__(self, db: Optional[Session] = None):
         """
         Initialize the platform detector.
 
         Args:
-            ssh_manager: Optional SSHConnectionManager instance to reuse.
-                        If not provided, a new one will be created.
+            db: Optional database session for SSHConnectionManager.
         """
-        self.ssh_manager = ssh_manager
-        self._owns_ssh_manager = ssh_manager is None
+        self.db = db
+        self.ssh_manager = SSHConnectionManager(db) if db else SSHConnectionManager()
 
     async def detect(
         self,
         hostname: str,
-        connection_params: Dict[str, Any],
-        encryption_service: Any,
-        host_id: Optional[str] = None,
+        port: int,
+        credential_data: "CredentialData",
     ) -> PlatformInfo:
         """
         Detect platform information from a remote host.
 
-        This method connects via SSH, detects OS information, and returns
-        a PlatformInfo object. It does NOT persist any data.
+        This method connects via SSH using pre-resolved CredentialData,
+        detects OS information, and returns a PlatformInfo object.
+        It does NOT persist any data.
+
+        SSH Connection Pattern:
+            This method follows the SSH Connection Best Practices from CLAUDE.md.
+            The credential_data parameter must contain DECRYPTED values.
+            Credential resolution must happen at the calling layer.
 
         Args:
             hostname: Target hostname or IP address
-            connection_params: SSH connection parameters (username, port, etc.)
-            encryption_service: Encryption service for credential decryption
-            host_id: Optional host ID for credential resolution
+            port: SSH port number
+            credential_data: CredentialData object with DECRYPTED credentials
 
         Returns:
             PlatformInfo with detected platform data, or with detection_error
             if detection failed.
+
+        Raises:
+            ValueError: If credential_data is None
         """
         result = PlatformInfo()
         ssh_client = None
 
+        # Validate credential_data is provided
+        if credential_data is None:
+            result.detection_error = "No credentials provided for platform detection"
+            logger.error(result.detection_error)
+            return result
+
         try:
-            # Create SSH manager if not provided
-            if self.ssh_manager is None:
-                self.ssh_manager = SSHConnectionManager()
-                self._owns_ssh_manager = True
+            # Extract credential value based on auth method
+            auth_method = credential_data.auth_method.value
+            credential_value = self._get_credential_value(credential_data, auth_method)
 
-            # Build connection config
-            ssh_config = self._build_ssh_config(hostname, connection_params, encryption_service)
+            if not credential_value:
+                result.detection_error = f"No credential value available for auth method: {auth_method}"
+                logger.error(result.detection_error)
+                return result
 
-            # Determine auth method and credential
-            auth_method = "password"
-            credential = ssh_config.get("password", "")
-            if ssh_config.get("private_key"):
-                auth_method = "ssh_key"
-                credential = ssh_config["private_key"]
+            # Connect to host using SSHConnectionManager with pre-decrypted credentials
+            logger.info(f"Connecting to {hostname}:{port} as {credential_data.username} via {auth_method}")
 
-            # Connect to host using connect_with_credentials API
             conn_result = self.ssh_manager.connect_with_credentials(
-                hostname=ssh_config["hostname"],
-                port=ssh_config.get("port", 22),
-                username=ssh_config.get("username", "root"),
+                hostname=hostname,
+                port=port,
+                username=credential_data.username,
                 auth_method=auth_method,
-                credential=credential,
+                credential=credential_value,
                 service_name="platform_detection",
-                password=ssh_config.get("password") if auth_method == "ssh_key" else None,
+                timeout=30,
             )
 
             if not conn_result.success:
                 result.detection_error = f"SSH connection failed: {conn_result.error_message}"
+                logger.error(result.detection_error)
                 return result
 
             ssh_client = conn_result.connection
@@ -197,44 +248,27 @@ class PlatformDetector:
 
         return result
 
-    def _build_ssh_config(
-        self,
-        hostname: str,
-        connection_params: Dict[str, Any],
-        encryption_service: Any,
-    ) -> Dict[str, Any]:
-        """Build SSH connection configuration from parameters."""
-        config = {
-            "hostname": hostname,
-            "port": connection_params.get("port", 22),
-            "username": connection_params.get("username"),
-        }
+    def _get_credential_value(self, credential_data: "CredentialData", auth_method: str) -> Optional[str]:
+        """
+        Extract the appropriate credential value based on auth method.
 
-        # Handle encrypted credentials
-        if connection_params.get("encrypted_password"):
-            try:
-                config["password"] = encryption_service.decrypt(
-                    connection_params["encrypted_password"]
-                )
-            except Exception as e:
-                logger.warning(f"Failed to decrypt password: {e}")
-        elif connection_params.get("password"):
-            config["password"] = connection_params["password"]
+        This method follows the pattern from SSHExecutor._get_credential_value().
 
-        if connection_params.get("encrypted_private_key"):
-            try:
-                config["private_key"] = encryption_service.decrypt(
-                    connection_params["encrypted_private_key"]
-                )
-            except Exception as e:
-                logger.warning(f"Failed to decrypt private key: {e}")
-        elif connection_params.get("private_key"):
-            config["private_key"] = connection_params["private_key"]
+        Args:
+            credential_data: CredentialData object with decrypted credentials
+            auth_method: Authentication method string
 
-        if connection_params.get("private_key_passphrase"):
-            config["private_key_passphrase"] = connection_params["private_key_passphrase"]
-
-        return config
+        Returns:
+            Decrypted credential value (private_key or password), or None
+        """
+        if auth_method in ["ssh_key", "ssh-key", "key"]:
+            return credential_data.private_key
+        elif auth_method == "password":
+            return credential_data.password
+        elif auth_method == "both":
+            # Prefer SSH key, fallback to password
+            return credential_data.private_key or credential_data.password
+        return None
 
     def _detect_os_release(self, ssh_client: Any) -> Dict[str, str]:
         """Detect OS information from /etc/os-release."""
@@ -384,17 +418,15 @@ class PlatformDetector:
                 return f"{os_family_lower}{major_version}"
 
         except (IndexError, ValueError) as e:
-            logger.warning(
-                f"Failed to normalize platform identifier for {os_family} {os_version}: {e}"
-            )
+            logger.warning(f"Failed to normalize platform identifier for {os_family} {os_version}: {e}")
             return None
 
 
 async def detect_platform_for_scan(
     hostname: str,
-    connection_params: Dict[str, Any],
-    encryption_service: Any,
-    host_id: Optional[str] = None,
+    port: int,
+    credential_data: "CredentialData",
+    db: Optional[Session] = None,
 ) -> PlatformInfo:
     """
     Factory function for quick platform detection during scan operations.
@@ -402,28 +434,40 @@ async def detect_platform_for_scan(
     This is the recommended entry point for scan-time platform detection.
     It creates a PlatformDetector, performs detection, and returns the result.
 
+    SSH Connection Pattern:
+        This function follows the SSH Connection Best Practices from CLAUDE.md.
+        The credential_data parameter must contain pre-resolved, DECRYPTED
+        credentials from CentralizedAuthService.resolve_credential().
+
     Args:
         hostname: Target hostname or IP address
-        connection_params: SSH connection parameters
-        encryption_service: Encryption service for credential decryption
-        host_id: Optional host ID for logging/correlation
+        port: SSH port number
+        credential_data: CredentialData with DECRYPTED credentials
+        db: Optional database session for SSHConnectionManager
 
     Returns:
         PlatformInfo with detected platform data
 
     Example:
+        from backend.app.services.auth import CentralizedAuthService
+
+        # At API endpoint - resolve credentials first
+        auth_service = CentralizedAuthService(db, encryption_service)
+        credential_data = auth_service.resolve_credential(target_id=str(host.id))
+
+        # Pass to detector
         info = await detect_platform_for_scan(
             hostname="192.168.1.100",
-            connection_params={"username": "root", "port": 22},
-            encryption_service=enc_service,
+            port=22,
+            credential_data=credential_data,
+            db=db,
         )
         if info.detection_success:
             platform_identifier = info.platform_identifier  # e.g., "rhel9"
     """
-    detector = PlatformDetector()
+    detector = PlatformDetector(db)
     return await detector.detect(
         hostname=hostname,
-        connection_params=connection_params,
-        encryption_service=encryption_service,
-        host_id=host_id,
+        port=port,
+        credential_data=credential_data,
     )
