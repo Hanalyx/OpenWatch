@@ -161,7 +161,9 @@ async def list_scans(
             if hasattr(row, "scan_metadata") and row.scan_metadata:
                 try:
                     scan_metadata = (
-                        json.loads(row.scan_metadata) if isinstance(row.scan_metadata, str) else row.scan_metadata
+                        json.loads(row.scan_metadata)
+                        if isinstance(row.scan_metadata, str)
+                        else row.scan_metadata
                     )
                 except (ValueError, TypeError):
                     scan_metadata = {}
@@ -650,7 +652,9 @@ async def delete_scan(
     try:
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
+            QueryBuilder("scans")
+            .select("status", "result_file", "report_file")
+            .where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -668,7 +672,10 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: " f"{type(e).__name__}")
+                    logger.warning(
+                        f"Failed to delete file {sanitize_path_for_log(file_path)}: "
+                        f"{type(e).__name__}"
+                    )
 
         # Delete scan results first (foreign key constraint)
         results_delete_query = text(
@@ -753,7 +760,9 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
+            raise HTTPException(
+                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
+            )
 
         # Try to revoke Celery task if available
         if result.celery_task_id:

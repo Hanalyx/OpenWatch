@@ -51,7 +51,8 @@ from .auth import (  # noqa: F401; Models; Exceptions; Validation; Service
 
 # Issue deprecation warning on import
 warnings.warn(
-    "Importing from backend.app.services.auth_service is deprecated. " "Import from backend.app.services.auth instead.",
+    "Importing from backend.app.services.auth_service is deprecated. "
+    "Import from backend.app.services.auth instead.",
     DeprecationWarning,
     stacklevel=2,
 )

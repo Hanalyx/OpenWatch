@@ -64,8 +64,12 @@ class MongoDBScanRequest(BaseModel):
     platform_version: str = Field(..., description="Platform version")
     framework: Optional[str] = Field(None, description="Compliance framework to use")
     severity_filter: Optional[List[str]] = Field(None, description="Filter by severity levels")
-    rule_ids: Optional[List[str]] = Field(None, description="Specific rule IDs to scan (from wizard selection)")
-    connection_params: Optional[Dict[str, Any]] = Field(None, description="SSH connection parameters")
+    rule_ids: Optional[List[str]] = Field(
+        None, description="Specific rule IDs to scan (from wizard selection)"
+    )
+    connection_params: Optional[Dict[str, Any]] = Field(
+        None, description="SSH connection parameters"
+    )
     include_enrichment: bool = Field(True, description="Include result enrichment")
     generate_report: bool = Field(True, description="Generate compliance report")
 
@@ -426,7 +430,9 @@ async def start_mongodb_scan(
     try:
         scan_uuid = uuid.uuid4()
         scan_id = f"mongodb_scan_{scan_uuid.hex[:8]}"
-        logger.info(f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}")
+        logger.info(
+            f"Starting MongoDB scan {scan_id} (UUID: {scan_uuid}) for host {scan_request.hostname}"
+        )
 
         # Validate framework
         if scan_request.framework and not is_framework_supported(scan_request.framework):
@@ -436,7 +442,9 @@ async def start_mongodb_scan(
             )
 
         # Resolve effective platform
-        effective_platform, effective_platform_version = await _resolve_platform(scan_request, db, request)
+        effective_platform, effective_platform_version = await _resolve_platform(
+            scan_request, db, request
+        )
 
         # Create PostgreSQL scan record
         started_at = datetime.utcnow()
@@ -521,7 +529,9 @@ async def start_mongodb_scan(
         )
 
 
-async def _resolve_platform(scan_request: MongoDBScanRequest, db: Session, request: Request) -> tuple:
+async def _resolve_platform(
+    scan_request: MongoDBScanRequest, db: Session, request: Request
+) -> tuple:
     """
     Resolve effective platform from host database, JIT detection, or request.
 
@@ -541,7 +551,9 @@ async def _resolve_platform(scan_request: MongoDBScanRequest, db: Session, reque
     platform_resolved_via_jit = False
 
     try:
-        host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
+        host_query = text(
+            "SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id"
+        )
         host_result = db.execute(host_query, {"host_id": scan_request.host_id}).fetchone()
 
         if host_result:
@@ -591,14 +603,18 @@ async def _resolve_platform(scan_request: MongoDBScanRequest, db: Session, reque
 
     # Normalize if not already (only if we didn't use JIT detection)
     if not platform_resolved_via_jit and not any(char.isdigit() for char in effective_platform):
-        computed_platform = _normalize_platform_identifier(scan_request.platform, scan_request.platform_version)
+        computed_platform = _normalize_platform_identifier(
+            scan_request.platform, scan_request.platform_version
+        )
         if computed_platform:
             effective_platform = computed_platform
 
     return effective_platform, effective_platform_version
 
 
-async def _jit_detect_platform(scan_request: MongoDBScanRequest, db: Session, request: Request) -> tuple:
+async def _jit_detect_platform(
+    scan_request: MongoDBScanRequest, db: Session, request: Request
+) -> tuple:
     """
     Perform Just-In-Time platform detection via SSH.
 
@@ -628,7 +644,9 @@ async def _jit_detect_platform(scan_request: MongoDBScanRequest, db: Session, re
         credential_data = auth_service.resolve_credential(target_id=scan_request.host_id)
 
         if not credential_data:
-            logger.warning(f"No credentials available for JIT detection on host {scan_request.host_id}")
+            logger.warning(
+                f"No credentials available for JIT detection on host {scan_request.host_id}"
+            )
             return None, None
 
         # Extract connection params
@@ -732,7 +750,9 @@ async def _update_scan_failed(db: Session, scan_uuid: uuid.UUID, error_message: 
         db.rollback()
 
 
-async def _update_scan_completed(db: Session, scan_uuid: uuid.UUID, scan_result: Dict[str, Any]) -> None:
+async def _update_scan_completed(
+    db: Session, scan_uuid: uuid.UUID, scan_result: Dict[str, Any]
+) -> None:
     """Update scan record to completed status with results."""
     completed_at = datetime.utcnow()
     try:
@@ -806,7 +826,9 @@ async def _update_scan_completed(db: Session, scan_uuid: uuid.UUID, scan_result:
 
 
 @router.get("/mongodb/{scan_id}/status", response_model=ScanStatusResponse)
-async def get_mongodb_scan_status(scan_id: str, current_user: User = Depends(get_current_user)) -> ScanStatusResponse:
+async def get_mongodb_scan_status(
+    scan_id: str, current_user: User = Depends(get_current_user)
+) -> ScanStatusResponse:
     """
     Get status of a MongoDB scan.
 
@@ -1000,7 +1022,9 @@ async def get_available_mongodb_rules(
             try:
                 from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
-                host_query = text("SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id")
+                host_query = text(
+                    "SELECT platform_identifier, os_family, os_version FROM hosts WHERE id = :host_id"
+                )
                 host_result = db.execute(host_query, {"host_id": host_id}).fetchone()
 
                 if host_result:
@@ -1034,7 +1058,11 @@ async def get_available_mongodb_rules(
                     "severity": rule.severity,
                     "category": rule.category,
                     "frameworks": list(rule.frameworks.keys()) if rule.frameworks else [],
-                    "platforms": (list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    "platforms": (
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 }
             )
 

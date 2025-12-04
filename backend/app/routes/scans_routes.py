@@ -229,7 +229,10 @@ async def create_compliance_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"compliance_scan_{scan_uuid.hex[:8]}"
-        logger.info(f"Starting compliance scan {scan_id} (UUID: {scan_uuid}) " f"for host {scan_request.host_id}")
+        logger.info(
+            f"Starting compliance scan {scan_id} (UUID: {scan_uuid}) "
+            f"for host {scan_request.host_id}"
+        )
 
         # Log request details safely (avoid logging sensitive connection params)
         rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0
@@ -339,7 +342,9 @@ async def create_compliance_scan(
                         )
                         if jit_platform:
                             effective_platform = jit_platform.get("platform", effective_platform)
-                            effective_platform_version = jit_platform.get("version", effective_platform_version)
+                            effective_platform_version = jit_platform.get(
+                                "version", effective_platform_version
+                            )
                             logger.info(
                                 f"JIT platform detection successful: {effective_platform} "
                                 f"v{effective_platform_version}"
@@ -357,7 +362,8 @@ async def create_compliance_scan(
 
         except Exception as platform_err:
             logger.warning(
-                f"Could not resolve host platform: {platform_err}. " f"Using request platform: {scan_request.platform}"
+                f"Could not resolve host platform: {platform_err}. "
+                f"Using request platform: {scan_request.platform}"
             )
 
         # Fallback: If still using raw platform, compute from request
@@ -385,7 +391,8 @@ async def create_compliance_scan(
         # Create PostgreSQL scan record (status: running)
         # ---------------------------------------------------------------------
         scan_name = (
-            scan_request.name or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
+            scan_request.name
+            or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
         )
         started_at = datetime.utcnow()
 
@@ -642,7 +649,9 @@ def _update_scan_status(
         if error_message:
             update_data["error_message"] = error_message
 
-        update_builder = QueryBuilder("scans").update(update_data).where("id = :id", str(scan_uuid), "id")
+        update_builder = (
+            QueryBuilder("scans").update(update_data).where("id = :id", str(scan_uuid), "id")
+        )
         query, params = update_builder.build()
         db.execute(text(query), params)
         db.commit()
@@ -700,7 +709,9 @@ async def _jit_platform_detection(
         target_id = None if use_default else host_id
 
         # Resolve credentials using auth service (same as scan executor)
-        credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+        credential_data = auth_service.resolve_credential(
+            target_id=target_id, use_default=use_default
+        )
 
         if not credential_data:
             logger.warning("JIT detection skipped (no credentials available)")
@@ -737,7 +748,9 @@ async def _jit_platform_detection(
                 "version": platform_info.platform_version or "",
             }
         else:
-            logger.warning(f"JIT platform detection failed for {host_id}: " f"{platform_info.detection_error}")
+            logger.warning(
+                f"JIT platform detection failed for {host_id}: " f"{platform_info.detection_error}"
+            )
             return None
 
     except Exception as e:
@@ -862,7 +875,9 @@ async def get_available_rules(
                         effective_platform = db_platform_id
                         effective_version = db_os_version or platform_version
                         resolution_source = "host_database"
-                        logger.info(f"Using host {host_id} platform_identifier: {effective_platform}")
+                        logger.info(
+                            f"Using host {host_id} platform_identifier: {effective_platform}"
+                        )
                     elif db_os_family and db_os_version:
                         # Priority 2: Compute from os_family + os_version
                         computed = _normalize_platform_identifier(db_os_family, db_os_version)
@@ -870,7 +885,9 @@ async def get_available_rules(
                             effective_platform = computed
                             effective_version = db_os_version
                             resolution_source = "computed"
-                            logger.info(f"Computed platform for host {host_id}: {effective_platform}")
+                            logger.info(
+                                f"Computed platform for host {host_id}: {effective_platform}"
+                            )
                 else:
                     logger.warning(f"Host {host_id} not found in database")
             except Exception as host_err:
@@ -910,7 +927,11 @@ async def get_available_rules(
                     severity=rule.severity or "unknown",
                     category=rule.category,
                     frameworks=(list(rule.frameworks.keys()) if rule.frameworks else []),
-                    platforms=(list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    platforms=(
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 )
             )
 
@@ -1141,7 +1162,15 @@ async def get_scanner_health(
             rule_inheritance_resolution=True,
             result_enrichment=enrichment_status == "initialized",
             compliance_reporting=reporter_status == "initialized",
-            supported_platforms=["rhel", "rhel8", "rhel9", "ubuntu", "ubuntu2004", "ubuntu2204", "centos"],
+            supported_platforms=[
+                "rhel",
+                "rhel8",
+                "rhel9",
+                "ubuntu",
+                "ubuntu2004",
+                "ubuntu2204",
+                "centos",
+            ],
             supported_frameworks=["nist_800_53", "cis", "stig", "pci_dss"],
         )
 
@@ -1255,7 +1284,9 @@ async def validate_scan_configuration(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if not credential_data:
                 raise HTTPException(status_code=400, detail="No credentials available for host")
@@ -1363,7 +1394,9 @@ async def quick_scan(
     # Add deprecation header for legacy SCAP content endpoint
     add_deprecation_header(response, "quick_scan")
     try:
-        logger.info(f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}")
+        logger.info(
+            f"Quick scan requested for host {host_id} with template {quick_scan_request.template_id}"
+        )
 
         # Initialize intelligence service
         intelligence_service = ScanIntelligenceService(db)
@@ -1425,7 +1458,9 @@ async def quick_scan(
                     # Fall back to first available profile
                     if profile_ids:
                         template_id = profile_ids[0]
-                        logger.warning(f"Requested profile not found, using fallback: {template_id}")
+                        logger.warning(
+                            f"Requested profile not found, using fallback: {template_id}"
+                        )
                     else:
                         raise HTTPException(
                             status_code=400,
@@ -1452,7 +1487,9 @@ async def quick_scan(
             use_default = host_result.auth_method in ["default", "system_default"]
             target_id = str(host_result.id) if not use_default and host_result.id else ""
 
-            credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+            credential_data = auth_service.resolve_credential(
+                target_id=target_id, use_default=use_default
+            )
 
             if credential_data:
                 # Queue async validation
@@ -1616,7 +1653,9 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
+            estimated_completion=(
+                session.estimated_completion.timestamp() if session.estimated_completion else 0
+            ),
             scan_ids=session.scan_ids or [],
         )
 
@@ -2009,7 +2048,9 @@ async def list_scans(
 
                 try:
                     scan_metadata = (
-                        json.loads(row.scan_metadata) if isinstance(row.scan_metadata, str) else row.scan_metadata
+                        json.loads(row.scan_metadata)
+                        if isinstance(row.scan_metadata, str)
+                        else row.scan_metadata
                     )
                 except (ValueError, TypeError):
                     scan_metadata = {}
@@ -2426,7 +2467,9 @@ async def delete_scan(
 
         # Check if scan exists and get status
         check_builder = (
-            QueryBuilder("scans").select("status", "result_file", "report_file").where("id = :id", scan_id, "id")
+            QueryBuilder("scans")
+            .select("status", "result_file", "report_file")
+            .where("id = :id", scan_id, "id")
         )
         query, params = check_builder.build()
         result = db.execute(text(query), params).fetchone()
@@ -2446,7 +2489,9 @@ async def delete_scan(
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}")
+                    logger.warning(
+                        f"Failed to delete file {sanitize_path_for_log(file_path)}: {type(e).__name__}"
+                    )
 
         # Delete scan results first (foreign key constraint)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
@@ -2502,7 +2547,9 @@ async def stop_scan(
             raise HTTPException(status_code=404, detail="Scan not found")
 
         if result.status not in ["pending", "running"]:
-            raise HTTPException(status_code=400, detail=f"Cannot stop scan with status: {result.status}")
+            raise HTTPException(
+                status_code=400, detail=f"Cannot stop scan with status: {result.status}"
+            )
 
         # Try to revoke Celery task if available
         if result.celery_task_id:
@@ -2644,7 +2691,9 @@ async def get_scan_json_report(
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation")
+                    logger.info(
+                        f"Added {len(enhanced_results['rule_details'])} enhanced rules with remediation"
+                    )
                 else:
                     # Fallback to basic parsing for backward compatibility
                     import os
@@ -2790,7 +2839,11 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
+        if (
+            not scan_result.result_file
+            or not scan_result.failed_rules
+            or scan_result.failed_rules == 0
+        ):
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),
@@ -3237,7 +3290,9 @@ async def validate_bulk_readiness(
     """
     try:
         from backend.app.models.readiness_models import BulkReadinessRequest
-        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+        from backend.app.services.host_validator.readiness_validator import (
+            ReadinessValidatorService,
+        )
 
         # Parse request
         bulk_request = BulkReadinessRequest(**request)
@@ -3318,7 +3373,11 @@ async def validate_bulk_readiness(
             for check in result.checks:
                 if not check.passed:
                     # Handle both enum and string values for check_type
-                    check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
+                    check_type = (
+                        check.check_type
+                        if isinstance(check.check_type, str)
+                        else check.check_type.value
+                    )
                     common_failures[check_type] = common_failures.get(check_type, 0) + 1
 
         # Calculate total duration
@@ -3326,7 +3385,9 @@ async def validate_bulk_readiness(
 
         # Build remediation priorities (top 5 most common failures)
         remediation_priorities = []
-        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[:5]:
+        for check_type, count in sorted(common_failures.items(), key=lambda x: x[1], reverse=True)[
+            :5
+        ]:
             remediation_priorities.append(
                 {
                     "check_type": check_type,
@@ -3404,7 +3465,9 @@ async def pre_flight_check(
     """
     try:
         from backend.app.models.readiness_models import ReadinessCheckType
-        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+        from backend.app.services.host_validator.readiness_validator import (
+            ReadinessValidatorService,
+        )
 
         # Get scan
         scan_result = db.execute(

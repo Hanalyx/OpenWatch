@@ -283,8 +283,12 @@ async def get_scan_results(
                 "ip_address": scan_result.ip_address,
             },
             "timing": {
-                "started_at": (scan_result.started_at.isoformat() if scan_result.started_at else None),
-                "completed_at": (scan_result.completed_at.isoformat() if scan_result.completed_at else None),
+                "started_at": (
+                    scan_result.started_at.isoformat() if scan_result.started_at else None
+                ),
+                "completed_at": (
+                    scan_result.completed_at.isoformat() if scan_result.completed_at else None
+                ),
             },
             "error_message": scan_result.error_message,
             "result_file": scan_result.result_file,
@@ -521,7 +525,10 @@ async def get_scan_json_report(
                 # Add enhanced rule details with remediation
                 if "rule_details" in enhanced_results and enhanced_results["rule_details"]:
                     scan_data["rule_results"] = enhanced_results["rule_details"]
-                    logger.info(f"Added {len(enhanced_results['rule_details'])} enhanced rules " f"with remediation")
+                    logger.info(
+                        f"Added {len(enhanced_results['rule_details'])} enhanced rules "
+                        f"with remediation"
+                    )
                 else:
                     # Fallback to basic parsing for backward compatibility
                     if os.path.exists(scan_data["result_file"]):
@@ -725,7 +732,11 @@ async def get_scan_failed_rules(
                 detail=f"Scan not completed (status: {scan_result.status})",
             )
 
-        if not scan_result.result_file or not scan_result.failed_rules or scan_result.failed_rules == 0:
+        if (
+            not scan_result.result_file
+            or not scan_result.failed_rules
+            or scan_result.failed_rules == 0
+        ):
             return {
                 "scan_id": scan_id,
                 "host_id": str(scan_result.host_id),

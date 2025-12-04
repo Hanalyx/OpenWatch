@@ -46,7 +46,10 @@ from backend.app.models.scan_config_models import (
     ScanTemplate,
     UpdateTemplateRequest,
 )
-from backend.app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+from backend.app.services.mongo_integration_service import (
+    MongoIntegrationService,
+    get_mongo_service,
+)
 from backend.app.services.scan_template_service import ScanTemplateService
 
 logger = logging.getLogger(__name__)

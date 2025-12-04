@@ -250,7 +250,9 @@ async def validate_variables(
 
     service = FrameworkMetadataService(db)
 
-    valid, errors = await service.validate_variables(framework=framework, version=version, variables=request.variables)
+    valid, errors = await service.validate_variables(
+        framework=framework, version=version, variables=request.variables
+    )
 
     return ValidationResult(valid=valid, errors=errors)
 

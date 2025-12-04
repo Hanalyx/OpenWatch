@@ -99,9 +99,13 @@ class CredentialSecurityValidator:
 
     def __init__(self, policy_config: Optional[SecurityPolicyConfig] = None):
         self.policy = policy_config or SecurityPolicyConfig()
-        logger.info(f"Initialized credential validator with {self.policy.policy_level.value} policy")
+        logger.info(
+            f"Initialized credential validator with {self.policy.policy_level.value} policy"
+        )
 
-    def validate_ssh_key_strict(self, key_content: str, passphrase: Optional[str] = None) -> KeySecurityAssessment:
+    def validate_ssh_key_strict(
+        self, key_content: str, passphrase: Optional[str] = None
+    ) -> KeySecurityAssessment:
         """
         Perform strict SSH key validation with FIPS compliance checking.
 
@@ -148,7 +152,9 @@ class CredentialSecurityValidator:
 
         # Override basic validation if strict policy rejects
         if not is_valid:
-            error_message = "; ".join(security_errors) if security_errors else "Key rejected by security policy"
+            error_message = (
+                "; ".join(security_errors) if security_errors else "Key rejected by security policy"
+            )
         else:
             error_message = basic_validation.error_message
 
@@ -186,7 +192,9 @@ class CredentialSecurityValidator:
 
         if len(password) < self.policy.minimum_password_length:
             is_valid = False
-            warnings.append(f"Password must be at least {self.policy.minimum_password_length} characters")
+            warnings.append(
+                f"Password must be at least {self.policy.minimum_password_length} characters"
+            )
 
         if self.policy.require_complex_passwords:
             complexity_checks = [
@@ -403,12 +411,16 @@ class CredentialSecurityValidator:
         # Additional strength checks
         if key_type == SSHKeyType.RSA and key_size:
             if key_size < self.policy.minimum_rsa_bits:
-                errors.append(f"RSA key size {key_size} is below minimum required {self.policy.minimum_rsa_bits}")
+                errors.append(
+                    f"RSA key size {key_size} is below minimum required {self.policy.minimum_rsa_bits}"
+                )
                 return False, False, errors
 
         if key_type == SSHKeyType.ECDSA and key_size:
             if key_size < self.policy.minimum_ecdsa_bits:
-                errors.append(f"ECDSA key size {key_size} is below minimum required {self.policy.minimum_ecdsa_bits}")
+                errors.append(
+                    f"ECDSA key size {key_size} is below minimum required {self.policy.minimum_ecdsa_bits}"
+                )
                 return False, False, errors
 
         if key_type == SSHKeyType.DSA and not self.policy.allow_dsa_keys:
@@ -421,7 +433,9 @@ class CredentialSecurityValidator:
         ]
         return is_secure, True, errors
 
-    def _get_policy_recommendations(self, key_type: Optional[SSHKeyType], key_size: Optional[int]) -> List[str]:
+    def _get_policy_recommendations(
+        self, key_type: Optional[SSHKeyType], key_size: Optional[int]
+    ) -> List[str]:
         """Get policy-specific recommendations."""
         recommendations = []
 
@@ -523,7 +537,9 @@ def validate_credential_with_strict_policy(
         is_valid = audit_result["is_compliant"]
 
         if not is_valid:
-            error_context = SecurityContext(operation="credential_validation", severity="high", requires_admin=True)
+            error_context = SecurityContext(
+                operation="credential_validation", severity="high", requires_admin=True
+            )
             classified_error = classify_authentication_error(error_context)
             error_message = classified_error.user_guidance
         else:
