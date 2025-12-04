@@ -250,9 +250,7 @@ async def validate_variables(
 
     service = FrameworkMetadataService(db)
 
-    valid, errors = await service.validate_variables(
-        framework=framework, version=version, variables=request.variables
-    )
+    valid, errors = await service.validate_variables(framework=framework, version=version, variables=request.variables)
 
     return ValidationResult(valid=valid, errors=errors)
 
@@ -544,7 +542,7 @@ async def apply_template(
     ```
 
     **Returns:**
-    - ScanConfiguration dict ready for `/api/scan-execution/execute`
+    - ScanConfiguration dict ready for `/api/scans`
 
     **Errors:**
     - 404: Template not found

@@ -4,11 +4,14 @@ Drift Events API Endpoints
 Provides REST API for retrieving compliance drift events.
 Drift events are automatically created by DriftDetectionService when scans deviate from baselines.
 
-Part of Phase 4 API Standardization: Moved under /api/compliance/drift namespace.
+Part of Phase 4 API Standardization: System & Integrations.
 
-Endpoints:
-    GET /api/compliance/drift - List drift events with filtering and pagination
-    GET /api/compliance/drift/{id} - Get specific drift event details
+Endpoint Structure:
+    GET  /drift          - List drift events with filtering and pagination
+    GET  /drift/{id}     - Get specific drift event details
+
+Migration Status:
+    - drift_events.py -> compliance/drift.py
 """
 
 import logging
@@ -20,13 +23,19 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
-from ..database import get_db
-from ..utils.query_builder import QueryBuilder
+from ...auth import get_current_user
+from ...database import get_db
+from ...utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/drift", tags=["drift-events"])
+# Router with /drift prefix - parent adds /compliance prefix
+router = APIRouter(prefix="/drift", tags=["Drift Detection"])
+
+
+# =============================================================================
+# PYDANTIC MODELS
+# =============================================================================
 
 
 class DriftEventResponse(BaseModel):
@@ -64,6 +73,11 @@ class DriftEventsListResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+# =============================================================================
+# DRIFT EVENT ENDPOINTS
+# =============================================================================
 
 
 @router.get(

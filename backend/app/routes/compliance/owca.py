@@ -2,6 +2,25 @@
 OWCA API Endpoints
 
 REST API for OpenWatch Compliance Algorithm (OWCA) functionality.
+Part of Phase 4 API Standardization: System & Integrations.
+
+Endpoint Structure:
+    GET  /owca/host/{host_id}/score              - Get host compliance score
+    GET  /owca/fleet/statistics                  - Get fleet statistics
+    GET  /owca/host/{host_id}/drift              - Detect baseline drift
+    GET  /owca/fleet/drift                       - Get hosts with drift
+    GET  /owca/fleet/priority-hosts              - Get top priority hosts
+    GET  /owca/host/{host_id}/framework/{fw}     - Get framework intelligence
+    GET  /owca/frameworks                        - List available frameworks
+    GET  /owca/host/{host_id}/trend              - Analyze compliance trend
+    GET  /owca/host/{host_id}/risk               - Calculate host risk score
+    GET  /owca/fleet/risk-ranking                - Rank hosts by risk
+    GET  /owca/host/{host_id}/forecast           - Forecast compliance
+    GET  /owca/host/{host_id}/anomalies          - Detect anomalies
+    GET  /owca/version                           - Get OWCA version
+
+Migration Status:
+    - owca.py -> compliance/owca.py
 """
 
 import logging
@@ -11,13 +30,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.services.owca import get_owca_service
-from backend.app.services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetStatistics
+from ...auth import get_current_user
+from ...database import get_db
+from ...services.owca import get_owca_service
+from ...services.owca.models import BaselineDrift, ComplianceScore, DriftSeverity, FleetStatistics
 
 logger = logging.getLogger(__name__)
 
+# Router with /owca prefix - parent adds /compliance prefix
 router = APIRouter(prefix="/owca", tags=["OWCA"])
 
 
@@ -44,26 +64,6 @@ async def get_host_compliance_score(
 
     Returns:
         ComplianceScore with full breakdown, or None if no scans exist
-
-    Example Response:
-        {
-            "entity_id": "550e8400-e29b-41d4-a716-446655440000",
-            "entity_type": "host",
-            "overall_score": 87.5,
-            "tier": "good",
-            "passed_rules": 175,
-            "failed_rules": 25,
-            "total_rules": 200,
-            "severity_breakdown": {
-                "critical_passed": 45,
-                "critical_failed": 2,
-                "critical_total": 47,
-                ...
-            },
-            "calculated_at": "2025-11-21T12:34:56.789Z",
-            "algorithm_version": "1.0.0",
-            "scan_id": "abc12345-..."
-        }
     """
     try:
         owca = get_owca_service(db)
@@ -98,28 +98,6 @@ async def get_fleet_statistics(
 
     Returns:
         FleetStatistics with all aggregated metrics
-
-    Example Response:
-        {
-            "total_hosts": 150,
-            "online_hosts": 142,
-            "offline_hosts": 8,
-            "scanned_hosts": 145,
-            "never_scanned": 5,
-            "needs_scan": 12,
-            "average_compliance": 85.3,
-            "median_compliance": 87.0,
-            "hosts_excellent": 45,
-            "hosts_good": 67,
-            "hosts_fair": 28,
-            "hosts_poor": 10,
-            "total_critical_issues": 234,
-            "total_high_issues": 567,
-            "total_medium_issues": 1234,
-            "total_low_issues": 2345,
-            "hosts_with_critical": 89,
-            "calculated_at": "2025-11-21T12:34:56.789Z"
-        }
     """
     try:
         owca = get_owca_service(db)
@@ -153,22 +131,6 @@ async def detect_baseline_drift(
 
     Returns:
         BaselineDrift analysis, or None if no active baseline exists
-
-    Example Response:
-        {
-            "host_id": "550e8400-e29b-41d4-a716-446655440000",
-            "baseline_id": "abc12345-...",
-            "current_score": 75.5,
-            "baseline_score": 87.0,
-            "drift_percentage": -11.5,
-            "drift_severity": "critical",
-            "rules_changed": 23,
-            "newly_failed": 23,
-            "newly_passed": 0,
-            "critical_regressions": 3,
-            "high_regressions": 8,
-            "detected_at": "2025-11-21T12:34:56.789Z"
-        }
     """
     try:
         owca = get_owca_service(db)
@@ -210,22 +172,6 @@ async def get_hosts_with_drift(
 
     Returns:
         List of BaselineDrift objects sorted by severity and drift %
-
-    Example Response:
-        [
-            {
-                "host_id": "550e8400-...",
-                "drift_percentage": -15.5,
-                "drift_severity": "critical",
-                ...
-            },
-            {
-                "host_id": "abc12345-...",
-                "drift_percentage": -7.2,
-                "drift_severity": "high",
-                ...
-            }
-        ]
     """
     try:
         owca = get_owca_service(db)
@@ -263,22 +209,6 @@ async def get_top_priority_hosts(
 
     Returns:
         List of host dictionaries with priority ranking
-
-    Example Response:
-        [
-            {
-                "rank": 1,
-                "host_id": "550e8400-...",
-                "hostname": "web-server-01",
-                "ip_address": "192.168.1.100",
-                "compliance_score": 65.5,
-                "critical_issues": 5,
-                "high_issues": 12,
-                "priority_score": 110,
-                "last_scan": "2025-11-21T10:00:00Z"
-            },
-            ...
-        ]
     """
     try:
         owca = get_owca_service(db)
@@ -309,129 +239,16 @@ async def get_host_framework_intelligence(
     Get framework-specific compliance intelligence for a host.
 
     This endpoint provides deep framework-specific analysis including:
-    - **NIST 800-53**: Control families (AC, AU, IA, etc.), security baselines
-      (LOW/MODERATE/HIGH), and control enhancements coverage
-    - **CIS Benchmarks**: Level 1/2 compliance and Implementation Group
-      analysis (IG1/IG2/IG3)
-    - **STIG**: CAT I/II/III severity breakdown and finding status distribution
+    - NIST 800-53: Control families, security baselines, enhancements
+    - CIS Benchmarks: Level 1/2 compliance, Implementation Groups
+    - STIG: CAT I/II/III severity breakdown, finding status
 
     Args:
         host_id: UUID of the host to analyze
-        framework: Framework identifier (case-insensitive):
-            - "NIST_800_53", "nist_800_53", or "nist"
-            - "CIS" or "cis"
-            - "STIG" or "stig"
+        framework: Framework identifier (NIST_800_53, CIS, STIG)
 
     Returns:
         Framework-specific intelligence object with complete analysis
-
-    Example Response (NIST 800-53):
-        {
-            "framework": "NIST_800_53",
-            "overall_score": 85.5,
-            "overall_tier": "good",
-            "control_families": [
-                {
-                    "family": "AC",
-                    "family_name": "Access Control",
-                    "score": 87.5,
-                    "tier": "good",
-                    "total_controls": 24,
-                    "passed_controls": 21,
-                    "failed_controls": 3
-                },
-                ...
-            ],
-            "baseline_scores": [
-                {
-                    "baseline": "low",
-                    "threshold": 70.0,
-                    "score": 85.5,
-                    "compliant": true
-                },
-                {
-                    "baseline": "moderate",
-                    "threshold": 85.0,
-                    "score": 85.5,
-                    "compliant": true
-                },
-                {
-                    "baseline": "high",
-                    "threshold": 95.0,
-                    "score": 85.5,
-                    "compliant": false
-                }
-            ],
-            "recommended_baseline": "moderate",
-            "enhancements_total": 45,
-            "enhancements_coverage": 75.5
-        }
-
-    Example Response (CIS):
-        {
-            "framework": "CIS",
-            "overall_score": 82.3,
-            "overall_tier": "good",
-            "cis_version": "2.0.0",
-            "level_scores": [
-                {
-                    "level": "level_1",
-                    "score": 85.0,
-                    "tier": "good",
-                    "total_recommendations": 120,
-                    "passed": 102,
-                    "failed": 18
-                },
-                {
-                    "level": "level_2",
-                    "score": 75.5,
-                    "tier": "fair",
-                    "total_recommendations": 45,
-                    "passed": 34,
-                    "failed": 11
-                }
-            ],
-            "ig_scores": [
-                {
-                    "implementation_group": "ig1",
-                    "score": 90.0,
-                    "tier": "excellent",
-                    "total_recommendations": 50,
-                    "passed": 45,
-                    "failed": 5
-                },
-                ...
-            ]
-        }
-
-    Example Response (STIG):
-        {
-            "framework": "STIG",
-            "stig_id": "RHEL_8_STIG",
-            "stig_version": "V1R12",
-            "overall_score": 78.5,
-            "overall_tier": "good",
-            "severity_scores": [
-                {
-                    "severity": "CAT_I",
-                    "findings_total": 12,
-                    "findings_open": 2,
-                    "findings_not_a_finding": 10,
-                    "findings_not_applicable": 0,
-                    "findings_not_reviewed": 0,
-                    "score": 83.3,
-                    "tier": "good"
-                },
-                ...
-            ],
-            "total_findings": 234,
-            "open_findings": 45,
-            "not_a_finding": 189,
-            "not_applicable": 0,
-            "not_reviewed": 0,
-            "automated_checks": 234,
-            "manual_checks": 0
-        }
 
     Raises:
         404: Framework not supported or no scan data available
@@ -483,45 +300,6 @@ async def list_available_frameworks(
 
     Returns:
         Dictionary with framework metadata
-
-    Example Response:
-        {
-            "frameworks": [
-                {
-                    "id": "NIST_800_53",
-                    "name": "NIST SP 800-53 Rev 5",
-                    "description": "Federal security controls with control families, baselines, and enhancements",
-                    "aliases": ["nist_800_53", "nist"],
-                    "features": [
-                        "Control family analysis (AC, AU, IA, etc.)",
-                        "Security baseline assessment (LOW/MODERATE/HIGH)",
-                        "Control enhancement coverage tracking"
-                    ]
-                },
-                {
-                    "id": "CIS",
-                    "name": "CIS Benchmarks",
-                    "description": "Security configuration standards with levels and implementation groups",
-                    "aliases": ["cis"],
-                    "features": [
-                        "Level 1/2 compliance tracking",
-                        "Implementation Group analysis (IG1/IG2/IG3)",
-                        "Best practice recommendations"
-                    ]
-                },
-                {
-                    "id": "STIG",
-                    "name": "Security Technical Implementation Guides",
-                    "description": "DoD security requirements with CAT I/II/III severity classifications",
-                    "aliases": ["stig"],
-                    "features": [
-                        "CAT I/II/III severity analysis",
-                        "Finding status distribution",
-                        "Automated vs manual check breakdown"
-                    ]
-                }
-            ]
-        }
     """
     return {
         "frameworks": [
@@ -588,25 +366,6 @@ async def analyze_host_trend(
 
     Returns:
         TrendData with historical analysis
-
-    Example Response:
-        {
-            "entity_id": "550e8400-e29b-41d4-a716-446655440000",
-            "entity_type": "host",
-            "time_period_days": 30,
-            "data_points": [
-                {
-                    "date": "2025-10-23",
-                    "overall_score": 82.5,
-                    "critical_passed": 45,
-                    "critical_failed": 3,
-                    ...
-                }
-            ],
-            "trend_direction": "improving",
-            "improvement_rate": 0.25,
-            "calculated_at": "2025-11-22T12:00:00Z"
-        }
     """
     try:
         owca = get_owca_service(db)
@@ -654,29 +413,16 @@ async def calculate_host_risk(
 
     Returns:
         RiskScore with composite analysis
-
-    Example Response:
-        {
-            "host_id": "550e8400-e29b-41d4-a716-446655440000",
-            "risk_score": 72.5,
-            "risk_tier": "high",
-            "compliance_score": 65.0,
-            "critical_issues": 5,
-            "high_issues": 12,
-            "days_since_scan": 3,
-            "has_baseline": true,
-            "baseline_drift": -8.5,
-            "business_criticality": "production",
-            "priority_rank": 1,
-            "calculated_at": "2025-11-22T12:00:00Z"
-        }
     """
     try:
         owca = get_owca_service(db)
         risk = await owca.calculate_risk(str(host_id), business_criticality)
 
         if not risk:
-            raise HTTPException(status_code=404, detail=f"No compliance data available for host {host_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"No compliance data available for host {host_id}",
+            )
 
         # Convert to dict with proper type annotation
         result: Dict[str, Any] = dict(risk.dict()) if hasattr(risk, "dict") else dict(risk)
@@ -747,24 +493,6 @@ async def forecast_host_compliance(
 
     Returns:
         ComplianceForecast with predictions
-
-    Example Response:
-        {
-            "entity_id": "550e8400-e29b-41d4-a716-446655440000",
-            "entity_type": "host",
-            "forecast_days": 30,
-            "forecast_points": [
-                {
-                    "date": "2025-11-23",
-                    "predicted_score": 85.2,
-                    "confidence_lower": 82.1,
-                    "confidence_upper": 88.3
-                }
-            ],
-            "method": "linear",
-            "confidence_level": 0.95,
-            "calculated_at": "2025-11-22T12:00:00Z"
-        }
     """
     try:
         owca = get_owca_service(db)
@@ -811,20 +539,6 @@ async def detect_host_anomalies(
 
     Returns:
         List of detected anomalies
-
-    Example Response:
-        [
-            {
-                "host_id": "550e8400-e29b-41d4-a716-446655440000",
-                "scan_id": "abc12345-...",
-                "actual_score": 45.0,
-                "expected_score": 85.0,
-                "deviation": -2.5,
-                "severity": "high",
-                "detected_at": "2025-11-22T12:00:00Z",
-                "description": "Compliance score (45.0%) is 2.5 standard deviations lower than expected (85.0%)"
-            }
-        ]
     """
     try:
         owca = get_owca_service(db)
@@ -852,13 +566,6 @@ async def get_owca_version(
 
     Returns:
         Dictionary with version and algorithm metadata
-
-    Example Response:
-        {
-            "algorithm": "OpenWatch Compliance Algorithm",
-            "version": "1.0.0",
-            "description": "Single source of truth for compliance calculations"
-        }
     """
     owca = get_owca_service(db)
     return {

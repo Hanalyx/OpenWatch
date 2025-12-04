@@ -26,7 +26,7 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (
+from .routes import (  # compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
     adaptive_scheduler,
     api_keys,
     audit,
@@ -35,43 +35,50 @@ from .routes import (
     bulk_operations,
     bulk_remediation_routes,
     capabilities,
-    compliance,
     compliance_rules_api,
     content,
     credentials,
-    drift_events,
-    group_compliance,
     health_monitoring,
-    host_compliance_discovery,
-    host_discovery,
-    host_groups,
-    host_network_discovery,
-    host_security_discovery,
-    hosts,
     integration_metrics,
     mfa,
-    mongodb_scan_api,
     mongodb_test,
     monitoring,
     os_discovery,
-    owca,
-    plugin_management,
     remediation_api,
     remediation_callback,
     remediation_provider,
     rule_management,
-    rule_scanning,
-    scan_config_api,
-    scan_templates,
     scans,
-    scans_api,
     scap_import,
-    ssh_debug,
-    ssh_settings,
     users,
-    webhooks,
     xccdf_api,
 )
+
+# Import compliance from new modular package (Phase 4 API Standardization)
+# This package consolidates compliance.py, owca.py, and drift_events.py into a single
+# modular package with intelligence, OWCA, and drift endpoints
+from .routes.compliance import router as compliance_router
+
+# Import host_groups from new modular package (Phase 1 API Standardization)
+# This package consolidates host_groups.py and group_compliance.py into a single
+# modular package with CRUD and scanning endpoints aligned with frontend scanService.ts
+from .routes.host_groups import router as host_groups_router
+
+# Import hosts from new modular package (Phase 3 API Standardization)
+# This package consolidates hosts.py, host_discovery.py, host_network_discovery.py,
+# host_security_discovery.py, and host_compliance_discovery.py into a single
+# modular package with CRUD and discovery endpoints
+from .routes.hosts import router as hosts_router
+
+# Import integrations from new modular package (Phase 4 API Standardization)
+# This package consolidates webhooks.py and plugin_management.py into a single
+# modular package with webhooks and plugins endpoints
+from .routes.integrations import router as integrations_router
+
+# Import SSH from new modular package (Phase 4 API Standardization)
+# This package consolidates ssh_settings.py and ssh_debug.py into a single
+# modular package with settings and debug endpoints
+from .routes.ssh import router as ssh_router
 from .routes.system_settings_unified import router as system_settings_router
 from .services.prometheus_metrics import get_metrics_instance
 
@@ -95,9 +102,7 @@ except ImportError:
     security_config = None
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
@@ -115,15 +120,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Create encryption service with production config
     encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
-    encryption_service = create_encryption_service(
-        master_key=settings.master_key, config=encryption_config
-    )
+    encryption_service = create_encryption_service(master_key=settings.master_key, config=encryption_config)
 
     # Store in app state for dependency injection
     app.state.encryption_service = encryption_service
     logger.info(
-        f"Encryption service initialized "
-        f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
+        f"Encryption service initialized " f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
     )
 
     # Verify FIPS mode if required
@@ -153,9 +155,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.error("Critical database schema initialization failed!")
                 logger.error("Application cannot start without required tables.")
                 if attempt < max_retries - 1:
-                    logger.info(
-                        f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})"
-                    )
+                    logger.info(f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
@@ -211,9 +211,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await async_sleep_module.sleep(retry_delay)
             else:
                 if settings.debug:
-                    logger.warning(
-                        f"Database connection failed in debug mode, continuing without DB: {e}"
-                    )
+                    logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
                 else:
                     logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                     raise
@@ -272,9 +270,7 @@ app.middleware("http")(rate_limiter)
 
 # Security Middleware
 @app.middleware("http")
-async def security_headers_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def security_headers_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Add FIPS-compliant security headers to all responses."""
     response = await call_next(request)
 
@@ -299,9 +295,7 @@ async def security_headers_middleware(
     return response
 
 
-def _log_audit_event(
-    db: Any, event_type: str, request: Request, response: Response, client_ip: str
-) -> None:
+def _log_audit_event(db: Any, event_type: str, request: Request, response: Response, client_ip: str) -> None:
     """Helper function to log audit events to both file and database."""
     details = f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
 
@@ -354,9 +348,7 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
 
 
 @app.middleware("http")
-async def request_size_limit_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def request_size_limit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce request size limits to prevent DoS attacks."""
     max_size = settings.max_upload_size  # 100MB default
 
@@ -368,18 +360,14 @@ async def request_size_limit_middleware(
         )
         return JSONResponse(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            content={
-                "detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"
-            },
+            content={"detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"},
         )
 
     return await call_next(request)
 
 
 @app.middleware("http")
-async def https_redirect_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def https_redirect_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce HTTPS in production."""
     if settings.require_https and not settings.debug:
         if request.url.scheme != "https":
@@ -505,9 +493,7 @@ async def health_check() -> JSONResponse:
                 if mongodb_healthy:
                     logger.info("MongoDB health check successful")
                 else:
-                    logger.warning(
-                        f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}"
-                    )
+                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
             except Exception as e:
                 # Return actual error status
                 health_status["mongodb"] = "unhealthy"
@@ -523,9 +509,7 @@ async def health_check() -> JSONResponse:
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
             health_status["status"] = "degraded"
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status
-            )
+            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
         return JSONResponse(status_code=status.HTTP_200_OK, content=health_status)
 
@@ -561,9 +545,7 @@ async def metrics() -> PlainTextResponse:
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
-    return PlainTextResponse(
-        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
-    )
+    return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # Include API routes - Unified API at /api prefix
@@ -575,32 +557,35 @@ app.include_router(mongodb_test.router, prefix="/api/mongodb", tags=["MongoDB In
 app.include_router(scap_import.router, prefix="/api", tags=["SCAP Import"])
 app.include_router(rule_management.router, prefix="/api", tags=["Enhanced Rule Management"])
 app.include_router(compliance_rules_api.router, prefix="/api", tags=["MongoDB Compliance Rules"])
-app.include_router(mongodb_scan_api.router, prefix="/api", tags=["MongoDB Scanning"])
+# mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2)
+# Endpoints now available at /api/scans/mongodb/*
 
 # XCCDF and scanning services (consolidated from v1)
 app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
-app.include_router(scans_api.router, prefix="/api/scan-execution", tags=["Scan Execution"])
-app.include_router(
-    remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"]
-)
-app.include_router(scan_config_api.router, prefix="/api/scan-config", tags=["Scan Configuration"])
-app.include_router(
-    health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"]
-)
+app.include_router(remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"])
+# scan_config_api - REMOVED: Consolidated into routes/scans/config.py and templates.py (Phase 2)
+# Endpoints now available at /api/scans/config/* and /api/scans/templates/*
+app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
 
 # Remediation provider (moved from v1)
-app.include_router(
-    remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"]
-)
+app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
 
 # Core API routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
-app.include_router(hosts.router, prefix="/api/hosts", tags=["Host Management"])
+# Hosts - Modular package with all host-related endpoints (Phase 3 API Standardization)
+# Includes: crud, discovery (basic, network, security, compliance)
+# The router already has prefix="/hosts" defined in routes/hosts/__init__.py
+app.include_router(hosts_router, prefix="/api", tags=["Hosts"])
 app.include_router(baselines.router, tags=["Baseline Management"])
-app.include_router(drift_events.router, tags=["Drift Detection"])
+# drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4)
+# Endpoints now available at /api/compliance/drift/*
+# Scans - Modular package with all scan-related endpoints (Phase 2 API Standardization)
+# Includes: compliance, crud, reports, bulk, validation, config, templates, rules, mongodb
+# The router already has prefix="/scans" defined in routes/scans/__init__.py
 app.include_router(scans.router, prefix="/api", tags=["Security Scans"])
-app.include_router(owca.router, tags=["OWCA - Compliance Algorithm"])
+# owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4)
+# Endpoints now available at /api/compliance/owca/*
 app.include_router(content.router, prefix="/api/content", tags=["Legacy Content"])
 app.include_router(monitoring.router, prefix="/api", tags=["Host Monitoring"])
 app.include_router(adaptive_scheduler.router, prefix="/api", tags=["Adaptive Scheduler"])
@@ -608,9 +593,13 @@ app.include_router(os_discovery.router, prefix="/api", tags=["OS Discovery"])
 app.include_router(system_settings_router, prefix="/api", tags=["System Settings"])
 app.include_router(users.router, prefix="/api", tags=["User Management"])
 app.include_router(audit.router, prefix="/api", tags=["Audit Logs"])
-app.include_router(host_groups.router, prefix="/api", tags=["Host Groups"])
-app.include_router(scan_templates.router, prefix="/api", tags=["Scan Templates"])
-app.include_router(webhooks.router, prefix="/api", tags=["Webhooks"])
+# Host Groups - Modular package with CRUD and scanning endpoints
+# The router already has prefix="/host-groups" defined in the package
+app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
+# scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2)
+# Endpoints now available at /api/scans/templates/*
+# webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
+# Endpoints now available at /api/integrations/webhooks/*
 app.include_router(credentials.router, prefix="/api", tags=["Credential Sharing"])
 app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
 app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
@@ -621,18 +610,36 @@ app.include_router(
 )
 app.include_router(bulk_operations.router, prefix="/api/bulk", tags=["Bulk Operations"])
 # app.include_router(terminal.router, tags=["Terminal"])  # Terminal module not available
-app.include_router(compliance.router, prefix="/api/compliance", tags=["Compliance Intelligence"])
-app.include_router(rule_scanning.router, prefix="/api", tags=["Rule-Specific Scanning"])
-app.include_router(ssh_settings.router, prefix="/api", tags=["SSH Settings"])
-app.include_router(ssh_debug.router, prefix="/api", tags=["SSH Debug"])
-app.include_router(host_network_discovery.router, prefix="/api", tags=["Host Network Discovery"])
-app.include_router(group_compliance.router, prefix="/api", tags=["Group Compliance Scanning"])
-app.include_router(
-    host_compliance_discovery.router, prefix="/api", tags=["Host Compliance Discovery"]
-)
-app.include_router(host_discovery.router, prefix="/api", tags=["Host Discovery"])
-app.include_router(host_security_discovery.router, prefix="/api", tags=["Host Security Discovery"])
-app.include_router(plugin_management.router, prefix="/api", tags=["Plugin Management"])
+# Compliance - Modular package with all compliance-related endpoints (Phase 4 API Standardization)
+# Includes: intelligence (semantic rules, framework data), owca (scoring), drift (detection)
+# The router already has prefix="/compliance" defined in routes/compliance/__init__.py
+app.include_router(compliance_router, prefix="/api", tags=["Compliance"])
+# rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2)
+# Endpoints now available at /api/scans/rules/*
+# SSH - Modular package with all SSH-related endpoints (Phase 4 API Standardization)
+# Includes: settings (policy, known-hosts), debug (test-authentication, paramiko-log)
+# The router already has prefix="/ssh" defined in routes/ssh/__init__.py
+app.include_router(ssh_router, prefix="/api", tags=["SSH"])
+# ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4)
+# Endpoints now available at /api/ssh/settings/*
+# ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4)
+# Endpoints now available at /api/ssh/debug/*
+# host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
+# Endpoints now available at /api/hosts/{host_id}/discovery/network/*
+# group_compliance.py removed - functionality consolidated into host_groups package
+# See: routes/host_groups/scans.py for group scanning endpoints
+# host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
+# Endpoints now available at /api/hosts/{host_id}/discovery/compliance/*
+# host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
+# Endpoints now available at /api/hosts/{host_id}/discovery/basic/*
+# host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3)
+# Endpoints now available at /api/hosts/{host_id}/discovery/security/*
+# Integrations - Modular package with all integration-related endpoints (Phase 4 API Standardization)
+# Includes: webhooks (CRUD, deliveries, test), plugins (import, execute, statistics)
+# The router already has prefix="/integrations" defined in routes/integrations/__init__.py
+app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
+# plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4)
+# Endpoints now available at /api/integrations/plugins/*
 app.include_router(bulk_remediation_routes.router, prefix="/api", tags=["Bulk Remediation"])
 
 # QueryBuilder validation endpoints (temporary testing) - DISABLED: module not available
