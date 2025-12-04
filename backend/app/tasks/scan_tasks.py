@@ -94,9 +94,7 @@ def execute_scan_task(
                 # Create encryption service for credential decryption
                 settings = get_settings()
                 encryption_config = EncryptionConfig()
-                encryption_service = create_encryption_service(
-                    master_key=settings.master_key, config=encryption_config
-                )
+                encryption_service = create_encryption_service(master_key=settings.master_key, config=encryption_config)
 
                 auth_service = get_auth_service(db, encryption_service)
 
@@ -112,9 +110,7 @@ def execute_scan_task(
                 )
 
                 # Resolve credentials using centralized service
-                credential_data = auth_service.resolve_credential(
-                    target_id=target_id, use_default=use_default
-                )
+                credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
 
                 if not credential_data:
                     logger.error(f"No credentials available for scan {scan_id}")
@@ -135,6 +131,60 @@ def execute_scan_task(
                 host_data["auth_method"] = credential_data.auth_method.value
 
                 logger.info(f"Resolved {credential_data.source} credentials for scan {scan_id}")
+
+                # JIT Platform Detection - ensure we have platform info for correct content selection
+                # This follows the SSH Connection Best Practices from CLAUDE.md
+                host_id = host_data.get("id")
+                if host_id and scan_options.get("enable_jit_detection", True):
+                    try:
+                        from ..services.platform_content_service import get_platform_content_service
+
+                        platform_service = get_platform_content_service(db)
+                        platform_info = asyncio.run(
+                            platform_service.get_host_platform_with_jit_detection(
+                                host_id=host_id,
+                                credential_data=credential_data,
+                            )
+                        )
+
+                        if platform_info and platform_info.platform_identifier:
+                            logger.info(
+                                f"Platform for scan {scan_id}: {platform_info.platform_identifier} "
+                                f"(source: {platform_info.source})"
+                            )
+                            # Store platform info for content selection
+                            host_data["platform_identifier"] = platform_info.platform_identifier
+                            host_data["os_family"] = platform_info.platform
+                            host_data["os_version"] = platform_info.platform_version
+
+                            # Check if we need to select different content for this platform
+                            if scan_options.get("auto_select_content", False):
+                                content_result = asyncio.run(
+                                    platform_service.get_content_for_platform(
+                                        platform_info.platform_identifier,
+                                        scan_options.get("compliance_framework"),
+                                    )
+                                )
+                                if content_result:
+                                    logger.info(
+                                        f"Auto-selected content for {platform_info.platform_identifier}: "
+                                        f"{content_result.name} ({content_result.match_type} match)"
+                                    )
+                                    # Update content_path if different content was found
+                                    if content_result.file_path != content_path:
+                                        logger.info(
+                                            f"Switching content from {content_path} to "
+                                            f"{content_result.file_path} for platform match"
+                                        )
+                                        content_path = content_result.file_path
+                        else:
+                            logger.warning(f"Could not determine platform for host in scan {scan_id}")
+                    except Exception as jit_error:
+                        logger.warning(
+                            f"JIT platform detection failed for scan {scan_id}: {jit_error}. "
+                            "Continuing with provided content."
+                        )
+                        # Don't fail the scan, just continue with the original content
 
             except Exception as e:
                 logger.error(f"Failed to resolve credentials for scan {scan_id}: {e}")
@@ -317,9 +367,7 @@ def execute_scan_task(
                     scan_id,
                     scan_result_id,
                 )
-                logger.debug(
-                    f"Updated group scan progress to completed for session {group_scan_session_id}"
-                )
+                logger.debug(f"Updated group scan progress to completed for session {group_scan_session_id}")
             except Exception as e:
                 logger.error(f"Failed to update group scan completion progress: {e}")
 
@@ -352,9 +400,7 @@ def execute_scan_task(
                 loop.close()
                 logger.debug(f"Webhook notification sent for completed scan: {scan_id}")
             except Exception as loop_error:
-                logger.warning(
-                    f"Failed to send webhook notification for scan {scan_id}: {loop_error}"
-                )
+                logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
 
         except Exception as webhook_error:
             logger.error(f"Failed to send completion webhook for scan {scan_id}: {webhook_error}")
@@ -382,14 +428,10 @@ def _update_scan_error(
             try:
                 import asyncio
 
-                classified_error = asyncio.run(
-                    error_service.classify_error(original_exception, {"scan_id": scan_id})
-                )
+                classified_error = asyncio.run(error_service.classify_error(original_exception, {"scan_id": scan_id}))
                 # Use classified error message if available
                 if classified_error:
-                    error_message = (
-                        f"{classified_error.message} (Code: {classified_error.error_code})"
-                    )
+                    error_message = f"{classified_error.message} (Code: {classified_error.error_code})"
                     logger.info(
                         f"Error classified for scan {scan_id}: {classified_error.category.value} - {classified_error.error_code}"
                     )
@@ -433,9 +475,7 @@ def _update_scan_error(
                             error_message=error_message,
                         )
                     )
-                    logger.debug(
-                        f"Updated group scan progress to failed for session {group_scan_session_id}"
-                    )
+                    logger.debug(f"Updated group scan progress to failed for session {group_scan_session_id}")
             except Exception as e:
                 logger.error(f"Failed to update group scan failure progress: {e}")
 
@@ -469,15 +509,11 @@ def _update_scan_error(
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(
-                        send_scan_failed_webhook(scan_id, webhook_data, error_message)
-                    )
+                    loop.run_until_complete(send_scan_failed_webhook(scan_id, webhook_data, error_message))
                     loop.close()
                     logger.debug(f"Webhook notification sent for failed scan: {scan_id}")
                 except Exception as loop_error:
-                    logger.warning(
-                        f"Failed to send webhook notification for scan {scan_id}: {loop_error}"
-                    )
+                    logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
 
             except Exception as webhook_error:
                 logger.error(f"Failed to send failure webhook for scan {scan_id}: {webhook_error}")
@@ -678,9 +714,7 @@ async def _process_semantic_intelligence(
         # Don't re-raise - we want to continue with normal scan processing
 
 
-async def _send_enhanced_semantic_webhook(
-    scan_id: str, intelligent_result: Any, host_data: Dict[str, Any]
-) -> None:
+async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any, host_data: Dict[str, Any]) -> None:
     """Send enhanced webhook with semantic intelligence data"""
 
     try:
@@ -727,9 +761,7 @@ async def _send_enhanced_semantic_webhook(
                 },
                 "semantic_analysis": {
                     "semantic_rules_count": len(intelligent_result.semantic_rules),
-                    "frameworks_analyzed": list(
-                        intelligent_result.framework_compliance_matrix.keys()
-                    ),
+                    "frameworks_analyzed": list(intelligent_result.framework_compliance_matrix.keys()),
                     "framework_compliance_matrix": intelligent_result.framework_compliance_matrix,
                     "remediation_strategy": intelligent_result.remediation_strategy,
                     "semantic_rules": [
@@ -745,9 +777,7 @@ async def _send_enhanced_semantic_webhook(
                             "estimated_fix_time": rule.estimated_fix_time,
                             "remediation_available": rule.remediation_available,
                         }
-                        for rule in intelligent_result.semantic_rules[
-                            :10
-                        ]  # Limit to avoid large payloads
+                        for rule in intelligent_result.semantic_rules[:10]  # Limit to avoid large payloads
                     ],
                 },
                 "original_scan_results": {
@@ -762,9 +792,7 @@ async def _send_enhanced_semantic_webhook(
         # Send to all configured endpoints
         for webhook in webhooks:
             try:
-                await deliver_webhook(
-                    webhook.url, webhook.secret_hash, webhook_data, str(webhook.id)
-                )
+                await deliver_webhook(webhook.url, webhook.secret_hash, webhook_data, str(webhook.id))
             except Exception as e:
                 logger.error(f"Failed to deliver semantic webhook to {webhook.url}: {e}")
 

@@ -159,9 +159,7 @@ class BulkScanOrchestrator:
         """
         try:
             session_id = str(uuid.uuid4())
-            logger.info(
-                f"Creating bulk scan session {session_id} for {len(host_ids)} hosts by user {user_id}"
-            )
+            logger.info(f"Creating bulk scan session {session_id} for {len(host_ids)} hosts by user {user_id}")
 
             # SECURITY CHECK 1: Validate user exists and is active
             if not user_id:
@@ -190,13 +188,9 @@ class BulkScanOrchestrator:
             authorized_host_ids = [host.host_id for host in authorized_hosts]
 
             # Analyze bulk scan feasibility for authorized hosts only
-            feasibility = await self.intelligence_service.analyze_bulk_scan_feasibility(
-                authorized_host_ids
-            )
+            feasibility = await self.intelligence_service.analyze_bulk_scan_feasibility(authorized_host_ids)
             if not feasibility["feasible"]:
-                logger.warning(
-                    f"Bulk scan not feasible for authorized hosts: {feasibility['reason']}"
-                )
+                logger.warning(f"Bulk scan not feasible for authorized hosts: {feasibility['reason']}")
                 raise ValueError(f"Bulk scan not feasible: {feasibility['reason']}")
 
             # Create scan session record with authorization metadata
@@ -230,9 +224,7 @@ class BulkScanOrchestrator:
             await self._store_scan_session(session)
 
             # Plan scan execution for authorized hosts only
-            scan_plan = await self._plan_bulk_scan(
-                authorized_host_ids, template_id, session_id, priority
-            )
+            scan_plan = await self._plan_bulk_scan(authorized_host_ids, template_id, session_id, priority)
 
             # Store individual scans for authorized hosts
             scan_ids = []
@@ -346,9 +338,7 @@ class BulkScanOrchestrator:
                 "running_hosts": running,
                 "started_at": (session.started_at.isoformat() if session.started_at else None),
                 "estimated_completion": (
-                    session.estimated_completion.isoformat()
-                    if session.estimated_completion
-                    else None
+                    session.estimated_completion.isoformat() if session.estimated_completion else None
                 ),
                 "individual_scans": scan_statuses,
             }
@@ -386,9 +376,7 @@ class BulkScanOrchestrator:
 
             for os_family, hosts in os_groups.items():
                 # Find best content and profile for this OS group
-                content_id, profile_id = await self._find_optimal_content_profile(
-                    hosts, template_id
-                )
+                content_id, profile_id = await self._find_optimal_content_profile(hosts, template_id)
 
                 # Split large groups into smaller batches (max 10 hosts per batch)
                 max_batch_size = 10
@@ -441,20 +429,67 @@ class BulkScanOrchestrator:
         else:
             return "unknown"
 
-    async def _find_optimal_content_profile(
-        self, hosts: List[HostInfo], template_id: str
-    ) -> Tuple[int, str]:
-        """Find the optimal SCAP content and profile for a group of hosts"""
-        # For now, use the intelligence service to suggest for the first host
-        # In a more sophisticated implementation, this would analyze all hosts
+    async def _find_optimal_content_profile(self, hosts: List[HostInfo], template_id: str) -> Tuple[int, str]:
+        """
+        Find the optimal SCAP content and profile for a group of hosts.
+
+        This method now uses PlatformContentService for platform-aware content selection.
+        For bulk scans with mixed platforms, the scan_task will handle per-host content
+        selection via JIT detection when auto_select_content is enabled.
+
+        Args:
+            hosts: List of hosts in the batch
+            template_id: Requested template/profile ID or "auto"
+
+        Returns:
+            Tuple of (content_id, profile_id)
+        """
+        if not hosts:
+            return 1, "xccdf_org.ssgproject.content_profile_cui"
+
+        # Try to use PlatformContentService for better content matching
+        try:
+            from .platform_content_service import get_platform_content_service
+
+            platform_service = get_platform_content_service(self.db)
+
+            # Get platform info for the first host as a baseline
+            # Individual hosts will get JIT detection during scan execution
+            first_host = hosts[0]
+            platform_info = await platform_service.get_host_platform_info(first_host.id)
+
+            if platform_info and platform_info.platform_identifier:
+                content = await platform_service.get_content_for_platform(
+                    platform_info.platform_identifier,
+                    compliance_framework=None,  # Will be set by template_id if needed
+                )
+
+                if content:
+                    # Determine profile_id
+                    if template_id != "auto" and template_id:
+                        selected_profile = template_id
+                    elif content.profiles:
+                        # Use first available profile from content
+                        selected_profile = content.profiles[0]
+                    else:
+                        selected_profile = "xccdf_org.ssgproject.content_profile_cui"
+
+                    logger.info(
+                        f"Selected content {content.content_id} ({content.name}) "
+                        f"for platform {platform_info.platform_identifier}"
+                    )
+                    return content.content_id, selected_profile
+
+        except Exception as e:
+            logger.warning(f"Platform-aware content selection failed: {e}. Using fallback.")
+
+        # Fallback to original behavior
         if hosts and template_id == "auto":
             suggestion = await self.intelligence_service.suggest_scan_profile(hosts[0].id)
             return suggestion.content_id, suggestion.profile_id
         else:
             # Use default content and specified template
-            return 1, (
-                template_id if template_id != "auto" else "xccdf_org.ssgproject.content_profile_cui"
-            )
+            return 1, (template_id if template_id != "auto" else "xccdf_org.ssgproject.content_profile_cui")
 
     def _create_batch_scans(
         self,
@@ -661,9 +696,7 @@ class BulkScanOrchestrator:
                         "status": row.status,
                         "progress": row.progress,
                         "started_at": (row.started_at.isoformat() if row.started_at else None),
-                        "completed_at": (
-                            row.completed_at.isoformat() if row.completed_at else None
-                        ),
+                        "completed_at": (row.completed_at.isoformat() if row.completed_at else None),
                         "compliance_score": row.score,
                         "failed_rules": row.failed_rules or 0,
                         "total_rules": row.total_rules or 0,
@@ -739,8 +772,7 @@ class BulkScanOrchestrator:
 
             # Create resource identifiers for all hosts
             resources = [
-                ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id)
-                for host_id in host_ids
+                ResourceIdentifier(resource_type=ResourceType.HOST, resource_id=host_id) for host_id in host_ids
             ]
 
             # Perform bulk authorization check
@@ -766,9 +798,7 @@ class BulkScanOrchestrator:
 
             for result in auth_result.individual_results:
                 host_id = result.resource.resource_id
-                host_detail = host_lookup.get(
-                    host_id, {"hostname": "unknown", "display_name": "unknown"}
-                )
+                host_detail = host_lookup.get(host_id, {"hostname": "unknown", "display_name": "unknown"})
 
                 if result.decision == AuthorizationDecision.ALLOW:
                     authorized_hosts.append(
@@ -799,9 +829,7 @@ class BulkScanOrchestrator:
             # Log denied hosts for security audit
             if authorization_failures:
                 denied_host_ids = [f.host_id for f in authorization_failures]
-                logger.warning(
-                    f"Authorization denied for user {user_id} on hosts: {denied_host_ids}"
-                )
+                logger.warning(f"Authorization denied for user {user_id} on hosts: {denied_host_ids}")
 
             return authorized_hosts, authorization_failures
 
@@ -896,10 +924,7 @@ class BulkScanOrchestrator:
 
         except Exception as e:
             logger.error(f"Error getting host details: {e}")
-            return [
-                {"id": host_id, "hostname": "unknown", "display_name": "unknown"}
-                for host_id in host_ids
-            ]
+            return [{"id": host_id, "hostname": "unknown", "display_name": "unknown"} for host_id in host_ids]
 
     def _create_batch_scans_with_authorization(
         self,
@@ -935,6 +960,8 @@ class BulkScanOrchestrator:
                 start_delay = i * stagger_delay  # seconds
 
                 # Create scan record with authorization metadata
+                # Enable JIT platform detection and auto content selection for bulk scans
+                # This ensures each host gets the correct SCAP content for its platform
                 self.db.execute(
                     text(
                         """
@@ -961,6 +988,9 @@ class BulkScanOrchestrator:
                                 "start_delay": start_delay,
                                 "authorized": True,  # Mark as explicitly authorized
                                 "authorization_timestamp": datetime.utcnow().isoformat(),
+                                # Per-host platform detection for multi-platform bulk scans
+                                "enable_jit_detection": True,
+                                "auto_select_content": True,  # Allow content switching based on detected platform
                             }
                         ),
                         "started_by": user_id,
@@ -974,9 +1004,7 @@ class BulkScanOrchestrator:
 
             self.db.commit()
 
-            logger.info(
-                f"Created {len(scan_ids)} authorized scans out of {len(batch.hosts)} hosts in batch"
-            )
+            logger.info(f"Created {len(scan_ids)} authorized scans out of {len(batch.hosts)} hosts in batch")
             return scan_ids
 
         except Exception as e:

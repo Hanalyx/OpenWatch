@@ -172,9 +172,7 @@ class RuleService:
             raise ValueError(f"Rule not found: {rule_id}")
 
         # Resolve dependencies
-        dependency_graph = await self._build_dependency_graph(
-            rule, resolve_depth, include_conflicts
-        )
+        dependency_graph = await self._build_dependency_graph(rule, resolve_depth, include_conflicts)
 
         result = {
             "rule": await self._resolve_rule_inheritance(rule),
@@ -201,9 +199,7 @@ class RuleService:
             platform_version: Platform version
             target_host: Optional target host for remote capability detection
         """
-        return await self.platform_service.detect_capabilities(
-            platform, platform_version, target_host
-        )
+        return await self.platform_service.detect_capabilities(platform, platform_version, target_host)
 
     async def get_applicable_rules(
         self,
@@ -272,9 +268,7 @@ class RuleService:
 
         # Platform filter
         if platform_filter:
-            pipeline.append(
-                {"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}}
-            )
+            pipeline.append({"$match": {f"platform_implementations.{platform_filter}": {"$exists": True}}})
 
         # Framework filter
         if framework_filter:
@@ -400,7 +394,18 @@ class RuleService:
         # Platform implementation filter
         # MongoDB compliance rules use combined platform+version keys (e.g., "rhel8", "ubuntu2204")
         # NOT separate platform and version fields
-        if platform_version:
+        #
+        # CRITICAL: Check if platform is already normalized (e.g., "rhel8", "ubuntu2204")
+        # If the platform already contains digits, it's pre-normalized and should be used as-is.
+        # This prevents double-concatenation bugs like "rhel8" + "8" = "rhel88"
+        platform_already_normalized = any(char.isdigit() for char in platform)
+
+        if platform_already_normalized:
+            # Platform is already in combined format (e.g., "rhel8", "ubuntu2204")
+            # Use it directly without further processing
+            platform_key = f"platform_implementations.{platform}"
+            query[platform_key] = {"$exists": True}
+        elif platform_version:
             # Construct combined platform identifier (rhel8, ubuntu2204, etc.)
             combined_platform = f"{platform}{platform_version.replace('.', '')}"
             platform_key = f"platform_implementations.{combined_platform}"
@@ -441,9 +446,7 @@ class RuleService:
 
         # Get parent rule
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for _resolve_rule_inheritance ({rule.inherits_from})")
         repo = ComplianceRuleRepository()
         parent_rule = await repo.find_one({"rule_id": rule.inherits_from})
 
@@ -459,9 +462,7 @@ class RuleService:
 
         return resolved
 
-    def _merge_rule_properties(
-        self, parent: Dict[str, Any], child: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _merge_rule_properties(self, parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, Any]:
         """Merge parent and child rule properties"""
         merged = parent.copy()
 
@@ -505,9 +506,7 @@ class RuleService:
         """Merge dependency lists from parent and child"""
         merged = {
             "requires": list(set(parent_deps.get("requires", []) + child_deps.get("requires", []))),
-            "conflicts": list(
-                set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))
-            ),
+            "conflicts": list(set(parent_deps.get("conflicts", []) + child_deps.get("conflicts", []))),
             "related": list(set(parent_deps.get("related", []) + child_deps.get("related", []))),
         }
 
@@ -544,9 +543,7 @@ class RuleService:
 
         return rule_data
 
-    def _apply_override_values(
-        self, rule_data: Dict[str, Any], overrides: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _apply_override_values(self, rule_data: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
         """Apply specific override values to rule data"""
         result = rule_data.copy()
 

@@ -33,6 +33,18 @@ class ErrorSeverity(str, Enum):
     INFO = "info"
 
 
+class AutomatedFixInternal(BaseModel):
+    """Internal automated fix with full technical details (server-side only)"""
+
+    fix_id: str
+    description: str
+    requires_sudo: bool = False
+    estimated_time: int = Field(default=30, description="Estimated time in seconds")
+    command: Optional[str] = None
+    is_safe: bool = True
+    rollback_command: Optional[str] = None
+
+
 class AutomatedFixResponse(BaseModel):
     """Sanitized automated fix response for users"""
 
@@ -53,7 +65,7 @@ class ScanErrorInternal(BaseModel):
     message: str
     technical_details: Dict[str, Any] = Field(default_factory=dict)
     user_guidance: str
-    automated_fixes: List[Dict[str, Any]] = Field(default_factory=list)
+    automated_fixes: List[AutomatedFixInternal] = Field(default_factory=list)
     can_retry: bool = False
     retry_after: Optional[int] = Field(default=None, description="Retry after seconds")
     documentation_url: str = ""
