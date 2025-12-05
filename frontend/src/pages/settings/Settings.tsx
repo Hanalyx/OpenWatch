@@ -37,6 +37,7 @@ import {
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
   Policy as PolicyIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay } from '../../components/design-system';
@@ -44,6 +45,7 @@ import { useSelector } from 'react-redux';
 import { type RootState } from '../../store';
 import AdaptiveSchedulerSettings from '../../components/settings/AdaptiveSchedulerSettings';
 import OSDiscoverySettings from '../../components/settings/OSDiscoverySettings';
+import { VersionDisplay } from '../../components/common/VersionDisplay';
 
 interface SystemCredentials {
   id: string; // WEEK 2 MIGRATION: Changed from number to UUID string for v2 API
@@ -495,6 +497,7 @@ const Settings: React.FC = () => {
             <Tab label="SSH Configuration" />
             <Tab label="User Preferences" />
             <Tab label="Security" />
+            <Tab label="About" />
           </Tabs>
         </Box>
 
@@ -1006,6 +1009,60 @@ const Settings: React.FC = () => {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {framework.description}
+                  </Typography>
+                </Card>
+              ))}
+            </Box>
+          </Card>
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={4}>
+          {/* About Section */}
+          <Card sx={{ p: 3 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                <InfoIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                About OpenWatch
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Intelligent Compliance Automation Platform
+              </Typography>
+            </Box>
+
+            <Box sx={{ mb: 4 }}>
+              <VersionDisplay detailed variant="subtitle2" align="left" />
+            </Box>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Platform Overview
+              </Typography>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol)
+                compliance scanning platform designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53,
+                and DOD STIG baseline verification.
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 2,
+              }}
+            >
+              {[
+                { label: 'SCAP Scanning', description: 'OpenSCAP-based compliance scanning' },
+                { label: 'Multi-Framework', description: 'NIST, CIS, STIG, and more' },
+                { label: 'Real-time Monitoring', description: 'Continuous compliance tracking' },
+                { label: 'Remediation', description: 'Automated fix recommendations' },
+              ].map((feature) => (
+                <Card key={feature.label} variant="outlined" sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    {feature.label}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {feature.description}
                   </Typography>
                 </Card>
               ))}
