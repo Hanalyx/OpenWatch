@@ -30,8 +30,8 @@ Security Notes:
     - Audit logging for security-relevant operations
 
 Legacy Endpoints:
-    Endpoints marked (LEGACY) use SCAP content files instead of MongoDB.
-    For MongoDB-based scanning, use /api/mongodb-scans/ endpoints.
+    Endpoints marked (LEGACY) use SCAP content files instead of the
+    compliance rules database. For compliance scanning, use /api/scans/ endpoints.
 """
 
 import asyncio
@@ -49,20 +49,19 @@ from sqlalchemy.orm import Session
 
 from backend.app.auth import get_current_user
 from backend.app.database import get_db
+from backend.app.models.enums import ScanPriority
+from backend.app.models.error_models import ValidationResultResponse
 from backend.app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
 from backend.app.routes.scans.models import (
-    ProfileSuggestion,
     QuickScanRequest,
     QuickScanResponse,
     RuleRescanRequest,
-    ScanPriority,
     ValidationRequest,
-    ValidationResultResponse,
     VerificationScanRequest,
 )
 from backend.app.services.error_classification import get_error_classification_service
 from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.scan_intelligence import ScanIntelligenceService
+from backend.app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
 from backend.app.tasks.scan_tasks import execute_scan_task
 from backend.app.utils.query_builder import QueryBuilder
 
@@ -352,7 +351,7 @@ async def quick_scan(
     Start scan with intelligent defaults (LEGACY).
 
     DEPRECATION NOTICE: This endpoint uses SCAP content files for scanning.
-    For MongoDB-based scanning, use /api/mongodb-scans/start instead.
+    For compliance scanning, use POST /api/scans/ instead.
 
     Provides "Zero to Scan in 3 Clicks" experience by auto-detecting
     the best profile based on host OS and previous scan history.
@@ -565,7 +564,7 @@ async def quick_scan(
             message="Scan created and started successfully",
             status="pending",
             suggested_profile=suggested_profile
-            or ProfileSuggestion(
+            or RecommendedScanProfile(
                 profile_id=template_id,
                 content_id=content_id,
                 name="Quick Scan",
@@ -616,7 +615,7 @@ async def create_verification_scan(
     Create a verification scan after AEGIS remediation (LEGACY).
 
     DEPRECATION NOTICE: This endpoint uses SCAP content files for scanning.
-    For MongoDB-based scanning, use /api/mongodb-scans/ endpoints instead.
+    For compliance scanning, use /api/scans/ endpoints instead.
 
     Verification scans re-run the same profile to confirm that remediation
     actions successfully resolved previously failing rules.

@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from backend.app.services.scan_intelligence import ProfileSuggestion
+from backend.app.services.scan_intelligence import RecommendedScanProfile
 
 # =============================================================================
 # COMPLIANCE SCAN MODELS (PRIMARY - database-agnostic)
@@ -327,7 +327,7 @@ class VerificationScanRequest(BaseModel):
     Request model for post-remediation verification scan (LEGACY).
 
     DEPRECATION: This model requires content_id referencing scap_content table.
-    For MongoDB-based scanning, use /api/mongodb-scans/start instead.
+    For compliance scanning, use POST /api/scans/ instead.
     """
 
     host_id: str = Field(..., description="UUID of the target host")
@@ -347,21 +347,21 @@ class ValidationRequest(BaseModel):
 
     Supports two validation modes:
     1. Legacy SCAP content: Requires content_id and profile_id
-    2. MongoDB scanning: Requires platform, platform_version, and framework
+    2. Compliance scanning: Requires platform, platform_version, and framework
 
     At least one mode's required fields must be provided.
     """
 
     host_id: str = Field(..., description="UUID of the target host")
 
-    # Legacy SCAP content fields (optional for MongoDB mode)
+    # Legacy SCAP content fields (optional for compliance mode)
     content_id: Optional[int] = Field(
         None,
         description="ID of the SCAP content to validate (LEGACY: references scap_content table)",
     )
     profile_id: Optional[str] = Field(None, description="XCCDF profile ID to validate (LEGACY)")
 
-    # MongoDB scanning fields (optional for legacy mode)
+    # Compliance scanning fields (optional for legacy mode)
     platform: Optional[str] = Field(None, description="Target platform (e.g., 'rhel', 'ubuntu')")
     platform_version: Optional[str] = Field(None, description="Platform version (e.g., '8', '9', '22.04')")
     framework: Optional[str] = Field(
@@ -371,14 +371,14 @@ class ValidationRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_request_mode(self) -> "ValidationRequest":
-        """Ensure either legacy or MongoDB fields are provided."""
+        """Ensure either legacy or compliance fields are provided."""
         has_legacy = self.content_id is not None and self.profile_id is not None
-        has_mongodb = self.platform is not None and self.platform_version is not None and self.framework is not None
+        has_compliance = self.platform is not None and self.platform_version is not None and self.framework is not None
 
-        if not has_legacy and not has_mongodb:
+        if not has_legacy and not has_compliance:
             raise ValueError(
                 "Either legacy fields (content_id, profile_id) or "
-                "MongoDB fields (platform, platform_version, framework) must be provided"
+                "compliance fields (platform, platform_version, framework) must be provided"
             )
         return self
 
@@ -406,7 +406,7 @@ class QuickScanResponse(BaseModel):
     id: str = Field(..., description="UUID of the created scan")
     message: str = Field(..., description="Status message")
     status: str = Field(..., description="Current scan status")
-    suggested_profile: ProfileSuggestion = Field(..., description="Profile recommendation details")
+    suggested_profile: RecommendedScanProfile = Field(..., description="Profile recommendation details")
     estimated_completion: Optional[float] = Field(None, description="Estimated completion timestamp")
 
 

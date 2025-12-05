@@ -14,33 +14,20 @@ Package Structure:
     ├── reports.py          # Report generation endpoints
     ├── bulk.py             # Bulk scan operations
     ├── validation.py       # Readiness/validation endpoints
-    ├── config.py           # Framework discovery and configuration (Phase 2)
-    ├── templates.py        # Scan template management (Phase 2)
-    ├── rules.py            # Rule-specific scanning operations (Phase 2)
-    └── mongodb.py          # MongoDB-integrated scanning (Phase 2)
+    ├── config.py           # Framework discovery and configuration
+    ├── templates.py        # Scan template management
+    └── rules.py            # Rule-specific scanning operations
 
 Migration Status (API Standardization):
     Phase 1: Extract models and helpers (COMPLETE)
-    - All Pydantic models moved to models.py
-    - All helper functions moved to helpers.py
-
     Phase 2: Route separation (COMPLETE)
-    - compliance.py: Primary scan creation, rules, scanner health
-    - crud.py: List, get, create, update, delete, stop, cancel, recover, apply-fix
-    - reports.py: HTML, JSON, CSV reports, failed-rules, results
-    - bulk.py: Bulk scan create, progress, cancel, sessions
-    - validation.py: Validate, quick-scan, verify, remediate, readiness
-
     Phase 3: API Standardization Consolidation (COMPLETE)
-    - config.py: Framework discovery (from scan_config_api.py)
-    - templates.py: Template management (from scan_config_api.py + scan_templates.py)
-    - rules.py: Rule-specific scanning (from rule_scanning.py)
-    - mongodb.py: MongoDB-integrated scanning (from mongodb_scan_api.py)
-
-    Phase 4: Integration (CURRENT)
-    - Aggregate all routers into single main router
-    - Update main.py to use unified scans package
-    - Remove legacy route files
+    Phase 4: Integration (COMPLETE)
+    Phase 5: MongoDB Router Consolidation (COMPLETE)
+    Phase 6: Legacy Router Removal (COMPLETE)
+    - Deprecated mongodb.py removed (2025-12-05)
+    - Legacy scans_routes.py removed (2025-12-05)
+    - All functionality now in modular sub-routers
 
 Usage:
     # Import the router in main.py
@@ -122,14 +109,6 @@ Router Organization:
         GET  /rules/{rule_id}/history            - Get rule scan history
         GET  /rules/{rule_id}/compliance-info    - Get rule compliance info
         POST /rules/remediation-plan             - Generate remediation plan
-
-    MongoDB Router (mongodb.py) - Phase 2:
-        POST /mongodb/start                      - Start MongoDB-integrated scan
-        GET  /mongodb/{scan_id}/status           - Get scan status
-        GET  /mongodb/{scan_id}/results          - Get scan results
-        GET  /mongodb/{scan_id}/report           - Get scan report
-        GET  /mongodb/available-rules            - Get available rules
-        GET  /mongodb/scanner/health             - Get scanner health
 """
 
 from fastapi import APIRouter
@@ -139,54 +118,32 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
 # Import sub-routers from modular files
-# Using try/except for graceful fallback during migration
-_modules_loaded = False
+# Note: These imports must come after router definition to avoid circular imports
+# Core scan routers (Phase 1-2)
+from backend.app.routes.scans.bulk import router as bulk_router  # noqa: E402
+from backend.app.routes.scans.compliance import router as compliance_router  # noqa: E402
 
-try:
-    # Core scan routers (Phase 1-2)
-    from backend.app.routes.scans.bulk import router as bulk_router
-    from backend.app.routes.scans.compliance import router as compliance_router
+# API Standardization routers (Phase 3)
+from backend.app.routes.scans.config import router as config_router  # noqa: E402
+from backend.app.routes.scans.crud import router as crud_router  # noqa: E402
+from backend.app.routes.scans.reports import router as reports_router  # noqa: E402
+from backend.app.routes.scans.rules import router as rules_router  # noqa: E402
+from backend.app.routes.scans.templates import router as templates_router  # noqa: E402
+from backend.app.routes.scans.validation import router as validation_router  # noqa: E402
 
-    # API Standardization routers (Phase 3)
-    from backend.app.routes.scans.config import router as config_router
-    from backend.app.routes.scans.crud import router as crud_router
-    from backend.app.routes.scans.mongodb import router as mongodb_router
-    from backend.app.routes.scans.reports import router as reports_router
-    from backend.app.routes.scans.rules import router as rules_router
-    from backend.app.routes.scans.templates import router as templates_router
-    from backend.app.routes.scans.validation import router as validation_router
+# Include all sub-routers into main router
+# Order matters for route matching - more specific routes first
+# Phase 3 routers have specific prefixes, so include them first
+router.include_router(config_router)
+router.include_router(templates_router)
+router.include_router(rules_router)
 
-    # Include all sub-routers into main router
-    # Order matters for route matching - more specific routes first
-    # Phase 3 routers have specific prefixes, so include them first
-    router.include_router(config_router)
-    router.include_router(templates_router)
-    router.include_router(rules_router)
-    router.include_router(mongodb_router)
-
-    # Core routers (more generic patterns)
-    router.include_router(compliance_router)
-    router.include_router(crud_router)
-    router.include_router(reports_router)
-    router.include_router(bulk_router)
-    router.include_router(validation_router)
-
-    _modules_loaded = True
-
-except ImportError as e:
-    # Fall back to legacy monolithic router during migration
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.warning(f"Failed to load modular scan routers, falling back to scans_routes.py: {e}")
-
-    try:
-        from backend.app.routes.scans_routes import router as legacy_router
-
-        router = legacy_router
-    except ImportError:
-        # If even legacy fails, create empty router (should not happen in production)
-        logger.error("Failed to load any scan router - API will be incomplete")
+# Core routers (more generic patterns)
+router.include_router(compliance_router)
+router.include_router(crud_router)
+router.include_router(reports_router)
+router.include_router(bulk_router)
+router.include_router(validation_router)
 
 
 # Re-export helpers for convenient access

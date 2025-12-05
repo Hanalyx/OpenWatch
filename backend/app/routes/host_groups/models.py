@@ -17,34 +17,11 @@ Security:
 """
 
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-# =============================================================================
-# ENUMS
-# =============================================================================
-
-
-class ScanSessionStatus(str, Enum):
-    """Status values for group scan sessions."""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class ScanPriority(str, Enum):
-    """Priority levels for scan execution."""
-
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    CRITICAL = "critical"
-
+from backend.app.models.enums import ScanPriority, ScanSessionStatus
 
 # =============================================================================
 # HOST GROUP CRUD MODELS

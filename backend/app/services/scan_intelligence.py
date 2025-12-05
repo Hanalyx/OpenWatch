@@ -5,25 +5,20 @@ Provides intelligent scanning capabilities including profile suggestion and opti
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from backend.app.models.enums import ScanPriority
 
 logger = logging.getLogger(__name__)
 
 
-class ScanPriority(Enum):
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
 @dataclass
 class HostInfo:
-    """Host information for intelligent scanning decisions"""
+    """Host information for intelligent scanning decisions (internal use)"""
 
     id: str
     hostname: str
@@ -37,18 +32,29 @@ class HostInfo:
     compliance_score: Optional[float] = None
 
 
-@dataclass
-class ProfileSuggestion:
-    """Suggested scan profile with reasoning"""
+class RecommendedScanProfile(BaseModel):
+    """
+    Recommended scan profile with reasoning.
 
-    profile_id: str
-    content_id: int
-    name: str
-    confidence: float
-    reasoning: List[str]
-    estimated_duration: str
-    rule_count: int
-    priority: ScanPriority
+    Returned by ScanIntelligenceService to suggest the optimal
+    compliance profile for a given host based on its characteristics.
+    """
+
+    profile_id: str = Field(..., description="XCCDF profile identifier")
+    content_id: int = Field(..., description="SCAP content source ID")
+    name: str = Field(..., description="Human-readable profile name")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
+    reasoning: List[str] = Field(..., description="List of reasons for this recommendation")
+    estimated_duration: str = Field(..., description="Estimated scan duration")
+    rule_count: int = Field(..., ge=0, description="Number of rules in profile")
+    priority: ScanPriority = Field(..., description="Suggested scan priority")
+
+    class Config:
+        from_attributes = True
+
+
+# Backward compatibility alias (deprecated - use RecommendedScanProfile)
+ProfileSuggestion = RecommendedScanProfile
 
 
 class ScanIntelligenceService:
@@ -92,7 +98,7 @@ class ScanIntelligenceService:
     def __init__(self, db: Session):
         self.db = db
 
-    async def suggest_scan_profile(self, host_id: str) -> ProfileSuggestion:
+    async def suggest_scan_profile(self, host_id: str) -> RecommendedScanProfile:
         """
         Intelligently suggest the best scan profile for a host
 
@@ -100,7 +106,7 @@ class ScanIntelligenceService:
             host_id: UUID of the host to analyze
 
         Returns:
-            ProfileSuggestion with recommended profile and reasoning
+            RecommendedScanProfile with recommended profile and reasoning
         """
         try:
             # Get host information
@@ -201,7 +207,7 @@ class ScanIntelligenceService:
             logger.error(f"Error getting host info for {host_id}: {e}")
             return None
 
-    def _suggest_by_environment(self, host_info: HostInfo) -> Optional[ProfileSuggestion]:
+    def _suggest_by_environment(self, host_info: HostInfo) -> Optional[RecommendedScanProfile]:
         """Suggest profile based on environment and owner characteristics"""
         env = host_info.environment.lower()
         owner = (host_info.owner or "").lower()
@@ -213,7 +219,7 @@ class ScanIntelligenceService:
             # Check for federal/regulatory
             if "federal" in owner or "gov" in owner or "dod" in owner or "regulatory" in owner:
                 if "federal" in env_profiles:
-                    return ProfileSuggestion(
+                    return RecommendedScanProfile(
                         profile_id=env_profiles["federal"],
                         content_id=1,  # Will be updated with actual content
                         name="STIG Compliance",
@@ -230,7 +236,7 @@ class ScanIntelligenceService:
             # Check for healthcare
             if any(keyword in owner for keyword in ["health", "medical", "hospital"]):
                 if "healthcare" in env_profiles:
-                    return ProfileSuggestion(
+                    return RecommendedScanProfile(
                         profile_id=env_profiles["healthcare"],
                         content_id=1,
                         name="HIPAA Compliance",
@@ -247,7 +253,7 @@ class ScanIntelligenceService:
             # Check for financial services
             if any(keyword in owner for keyword in ["bank", "financial", "payment", "finance"]):
                 if "financial" in env_profiles:
-                    return ProfileSuggestion(
+                    return RecommendedScanProfile(
                         profile_id=env_profiles["financial"],
                         content_id=1,
                         name="PCI DSS Compliance",
@@ -262,7 +268,7 @@ class ScanIntelligenceService:
                     )
 
             # Use environment default
-            return ProfileSuggestion(
+            return RecommendedScanProfile(
                 profile_id=env_profiles["default"],
                 content_id=1,
                 name=f"{env.title()} Standard Scan",
@@ -275,7 +281,7 @@ class ScanIntelligenceService:
 
         return None
 
-    def _suggest_by_tags(self, host_info: HostInfo) -> Optional[ProfileSuggestion]:
+    def _suggest_by_tags(self, host_info: HostInfo) -> Optional[RecommendedScanProfile]:
         """Suggest profile based on host tags"""
         for tag in host_info.tags:
             if tag in self.TAG_PROFILE_MAPPINGS:
@@ -286,7 +292,7 @@ class ScanIntelligenceService:
                 if tag in ["database", "payment", "medical", "critical", "dmz"]:
                     priority = ScanPriority.HIGH
 
-                return ProfileSuggestion(
+                return RecommendedScanProfile(
                     profile_id=profile_id,
                     content_id=1,
                     name=f"{tag.title()} Optimized Scan",
@@ -299,7 +305,7 @@ class ScanIntelligenceService:
 
         return None
 
-    def _suggest_by_owner(self, host_info: HostInfo) -> Optional[ProfileSuggestion]:
+    def _suggest_by_owner(self, host_info: HostInfo) -> Optional[RecommendedScanProfile]:
         """Suggest profile based on owner characteristics"""
         if not host_info.owner:
             return None
@@ -308,7 +314,7 @@ class ScanIntelligenceService:
 
         # Security team hosts get comprehensive scans
         if any(keyword in owner for keyword in ["security", "infosec", "cyber"]):
-            return ProfileSuggestion(
+            return RecommendedScanProfile(
                 profile_id="xccdf_org.ssgproject.content_profile_stig",
                 content_id=1,
                 name="Security Team Comprehensive Scan",
@@ -321,14 +327,14 @@ class ScanIntelligenceService:
 
         return None
 
-    def _suggest_by_os(self, host_info: HostInfo) -> ProfileSuggestion:
+    def _suggest_by_os(self, host_info: HostInfo) -> RecommendedScanProfile:
         """Fallback suggestion based on operating system"""
         os_name = host_info.operating_system.lower()
 
         # Map OS variants
         for os_key in self.OS_DEFAULT_PROFILES:
             if os_key in os_name:
-                return ProfileSuggestion(
+                return RecommendedScanProfile(
                     profile_id=self.OS_DEFAULT_PROFILES[os_key],
                     content_id=1,
                     name=f"{os_name.upper()} Standard Scan",
@@ -340,7 +346,7 @@ class ScanIntelligenceService:
                 )
 
         # Unknown OS fallback
-        return ProfileSuggestion(
+        return RecommendedScanProfile(
             profile_id="xccdf_org.ssgproject.content_profile_cui",
             content_id=1,
             name="Universal Compliance Scan",
@@ -352,8 +358,8 @@ class ScanIntelligenceService:
         )
 
     def _select_best_suggestion(
-        self, suggestions: List[ProfileSuggestion], host_info: HostInfo
-    ) -> ProfileSuggestion:
+        self, suggestions: List[RecommendedScanProfile], host_info: HostInfo
+    ) -> RecommendedScanProfile:
         """Select the best suggestion from multiple options"""
         if not suggestions:
             return self._suggest_by_os(host_info)
@@ -369,9 +375,7 @@ class ScanIntelligenceService:
 
         return best
 
-    async def _enhance_suggestion_with_content(
-        self, suggestion: ProfileSuggestion
-    ) -> ProfileSuggestion:
+    async def _enhance_suggestion_with_content(self, suggestion: RecommendedScanProfile) -> RecommendedScanProfile:
         """Enhance suggestion with actual SCAP content metadata"""
         try:
             # Find matching content and profile
@@ -410,9 +414,9 @@ class ScanIntelligenceService:
             logger.warning(f"Failed to enhance suggestion with content metadata: {e}")
             return suggestion
 
-    async def _get_fallback_suggestion(self, host_id: str) -> ProfileSuggestion:
+    async def _get_fallback_suggestion(self, host_id: str) -> RecommendedScanProfile:
         """Get a safe fallback suggestion when everything fails"""
-        return ProfileSuggestion(
+        return RecommendedScanProfile(
             profile_id="xccdf_org.ssgproject.content_profile_cui",
             content_id=1,
             name="Quick Compliance Scan",
@@ -464,15 +468,11 @@ class ScanIntelligenceService:
 
             # Environment mixing warning
             if "production" in env_groups and len(env_groups) > 1:
-                recommendations.append(
-                    "Production and non-production hosts mixed - consider separate scans"
-                )
+                recommendations.append("Production and non-production hosts mixed - consider separate scans")
 
             # Large batch warning
             if len(hosts_info) > 20:
-                recommendations.append(
-                    "Large batch detected - consider splitting into smaller groups"
-                )
+                recommendations.append("Large batch detected - consider splitting into smaller groups")
 
             return {
                 "feasible": True,
