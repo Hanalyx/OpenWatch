@@ -823,3 +823,6 @@ backend/scripts/
 docs/
 backend/docs/
 frontend/docs/
+
+# Context directories (AI conversation context, do not commit)
+context/
