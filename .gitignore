@@ -288,13 +288,8 @@ logs/
 *.log.gz
 *.log.bz2
 
-# Application data (covered by data/.gitignore but adding here for safety)
-data/*
-data/scap/*
-data/compliance_*
-data/results/*
-data/uploads/*
-!data/**/.gitkeep
+# Application data directory (do not commit)
+data/
 
 # Database files
 *.db
