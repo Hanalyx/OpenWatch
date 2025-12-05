@@ -626,8 +626,8 @@ const ScanDetail: React.FC = () => {
       // Only use DEFAULT_FRAMEWORK if profile_id is genuinely missing (should rarely happen)
       const framework = scan.profile_id || DEFAULT_FRAMEWORK;
 
-      // Call MongoDB scan API
-      const response = await fetch('/api/scans/mongodb/start', {
+      // Call compliance scan API
+      const response = await fetch('/api/scans/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

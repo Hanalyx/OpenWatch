@@ -223,11 +223,13 @@ class ScanService {
   }
 
   /**
-   * Start a compliance scan for a single host
+   * Start a compliance scan for a single host.
    *
-   * Uses MongoDB-backed compliance rules for scanning.
+   * Uses the unified /api/scans/ endpoint which retrieves rules from
+   * the compliance rule repository (database-agnostic).
+   *
    * When connectionParams is provided, executes scan remotely via SSH.
-   * Without connectionParams, scan executes locally (not typical for production).
+   * Without connectionParams, scan uses host's configured credentials.
    *
    * @param hostId - UUID of the host to scan
    * @param hostname - Hostname or IP address for scan execution
@@ -247,7 +249,7 @@ class ScanService {
     connectionParams?: ConnectionParams,
     ruleIds?: string[]
   ): Promise<ComplianceScanResponse> {
-    const response = await fetch('/api/scans/mongodb/start', {
+    const response = await fetch('/api/scans/', {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -272,32 +274,9 @@ class ScanService {
   }
 
   /**
-   * @deprecated Use startComplianceScan() instead.
-   * This alias is provided for backward compatibility during migration.
-   */
-  static async startMongoDBScan(
-    hostId: string,
-    hostname: string,
-    platform: string,
-    platformVersion: string,
-    framework: string,
-    ruleIds?: string[]
-  ): Promise<ComplianceScanResponse> {
-    return this.startComplianceScan(
-      hostId,
-      hostname,
-      platform,
-      platformVersion,
-      framework,
-      undefined,
-      ruleIds
-    );
-  }
-
-  /**
    * Start an individual scan for a single host (LEGACY)
    *
-   * @deprecated Use startMongoDBScan() instead.
+   * @deprecated Use startComplianceScan() instead.
    * This method uses the old SCAP content file-based API which is being phased out.
    *
    * @param hostId - UUID of the host to scan

@@ -425,8 +425,8 @@ const Scans: React.FC = () => {
       // Only use DEFAULT_FRAMEWORK if profile_id is genuinely missing (should rarely happen)
       const framework = mostRecentScan.profile_id || DEFAULT_FRAMEWORK;
 
-      // Call MongoDB scan API
-      const response = await fetch('/api/scans/mongodb/start', {
+      // Call compliance scan API
+      const response = await fetch('/api/scans/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -452,7 +452,7 @@ const Scans: React.FC = () => {
 
       // Show success message with scan ID
       setError(null);
-      // Rescan initiated successfully with MongoDB compliance scanning
+      // Rescan initiated successfully with compliance scanning
       void result; // Scan result available for tracking
 
       // Refresh scans list to show new scan

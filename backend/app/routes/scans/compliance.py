@@ -86,17 +86,38 @@ def _update_scan_status(
         Errors are logged but not raised to avoid masking the original error.
     """
     try:
-        update_data: Dict[str, Any] = {
-            "status": status_value,
-            "progress": 100,
-            "completed_at": datetime.utcnow().isoformat(),
-        }
+        # Build UPDATE query with dynamic columns based on error_message presence
         if error_message:
-            update_data["error_message"] = error_message
-
-        update_builder = QueryBuilder("scans").update(update_data).where("id = :id", str(scan_uuid), "id")
-        query, params = update_builder.build()
-        db.execute(text(query), params)
+            update_query = text(
+                """
+                UPDATE scans
+                SET status = :status, progress = :progress,
+                    completed_at = :completed_at, error_message = :error_message
+                WHERE id = :id
+                """
+            )
+            params = {
+                "status": status_value,
+                "progress": 100,
+                "completed_at": datetime.utcnow(),
+                "error_message": error_message,
+                "id": str(scan_uuid),
+            }
+        else:
+            update_query = text(
+                """
+                UPDATE scans
+                SET status = :status, progress = :progress, completed_at = :completed_at
+                WHERE id = :id
+                """
+            )
+            params = {
+                "status": status_value,
+                "progress": 100,
+                "completed_at": datetime.utcnow(),
+                "id": str(scan_uuid),
+            }
+        db.execute(update_query, params)
         db.commit()
         logger.info(f"Updated scan {scan_uuid} status to {status_value}")
     except Exception as update_error:
@@ -442,7 +463,22 @@ async def create_compliance_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_scan_builder = QueryBuilder("scans").insert(
+            insert_query = text(
+                """
+                INSERT INTO scans (
+                    id, name, host_id, profile_id, status, progress,
+                    scan_options, started_by, started_at, remediation_requested,
+                    verification_scan, scan_metadata
+                )
+                VALUES (
+                    :id, :name, :host_id, :profile_id, :status, :progress,
+                    :scan_options, :started_by, :started_at, :remediation_requested,
+                    :verification_scan, :scan_metadata
+                )
+                """
+            )
+            db.execute(
+                insert_query,
                 {
                     "id": str(scan_uuid),
                     "name": scan_name,
@@ -459,7 +495,7 @@ async def create_compliance_scan(
                         }
                     ),
                     "started_by": (int(current_user.get("id")) if current_user.get("id") else None),
-                    "started_at": started_at.isoformat(),
+                    "started_at": started_at,
                     "remediation_requested": False,
                     "verification_scan": False,
                     "scan_metadata": json.dumps(
@@ -468,10 +504,8 @@ async def create_compliance_scan(
                             "rule_count": rule_count,
                         }
                     ),
-                }
+                },
             )
-            query, params = insert_scan_builder.build()
-            db.execute(text(query), params)
             db.commit()
             logger.info(f"Created PostgreSQL scan record {scan_uuid}")
 
@@ -551,24 +585,47 @@ async def create_compliance_scan(
 
         try:
             # Update scans table with completion status
-            update_scan_builder = (
-                QueryBuilder("scans")
-                .update(
-                    {
-                        "status": "completed",
-                        "progress": 100,
-                        "completed_at": completed_at.isoformat(),
-                        "result_file": scan_result.get("result_file", ""),
-                        "report_file": scan_result.get("report_file", ""),
-                    }
-                )
-                .where("id = :id", str(scan_uuid), "id")
+            update_scan_query = text(
+                """
+                UPDATE scans
+                SET status = :status, progress = :progress, completed_at = :completed_at,
+                    result_file = :result_file, report_file = :report_file
+                WHERE id = :id
+                """
             )
-            query, params = update_scan_builder.build()
-            db.execute(text(query), params)
+            db.execute(
+                update_scan_query,
+                {
+                    "status": "completed",
+                    "progress": 100,
+                    "completed_at": completed_at,
+                    "result_file": scan_result.get("result_file", ""),
+                    "report_file": scan_result.get("report_file", ""),
+                    "id": str(scan_uuid),
+                },
+            )
 
             # Insert scan_results record with all parsed data
-            insert_results_builder = QueryBuilder("scan_results").insert(
+            insert_results_query = text(
+                """
+                INSERT INTO scan_results (
+                    scan_id, total_rules, passed_rules, failed_rules, error_rules,
+                    unknown_rules, not_applicable_rules, score,
+                    severity_high, severity_medium, severity_low,
+                    xccdf_score, xccdf_score_system, xccdf_score_max,
+                    risk_score, risk_level, created_at
+                )
+                VALUES (
+                    :scan_id, :total_rules, :passed_rules, :failed_rules, :error_rules,
+                    :unknown_rules, :not_applicable_rules, :score,
+                    :severity_high, :severity_medium, :severity_low,
+                    :xccdf_score, :xccdf_score_system, :xccdf_score_max,
+                    :risk_score, :risk_level, :created_at
+                )
+                """
+            )
+            db.execute(
+                insert_results_query,
                 {
                     "scan_id": str(scan_uuid),
                     "total_rules": parsed_results["rules_total"],
@@ -586,11 +643,9 @@ async def create_compliance_scan(
                     "xccdf_score_max": parsed_results.get("xccdf_score_max"),
                     "risk_score": parsed_results.get("risk_score"),
                     "risk_level": parsed_results.get("risk_level"),
-                    "created_at": completed_at.isoformat(),
-                }
+                    "created_at": completed_at,
+                },
             )
-            query, params = insert_results_builder.build()
-            db.execute(text(query), params)
 
             db.commit()
             logger.info(f"Updated PostgreSQL scan record {scan_uuid} to completed with results")
@@ -620,10 +675,13 @@ async def create_compliance_scan(
 
         # ---------------------------------------------------------------------
         # Build and return response
+        # CRITICAL: Return the actual UUID, not the prefixed scan_id string
+        # The frontend uses this ID to fetch scan status from /api/scans/{id}
+        # which expects a valid UUID format
         # ---------------------------------------------------------------------
         response_data = ComplianceScanResponse(
             success=True,
-            scan_id=scan_id,
+            scan_id=str(scan_uuid),  # Return actual UUID for frontend compatibility
             host_id=scan_request.host_id,
             scan_started=started_at.isoformat(),
             scan_completed=completed_at.isoformat(),

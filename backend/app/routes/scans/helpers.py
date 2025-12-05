@@ -401,7 +401,7 @@ def add_deprecation_header(response: Response, endpoint_name: str) -> None:
     """
     response.headers["Deprecation"] = "true"
     response.headers["X-Deprecation-Notice"] = DEPRECATION_WARNING
-    response.headers["Link"] = '</api/mongodb-scans/>; rel="successor-version"'
+    response.headers["Link"] = '</api/scans/>; rel="successor-version"'
     logger.debug("Legacy endpoint accessed: %s", endpoint_name)
 
 

@@ -129,8 +129,8 @@ const QuickScanDialog: React.FC<QuickScanDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      // Use the new MongoDB scan API via ScanService
-      const result = await ScanService.startMongoDBScan(
+      // Use the compliance scan API via ScanService
+      const result = await ScanService.startComplianceScan(
         hostId,
         hostName,
         template.platform,

@@ -144,8 +144,8 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
     handleMenuClose();
 
     try {
-      // Use the new MongoDB scan API via ScanService
-      const result = await ScanService.startMongoDBScan(
+      // Use the compliance scan API via ScanService
+      const result = await ScanService.startComplianceScan(
         hostId,
         hostName,
         template.platform,
