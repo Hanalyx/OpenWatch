@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Snackbar,
   Alert,
@@ -14,101 +14,94 @@ import {
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { logout, clearError } from '../../store/slices/authSlice';
 import { tokenService } from '../../services/tokenService';
+import { activityTracker } from '../../services/activityTracker';
 
 const SessionManager: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { isAuthenticated, sessionExpiry, error } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, error } = useAppSelector((state) => state.auth);
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isExtending, setIsExtending] = useState(false);
   const [extendError, setExtendError] = useState<string | null>(null);
 
+  // Warning threshold: show warning when 5 minutes remain
+  const WARNING_THRESHOLD_SECONDS = 5 * 60;
+
+  // Handle inactivity warning callback
+  const handleInactivityWarning = useCallback((timeLeftSeconds: number) => {
+    setTimeLeft(timeLeftSeconds);
+    setShowExpiryWarning(true);
+    // Pause auto-refresh during manual session management
+    tokenService.pauseAutoRefresh();
+  }, []);
+
+  // Handle inactivity logout callback
+  const handleInactivityLogout = useCallback(() => {
+    dispatch(logout());
+  }, [dispatch]);
+
   useEffect(() => {
-    if (!isAuthenticated || !sessionExpiry) {
+    if (!isAuthenticated) {
       setShowExpiryWarning(false);
       setTimeLeft(null);
-      // Resume auto-refresh when not authenticated
+      activityTracker.stop();
       tokenService.resumeAutoRefresh();
       return;
     }
 
-    let forceLogoutTimer: NodeJS.Timeout | null = null;
-
-    const checkExpiry = () => {
-      const now = Date.now();
-      const remaining = sessionExpiry - now;
-
-      // Show warning if 5 minutes or less remaining
-      if (remaining <= 5 * 60 * 1000 && remaining > 0) {
-        setTimeLeft(Math.floor(remaining / 1000));
-        setShowExpiryWarning(true);
-        // Pause auto-refresh during manual session management
-        tokenService.pauseAutoRefresh();
-        // Clear any existing force logout timer
-        if (forceLogoutTimer) {
-          clearTimeout(forceLogoutTimer);
-          forceLogoutTimer = null;
-        }
-      } else if (remaining <= 0) {
-        // Session has expired, but don't close the warning yet
-        // Let the user see the 0:00 countdown and try to extend
-        setTimeLeft(0);
-        setShowExpiryWarning(true);
-
-        // Set a force logout timer if not already set
-        if (!forceLogoutTimer) {
-          forceLogoutTimer = setTimeout(() => {
-            dispatch(logout());
-          }, 60000); // Force logout after 1 minute at 0:00
-        }
-      } else {
-        setShowExpiryWarning(false);
-        setTimeLeft(null);
-        // Resume auto-refresh when not in warning period
-        tokenService.resumeAutoRefresh();
-        // Clear any existing force logout timer
-        if (forceLogoutTimer) {
-          clearTimeout(forceLogoutTimer);
-          forceLogoutTimer = null;
-        }
-      }
+    // Fetch timeout setting from backend and start activity tracking
+    const initializeActivityTracking = async () => {
+      // Fetch admin-configured timeout from backend (falls back to local cache/default)
+      await activityTracker.fetchTimeoutFromBackend();
+      // Start activity tracking when authenticated
+      activityTracker.start(handleInactivityWarning, handleInactivityLogout);
     };
 
-    // Check immediately and then every second
-    checkExpiry();
-    const interval = setInterval(checkExpiry, 1000);
+    initializeActivityTracking();
+
+    // Update countdown every second when warning is shown
+    let countdownInterval: NodeJS.Timeout | null = null;
+
+    if (showExpiryWarning) {
+      countdownInterval = setInterval(() => {
+        const remaining = activityTracker.getTimeRemainingSeconds();
+        setTimeLeft(remaining);
+
+        if (remaining <= 0) {
+          // Grace period expired, force logout
+          dispatch(logout());
+        }
+      }, 1000);
+    }
 
     return () => {
-      clearInterval(interval);
-      if (forceLogoutTimer) {
-        clearTimeout(forceLogoutTimer);
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
       }
     };
-  }, [isAuthenticated, sessionExpiry, dispatch]);
+  }, [
+    isAuthenticated,
+    showExpiryWarning,
+    dispatch,
+    handleInactivityWarning,
+    handleInactivityLogout,
+  ]);
 
   const handleExtendSession = async () => {
     setIsExtending(true);
     setExtendError(null);
 
-    // Security check: Don't allow extension if session has been expired for more than 60 seconds
-    const now = Date.now();
-    const gracePeriod = 60 * 1000; // 1 minute grace period
-    if (sessionExpiry && now > sessionExpiry + gracePeriod) {
-      setExtendError('Session expired too long ago. Please log in again for security.');
-      setTimeout(() => dispatch(logout()), 2000);
-      return;
-    }
-
     try {
-      // Use manual refresh mode to prevent automatic logout
+      // Refresh the token to extend the session
       const success = await tokenService.refreshToken(true);
       if (success) {
+        // Reset activity tracker and hide warning
+        activityTracker.resetActivity();
         setShowExpiryWarning(false);
         setTimeLeft(null);
         setExtendError(null);
         // Resume auto-refresh after successful manual extension
         tokenService.resumeAutoRefresh();
-        // Session extension completed - token refresh succeeded
       } else {
         // Security: Failed refresh should force logout
         setExtendError('Failed to extend session. You will be logged out for security.');
@@ -129,7 +122,7 @@ const SessionManager: React.FC = () => {
   const handleLogout = () => {
     dispatch(logout());
     setShowExpiryWarning(false);
-    // Resume auto-refresh on manual logout
+    activityTracker.stop();
     tokenService.resumeAutoRefresh();
   };
 
@@ -139,7 +132,11 @@ const SessionManager: React.FC = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const progressValue = timeLeft ? Math.max(0, (timeLeft / (5 * 60)) * 100) : 0;
+  // Progress bar based on warning threshold (5 minutes)
+  const progressValue = timeLeft ? Math.max(0, (timeLeft / WARNING_THRESHOLD_SECONDS) * 100) : 0;
+
+  // Get configured timeout for display
+  const timeoutMinutes = activityTracker.getTimeoutMinutes();
 
   return (
     <>
@@ -161,15 +158,17 @@ const SessionManager: React.FC = () => {
       >
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="h6">Session Expiring Soon</Typography>
+            <Typography variant="h6">Session Expiring Due to Inactivity</Typography>
           </Box>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" gutterBottom>
-            Your session will expire in <strong>{timeLeft ? formatTime(timeLeft) : '0:00'}</strong>.
+            Your session will expire in <strong>{timeLeft ? formatTime(timeLeft) : '0:00'}</strong>{' '}
+            due to inactivity.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            You will be automatically logged out for security purposes.
+            You will be automatically logged out for security purposes. The inactivity timeout is
+            set to {timeoutMinutes} minute{timeoutMinutes !== 1 ? 's' : ''}.
           </Typography>
 
           <Box sx={{ mb: 2 }}>
@@ -204,7 +203,7 @@ const SessionManager: React.FC = () => {
               ) : null
             }
           >
-            {isExtending ? 'Extending...' : 'Extend Session'}
+            {isExtending ? 'Extending...' : 'Continue Session'}
           </Button>
         </DialogActions>
 

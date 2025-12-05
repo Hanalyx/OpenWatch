@@ -154,6 +154,11 @@ const Settings: React.FC = () => {
   const [loggingPolicies, setLoggingPolicies] = useState<LoggingPolicy[]>([]);
   const [securityLoading, setSecurityLoading] = useState(false);
 
+  // Session timeout state
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(15);
+  const [sessionTimeoutLoading, setSessionTimeoutLoading] = useState(false);
+  const [sessionTimeoutUpdatedBy, setSessionTimeoutUpdatedBy] = useState<string | null>(null);
+
   // Get user from Redux store
   const user = useSelector((state: RootState) => state.auth.user);
   const isSuperAdmin = user?.role === 'super_admin';
@@ -284,6 +289,45 @@ const Settings: React.FC = () => {
     }
   };
 
+  // Session timeout functions
+  const loadSessionTimeout = async () => {
+    try {
+      setSessionTimeoutLoading(true);
+      const response = await api.get('/api/system/session-timeout');
+      setSessionTimeoutMinutes(response.timeout_minutes || 15);
+      setSessionTimeoutUpdatedBy(response.updated_by || null);
+    } catch (err: unknown) {
+      // Default to 15 minutes if API fails
+      console.error('Error loading session timeout:', err);
+    } finally {
+      setSessionTimeoutLoading(false);
+    }
+  };
+
+  const updateSessionTimeout = async (minutes: number) => {
+    try {
+      setSessionTimeoutLoading(true);
+      const response = await api.put('/api/system/session-timeout', {
+        timeout_minutes: minutes,
+      });
+      setSessionTimeoutMinutes(response.timeout_minutes);
+      setSessionTimeoutUpdatedBy(response.updated_by || null);
+      setSuccess(`Session timeout updated to ${minutes} minutes`);
+
+      // Update the activity tracker with new timeout
+      const { activityTracker } = await import('../../services/activityTracker');
+      activityTracker.saveTimeoutSetting(minutes);
+    } catch (err: unknown) {
+      const errorMessage =
+        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
+        'Failed to update session timeout';
+      setError(errorMessage);
+      console.error('Error updating session timeout:', err);
+    } finally {
+      setSessionTimeoutLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tabValue === 0) {
       // System Settings tab
@@ -295,6 +339,7 @@ const Settings: React.FC = () => {
     } else if (tabValue === 3) {
       // Security tab
       loadLoggingPolicies();
+      loadSessionTimeout();
     }
     // ESLint disable: load* functions are not memoized to avoid complex dependency chains
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -860,6 +905,66 @@ const Settings: React.FC = () => {
                 </Table>
               </TableContainer>
             )}
+          </Card>
+
+          {/* Session Timeout Settings */}
+          <Card sx={{ mb: 4, p: 3 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                Session Timeout
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Configure the inactivity timeout for user sessions. After this period of inactivity,
+                users will be prompted to extend their session or be automatically logged out.
+              </Typography>
+            </Box>
+
+            {!isSuperAdmin ? (
+              <Alert severity="info">
+                Only Super Administrators can modify session timeout settings.
+              </Alert>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel>Inactivity Timeout</InputLabel>
+                  <Select
+                    value={sessionTimeoutMinutes}
+                    onChange={(e) => updateSessionTimeout(Number(e.target.value))}
+                    disabled={sessionTimeoutLoading}
+                    label="Inactivity Timeout"
+                  >
+                    <MenuItem value={5}>5 minutes</MenuItem>
+                    <MenuItem value={10}>10 minutes</MenuItem>
+                    <MenuItem value={15}>15 minutes (default)</MenuItem>
+                    <MenuItem value={30}>30 minutes</MenuItem>
+                    <MenuItem value={60}>1 hour</MenuItem>
+                    <MenuItem value={120}>2 hours</MenuItem>
+                    <MenuItem value={240}>4 hours</MenuItem>
+                    <MenuItem value={480}>8 hours</MenuItem>
+                  </Select>
+                </FormControl>
+                {sessionTimeoutLoading && (
+                  <Typography variant="body2" color="text.secondary">
+                    Saving...
+                  </Typography>
+                )}
+                {sessionTimeoutUpdatedBy && !sessionTimeoutLoading && (
+                  <Typography variant="body2" color="text.secondary">
+                    Last updated by: {sessionTimeoutUpdatedBy}
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            <Alert severity="info" sx={{ mt: 3 }}>
+              <Typography variant="body2">
+                <strong>How it works:</strong> Users will see a warning dialog 5 minutes before
+                their session expires due to inactivity. They can click &quot;Continue Session&quot;
+                to extend their session, or they will be automatically logged out when the timer
+                expires.
+              </Typography>
+            </Alert>
           </Card>
 
           {/* Compliance Framework Support Section */}
