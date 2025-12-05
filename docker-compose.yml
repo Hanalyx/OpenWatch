@@ -91,6 +91,8 @@ services:
       OPENWATCH_FIPS_MODE: "false"
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
+      # Version info for CI/CD (read from VERSION file)
+      BUILD_DATE: "${BUILD_DATE:-}"
       # Feature Flags - OW-REFACTOR
       OPENWATCH_USE_QUERY_BUILDER: "${OPENWATCH_USE_QUERY_BUILDER:-false}"
       OPENWATCH_USE_REPOSITORY_PATTERN: "${OPENWATCH_USE_REPOSITORY_PATTERN:-false}"

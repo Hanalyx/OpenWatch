@@ -73,6 +73,8 @@ services:
       OPENWATCH_DEBUG: "false"
       OPENWATCH_DEMO_MODE: "false"
       OPENWATCH_ROOTLESS: "true"
+      # Version info for CI/CD (read from VERSION file)
+      BUILD_DATE: "${BUILD_DATE:-}"
     volumes:
       - app_data:/app/data:Z
       - app_logs:/app/logs:Z

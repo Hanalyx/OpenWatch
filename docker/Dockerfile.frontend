@@ -3,7 +3,15 @@
 # Stage 1: Build the React application
 FROM node:20.19.5-alpine AS builder
 
+# Build arguments for version injection
+ARG APP_VERSION=0.0.0-dev
+ARG GIT_COMMIT=""
+ARG BUILD_DATE=""
+
 WORKDIR /app
+
+# Copy VERSION file first (for Vite config to read)
+COPY VERSION ./VERSION
 
 # Copy package files
 COPY frontend/package*.json ./
@@ -16,6 +24,11 @@ RUN npm install
 
 # Copy frontend source code
 COPY frontend/ ./
+
+# Set version environment variables for build
+ENV VITE_APP_VERSION=${APP_VERSION}
+ENV VITE_GIT_COMMIT=${GIT_COMMIT}
+ENV VITE_BUILD_DATE=${BUILD_DATE}
 
 # Build the React application
 RUN npm run build

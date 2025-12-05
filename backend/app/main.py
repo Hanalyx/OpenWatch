@@ -51,6 +51,7 @@ from .routes import (  # compliance - REMOVED: Consolidated into routes/complian
     scans,
     scap_import,
     users,
+    version,
     xccdf_api,
 )
 
@@ -549,6 +550,9 @@ async def metrics() -> PlainTextResponse:
 
 
 # Include API routes - Unified API at /api prefix
+# Version endpoint (public, no auth required)
+app.include_router(version.router, prefix="/api", tags=["Version"])
+
 # Capabilities and system information
 app.include_router(capabilities.router, prefix="/api", tags=["System Capabilities"])
 

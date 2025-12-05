@@ -57,6 +57,8 @@ services:
       OPENWATCH_REQUIRE_HTTPS: "false"
       OPENWATCH_DEBUG: "true"
       OPENWATCH_DEMO_MODE: "false"
+      # Version info for CI/CD (read from VERSION file)
+      BUILD_DATE: "${BUILD_DATE:-}"
     volumes:
       - app_data:/app/data
       - app_logs:/app/logs
