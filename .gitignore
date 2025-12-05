@@ -37,6 +37,7 @@ security/certs/mongodb/*.crt
 security/certs/mongodb/ca.*
 security/certs/mongodb/server.*
 security/certs/mongodb/client.*
+security/certs/mongodb/backup-*/
 
 # PostgreSQL certificates
 security/certs/postgres/*.pem
