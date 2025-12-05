@@ -40,7 +40,6 @@ import {
   Assessment as ComplianceIcon,
   Security as SecurityIcon,
   Computer as PlatformIcon,
-  Category as CategoryIcon,
 } from '@mui/icons-material';
 import { type Rule } from '../../store/slices/ruleSlice';
 import { ruleService } from '../../services/ruleService';
@@ -787,27 +786,19 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                       </TableCell>
 
                       <TableCell align="center" sx={{ width: 120, minWidth: 120 }}>
-                        <Chip
-                          label={rule.category
+                        <Typography variant="caption" color="text.secondary">
+                          {rule.category
                             .split('_')
                             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                             .join(' ')}
-                          size="small"
-                          variant="outlined"
-                          icon={<CategoryIcon fontSize="small" />}
-                        />
+                        </Typography>
                       </TableCell>
 
                       <TableCell
                         align="center"
                         sx={{ width: 140, minWidth: 140, overflow: 'hidden' }}
                       >
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          justifyContent="center"
-                          sx={{ flexWrap: 'wrap' }}
-                        >
+                        <Typography variant="caption" color="text.secondary">
                           {rule.frameworks &&
                             Object.keys(rule.frameworks)
                               .filter((framework) => {
@@ -819,27 +810,16 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                                   Object.keys(fwData).length > 0
                                 );
                               })
-                              .map((framework) => (
-                                <Chip
-                                  key={framework}
-                                  label={framework.toUpperCase()}
-                                  size="small"
-                                  variant="outlined"
-                                />
-                              ))}
-                        </Stack>
+                              .map((framework) => framework.toUpperCase())
+                              .join(', ')}
+                        </Typography>
                       </TableCell>
 
                       <TableCell
                         align="center"
                         sx={{ width: 120, minWidth: 120, overflow: 'hidden' }}
                       >
-                        <Stack
-                          direction="row"
-                          spacing={0.5}
-                          justifyContent="center"
-                          sx={{ flexWrap: 'wrap' }}
-                        >
+                        <Typography variant="caption" color="text.secondary">
                           {rule.platform_implementations &&
                             Object.keys(rule.platform_implementations)
                               .filter((platform) => {
@@ -854,16 +834,9 @@ const ComplianceRulesContent: React.FC<ComplianceRulesContentProps> = ({ onRuleS
                                     impl.enable_command)
                                 );
                               })
-                              .map((platform) => (
-                                <Chip
-                                  key={platform}
-                                  label={platform.toUpperCase()}
-                                  size="small"
-                                  variant="outlined"
-                                  icon={<PlatformIcon fontSize="small" />}
-                                />
-                              ))}
-                        </Stack>
+                              .map((platform) => platform.toUpperCase())
+                              .join(', ')}
+                        </Typography>
                       </TableCell>
 
                       <TableCell align="center" sx={{ width: 80, minWidth: 80 }}>
