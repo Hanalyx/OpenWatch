@@ -821,3 +821,6 @@ frontend/docs/
 
 # Context directories (AI conversation context, do not commit)
 context/
+
+# Examples directory (do not commit, moved to docs/)
+examples/
