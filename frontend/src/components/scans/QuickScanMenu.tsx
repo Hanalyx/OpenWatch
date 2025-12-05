@@ -164,7 +164,7 @@ const QuickScanMenu: React.FC<QuickScanMenuProps> = ({
 
   const handleCustomScan = () => {
     handleMenuClose();
-    navigate('/scans/new', { state: { hostId } });
+    navigate('/scans/create', { state: { preselectedHostId: hostId } });
   };
 
   const defaultTemplate = templates.find((t) => t.isDefault);

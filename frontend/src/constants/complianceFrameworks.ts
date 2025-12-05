@@ -2,7 +2,6 @@
  * Compliance Framework Constants
  *
  * Centralized definitions for supported compliance frameworks and platforms.
- * Following CLAUDE.md best practices - NO hardcoded values in components.
  *
  * Last Updated: 2025-11-07
  */

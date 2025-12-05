@@ -13,7 +13,6 @@ import PriorityHosts from '../components/dashboard/PriorityHosts';
 import DriftAlertsWidget from '../components/baselines/DriftAlertsWidget';
 import { api } from '../services/api';
 import { owcaService, type FleetStatistics } from '../services/owcaService';
-import QuickScanDialog from '../components/scans/QuickScanDialog';
 import DashboardErrorBoundary from '../components/dashboard/DashboardErrorBoundary';
 
 /**
@@ -119,7 +118,6 @@ const Dashboard: React.FC = () => {
   const [owcaError, setOwcaError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
-  const [quickScanOpen, setQuickScanOpen] = useState(false);
   const [_fleetStats, setFleetStats] = useState<FleetStatistics | null>(null);
 
   // Dashboard data state - adaptive monitoring states
@@ -559,7 +557,7 @@ const Dashboard: React.FC = () => {
               subtitle="Start a compliance scan"
               icon={<Scanner />}
               color="primary"
-              onClick={() => setQuickScanOpen(true)}
+              onClick={() => navigate('/scans/create')}
               badge={0}
             />
           </Grid>
@@ -655,14 +653,9 @@ const Dashboard: React.FC = () => {
                           host.issueType === 'not_scanned' ||
                           host.issueType === 'critical_issues'
                         ) {
-                          navigate('/scans/new', {
+                          navigate('/scans/create', {
                             state: {
-                              hostId: host.id,
-                              quickScan: true,
-                              suggestedTemplate:
-                                host.issueType === 'critical_issues'
-                                  ? 'security-audit'
-                                  : 'quick-compliance',
+                              preselectedHostId: host.id,
                             },
                           });
                         } else {
@@ -696,18 +689,6 @@ const Dashboard: React.FC = () => {
           </Grid>
         </Grid>
       </Grid>
-
-      {/* Quick Scan Dialog */}
-      <QuickScanDialog
-        open={quickScanOpen}
-        onClose={() => setQuickScanOpen(false)}
-        hostId=""
-        hostName="General Scan"
-        onScanStarted={(scanId) => {
-          setQuickScanOpen(false);
-          navigate(`/scans/${scanId}`);
-        }}
-      />
     </Box>
   );
 };

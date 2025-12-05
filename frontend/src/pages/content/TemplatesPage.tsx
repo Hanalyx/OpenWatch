@@ -82,7 +82,7 @@ export const TemplatesPage: React.FC = () => {
   };
 
   const handleUse = (templateId: string) => {
-    navigate('/scans/config', { state: { templateId } });
+    navigate('/scans/create', { state: { templateId } });
   };
 
   const myTemplates = templates?.filter((t) => t.created_by === currentUser.username) || [];

@@ -34,11 +34,7 @@ import { FrameworkDetailPage } from './pages/content/FrameworkDetailPage';
 import { TemplatesPage } from './pages/content/TemplatesPage';
 import { TemplateEditorPage } from './pages/content/TemplateEditorPage';
 import Scans from './pages/scans/Scans';
-import ComplianceScans from './pages/scans/ComplianceScans';
-import ValidateReadiness from './pages/scans/ValidateReadiness';
 import ScanDetail from './pages/scans/ScanDetail';
-import NewScan from './pages/scans/NewScan';
-import NewScapScan from './pages/scans/NewScapScan';
 import ComplianceScanWizard from './pages/scans/ComplianceScanWizard';
 import Users from './pages/users/Users';
 import OView from './pages/oview/OView';
@@ -96,10 +92,6 @@ function App() {
                 <Route path="/content/templates/:id" element={<TemplateEditorPage />} />
                 <Route path="/scans" element={<Scans />} />
                 <Route path="/scans/create" element={<ComplianceScanWizard />} />
-                <Route path="/scans/compliance" element={<ComplianceScans />} />
-                <Route path="/scans/validate-readiness" element={<ValidateReadiness />} />
-                <Route path="/scans/new" element={<NewScan />} />
-                <Route path="/scans/new-scap" element={<NewScapScan />} />
                 <Route path="/scans/:id" element={<ScanDetail />} />
                 <Route path="/users" element={<Users />} />
                 <Route path="/oview" element={<OView />} />
