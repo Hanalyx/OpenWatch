@@ -37,7 +37,6 @@ import {
   SettingsEthernet as SettingsEthernetIcon,
   Shield as ShieldIcon,
   Policy as PolicyIcon,
-  Info as InfoIcon,
 } from '@mui/icons-material';
 import { api } from '../../services/api';
 import { SSHKeyDisplay } from '../../components/design-system';
@@ -1021,8 +1020,7 @@ const Settings: React.FC = () => {
           <Card sx={{ p: 3 }}>
             <Box sx={{ mb: 3 }}>
               <Typography variant="h6" gutterBottom>
-                <InfoIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                About OpenWatch
+                OpenWatch
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Intelligent Compliance Automation Platform
@@ -1038,9 +1036,9 @@ const Settings: React.FC = () => {
                 Platform Overview
               </Typography>
               <Typography variant="body2" color="text.secondary" paragraph>
-                OpenWatch is an enterprise-grade SCAP (Security Content Automation Protocol)
-                compliance scanning platform designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53,
-                and DOD STIG baseline verification.
+                OpenWatch is a SCAP (Security Content Automation Protocol) compliance scanning
+                platform designed for FedRAMP, CMMC, ISO 27001, NIST SP 800-53, and DOD STIG
+                baseline verification.
               </Typography>
             </Box>
 
@@ -1055,7 +1053,6 @@ const Settings: React.FC = () => {
                 { label: 'SCAP Scanning', description: 'OpenSCAP-based compliance scanning' },
                 { label: 'Multi-Framework', description: 'NIST, CIS, STIG, and more' },
                 { label: 'Real-time Monitoring', description: 'Continuous compliance tracking' },
-                { label: 'Remediation', description: 'Automated fix recommendations' },
               ].map((feature) => (
                 <Card key={feature.label} variant="outlined" sx={{ p: 2 }}>
                   <Typography variant="subtitle2" gutterBottom>
