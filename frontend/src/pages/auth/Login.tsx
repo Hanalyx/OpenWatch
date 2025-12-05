@@ -16,6 +16,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { loginSuccess, loginFailure, clearError, setLoading } from '../../store/slices/authSlice';
+import { VersionDisplay } from '../../components/common/VersionDisplay';
 
 interface LoginFormData {
   username: string;
@@ -202,6 +203,11 @@ const Login: React.FC = () => {
             </Box>
           </Box>
         </Paper>
+
+        {/* Version display below login form */}
+        <Box sx={{ mt: 3 }}>
+          <VersionDisplay variant="caption" color="text.secondary" />
+        </Box>
       </Box>
     </Container>
   );
