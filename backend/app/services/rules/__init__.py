@@ -100,16 +100,39 @@ from .association import (  # noqa: F401
 from .cache import CacheEntry, CacheMetrics, CachePriority, CacheStrategy, RuleCacheService  # noqa: F401
 
 # =============================================================================
-# Scanner Layer - Targeted Rule Scanning
-# =============================================================================
-from .scanner import RuleSpecificScanner  # noqa: F401
-
-# =============================================================================
 # Service Layer - Rule Querying and Management
 # =============================================================================
 from .service import ParameterResolution, QueryPriority, RuleService  # noqa: F401
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Scanner Layer - Targeted Rule Scanning (Lazy Import)
+# =============================================================================
+# NOTE: RuleSpecificScanner uses lazy import to avoid circular dependency
+# with engine module. Import it directly from .scanner when needed, or use
+# the get_rule_scanner() factory function.
+_scanner_module = None
+
+
+def _get_scanner_class():
+    """Lazy import of RuleSpecificScanner to avoid circular dependencies."""
+    global _scanner_module
+    if _scanner_module is None:
+        from . import scanner as _scanner_module
+    return _scanner_module.RuleSpecificScanner
+
+
+class _LazyRuleSpecificScanner:
+    """Lazy wrapper for RuleSpecificScanner to enable deferred import."""
+
+    def __new__(cls, *args, **kwargs):
+        """Create actual RuleSpecificScanner instance on first use."""
+        return _get_scanner_class()(*args, **kwargs)
+
+
+# Provide RuleSpecificScanner as a lazy wrapper
+RuleSpecificScanner = _LazyRuleSpecificScanner
 
 # Version of the rules module API
 __version__ = "1.0.0"
