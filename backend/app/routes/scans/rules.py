@@ -38,7 +38,7 @@ from backend.app.auth import get_current_user
 from backend.app.database import get_db
 from backend.app.services.compliance_framework_mapper import ComplianceFrameworkMapper
 from backend.app.services.engine import get_aegis_mapper
-from backend.app.services.rule_specific_scanner import RuleSpecificScanner
+from backend.app.services.rules import RuleSpecificScanner
 
 logger = logging.getLogger(__name__)
 

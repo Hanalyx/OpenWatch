@@ -1,3 +1,15 @@
+[tool.flake8]
+max-line-length = 100
+# E203: whitespace before ':' - conflicts with black's slice formatting
+# E501: line too long - handled by black, sometimes unavoidable in strings
+# W503: line break before binary operator - conflicts with black
+extend-ignore = "E203,W503"
+exclude = ".git,__pycache__,build,dist,.venv,venv,.eggs"
+per-file-ignores = """
+    __init__.py:F401,E402
+    **/tests/*:S101
+"""
+
 [tool.black]
 line-length = 100
 target-version = ['py39']

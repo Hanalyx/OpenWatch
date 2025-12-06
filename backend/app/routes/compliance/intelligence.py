@@ -34,8 +34,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user
 from ...database import get_db
 from ...models.mongo_models import UploadHistory
-from ...services.compliance_rules_deduplication_service import DeduplicationStrategy
-from ...services.compliance_rules_upload_service import ComplianceRulesUploadService
+from ...services.compliance_rules import ComplianceRulesUploadService, DeduplicationStrategy
 from ...utils.file_security import sanitize_filename, validate_file_extension
 
 logger = logging.getLogger(__name__)

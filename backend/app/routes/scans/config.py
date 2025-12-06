@@ -39,7 +39,7 @@ from backend.app.models.scan_config_models import (
     ValidationResult,
     VariableDefinition,
 )
-from backend.app.services.framework_metadata_service import FrameworkMetadataService
+from backend.app.services.framework import FrameworkMetadataService
 from backend.app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 from backend.app.services.scan_template_service import ScanTemplateService
 
