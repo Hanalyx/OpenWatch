@@ -26,14 +26,13 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (  # compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
+from .routes import (  # bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
     adaptive_scheduler,
     api_keys,
     audit,
     auth,
     baselines,
     bulk_operations,
-    bulk_remediation_routes,
     capabilities,
     compliance_rules_api,
     content,
@@ -44,7 +43,6 @@ from .routes import (  # compliance - REMOVED: Consolidated into routes/complian
     mongodb_test,
     monitoring,
     os_discovery,
-    remediation_api,
     remediation_callback,
     remediation_provider,
     rule_management,
@@ -566,12 +564,12 @@ app.include_router(compliance_rules_api.router, prefix="/api", tags=["MongoDB Co
 
 # XCCDF and scanning services (consolidated from v1)
 app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator"])
-app.include_router(remediation_api.router, prefix="/api/remediation-engine", tags=["ORSA Remediation"])
+# remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
 # scan_config_api - REMOVED: Consolidated into routes/scans/config.py and templates.py (Phase 2)
 # Endpoints now available at /api/scans/config/* and /api/scans/templates/*
 app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
 
-# Remediation provider (moved from v1)
+# Remediation provider (registration interface for ORSA adapters)
 app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
 
 # Core API routes
@@ -644,7 +642,7 @@ app.include_router(ssh_router, prefix="/api", tags=["SSH"])
 app.include_router(integrations_router, prefix="/api", tags=["Integrations"])
 # plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4)
 # Endpoints now available at /api/integrations/plugins/*
-app.include_router(bulk_remediation_routes.router, prefix="/api", tags=["Bulk Remediation"])
+# bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
 
 # QueryBuilder validation endpoints (temporary testing) - DISABLED: module not available
 # app.include_router(test_querybuilder.router, prefix="/api", tags=["QueryBuilder Validation"])
