@@ -42,7 +42,7 @@ paramiko==3.5.0
 # HTTP Client
 requests==2.32.5  # Security: CVE-2024-35195 fixed
 httpx==0.28.1
-aiohttp==3.12.14
+aiohttp==3.13.3
 
 # Data Validation
 pydantic==2.10.4
