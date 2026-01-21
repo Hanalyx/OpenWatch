@@ -178,7 +178,11 @@ def convert_readiness_to_error(check_result: ReadinessCheckResult) -> ScanErrorI
         ScanErrorInternal with error details and automated fix suggestions
     """
     # Get check type as string
-    check_type = check_result.check_type if isinstance(check_result.check_type, str) else check_result.check_type.value
+    check_type = (
+        check_result.check_type
+        if isinstance(check_result.check_type, str)
+        else check_result.check_type.value
+    )
 
     # Map severity
     severity_map = {
@@ -189,7 +193,11 @@ def convert_readiness_to_error(check_result: ReadinessCheckResult) -> ScanErrorI
         "warning": ErrorSeverity.WARNING,
         "info": ErrorSeverity.INFO,
     }
-    severity_value = check_result.severity if isinstance(check_result.severity, str) else check_result.severity.value
+    severity_value = (
+        check_result.severity
+        if isinstance(check_result.severity, str)
+        else check_result.severity.value
+    )
     severity = severity_map.get(severity_value, ErrorSeverity.ERROR)
 
     return ScanErrorInternal(
@@ -198,7 +206,9 @@ def convert_readiness_to_error(check_result: ReadinessCheckResult) -> ScanErrorI
         severity=severity,
         message=check_result.message,
         technical_details=check_result.details,
-        user_guidance=check_result.details.get("remediation", f"Check failed: {check_result.check_name}"),
+        user_guidance=check_result.details.get(
+            "remediation", f"Check failed: {check_result.check_name}"
+        ),
         automated_fixes=CHECK_TYPE_TO_FIXES.get(check_type, []),
         can_retry=True,
         retry_after=60 if severity == ErrorSeverity.ERROR else None,
@@ -237,7 +247,9 @@ def convert_readiness_result_to_validation(
     # Build validation_checks dict from readiness checks
     validation_checks = {}
     for check in readiness.checks:
-        check_type = check.check_type if isinstance(check.check_type, str) else check.check_type.value
+        check_type = (
+            check.check_type if isinstance(check.check_type, str) else check.check_type.value
+        )
         validation_checks[check_type] = check.passed
 
     # Build system_info from readiness summary
@@ -275,7 +287,9 @@ class ErrorClassificationService:
         """Initialize the error classification service."""
         pass
 
-    async def classify_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> ScanErrorInternal:
+    async def classify_error(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ) -> ScanErrorInternal:
         """
         Classify and enhance a generic error with actionable guidance.
 
@@ -290,7 +304,9 @@ class ErrorClassificationService:
         error_str = str(error).lower()
 
         # Network errors
-        if any(keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]):
+        if any(
+            keyword in error_str for keyword in ["connection refused", "timeout", "unreachable"]
+        ):
             return ScanErrorInternal(
                 error_code="NET_006",
                 category=ErrorCategory.NETWORK,
@@ -381,7 +397,9 @@ class ErrorClassificationService:
         from backend.app.config import get_settings
         from backend.app.database import get_db as get_db_session
         from backend.app.encryption import EncryptionConfig, create_encryption_service
-        from backend.app.services.host_validator.readiness_validator import ReadinessValidatorService
+        from backend.app.services.host_validator.readiness_validator import (
+            ReadinessValidatorService,
+        )
 
         start_time = datetime.utcnow()
 
@@ -519,7 +537,9 @@ class ErrorClassificationService:
         # Sanitize errors using existing error sanitization
         sanitized_errors = []
         for error in internal_result.errors:
-            sanitized_error = sanitization_service.sanitize_error(error.dict(), user_id=user_id, source_ip=source_ip)
+            sanitized_error = sanitization_service.sanitize_error(
+                error.dict(), user_id=user_id, source_ip=source_ip
+            )
             # Convert SanitizedError to ScanErrorResponse
             scan_error_response = ScanErrorResponse(
                 error_code=sanitized_error.error_code,

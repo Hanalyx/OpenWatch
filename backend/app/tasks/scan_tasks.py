@@ -94,7 +94,9 @@ def execute_scan_task(
                 # Create encryption service for credential decryption
                 settings = get_settings()
                 encryption_config = EncryptionConfig()
-                encryption_service = create_encryption_service(master_key=settings.master_key, config=encryption_config)
+                encryption_service = create_encryption_service(
+                    master_key=settings.master_key, config=encryption_config
+                )
 
                 auth_service = get_auth_service(db, encryption_service)
 
@@ -110,7 +112,9 @@ def execute_scan_task(
                 )
 
                 # Resolve credentials using centralized service
-                credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+                credential_data = auth_service.resolve_credential(
+                    target_id=target_id, use_default=use_default
+                )
 
                 if not credential_data:
                     logger.error(f"No credentials available for scan {scan_id}")
@@ -178,7 +182,9 @@ def execute_scan_task(
                                         )
                                         content_path = content_result.file_path
                         else:
-                            logger.warning(f"Could not determine platform for host in scan {scan_id}")
+                            logger.warning(
+                                f"Could not determine platform for host in scan {scan_id}"
+                            )
                     except Exception as jit_error:
                         logger.warning(
                             f"JIT platform detection failed for scan {scan_id}: {jit_error}. "
@@ -367,7 +373,9 @@ def execute_scan_task(
                     scan_id,
                     scan_result_id,
                 )
-                logger.debug(f"Updated group scan progress to completed for session {group_scan_session_id}")
+                logger.debug(
+                    f"Updated group scan progress to completed for session {group_scan_session_id}"
+                )
             except Exception as e:
                 logger.error(f"Failed to update group scan completion progress: {e}")
 
@@ -400,7 +408,9 @@ def execute_scan_task(
                 loop.close()
                 logger.debug(f"Webhook notification sent for completed scan: {scan_id}")
             except Exception as loop_error:
-                logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
+                logger.warning(
+                    f"Failed to send webhook notification for scan {scan_id}: {loop_error}"
+                )
 
         except Exception as webhook_error:
             logger.error(f"Failed to send completion webhook for scan {scan_id}: {webhook_error}")
@@ -428,10 +438,14 @@ def _update_scan_error(
             try:
                 import asyncio
 
-                classified_error = asyncio.run(error_service.classify_error(original_exception, {"scan_id": scan_id}))
+                classified_error = asyncio.run(
+                    error_service.classify_error(original_exception, {"scan_id": scan_id})
+                )
                 # Use classified error message if available
                 if classified_error:
-                    error_message = f"{classified_error.message} (Code: {classified_error.error_code})"
+                    error_message = (
+                        f"{classified_error.message} (Code: {classified_error.error_code})"
+                    )
                     logger.info(
                         f"Error classified for scan {scan_id}: {classified_error.category.value} - {classified_error.error_code}"
                     )
@@ -475,7 +489,9 @@ def _update_scan_error(
                             error_message=error_message,
                         )
                     )
-                    logger.debug(f"Updated group scan progress to failed for session {group_scan_session_id}")
+                    logger.debug(
+                        f"Updated group scan progress to failed for session {group_scan_session_id}"
+                    )
             except Exception as e:
                 logger.error(f"Failed to update group scan failure progress: {e}")
 
@@ -509,11 +525,15 @@ def _update_scan_error(
                 try:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(send_scan_failed_webhook(scan_id, webhook_data, error_message))
+                    loop.run_until_complete(
+                        send_scan_failed_webhook(scan_id, webhook_data, error_message)
+                    )
                     loop.close()
                     logger.debug(f"Webhook notification sent for failed scan: {scan_id}")
                 except Exception as loop_error:
-                    logger.warning(f"Failed to send webhook notification for scan {scan_id}: {loop_error}")
+                    logger.warning(
+                        f"Failed to send webhook notification for scan {scan_id}: {loop_error}"
+                    )
 
             except Exception as webhook_error:
                 logger.error(f"Failed to send failure webhook for scan {scan_id}: {webhook_error}")
@@ -714,7 +734,9 @@ async def _process_semantic_intelligence(
         # Don't re-raise - we want to continue with normal scan processing
 
 
-async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any, host_data: Dict[str, Any]) -> None:
+async def _send_enhanced_semantic_webhook(
+    scan_id: str, intelligent_result: Any, host_data: Dict[str, Any]
+) -> None:
     """Send enhanced webhook with semantic intelligence data"""
 
     try:
@@ -761,7 +783,9 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
                 },
                 "semantic_analysis": {
                     "semantic_rules_count": len(intelligent_result.semantic_rules),
-                    "frameworks_analyzed": list(intelligent_result.framework_compliance_matrix.keys()),
+                    "frameworks_analyzed": list(
+                        intelligent_result.framework_compliance_matrix.keys()
+                    ),
                     "framework_compliance_matrix": intelligent_result.framework_compliance_matrix,
                     "remediation_strategy": intelligent_result.remediation_strategy,
                     "semantic_rules": [
@@ -777,7 +801,9 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
                             "estimated_fix_time": rule.estimated_fix_time,
                             "remediation_available": rule.remediation_available,
                         }
-                        for rule in intelligent_result.semantic_rules[:10]  # Limit to avoid large payloads
+                        for rule in intelligent_result.semantic_rules[
+                            :10
+                        ]  # Limit to avoid large payloads
                     ],
                 },
                 "original_scan_results": {
@@ -792,7 +818,9 @@ async def _send_enhanced_semantic_webhook(scan_id: str, intelligent_result: Any,
         # Send to all configured endpoints
         for webhook in webhooks:
             try:
-                await deliver_webhook(webhook.url, webhook.secret_hash, webhook_data, str(webhook.id))
+                await deliver_webhook(
+                    webhook.url, webhook.secret_hash, webhook_data, str(webhook.id)
+                )
             except Exception as e:
                 logger.error(f"Failed to deliver semantic webhook to {webhook.url}: {e}")
 

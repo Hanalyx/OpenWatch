@@ -88,7 +88,9 @@ class DriftEventsListResponse(BaseModel):
 )
 async def list_drift_events(
     host_id: Optional[UUID] = Query(None, description="Filter by host ID"),
-    drift_type: Optional[str] = Query(None, description="Filter by drift type (major, minor, improvement, stable)"),
+    drift_type: Optional[str] = Query(
+        None, description="Filter by drift type (major, minor, improvement, stable)"
+    ),
     exclude_stable: bool = Query(False, description="Exclude stable drift events"),
     limit: int = Query(10, ge=1, le=100, description="Maximum number of events to return"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
@@ -142,7 +144,9 @@ async def list_drift_events(
         builder.where("sde.drift_type != :stable", "stable", "stable")
 
     # Get total count
-    count_builder = QueryBuilder("scan_drift_events sde").join("hosts h", "h.id = sde.host_id", "INNER")
+    count_builder = QueryBuilder("scan_drift_events sde").join(
+        "hosts h", "h.id = sde.host_id", "INNER"
+    )
     if host_id:
         count_builder.where("sde.host_id = :host_id", host_id, "host_id")
     if drift_type:

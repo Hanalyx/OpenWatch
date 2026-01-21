@@ -256,7 +256,9 @@ async def get_host_framework_intelligence(
     """
     try:
         owca = get_owca_service(db)
-        intelligence = await owca.get_framework_intelligence(framework=framework, host_id=str(host_id))
+        intelligence = await owca.get_framework_intelligence(
+            framework=framework, host_id=str(host_id)
+        )
 
         if not intelligence:
             raise HTTPException(
@@ -269,7 +271,9 @@ async def get_host_framework_intelligence(
         if hasattr(intelligence, "dict"):
             result = dict(intelligence.dict())
         else:
-            result = dict(intelligence) if isinstance(intelligence, dict) else {"data": intelligence}
+            result = (
+                dict(intelligence) if isinstance(intelligence, dict) else {"data": intelligence}
+            )
         return result
 
     except HTTPException:
@@ -442,7 +446,9 @@ async def calculate_host_risk(
     description="Get all hosts ranked by risk score for prioritization",
 )
 async def rank_fleet_by_risk(
-    limit: Optional[int] = Query(None, ge=1, le=100, description="Maximum number of hosts to return"),
+    limit: Optional[int] = Query(
+        None, ge=1, le=100, description="Maximum number of hosts to return"
+    ),
     db: Session = Depends(get_db),
     _current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
@@ -496,7 +502,9 @@ async def forecast_host_compliance(
     """
     try:
         owca = get_owca_service(db)
-        forecast = await owca.forecast_compliance(str(host_id), entity_type="host", days_ahead=days_ahead)
+        forecast = await owca.forecast_compliance(
+            str(host_id), entity_type="host", days_ahead=days_ahead
+        )
 
         if not forecast:
             raise HTTPException(
@@ -505,7 +513,9 @@ async def forecast_host_compliance(
             )
 
         # Convert to dict with proper type annotation
-        result: Dict[str, Any] = dict(forecast.dict()) if hasattr(forecast, "dict") else dict(forecast)
+        result: Dict[str, Any] = (
+            dict(forecast.dict()) if hasattr(forecast, "dict") else dict(forecast)
+        )
         return result
 
     except HTTPException:
@@ -523,7 +533,9 @@ async def forecast_host_compliance(
 )
 async def detect_host_anomalies(
     host_id: UUID,
-    lookback_days: int = Query(60, ge=30, le=180, description="Days of history to analyze (30-180)"),
+    lookback_days: int = Query(
+        60, ge=30, le=180, description="Days of history to analyze (30-180)"
+    ),
     db: Session = Depends(get_db),
     _current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
@@ -542,7 +554,9 @@ async def detect_host_anomalies(
     """
     try:
         owca = get_owca_service(db)
-        anomalies = await owca.detect_anomalies(str(host_id), entity_type="host", lookback_days=lookback_days)
+        anomalies = await owca.detect_anomalies(
+            str(host_id), entity_type="host", lookback_days=lookback_days
+        )
 
         return [anomaly.dict() if hasattr(anomaly, "dict") else anomaly for anomaly in anomalies]
 

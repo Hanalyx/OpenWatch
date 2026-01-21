@@ -385,7 +385,8 @@ async def enrich_scan_results_background(
 # =============================================================================
 
 DEPRECATION_WARNING = (
-    "This endpoint uses legacy SCAP file-based scanning. " "Consider using POST /api/scans/ for new implementations."
+    "This endpoint uses legacy SCAP file-based scanning. "
+    "Consider using POST /api/scans/ for new implementations."
 )
 
 
