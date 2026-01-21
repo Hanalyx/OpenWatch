@@ -33,7 +33,7 @@
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.66.0",
     "react-redux": "^8.0.7",
-    "react-router-dom": "^6.11.0",
+    "react-router-dom": "^6.30.3",
     "recharts": "^3.5.0",
     "redux-persist": "^6.0.0",
     "typescript": "^5.9.3"
