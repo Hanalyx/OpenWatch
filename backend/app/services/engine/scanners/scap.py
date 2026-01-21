@@ -63,7 +63,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.app.services.auth import get_auth_service
-from backend.app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+from backend.app.services.mongo_integration_service import (
+    MongoIntegrationService,
+    get_mongo_service,
+)
 from backend.app.services.platform_capability_service import PlatformCapabilityService
 from backend.app.services.rules import RuleService
 
@@ -650,10 +653,14 @@ class UnifiedSCAPScanner(BaseScanner):
 
         # Add generator info
         generator = ET.SubElement(root, f"{{{oval_ns}}}generator")
-        ET.SubElement(generator, f"{{{oval_common_ns}}}product_name").text = "OpenWatch Unified SCAP Scanner"
+        ET.SubElement(generator, f"{{{oval_common_ns}}}product_name").text = (
+            "OpenWatch Unified SCAP Scanner"
+        )
         ET.SubElement(generator, f"{{{oval_common_ns}}}product_version").text = "1.0.0"
         ET.SubElement(generator, f"{{{oval_common_ns}}}schema_version").text = "5.11"
-        ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp").text = datetime.utcnow().isoformat() + "Z"
+        ET.SubElement(generator, f"{{{oval_common_ns}}}timestamp").text = (
+            datetime.utcnow().isoformat() + "Z"
+        )
 
         # Create container elements
         definitions = ET.SubElement(root, "definitions")
@@ -835,7 +842,9 @@ class UnifiedSCAPScanner(BaseScanner):
 
             # Clean text for XCCDF compliance
             description = self._strip_html_tags(rule.metadata.get("description", "No description"))
-            rationale = self._strip_html_tags(rule.metadata.get("rationale", "No rationale provided"))
+            rationale = self._strip_html_tags(
+                rule.metadata.get("rationale", "No rationale provided")
+            )
 
             xml_lines.extend(
                 [
@@ -989,7 +998,9 @@ class UnifiedSCAPScanner(BaseScanner):
 
             # Step 3: Generate SCAP profile
             profile_name = f"MongoDB {framework or 'Standard'} Profile"
-            profile_path, oval_path = await self.generate_scan_profile(resolved_rules, profile_name, platform)
+            profile_path, oval_path = await self.generate_scan_profile(
+                resolved_rules, profile_name, platform
+            )
 
             # Step 4: Execute scan
             scan_result = await self._execute_scan(
@@ -1365,7 +1376,9 @@ class UnifiedSCAPScanner(BaseScanner):
                 return scan_result
 
             # Create rule lookup
-            rule_lookup = {getattr(rule, "scap_rule_id", None) or rule.rule_id: rule for rule in rules}
+            rule_lookup = {
+                getattr(rule, "scap_rule_id", None) or rule.rule_id: rule for rule in rules
+            }
 
             # Gather intelligence
             enrichment_data = await self._gather_rule_intelligence(rule_lookup)
@@ -1408,8 +1421,12 @@ class UnifiedSCAPScanner(BaseScanner):
                     intelligence_data[rule_id] = {
                         "rule_id": rule.rule_id,
                         "business_impact": intel_result["intelligence"].get("business_impact"),
-                        "compliance_importance": intel_result["intelligence"].get("compliance_importance"),
-                        "false_positive_rate": intel_result["intelligence"].get("false_positive_rate"),
+                        "compliance_importance": intel_result["intelligence"].get(
+                            "compliance_importance"
+                        ),
+                        "false_positive_rate": intel_result["intelligence"].get(
+                            "false_positive_rate"
+                        ),
                         "remediation_complexity": getattr(rule, "remediation_complexity", None),
                         "remediation_risk": getattr(rule, "remediation_risk", None),
                         "frameworks": getattr(rule, "frameworks", {}),
@@ -1679,7 +1696,9 @@ class UnifiedSCAPScanner(BaseScanner):
                     scan_id=scan_id,
                 )
 
-            if rule_id and (not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)):
+            if rule_id and (
+                not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)
+            ):
                 raise ScanExecutionError(
                     message=f"Invalid rule_id format: {rule_id}",
                     scan_id=scan_id,
@@ -1842,7 +1861,9 @@ class UnifiedSCAPScanner(BaseScanner):
                     scan_id=scan_id,
                 )
 
-            if rule_id and (not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)):
+            if rule_id and (
+                not isinstance(rule_id, str) or not re.match(r"^[a-zA-Z0-9_:.-]+$", rule_id)
+            ):
                 raise ScanExecutionError(
                     message=f"Invalid rule_id format: {rule_id}",
                     scan_id=scan_id,

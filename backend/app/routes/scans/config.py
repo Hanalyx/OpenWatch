@@ -40,7 +40,10 @@ from backend.app.models.scan_config_models import (
     VariableDefinition,
 )
 from backend.app.services.framework import FrameworkMetadataService
-from backend.app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
+from backend.app.services.mongo_integration_service import (
+    MongoIntegrationService,
+    get_mongo_service,
+)
 from backend.app.services.scan_template_service import ScanTemplateService
 
 logger = logging.getLogger(__name__)
@@ -264,7 +267,9 @@ async def validate_variables(
     db = _get_database(mongo_service)
     service = FrameworkMetadataService(db)
 
-    valid, errors = await service.validate_variables(framework=framework, version=version, variables=request.variables)
+    valid, errors = await service.validate_variables(
+        framework=framework, version=version, variables=request.variables
+    )
 
     return ValidationResult(valid=valid, errors=errors)
 

@@ -173,7 +173,9 @@ async def _jit_platform_detection(
         target_id = None if use_default else host_id
 
         # Resolve credentials using auth service (same as scan executor)
-        credential_data = auth_service.resolve_credential(target_id=target_id, use_default=use_default)
+        credential_data = auth_service.resolve_credential(
+            target_id=target_id, use_default=use_default
+        )
 
         if not credential_data:
             logger.warning("JIT detection skipped (no credentials available)")
@@ -210,7 +212,9 @@ async def _jit_platform_detection(
                 "version": platform_info.platform_version or "",
             }
         else:
-            logger.warning(f"JIT platform detection failed for {host_id}: " f"{platform_info.detection_error}")
+            logger.warning(
+                f"JIT platform detection failed for {host_id}: " f"{platform_info.detection_error}"
+            )
             return None
 
     except Exception as e:
@@ -302,7 +306,10 @@ async def create_compliance_scan(
         # Generate UUID for scan (compatible with PostgreSQL scans table)
         scan_uuid = uuid.uuid4()
         scan_id = f"compliance_scan_{scan_uuid.hex[:8]}"
-        logger.info(f"Starting compliance scan {scan_id} (UUID: {scan_uuid}) " f"for host {scan_request.host_id}")
+        logger.info(
+            f"Starting compliance scan {scan_id} (UUID: {scan_uuid}) "
+            f"for host {scan_request.host_id}"
+        )
 
         # Log request details safely (avoid logging sensitive connection params)
         rule_count = len(scan_request.rule_ids) if scan_request.rule_ids else 0
@@ -412,7 +419,9 @@ async def create_compliance_scan(
                         )
                         if jit_platform:
                             effective_platform = jit_platform.get("platform", effective_platform)
-                            effective_platform_version = jit_platform.get("version", effective_platform_version)
+                            effective_platform_version = jit_platform.get(
+                                "version", effective_platform_version
+                            )
                             logger.info(
                                 f"JIT platform detection successful: {effective_platform} "
                                 f"v{effective_platform_version}"
@@ -430,7 +439,8 @@ async def create_compliance_scan(
 
         except Exception as platform_err:
             logger.warning(
-                f"Could not resolve host platform: {platform_err}. " f"Using request platform: {scan_request.platform}"
+                f"Could not resolve host platform: {platform_err}. "
+                f"Using request platform: {scan_request.platform}"
             )
 
         # Fallback: If still using raw platform, compute from request
@@ -458,7 +468,8 @@ async def create_compliance_scan(
         # Create PostgreSQL scan record (status: running)
         # ---------------------------------------------------------------------
         scan_name = (
-            scan_request.name or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
+            scan_request.name
+            or f"compliance-scan-{scan_hostname}-{effective_platform}-{effective_platform_version}"
         )
         started_at = datetime.utcnow()
 
@@ -831,7 +842,9 @@ async def get_available_rules(
                         effective_platform = db_platform_id
                         effective_version = db_os_version or platform_version
                         resolution_source = "host_database"
-                        logger.info(f"Using host {host_id} platform_identifier: {effective_platform}")
+                        logger.info(
+                            f"Using host {host_id} platform_identifier: {effective_platform}"
+                        )
                     elif db_os_family and db_os_version:
                         # Priority 2: Compute from os_family + os_version
                         computed = _normalize_platform_identifier(db_os_family, db_os_version)
@@ -839,7 +852,9 @@ async def get_available_rules(
                             effective_platform = computed
                             effective_version = db_os_version
                             resolution_source = "computed"
-                            logger.info(f"Computed platform for host {host_id}: {effective_platform}")
+                            logger.info(
+                                f"Computed platform for host {host_id}: {effective_platform}"
+                            )
                 else:
                     logger.warning(f"Host {host_id} not found in database")
             except Exception as host_err:
@@ -879,7 +894,11 @@ async def get_available_rules(
                     severity=rule.severity or "unknown",
                     category=rule.category,
                     frameworks=(list(rule.frameworks.keys()) if rule.frameworks else []),
-                    platforms=(list(rule.platform_implementations.keys()) if rule.platform_implementations else []),
+                    platforms=(
+                        list(rule.platform_implementations.keys())
+                        if rule.platform_implementations
+                        else []
+                    ),
                 )
             )
 
@@ -1110,7 +1129,15 @@ async def get_scanner_health(
             rule_inheritance_resolution=True,
             result_enrichment=enrichment_status == "initialized",
             compliance_reporting=reporter_status == "initialized",
-            supported_platforms=["rhel", "rhel8", "rhel9", "ubuntu", "ubuntu2004", "ubuntu2204", "centos"],
+            supported_platforms=[
+                "rhel",
+                "rhel8",
+                "rhel9",
+                "ubuntu",
+                "ubuntu2004",
+                "ubuntu2204",
+                "centos",
+            ],
             supported_frameworks=["nist_800_53", "cis", "stig", "pci_dss"],
         )
 

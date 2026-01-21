@@ -31,7 +31,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from backend.app.models.unified_rule_models import Platform, PlatformImplementation, UnifiedComplianceRule
+from backend.app.models.unified_rule_models import (
+    Platform,
+    PlatformImplementation,
+    UnifiedComplianceRule,
+)
 
 
 class MappingConfidence(str, Enum):
@@ -252,7 +256,9 @@ class FrameworkMappingEngine:
                         confidence=confidence,
                         rationale=f"Mapped through {len(shared_rules)} shared unified rules",
                         evidence=[f"Unified rule: {rule_id}" for rule_id in list(shared_rules)[:3]],
-                        implementation_notes=(f"Implementation shared across {len(shared_rules)} rules"),
+                        implementation_notes=(
+                            f"Implementation shared across {len(shared_rules)} rules"
+                        ),
                     )
 
                     discovered_mappings.append(control_mapping)
@@ -276,9 +282,15 @@ class FrameworkMappingEngine:
 
         for rule in unified_rules:
             for mapping in rule.framework_mappings:
-                if mapping.framework_id == source_framework and source_control in mapping.control_ids:
+                if (
+                    mapping.framework_id == source_framework
+                    and source_control in mapping.control_ids
+                ):
                     source_total_rules += 1
-                elif mapping.framework_id == target_framework and target_control in mapping.control_ids:
+                elif (
+                    mapping.framework_id == target_framework
+                    and target_control in mapping.control_ids
+                ):
                     target_total_rules += 1
 
         # Calculate overlap ratios
@@ -344,8 +356,12 @@ class FrameworkMappingEngine:
         """
 
         # Discover mappings in both directions
-        mappings_a_to_b = await self.discover_control_mappings(framework_a, framework_b, unified_rules)
-        mappings_b_to_a = await self.discover_control_mappings(framework_b, framework_a, unified_rules)
+        mappings_a_to_b = await self.discover_control_mappings(
+            framework_a, framework_b, unified_rules
+        )
+        mappings_b_to_a = await self.discover_control_mappings(
+            framework_b, framework_a, unified_rules
+        )
 
         # Combine bidirectional mappings
         all_mappings = mappings_a_to_b + mappings_b_to_a
@@ -438,11 +454,13 @@ class FrameworkMappingEngine:
                 # Find unified rules that implement both controls
                 for rule in unified_rules:
                     source_mapped = any(
-                        mapping.source_control in fm.control_ids and fm.framework_id == mapping.source_framework
+                        mapping.source_control in fm.control_ids
+                        and fm.framework_id == mapping.source_framework
                         for fm in rule.framework_mappings
                     )
                     target_mapped = any(
-                        mapping.target_control in fm.control_ids and fm.framework_id == mapping.target_framework
+                        mapping.target_control in fm.control_ids
+                        and fm.framework_id == mapping.target_framework
                         for fm in rule.framework_mappings
                     )
 
@@ -533,7 +551,10 @@ class FrameworkMappingEngine:
         # Find rules that address the control objective
         relevant_rules = []
         for rule in unified_rules:
-            if control_objective.lower() in rule.description.lower() or control_objective.lower() in rule.title.lower():
+            if (
+                control_objective.lower() in rule.description.lower()
+                or control_objective.lower() in rule.title.lower()
+            ):
                 relevant_rules.append(rule)
 
         if not relevant_rules:
@@ -596,10 +617,14 @@ class FrameworkMappingEngine:
                 "platforms": [impl.platform.value for impl in best_rule.platform_implementations],
             },
             platform_specifics={
-                impl.platform: impl for impl in best_rule.platform_implementations if impl.platform == platform
+                impl.platform: impl
+                for impl in best_rule.platform_implementations
+                if impl.platform == platform
             },
             exceeds_frameworks=exceeds_frameworks,
-            compliance_justification=(f"Based on unified rule {best_rule.rule_id}: {best_rule.description}"),
+            compliance_justification=(
+                f"Based on unified rule {best_rule.rule_id}: {best_rule.description}"
+            ),
             risk_assessment=best_rule.risk_level,
             effort_estimate="Low",  # Since rule already exists
         )
@@ -695,13 +720,17 @@ class FrameworkMappingEngine:
 
         # Identify optimization opportunities
         if len(framework_pairs) > 0:
-            high_overlap_pairs = [pair for pair in framework_pairs if pair["overlap_percentage"] > 70]
+            high_overlap_pairs = [
+                pair for pair in framework_pairs if pair["overlap_percentage"] > 70
+            ]
 
             if high_overlap_pairs:
                 coverage_analysis["optimization_opportunities"].append(
                     {
                         "type": "high_overlap_consolidation",
-                        "description": (f"High overlap between {len(high_overlap_pairs)} " f"framework pairs"),
+                        "description": (
+                            f"High overlap between {len(high_overlap_pairs)} " f"framework pairs"
+                        ),
                         "pairs": high_overlap_pairs,
                     }
                 )
@@ -764,7 +793,10 @@ class FrameworkMappingEngine:
 
         elif format == "csv":
             # Generate CSV for control mappings
-            lines = ["Source_Framework,Source_Control,Target_Framework," "Target_Control,Mapping_Type,Confidence"]
+            lines = [
+                "Source_Framework,Source_Control,Target_Framework,"
+                "Target_Control,Mapping_Type,Confidence"
+            ]
 
             for mappings in self.control_mappings.values():
                 for mapping in mappings:

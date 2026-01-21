@@ -117,7 +117,12 @@ from .engine import (  # noqa: F401
 # =============================================================================
 # Framework Mapper
 # =============================================================================
-from .mapper import ComplianceControl, ComplianceFramework, ComplianceFrameworkMapper, FrameworkMapping  # noqa: F401
+from .mapper import (
+    ComplianceControl,
+    ComplianceFramework,
+    ComplianceFrameworkMapper,
+    FrameworkMapping,
+)  # noqa: F401
 
 # =============================================================================
 # Framework Metadata Service
