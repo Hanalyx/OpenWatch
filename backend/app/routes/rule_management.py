@@ -17,8 +17,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..database import User, get_db
 from ..services.platform_capability_service import PlatformCapabilityService
-from ..services.rule_cache_service import RuleCacheService
-from ..services.rule_service import QueryPriority, RuleService
+from ..services.rules import QueryPriority, RuleCacheService, RuleService
 
 router = APIRouter(prefix="/rules", tags=["Enhanced Rule Management"])
 

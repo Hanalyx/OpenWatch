@@ -23,7 +23,7 @@ from ..models.scan_config_models import (
     ValidationResult,
     VariableDefinition,
 )
-from ..services.framework_metadata_service import FrameworkMetadataService
+from ..services.framework import FrameworkMetadataService
 from ..services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 from ..services.scan_template_service import ScanTemplateService
 

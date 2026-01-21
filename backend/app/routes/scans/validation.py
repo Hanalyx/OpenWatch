@@ -230,7 +230,7 @@ async def validate_scan_configuration(
         try:
             from backend.app.config import get_settings
             from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth_service import get_auth_service
+            from backend.app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -471,7 +471,7 @@ async def quick_scan(
         try:
             from backend.app.config import get_settings
             from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth_service import get_auth_service
+            from backend.app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())

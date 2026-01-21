@@ -51,7 +51,7 @@ from sqlalchemy.orm import Session
 from backend.app.services.ssh import SSHConnectionManager
 
 if TYPE_CHECKING:
-    from backend.app.services.auth_service import CredentialData
+    from backend.app.services.auth import CredentialData
 
 from ..dependency_resolver import SCAPDependency, SCAPDependencyResolver
 from ..exceptions import (

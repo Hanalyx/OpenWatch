@@ -184,7 +184,7 @@ class SSHTerminalSession:
 
             # Use centralized authentication service instead of old dual system
             try:
-                from ..services.auth_service import get_auth_service
+                from ..services.auth import get_auth_service
 
                 auth_service = get_auth_service(self.db, self.encryption_service)
 

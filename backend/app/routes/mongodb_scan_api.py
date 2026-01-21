@@ -460,7 +460,7 @@ async def start_mongodb_scan(
                         f"attempting JIT platform detection..."
                     )
                     try:
-                        from backend.app.services.auth_service import get_auth_service
+                        from backend.app.services.auth import get_auth_service
                         from backend.app.services.engine.discovery import detect_platform_for_scan
 
                         # Get encryption service and resolve credentials using auth service

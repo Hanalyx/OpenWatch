@@ -156,7 +156,7 @@ async def _jit_platform_detection(
         - Logs detection attempts for audit compliance
     """
     try:
-        from backend.app.services.auth_service import get_auth_service
+        from backend.app.services.auth import get_auth_service
         from backend.app.services.engine.discovery import detect_platform_for_scan
 
         # Get encryption service from app state

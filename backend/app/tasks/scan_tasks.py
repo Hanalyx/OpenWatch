@@ -89,7 +89,7 @@ def execute_scan_task(
             try:
                 from ..config import get_settings
                 from ..encryption import EncryptionConfig, create_encryption_service
-                from ..services.auth_service import get_auth_service
+                from ..services.auth import get_auth_service
 
                 # Create encryption service for credential decryption
                 settings = get_settings()

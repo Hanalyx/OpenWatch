@@ -311,7 +311,7 @@ async def get_default_system_credentials(
         # WEEK 2 MIGRATION: Use CentralizedAuthService instead of system_credentials table
         from ..config import get_settings
         from ..encryption import create_encryption_service
-        from ..services.auth_service import get_auth_service
+        from ..services.auth import get_auth_service
 
         settings = get_settings()
         encryption_service = create_encryption_service(settings.MASTER_KEY)

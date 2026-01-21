@@ -240,7 +240,7 @@ class HostMonitor:
         """
         try:
             # Use centralized authentication service for all credential resolution
-            from ..services.auth_service import get_auth_service
+            from ..services.auth import get_auth_service
 
             # Get encryption service - use instance variable or raise error
             if not self.encryption_service:

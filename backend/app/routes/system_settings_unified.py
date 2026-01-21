@@ -17,7 +17,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
-from ..services.auth_service import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
+from ..services.auth import AuthMethod, CredentialData, CredentialMetadata, CredentialScope, get_auth_service
 
 # validate_ssh_key validates key format/security, extract_ssh_key_metadata extracts fingerprint/type
 from ..services.ssh import extract_ssh_key_metadata, validate_ssh_key

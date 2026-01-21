@@ -789,6 +789,8 @@ docs/HOST_STATUS*.md
 
 # OpenWatch internal documentation (do not commit)
 CLAUDE.md
+backend/CLAUDE.md
+frontend/CLAUDE.md
 MONGODB_INDEX_MIGRATION_PLAN.md
 
 # Dependency upgrade analysis documents (generated during updates)

@@ -16,7 +16,7 @@ from ..auth import get_current_user
 from ..database import Host, get_db
 from ..encryption import EncryptionService
 from ..rbac import Permission, require_permission
-from ..services.auth_service import get_auth_service
+from ..services.auth import get_auth_service
 
 # SSHConnectionManager handles connections, SSHConfigManager handles policy/config
 from ..services.ssh import SSHConfigManager, SSHConnectionManager, validate_ssh_key

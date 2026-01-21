@@ -62,7 +62,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.services.auth_service import get_auth_service
+from backend.app.services.auth import get_auth_service
 from backend.app.services.mongo_integration_service import MongoIntegrationService, get_mongo_service
 from backend.app.services.platform_capability_service import PlatformCapabilityService
 from backend.app.services.rules import RuleService

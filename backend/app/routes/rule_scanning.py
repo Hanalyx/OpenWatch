@@ -24,7 +24,7 @@ from ..services.compliance_framework_mapper import ComplianceFrameworkMapper
 
 # Engine module integration - AegisMapper provides AEGIS remediation system mapping
 from ..services.engine import get_aegis_mapper
-from ..services.rule_specific_scanner import RuleSpecificScanner
+from ..services.rules import RuleSpecificScanner
 
 logger = logging.getLogger(__name__)
 

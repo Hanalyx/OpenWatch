@@ -35,7 +35,7 @@ from backend.app.models.readiness_models import (
     ReadinessStatus,
 )
 from backend.app.repositories.readiness_repository import ReadinessRepository
-from backend.app.services.auth_service import CentralizedAuthService
+from backend.app.services.auth import CentralizedAuthService
 
 # SSHConnectionManager provides SSH connection management with configurable policies
 from backend.app.services.ssh import SSHConnectionManager
