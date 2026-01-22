@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, Box, Typography, Chip, useTheme, alpha } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { CheckCircle, Error, Warning, Schedule } from '@mui/icons-material';
@@ -125,30 +125,34 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
   };
 
   // Custom tooltip for Recharts - displays host count and status for hovered pie slice
-  const CustomTooltip = ({ active, payload }: FleetCustomTooltipProps) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      return (
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            p: 1.5,
-            borderRadius: 1,
-            boxShadow: theme.shadows[4],
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ color: data.payload.color }}>{getIcon(data.name)}</Box>
-            <Typography variant="body2">
-              {data.name}: <strong>{data.value}</strong>
-            </Typography>
+  const CustomTooltip = useMemo(() => {
+    const TooltipComponent = ({ active, payload }: FleetCustomTooltipProps) => {
+      if (active && payload && payload.length) {
+        const data = payload[0];
+        return (
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              p: 1.5,
+              borderRadius: 1,
+              boxShadow: theme.shadows[4],
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ color: data.payload.color }}>{getIcon(data.name)}</Box>
+              <Typography variant="body2">
+                {data.name}: <strong>{data.value}</strong>
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-      );
-    }
-    return null;
-  };
+        );
+      }
+      return null;
+    };
+    TooltipComponent.displayName = 'CustomTooltip';
+    return TooltipComponent;
+  }, [theme, getIcon]);
 
   return (
     <Card sx={{ height: '100%' }}>

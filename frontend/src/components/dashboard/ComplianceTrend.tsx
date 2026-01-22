@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -80,41 +80,45 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
     : [];
 
   // Custom tooltip for Recharts - displays compliance metrics for hovered data point
-  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
-    if (active && payload && payload.length) {
-      return (
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            p: 2,
-            borderRadius: 1,
-            boxShadow: theme.shadows[4],
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <Typography variant="subtitle2" gutterBottom>
-            {format(new Date(label || ''), 'MMM dd, yyyy')}
-          </Typography>
-          {payload.map((entry: TooltipPayloadEntry) => (
-            <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-              <Box
-                sx={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: '50%',
-                  bgcolor: entry.color,
-                }}
-              />
-              <Typography variant="caption">
-                {entry.name}: <strong>{entry.value}%</strong>
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      );
-    }
-    return null;
-  };
+  const CustomTooltip = useMemo(() => {
+    const TooltipComponent = ({ active, payload, label }: CustomTooltipProps) => {
+      if (active && payload && payload.length) {
+        return (
+          <Box
+            sx={{
+              bgcolor: 'background.paper',
+              p: 2,
+              borderRadius: 1,
+              boxShadow: theme.shadows[4],
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Typography variant="subtitle2" gutterBottom>
+              {format(new Date(label || ''), 'MMM dd, yyyy')}
+            </Typography>
+            {payload.map((entry: TooltipPayloadEntry) => (
+              <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    bgcolor: entry.color,
+                  }}
+                />
+                <Typography variant="caption">
+                  {entry.name}: <strong>{entry.value}%</strong>
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        );
+      }
+      return null;
+    };
+    TooltipComponent.displayName = 'CustomTooltip';
+    return TooltipComponent;
+  }, [theme]);
 
   const formatXAxis = (tickItem: string) => {
     const date = new Date(tickItem);
