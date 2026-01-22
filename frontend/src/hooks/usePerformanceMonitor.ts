@@ -68,12 +68,12 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     interactionTime: 0,
     frameRate: 0,
     memoryUsage: 0,
-    timestamp: Date.now(),
+    timestamp: 0, // Will be set when monitoring starts
   });
 
   const [isMonitoring, setIsMonitoring] = useState(false);
   const frameCountRef = useRef(0);
-  const lastFrameTimeRef = useRef(performance.now());
+  const lastFrameTimeRef = useRef(0); // Will be set when monitoring starts
   const renderStartTimeRef = useRef(0);
   const interactionStartTimeRef = useRef(0);
   const frameRateIntervalRef = useRef<NodeJS.Timeout>();
@@ -184,6 +184,9 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   const startMonitoring = useCallback(() => {
     if (!enabled || isMonitoring) return;
 
+    // Initialize time references when starting monitoring
+    lastFrameTimeRef.current = performance.now();
+    setMetrics((prev) => ({ ...prev, timestamp: Date.now() }));
     setIsMonitoring(true);
 
     // Start frame rate monitoring

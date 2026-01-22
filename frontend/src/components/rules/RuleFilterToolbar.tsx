@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -91,38 +91,42 @@ const RuleFilterToolbar: React.FC<RuleFilterToolbarProps> = ({
     });
   };
 
-  const QuickFilters = () => (
-    <Stack direction="row" spacing={1} alignItems="center">
-      <Chip
-        label="High Priority"
-        size="small"
-        variant={filters.severities.includes('high') ? 'filled' : 'outlined'}
-        color={filters.severities.includes('high') ? 'error' : 'default'}
-        onClick={() => {
-          const newSeverities = filters.severities.includes('high')
-            ? filters.severities.filter((s) => s !== 'high')
-            : [...filters.severities, 'high'];
-          handleFilterChange('severities', newSeverities);
-        }}
-      />
-      <Chip
-        label="Recently Updated"
-        size="small"
-        variant="outlined"
-        onClick={() => {
-          // This would trigger a sort by updated date
-        }}
-      />
-      <Chip
-        label="Has Dependencies"
-        size="small"
-        variant="outlined"
-        onClick={() => {
-          // This would filter rules with dependencies
-        }}
-      />
-    </Stack>
-  );
+  const QuickFilters = useMemo(() => {
+    const QuickFiltersComponent = () => (
+      <Stack direction="row" spacing={1} alignItems="center">
+        <Chip
+          label="High Priority"
+          size="small"
+          variant={filters.severities.includes('high') ? 'filled' : 'outlined'}
+          color={filters.severities.includes('high') ? 'error' : 'default'}
+          onClick={() => {
+            const newSeverities = filters.severities.includes('high')
+              ? filters.severities.filter((s) => s !== 'high')
+              : [...filters.severities, 'high'];
+            handleFilterChange('severities', newSeverities);
+          }}
+        />
+        <Chip
+          label="Recently Updated"
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            // This would trigger a sort by updated date
+          }}
+        />
+        <Chip
+          label="Has Dependencies"
+          size="small"
+          variant="outlined"
+          onClick={() => {
+            // This would filter rules with dependencies
+          }}
+        />
+      </Stack>
+    );
+    QuickFiltersComponent.displayName = 'QuickFilters';
+    return QuickFiltersComponent;
+  }, [filters.severities, handleFilterChange]);
 
   return (
     <Paper

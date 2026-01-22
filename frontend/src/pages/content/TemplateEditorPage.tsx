@@ -52,7 +52,7 @@ export const TemplateEditorPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isValid, setIsValid] = useState(true);
 
-  // Load existing template data
+  // Load existing template data - only update when template ID changes
   useEffect(() => {
     if (existingTemplate) {
       setName(existingTemplate.name);
@@ -64,7 +64,7 @@ export const TemplateEditorPage: React.FC = () => {
       setIsDefault(existingTemplate.is_default);
       setIsPublic(existingTemplate.is_public);
     }
-  }, [existingTemplate]);
+  }, [existingTemplate?.id]); // Only re-run when template ID changes
 
   const handleFrameworkChange = (newFramework: string, newVersion: string) => {
     setFramework(newFramework);
