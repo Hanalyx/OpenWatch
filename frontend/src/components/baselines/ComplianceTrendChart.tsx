@@ -54,88 +54,88 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
   const theme = useTheme();
 
   // Memoize CustomTooltip to prevent recreation on each render
-  const CustomTooltip = useMemo(
-    () =>
-      ({
-        active,
-        payload,
-      }: {
-        active?: boolean;
-        payload?: Array<{
-          value: number;
-          payload: {
-            timestamp: string;
-            date: string;
-            score: number;
-            passed_rules: number;
-            total_rules: number;
-            drift_type?: string;
-            drift_magnitude?: number;
-          };
-        }>;
-      }) => {
-        if (!active || !payload || payload.length === 0) {
-          return null;
-        }
+  const CustomTooltip = useMemo(() => {
+    const TooltipComponent = ({
+      active,
+      payload,
+    }: {
+      active?: boolean;
+      payload?: Array<{
+        value: number;
+        payload: {
+          timestamp: string;
+          date: string;
+          score: number;
+          passed_rules: number;
+          total_rules: number;
+          drift_type?: string;
+          drift_magnitude?: number;
+        };
+      }>;
+    }) => {
+      if (!active || !payload || payload.length === 0) {
+        return null;
+      }
 
-        const dataPoint = payload[0].payload;
+      const dataPoint = payload[0].payload;
 
-        return (
-          <Paper sx={{ p: 1.5, border: 1, borderColor: 'divider' }}>
-            <Typography variant="caption" color="text.secondary">
-              {new Date(dataPoint.timestamp).toLocaleString()}
-            </Typography>
-            <Typography variant="h6" color="primary" fontWeight="bold">
-              {dataPoint.score.toFixed(1)}%
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {dataPoint.passed_rules}/{dataPoint.total_rules} rules passed
-            </Typography>
-            {dataPoint.drift_type && dataPoint.drift_type !== 'stable' && (
-              <Box display="flex" alignItems="center" mt={0.5}>
-                {dataPoint.drift_type === 'improvement' ? (
-                  <TrendingUpIcon fontSize="small" color="success" sx={{ mr: 0.5 }} />
-                ) : (
-                  <WarningIcon fontSize="small" color="error" sx={{ mr: 0.5 }} />
-                )}
-                <Typography variant="caption" fontWeight="bold">
-                  {dataPoint.drift_type === 'major' && 'Major Drift'}
-                  {dataPoint.drift_type === 'minor' && 'Minor Drift'}
-                  {dataPoint.drift_type === 'improvement' && 'Improvement'}
-                  {dataPoint.drift_magnitude !== undefined &&
-                    ` (${dataPoint.drift_magnitude > 0 ? '+' : ''}${dataPoint.drift_magnitude.toFixed(1)}pp)`}
-                </Typography>
-              </Box>
-            )}
-          </Paper>
-        );
-      },
-    [] // Empty deps - component doesn't depend on external values
-  );
+      return (
+        <Paper sx={{ p: 1.5, border: 1, borderColor: 'divider' }}>
+          <Typography variant="caption" color="text.secondary">
+            {new Date(dataPoint.timestamp).toLocaleString()}
+          </Typography>
+          <Typography variant="h6" color="primary" fontWeight="bold">
+            {dataPoint.score.toFixed(1)}%
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {dataPoint.passed_rules}/{dataPoint.total_rules} rules passed
+          </Typography>
+          {dataPoint.drift_type && dataPoint.drift_type !== 'stable' && (
+            <Box display="flex" alignItems="center" mt={0.5}>
+              {dataPoint.drift_type === 'improvement' ? (
+                <TrendingUpIcon fontSize="small" color="success" sx={{ mr: 0.5 }} />
+              ) : (
+                <WarningIcon fontSize="small" color="error" sx={{ mr: 0.5 }} />
+              )}
+              <Typography variant="caption" fontWeight="bold">
+                {dataPoint.drift_type === 'major' && 'Major Drift'}
+                {dataPoint.drift_type === 'minor' && 'Minor Drift'}
+                {dataPoint.drift_type === 'improvement' && 'Improvement'}
+                {dataPoint.drift_magnitude !== undefined &&
+                  ` (${dataPoint.drift_magnitude > 0 ? '+' : ''}${dataPoint.drift_magnitude.toFixed(1)}pp)`}
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      );
+    };
+    TooltipComponent.displayName = 'CustomTooltip';
+    return TooltipComponent;
+  }, []); // Empty deps - component doesn't depend on external values
 
   // Memoize CustomDot to prevent recreation on each render
-  const CustomDot = useMemo(
-    () =>
-      (props: { cx?: number; cy?: number; payload?: { drift_type?: string } }) => {
-        const { cx, cy, payload } = props;
+  const CustomDot = useMemo(() => {
+    const DotComponent = (props: { cx?: number; cy?: number; payload?: { drift_type?: string } }) => {
+      const { cx, cy, payload } = props;
 
-        if (!payload || !payload.drift_type || payload.drift_type === 'stable') {
-          return <Dot cx={cx} cy={cy} r={3} fill={theme.palette.primary.main} />;
-        }
+      if (!payload || !payload.drift_type || payload.drift_type === 'stable') {
+        return <Dot cx={cx} cy={cy} r={3} fill={theme.palette.primary.main} />;
+      }
 
-        let fillColor = theme.palette.grey[400];
-        if (payload.drift_type === 'major') {
-          fillColor = theme.palette.error.main;
-        } else if (payload.drift_type === 'minor') {
-          fillColor = theme.palette.warning.main;
-        } else if (payload.drift_type === 'improvement') {
-          fillColor = theme.palette.success.main;
-        }
+      let fillColor = theme.palette.grey[400];
+      if (payload.drift_type === 'major') {
+        fillColor = theme.palette.error.main;
+      } else if (payload.drift_type === 'minor') {
+        fillColor = theme.palette.warning.main;
+      } else if (payload.drift_type === 'improvement') {
+        fillColor = theme.palette.success.main;
+      }
 
-        return <Dot cx={cx} cy={cy} r={6} fill={fillColor} stroke="#fff" strokeWidth={2} />;
-      },
-    [theme] // Depends on theme
-  );
+      return <Dot cx={cx} cy={cy} r={6} fill={fillColor} stroke="#fff" strokeWidth={2} />;
+    };
+    DotComponent.displayName = 'CustomDot';
+    return DotComponent;
+  }, [theme]); // Depends on theme
 
   if (!data || data.length === 0) {
     return (
