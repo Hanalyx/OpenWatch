@@ -12,9 +12,9 @@ from pydantic import BaseModel, validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..auth import audit_logger, get_current_user
-from ..database import MFAAuditLog, MFAUsedCodes, get_db
-from ..services.mfa_service import get_mfa_service
+from ...auth import audit_logger, get_current_user
+from ...database import MFAAuditLog, MFAUsedCodes, get_db
+from ...services.mfa_service import get_mfa_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -185,7 +185,7 @@ async def enroll_mfa(
 
     try:
         # Verify user's password first
-        from ..auth import pwd_context
+        from ...auth import pwd_context
 
         result = db.execute(
             text(
@@ -646,7 +646,7 @@ async def disable_mfa(
             )
 
         # Verify password
-        from ..auth import pwd_context
+        from ...auth import pwd_context
 
         result = db.execute(
             text(

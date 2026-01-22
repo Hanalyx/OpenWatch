@@ -26,11 +26,9 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (  # bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
+from .routes import (  # api_keys - REMOVED: Consolidated into routes/auth/api_keys.py (E1-S4); auth - REMOVED: Consolidated into routes/auth/login.py (E1-S4); bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mfa - REMOVED: Consolidated into routes/auth/mfa.py (E1-S4); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
     adaptive_scheduler,
-    api_keys,
     audit,
-    auth,
     baselines,
     bulk_operations,
     capabilities,
@@ -39,7 +37,6 @@ from .routes import (  # bulk_remediation_routes - REMOVED: Moved to SecureOps/A
     credentials,
     health_monitoring,
     integration_metrics,
-    mfa,
     mongodb_test,
     monitoring,
     os_discovery,
@@ -73,6 +70,11 @@ from .routes.hosts import router as hosts_router
 # This package consolidates webhooks.py and plugin_management.py into a single
 # modular package with webhooks and plugins endpoints
 from .routes.integrations import router as integrations_router
+
+# Import auth from new modular package (E1-S4 Route Consolidation)
+# This package consolidates auth.py, mfa.py, and api_keys.py into a single
+# modular package with login, MFA, and API key endpoints
+from .routes.auth import router as auth_router
 
 # Import SSH from new modular package (Phase 4 API Standardization)
 # This package consolidates ssh_settings.py and ssh_debug.py into a single
@@ -602,8 +604,8 @@ app.include_router(
 )
 
 # Core API routes
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(mfa.router, prefix="/api/mfa", tags=["Multi-Factor Authentication"])
+# auth - Modular package (E1-S4) - consolidates login, MFA, API keys
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 # Hosts - Modular package with all host-related endpoints (Phase 3 API Standardization)
 # Includes: crud, discovery (basic, network, security, compliance)
 # The router already has prefix="/hosts" defined in routes/hosts/__init__.py
@@ -632,7 +634,7 @@ app.include_router(host_groups_router, prefix="/api", tags=["Host Groups"])
 # webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
 # Endpoints now available at /api/integrations/webhooks/*
 app.include_router(credentials.router, prefix="/api", tags=["Credential Sharing"])
-app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Keys"])
+# api_keys - REMOVED: Consolidated into auth_router (E1-S4)
 app.include_router(remediation_callback.router, prefix="/api", tags=["AEGIS Integration"])
 app.include_router(
     integration_metrics.router,

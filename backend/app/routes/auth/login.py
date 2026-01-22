@@ -12,12 +12,12 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..audit_db import log_login_event
-from ..auth import audit_logger, jwt_manager, pwd_context
-from ..config import get_settings
-from ..database import get_db
-from ..rbac import UserRole
-from ..utils.logging_security import sanitize_username_for_log
+from ...audit_db import log_login_event
+from ...auth import audit_logger, jwt_manager, pwd_context
+from ...config import get_settings
+from ...database import get_db
+from ...rbac import UserRole
+from ...utils.logging_security import sanitize_username_for_log
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -459,7 +459,7 @@ async def get_current_user(
         # Validate token and get user data (token.credentials contains the actual JWT)
         user_data = jwt_manager.validate_access_token(token.credentials)
 
-        from ..rbac import RBACManager, UserRole
+        from ...rbac import RBACManager, UserRole
 
         user_role = UserRole(user_data.get("role", "guest"))
         permissions = [p.value for p in RBACManager.get_role_permissions(user_role)]
