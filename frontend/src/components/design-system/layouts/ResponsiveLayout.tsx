@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Container,
@@ -107,19 +107,23 @@ const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const config = getResponsiveConfig();
 
   // Loading skeleton component
-  const LoadingSkeleton = () => (
-    <Box>
-      <Skeleton variant="rectangular" height={60} sx={{ mb: 2, borderRadius: 2 }} />
-      <Grid container spacing={2}>
-        {[...Array(config.statisticsColumns)].map((_, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
-            <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
-          </Grid>
-        ))}
-      </Grid>
-      <Skeleton variant="rectangular" height={400} sx={{ mt: 2, borderRadius: 2 }} />
-    </Box>
-  );
+  const LoadingSkeleton = useMemo(() => {
+    const SkeletonComponent = () => (
+      <Box>
+        <Skeleton variant="rectangular" height={60} sx={{ mb: 2, borderRadius: 2 }} />
+        <Grid container spacing={2}>
+          {[...Array(config.statisticsColumns)].map((_, index) => (
+            <Grid item xs={12} sm={6} md={3} key={index}>
+              <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
+            </Grid>
+          ))}
+        </Grid>
+        <Skeleton variant="rectangular" height={400} sx={{ mt: 2, borderRadius: 2 }} />
+      </Box>
+    );
+    SkeletonComponent.displayName = 'LoadingSkeleton';
+    return SkeletonComponent;
+  }, [config.statisticsColumns]);
 
   if (loading) {
     return (

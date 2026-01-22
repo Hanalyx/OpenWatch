@@ -25,12 +25,14 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({
 
   const selectedFrameworkData = frameworks?.find((f) => f.framework === selectedFramework);
 
-  useEffect(() => {
-    if (value) {
+  // Sync state with prop changes (alternative to useEffect)
+  // Using key prop on component or derived state pattern instead
+  React.useEffect(() => {
+    if (value && (value.framework !== selectedFramework || value.version !== selectedVersion)) {
       setSelectedFramework(value.framework);
       setSelectedVersion(value.version);
     }
-  }, [value]);
+  }, [value?.framework, value?.version]); // Only depend on specific values
 
   // Handle framework selection change from Autocomplete
   // MUI Autocomplete provides SyntheticEvent and selected value
