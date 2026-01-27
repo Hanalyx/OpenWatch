@@ -233,11 +233,13 @@ from .scanners import (
     BaseScanner,
     KubernetesScanner,
     OSCAPScanner,
+    OWScanner,
     ScannerFactory,
-    UnifiedSCAPScanner,
+    UnifiedSCAPScanner,  # Backward compatibility alias for OWScanner
+    get_ow_scanner,
     get_scanner,
     get_scanner_for_content,
-    get_unified_scanner,
+    get_unified_scanner,  # Backward compatibility alias for get_ow_scanner
 )
 
 logger = logging.getLogger(__name__)
@@ -395,12 +397,15 @@ __all__ = [
     # Scanners
     "BaseScanner",
     "OSCAPScanner",
-    "UnifiedSCAPScanner",
+    "OWScanner",
     "KubernetesScanner",
     "ScannerFactory",
     "get_scanner",
     "get_scanner_for_content",
-    "get_unified_scanner",
+    "get_ow_scanner",
+    # Backward compatibility aliases
+    "UnifiedSCAPScanner",  # Alias for OWScanner
+    "get_unified_scanner",  # Alias for get_ow_scanner
     # Result Parsers
     "BaseResultParser",
     "ParsedResults",
