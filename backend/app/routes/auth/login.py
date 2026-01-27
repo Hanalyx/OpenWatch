@@ -80,14 +80,12 @@ async def login(
     try:
         # Get user from database
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, username, email, hashed_password, role, is_active,
                    failed_login_attempts, locked_until, last_login
             FROM users
             WHERE username = :username
-        """
-            ),
+        """),
             {"username": request.username},
         )
 
@@ -166,13 +164,11 @@ async def login(
                 locked_until = datetime.utcnow() + timedelta(minutes=30)
 
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE users
                 SET failed_login_attempts = :attempts, locked_until = :locked_until
                 WHERE id = :user_id
-            """
-                ),
+            """),
                 {
                     "attempts": failed_attempts,
                     "locked_until": locked_until,
@@ -205,13 +201,11 @@ async def login(
 
         # Reset failed login attempts and update last login
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET failed_login_attempts = 0, locked_until = NULL, last_login = CURRENT_TIMESTAMP
             WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": user.id},
         )
         db.commit()
@@ -283,11 +277,9 @@ async def register(
     try:
         # Check if username or email already exists
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id FROM users WHERE username = :username OR email = :email
-        """
-            ),
+        """),
             {"username": request.username, "email": request.email},
         )
 
@@ -302,13 +294,11 @@ async def register(
 
         # Create user with guest role (or specified role if admin is creating)
         result = db.execute(
-            text(
-                """
+            text("""
             INSERT INTO users (username, email, hashed_password, role, is_active, created_at, failed_login_attempts)
             VALUES (:username, :email, :password, :role, true, CURRENT_TIMESTAMP, 0)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "username": request.username,
                 "email": request.email,
@@ -382,13 +372,11 @@ async def refresh_token(
 
         # Get updated user info from database
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, username, email, role, is_active, mfa_enabled
             FROM users
             WHERE username = :username
-        """
-            ),
+        """),
             {"username": username},
         )
 

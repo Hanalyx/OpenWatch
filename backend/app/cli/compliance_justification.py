@@ -3,6 +3,7 @@
 CLI tool for compliance justification operations
 Provides command-line interface for generating compliance justifications and audit documentation
 """
+
 import argparse
 import asyncio
 import json

@@ -380,8 +380,7 @@ class AuthorizationService:
         """
         try:
             # Build query to find applicable policies
-            query = text(
-                """
+            query = text("""
                 SELECT
                     hp.id, hp.user_id, hp.group_id, hp.role_name, hp.host_id,
                     hp.actions, hp.effect, hp.conditions, hp.granted_by,
@@ -433,8 +432,7 @@ class AuthorizationService:
                     )
 
                 ORDER BY granted_at DESC
-            """
-            )
+            """)
 
             # Convert user groups and roles to tuples for SQL IN clause
             user_groups = tuple(context.user_groups) if context.user_groups else (None,)
@@ -615,8 +613,7 @@ class AuthorizationService:
         try:
             # Get user information including roles and groups
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT u.id, u.username, u.role,
                        COALESCE(
                            JSON_AGG(DISTINCT ug.name) FILTER (WHERE ug.name IS NOT NULL),
@@ -627,8 +624,7 @@ class AuthorizationService:
                 LEFT JOIN user_groups ug ON ugm.group_id = ug.id
                 WHERE u.id = :user_id AND u.is_active = true
                 GROUP BY u.id, u.username, u.role
-            """
-                ),
+            """),
                 {"user_id": user_id},
             )
 
@@ -656,11 +652,9 @@ class AuthorizationService:
         """
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT id FROM users WHERE id = :user_id AND is_active = true
-            """
-                ),
+            """),
                 {"user_id": user_id},
             )
 
@@ -702,8 +696,7 @@ class AuthorizationService:
 
             # Store audit event in database
             self.db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO authorization_audit_log
                 (id, event_type, user_id, resource_type, resource_id, action, decision,
                  policies_evaluated, context, ip_address, user_agent, session_id,
@@ -711,8 +704,7 @@ class AuthorizationService:
                 VALUES (:id, :event_type, :user_id, :resource_type, :resource_id, :action,
                         :decision, :policies_evaluated, :context, :ip_address, :user_agent,
                         :session_id, :evaluation_time_ms, :reason, :risk_score, :timestamp)
-            """
-                ),
+            """),
                 {
                     "id": audit_event.id,
                     "event_type": audit_event.event_type,
@@ -775,8 +767,7 @@ class AuthorizationService:
 
             # Store bulk audit event
             self.db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO authorization_audit_log
                 (id, event_type, user_id, resource_type, resource_id, action, decision,
                  policies_evaluated, context, ip_address, user_agent, session_id,
@@ -784,8 +775,7 @@ class AuthorizationService:
                 VALUES (:id, :event_type, :user_id, :resource_type, :resource_id, :action,
                         :decision, :policies_evaluated, :context, :ip_address, :user_agent,
                         :session_id, :evaluation_time_ms, :reason, :risk_score, :timestamp)
-            """
-                ),
+            """),
                 {
                     "id": audit_event.id,
                     "event_type": audit_event.event_type,
@@ -943,15 +933,13 @@ class AuthorizationService:
             import json
 
             self.db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO host_permissions
                 (id, user_id, group_id, role_name, host_id, actions, effect, conditions,
                  granted_by, granted_at, expires_at, is_active)
                 VALUES (:id, :user_id, :group_id, :role_name, :host_id, :actions, :effect,
                         :conditions, :granted_by, :granted_at, :expires_at, :is_active)
-            """
-                ),
+            """),
                 {
                     "id": permission.id,
                     "user_id": permission.user_id,
@@ -991,26 +979,22 @@ class AuthorizationService:
         """
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 UPDATE host_permissions
                 SET is_active = false, updated_at = :now
                 WHERE id = :permission_id
-            """
-                ),
+            """),
                 {"permission_id": permission_id, "now": datetime.utcnow()},
             )
 
             if result.rowcount == 0:
                 # Try host group permissions
                 result = self.db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE host_group_permissions
                     SET is_active = false, updated_at = :now
                     WHERE id = :permission_id
-                """
-                    ),
+                """),
                     {"permission_id": permission_id, "now": datetime.utcnow()},
                 )
 

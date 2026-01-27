@@ -157,8 +157,7 @@ class ScanIntelligenceService:
         """Retrieve comprehensive host information"""
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     h.id, h.hostname, h.ip_address, h.operating_system,
                     h.environment, h.tags, h.owner, h.port,
@@ -177,8 +176,7 @@ class ScanIntelligenceService:
                     ORDER BY started_at DESC LIMIT 1
                 )
                 WHERE h.id = :host_id AND h.is_active = true
-            """
-                ),
+            """),
                 {"host_id": host_id},
             ).fetchone()
 
@@ -382,15 +380,13 @@ class ScanIntelligenceService:
         try:
             # Find matching content and profile
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT c.id, c.name, c.profiles
                 FROM scap_content c
                 WHERE c.profiles LIKE :profile_pattern
                 ORDER BY c.created_at DESC
                 LIMIT 1
-            """
-                ),
+            """),
                 {"profile_pattern": f"%{suggestion.profile_id}%"},
             ).fetchone()
 

@@ -138,12 +138,10 @@ async def get_mfa_status(
     try:
         # Get user MFA data from database
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT mfa_enabled, mfa_secret, backup_codes, last_mfa_use, mfa_enrolled_at
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -188,12 +186,10 @@ async def enroll_mfa(
         from ...auth import pwd_context
 
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT hashed_password, mfa_enabled
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -257,16 +253,14 @@ async def enroll_mfa(
 
         # Update user record
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET mfa_secret = :encrypted_secret,
                 backup_codes = :backup_codes,
                 mfa_enrolled_at = CURRENT_TIMESTAMP,
                 mfa_recovery_codes_generated_at = CURRENT_TIMESTAMP
             WHERE id = :user_id
-        """
-            ),
+        """),
             {
                 "encrypted_secret": encrypted_secret,
                 "backup_codes": hashed_backup_codes,
@@ -316,12 +310,10 @@ async def validate_mfa_code(
     try:
         # Get user MFA data
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT mfa_enabled, mfa_secret, backup_codes
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -334,12 +326,10 @@ async def validate_mfa_code(
 
         # Get recently used codes for replay protection
         recent_codes = db.execute(
-            text(
-                """
+            text("""
             SELECT code_hash FROM mfa_used_codes
             WHERE user_id = :user_id AND used_at > NOW() - INTERVAL '5 minutes'
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         ).fetchall()
 
@@ -356,12 +346,10 @@ async def validate_mfa_code(
         if validation_result.valid:
             # Update last MFA use
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE users SET last_mfa_use = CURRENT_TIMESTAMP
                 WHERE id = :user_id
-            """
-                ),
+            """),
                 {"user_id": current_user["id"]},
             )
 
@@ -387,12 +375,10 @@ async def validate_mfa_code(
                     if code != validation_result.backup_code_used
                 ]
                 db.execute(
-                    text(
-                        """
+                    text("""
                     UPDATE users SET backup_codes = :backup_codes
                     WHERE id = :user_id
-                """
-                    ),
+                """),
                     {"backup_codes": updated_codes, "user_id": current_user["id"]},
                 )
 
@@ -455,12 +441,10 @@ async def enable_mfa(
     try:
         # Verify the TOTP code to confirm enrollment
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT mfa_enabled, mfa_secret, backup_codes
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -498,13 +482,11 @@ async def enable_mfa(
 
         # Enable MFA
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET mfa_enabled = true, last_mfa_use = CURRENT_TIMESTAMP
             WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
         db.commit()
@@ -546,12 +528,10 @@ async def regenerate_backup_codes(
     try:
         # Verify user has MFA enabled
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT mfa_enabled, mfa_secret, backup_codes
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -584,14 +564,12 @@ async def regenerate_backup_codes(
 
         # Update database
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET backup_codes = :backup_codes,
                 mfa_recovery_codes_generated_at = CURRENT_TIMESTAMP
             WHERE id = :user_id
-        """
-            ),
+        """),
             {"backup_codes": hashed_backup_codes, "user_id": current_user["id"]},
         )
         db.commit()
@@ -649,12 +627,10 @@ async def disable_mfa(
         from ...auth import pwd_context
 
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT hashed_password, mfa_enabled
             FROM users WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
@@ -681,26 +657,22 @@ async def disable_mfa(
 
         # Disable MFA and clear secrets
         db.execute(
-            text(
-                """
+            text("""
             UPDATE users
             SET mfa_enabled = false,
                 mfa_secret = NULL,
                 backup_codes = NULL,
                 last_mfa_use = NULL
             WHERE id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 
         # Clear used codes
         db.execute(
-            text(
-                """
+            text("""
             DELETE FROM mfa_used_codes WHERE user_id = :user_id
-        """
-            ),
+        """),
             {"user_id": current_user["id"]},
         )
 

@@ -91,8 +91,7 @@ def log_audit_event(
             logger.error(f"Call stack: {traceback.format_stack()}")
             return False
 
-        query = text(
-            """
+        query = text("""
             INSERT INTO audit_logs (
                 user_id, action, resource_type, resource_id,
                 ip_address, user_agent, details, timestamp
@@ -100,8 +99,7 @@ def log_audit_event(
                 :user_id, :action, :resource_type, :resource_id,
                 :ip_address, :user_agent, :details, :timestamp
             )
-        """
-        )
+        """)
 
         # FINAL SAFETY CHECK: Validate parameters right before database execution
         exec_params = {

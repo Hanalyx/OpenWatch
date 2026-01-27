@@ -207,13 +207,11 @@ class BaselineDriftDetector:
             ... )
         """
         # Get all hosts with active baselines
-        query = text(
-            """
+        query = text("""
             SELECT DISTINCT b.host_id
             FROM baselines b
             WHERE b.is_active = true
-            """
-        )
+            """)
 
         results = self.db.execute(query).fetchall()
 

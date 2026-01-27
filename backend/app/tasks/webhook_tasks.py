@@ -51,13 +51,11 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO webhook_deliveries
                 (id, webhook_id, event_type, event_data, delivery_status, created_at)
                 VALUES (:id, :webhook_id, :event_type, :event_data, :delivery_status, :created_at)
-            """
-                ),
+            """),
                 {
                     "id": delivery_id,
                     "webhook_id": webhook_id,
@@ -106,16 +104,14 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE webhook_deliveries SET
                 delivery_status = 'delivered',
                 http_status_code = :status_code,
                 response_body = :response_body,
                 delivered_at = :delivered_at
                 WHERE id = :id
-            """
-                ),
+            """),
                 {
                     "id": delivery_id,
                     "status_code": response.status_code,
@@ -150,14 +146,12 @@ async def deliver_webhook(
         db = next(get_db())
         try:
             db.execute(
-                text(
-                    """
+                text("""
                 UPDATE webhook_deliveries SET
                 delivery_status = 'failed',
                 error_message = :error_message
                 WHERE id = :id
-            """
-                ),
+            """),
                 {"id": delivery_id, "error_message": error_msg},
             )
             db.commit()
@@ -179,15 +173,11 @@ async def send_scan_completed_webhook(scan_id: str, scan_data: Dict[str, Any]):
         # Get active webhook endpoints that listen for scan.completed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.completed'
-            """
-                )
-            )
+            """))
 
             webhooks = result.fetchall()
         finally:
@@ -219,15 +209,11 @@ async def send_scan_failed_webhook(scan_id: str, scan_data: Dict[str, Any], erro
         # Get active webhook endpoints that listen for scan.failed events
         db = next(get_db())
         try:
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT id, url, secret_hash FROM webhook_endpoints
                 WHERE is_active = true
                 AND event_types::jsonb ? 'scan.failed'
-            """
-                )
-            )
+            """))
 
             webhooks = result.fetchall()
         finally:

@@ -132,8 +132,7 @@ class TrendAnalyzer:
 
         # Query historical scan results
         # Note: This aggregates by date, taking the most recent scan per day
-        query = text(
-            """
+        query = text("""
             WITH daily_scans AS (
                 SELECT DISTINCT ON (DATE(s.completed_at))
                     DATE(s.completed_at) AS scan_date,
@@ -178,8 +177,7 @@ class TrendAnalyzer:
                 END AS overall_score
             FROM daily_scans
             ORDER BY scan_date ASC
-            """
-        )
+            """)
 
         results = self.db.execute(
             query,
@@ -296,8 +294,7 @@ class TrendAnalyzer:
         start_date = end_date - timedelta(days=days)
 
         # Query fleet-wide daily averages
-        query = text(
-            """
+        query = text("""
             WITH daily_fleet_scores AS (
                 SELECT
                     DATE(s.completed_at) AS scan_date,
@@ -325,8 +322,7 @@ class TrendAnalyzer:
                 ORDER BY scan_date ASC
             )
             SELECT * FROM daily_fleet_scores
-            """
-        )
+            """)
 
         results = self.db.execute(
             query, {"start_date": start_date, "end_date": end_date}

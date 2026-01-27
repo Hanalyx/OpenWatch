@@ -191,8 +191,7 @@ class FixExecutionAudit:
         try:
             async with get_async_db() as session:
                 # Use the existing audit_logs table structure
-                audit_sql = text(
-                    """
+                audit_sql = text("""
                     INSERT INTO audit_logs (
                         event_type, user_id, resource_type, resource_id,
                         action, old_values, new_values, ip_address,
@@ -202,8 +201,7 @@ class FixExecutionAudit:
                         :action, :old_values, :new_values, :ip_address,
                         :user_agent, :timestamp
                     )
-                """
-                )
+                """)
 
                 await session.execute(
                     audit_sql,

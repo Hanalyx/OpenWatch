@@ -417,15 +417,11 @@ class PrometheusMetrics:
         """
         try:
             # Active connections from PostgreSQL system catalog
-            result = db.execute(
-                text(
-                    """
+            result = db.execute(text("""
                 SELECT count(*) as active_connections
                 FROM pg_stat_activity
                 WHERE state = 'active'
-            """
-                )
-            )
+            """))
 
             row = result.fetchone()
             if row:

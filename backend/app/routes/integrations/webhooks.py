@@ -220,14 +220,12 @@ async def create_webhook_endpoint(
 
         # Create webhook endpoint record
         result = db.execute(
-            text(
-                """
+            text("""
             INSERT INTO webhook_endpoints
             (id, name, url, event_types, secret_hash, is_active, created_by, created_at, updated_at)
             VALUES (:id, :name, :url, :event_types, :secret_hash, :is_active, :created_by, :created_at, :updated_at)
             RETURNING id
-        """
-            ),
+        """),
             {
                 "id": str(uuid.uuid4()),
                 "name": webhook_request.name,
@@ -287,12 +285,10 @@ async def get_webhook_endpoint(
     """
     try:
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, name, url, event_types, is_active, created_by, created_at, updated_at
             FROM webhook_endpoints WHERE id = :id
-        """
-            ),
+        """),
             {"id": webhook_id},
         ).fetchone()
 
@@ -584,12 +580,10 @@ async def test_webhook_endpoint(
     try:
         # Get webhook details
         webhook_result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, name, url, secret_hash FROM webhook_endpoints
             WHERE id = :id AND is_active = true
-        """
-            ),
+        """),
             {"id": webhook_id},
         ).fetchone()
 

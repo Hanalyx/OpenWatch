@@ -88,14 +88,12 @@ def _update_scan_status(
     try:
         # Build UPDATE query with dynamic columns based on error_message presence
         if error_message:
-            update_query = text(
-                """
+            update_query = text("""
                 UPDATE scans
                 SET status = :status, progress = :progress,
                     completed_at = :completed_at, error_message = :error_message
                 WHERE id = :id
-                """
-            )
+                """)
             params = {
                 "status": status_value,
                 "progress": 100,
@@ -104,13 +102,11 @@ def _update_scan_status(
                 "id": str(scan_uuid),
             }
         else:
-            update_query = text(
-                """
+            update_query = text("""
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at
                 WHERE id = :id
-                """
-            )
+                """)
             params = {
                 "status": status_value,
                 "progress": 100,
@@ -474,8 +470,7 @@ async def create_compliance_scan(
         started_at = datetime.utcnow()
 
         try:
-            insert_query = text(
-                """
+            insert_query = text("""
                 INSERT INTO scans (
                     id, name, host_id, profile_id, status, progress,
                     scan_options, started_by, started_at, remediation_requested,
@@ -486,8 +481,7 @@ async def create_compliance_scan(
                     :scan_options, :started_by, :started_at, :remediation_requested,
                     :verification_scan, :scan_metadata
                 )
-                """
-            )
+                """)
             db.execute(
                 insert_query,
                 {
@@ -596,14 +590,12 @@ async def create_compliance_scan(
 
         try:
             # Update scans table with completion status
-            update_scan_query = text(
-                """
+            update_scan_query = text("""
                 UPDATE scans
                 SET status = :status, progress = :progress, completed_at = :completed_at,
                     result_file = :result_file, report_file = :report_file
                 WHERE id = :id
-                """
-            )
+                """)
             db.execute(
                 update_scan_query,
                 {
@@ -617,8 +609,7 @@ async def create_compliance_scan(
             )
 
             # Insert scan_results record with all parsed data
-            insert_results_query = text(
-                """
+            insert_results_query = text("""
                 INSERT INTO scan_results (
                     scan_id, total_rules, passed_rules, failed_rules, error_rules,
                     unknown_rules, not_applicable_rules, score,
@@ -633,8 +624,7 @@ async def create_compliance_scan(
                     :xccdf_score, :xccdf_score_system, :xccdf_score_max,
                     :risk_score, :risk_level, :created_at
                 )
-                """
-            )
+                """)
             db.execute(
                 insert_results_query,
                 {

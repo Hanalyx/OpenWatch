@@ -3,6 +3,7 @@
 CLI tool for compliance result analysis and aggregation
 Provides command-line interface for analyzing scan results and generating reports
 """
+
 import argparse
 import asyncio
 import json

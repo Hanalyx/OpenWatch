@@ -146,16 +146,14 @@ class HostMonitoringStateMachine:
         try:
             # Get current host state with multi-level counters
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT status,
                        ping_consecutive_failures, ping_consecutive_successes,
                        ssh_consecutive_failures, ssh_consecutive_successes,
                        privilege_consecutive_failures, privilege_consecutive_successes
                 FROM hosts
                 WHERE id = :host_id
-            """
-                ),
+            """),
                 {"host_id": host_id},
             )
 
@@ -197,8 +195,7 @@ class HostMonitoringStateMachine:
             # Update host state in database
             state_changed = new_state.value != current_status
             self.db.execute(
-                text(
-                    """
+                text("""
                 UPDATE hosts
                 SET status = :status,
                     ping_consecutive_failures = :ping_failures,
@@ -214,8 +211,7 @@ class HostMonitoringStateMachine:
                     last_state_change = CASE WHEN :state_changed THEN :last_check ELSE last_state_change END,
                     updated_at = :last_check
                 WHERE id = :host_id
-            """
-                ),
+            """),
                 {
                     "host_id": host_id,
                     "status": new_state.value,
@@ -410,15 +406,13 @@ class HostMonitoringStateMachine:
         """Log monitoring check to history table"""
         try:
             self.db.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO host_monitoring_history
                 (host_id, check_time, monitoring_state, previous_state, response_time_ms,
                  success, error_message, error_type)
                 VALUES (:host_id, :check_time, :monitoring_state, :previous_state,
                         :response_time, :success, :error_message, :error_type)
-            """
-                ),
+            """),
                 {
                     "host_id": host_id,
                     "check_time": check_time,
@@ -445,8 +439,7 @@ class HostMonitoringStateMachine:
         """
         try:
             result = self.db.execute(
-                text(
-                    """
+                text("""
                 SELECT id, hostname, ip_address, check_priority, status
                 FROM hosts
                 WHERE is_active = true
@@ -454,8 +447,7 @@ class HostMonitoringStateMachine:
                   AND (next_check_time IS NULL OR next_check_time <= CURRENT_TIMESTAMP)
                 ORDER BY check_priority DESC, next_check_time ASC NULLS FIRST
                 LIMIT :limit
-            """
-                ),
+            """),
                 {"limit": limit},
             )
 
@@ -485,8 +477,7 @@ class HostMonitoringStateMachine:
             )
 
             self.db.execute(
-                text(
-                    """
+                text("""
                 UPDATE hosts
                 SET status = :state,
                     ping_consecutive_failures = 0,
@@ -497,8 +488,7 @@ class HostMonitoringStateMachine:
                     privilege_consecutive_successes = 0,
                     last_state_change = CURRENT_TIMESTAMP
                 WHERE id = :host_id
-            """
-                ),
+            """),
                 {"host_id": host_id, "state": new_state},
             )
 

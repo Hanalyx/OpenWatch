@@ -327,16 +327,14 @@ async def get_scan(
         # Add results summary if scan is completed
         if result.status == "completed":
             results = db.execute(
-                text(
-                    """
+                text("""
                 SELECT total_rules, passed_rules, failed_rules, error_rules,
                        unknown_rules, not_applicable_rules, score,
                        severity_high, severity_medium, severity_low,
                        xccdf_score, xccdf_score_max, xccdf_score_system,
                        risk_score, risk_level
                 FROM scan_results WHERE scan_id = :scan_id
-            """
-                ),
+            """),
                 {"scan_id": scan_id},
             ).fetchone()
 
@@ -456,8 +454,7 @@ async def create_scan_legacy(
 
         # Create scan record
         scan_id = str(uuid.uuid4())
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO scans (
                 id, name, host_id, content_id, profile_id, status, progress,
                 scan_options, started_by, started_at, remediation_requested, verification_scan
@@ -466,8 +463,7 @@ async def create_scan_legacy(
                 :id, :name, :host_id, :content_id, :profile_id, :status, :progress,
                 :scan_options, :started_by, :started_at, :remediation_requested, :verification_scan
             )
-        """
-        )
+        """)
         db.execute(
             insert_query,
             {
@@ -599,13 +595,11 @@ async def update_scan(
         if update_data:
             # Build dynamic SET clause based on update_data
             set_clauses = ", ".join([f"{key} = :{key}" for key in update_data.keys()])
-            update_query = text(
-                f"""
+            update_query = text(f"""
                 UPDATE scans
                 SET {set_clauses}
                 WHERE id = :id
-            """
-            )
+            """)
             update_params = {**update_data, "id": scan_id}
             db.execute(update_query, update_params)
             db.commit()
@@ -678,21 +672,17 @@ async def delete_scan(
                     )
 
         # Delete scan results first (foreign key constraint)
-        results_delete_query = text(
-            """
+        results_delete_query = text("""
             DELETE FROM scan_results
             WHERE scan_id = :scan_id
-        """
-        )
+        """)
         db.execute(results_delete_query, {"scan_id": scan_id})
 
         # Delete scan record
-        scan_delete_query = text(
-            """
+        scan_delete_query = text("""
             DELETE FROM scans
             WHERE id = :id
-        """
-        )
+        """)
         db.execute(scan_delete_query, {"id": scan_id})
 
         db.commit()
@@ -748,11 +738,9 @@ async def stop_scan(
     try:
         # Check if scan exists and is running
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT status, celery_task_id FROM scans WHERE id = :id
-        """
-            ),
+        """),
             {"id": scan_id},
         ).fetchone()
 
@@ -775,14 +763,12 @@ async def stop_scan(
 
         # Update scan status
         db.execute(
-            text(
-                """
+            text("""
             UPDATE scans
             SET status = 'stopped', completed_at = :completed_at,
                 error_message = 'Scan stopped by user'
             WHERE id = :id
-        """
-            ),
+        """),
             {"id": scan_id, "completed_at": datetime.utcnow()},
         )
         db.commit()
@@ -829,15 +815,13 @@ async def recover_scan(
     try:
         # Get failed scan details
         scan_result = db.execute(
-            text(
-                """
+            text("""
             SELECT s.id, s.name, s.host_id, s.profile_id, s.status, s.error_message,
                    s.content_id, h.hostname, h.port, h.username, h.auth_method
             FROM scans s
             JOIN hosts h ON s.host_id = h.id
             WHERE s.id = :scan_id AND s.status = 'failed'
-        """
-            ),
+        """),
             {"scan_id": scan_id},
         ).fetchone()
 
@@ -865,15 +849,13 @@ async def recover_scan(
         # Create recovery scan
         recovery_scan_id = str(uuid.uuid4())
         db.execute(
-            text(
-                """
+            text("""
             INSERT INTO scans
             (id, name, host_id, content_id, profile_id, status, progress,
              started_by, started_at, scan_options)
             VALUES (:id, :name, :host_id, :content_id, :profile_id, :status,
                     :progress, :started_by, :started_at, :scan_options)
-        """
-            ),
+        """),
             {
                 "id": recovery_scan_id,
                 "name": f"Recovery: {scan_result.name}",
@@ -941,12 +923,10 @@ async def apply_automated_fix(
     try:
         # Get host details
         host_result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, display_name, hostname, port, username, auth_method
             FROM hosts WHERE id = :id AND is_active = true
-        """
-            ),
+        """),
             {"id": host_id},
         ).fetchone()
 
