@@ -1231,7 +1231,7 @@ const ScanDetail: React.FC = () => {
 
       {/* Scan Info Cards */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={6} lg={3}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -1250,7 +1250,7 @@ const ScanDetail: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6} lg={3}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -1280,7 +1280,7 @@ const ScanDetail: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6} lg={3}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -1317,7 +1317,7 @@ const ScanDetail: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6} lg={3}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -1382,7 +1382,7 @@ const ScanDetail: React.FC = () => {
           {/* Overview Tab */}
           {scan.status === 'completed' && scan.results ? (
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="h6" gutterBottom>
                   Compliance Summary
                 </Typography>
@@ -1409,7 +1409,7 @@ const ScanDetail: React.FC = () => {
                 </Box>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="h6" gutterBottom>
                   Severity Distribution
                 </Typography>
@@ -1430,12 +1430,12 @@ const ScanDetail: React.FC = () => {
                 </Box>
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="h6" gutterBottom>
                   Summary Statistics
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {scan.results.total_rules}
@@ -1445,7 +1445,7 @@ const ScanDetail: React.FC = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="success.main">
                         {scan.results.passed_rules}
@@ -1455,7 +1455,7 @@ const ScanDetail: React.FC = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="error.main">
                         {scan.results.failed_rules}
@@ -1465,7 +1465,7 @@ const ScanDetail: React.FC = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="warning.main">
                         {scan.results.error_rules}
@@ -1475,7 +1475,7 @@ const ScanDetail: React.FC = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="text.secondary">
                         {scan.results.not_applicable_rules}
@@ -1485,7 +1485,7 @@ const ScanDetail: React.FC = () => {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={4} md={2}>
+                  <Grid size={{ xs: 6, sm: 4, md: 2 }}>
                     <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h4" color="info.main">
                         {scan.results.unknown_rules}
@@ -1583,7 +1583,7 @@ const ScanDetail: React.FC = () => {
           {/* Failed Rules Tab */}
           <Box mb={2}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   variant="outlined"
@@ -1599,7 +1599,7 @@ const ScanDetail: React.FC = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   fullWidth
                   select
@@ -1613,7 +1613,7 @@ const ScanDetail: React.FC = () => {
                   <MenuItem value="low">Low</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <Typography variant="body2" color="text.secondary">
                   Showing {filteredRules.filter((r) => r.result === 'fail').length} failed rules
                 </Typography>
@@ -1729,7 +1729,7 @@ const ScanDetail: React.FC = () => {
           {/* All Rules Tab */}
           <Box mb={2}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   fullWidth
                   variant="outlined"
@@ -1745,7 +1745,7 @@ const ScanDetail: React.FC = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   fullWidth
                   select
@@ -1760,7 +1760,7 @@ const ScanDetail: React.FC = () => {
                   <MenuItem value="notapplicable">N/A</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   fullWidth
                   select
@@ -1774,7 +1774,7 @@ const ScanDetail: React.FC = () => {
                   <MenuItem value="low">Low</MenuItem>
                 </TextField>
               </Grid>
-              <Grid item xs={12} md={2}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   {filteredRules.length} rules
                 </Typography>
@@ -1901,7 +1901,7 @@ const ScanDetail: React.FC = () => {
         <TabPanel value={tabValue} index={4}>
           {/* Scan Information Tab */}
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="h6" gutterBottom>
                 Scan Configuration
               </Typography>
@@ -1942,7 +1942,7 @@ const ScanDetail: React.FC = () => {
               </List>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="h6" gutterBottom>
                 Technical Details
               </Typography>

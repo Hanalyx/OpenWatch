@@ -14,7 +14,7 @@ import {
   Alert,
   LinearProgress,
 } from '@mui/material';
-import GridLegacy from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import { PlayArrow, Security, Warning, CheckCircle, Error, Info } from '@mui/icons-material';
 // Remove notistack import - using state-based alerts instead
 
@@ -392,8 +392,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
             </Alert>
           )}
 
-          <GridLegacy container spacing={3}>
-            <GridLegacy item xs={12} md={6}>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>SCAP Content</InputLabel>
                 <Select
@@ -414,9 +414,9 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </GridLegacy>
+            </Grid>
 
-            <GridLegacy item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Compliance Profile</InputLabel>
                 <Select
@@ -437,9 +437,9 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </GridLegacy>
+            </Grid>
 
-            <GridLegacy item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Compliance Framework</InputLabel>
                 <Select
@@ -459,9 +459,9 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </GridLegacy>
+            </Grid>
 
-            <GridLegacy item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Remediation Mode</InputLabel>
                 <Select
@@ -481,12 +481,12 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </GridLegacy>
-          </GridLegacy>
+            </Grid>
+          </Grid>
 
           <Box mt={3}>
-            <GridLegacy container spacing={2}>
-              <GridLegacy item>
+            <Grid container spacing={2}>
+              <Grid size="auto">
                 <FormControlLabel
                   control={
                     <Switch
@@ -501,8 +501,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   }
                   label="Email Notifications"
                 />
-              </GridLegacy>
-              <GridLegacy item>
+              </Grid>
+              <Grid size="auto">
                 <FormControlLabel
                   control={
                     <Switch
@@ -517,8 +517,8 @@ export const GroupComplianceScanner: React.FC<GroupComplianceProps> = ({
                   }
                   label="Generate Reports"
                 />
-              </GridLegacy>
-            </GridLegacy>
+              </Grid>
+            </Grid>
           </Box>
 
           <Box mt={3} display="flex" gap={2}>

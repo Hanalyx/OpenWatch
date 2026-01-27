@@ -1399,7 +1399,7 @@ const Hosts: React.FC = () => {
       {/* Header Statistics */}
       <Box sx={{ mb: 4 }}>
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
             <StatCard
               title={autoRefreshEnabled ? 'Hosts Online (Auto)' : 'Hosts Online'}
               value={`${stats.online}/${stats.total}`}
@@ -1409,7 +1409,7 @@ const Hosts: React.FC = () => {
               trendValue={`${Math.round((stats.online / stats.total) * 100)}%`}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
             <StatCard
               title="Avg Compliance"
               value={`${stats.avgCompliance}%`}
@@ -1424,7 +1424,7 @@ const Hosts: React.FC = () => {
               trend={stats.avgCompliance >= 85 ? 'up' : 'flat'}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
             <StatCard
               title="Critical Issues"
               value={stats.criticalHosts}
@@ -1434,7 +1434,7 @@ const Hosts: React.FC = () => {
               subtitle={stats.criticalHosts === 0 ? 'All clear' : 'Needs attention'}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
             <StatCard
               title="Need Scanning"
               value={stats.needsScanning}
@@ -1444,7 +1444,7 @@ const Hosts: React.FC = () => {
               subtitle={stats.needsScanning === 0 ? 'Up to date' : 'Behind schedule'}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
+          <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
             <StatCard
               title="Quick Actions"
               value="Add Host"
@@ -1522,7 +1522,7 @@ const Hosts: React.FC = () => {
           <LinearProgress sx={{ mb: 3 }} />
           <Grid container spacing={3}>
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Grid item xs={12} sm={6} md={3} key={i}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
                 <Skeleton variant="rectangular" height={200} />
               </Grid>
             ))}
@@ -1556,7 +1556,7 @@ const Hosts: React.FC = () => {
                   <Collapse in={expandedGroups.includes(groupName)}>
                     <Grid container spacing={3}>
                       {hosts.map((host) => (
-                        <Grid item xs={12} sm={6} md={3} key={host.id}>
+                        <Grid size={{ xs: 12, sm: 6, md: 3 }} key={host.id}>
                           <HostCard host={host} viewMode={viewMode} />
                         </Grid>
                       ))}
@@ -1571,7 +1571,7 @@ const Hosts: React.FC = () => {
               {Object.values(processedHosts)
                 .flat()
                 .map((host) => (
-                  <Grid item xs={12} sm={6} md={3} key={host.id}>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }} key={host.id}>
                     <HostCard host={host} viewMode={viewMode} />
                   </Grid>
                 ))}
@@ -1625,7 +1625,7 @@ const Hosts: React.FC = () => {
         <DialogTitle>Edit Host</DialogTitle>
         <DialogContent>
           <Grid container spacing={3} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Hostname"
@@ -1633,7 +1633,7 @@ const Hosts: React.FC = () => {
                 onChange={(e) => setEditFormData((prev) => ({ ...prev, hostname: e.target.value }))}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Display Name"
@@ -1643,7 +1643,7 @@ const Hosts: React.FC = () => {
                 }
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="IP Address"
@@ -1653,7 +1653,7 @@ const Hosts: React.FC = () => {
                 }
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Operating System"
@@ -1663,7 +1663,7 @@ const Hosts: React.FC = () => {
                 }
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Port"
@@ -1674,7 +1674,7 @@ const Hosts: React.FC = () => {
                 }
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Username"
@@ -1682,7 +1682,7 @@ const Hosts: React.FC = () => {
                 onChange={(e) => setEditFormData((prev) => ({ ...prev, username: e.target.value }))}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -1732,7 +1732,7 @@ const Hosts: React.FC = () => {
 
             {/* SSH Key Input - Show when SSH Key authentication is selected and editing or not validated */}
             {editFormData.authMethod === 'ssh_key' && (editingAuthMethod || !sshKeyValidated) && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <TextField
                   fullWidth
                   label="SSH Private Key"
@@ -1768,7 +1768,7 @@ const Hosts: React.FC = () => {
 
             {/* SSH Key Validated Display - Show when SSH key is validated and not editing */}
             {editFormData.authMethod === 'ssh_key' && sshKeyValidated && !editingAuthMethod && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Card
                   sx={{
                     border: '2px solid',
@@ -1794,7 +1794,7 @@ const Hosts: React.FC = () => {
 
             {/* Password Input - Show when Password authentication is selected */}
             {editFormData.authMethod === 'password' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type={showPassword ? 'text' : 'password'}
@@ -1825,7 +1825,7 @@ const Hosts: React.FC = () => {
 
             {/* System Default Credentials Display */}
             {editFormData.authMethod === 'system_default' && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Card
                   sx={{
                     border: '2px solid',

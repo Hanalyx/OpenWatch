@@ -26,7 +26,7 @@ import {
   DialogContent,
   CircularProgress,
 } from '@mui/material';
-import GridLegacy from '@mui/material/GridLegacy';
+import Grid from '@mui/material/Grid';
 import {
   Assessment,
   Warning,
@@ -282,8 +282,8 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
       </Box>
 
       {/* Key Metrics Cards */}
-      <GridLegacy container spacing={3} sx={{ mb: 3 }}>
-        <GridLegacy item xs={12} sm={6} md={3}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -311,9 +311,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </GridLegacy>
+        </Grid>
 
-        <GridLegacy item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -329,9 +329,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </GridLegacy>
+        </Grid>
 
-        <GridLegacy item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -347,9 +347,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </GridLegacy>
+        </Grid>
 
-        <GridLegacy item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -365,13 +365,13 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </GridLegacy>
-      </GridLegacy>
+        </Grid>
+      </Grid>
 
       {/* Charts Section */}
-      <GridLegacy container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Compliance Trend */}
-        <GridLegacy item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -402,10 +402,10 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </GridLegacy>
+        </Grid>
 
         {/* Risk Distribution */}
-        <GridLegacy item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -434,8 +434,8 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </GridLegacy>
-      </GridLegacy>
+        </Grid>
+      </Grid>
 
       {/* Framework Distribution */}
       {formatFrameworkDistribution().length > 0 && (

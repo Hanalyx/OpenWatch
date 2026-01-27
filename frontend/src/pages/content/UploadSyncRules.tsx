@@ -426,7 +426,7 @@ const UploadSyncRules: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* Automatic Synchronization */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -512,7 +512,7 @@ const UploadSyncRules: React.FC = () => {
         </Grid>
 
         {/* Manual Upload */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -638,7 +638,7 @@ const UploadSyncRules: React.FC = () => {
         </Grid>
 
         {/* Current Status */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -647,7 +647,7 @@ const UploadSyncRules: React.FC = () => {
               <Divider sx={{ mb: 2 }} />
 
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
                     <Typography variant="body1" fontWeight="medium">
                       Synchronization Method:
@@ -674,7 +674,7 @@ const UploadSyncRules: React.FC = () => {
                   </Box>
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Box display="flex" alignItems="center" gap={2} mb={2}>
                     <Typography variant="body1" fontWeight="medium">
                       Status:
@@ -705,7 +705,7 @@ const UploadSyncRules: React.FC = () => {
         </Grid>
 
         {/* Upload History */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -834,7 +834,7 @@ const UploadSyncRules: React.FC = () => {
                                 <Box sx={{ py: 3, px: 2 }}>
                                   <Grid container spacing={3}>
                                     {/* Manifest Info */}
-                                    <Grid item xs={12} md={6}>
+                                    <Grid size={{ xs: 12, md: 6 }}>
                                       <Paper
                                         sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05) }}
                                       >
@@ -872,7 +872,7 @@ const UploadSyncRules: React.FC = () => {
                                     </Grid>
 
                                     {/* Processing Details */}
-                                    <Grid item xs={12} md={6}>
+                                    <Grid size={{ xs: 12, md: 6 }}>
                                       <Paper
                                         sx={{
                                           p: 2,
@@ -915,7 +915,7 @@ const UploadSyncRules: React.FC = () => {
 
                                     {/* Errors */}
                                     {upload.errors && upload.errors.length > 0 && (
-                                      <Grid item xs={12}>
+                                      <Grid size={{ xs: 12 }}>
                                         <Paper
                                           sx={{
                                             p: 2,
@@ -955,7 +955,7 @@ const UploadSyncRules: React.FC = () => {
 
                                     {/* Warnings */}
                                     {upload.warnings && upload.warnings.length > 0 && (
-                                      <Grid item xs={12}>
+                                      <Grid size={{ xs: 12 }}>
                                         <Paper
                                           sx={{
                                             p: 2,

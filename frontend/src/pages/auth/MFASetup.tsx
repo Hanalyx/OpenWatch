@@ -268,7 +268,7 @@ const MFASetup: React.FC = () => {
                       { name: 'Authy', icon: '🛡️' },
                       { name: 'LastPass Authenticator', icon: '🔒' },
                     ].map((app) => (
-                      <Grid item xs={12} sm={6} key={app.name}>
+                      <Grid size={{ xs: 12, sm: 6 }} key={app.name}>
                         <Card variant="outlined" sx={{ height: '100%' }}>
                           <CardContent sx={{ textAlign: 'center', py: 2 }}>
                             <Typography variant="h4" sx={{ mb: 1 }}>
@@ -300,7 +300,7 @@ const MFASetup: React.FC = () => {
                 <StepContent>
                   {mfaSecret && (
                     <Grid container spacing={3}>
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <Box sx={{ textAlign: 'center' }}>
                           <Typography variant="h6" gutterBottom>
                             Scan this QR code
@@ -312,7 +312,7 @@ const MFASetup: React.FC = () => {
                         </Box>
                       </Grid>
 
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <Typography variant="h6" gutterBottom>
                           Manual Entry
                         </Typography>
@@ -449,7 +449,7 @@ const MFASetup: React.FC = () => {
                           <Box sx={{ mb: 2 }}>
                             <Grid container spacing={1}>
                               {mfaSecret.backup_codes.map((code, index) => (
-                                <Grid item xs={6} key={index}>
+                                <Grid size={{ xs: 6 }} key={index}>
                                   <Chip
                                     label={code}
                                     variant="outlined"

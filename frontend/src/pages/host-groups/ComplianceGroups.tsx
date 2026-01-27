@@ -588,7 +588,7 @@ const ComplianceGroups: React.FC = () => {
         {/* Stats Summary */}
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="primary">
                   {groups.length}
@@ -598,7 +598,7 @@ const ComplianceGroups: React.FC = () => {
                 </Typography>
               </Box>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="secondary">
                   {groups.reduce((sum, group) => sum + group.host_count, 0)}
@@ -608,7 +608,7 @@ const ComplianceGroups: React.FC = () => {
                 </Typography>
               </Box>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="success.main">
                   {groups.filter((g) => g.auto_scan_enabled).length}
@@ -618,7 +618,7 @@ const ComplianceGroups: React.FC = () => {
                 </Typography>
               </Box>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="warning.main">
                   {
@@ -672,7 +672,7 @@ const ComplianceGroups: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {groups.map((group) => (
-            <Grid item xs={12} sm={6} md={4} key={group.id}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={group.id}>
               {renderGroupCard(group)}
             </Grid>
           ))}

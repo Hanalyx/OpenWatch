@@ -625,7 +625,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
       </Box>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             label="Group Name"
             value={groupName}
@@ -636,7 +636,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             label="Description"
             value={description}
@@ -648,7 +648,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <FormControl fullWidth>
             <InputLabel>OS Family</InputLabel>
             <Select
@@ -669,7 +669,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           </FormControl>
         </Grid>
 
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
             label="OS Version Pattern"
             value={osVersionPattern}
@@ -680,7 +680,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <FormControl fullWidth>
             <InputLabel>Architecture</InputLabel>
             <Select
@@ -701,7 +701,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           </FormControl>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Autocomplete
             options={availableScapContent}
             getOptionLabel={(option) => option.name}
@@ -760,7 +760,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           />
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           {scapContent && scapContent.profiles && scapContent.profiles.length > 0 ? (
             <FormControl fullWidth>
               <InputLabel>Default Profile</InputLabel>
@@ -811,7 +811,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           )}
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth>
             <InputLabel>Compliance Framework</InputLabel>
             <Select
@@ -837,7 +837,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           </FormControl>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <FormControlLabel
             control={
               <Checkbox
@@ -908,7 +908,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Grid container spacing={2}>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h4" color="primary">
                       {validation.summary.total_hosts}
@@ -916,7 +916,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                     <Typography variant="caption">Total Hosts</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h4" color="success.main">
                       {validation.summary.compatible_count}
@@ -924,7 +924,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                     <Typography variant="caption">Compatible</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h4" color="error.main">
                       {validation.summary.incompatible_count}
@@ -932,7 +932,7 @@ const SmartGroupCreationWizard: React.FC<SmartGroupCreationWizardProps> = ({
                     <Typography variant="caption">Incompatible</Typography>
                   </Box>
                 </Grid>
-                <Grid item xs={6} sm={3}>
+                <Grid size={{ xs: 6, sm: 3 }}>
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography variant="h4" color="info.main">
                       {validation.summary.compatibility_score.toFixed(1)}%

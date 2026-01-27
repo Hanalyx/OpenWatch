@@ -85,7 +85,7 @@ export const FrameworksPage: React.FC = () => {
       {filteredFrameworks && filteredFrameworks.length > 0 ? (
         <Grid container spacing={3}>
           {filteredFrameworks.map((framework) => (
-            <Grid item xs={12} sm={6} md={4} key={framework.framework}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={framework.framework}>
               <FrameworkCard framework={framework} onSelect={handleSelectFramework} />
             </Grid>
           ))}

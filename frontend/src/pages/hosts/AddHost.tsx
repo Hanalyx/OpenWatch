@@ -513,7 +513,7 @@ const AddHost: React.FC = () => {
       </Box>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             fullWidth
             label="Hostname or IP Address"
@@ -529,7 +529,7 @@ const AddHost: React.FC = () => {
             }}
           />
         </Grid>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             fullWidth
             label="Display Name (Optional)"
@@ -546,14 +546,14 @@ const AddHost: React.FC = () => {
           />
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Divider sx={{ my: 1 }} />
           <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
             Authentication Method
           </Typography>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Box
             sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}
           >
@@ -602,7 +602,7 @@ const AddHost: React.FC = () => {
           </Box>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             fullWidth
             label="Username"
@@ -620,7 +620,7 @@ const AddHost: React.FC = () => {
         </Grid>
 
         {formData.authMethod === 'password' && (
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               type={showPassword ? 'text' : 'password'}
@@ -653,7 +653,7 @@ const AddHost: React.FC = () => {
         )}
 
         {formData.authMethod === 'system_default' && (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Card
               sx={{
                 border: '2px solid',
@@ -703,7 +703,7 @@ const AddHost: React.FC = () => {
         )}
 
         {formData.authMethod === 'ssh_key' && (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             {sshKeyValidation.status === 'valid' && authMethodLocked && !editingAuth ? (
               // Show validated SSH key info when locked
               <Card
@@ -810,7 +810,7 @@ const AddHost: React.FC = () => {
 
         {formData.authMethod === 'both' && (
           <>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Alert severity="info" icon={<Security />}>
                 <AlertTitle>SSH Key + Password Fallback</AlertTitle>
                 The system will attempt SSH key authentication first (more secure). If SSH key
@@ -818,7 +818,7 @@ const AddHost: React.FC = () => {
               </Alert>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 label="SSH Private Key (Primary)"
@@ -859,7 +859,7 @@ const AddHost: React.FC = () => {
               )}
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type={showPassword ? 'text' : 'password'}
@@ -887,7 +887,7 @@ const AddHost: React.FC = () => {
           </>
         )}
 
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
             <Button variant="outlined" onClick={() => navigate('/hosts')} startIcon={<Cancel />}>
               Cancel
@@ -915,7 +915,7 @@ const AddHost: React.FC = () => {
         </Grid>
 
         {connectionStatus !== 'idle' && (
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Alert
               severity={
                 connectionStatus === 'success'
@@ -1005,7 +1005,7 @@ const AddHost: React.FC = () => {
           <StepLabel>Host Connection</StepLabel>
           <StepContent>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Hostname/FQDN"
@@ -1015,7 +1015,7 @@ const AddHost: React.FC = () => {
                   required
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   fullWidth
                   label="IP Address (Optional)"
@@ -1024,7 +1024,7 @@ const AddHost: React.FC = () => {
                   placeholder="192.168.1.100"
                 />
               </Grid>
-              <Grid item xs={12} md={2}>
+              <Grid size={{ xs: 12, md: 2 }}>
                 <TextField
                   fullWidth
                   label="SSH Port"
@@ -1033,7 +1033,7 @@ const AddHost: React.FC = () => {
                   type="number"
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Display Name"
@@ -1042,7 +1042,7 @@ const AddHost: React.FC = () => {
                   placeholder="Production Web Server"
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Operating System</InputLabel>
                   <Select
@@ -1059,7 +1059,7 @@ const AddHost: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -1073,7 +1073,7 @@ const AddHost: React.FC = () => {
 
               {formData.useBastion && (
                 <>
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
                       label="Bastion Host"
@@ -1082,7 +1082,7 @@ const AddHost: React.FC = () => {
                       placeholder="bastion.example.com"
                     />
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
                       label="Bastion Port"
@@ -1091,7 +1091,7 @@ const AddHost: React.FC = () => {
                       type="number"
                     />
                   </Grid>
-                  <Grid item xs={12} md={4}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       fullWidth
                       label="Bastion User"
@@ -1102,7 +1102,7 @@ const AddHost: React.FC = () => {
                 </>
               )}
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={() => navigate('/hosts')}>Cancel</Button>
                   <Button variant="contained" onClick={handleNext}>
@@ -1119,7 +1119,7 @@ const AddHost: React.FC = () => {
           <StepLabel>Authentication</StepLabel>
           <StepContent>
             <Grid container spacing={3}>
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <FormControl component="fieldset">
                   <RadioGroup
                     value={formData.authMethod}
@@ -1144,7 +1144,7 @@ const AddHost: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Username"
@@ -1161,7 +1161,7 @@ const AddHost: React.FC = () => {
               </Grid>
 
               {formData.authMethod === 'password' && (
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     type={showPassword ? 'text' : 'password'}
@@ -1182,7 +1182,7 @@ const AddHost: React.FC = () => {
               )}
 
               {formData.authMethod === 'system_default' && (
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <SSHKeyDisplay
                     isSystemDefault={true}
                     systemDefaultLabel="This host will use the system default SSH credentials configured in system settings"
@@ -1193,7 +1193,7 @@ const AddHost: React.FC = () => {
               )}
 
               {formData.authMethod === 'ssh_key' && (
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <TextField
                     fullWidth
                     label="SSH Private Key"
@@ -1210,7 +1210,7 @@ const AddHost: React.FC = () => {
               )}
 
               {formData.authMethod === 'certificate' && (
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Certificate Path"
@@ -1221,7 +1221,7 @@ const AddHost: React.FC = () => {
               )}
 
               {formData.authMethod === 'agent' && (
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Agent Token"
@@ -1232,7 +1232,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               )}
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -1246,7 +1246,7 @@ const AddHost: React.FC = () => {
 
               {formData.requireSudo && (
                 <>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <FormControl fullWidth>
                       <InputLabel>Privilege Escalation Method</InputLabel>
                       <Select
@@ -1261,7 +1261,7 @@ const AddHost: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       type="password"
@@ -1273,7 +1273,7 @@ const AddHost: React.FC = () => {
                 </>
               )}
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
                   <Button variant="contained" onClick={handleNext}>
@@ -1290,7 +1290,7 @@ const AddHost: React.FC = () => {
           <StepLabel>Classification</StepLabel>
           <StepContent>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Environment</InputLabel>
                   <Select
@@ -1306,7 +1306,7 @@ const AddHost: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Host Group/Team"
@@ -1316,7 +1316,7 @@ const AddHost: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Owner/Responsible Team"
@@ -1326,7 +1326,7 @@ const AddHost: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Autocomplete
                   multiple
                   options={availableTags}
@@ -1343,7 +1343,7 @@ const AddHost: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
                   <Button variant="contained" onClick={handleNext}>
@@ -1360,7 +1360,7 @@ const AddHost: React.FC = () => {
           <StepLabel>Scan Configuration</StepLabel>
           <StepContent>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Compliance Profile</InputLabel>
                   <Select
@@ -1377,7 +1377,7 @@ const AddHost: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Scan Schedule</InputLabel>
                   <Select
@@ -1395,7 +1395,7 @@ const AddHost: React.FC = () => {
               </Grid>
 
               {formData.scanSchedule === 'custom' && (
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Cron Expression"
@@ -1407,7 +1407,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               )}
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Scan Intensity</InputLabel>
                   <Select
@@ -1422,7 +1422,7 @@ const AddHost: React.FC = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <FormControl fullWidth>
                   <InputLabel>Scan Priority</InputLabel>
                   <Select
@@ -1438,7 +1438,7 @@ const AddHost: React.FC = () => {
               </Grid>
 
               {/* Advanced Options */}
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Button
                   onClick={() => setShowAdvanced(!showAdvanced)}
                   endIcon={showAdvanced ? <ExpandLess /> : <ExpandMore />}
@@ -1449,7 +1449,7 @@ const AddHost: React.FC = () => {
 
               <Collapse in={showAdvanced} timeout="auto" unmountOnExit>
                 <Grid container spacing={3} sx={{ mt: 0 }}>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Bandwidth Limit (KB/s)"
@@ -1460,7 +1460,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <TextField
                       fullWidth
                       label="Connection Timeout (s)"
@@ -1470,7 +1470,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={3}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                     <TextField
                       fullWidth
                       label="Scan Timeout (s)"
@@ -1480,7 +1480,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12 }}>
                     <TextField
                       fullWidth
                       label="Exclude Paths (one per line)"
@@ -1494,7 +1494,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Proxy Host"
@@ -1504,7 +1504,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Proxy Port"
@@ -1514,7 +1514,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Pre-Scan Script"
@@ -1526,7 +1526,7 @@ const AddHost: React.FC = () => {
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Post-Scan Script"
@@ -1540,7 +1540,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               </Collapse>
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
                   <Button variant="contained" onClick={handleNext}>
@@ -1557,7 +1557,7 @@ const AddHost: React.FC = () => {
           <StepLabel>Review & Test</StepLabel>
           <StepContent>
             <Grid container spacing={3}>
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Card variant="outlined">
                   <CardContent>
                     <Typography variant="h6" gutterBottom>
@@ -1566,7 +1566,7 @@ const AddHost: React.FC = () => {
                     <Divider sx={{ my: 2 }} />
 
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <List dense>
                           <ListItem>
                             <ListItemIcon>
@@ -1607,7 +1607,7 @@ const AddHost: React.FC = () => {
                         </List>
                       </Grid>
 
-                      <Grid item xs={12} md={6}>
+                      <Grid size={{ xs: 12, md: 6 }}>
                         <List dense>
                           <ListItem>
                             <ListItemIcon>
@@ -1673,7 +1673,7 @@ const AddHost: React.FC = () => {
               </Grid>
 
               {connectionStatus !== 'idle' && (
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Alert
                     severity={
                       connectionStatus === 'success'
@@ -1711,7 +1711,7 @@ const AddHost: React.FC = () => {
                 </Grid>
               )}
 
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
                   <Button onClick={handleBack}>Back</Button>
                   <Button onClick={() => navigate('/hosts')}>Cancel</Button>
@@ -1750,7 +1750,7 @@ const AddHost: React.FC = () => {
 
       {/* Quick Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Hosts"
             value="4"
@@ -1759,7 +1759,7 @@ const AddHost: React.FC = () => {
             subtitle="Currently managed"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Available Profiles"
             value="8"
@@ -1768,7 +1768,7 @@ const AddHost: React.FC = () => {
             subtitle="Compliance standards"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Scan Queue"
             value="2"
@@ -1777,7 +1777,7 @@ const AddHost: React.FC = () => {
             subtitle="Pending scans"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Templates"
             value="5"
@@ -1797,7 +1797,7 @@ const AddHost: React.FC = () => {
           Quick Start Templates
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -1812,7 +1812,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -1827,7 +1827,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
@@ -1842,7 +1842,7 @@ const AddHost: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card
               variant="outlined"
               sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}

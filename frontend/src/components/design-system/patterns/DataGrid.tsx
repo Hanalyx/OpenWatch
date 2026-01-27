@@ -83,7 +83,7 @@ const DataGrid = <T extends DataGridItem>({
         return (
           <Grid container spacing={1}>
             {items.map((item) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} xl={2} key={item.id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2 }} key={item.id}>
                 {renderItem(item as T, viewMode)}
               </Grid>
             ))}
@@ -95,7 +95,7 @@ const DataGrid = <T extends DataGridItem>({
         return (
           <Grid container spacing={spacing}>
             {items.map((item) => (
-              <Grid item {...columns} key={item.id}>
+              <Grid size={columns} key={item.id}>
                 {renderItem(item as T, viewMode)}
               </Grid>
             ))}

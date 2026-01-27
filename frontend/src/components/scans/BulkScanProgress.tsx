@@ -273,7 +273,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                 />
 
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {session.progress_percent}%
@@ -283,7 +283,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="success.main">
                         {session.completed_hosts}
@@ -293,7 +293,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="primary">
                         {session.running_hosts}
@@ -303,7 +303,7 @@ const BulkScanProgress: React.FC<BulkScanProgressProps> = ({
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h4" color="error.main">
                         {session.failed_hosts}

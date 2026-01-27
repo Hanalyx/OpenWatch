@@ -441,7 +441,7 @@ const OView: React.FC = () => {
           {/* Statistics Cards */}
           {stats && (
             <Grid container spacing={3} sx={{ mb: 4 }}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Total Events"
                   value={stats.total_events}
@@ -449,7 +449,7 @@ const OView: React.FC = () => {
                   color="primary"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Login Attempts"
                   value={stats.login_attempts}
@@ -457,7 +457,7 @@ const OView: React.FC = () => {
                   color="info"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Failed Logins"
                   value={stats.failed_logins}
@@ -465,7 +465,7 @@ const OView: React.FC = () => {
                   color="error"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Scan Operations"
                   value={stats.scan_operations}
@@ -473,7 +473,7 @@ const OView: React.FC = () => {
                   color="success"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Admin Actions"
                   value={stats.admin_actions}
@@ -481,7 +481,7 @@ const OView: React.FC = () => {
                   color="warning"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Security Events"
                   value={stats.security_events}
@@ -489,7 +489,7 @@ const OView: React.FC = () => {
                   color="error"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Unique Users"
                   value={stats.unique_users}
@@ -497,7 +497,7 @@ const OView: React.FC = () => {
                   color="info"
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <StatCard
                   title="Unique IPs"
                   value={stats.unique_ips}
@@ -511,7 +511,7 @@ const OView: React.FC = () => {
           {/* Filters */}
           <Paper sx={{ p: 2, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -527,7 +527,7 @@ const OView: React.FC = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Action</InputLabel>
                   <Select
@@ -544,7 +544,7 @@ const OView: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Resource</InputLabel>
                   <Select
@@ -561,7 +561,7 @@ const OView: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={2}>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Severity</InputLabel>
                   <Select
@@ -577,7 +577,7 @@ const OView: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
