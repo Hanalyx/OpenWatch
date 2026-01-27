@@ -20,7 +20,7 @@ from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.database import Base
+from ..database import Base
 
 
 class ReadinessCheckType(str, Enum):
