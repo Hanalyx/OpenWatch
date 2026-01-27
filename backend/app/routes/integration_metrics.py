@@ -224,7 +224,7 @@ async def get_performance_overview(
 @router.post("/cleanup")
 @require_admin()
 async def cleanup_old_metrics(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Manually trigger cleanup of old metrics"""
     try:
