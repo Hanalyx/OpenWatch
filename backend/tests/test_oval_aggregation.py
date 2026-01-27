@@ -76,7 +76,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 # Add app to path
 sys.path.insert(0, '/app')
 
-from app.services.xccdf_generator_service import XCCDFGeneratorService
+from app.services.xccdf import XCCDFGeneratorService
 from app.config import get_settings
 
 settings = get_settings()
