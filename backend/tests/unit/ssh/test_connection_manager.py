@@ -175,7 +175,7 @@ class TestSSHConnectionManagerInit:
 class TestDebugMode:
     """Tests for debug mode functionality."""
 
-    @patch("backend.app.services.ssh.connection_manager.paramiko.util.log_to_file")
+    @patch("app.services.ssh.connection_manager.paramiko.util.log_to_file")
     def test_enable_debug_mode(
         self,
         mock_log_to_file: MagicMock,
@@ -209,8 +209,8 @@ class TestDebugMode:
 class TestConnectWithPassword:
     """Tests for password authentication."""
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_connect_password_success(
         self,
         mock_get_config: MagicMock,
@@ -247,8 +247,8 @@ class TestConnectWithPassword:
         assert result.connection is mock_client
         mock_client.connect.assert_called_once()
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_connect_password_auth_failed(
         self,
         mock_get_config: MagicMock,
@@ -289,9 +289,9 @@ class TestConnectWithPassword:
 class TestConnectWithSSHKey:
     """Tests for SSH key authentication."""
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
-    @patch("backend.app.services.ssh.connection_manager.parse_ssh_key")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.parse_ssh_key")
     def test_connect_ssh_key_success(
         self,
         mock_parse_key: MagicMock,
@@ -333,9 +333,9 @@ class TestConnectWithSSHKey:
         assert result.auth_method_used == "private_key"
         mock_parse_key.assert_called_once_with(SAMPLE_RSA_PRIVATE_KEY)
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
-    @patch("backend.app.services.ssh.connection_manager.parse_ssh_key")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.parse_ssh_key")
     def test_connect_ssh_key_parse_error(
         self,
         mock_parse_key: MagicMock,
@@ -391,8 +391,8 @@ class TestConnectWithSSHKey:
 class TestConnectWithAgent:
     """Tests for SSH agent authentication."""
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_connect_agent_success(
         self,
         mock_get_config: MagicMock,
@@ -440,9 +440,9 @@ class TestConnectWithAgent:
 class TestConnectWithBoth:
     """Tests for 'both' authentication method (key + password fallback)."""
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
-    @patch("backend.app.services.ssh.connection_manager.parse_ssh_key")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.parse_ssh_key")
     def test_connect_both_key_succeeds(
         self,
         mock_parse_key: MagicMock,
@@ -484,9 +484,9 @@ class TestConnectWithBoth:
         assert result.success is True
         assert result.auth_method_used == "private_key"
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
-    @patch("backend.app.services.ssh.connection_manager.parse_ssh_key")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.parse_ssh_key")
     def test_connect_both_key_fails_password_succeeds(
         self,
         mock_parse_key: MagicMock,
@@ -546,8 +546,8 @@ class TestConnectWithBoth:
 class TestConnectionErrors:
     """Tests for various connection error scenarios."""
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_connection_timeout(
         self,
         mock_get_config: MagicMock,
@@ -578,8 +578,8 @@ class TestConnectionErrors:
         assert result.error_type == "timeout"
         assert "timeout" in result.error_message.lower()
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_connection_refused(
         self,
         mock_get_config: MagicMock,
@@ -612,8 +612,8 @@ class TestConnectionErrors:
         assert result.error_type == "connection_error"
         assert "refused" in result.error_message.lower()
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_host_unreachable(
         self,
         mock_get_config: MagicMock,
@@ -646,8 +646,8 @@ class TestConnectionErrors:
         assert result.error_type == "connection_error"
         assert "unreachable" in result.error_message.lower()
 
-    @patch("backend.app.services.ssh.connection_manager.SSHClient")
-    @patch("backend.app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
+    @patch("app.services.ssh.connection_manager.SSHClient")
+    @patch("app.services.ssh.connection_manager.SSHConnectionManager._get_config_manager")
     def test_ssh_protocol_error(
         self,
         mock_get_config: MagicMock,
@@ -682,7 +682,7 @@ class TestConnectionErrors:
         """
         Verify unsupported auth method returns appropriate error.
         """
-        with patch("backend.app.services.ssh.connection_manager.SSHClient"):
+        with patch("app.services.ssh.connection_manager.SSHClient"):
             with patch.object(connection_manager, "_get_config_manager"):
                 result = connection_manager.connect_with_credentials(
                     hostname="server.example.com",

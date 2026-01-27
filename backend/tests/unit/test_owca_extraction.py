@@ -616,5 +616,5 @@ Usage:
     pytest tests/unit/test_owca_extraction.py -v
 
     # Run with coverage
-    pytest --cov=backend.app.services.owca.extraction tests/unit/test_owca_extraction.py
+    pytest --cov=app.services.owca.extraction tests/unit/test_owca_extraction.py
 """

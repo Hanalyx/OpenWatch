@@ -61,7 +61,7 @@ Usage:
     pytest backend/tests/unit/ssh/test_config_manager.py -v
 
     # Run with coverage
-    pytest backend/tests/unit/ssh/ --cov=backend.app.services.ssh
+    pytest backend/tests/unit/ssh/ --cov=app.services.ssh
 
 References:
     - NIST SP 800-57: Recommendation for Key Management

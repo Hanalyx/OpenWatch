@@ -328,7 +328,7 @@ class TestValidateSSHKey:
 
         assert result.is_valid is False
 
-    @patch("backend.app.services.ssh.key_validator.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_validator.paramiko.Ed25519Key")
     def test_validate_ed25519_key_success(
         self, mock_ed25519_class: MagicMock
     ) -> None:
@@ -347,8 +347,8 @@ class TestValidateSSHKey:
         assert result.security_level == SSHKeySecurityLevel.SECURE
         assert result.key_size == 256
 
-    @patch("backend.app.services.ssh.key_validator.paramiko.RSAKey")
-    @patch("backend.app.services.ssh.key_validator.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_validator.paramiko.RSAKey")
+    @patch("app.services.ssh.key_validator.paramiko.Ed25519Key")
     def test_validate_rsa_key_success(
         self,
         mock_ed25519_class: MagicMock,
@@ -372,7 +372,7 @@ class TestValidateSSHKey:
         assert result.security_level == SSHKeySecurityLevel.SECURE
         assert result.key_size == 4096
 
-    @patch("backend.app.services.ssh.key_validator.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_validator.paramiko.Ed25519Key")
     def test_validate_encrypted_key_without_passphrase(
         self, mock_ed25519_class: MagicMock
     ) -> None:
@@ -388,7 +388,7 @@ class TestValidateSSHKey:
         assert result.is_valid is False
         assert "passphrase" in result.error_message.lower()
 
-    @patch("backend.app.services.ssh.key_validator.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_validator.paramiko.Ed25519Key")
     def test_validate_encrypted_key_with_passphrase(
         self, mock_ed25519_class: MagicMock
     ) -> None:
@@ -424,7 +424,7 @@ class TestValidateSSHKey:
 class TestIsKeySecure:
     """Tests for the is_key_secure convenience function."""
 
-    @patch("backend.app.services.ssh.key_validator.validate_ssh_key")
+    @patch("app.services.ssh.key_validator.validate_ssh_key")
     def test_is_key_secure_valid_secure_key(
         self, mock_validate: MagicMock
     ) -> None:
@@ -442,7 +442,7 @@ class TestIsKeySecure:
 
         assert result is True
 
-    @patch("backend.app.services.ssh.key_validator.validate_ssh_key")
+    @patch("app.services.ssh.key_validator.validate_ssh_key")
     def test_is_key_secure_valid_acceptable_key(
         self, mock_validate: MagicMock
     ) -> None:
@@ -460,7 +460,7 @@ class TestIsKeySecure:
 
         assert result is True
 
-    @patch("backend.app.services.ssh.key_validator.validate_ssh_key")
+    @patch("app.services.ssh.key_validator.validate_ssh_key")
     def test_is_key_secure_acceptable_with_secure_minimum(
         self, mock_validate: MagicMock
     ) -> None:
@@ -481,7 +481,7 @@ class TestIsKeySecure:
 
         assert result is False
 
-    @patch("backend.app.services.ssh.key_validator.validate_ssh_key")
+    @patch("app.services.ssh.key_validator.validate_ssh_key")
     def test_is_key_secure_invalid_key(
         self, mock_validate: MagicMock
     ) -> None:
@@ -497,7 +497,7 @@ class TestIsKeySecure:
 
         assert result is False
 
-    @patch("backend.app.services.ssh.key_validator.validate_ssh_key")
+    @patch("app.services.ssh.key_validator.validate_ssh_key")
     def test_is_key_secure_rejected_key(
         self, mock_validate: MagicMock
     ) -> None:
@@ -617,7 +617,7 @@ class TestDetectKeyType:
 class TestParseSSHKey:
     """Tests for the deprecated parse_ssh_key function."""
 
-    @patch("backend.app.services.ssh.key_parser.Ed25519Key")
+    @patch("app.services.ssh.key_parser.Ed25519Key")
     def test_parse_ed25519_key(self, mock_ed25519: MagicMock) -> None:
         """
         Verify Ed25519 key parsing.
@@ -634,7 +634,7 @@ class TestParseSSHKey:
 
         assert result == mock_pkey
 
-    @patch("backend.app.services.ssh.key_parser.Ed25519Key")
+    @patch("app.services.ssh.key_parser.Ed25519Key")
     def test_parse_encrypted_key_no_passphrase(
         self, mock_ed25519: MagicMock
     ) -> None:
@@ -652,9 +652,9 @@ class TestParseSSHKey:
 
         assert "passphrase" in str(exc_info.value).lower()
 
-    @patch("backend.app.services.ssh.key_parser.ECDSAKey")
-    @patch("backend.app.services.ssh.key_parser.RSAKey")
-    @patch("backend.app.services.ssh.key_parser.Ed25519Key")
+    @patch("app.services.ssh.key_parser.ECDSAKey")
+    @patch("app.services.ssh.key_parser.RSAKey")
+    @patch("app.services.ssh.key_parser.Ed25519Key")
     def test_parse_invalid_key_raises_error(
         self,
         mock_ed25519: MagicMock,
@@ -688,7 +688,7 @@ class TestParseSSHKey:
 class TestGetKeyFingerprint:
     """Tests for the get_key_fingerprint function."""
 
-    @patch("backend.app.services.ssh.key_parser.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_parser.paramiko.Ed25519Key")
     def test_get_fingerprint_success(self, mock_ed25519: MagicMock) -> None:
         """
         Verify successful fingerprint generation.
@@ -737,8 +737,8 @@ class TestGetKeyFingerprint:
 class TestGetKeyFingerprintSHA256:
     """Tests for the get_key_fingerprint_sha256 function."""
 
-    @patch("backend.app.services.ssh.key_parser.get_key_fingerprint")
-    @patch("backend.app.services.ssh.key_parser.paramiko.Ed25519Key")
+    @patch("app.services.ssh.key_parser.get_key_fingerprint")
+    @patch("app.services.ssh.key_parser.paramiko.Ed25519Key")
     def test_get_sha256_fingerprint_success(
         self,
         mock_ed25519: MagicMock,
@@ -757,7 +757,7 @@ class TestGetKeyFingerprintSHA256:
         assert result is not None
         assert result.startswith("SHA256:")
 
-    @patch("backend.app.services.ssh.key_parser.get_key_fingerprint")
+    @patch("app.services.ssh.key_parser.get_key_fingerprint")
     def test_get_sha256_fingerprint_invalid_key(
         self, mock_get_fingerprint: MagicMock
     ) -> None:
