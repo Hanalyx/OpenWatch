@@ -361,9 +361,7 @@ class ComplianceRule(Document):
     # Assessment Logic (Enhanced)
     check_type: str = Field(
         default="custom",
-        pattern=(
-            "^(script|command|file|package|service|kernel|multi_parameter|oval|custom|scap|template)$"
-        ),
+        pattern=("^(script|command|file|package|service|kernel|multi_parameter|oval|custom|scap|template)$"),
         description="Type of check to perform",  # noqa: E501
     )
     check_content: Dict[str, Any] = Field(default_factory=dict, description="Detailed check configuration")

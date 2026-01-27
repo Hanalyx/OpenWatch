@@ -478,8 +478,7 @@ async def upload_compliance_rules(
     deduplication_strategy: str = Query(
         DeduplicationStrategy.SKIP_UNCHANGED_UPDATE_CHANGED,
         description=(  # noqa: E501
-            "Deduplication strategy: skip_unchanged_update_changed, skip_existing, "
-            "update_all, fail_on_duplicate"
+            "Deduplication strategy: skip_unchanged_update_changed, skip_existing, " "update_all, fail_on_duplicate"
         ),
     ),
     current_user: Dict[str, Any] = Depends(get_current_user),

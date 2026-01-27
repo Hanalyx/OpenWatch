@@ -590,7 +590,7 @@ async def start_mongodb_scan(
                     "verification_scan": False,
                     "scan_metadata": (
                         f'{{"scan_type": "mongodb", "rule_count": '
-                        f'{len(scan_request.rule_ids) if scan_request.rule_ids else 0}}}'
+                        f"{len(scan_request.rule_ids) if scan_request.rule_ids else 0}}}"
                     ),
                 },
             )

@@ -468,9 +468,7 @@ async def get_compliance_rules(
                     "scap_rule_id": "xccdf_org.ssgproject.content_rule_selinux_enforcing",
                     "metadata": {
                         "name": "Configure SELinux Enforcing Mode",
-                        "description": (
-                            "SELinux should be configured in enforcing mode for mandatory access control"
-                        ),
+                        "description": ("SELinux should be configured in enforcing mode for mandatory access control"),
                         "rationale": (
                             "SELinux enforcing mode provides mandatory access control and prevents "
                             "unauthorized access"
@@ -490,8 +488,7 @@ async def get_compliance_rules(
                             "versions": ["7", "8", "9"],
                             "check_command": "getenforce",
                             "enable_command": (
-                                "setenforce 1 && "
-                                "sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config"
+                                "setenforce 1 && " "sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config"
                             ),
                         }
                     },
