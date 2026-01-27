@@ -93,6 +93,8 @@ jobs:
           DATABASE_URL: postgresql://openwatch:openwatch_test@localhost:5432/openwatch_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET_KEY: test_secret_key_for_ci
+          SECRET_KEY: test_secret_key_for_ci
+          MASTER_KEY: test_master_key_for_ci_32bytes_long
           ENVIRONMENT: test
           TESTING: true
         run: |
