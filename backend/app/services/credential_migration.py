@@ -93,18 +93,14 @@ class CredentialMigrationService:
             logger.info("Migrating system credentials...")
 
             # Get existing system credentials
-            result = self.db.execute(
-                text(
-                    """
+            result = self.db.execute(text("""
                 SELECT id, name, description, username, auth_method,
                        encrypted_password, encrypted_private_key, private_key_passphrase,
                        ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment,
                        is_default, created_by, created_at, updated_at
                 FROM system_credentials
                 WHERE is_active = true
-            """
-                )
-            )
+            """))
 
             migrated_count = 0
 
@@ -117,12 +113,10 @@ class CredentialMigrationService:
 
                     # Check if already migrated
                     check_result = self.db.execute(
-                        text(
-                            """
+                        text("""
                         SELECT id FROM unified_credentials
                         WHERE scope = 'system' AND name = :name
-                    """
-                        ),
+                    """),
                         {"name": row.name},
                     )
 
@@ -134,8 +128,7 @@ class CredentialMigrationService:
                     unified_id = str(row.id)  # Keep same ID
 
                     self.db.execute(
-                        text(
-                            """
+                        text("""
                         INSERT INTO unified_credentials
                         (id, name, description, scope, target_id, username, auth_method,
                          encrypted_password, encrypted_private_key, encrypted_passphrase,
@@ -145,8 +138,7 @@ class CredentialMigrationService:
                                 :encrypted_password, :encrypted_private_key, :encrypted_passphrase,
                                 :ssh_key_fingerprint, :ssh_key_type, :ssh_key_bits, :ssh_key_comment,
                                 :is_default, true, :created_by, :created_at, :updated_at)
-                    """
-                        ),
+                    """),
                         {
                             "id": unified_id,
                             "name": row.name,
@@ -193,18 +185,14 @@ class CredentialMigrationService:
             logger.info("Migrating host credentials...")
 
             # Get hosts with credentials
-            result = self.db.execute(
-                text(
-                    """
+            result = self.db.execute(text("""
                 SELECT id, hostname, username, auth_method, encrypted_credentials,
                        ssh_key_fingerprint, ssh_key_type, ssh_key_bits, ssh_key_comment
                 FROM hosts
                 WHERE encrypted_credentials IS NOT NULL
                 AND username IS NOT NULL
                 AND is_active = true
-            """
-                )
-            )
+            """))
 
             migrated_count = 0
             error_count = 0
@@ -218,12 +206,10 @@ class CredentialMigrationService:
 
                     # Check if already migrated
                     check_result = self.db.execute(
-                        text(
-                            """
+                        text("""
                         SELECT id FROM unified_credentials
                         WHERE scope = 'host' AND target_id = :host_id
-                    """
-                        ),
+                    """),
                         {"host_id": str(row.id)},
                     )
 
@@ -298,35 +284,23 @@ class CredentialMigrationService:
             logger.info("Verifying credential migration...")
 
             # Count original credentials
-            system_result = self.db.execute(
-                text(
-                    """
+            system_result = self.db.execute(text("""
                 SELECT COUNT(*) as count FROM system_credentials WHERE is_active = true
-            """
-                )
-            )
+            """))
             original_system_count = system_result.fetchone().count
 
-            host_result = self.db.execute(
-                text(
-                    """
+            host_result = self.db.execute(text("""
                 SELECT COUNT(*) as count FROM hosts
                 WHERE encrypted_credentials IS NOT NULL AND username IS NOT NULL AND is_active = true
-            """
-                )
-            )
+            """))
             original_host_count = host_result.fetchone().count
 
             # Count migrated credentials
-            unified_result = self.db.execute(
-                text(
-                    """
+            unified_result = self.db.execute(text("""
                 SELECT scope, COUNT(*) as count FROM unified_credentials
                 WHERE is_active = true
                 GROUP BY scope
-            """
-                )
-            )
+            """))
 
             migrated_counts = {}
             for row in unified_result:

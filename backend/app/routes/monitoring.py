@@ -39,12 +39,10 @@ async def check_host_status(
 
         # Get host details
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, hostname, ip_address, port, username, auth_method
             FROM hosts WHERE id = :id
-        """
-            ),
+        """),
             {"id": request.host_id},
         )
 
@@ -145,18 +143,14 @@ async def get_hosts_status_summary(
         from sqlalchemy import text
 
         # Get status breakdown
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
             SELECT
                 status,
                 COUNT(*) as host_count
             FROM hosts
             WHERE is_active = true
             GROUP BY status
-        """
-            )
-        )
+        """))
 
         status_counts: Dict[str, int] = {}
         total: int = 0
@@ -166,17 +160,13 @@ async def get_hosts_status_summary(
             total += row_count
 
         # Calculate average response time from active hosts
-        avg_response_result = db.execute(
-            text(
-                """
+        avg_response_result = db.execute(text("""
             SELECT AVG(response_time_ms) as avg_response
             FROM hosts
             WHERE is_active = true
               AND response_time_ms IS NOT NULL
               AND status != 'down'
-        """
-            )
-        )
+        """))
         avg_response_row = avg_response_result.fetchone()
         avg_response_time = (
             round(avg_response_row.avg_response) if avg_response_row and avg_response_row.avg_response else 0
@@ -185,13 +175,11 @@ async def get_hosts_status_summary(
         # Count monitoring checks performed today
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         checks_today_result = db.execute(
-            text(
-                """
+            text("""
             SELECT COUNT(*) as check_count
             FROM host_monitoring_history
             WHERE check_time >= :today_start
-        """
-            ),
+        """),
             {"today_start": today_start},
         )
         checks_today_row = checks_today_result.fetchone()
@@ -227,11 +215,9 @@ async def ping_host(
 
         # Get host IP
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT ip_address FROM hosts WHERE id = :id
-        """
-            ),
+        """),
             {"id": host_id},
         )
 
@@ -288,14 +274,12 @@ async def jit_connectivity_check(
 
         # Get host details for comprehensive check
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT id, hostname, ip_address, port, username, auth_method,
                    encrypted_credentials, status
             FROM hosts
             WHERE id = :host_id AND is_active = true
-        """
-            ),
+        """),
             {"host_id": host_id},
         )
 
@@ -378,8 +362,7 @@ async def get_host_monitoring_state(
 
         # Get host monitoring state
         result = db.execute(
-            text(
-                """
+            text("""
             SELECT h.id, h.hostname, h.ip_address,
                    h.ping_consecutive_failures, h.ping_consecutive_successes,
                    h.ssh_consecutive_failures, h.ssh_consecutive_successes,
@@ -387,8 +370,7 @@ async def get_host_monitoring_state(
                    h.response_time_ms, h.last_check, h.status
             FROM hosts h
             WHERE h.id = :host_id AND h.is_active = true
-        """
-            ),
+        """),
             {"host_id": host_id},
         )
 
@@ -398,16 +380,14 @@ async def get_host_monitoring_state(
 
         # Get recent history (last 10 checks)
         history_result = db.execute(
-            text(
-                """
+            text("""
             SELECT check_time, monitoring_state, previous_state, response_time_ms,
                    success, error_message, error_type
             FROM host_monitoring_history
             WHERE host_id = :host_id
             ORDER BY check_time DESC
             LIMIT 10
-        """
-            ),
+        """),
             {"host_id": host_id},
         )
 

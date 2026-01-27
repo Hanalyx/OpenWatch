@@ -161,9 +161,7 @@ async def list_hosts(
         # Try to get hosts from database with latest scan information and group details
         # NOTE: This query uses LATERAL JOIN which is PostgreSQL-specific and complex
         # OW-REFACTOR-001B: Keeping original SQL due to LATERAL JOIN complexity
-        result = db.execute(
-            text(
-                """
+        result = db.execute(text("""
             SELECT h.id, h.hostname, h.ip_address, h.display_name, h.operating_system,
                    h.os_family, h.os_version, h.platform_identifier,
                    h.status, h.port, h.username, h.auth_method, h.created_at, h.updated_at, h.description,
@@ -193,9 +191,7 @@ async def list_hosts(
             LEFT JOIN host_group_memberships hgm ON hgm.host_id = h.id
             LEFT JOIN host_groups hg ON hg.id = hgm.group_id
             ORDER BY h.created_at DESC
-        """
-            )
-        )
+        """))
 
         hosts = []
         for row in result:
@@ -325,8 +321,7 @@ async def create_host(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO hosts (
                 id, hostname, ip_address, display_name, operating_system,
                 status, port, username, auth_method, encrypted_credentials,
@@ -337,8 +332,7 @@ async def create_host(
                 :status, :port, :username, :auth_method, :encrypted_credentials,
                 :is_active, :created_at, :updated_at
             )
-        """
-        )
+        """)
 
         db.execute(
             insert_query,
@@ -751,8 +745,7 @@ async def update_host(
 
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET hostname = :hostname,
                 ip_address = :ip_address,
@@ -765,8 +758,7 @@ async def update_host(
                 encrypted_credentials = :encrypted_credentials,
                 updated_at = :updated_at
             WHERE id = :id
-        """
-        )
+        """)
 
         db.execute(update_query, update_params)
 
@@ -880,32 +872,26 @@ async def delete_host(
             # Why: Must delete child records before parent to avoid FK violation
             # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
             # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-            delete_results_query = text(
-                """
+            delete_results_query = text("""
                 DELETE FROM scan_results
                 WHERE scan_id IN (SELECT id FROM scans WHERE host_id = :host_id)
-            """
-            )
+            """)
             db.execute(delete_results_query, {"host_id": host_uuid})
 
             # Then delete scans
-            delete_scans_query = text(
-                """
+            delete_scans_query = text("""
                 DELETE FROM scans
                 WHERE host_id = :host_id
-            """
-            )
+            """)
             db.execute(delete_scans_query, {"host_id": host_uuid})
 
             logger.info(f"Deleted {scan_count} scans for host {host_id}")
 
         # Delete the host record
-        delete_host_query = text(
-            """
+        delete_host_query = text("""
             DELETE FROM hosts
             WHERE id = :id
-        """
-        )
+        """)
         db.execute(delete_host_query, {"id": host_uuid})
 
         db.commit()
@@ -955,8 +941,7 @@ async def delete_host_ssh_key(
         # Clear SSH key fields (set to NULL)
         # NOTE: QueryBuilder is for SELECT queries only (OW-REFACTOR-001B)
         # For INSERT/UPDATE/DELETE, use raw SQL with parameterized queries
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET ssh_key_fingerprint = NULL,
                 ssh_key_type = NULL,
@@ -964,8 +949,7 @@ async def delete_host_ssh_key(
                 ssh_key_comment = NULL,
                 updated_at = :updated_at
             WHERE id = :id
-        """
-        )
+        """)
         db.execute(update_query, {"id": host_uuid, "updated_at": datetime.utcnow()})
 
         db.commit()
@@ -1363,8 +1347,7 @@ async def detect_platform_jit(
             )
 
         # Persist detected platform to database for future use
-        update_query = text(
-            """
+        update_query = text("""
             UPDATE hosts
             SET os_family = :os_family,
                 os_version = :os_version,
@@ -1374,8 +1357,7 @@ async def detect_platform_jit(
                 last_os_detection = :last_os_detection,
                 updated_at = :updated_at
             WHERE id = :host_id
-        """
-        )
+        """)
         now = datetime.utcnow()
         db.execute(
             update_query,

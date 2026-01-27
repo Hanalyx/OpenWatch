@@ -164,14 +164,12 @@ async def update_os_discovery_config(
             # Note: QueryBuilder doesn't support ON CONFLICT syntax directly,
             # so we use parameterized raw SQL which is still safe from injection
             db.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO system_settings (setting_key, setting_value, updated_at)
                     VALUES (:key, :value, CURRENT_TIMESTAMP)
                     ON CONFLICT (setting_key)
                     DO UPDATE SET setting_value = :value, updated_at = CURRENT_TIMESTAMP
-                    """
-                ),
+                    """),
                 {"key": "os_discovery_enabled", "value": str(config.enabled).lower()},
             )
             db.commit()
@@ -222,14 +220,10 @@ async def get_os_discovery_stats(
         # Count hosts with platform_identifier set
         # Using raw parameterized query for COUNT with WHERE clause
         # (QueryBuilder count_query doesn't support WHERE conditions)
-        with_platform_result = db.execute(
-            text(
-                """
+        with_platform_result = db.execute(text("""
                 SELECT COUNT(*) as count FROM hosts
                 WHERE platform_identifier IS NOT NULL AND platform_identifier != ''
-                """
-            )
-        )
+                """))
         hosts_with_platform = with_platform_result.fetchone().count
 
         # Get discovery failures from system_settings using QueryBuilder
@@ -362,13 +356,11 @@ async def acknowledge_discovery_failures(
                     if remaining:
                         # Update with remaining failures
                         db.execute(
-                            text(
-                                """
+                            text("""
                                 UPDATE system_settings
                                 SET setting_value = :value, updated_at = CURRENT_TIMESTAMP
                                 WHERE setting_key = :key
-                                """
-                            ),
+                                """),
                             {"value": json.dumps(remaining), "key": "os_discovery_failures"},
                         )
                     else:

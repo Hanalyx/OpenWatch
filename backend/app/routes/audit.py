@@ -192,8 +192,7 @@ async def get_audit_stats(
         date_from = datetime.utcnow() - timedelta(days=days)
 
         # Get statistics
-        stats_query = text(
-            """
+        stats_query = text("""
             SELECT  # noqa: E501
                 COUNT(*) as total_events,
                 COUNT(CASE WHEN action LIKE '%LOGIN%' THEN 1 END) as login_attempts,  # noqa: E501
@@ -208,8 +207,7 @@ async def get_audit_stats(
                 COUNT(DISTINCT ip_address) as unique_ips
             FROM audit_logs
             WHERE timestamp >= :date_from
-        """
-        )
+        """)
 
         result = db.execute(stats_query, {"date_from": date_from})
         row = result.fetchone()
@@ -262,14 +260,12 @@ async def create_audit_log(
 
         # This would typically be called internally by the system
         # For now, we'll create a simple log entry
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO audit_logs (
                 user_id, action, resource_type, resource_id, ip_address, details, timestamp
             )
             VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :details, :timestamp)
-        """
-        )
+        """)
 
         db.execute(
             insert_query,
@@ -308,14 +304,12 @@ def log_audit_event(
     Helper function to create audit log entries from middleware
     """
     try:
-        insert_query = text(
-            """
+        insert_query = text("""
             INSERT INTO audit_logs (
                 user_id, action, resource_type, resource_id, ip_address, user_agent, details, timestamp
             )
             VALUES (:user_id, :action, :resource_type, :resource_id, :ip_address, :user_agent, :details, :timestamp)
-        """
-        )
+        """)
 
         db.execute(
             insert_query,

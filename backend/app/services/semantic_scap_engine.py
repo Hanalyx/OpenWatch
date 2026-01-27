@@ -657,8 +657,7 @@ class SemanticSCAPEngine:
             try:
                 # Store in semantic_scan_analysis table
                 db.execute(
-                    text(
-                        """
+                    text("""
                     INSERT INTO semantic_scan_analysis
                     (scan_id, host_id, semantic_rules_count, frameworks_analyzed,
                      remediation_available_count, processing_metadata, analysis_data, created_at)
@@ -671,8 +670,7 @@ class SemanticSCAPEngine:
                         processing_metadata = EXCLUDED.processing_metadata,
                         analysis_data = EXCLUDED.analysis_data,
                         updated_at = :created_at
-                """
-                    ),
+                """),
                     {
                         "scan_id": result.scan_id,
                         "host_id": result.host_id,
@@ -701,12 +699,10 @@ class SemanticSCAPEngine:
             db = next(get_db())
             try:
                 result = db.execute(
-                    text(
-                        """
+                    text("""
                     SELECT analysis_data FROM semantic_scan_analysis
                     WHERE scan_id = :scan_id
-                """
-                    ),
+                """),
                     {"scan_id": scan_id},
                 ).fetchone()
 
