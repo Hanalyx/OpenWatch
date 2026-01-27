@@ -7,7 +7,7 @@
 fastapi==0.128.0  # Latest stable (Nov 2025), supports starlette 0.49.1+
 uvicorn[standard]==0.40.0
 starlette==0.50.0  # Security: CVE-2025-62727 fixed (O(n²) DoS via HTTP Range header)
-python-multipart==0.0.21
+python-multipart==0.0.22
 
 # Database
 SQLAlchemy==2.0.45
@@ -31,7 +31,7 @@ PyJWT==2.10.1  # Security: CVE-2024-33663 fixed
 passlib==1.7.4
 bcrypt==5.0.0
 argon2-cffi==25.1.0  # Updated for Python 3.12+ (from 23.1.0, Dependabot PR recommendation)
-python-multipart==0.0.21
+python-multipart==0.0.22
 pyotp==2.9.0
 qrcode==7.4.2
 cryptography==46.0.3  # Security: CVE-2024-26130, CVE-2024-0727 fixed (latest stable)
