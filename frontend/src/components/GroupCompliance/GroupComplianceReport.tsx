@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   LinearProgress,
   Chip,
   Table,
@@ -27,6 +26,7 @@ import {
   DialogContent,
   CircularProgress,
 } from '@mui/material';
+import GridLegacy from '@mui/material/GridLegacy';
 import {
   Assessment,
   Warning,
@@ -282,8 +282,8 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
       </Box>
 
       {/* Key Metrics Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <GridLegacy container spacing={3} sx={{ mb: 3 }}>
+        <GridLegacy item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -311,9 +311,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </GridLegacy>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <GridLegacy item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -329,9 +329,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </GridLegacy>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <GridLegacy item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -347,9 +347,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </GridLegacy>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <GridLegacy item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -365,13 +365,13 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </Box>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </GridLegacy>
+      </GridLegacy>
 
       {/* Charts Section */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <GridLegacy container spacing={3} sx={{ mb: 3 }}>
         {/* Compliance Trend */}
-        <Grid item xs={12} md={8}>
+        <GridLegacy item xs={12} md={8}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -387,7 +387,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
                   <YAxis domain={[0, 100]} />
                   <RechartsTooltip
                     labelFormatter={(date) => new Date(date).toLocaleDateString()}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Compliance Score']}
+                    formatter={(value: number | undefined) =>
+                      value !== undefined ? [`${value.toFixed(1)}%`, 'Compliance Score'] : ['N/A', 'Compliance Score']
+                    }
                   />
                   <Line
                     type="monotone"
@@ -400,10 +402,10 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </Grid>
+        </GridLegacy>
 
         {/* Risk Distribution */}
-        <Grid item xs={12} md={4}>
+        <GridLegacy item xs={12} md={4}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -416,7 +418,9 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }: { name: string; percent?: number }) =>
+                      percent !== undefined ? `${name}: ${(percent * 100).toFixed(0)}%` : `${name}: N/A`
+                    }
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -430,8 +434,8 @@ export const GroupComplianceReport: React.FC<ComplianceReportProps> = ({ groupId
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </GridLegacy>
+      </GridLegacy>
 
       {/* Framework Distribution */}
       {formatFrameworkDistribution().length > 0 && (
