@@ -260,9 +260,7 @@ class PluginAnalyticsService:
     def __init__(self) -> None:
         """Initialize plugin analytics service."""
         self.plugin_registry_service = PluginRegistryService()
-        self.metrics_buffer: Dict[str, deque[PluginMetric]] = defaultdict(
-            lambda: deque(maxlen=10000)
-        )
+        self.metrics_buffer: Dict[str, deque[PluginMetric]] = defaultdict(lambda: deque(maxlen=10000))
         self.analytics_cache: Dict[str, Any] = {}
         self.monitoring_enabled = False
         self.collection_task: Optional[asyncio.Task[None]] = None
@@ -352,9 +350,7 @@ class PluginAnalyticsService:
             start_time = end_time - timedelta(days=7)
 
         # Get raw metrics
-        metrics = await self.get_plugin_metrics(
-            plugin_id, metric_type, start_time, end_time, limit=10000
-        )
+        metrics = await self.get_plugin_metrics(plugin_id, metric_type, start_time, end_time, limit=10000)
 
         # Filter by metric name
         metrics = [m for m in metrics if m.metric_name == metric_name]
@@ -422,35 +418,25 @@ class PluginAnalyticsService:
         plugin_name = plugin.name if plugin else plugin_id
 
         # Get execution metrics
-        execution_metrics = await self.get_plugin_metrics(
-            plugin_id, MetricType.USAGE, start_time, end_time
-        )
+        execution_metrics = await self.get_plugin_metrics(plugin_id, MetricType.USAGE, start_time, end_time)
 
         # Get performance metrics
-        performance_metrics = await self.get_plugin_metrics(
-            plugin_id, MetricType.PERFORMANCE, start_time, end_time
-        )
+        performance_metrics = await self.get_plugin_metrics(plugin_id, MetricType.PERFORMANCE, start_time, end_time)
 
         # Calculate basic statistics
         total_executions = len([m for m in execution_metrics if m.metric_name == "execution_count"])
-        successful_executions = len(
-            [m for m in execution_metrics if m.metric_name == "successful_execution"]
-        )
+        successful_executions = len([m for m in execution_metrics if m.metric_name == "successful_execution"])
         failed_executions = total_executions - successful_executions
 
         # Calculate average execution time
-        execution_times = [
-            m.value for m in performance_metrics if m.metric_name == "execution_time"
-        ]
+        execution_times = [m.value for m in performance_metrics if m.metric_name == "execution_time"]
         avg_execution_time = statistics.mean(execution_times) if execution_times else None
 
         # Analyze usage patterns
         usage_patterns = self._analyze_usage_patterns(execution_metrics)
 
         # Get resource metrics
-        resource_metrics = await self.get_plugin_metrics(
-            plugin_id, MetricType.RESOURCE, start_time, end_time
-        )
+        resource_metrics = await self.get_plugin_metrics(plugin_id, MetricType.RESOURCE, start_time, end_time)
 
         # Calculate resource consumption
         cpu_metrics = [m.value for m in resource_metrics if m.metric_name == "cpu_usage"]
@@ -499,7 +485,7 @@ class PluginAnalyticsService:
                     plugin_id=plugin_id,
                     recommendation_type=OptimizationRecommendationType.PERFORMANCE,
                     title="Optimize Execution Time",
-                    description=f"Plugin execution time averages {usage_stats.average_execution_time:.1f}s, which is above optimal range (< 30s).",
+                    description=f"Plugin execution time averages {usage_stats.average_execution_time:.1f}s, which is above optimal range (< 30s).",  # noqa: E501
                     impact_level="medium",
                     confidence_score=0.8,
                     implementation_effort="medium",
@@ -535,7 +521,7 @@ class PluginAnalyticsService:
                         plugin_id=plugin_id,
                         recommendation_type=OptimizationRecommendationType.RESOURCE,
                         title="Optimize CPU Usage",
-                        description=f"High CPU usage per execution ({avg_cpu_per_execution:.1f}s). Consider optimization.",
+                        description=f"High CPU usage per execution ({avg_cpu_per_execution:.1f}s). Consider optimization.",  # noqa: E501
                         impact_level="medium",
                         confidence_score=0.7,
                         implementation_effort="medium",
@@ -546,9 +532,7 @@ class PluginAnalyticsService:
 
         return recommendations
 
-    async def generate_performance_report(
-        self, plugin_id: str, lookback_days: int = 30
-    ) -> PluginPerformanceReport:
+    async def generate_performance_report(self, plugin_id: str, lookback_days: int = 30) -> PluginPerformanceReport:
         """Generate a comprehensive performance report for a plugin"""
 
         end_time = datetime.utcnow()
@@ -650,9 +634,7 @@ class PluginAnalyticsService:
         bottom_performers = plugin_scores[-5:] if len(plugin_scores) > 5 else []
 
         # Calculate overall system health
-        overall_health = min(
-            100.0, success_rate * 100 + (1 - min(system_cpu_usage / 1000, 1.0)) * 20
-        )
+        overall_health = min(100.0, success_rate * 100 + (1 - min(system_cpu_usage / 1000, 1.0)) * 20)
 
         # Detect bottlenecks
         bottlenecks = []
@@ -684,9 +666,7 @@ class PluginAnalyticsService:
         while self.monitoring_enabled:
             try:
                 # Collect metrics from all active plugins
-                plugins = await self.plugin_registry_service.find_plugins(
-                    {"status": PluginStatus.ACTIVE}
-                )
+                plugins = await self.plugin_registry_service.find_plugins({"status": PluginStatus.ACTIVE})
 
                 for plugin in plugins:
                     await self._collect_plugin_metrics(plugin)
@@ -763,9 +743,7 @@ class PluginAnalyticsService:
                     hour=0, minute=0, second=0, microsecond=0
                 )
             elif period == AggregationPeriod.MONTH:
-                period_start = metric.timestamp.replace(
-                    day=1, hour=0, minute=0, second=0, microsecond=0
-                )
+                period_start = metric.timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             else:
                 period_start = metric.timestamp
 
@@ -861,9 +839,7 @@ class PluginAnalyticsService:
 
         return {"peak_hour": peak_hour, "avg_daily": avg_daily, "trend": trend}
 
-    def _calculate_availability(
-        self, plugin_id: str, start_time: datetime, end_time: datetime
-    ) -> float:
+    def _calculate_availability(self, plugin_id: str, start_time: datetime, end_time: datetime) -> float:
         """Calculate plugin availability percentage"""
         # This would calculate actual availability based on health checks
         # For now, return mock availability based on plugin ID
@@ -886,10 +862,7 @@ class PluginAnalyticsService:
 
         # Performance factor (30% of score)
         performance_score = 30  # Default
-        if (
-            "execution_time" in performance_metrics
-            and performance_metrics["execution_time"].avg_value
-        ):
+        if "execution_time" in performance_metrics and performance_metrics["execution_time"].avg_value:
             avg_time = performance_metrics["execution_time"].avg_value
             if avg_time <= 10:
                 performance_score = 30
@@ -922,9 +895,7 @@ class PluginAnalyticsService:
         else:
             return "critical"
 
-    def _analyze_performance_trends(
-        self, performance_metrics: Dict[str, PluginMetricSummary]
-    ) -> List[Dict[str, Any]]:
+    def _analyze_performance_trends(self, performance_metrics: Dict[str, PluginMetricSummary]) -> List[Dict[str, Any]]:
         """Analyze performance trends"""
         trends = []
 

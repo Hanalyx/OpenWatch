@@ -81,7 +81,9 @@ def init_roles(db: Session):
                 permissions_json = json.dumps([p.value for p in ROLE_PERMISSIONS[role_name]])
                 db.execute(
                     text("""
-                    INSERT INTO roles (name, display_name, description, permissions, is_active, created_at, updated_at)
+                    INSERT INTO roles (
+                        name, display_name, description, permissions, is_active, created_at, updated_at  # noqa: E501
+                    )
                     VALUES (:name, :display_name, :description, :permissions, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """),
                     {
@@ -121,9 +123,12 @@ def create_default_super_admin(db: Session):
 
             hashed_password = pwd_context.hash("admin123")  # Default password - should be changed
 
-            db.execute(
+            db.execute(  # noqa: E501
                 text("""
-                INSERT INTO users (id, username, email, hashed_password, role, is_active, created_at, failed_login_attempts, mfa_enabled)
+                INSERT INTO users (
+                    id, username, email, hashed_password, role, is_active,
+                    created_at, failed_login_attempts, mfa_enabled
+                )
                 VALUES (1, 'admin', 'admin@example.com', :password, 'super_admin', true, CURRENT_TIMESTAMP, 0, false)
             """),
                 {"password": hashed_password},

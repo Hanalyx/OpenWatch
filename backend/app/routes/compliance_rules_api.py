@@ -203,16 +203,12 @@ async def get_compliance_rules(
     offset: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(25, ge=1, le=100, description="Number of rules to return"),
     framework: Optional[str] = Query(None, description="Filter by framework (nist, cis, stig)"),
-    severity: Optional[str] = Query(
-        None, description="Filter by severity (high, medium, low, info)"
-    ),
+    severity: Optional[str] = Query(None, description="Filter by severity (high, medium, low, info)"),
     category: Optional[str] = Query(None, description="Filter by category"),
     platform: Optional[str] = Query(None, description="Filter by platform (rhel, ubuntu)"),
     search: Optional[str] = Query(None, description="Search in rule name, description, or ID"),
     is_latest: bool = Query(True, description="Filter by latest version of rules (default: True)"),
-    view_mode: Optional[str] = Query(
-        None, description="Special view mode: 'platform_statistics' for platform stats"
-    ),
+    view_mode: Optional[str] = Query(None, description="Special view mode: 'platform_statistics' for platform stats"),
     mongo_service: MongoServiceType = Depends(get_mongo_service),
 ) -> ComplianceRulesListResponse:
     """
@@ -248,15 +244,16 @@ async def get_compliance_rules(
                     message=f"Retrieved statistics for {result.get('total_platforms', 0)} platforms",
                 )
             except Exception as e:
-                logger.warning(
-                    f"MongoDB platform statistics failed, using converted rules fallback: {e}"
-                )
+                logger.warning(f"MongoDB platform statistics failed, using converted rules fallback: {e}")
                 # Fallback to analyzing converted rules directly
                 result = await get_platform_statistics_from_files()
                 return ComplianceRulesListResponse(
                     success=True,
                     data=result,
-                    message=f"Retrieved statistics for {result.get('total_platforms', 0)} platforms (from converted files)",
+                    message=(  # noqa: E501
+                        f"Retrieved statistics for {result.get('total_platforms', 0)} platforms "
+                        "(from converted files)"
+                    ),
                 )
 
         # Handle framework statistics request
@@ -331,17 +328,22 @@ async def get_compliance_rules(
             mock_rules = [
                 {
                     "rule_id": "ow-ssh-root-login-disabled",
-                    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_disable_root_login",
-                    "metadata": {
+                    "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_disable_root_login",  # noqa: E501
+                    "metadata": {  # noqa: E501
                         "name": "Disable SSH Root Login",
-                        "description": "The root user should never be allowed to login to a system directly over a network",
-                        "rationale": "Disallowing root logins over SSH requires system admins to authenticate using their own individual account",
+                        "description": (
+                            "The root user should never be allowed to login to a system directly over a network"
+                        ),
+                        "rationale": (
+                            "Disallowing root logins over SSH requires system admins to authenticate "
+                            "using their own individual account"
+                        ),
                         "source": "MongoDB Compliance Database",
                     },
                     "severity": "high",
                     "category": "authentication",
                     "tags": ["ssh", "authentication", "root_access"],
-                    "frameworks": {
+                    "frameworks": {  # noqa: E501
                         "nist": {"800-53r5": ["AC-6", "IA-2"]},
                         "cis": {"rhel8_v2.0.0": ["5.2.8"]},
                     },
@@ -349,7 +351,9 @@ async def get_compliance_rules(
                         "rhel": {
                             "versions": ["8", "9"],
                             "check_command": "grep '^PermitRootLogin no' /etc/ssh/sshd_config",
-                            "enable_command": "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
+                            "enable_command": (
+                                "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config"
+                            ),
                         }
                     },
                     "dependencies": {
@@ -455,7 +459,7 @@ async def get_compliance_rules(
                         "requires": [],
                         "conflicts": [],
                         "related": ["ow-log-rotation", "ow-rsyslog-config"],
-                    },
+                    },  # noqa: E501
                     "created_at": "2025-01-01T12:00:00Z",
                     "updated_at": "2025-09-05T19:00:00Z",
                 },
@@ -464,8 +468,13 @@ async def get_compliance_rules(
                     "scap_rule_id": "xccdf_org.ssgproject.content_rule_selinux_enforcing",
                     "metadata": {
                         "name": "Configure SELinux Enforcing Mode",
-                        "description": "SELinux should be configured in enforcing mode for mandatory access control",
-                        "rationale": "SELinux enforcing mode provides mandatory access control and prevents unauthorized access",
+                        "description": (
+                            "SELinux should be configured in enforcing mode for mandatory access control"
+                        ),
+                        "rationale": (
+                            "SELinux enforcing mode provides mandatory access control and prevents "
+                            "unauthorized access"
+                        ),  # noqa: E501
                         "source": "MongoDB Compliance Database",
                     },
                     "severity": "high",
@@ -480,7 +489,10 @@ async def get_compliance_rules(
                         "rhel": {
                             "versions": ["7", "8", "9"],
                             "check_command": "getenforce",
-                            "enable_command": "setenforce 1 && sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config",
+                            "enable_command": (
+                                "setenforce 1 && "
+                                "sed -i s/SELINUX=.*/SELINUX=enforcing/ /etc/selinux/config"
+                            ),
                         }
                     },
                     "dependencies": {
@@ -514,25 +526,17 @@ async def get_compliance_rules(
                 filtered_rules = filtered_result
 
             if severity:
-                filtered_rules = [
-                    rule for rule in filtered_rules if rule.get("severity") == severity
-                ]
+                filtered_rules = [rule for rule in filtered_rules if rule.get("severity") == severity]
 
             if category:
-                filtered_rules = [
-                    rule for rule in filtered_rules if rule.get("category") == category
-                ]
+                filtered_rules = [rule for rule in filtered_rules if rule.get("category") == category]
 
             if framework:
-                filtered_rules = [
-                    rule for rule in filtered_rules if framework in rule.get("frameworks", {})
-                ]
+                filtered_rules = [rule for rule in filtered_rules if framework in rule.get("frameworks", {})]
 
             if platform:
                 filtered_rules = [
-                    rule
-                    for rule in filtered_rules
-                    if platform in rule.get("platform_implementations", {})
+                    rule for rule in filtered_rules if platform in rule.get("platform_implementations", {})
                 ]
 
             # Apply pagination to mock rules
@@ -558,14 +562,10 @@ async def get_compliance_rules(
             updated_at_raw = rule_dict.get("updated_at")
 
             created_at_str = (
-                created_at_raw.isoformat()
-                if isinstance(created_at_raw, datetime)
-                else str(created_at_raw or "")
+                created_at_raw.isoformat() if isinstance(created_at_raw, datetime) else str(created_at_raw or "")
             )
             updated_at_str = (
-                updated_at_raw.isoformat()
-                if isinstance(updated_at_raw, datetime)
-                else str(updated_at_raw or "")
+                updated_at_raw.isoformat() if isinstance(updated_at_raw, datetime) else str(updated_at_raw or "")
             )
 
             # Ensure required fields exist with safe defaults
@@ -595,7 +595,7 @@ async def get_compliance_rules(
 
         return ComplianceRulesListResponse(
             success=True,
-            data={
+            data={  # noqa: E501
                 "rules": rule_list,
                 "total_count": total_count,
                 "offset": offset,
@@ -609,8 +609,11 @@ async def get_compliance_rules(
                     "platform": platform,
                     "search": search,
                 },
-            },
-            message=f"MongoDB Connected: {total_count} compliance rules in database{' (mock data)' if not MONGO_AVAILABLE else ''}",
+            },  # noqa: E501
+            message=(
+                f"MongoDB Connected: {total_count} compliance rules in database"
+                f"{' (mock data)' if not MONGO_AVAILABLE else ''}"
+            ),
         )
 
     except Exception as e:
@@ -624,7 +627,10 @@ async def get_compliance_rules(
                 "metadata": {
                     "name": "Disable SSH Root Login",
                     "description": "The root user should never be allowed to login to a system directly over a network",
-                    "rationale": "Disallowing root logins over SSH requires system admins to authenticate using their own individual account",
+                    "rationale": (
+                        "Disallowing root logins over SSH requires system admins to authenticate "
+                        "using their own individual account"
+                    ),
                     "source": "MongoDB",
                 },
                 "severity": "high",
@@ -805,7 +811,8 @@ async def get_semantic_rules_for_scan(
             transformed_rules.append(transformed_rule)
 
         logger.info(
-            f"Retrieved {len(transformed_rules)} semantic rules for scan wizard (framework={framework}, platform={platform}, business_impact={business_impact})"
+            f"Retrieved {len(transformed_rules)} semantic rules for scan wizard "
+            f"(framework={framework}, platform={platform}, business_impact={business_impact})"
         )
 
         return {"rules": transformed_rules, "total": len(transformed_rules)}
@@ -921,8 +928,7 @@ async def get_available_frameworks() -> Dict[str, Any]:
         }
 
         frameworks_with_display = [
-            {"value": fw, "label": framework_display_map.get(fw, fw.upper())}
-            for fw in frameworks_list
+            {"value": fw, "label": framework_display_map.get(fw, fw.upper())} for fw in frameworks_list
         ]
 
         logger.info(f"Retrieved {len(frameworks_with_display)} available frameworks from MongoDB")

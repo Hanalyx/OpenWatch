@@ -135,8 +135,7 @@ async def check_component_detection(
             detected_components = _map_packages_to_components(packages)
             components.update(detected_components)
             logger.info(
-                f"Detected {len(packages)} packages, {len(detected_components)} "
-                f"components on {host.hostname}",
+                f"Detected {len(packages)} packages, {len(detected_components)} " f"components on {host.hostname}",
                 extra={
                     "host_id": str(host.id),
                     "user_id": user_id,
@@ -225,9 +224,7 @@ async def _detect_gui(ssh_context: "SSHConnectionContext", hostname: str) -> boo
     try:
         # Check if graphical.target is active
         # Exit code 0 = active, non-zero = inactive/not-found
-        result = await ssh_context.execute_command(
-            command="systemctl is-active graphical.target", timeout=5
-        )
+        result = await ssh_context.execute_command(command="systemctl is-active graphical.target", timeout=5)
 
         if result.exit_code == 0 and "active" in result.stdout.lower():
             logger.debug(f"graphical.target is active on {hostname}")
@@ -253,9 +250,7 @@ async def _detect_gui(ssh_context: "SSHConnectionContext", hostname: str) -> boo
         return False
 
 
-async def _detect_installed_packages(
-    ssh_context: "SSHConnectionContext", hostname: str
-) -> tuple[Set[str], str]:
+async def _detect_installed_packages(ssh_context: "SSHConnectionContext", hostname: str) -> tuple[Set[str], str]:
     """
     Detect installed packages using system package manager.
 
@@ -295,9 +290,7 @@ async def _detect_installed_packages(
 
         if "RPM_NOT_AVAILABLE" not in rpm_result.stdout:
             # RPM-based system detected
-            packages = set(
-                pkg.strip() for pkg in rpm_result.stdout.strip().split("\n") if pkg.strip()
-            )
+            packages = set(pkg.strip() for pkg in rpm_result.stdout.strip().split("\n") if pkg.strip())
             logger.debug(f"Detected {len(packages)} RPM packages on {hostname}")
             return packages, "rpm"
 
@@ -309,9 +302,7 @@ async def _detect_installed_packages(
 
         if deb_result.exit_code == 0 and deb_result.stdout:
             # DEB-based system detected
-            packages = set(
-                pkg.strip() for pkg in deb_result.stdout.strip().split("\n") if pkg.strip()
-            )
+            packages = set(pkg.strip() for pkg in deb_result.stdout.strip().split("\n") if pkg.strip())
             logger.debug(f"Detected {len(packages)} DEB packages on {hostname}")
             return packages, "dpkg"
 

@@ -217,8 +217,13 @@ def add_openapi_examples(schema: Dict[str, Any]) -> Dict[str, Any]:
         "scap_rule_id": "xccdf_org.ssgproject.content_rule_sshd_disable_root_login",
         "metadata": {
             "name": "Disable SSH Root Login",
-            "description": "The root user should never be allowed to login to a system directly over a network",
-            "rationale": "Disallowing root logins over SSH requires system admins to authenticate using their own individual account",
+            "description": (
+                "The root user should never be allowed to login to a system directly over a network"  # noqa: E501
+            ),
+            "rationale": (
+                "Disallowing root logins over SSH requires system admins to authenticate "
+                "using their own individual account"
+            ),
             "source": "SCAP",
         },
         "abstract": False,
@@ -232,9 +237,12 @@ def add_openapi_examples(schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "platform_implementations": {
             "rhel": {
-                "versions": ["8", "9"],
+                "versions": ["8", "9"],  # noqa: E501
                 "check_command": "grep '^PermitRootLogin no' /etc/ssh/sshd_config",
-                "enable_command": "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl restart sshd",
+                "enable_command": (
+                    "sed -i 's/^#?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && "
+                    "systemctl restart sshd"
+                ),
                 "config_files": ["/etc/ssh/sshd_config"],
             }
         },
@@ -377,10 +385,8 @@ def create_custom_swagger_ui(
     swagger_ui_html = get_swagger_ui_html(
         openapi_url=openapi_url,
         title=title,
-        swagger_js_url=swagger_js_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
-        swagger_css_url=swagger_css_url
-        or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+        swagger_js_url=swagger_js_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+        swagger_css_url=swagger_css_url or "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
     ).body.decode()
 
     # Add custom CSS and branding
@@ -448,8 +454,7 @@ def create_custom_redoc(
     redoc_html = get_redoc_html(
         openapi_url=openapi_url,
         title=title,
-        redoc_js_url=redoc_js_url
-        or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
+        redoc_js_url=redoc_js_url or "https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
     ).body.decode()
 
     # Add custom ReDoc configuration
@@ -513,8 +518,6 @@ def setup_openapi_docs(app: FastAPI) -> FastAPI:
     @app.get("/redoc", include_in_schema=False)
     async def custom_redoc_html() -> HTMLResponse:
         """Render custom ReDoc documentation."""
-        return create_custom_redoc(
-            openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation"
-        )
+        return create_custom_redoc(openapi_url=app.openapi_url, title="OpenWatch API - Reference Documentation")
 
     return app

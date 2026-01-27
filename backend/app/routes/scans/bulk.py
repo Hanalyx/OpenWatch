@@ -112,9 +112,7 @@ async def create_bulk_scan(
             session_id=session.id,
             message=f"Bulk scan session created for {session.total_hosts} hosts",
             total_hosts=session.total_hosts,
-            estimated_completion=(
-                session.estimated_completion.timestamp() if session.estimated_completion else 0
-            ),
+            estimated_completion=(session.estimated_completion.timestamp() if session.estimated_completion else 0),
             scan_ids=session.scan_ids or [],
         )
 

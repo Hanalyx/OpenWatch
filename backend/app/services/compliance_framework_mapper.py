@@ -74,7 +74,7 @@ class ComplianceFrameworkMapper:
                     control_id="SV-230221r792832",
                     control_title="SSH daemon must disable root login",
                     control_family="Access Control",
-                    implementation_guidance="Configure SSH daemon to prevent root login by setting PermitRootLogin to 'no' in /etc/ssh/sshd_config",
+                    implementation_guidance="Configure SSH daemon to prevent root login by setting PermitRootLogin to 'no' in /etc/ssh/sshd_config",  # noqa: E501
                     assessment_objectives=[
                         "Verify PermitRootLogin is set to 'no'",
                         "Verify SSH service is restarted after changes",
@@ -88,7 +88,7 @@ class ComplianceFrameworkMapper:
                     control_id="AC-6(2)",
                     control_title="Non-Privileged Access for Nonsecurity Functions",
                     control_family="Access Control",
-                    implementation_guidance="Require users to use non-privileged accounts when accessing nonsecurity functions",
+                    implementation_guidance="Require users to use non-privileged accounts when accessing nonsecurity functions",  # noqa: E501
                     assessment_objectives=[
                         "Verify root access is restricted",
                         "Ensure privilege escalation is controlled",
@@ -102,7 +102,7 @@ class ComplianceFrameworkMapper:
                     control_id="5.4",
                     control_title="Restrict Administrator Privileges to Dedicated Administrator Accounts",
                     control_family="Account Management",
-                    implementation_guidance="Ensure administrative privileges are restricted to dedicated admin accounts",
+                    implementation_guidance="Ensure administrative privileges are restricted to dedicated admin accounts",  # noqa: E501
                     assessment_objectives=[
                         "Verify separation of admin and user accounts",
                         "Confirm root login restrictions",
@@ -116,7 +116,7 @@ class ComplianceFrameworkMapper:
                     control_id="AC.L2-3.1.5",
                     control_title="Employ the principle of least privilege",
                     control_family="Access Control",
-                    implementation_guidance="Employ the principle of least privilege, including for specific security functions and privileged accounts",
+                    implementation_guidance="Employ the principle of least privilege, including for specific security functions and privileged accounts",  # noqa: E501
                     assessment_objectives=[
                         "Verify least privilege implementation",
                         "Assess privileged account restrictions",
@@ -161,7 +161,7 @@ class ComplianceFrameworkMapper:
                     control_id="5.2",
                     control_title="Use Unique Passwords",
                     control_family="Account Management",
-                    implementation_guidance="Ensure all accounts have unique, complex passwords meeting minimum requirements",
+                    implementation_guidance="Ensure all accounts have unique, complex passwords meeting minimum requirements",  # noqa: E501
                     assessment_objectives=[
                         "Verify password policy enforcement",
                         "Check password uniqueness requirements",
@@ -175,7 +175,7 @@ class ComplianceFrameworkMapper:
                     control_id="IA.L2-3.5.7",
                     control_title="Enforce a minimum password complexity",
                     control_family="Identification and Authentication",
-                    implementation_guidance="Enforce a minimum password complexity and change of characters when new passwords are created",
+                    implementation_guidance="Enforce a minimum password complexity and change of characters when new passwords are created",  # noqa: E501
                     assessment_objectives=[
                         "Verify password complexity requirements",
                         "Test password change enforcement",
@@ -234,7 +234,7 @@ class ComplianceFrameworkMapper:
                     control_id="AU.L2-3.3.1",
                     control_title="Create and retain system audit logs",
                     control_family="Audit and Accountability",
-                    implementation_guidance="Create and retain system audit logs and records to monitor, analyze, investigate, and report unlawful or unauthorized activity",
+                    implementation_guidance="Create and retain system audit logs and records to monitor, analyze, investigate, and report unlawful or unauthorized activity",  # noqa: E501
                     assessment_objectives=[
                         "Verify audit log generation",
                         "Confirm retention policies",
@@ -477,9 +477,7 @@ class ComplianceFrameworkMapper:
             aegis_rule_id=self._get_aegis_rule_id(scap_rule_id),
         )
 
-    def _infer_mappings_from_rule_id(
-        self, scap_rule_id: str, rule_title: str
-    ) -> List[FrameworkMapping]:
+    def _infer_mappings_from_rule_id(self, scap_rule_id: str, rule_title: str) -> List[FrameworkMapping]:
         """Infer framework mappings from SCAP rule ID patterns"""
         mappings = []
 
@@ -652,9 +650,7 @@ class ComplianceFrameworkMapper:
 
         return summary
 
-    def get_remediation_priorities(
-        self, failed_rules: List[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
+    def get_remediation_priorities(self, failed_rules: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """Prioritize failed rules for remediation based on framework requirements"""
         priorities: List[Dict[str, Any]] = []
 
@@ -679,10 +675,7 @@ class ComplianceFrameworkMapper:
                 frameworks_affected.append(mapping.framework.value)
 
                 # Add extra weight for CMMC Level 2+ requirements
-                if (
-                    mapping.framework == ComplianceFramework.CMMC_2_0
-                    and mapping.maturity_level >= 2
-                ):
+                if mapping.framework == ComplianceFramework.CMMC_2_0 and mapping.maturity_level >= 2:
                     priority_score += 10
 
             priority_score += severity_scores.get(max_severity, 0) * 10
@@ -718,10 +711,7 @@ class ComplianceFrameworkMapper:
         # Check control categories
         if any(cat in ["Configuration Management", "Access Control"] for cat in control.categories):
             return "moderate"
-        elif any(
-            cat in ["Audit and Accountability", "System and Information Integrity"]
-            for cat in control.categories
-        ):
+        elif any(cat in ["Audit and Accountability", "System and Information Integrity"] for cat in control.categories):
             return "significant"
         else:
             return "moderate"

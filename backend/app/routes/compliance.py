@@ -69,9 +69,7 @@ class ComplianceOverview(BaseModel):
 async def get_semantic_rules(
     framework: Optional[str] = Query(None, description="Filter by framework"),
     business_impact: Optional[str] = Query(None, description="Filter by business impact"),
-    remediation_available: Optional[bool] = Query(
-        None, description="Filter by remediation availability"
-    ),
+    remediation_available: Optional[bool] = Query(None, description="Filter by remediation availability"),
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -122,9 +120,7 @@ async def get_semantic_rules(
                     "remediation_complexity": rule.remediation_complexity,
                     "estimated_fix_time": rule.estimated_fix_time,
                     "remediation_available": rule.remediation_available,
-                    "confidence_score": (
-                        float(rule.confidence_score) if rule.confidence_score else 1.0
-                    ),
+                    "confidence_score": (float(rule.confidence_score) if rule.confidence_score else 1.0),
                 }
             )
 
@@ -195,9 +191,7 @@ async def get_framework_intelligence(
 
             remediation_coverage = 0
             if stats.rule_count > 0:
-                remediation_coverage = round(
-                    (stats.remediation_available_count / stats.rule_count) * 100
-                )
+                remediation_coverage = round((stats.remediation_available_count / stats.rule_count) * 100)
 
             frameworks.append(
                 {
@@ -284,9 +278,7 @@ async def get_compliance_overview(
 
     except Exception as e:
         logger.error(f"Error retrieving compliance overview: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve compliance overview: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve compliance overview: {str(e)}")
 
 
 @router.get("/semantic-analysis/{scan_id}")
@@ -316,13 +308,9 @@ async def get_semantic_analysis(
             "scan_id": str(analysis.scan_id),
             "host_id": str(analysis.host_id),
             "semantic_rules_count": analysis.semantic_rules_count,
-            "frameworks_analyzed": (
-                json.loads(analysis.frameworks_analyzed) if analysis.frameworks_analyzed else []
-            ),
+            "frameworks_analyzed": (json.loads(analysis.frameworks_analyzed) if analysis.frameworks_analyzed else []),
             "remediation_available_count": analysis.remediation_available_count,
-            "processing_metadata": (
-                json.loads(analysis.processing_metadata) if analysis.processing_metadata else {}
-            ),
+            "processing_metadata": (json.loads(analysis.processing_metadata) if analysis.processing_metadata else {}),
             "analysis_data": (json.loads(analysis.analysis_data) if analysis.analysis_data else {}),
             "created_at": (analysis.created_at.isoformat() if analysis.created_at else None),
             "updated_at": (analysis.updated_at.isoformat() if analysis.updated_at else None),
@@ -332,9 +320,7 @@ async def get_semantic_analysis(
         raise
     except Exception as e:
         logger.error(f"Error retrieving semantic analysis: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve semantic analysis: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve semantic analysis: {str(e)}")
 
 
 @router.get("/compliance-matrix")
@@ -371,9 +357,7 @@ async def get_compliance_matrix(
                 {
                     "host_id": str(row.host_id),
                     "framework": row.framework,
-                    "compliance_score": (
-                        float(row.compliance_score) if row.compliance_score else 0.0
-                    ),
+                    "compliance_score": (float(row.compliance_score) if row.compliance_score else 0.0),
                     "total_rules": row.total_rules,
                     "passed_rules": row.passed_rules,
                     "failed_rules": row.failed_rules,
@@ -381,12 +365,8 @@ async def get_compliance_matrix(
                     "trend": row.trend,
                     "last_scan_id": str(row.last_scan_id) if row.last_scan_id else None,
                     "last_updated": (row.last_updated.isoformat() if row.last_updated else None),
-                    "predicted_next_score": (
-                        float(row.predicted_next_score) if row.predicted_next_score else None
-                    ),
-                    "prediction_confidence": (
-                        float(row.prediction_confidence) if row.prediction_confidence else None
-                    ),
+                    "predicted_next_score": (float(row.predicted_next_score) if row.predicted_next_score else None),
+                    "prediction_confidence": (float(row.prediction_confidence) if row.prediction_confidence else None),
                 }
             )
 
@@ -398,9 +378,7 @@ async def get_compliance_matrix(
 
     except Exception as e:
         logger.error(f"Error retrieving compliance matrix: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve compliance matrix: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve compliance matrix: {str(e)}")
 
 
 @router.post("/remediation/strategy")
@@ -466,9 +444,7 @@ async def create_remediation_strategy(
         raise
     except Exception as e:
         logger.error(f"Error creating remediation strategy: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create remediation strategy: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to create remediation strategy: {str(e)}")
 
 
 @router.get("/health")
@@ -501,7 +477,10 @@ async def upload_compliance_rules(
     file: UploadFile = File(...),
     deduplication_strategy: str = Query(
         DeduplicationStrategy.SKIP_UNCHANGED_UPDATE_CHANGED,
-        description="Deduplication strategy: skip_unchanged_update_changed, skip_existing, update_all, fail_on_duplicate",
+        description=(  # noqa: E501
+            "Deduplication strategy: skip_unchanged_update_changed, skip_existing, "
+            "update_all, fail_on_duplicate"
+        ),
     ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:

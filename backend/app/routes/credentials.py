@@ -32,9 +32,7 @@ router = APIRouter(prefix="/credentials", tags=["Credential Sharing"])
 def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> bool:
     """Verify HMAC-SHA256 signature from AEGIS."""
     try:
-        expected_signature = hmac.new(
-            secret_key.encode("utf-8"), payload, hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(secret_key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
         # Remove 'sha256=' prefix if present
         if signature.startswith("sha256="):
@@ -46,9 +44,7 @@ def verify_aegis_signature(payload: bytes, signature: str, secret_key: str) -> b
         return False
 
 
-def validate_aegis_request(
-    signature: Optional[str] = Header(None, alias="X-AEGIS-Signature")
-) -> bool:
+def validate_aegis_request(signature: Optional[str] = Header(None, alias="X-AEGIS-Signature")) -> bool:
     """Validate incoming AEGIS request signature."""
     if not signature:
         raise HTTPException(
@@ -172,9 +168,7 @@ async def get_host_credentials(
             key_type=key_type,
             password=password,
             source="openwatch",
-            last_updated=(
-                row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()
-            ),
+            last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
         )
 
         logger.info(f"Provided SSH credentials for host {row.hostname} to AEGIS")
@@ -264,9 +258,7 @@ async def get_multiple_host_credentials(
                 key_type=key_type,
                 password=password,
                 source="openwatch",
-                last_updated=(
-                    row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()
-                ),
+                last_updated=(row.updated_at.isoformat() if row.updated_at else datetime.utcnow().isoformat()),
             )
 
             credentials.append(credential)

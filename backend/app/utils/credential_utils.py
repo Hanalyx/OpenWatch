@@ -60,9 +60,7 @@ def extract_ssh_credentials(
     # Handle different naming conventions
     private_key = credentials_data.get("private_key") or credentials_data.get("ssh_key")
     password = credentials_data.get("password")
-    passphrase = credentials_data.get("private_key_passphrase") or credentials_data.get(
-        "passphrase"
-    )
+    passphrase = credentials_data.get("private_key_passphrase") or credentials_data.get("passphrase")
 
     return {"private_key": private_key, "password": password, "passphrase": passphrase}
 
@@ -95,9 +93,7 @@ def normalize_auth_method(auth_method: str) -> str:
         return "ssh_key"
 
 
-def validate_credential_completeness(
-    credentials: Dict[str, Optional[str]], auth_method: str
-) -> bool:
+def validate_credential_completeness(credentials: Dict[str, Optional[str]], auth_method: str) -> bool:
     """
     Validate that credential data is complete for the specified auth method
 

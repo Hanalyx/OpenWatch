@@ -502,9 +502,7 @@ class DatastreamParser(BaseContentParser):
         # Extract Dublin Core metadata if present
         metadata_elem = root.find(".//xccdf:metadata", DATASTREAM_NAMESPACES)
         if metadata_elem is not None:
-            dc_elements = metadata_elem.xpath(
-                './/*[namespace-uri()="http://purl.org/dc/elements/1.1/"]'
-            )
+            dc_elements = metadata_elem.xpath('.//*[namespace-uri()="http://purl.org/dc/elements/1.1/"]')
             for dc_elem in dc_elements:
                 tag_name = dc_elem.tag.split("}")[-1]
                 if dc_elem.text:

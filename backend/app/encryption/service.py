@@ -230,9 +230,7 @@ class EncryptionService:
         return kdf.derive(self.master_key)
 
 
-def create_encryption_service(
-    master_key: str, config: Optional[EncryptionConfig] = None
-) -> EncryptionService:
+def create_encryption_service(master_key: str, config: Optional[EncryptionConfig] = None) -> EncryptionService:
     """
     Factory function to create an EncryptionService instance.
 

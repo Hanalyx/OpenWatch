@@ -58,9 +58,7 @@ class HostMonitor:
         try:
             # First try actual ping command
             cmd = ["ping", "-c", "1", "-W", str(self.ping_timeout), ip_address]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=self.ping_timeout + 2
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.ping_timeout + 2)
             if result.returncode == 0:
                 return True
 
@@ -149,9 +147,7 @@ class HostMonitor:
             credential = private_key_content
             password_param = password
             auth_method = "both"
-            logger.info(
-                f"Using 'both' authentication method (SSH key + password fallback) for {ip_address}"
-            )
+            logger.info(f"Using 'both' authentication method (SSH key + password fallback) for {ip_address}")
         elif private_key_content:
             credential = private_key_content
             auth_method = "ssh-key"
@@ -197,7 +193,9 @@ class HostMonitor:
                 error_message = f"SSH protocol error: {connection_result.error_message}"
             else:
                 # Preserve any unhandled error details
-                error_message = f"SSH connection failed ({connection_result.error_type}): {connection_result.error_message}"
+                error_message = (
+                    f"SSH connection failed ({connection_result.error_type}): {connection_result.error_message}"
+                )
 
             return False, error_message
 
@@ -254,7 +252,7 @@ class HostMonitor:
             target_id = None if use_default else host_data.get("id")
 
             logger.info(
-                f"Resolving credentials for host monitoring {host_data.get('hostname')}: use_default={use_default}, target_id={target_id}"
+                f"Resolving credentials for host monitoring {host_data.get('hostname')}: use_default={use_default}, target_id={target_id}"  # noqa: E501
             )
 
             # First, try to get host-specific credentials from the hosts table
@@ -272,9 +270,7 @@ class HostMonitor:
 
                 row = result.fetchone()
                 if row and row.encrypted_credentials:
-                    logger.info(
-                        f"Found host-specific credentials in hosts table for {host_data.get('hostname')}"
-                    )
+                    logger.info(f"Found host-specific credentials in hosts table for {host_data.get('hostname')}")
                     # Decrypt the credentials using encryption service
                     try:
                         # Handle memoryview objects from database
@@ -304,9 +300,7 @@ class HostMonitor:
 
             # Try centralized auth service (for system defaults or if host decryption failed)
             # Pass the host's auth_method to enforce user intent
-            required_auth_method = (
-                host_auth_method if host_auth_method not in ["default", "system_default"] else None
-            )
+            required_auth_method = host_auth_method if host_auth_method not in ["default", "system_default"] else None
 
             credential_data = auth_service.resolve_credential(
                 target_id=target_id,
@@ -388,9 +382,7 @@ class HostMonitor:
         port = int(host_data.get("port", 22))
         username = host_data.get("username")
 
-        logger.info(
-            f"Starting comprehensive check for {hostname}, db connection: {'available' if db else 'None'}"
-        )
+        logger.info(f"Starting comprehensive check for {hostname}, db connection: {'available' if db else 'None'}")
 
         check_results = {
             "host_id": host_data.get("id"),
@@ -422,14 +414,10 @@ class HostMonitor:
             # Step 3: SSH connectivity (with credentials inheritance)
             ssh_credentials = None
             if db:
-                logger.info(
-                    f"Database connection available, looking up SSH credentials for {hostname}"
-                )
+                logger.info(f"Database connection available, looking up SSH credentials for {hostname}")
                 ssh_credentials = await self.get_effective_ssh_credentials(host_data, db)
             else:
-                logger.warning(
-                    f"No database connection available for SSH credential lookup for {hostname}"
-                )
+                logger.warning(f"No database connection available for SSH credential lookup for {hostname}")
 
             if ssh_credentials:
                 # Validate credentials before attempting connection
@@ -449,16 +437,14 @@ class HostMonitor:
                     check_results["ssh_accessible"] = False
                     check_results["credential_details"] = f"FAILED: {validation_error}"
                     check_results["error_message"] = validation_error
-                    logger.warning(
-                        f"SSH credentials validation failed for {hostname}: {validation_error}"
-                    )
+                    logger.warning(f"SSH credentials validation failed for {hostname}: {validation_error}")
                 else:
                     check_results["credential_details"] = (
                         f"Using {source} credentials (user: ***REDACTED***, method: {auth_method})"
                     )
 
                     logger.info(
-                        f"Checking SSH connectivity for {hostname} using {source} credentials (user: ***REDACTED***, method: {auth_method})"
+                        f"Checking SSH connectivity for {hostname} using {source} credentials (user: ***REDACTED***, method: {auth_method})"  # noqa: E501
                     )
 
                     # Try SSH connection with validated credentials
@@ -470,17 +456,15 @@ class HostMonitor:
                     if ssh_success:
                         check_results["credential_details"] += " - SSH authentication successful"
                         logger.info(
-                            f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)"
+                            f"SSH authentication successful for {hostname} using {source} credentials (user: ***REDACTED***)"  # noqa: E501
                         )
                     else:
-                        check_results[
-                            "credential_details"
-                        ] += f" - SSH authentication failed: {ssh_error}"
+                        check_results["credential_details"] += f" - SSH authentication failed: {ssh_error}"
                         check_results["error_message"] = (
                             f"SSH authentication failed with {source} credentials: {ssh_error}"
                         )
                         logger.warning(
-                            f"SSH authentication failed for {hostname} using {source} credentials (user: ***REDACTED***): {ssh_error}"
+                            f"SSH authentication failed for {hostname} using {source} credentials (user: ***REDACTED***): {ssh_error}"  # noqa: E501
                         )
 
             else:
@@ -488,14 +472,10 @@ class HostMonitor:
                     "No SSH credentials available (neither host-specific nor system default)"
                 )
                 check_results["error_message"] = (
-                    "No SSH credentials configured. Please configure system credentials in Settings to enable SSH operations."
+                    "No SSH credentials configured. Please configure system credentials in Settings to enable SSH operations."  # noqa: E501
                 )
-                logger.warning(
-                    f"No SSH credentials available for {hostname} - configure in Settings"
-                )
-                logger.info(
-                    f"No SSH credentials available for {hostname} (neither host-specific nor system default)"
-                )
+                logger.warning(f"No SSH credentials available for {hostname} - configure in Settings")
+                logger.info(f"No SSH credentials available for {hostname} (neither host-specific nor system default)")
 
             # Determine overall status
             if check_results["ssh_accessible"]:
@@ -505,15 +485,11 @@ class HostMonitor:
                 check_results["status"] = "reachable"  # Port open but can't SSH
                 logger.info(f"Host {hostname} is REACHABLE (port open, SSH issues)")
             elif check_results["ping_success"]:
-                check_results["status"] = (
-                    "ping_only"  # Responds to connectivity test but port closed
-                )
+                check_results["status"] = "ping_only"  # Responds to connectivity test but port closed
                 logger.info(f"Host {hostname} responds to connectivity test but port {port} closed")
             else:
                 check_results["status"] = "offline"
-                check_results["error_message"] = (
-                    "Host unreachable - no response on any tested ports"
-                )
+                check_results["error_message"] = "Host unreachable - no response on any tested ports"
                 logger.info(f"Host {hostname} is OFFLINE (unreachable)")
 
             # Calculate response time
@@ -626,9 +602,7 @@ class HostMonitor:
 
                 # Send alert if status changed
                 if result["status"] != host["current_status"]:
-                    await self.send_status_change_alerts(
-                        db, host, host["current_status"], result["status"]
-                    )
+                    await self.send_status_change_alerts(db, host, host["current_status"], result["status"])
 
                 # Always update last_check and response_time_ms, even if status unchanged
                 await self.update_host_status(
@@ -671,9 +645,7 @@ class HostMonitor:
             logger.error(f"Error getting alert recipients: {type(e).__name__}")
             return []
 
-    async def send_status_change_alerts(
-        self, db: Session, host: Dict, old_status: str, new_status: str
-    ):
+    async def send_status_change_alerts(self, db: Session, host: Dict, old_status: str, new_status: str):
         """Send email alerts when host status changes"""
         try:
             hostname = host.get("hostname", "Unknown")
@@ -684,32 +656,22 @@ class HostMonitor:
             if old_status == "online" and new_status in ["offline", "error"]:
                 recipients = await self.get_alert_recipients(db, "host_offline")
                 if recipients:
-                    logger.info(
-                        f"Sending offline alert for {hostname} to {len(recipients)} recipients"
-                    )
-                    await email_service.send_host_offline_alert(
-                        hostname, ip_address, last_check, recipients
-                    )
+                    logger.info(f"Sending offline alert for {hostname} to {len(recipients)} recipients")
+                    await email_service.send_host_offline_alert(hostname, ip_address, last_check, recipients)
 
             # Host came back online
             elif old_status in ["offline", "error"] and new_status == "online":
                 recipients = await self.get_alert_recipients(db, "host_online")
                 if recipients:
-                    logger.info(
-                        f"Sending online alert for {hostname} to {len(recipients)} recipients"
-                    )
-                    await email_service.send_host_online_alert(
-                        hostname, ip_address, last_check, recipients
-                    )
+                    logger.info(f"Sending online alert for {hostname} to {len(recipients)} recipients")
+                    await email_service.send_host_online_alert(hostname, ip_address, last_check, recipients)
 
         except Exception as e:
             logger.error(f"Error sending status change alerts: {type(e).__name__}")
 
 
 # Factory function to create properly configured HostMonitor instances
-def get_host_monitor(
-    db_session: Session = None, encryption_service: EncryptionService = None
-) -> HostMonitor:
+def get_host_monitor(db_session: Session = None, encryption_service: EncryptionService = None) -> HostMonitor:
     """
     Factory function to create HostMonitor instance with proper dependencies.
 

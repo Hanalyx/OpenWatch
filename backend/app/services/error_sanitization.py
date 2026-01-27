@@ -165,9 +165,7 @@ class ErrorSanitizationService:
 
         # Extract error code and get generic message
         error_code = error_data.get("error_code", "UNKNOWN")
-        generic_message = self.GENERIC_MESSAGES.get(
-            error_code, "An error occurred during the operation"
-        )
+        generic_message = self.GENERIC_MESSAGES.get(error_code, "An error occurred during the operation")
 
         # Create sanitized error response
         sanitized = SanitizedError(
@@ -211,7 +209,7 @@ class ErrorSanitizationService:
             "Check if SSH service is running on port [REDACTED]": "Verify SSH service is running on the correct port",
             "Verify the hostname [REDACTED] is correct": "Verify the target hostname is correct",
             "Add public key to [PATH_REDACTED] on target host": "Ensure SSH public key is authorized on target host",
-            "Configure passwordless sudo for [COMMAND_REDACTED]": "Configure appropriate system privileges for scanning",
+            "Configure passwordless sudo for [COMMAND_REDACTED]": "Configure appropriate system privileges for scanning",  # noqa: E501
             "Free up disk space in [PATH_REDACTED]": "Free up sufficient disk space on target system",
             "Check [COMMAND_REDACTED] service status": "Check required service status on target system",
         }
@@ -274,13 +272,9 @@ class ErrorSanitizationService:
         if source_ip in self.rate_limit_cache:
             state = self.rate_limit_cache[source_ip]
             state.is_blocked = True
-            state.block_until = datetime.utcnow().replace(
-                minute=datetime.utcnow().minute + self.BLOCK_DURATION_MINUTES
-            )
+            state.block_until = datetime.utcnow().replace(minute=datetime.utcnow().minute + self.BLOCK_DURATION_MINUTES)
 
-            logger.warning(
-                f"IP {source_ip} blocked for {self.BLOCK_DURATION_MINUTES} minutes due to rate limiting"
-            )
+            logger.warning(f"IP {source_ip} blocked for {self.BLOCK_DURATION_MINUTES} minutes due to rate limiting")
 
     def _create_rate_limit_error(self) -> SanitizedError:
         """Create error response for rate-limited requests"""
@@ -383,8 +377,8 @@ class ErrorSanitizationService:
             )
 
             # Apply integrated sanitization
-            sanitized_info, metadata = (
-                _system_info_sanitization_service.sanitize_system_information(system_info, context)
+            sanitized_info, metadata = _system_info_sanitization_service.sanitize_system_information(
+                system_info, context
             )
 
             # Only keep safe metadata
@@ -443,14 +437,12 @@ class ErrorSanitizationService:
                 source_ip=source_ip,
                 access_level=access_level,
                 is_admin=is_admin,
-                compliance_only=(
-                    access_level in [SystemInfoLevel.BASIC, SystemInfoLevel.COMPLIANCE]
-                ),
+                compliance_only=(access_level in [SystemInfoLevel.BASIC, SystemInfoLevel.COMPLIANCE]),
             )
 
             # Apply sanitization
-            sanitized_info, metadata = (
-                _system_info_sanitization_service.sanitize_system_information(system_info, context)
+            sanitized_info, metadata = _system_info_sanitization_service.sanitize_system_information(
+                system_info, context
             )
 
             # Add sanitization metadata
@@ -468,9 +460,7 @@ class ErrorSanitizationService:
             # Fallback to basic sanitization
             return self._sanitize_system_info_integration(system_info, user_id, source_ip)
 
-    def create_validation_result_sanitizer(
-        self, validation_result: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def create_validation_result_sanitizer(self, validation_result: Dict[str, Any]) -> Dict[str, Any]:
         """Sanitize ValidationResult objects for safe user consumption"""
 
         sanitized_errors = []

@@ -64,9 +64,7 @@ class CredentialMigrationService:
             stats["migration_errors"] = host_stats[1]
 
             stats["total_processed"] = (
-                stats["system_credentials_migrated"]
-                + stats["host_credentials_migrated"]
-                + stats["migration_errors"]
+                stats["system_credentials_migrated"] + stats["host_credentials_migrated"] + stats["migration_errors"]
             )
 
             if not dry_run:
@@ -216,9 +214,7 @@ class CredentialMigrationService:
                     )
 
                     if check_result.fetchone():
-                        logger.info(
-                            f"Host credential for '{row.hostname}' already migrated, skipping"
-                        )
+                        logger.info(f"Host credential for '{row.hostname}' already migrated, skipping")
                         continue
 
                     # Decode and parse host credentials (base64 format)
@@ -263,9 +259,7 @@ class CredentialMigrationService:
                     )
 
                     migrated_count += 1
-                    logger.info(
-                        f"Migrated host credential for: {row.hostname} (ID: {credential_id})"
-                    )
+                    logger.info(f"Migrated host credential for: {row.hostname} (ID: {credential_id})")
 
                 except Exception as e:
                     logger.error(f"Failed to migrate host credential for '{row.hostname}': {e}")
@@ -322,10 +316,7 @@ class CredentialMigrationService:
                 "migrated_host_credentials": migrated_host,
                 "system_migration_complete": migrated_system >= original_system_count,
                 "host_migration_complete": migrated_host >= original_host_count,
-                "overall_success": (
-                    migrated_system >= original_system_count
-                    and migrated_host >= original_host_count
-                ),
+                "overall_success": (migrated_system >= original_system_count and migrated_host >= original_host_count),
             }
 
             if verification_result["overall_success"]:

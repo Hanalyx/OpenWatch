@@ -116,9 +116,7 @@ async def import_scap_file(
 
 
 @router.get("/import/{import_id}/status", response_model=ImportStatus)
-async def get_import_status(
-    import_id: str, service: ContentImporter = Depends(get_import_service)
-) -> ImportStatus:
+async def get_import_status(import_id: str, service: ContentImporter = Depends(get_import_service)) -> ImportStatus:
     """Get the status of an ongoing or completed import"""
 
     if import_id not in active_imports:
@@ -187,9 +185,7 @@ async def list_imported_files(
 
 
 @router.post("/validate/{import_id}")
-async def validate_import(
-    import_id: str, service: ContentImporter = Depends(get_import_service)
-) -> Dict[str, Any]:
+async def validate_import(import_id: str, service: ContentImporter = Depends(get_import_service)) -> Dict[str, Any]:
     """Validate the integrity of an imported file"""
 
     if import_id not in active_imports:

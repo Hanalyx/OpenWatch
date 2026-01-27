@@ -235,18 +235,10 @@ class ScannerCapabilities(BaseModel):
     Documents the features available in the current scanner configuration.
     """
 
-    platform_aware_scanning: bool = Field(
-        True, description="Scanner supports platform-specific rule selection"
-    )
-    rule_inheritance_resolution: bool = Field(
-        True, description="Scanner resolves rule inheritance hierarchies"
-    )
-    result_enrichment: bool = Field(
-        True, description="Scanner can enrich results with intelligence data"
-    )
-    compliance_reporting: bool = Field(
-        True, description="Scanner generates compliance framework reports"
-    )
+    platform_aware_scanning: bool = Field(True, description="Scanner supports platform-specific rule selection")
+    rule_inheritance_resolution: bool = Field(True, description="Scanner resolves rule inheritance hierarchies")
+    result_enrichment: bool = Field(True, description="Scanner can enrich results with intelligence data")
+    compliance_reporting: bool = Field(True, description="Scanner generates compliance framework reports")
     supported_platforms: List[str] = Field(
         default_factory=list,
         description="List of supported platform identifiers",
@@ -371,9 +363,7 @@ class ValidationRequest(BaseModel):
 
     # Compliance scanning fields (optional for legacy mode)
     platform: Optional[str] = Field(None, description="Target platform (e.g., 'rhel', 'ubuntu')")
-    platform_version: Optional[str] = Field(
-        None, description="Platform version (e.g., '8', '9', '22.04')"
-    )
+    platform_version: Optional[str] = Field(None, description="Platform version (e.g., '8', '9', '22.04')")
     framework: Optional[str] = Field(
         None,
         description="Compliance framework (e.g., 'nist_800_53', 'cis', 'disa_stig')",
@@ -383,11 +373,7 @@ class ValidationRequest(BaseModel):
     def validate_request_mode(self) -> "ValidationRequest":
         """Ensure either legacy or compliance fields are provided."""
         has_legacy = self.content_id is not None and self.profile_id is not None
-        has_compliance = (
-            self.platform is not None
-            and self.platform_version is not None
-            and self.framework is not None
-        )
+        has_compliance = self.platform is not None and self.platform_version is not None and self.framework is not None
 
         if not has_legacy and not has_compliance:
             raise ValueError(
@@ -408,9 +394,7 @@ class AutomatedFixRequest(BaseModel):
 class QuickScanRequest(BaseModel):
     """Request model for quick scan with intelligent defaults."""
 
-    template_id: Optional[str] = Field(
-        "auto", description="Profile template ID or 'auto' for intelligent selection"
-    )
+    template_id: Optional[str] = Field("auto", description="Profile template ID or 'auto' for intelligent selection")
     priority: Optional[str] = Field("normal", description="Scan priority: low, normal, high")
     name: Optional[str] = Field(None, description="Optional scan name")
     email_notify: bool = Field(False, description="Send email notification on completion")
@@ -422,12 +406,8 @@ class QuickScanResponse(BaseModel):
     id: str = Field(..., description="UUID of the created scan")
     message: str = Field(..., description="Status message")
     status: str = Field(..., description="Current scan status")
-    suggested_profile: RecommendedScanProfile = Field(
-        ..., description="Profile recommendation details"
-    )
-    estimated_completion: Optional[float] = Field(
-        None, description="Estimated completion timestamp"
-    )
+    suggested_profile: RecommendedScanProfile = Field(..., description="Profile recommendation details")
+    estimated_completion: Optional[float] = Field(None, description="Estimated completion timestamp")
 
 
 class BulkScanRequest(BaseModel):

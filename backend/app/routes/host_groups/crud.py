@@ -110,13 +110,9 @@ async def list_host_groups(
                 "architecture": row.architecture,
                 "default_profile_id": row.default_profile_id,
                 "compliance_framework": row.compliance_framework,
-                "auto_scan_enabled": (
-                    row.auto_scan_enabled if row.auto_scan_enabled is not None else False
-                ),
+                "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
                 "scan_schedule": row.scan_schedule,
-                "validation_rules": (
-                    json.loads(row.validation_rules) if row.validation_rules else None
-                ),
+                "validation_rules": (json.loads(row.validation_rules) if row.validation_rules else None),
             }
             groups.append(group_data)
 
@@ -186,9 +182,7 @@ async def get_host_group(
             "architecture": row.architecture,
             "default_profile_id": row.default_profile_id,
             "compliance_framework": row.compliance_framework,
-            "auto_scan_enabled": (
-                row.auto_scan_enabled if row.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (row.auto_scan_enabled if row.auto_scan_enabled is not None else False),
             "scan_schedule": row.scan_schedule,
             "validation_rules": json.loads(row.validation_rules) if row.validation_rules else None,
         }
@@ -264,9 +258,7 @@ async def create_host_group(
                 "compliance_framework": group_data.compliance_framework,
                 "auto_scan_enabled": group_data.auto_scan_enabled or False,
                 "scan_schedule": group_data.scan_schedule,
-                "validation_rules": (
-                    json.dumps(group_data.validation_rules) if group_data.validation_rules else None
-                ),
+                "validation_rules": (json.dumps(group_data.validation_rules) if group_data.validation_rules else None),
             },
         )
 
@@ -274,9 +266,7 @@ async def create_host_group(
         db.commit()
 
         if group is None:
-            raise HTTPException(
-                status_code=500, detail="Failed to create host group - no data returned"
-            )
+            raise HTTPException(status_code=500, detail="Failed to create host group - no data returned")
 
         return {
             "id": group.id,
@@ -292,13 +282,9 @@ async def create_host_group(
             "architecture": group.architecture,
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (
-                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (
-                json.loads(group.validation_rules) if group.validation_rules else None
-            ),
+            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
         }
 
     except HTTPException:
@@ -422,15 +408,11 @@ async def update_host_group(
         db.commit()
 
         if group is None:
-            raise HTTPException(
-                status_code=500, detail="Failed to update host group - no data returned"
-            )
+            raise HTTPException(status_code=500, detail="Failed to update host group - no data returned")
 
         # Get host count
         count_result = db.execute(
-            text(
-                "SELECT COUNT(*) as host_count FROM host_group_memberships WHERE group_id = :group_id"
-            ),
+            text("SELECT COUNT(*) as host_count FROM host_group_memberships WHERE group_id = :group_id"),
             {"group_id": group_id},
         )
         count_row = count_result.fetchone()
@@ -450,13 +432,9 @@ async def update_host_group(
             "architecture": group.architecture,
             "default_profile_id": group.default_profile_id,
             "compliance_framework": group.compliance_framework,
-            "auto_scan_enabled": (
-                group.auto_scan_enabled if group.auto_scan_enabled is not None else False
-            ),
+            "auto_scan_enabled": (group.auto_scan_enabled if group.auto_scan_enabled is not None else False),
             "scan_schedule": group.scan_schedule,
-            "validation_rules": (
-                json.loads(group.validation_rules) if group.validation_rules else None
-            ),
+            "validation_rules": (json.loads(group.validation_rules) if group.validation_rules else None),
         }
 
     except HTTPException:
@@ -620,9 +598,7 @@ async def remove_host_from_group(
     try:
         # Remove the host from the group
         result = db.execute(
-            text(
-                "DELETE FROM host_group_memberships WHERE group_id = :group_id AND host_id = :host_id"
-            ),
+            text("DELETE FROM host_group_memberships WHERE group_id = :group_id AND host_id = :host_id"),
             {"group_id": group_id, "host_id": host_id},
         )
 
@@ -730,8 +706,7 @@ async def create_smart_group(
             # Create the group with recommended settings
             group_data = HostGroupCreate(
                 name=request.group_name,
-                description=request.description
-                or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
+                description=request.description or f"Smart group for {recommendations.get('os_family', 'mixed')} hosts",
                 os_family=recommendations.get("os_family"),
                 os_version_pattern=recommendations.get("os_version_pattern"),
                 compliance_framework=recommendations.get("compliance_framework"),
@@ -849,9 +824,7 @@ async def validate_and_assign_hosts(
 
             # If force_assignment is True, only assign compatible hosts
             hosts_to_assign = (
-                [h["id"] for h in validation_results["compatible"]]
-                if request.force_assignment
-                else request.host_ids
+                [h["id"] for h in validation_results["compatible"]] if request.force_assignment else request.host_ids
             )
         else:
             hosts_to_assign = request.host_ids

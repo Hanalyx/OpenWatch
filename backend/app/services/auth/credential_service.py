@@ -22,7 +22,6 @@ from backend.app.services.ssh import extract_ssh_key_metadata, validate_ssh_key
 from .exceptions import (
     AuthMethodMismatchError,
     CredentialDecryptionError,
-    CredentialNotFoundError,
     CredentialValidationError,
 )
 from .models import AuthMethod, CredentialData, CredentialMetadata, CredentialScope
@@ -162,9 +161,7 @@ class CentralizedAuthService:
 
             self.db.commit()
 
-            logger.info(
-                f"Stored {metadata.scope.value} credential '{metadata.name}' (ID: {metadata.id})"
-            )
+            logger.info(f"Stored {metadata.scope.value} credential '{metadata.name}' (ID: {metadata.id})")
             return metadata.id
 
         except CredentialValidationError:
@@ -204,9 +201,7 @@ class CentralizedAuthService:
 
             # Decrypt credential data
             password = self._decrypt_field(row.encrypted_password, credential_id, "password")
-            private_key = self._decrypt_field(
-                row.encrypted_private_key, credential_id, "private_key"
-            )
+            private_key = self._decrypt_field(row.encrypted_private_key, credential_id, "private_key")
             passphrase = self._decrypt_field(row.encrypted_passphrase, credential_id, "passphrase")
 
             return CredentialData(
@@ -227,9 +222,7 @@ class CentralizedAuthService:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
-    def _decrypt_field(
-        self, encrypted_data: Any, credential_id: str, field_name: str
-    ) -> Optional[str]:
+    def _decrypt_field(self, encrypted_data: Any, credential_id: str, field_name: str) -> Optional[str]:
         """Decrypt a single encrypted field.
 
         Args:
@@ -298,15 +291,11 @@ class CentralizedAuthService:
 
             # If use_default=True or no target_id, use system default
             if use_default or not target_id:
-                logger.info(
-                    "Using unified_credentials table for credential resolution (system default)"
-                )
+                logger.info("Using unified_credentials table for credential resolution (system default)")
                 credential = self._get_system_default()
 
                 if credential and required_auth_method and required_auth_method != "system_default":
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.error(
                             f"System default auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'"
@@ -323,15 +312,11 @@ class CentralizedAuthService:
             credential = self._get_host_credential(target_id)
 
             if credential:
-                logger.info(
-                    f"[OK] Found host-specific credential (auth_method: {credential.auth_method})"
-                )
+                logger.info(f"[OK] Found host-specific credential (auth_method: {credential.auth_method})")
 
                 # Validate auth method if required
                 if required_auth_method and required_auth_method != "system_default":
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.error(
                             f"Host-specific credential auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'"
@@ -344,21 +329,15 @@ class CentralizedAuthService:
                 return credential
 
             # Fall back to system default if no host-specific found
-            logger.info(
-                f"No host-specific credential found for {target_id}, falling back to system default"
-            )
+            logger.info(f"No host-specific credential found for {target_id}, falling back to system default")
             credential = self._get_system_default()
 
             if credential:
-                logger.info(
-                    f"[OK] Found system default credential (auth_method: {credential.auth_method})"
-                )
+                logger.info(f"[OK] Found system default credential (auth_method: {credential.auth_method})")
 
                 # Validate auth method if required
                 if required_auth_method and required_auth_method != "system_default":
-                    if not self._auth_method_compatible(
-                        credential.auth_method.value, required_auth_method
-                    ):
+                    if not self._auth_method_compatible(credential.auth_method.value, required_auth_method):
                         logger.warning(
                             f"System default auth_method '{credential.auth_method.value}' "
                             f"does not match required '{required_auth_method}'. "
@@ -442,9 +421,7 @@ class CentralizedAuthService:
             return required in ["password", "ssh_key", "both"]
         return False
 
-    def validate_credential(
-        self, credential_data: CredentialData, strict_mode: bool = True
-    ) -> Tuple[bool, str]:
+    def validate_credential(self, credential_data: CredentialData, strict_mode: bool = True) -> Tuple[bool, str]:
         """
         Validate credential data with strict security policy enforcement.
 
@@ -480,9 +457,7 @@ class CentralizedAuthService:
                 )
 
                 if not is_valid:
-                    logger.warning(
-                        f"Credential rejected by strict security policy: {error_message}"
-                    )
+                    logger.warning(f"Credential rejected by strict security policy: {error_message}")
                     return False, error_message
             else:
                 # Basic SSH key validation if not using strict mode
@@ -500,9 +475,7 @@ class CentralizedAuthService:
             logger.error(f"Credential validation error: {e}")
             return False, f"Validation error: {str(e)}"
 
-    def _extract_ssh_key_metadata(
-        self, private_key: str, passphrase: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def _extract_ssh_key_metadata(self, private_key: str, passphrase: Optional[str] = None) -> Dict[str, Any]:
         """Extract SSH key metadata for storage."""
         try:
             metadata = extract_ssh_key_metadata(private_key, passphrase)
@@ -517,9 +490,7 @@ class CentralizedAuthService:
             logger.warning(f"Failed to extract SSH key metadata: {e}")
             return {}
 
-    def _unset_default_credentials(
-        self, scope: CredentialScope, target_id: Optional[str] = None
-    ) -> None:
+    def _unset_default_credentials(self, scope: CredentialScope, target_id: Optional[str] = None) -> None:
         """Unset existing default credentials in the same scope."""
         try:
             if scope == CredentialScope.SYSTEM:
@@ -679,9 +650,7 @@ class CentralizedAuthService:
             purged_count: int = getattr(result, "rowcount", 0)
             if purged_count > 0:
                 self.db.commit()
-                logger.info(
-                    f"Purged {purged_count} inactive credentials older than {retention_days} days"
-                )
+                logger.info(f"Purged {purged_count} inactive credentials older than {retention_days} days")
 
             return purged_count
 

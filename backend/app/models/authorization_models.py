@@ -280,9 +280,7 @@ class PermissionCache:
         """Generate cache key for permission check"""
         return f"{user_id}:{resource.resource_type.value}:{resource.resource_id}:{action.value}"
 
-    def get(
-        self, user_id: str, resource: ResourceIdentifier, action: ActionType
-    ) -> Optional[AuthorizationResult]:
+    def get(self, user_id: str, resource: ResourceIdentifier, action: ActionType) -> Optional[AuthorizationResult]:
         """Get cached permission decision"""
         key = self._generate_key(user_id, resource, action)
 

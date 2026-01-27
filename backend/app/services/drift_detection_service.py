@@ -205,35 +205,17 @@ class DriftDetectionService:
         """
         return {
             "score_delta": scan_data.score - baseline.baseline_score,
-            "critical_passed_delta": (
-                (scan_data.severity_critical_passed or 0) - baseline.baseline_critical_passed
-            ),
-            "critical_failed_delta": (
-                (scan_data.severity_critical_failed or 0) - baseline.baseline_critical_failed
-            ),
-            "high_passed_delta": (
-                (scan_data.severity_high_passed or 0) - baseline.baseline_high_passed
-            ),
-            "high_failed_delta": (
-                (scan_data.severity_high_failed or 0) - baseline.baseline_high_failed
-            ),
-            "medium_passed_delta": (
-                (scan_data.severity_medium_passed or 0) - baseline.baseline_medium_passed
-            ),
-            "medium_failed_delta": (
-                (scan_data.severity_medium_failed or 0) - baseline.baseline_medium_failed
-            ),
-            "low_passed_delta": (
-                (scan_data.severity_low_passed or 0) - baseline.baseline_low_passed
-            ),
-            "low_failed_delta": (
-                (scan_data.severity_low_failed or 0) - baseline.baseline_low_failed
-            ),
+            "critical_passed_delta": ((scan_data.severity_critical_passed or 0) - baseline.baseline_critical_passed),
+            "critical_failed_delta": ((scan_data.severity_critical_failed or 0) - baseline.baseline_critical_failed),
+            "high_passed_delta": ((scan_data.severity_high_passed or 0) - baseline.baseline_high_passed),
+            "high_failed_delta": ((scan_data.severity_high_failed or 0) - baseline.baseline_high_failed),
+            "medium_passed_delta": ((scan_data.severity_medium_passed or 0) - baseline.baseline_medium_passed),
+            "medium_failed_delta": ((scan_data.severity_medium_failed or 0) - baseline.baseline_medium_failed),
+            "low_passed_delta": ((scan_data.severity_low_passed or 0) - baseline.baseline_low_passed),
+            "low_failed_delta": ((scan_data.severity_low_failed or 0) - baseline.baseline_low_failed),
         }
 
-    def _classify_drift(
-        self, score_delta: float, threshold_major: float, threshold_minor: float
-    ) -> str:
+    def _classify_drift(self, score_delta: float, threshold_major: float, threshold_minor: float) -> str:
         """
         Classify drift type based on score delta and thresholds.
 

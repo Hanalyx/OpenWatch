@@ -187,16 +187,12 @@ class PlatformDetector:
             credential_value = self._get_credential_value(credential_data, auth_method)
 
             if not credential_value:
-                result.detection_error = (
-                    f"No credential value available for auth method: {auth_method}"
-                )
+                result.detection_error = f"No credential value available for auth method: {auth_method}"
                 logger.error(result.detection_error)
                 return result
 
             # Connect to host using SSHConnectionManager with pre-decrypted credentials
-            logger.info(
-                f"Connecting to {hostname}:{port} as {credential_data.username} via {auth_method}"
-            )
+            logger.info(f"Connecting to {hostname}:{port} as {credential_data.username} via {auth_method}")
 
             conn_result = self.ssh_manager.connect_with_credentials(
                 hostname=hostname,
@@ -252,9 +248,7 @@ class PlatformDetector:
 
         return result
 
-    def _get_credential_value(
-        self, credential_data: "CredentialData", auth_method: str
-    ) -> Optional[str]:
+    def _get_credential_value(self, credential_data: "CredentialData", auth_method: str) -> Optional[str]:
         """
         Extract the appropriate credential value based on auth method.
 
@@ -424,9 +418,7 @@ class PlatformDetector:
                 return f"{os_family_lower}{major_version}"
 
         except (IndexError, ValueError) as e:
-            logger.warning(
-                f"Failed to normalize platform identifier for {os_family} {os_version}: {e}"
-            )
+            logger.warning(f"Failed to normalize platform identifier for {os_family} {os_version}: {e}")
             return None
 
 

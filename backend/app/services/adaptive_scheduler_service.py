@@ -291,9 +291,7 @@ class AdaptiveSchedulerService:
         config = self.get_config(db)
         return config["maintenance_mode"] == "skip"
 
-    def get_hosts_due_for_check(
-        self, db: Session, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    def get_hosts_due_for_check(self, db: Session, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get hosts that are due for monitoring checks.
 

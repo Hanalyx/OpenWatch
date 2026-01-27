@@ -505,9 +505,7 @@ class ContentImporter:
             rule_data: Rule data dictionary
         """
         # Check if intelligence already exists
-        existing_intel = await RuleIntelligence.find_one(
-            RuleIntelligence.rule_id == rule_data["rule_id"]
-        )
+        existing_intel = await RuleIntelligence.find_one(RuleIntelligence.rule_id == rule_data["rule_id"])
 
         if existing_intel:
             return  # Skip if already exists
@@ -520,7 +518,7 @@ class ContentImporter:
                 "rationale",
                 "No specific implementation notes available",
             ),
-            testing_guidance=f"Verify the rule '{rule_data.get('metadata', {}).get('name', 'unknown')}' is properly configured",
+            testing_guidance=f"Verify the rule '{rule_data.get('metadata', {}).get('name', 'unknown')}' is properly configured",  # noqa: E501
             scan_duration_avg_ms=self._estimate_scan_duration(rule_data),
             resource_impact=rule_data.get("remediation_risk", "low"),
         )

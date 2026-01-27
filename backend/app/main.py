@@ -26,7 +26,15 @@ from .config import SECURITY_HEADERS, get_settings
 from .database import get_db_session
 from .middleware.metrics import PrometheusMiddleware, background_updater
 from .middleware.rate_limiting import get_rate_limiting_middleware
-from .routes import (  # api_keys - REMOVED: Consolidated into routes/auth/api_keys.py (E1-S4); auth - REMOVED: Consolidated into routes/auth/login.py (E1-S4); bulk_remediation_routes - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); compliance - REMOVED: Consolidated into routes/compliance/intelligence.py (Phase 4); drift_events - REMOVED: Consolidated into routes/compliance/drift.py (Phase 4); host_compliance_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_network_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); host_security_discovery - REMOVED: Consolidated into routes/hosts/discovery.py (Phase 3); hosts - REMOVED: Replaced by routes/hosts/ package (Phase 3); mfa - REMOVED: Consolidated into routes/auth/mfa.py (E1-S4); mongodb_scan_api - REMOVED: Consolidated into routes/scans/mongodb.py (Phase 2); owca - REMOVED: Consolidated into routes/compliance/owca.py (Phase 4); plugin_management - REMOVED: Consolidated into routes/integrations/plugins.py (Phase 4); remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem); rule_scanning - REMOVED: Consolidated into routes/scans/rules.py (Phase 2); scan_config_api - REMOVED: Consolidated into routes/scans/config.py (Phase 2); scan_templates - REMOVED: Consolidated into routes/scans/templates.py (Phase 2); ssh_debug - REMOVED: Consolidated into routes/ssh/debug.py (Phase 4); ssh_settings - REMOVED: Consolidated into routes/ssh/settings.py (Phase 4); webhooks - REMOVED: Consolidated into routes/integrations/webhooks.py (Phase 4)
+from .routes import (  # noqa: E501
+    # REMOVED route consolidation notes:
+    # - api_keys, auth, mfa: Consolidated into routes/auth/ (E1-S4)
+    # - hosts, host_*_discovery: Consolidated into routes/hosts/ (Phase 3)
+    # - mongodb_scan_api, rule_scanning, scan_config_api, scan_templates: Consolidated into routes/scans/ (Phase 2)
+    # - compliance, drift_events, owca: Consolidated into routes/compliance/ (Phase 4)
+    # - plugin_management, webhooks: Consolidated into routes/integrations/ (Phase 4)
+    # - ssh_debug, ssh_settings: Consolidated into routes/ssh/ (Phase 4)
+    # - bulk_remediation_routes, remediation_api: Moved to SecureOps/AEGIS (ORSA subsystem)
     adaptive_scheduler,
     audit,
     baselines,
@@ -103,9 +111,7 @@ except ImportError:
     security_config = None
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
@@ -123,15 +129,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Create encryption service with production config
     encryption_config = EncryptionConfig()  # Uses secure defaults (100k iterations, SHA256)
-    encryption_service = create_encryption_service(
-        master_key=settings.master_key, config=encryption_config
-    )
+    encryption_service = create_encryption_service(master_key=settings.master_key, config=encryption_config)
 
     # Store in app state for dependency injection
     app.state.encryption_service = encryption_service
     logger.info(
-        f"Encryption service initialized "
-        f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
+        f"Encryption service initialized " f"(AES-256-GCM, PBKDF2 with {encryption_config.kdf_iterations} iterations)"
     )
 
     # Verify FIPS mode if required
@@ -161,9 +164,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.error("Critical database schema initialization failed!")
                 logger.error("Application cannot start without required tables.")
                 if attempt < max_retries - 1:
-                    logger.info(
-                        f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})"
-                    )
+                    logger.info(f"Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
@@ -219,9 +220,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await async_sleep_module.sleep(retry_delay)
             else:
                 if settings.debug:
-                    logger.warning(
-                        f"Database connection failed in debug mode, continuing without DB: {e}"
-                    )
+                    logger.warning(f"Database connection failed in debug mode, continuing without DB: {e}")
                 else:
                     logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                     raise
@@ -280,9 +279,7 @@ app.middleware("http")(rate_limiter)
 
 # Security Middleware
 @app.middleware("http")
-async def security_headers_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def security_headers_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Add FIPS-compliant security headers to all responses."""
     response = await call_next(request)
 
@@ -307,9 +304,7 @@ async def security_headers_middleware(
     return response
 
 
-def _log_audit_event(
-    db: Any, event_type: str, request: Request, response: Response, client_ip: str
-) -> None:
+def _log_audit_event(db: Any, event_type: str, request: Request, response: Response, client_ip: str) -> None:
     """Helper function to log audit events to both file and database."""
     details = f"Path: {request.url.path}, Method: {request.method}, Status: {response.status_code}"
 
@@ -362,9 +357,7 @@ async def audit_middleware(request: Request, call_next: Callable[[Request], Any]
 
 
 @app.middleware("http")
-async def request_size_limit_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def request_size_limit_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce request size limits to prevent DoS attacks."""
     max_size = settings.max_upload_size  # 100MB default
 
@@ -376,18 +369,14 @@ async def request_size_limit_middleware(
         )
         return JSONResponse(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            content={
-                "detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"
-            },
+            content={"detail": f"Request body too large. Maximum size: {max_size // (1024*1024)}MB"},
         )
 
     return await call_next(request)
 
 
 @app.middleware("http")
-async def https_redirect_middleware(
-    request: Request, call_next: Callable[[Request], Any]
-) -> Response:
+async def https_redirect_middleware(request: Request, call_next: Callable[[Request], Any]) -> Response:
     """Enforce HTTPS in production."""
     if settings.require_https and not settings.debug:
         if request.url.scheme != "https":
@@ -513,9 +502,7 @@ async def health_check() -> JSONResponse:
                 if mongodb_healthy:
                     logger.info("MongoDB health check successful")
                 else:
-                    logger.warning(
-                        f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}"
-                    )
+                    logger.warning(f"MongoDB health check failed: {mongo_health.get('message', 'Unknown error')}")
             except Exception as e:
                 # Return actual error status
                 health_status["mongodb"] = "unhealthy"
@@ -531,9 +518,7 @@ async def health_check() -> JSONResponse:
         # Overall status
         if not (db_healthy and redis_healthy and mongodb_healthy):
             health_status["status"] = "degraded"
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status
-            )
+            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=health_status)
 
         return JSONResponse(status_code=status.HTTP_200_OK, content=health_status)
 
@@ -569,9 +554,7 @@ async def metrics() -> PlainTextResponse:
     metrics_instance = get_metrics_instance()
     metrics_data = metrics_instance.get_metrics()
 
-    return PlainTextResponse(
-        content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8"
-    )
+    return PlainTextResponse(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # Include API routes - Unified API at /api prefix
@@ -594,14 +577,10 @@ app.include_router(xccdf_api.router, prefix="/api/xccdf", tags=["XCCDF Generator
 # remediation_api - REMOVED: Moved to SecureOps/AEGIS (ORSA subsystem)
 # scan_config_api - REMOVED: Consolidated into routes/scans/config.py and templates.py (Phase 2)
 # Endpoints now available at /api/scans/config/* and /api/scans/templates/*
-app.include_router(
-    health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"]
-)
+app.include_router(health_monitoring.router, prefix="/api/health-monitoring", tags=["Health Monitoring"])
 
 # Remediation provider (registration interface for ORSA adapters)
-app.include_router(
-    remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"]
-)
+app.include_router(remediation_provider.router, prefix="/api/remediation", tags=["Remediation Provider"])
 
 # Core API routes
 # auth - Modular package (E1-S4) - consolidates login, MFA, API keys

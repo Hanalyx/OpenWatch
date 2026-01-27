@@ -216,17 +216,11 @@ class PlatformContentService:
 
         # If we have platform_identifier, we're good
         if platform_info.platform_identifier:
-            logger.debug(
-                f"Host {host_id} has platform info in database: "
-                f"{platform_info.platform_identifier}"
-            )
+            logger.debug(f"Host {host_id} has platform info in database: " f"{platform_info.platform_identifier}")
             return platform_info
 
         # Need JIT detection
-        logger.info(
-            f"Host {host_id} ({platform_info.hostname}) missing platform info, "
-            "performing JIT detection"
-        )
+        logger.info(f"Host {host_id} ({platform_info.hostname}) missing platform info, " "performing JIT detection")
 
         try:
             # Import here to avoid circular imports
@@ -256,15 +250,9 @@ class PlatformContentService:
                 platform_info.architecture = detection_result.architecture
                 platform_info.source = "jit_detection"
 
-                logger.info(
-                    f"JIT detection successful for host {host_id}: "
-                    f"{detection_result.platform_identifier}"
-                )
+                logger.info(f"JIT detection successful for host {host_id}: " f"{detection_result.platform_identifier}")
             else:
-                logger.warning(
-                    f"JIT detection failed for host {host_id}: "
-                    f"{detection_result.detection_error}"
-                )
+                logger.warning(f"JIT detection failed for host {host_id}: " f"{detection_result.detection_error}")
                 # Continue with what we have (may be incomplete)
 
         except Exception as e:
@@ -326,9 +314,7 @@ class PlatformContentService:
         # Try family + major version
         if version and len(version) > 1:
             major_version = version[0]  # First character is typically major version
-            content = await self._find_content_exact(
-                normalized_family, major_version, compliance_framework
-            )
+            content = await self._find_content_exact(normalized_family, major_version, compliance_framework)
             if content:
                 content.match_type = "major_version"
                 return content

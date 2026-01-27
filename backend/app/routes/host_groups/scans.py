@@ -121,8 +121,7 @@ async def start_group_scan(
 
         # Generate scan session name (session_id comes from orchestrator)
         session_name = (
-            request.scan_name
-            or f"Group Scan - {group.name} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+            request.scan_name or f"Group Scan - {group.name} - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
         )
 
         # Use the profile from request, or fall back to group default
@@ -280,9 +279,7 @@ async def get_group_scan_sessions(
                     session_id=row.session_id,
                     session_name=row.session_name or f"Scan Session {row.session_id[:8]}",
                     total_hosts=row.total_hosts,
-                    status=(
-                        ScanSessionStatus(row.status) if row.status else ScanSessionStatus.PENDING
-                    ),
+                    status=(ScanSessionStatus(row.status) if row.status else ScanSessionStatus.PENDING),
                     created_at=row.created_at,
                     estimated_completion=row.estimated_completion,
                     group_id=group_id,
@@ -338,11 +335,7 @@ async def get_group_scan_progress(
                 scan_name=scan.get("scan_name", ""),
                 hostname=scan.get("hostname", ""),
                 display_name=scan.get("display_name", scan.get("hostname", "")),
-                status=(
-                    ScanSessionStatus(scan["status"])
-                    if scan.get("status")
-                    else ScanSessionStatus.PENDING
-                ),
+                status=(ScanSessionStatus(scan["status"]) if scan.get("status") else ScanSessionStatus.PENDING),
                 progress=scan.get("progress", 0),
                 started_at=scan.get("started_at"),
                 completed_at=scan.get("completed_at"),
@@ -356,11 +349,7 @@ async def get_group_scan_progress(
         return ScanProgressResponse(
             session_id=progress["session_id"],
             session_name=progress.get("session_name", f"Session {session_id[:8]}"),
-            status=(
-                ScanSessionStatus(progress["status"])
-                if progress.get("status")
-                else ScanSessionStatus.PENDING
-            ),
+            status=(ScanSessionStatus(progress["status"]) if progress.get("status") else ScanSessionStatus.PENDING),
             progress_percent=progress.get("progress_percent", 0),
             total_hosts=progress.get("total_hosts", 0),
             completed_hosts=progress.get("completed_hosts", 0),
@@ -930,9 +919,7 @@ async def schedule_group_compliance_scan(
         if schedule_request.enabled:
             # Note: Celery beat schedule configuration would go here
             # For now, we just store the schedule in the database
-            logger.info(
-                f"Scheduled group scan for group {group_id} with cron: {schedule_request.cron_expression}"
-            )
+            logger.info(f"Scheduled group scan for group {group_id} with cron: {schedule_request.cron_expression}")
             return {"message": "Group compliance scan scheduled successfully"}
         else:
             return {"message": "Group compliance scan scheduling disabled"}
@@ -1007,9 +994,7 @@ def execute_group_compliance_scan(
 
                 # Create scan record
                 scan_id = str(uuid4())
-                scan_name = (
-                    f"Scheduled-{host_result.hostname}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-                )
+                scan_name = f"Scheduled-{host_result.hostname}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
 
                 db.execute(
                     text("""

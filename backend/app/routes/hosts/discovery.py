@@ -61,7 +61,8 @@ from .helpers import (
     get_recommended_frameworks,
     validate_host_uuid,
 )
-from .models import (  # Basic discovery models; Network discovery models; Security discovery models; Compliance discovery models
+from .models import (  # noqa: E501
+    # Basic discovery models; Network discovery models; Security discovery models; Compliance discovery models
     BulkComplianceDiscoveryRequest,
     BulkComplianceDiscoveryResponse,
     BulkDiscoveryRequest,
@@ -177,9 +178,7 @@ async def discover_basic_system_bulk(
                 if host.username and (host.ip_address or host.hostname):
                     valid_hosts.append(host)
                 else:
-                    invalid_hosts.append(
-                        {"host_id": host_id, "error": "Missing connection information"}
-                    )
+                    invalid_hosts.append({"host_id": host_id, "error": "Missing connection information"})
             else:
                 invalid_hosts.append({"host_id": host_id, "error": "Host not found"})
 
@@ -200,9 +199,7 @@ async def discover_basic_system_bulk(
 
         except Exception as e:
             logger.error(f"Failed to schedule discovery for host {host.id}: {str(e)}")
-            invalid_hosts.append(
-                {"host_id": str(host.id), "error": f"Failed to schedule: {str(e)}"}
-            )
+            invalid_hosts.append({"host_id": str(host.id), "error": f"Failed to schedule: {str(e)}"})
 
     # Estimate completion time (assume 30 seconds per host)
     estimated_completion = datetime.utcnow()
@@ -311,9 +308,7 @@ async def discover_host_network_topology(
         discovery_results = network_service.discover_network_topology(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         interface_count = len(discovery_results["network_interfaces"])
         route_count = len(discovery_results["routing_table"])
@@ -382,9 +377,7 @@ async def bulk_discover_network_topology(
             discovery_results = network_service.discover_network_topology(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = NetworkDiscoveryResponse(**discovery_results)
 
@@ -589,9 +582,7 @@ async def get_network_discovery_capabilities(
     }
 
 
-def _assess_network_security(
-    host: Host, discovery_results: Dict[str, Any]
-) -> NetworkSecurityAssessment:
+def _assess_network_security(host: Host, discovery_results: Dict[str, Any]) -> NetworkSecurityAssessment:
     """Assess network security based on discovery results."""
 
     # Initialize assessment
@@ -619,9 +610,7 @@ def _assess_network_security(
             port = int(port_info.get("port", 0))
             if port in risky_port_numbers:
                 risky_ports.append(port_info)
-                assessment.risky_services.append(
-                    f"Port {port} ({port_info.get('protocol', 'unknown')})"
-                )
+                assessment.risky_services.append(f"Port {port} ({port_info.get('protocol', 'unknown')})")
         except (ValueError, TypeError):
             continue
 
@@ -669,9 +658,7 @@ def _assess_network_security(
 
     # Connectivity test failures might indicate network issues
     connectivity_tests = discovery_results.get("connectivity_tests", {})
-    failed_tests = sum(
-        1 for test in connectivity_tests.values() if not test.get("ping_success", True)
-    )
+    failed_tests = sum(1 for test in connectivity_tests.values() if not test.get("ping_success", True))
     if failed_tests > 0:
         assessment.network_vulnerabilities.append(f"{failed_tests} connectivity tests failed")
 
@@ -681,9 +668,7 @@ def _assess_network_security(
     return assessment
 
 
-def _generate_topology_map(
-    discovery_results: Dict[str, NetworkDiscoveryResponse], db: Session
-) -> NetworkTopologyMap:
+def _generate_topology_map(discovery_results: Dict[str, NetworkDiscoveryResponse], db: Session) -> NetworkTopologyMap:
     """Generate network topology map from discovery results."""
     hosts: List[Dict[str, Any]] = []
     network_segments: List[Dict[str, Any]] = []
@@ -810,9 +795,7 @@ async def discover_host_security_infrastructure(
         discovery_results = security_service.discover_security_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         logger.info(
             f"Security discovery completed for host {host.hostname}: "
@@ -881,9 +864,7 @@ async def bulk_discover_security_infrastructure(
             discovery_results = security_service.discover_security_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = SecurityDiscoveryResponse(**discovery_results)
 
@@ -943,11 +924,7 @@ async def get_host_security_summary(
         os_family_str: Optional[str] = str(host.os_family) if host.os_family else None
         if os_family_str:
             os_family_lower = os_family_str.lower()
-            if (
-                "rhel" in os_family_lower
-                or "centos" in os_family_lower
-                or "fedora" in os_family_lower
-            ):
+            if "rhel" in os_family_lower or "centos" in os_family_lower or "fedora" in os_family_lower:
                 security_recommendations.extend(
                     [
                         "Consider enabling SELinux if not already active",
@@ -978,9 +955,7 @@ async def get_host_security_summary(
             "os_family": host.os_family,
             "os_version": host.os_version,
             "architecture": host.architecture,
-            "last_os_detection": (
-                host.last_os_detection.isoformat() if host.last_os_detection else None
-            ),
+            "last_os_detection": (host.last_os_detection.isoformat() if host.last_os_detection else None),
             "auth_method": host.auth_method,
             "security_recommendations": security_recommendations,
         }
@@ -1031,14 +1006,10 @@ async def discover_host_compliance_infrastructure(
 
         # Perform compliance discovery
         compliance_service = HostComplianceDiscoveryService()
-        discovery_results: Dict[str, Any] = compliance_service.discover_compliance_infrastructure(
-            host
-        )
+        discovery_results: Dict[str, Any] = compliance_service.discover_compliance_infrastructure(host)
 
         # Convert datetime to string for JSON serialization
-        discovery_results["discovery_timestamp"] = discovery_results[
-            "discovery_timestamp"
-        ].isoformat()
+        discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
         logger.info(
             f"Compliance discovery completed for host {host.hostname}: "
@@ -1107,9 +1078,7 @@ async def bulk_discover_compliance_infrastructure(
             discovery_results = compliance_service.discover_compliance_infrastructure(host)
 
             # Convert datetime to string for JSON serialization
-            discovery_results["discovery_timestamp"] = discovery_results[
-                "discovery_timestamp"
-            ].isoformat()
+            discovery_results["discovery_timestamp"] = discovery_results["discovery_timestamp"].isoformat()
 
             results[host_id] = ComplianceDiscoveryResponse(**discovery_results)
 
@@ -1171,12 +1140,8 @@ async def assess_host_compliance_capability(
 
         # Assess capabilities using helper functions
         scap_capability = assess_scap_capability(discovery_results.get("openscap_tools", {}))
-        python_capability = assess_python_capability(
-            discovery_results.get("python_environments", {})
-        )
-        privilege_escalation = assess_privilege_escalation(
-            discovery_results.get("privilege_escalation", {})
-        )
+        python_capability = assess_python_capability(discovery_results.get("python_environments", {}))
+        privilege_escalation = assess_privilege_escalation(discovery_results.get("privilege_escalation", {}))
         audit_capability = assess_audit_capability(discovery_results.get("audit_tools", {}))
 
         # Calculate readiness score
@@ -1194,9 +1159,7 @@ async def assess_host_compliance_capability(
 
         # Get recommended frameworks and missing tools
         recommended_frameworks = get_recommended_frameworks(scap_capability, audit_capability)
-        missing_tools = get_missing_tools(
-            scap_capability, python_capability, privilege_escalation, audit_capability
-        )
+        missing_tools = get_missing_tools(scap_capability, python_capability, privilege_escalation, audit_capability)
 
         return ComplianceCapabilityAssessment(
             host_id=str(host.id),

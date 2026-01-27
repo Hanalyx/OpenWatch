@@ -254,10 +254,7 @@ class RuleAssociationService:
 
         await mapping.save()
 
-        logger.info(
-            f"Created rule mapping: {openwatch_rule_id} -> {plugin_id} "
-            f"({platform}, {confidence.value})"
-        )
+        logger.info(f"Created rule mapping: {openwatch_rule_id} -> {plugin_id} " f"({platform}, {confidence.value})")
         return mapping
 
     async def get_mappings_for_rule(
@@ -290,9 +287,7 @@ class RuleAssociationService:
         min_score = self._confidence_to_score(min_confidence)
         query["confidence_score"] = {"$gte": min_score}
 
-        mappings = (
-            await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
-        )
+        mappings = await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
 
         return mappings
 
@@ -321,9 +316,7 @@ class RuleAssociationService:
         min_score = self._confidence_to_score(min_confidence)
         query["confidence_score"] = {"$gte": min_score}
 
-        return (
-            await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
-        )
+        return await RulePluginMapping.find(query).sort(-RulePluginMapping.confidence_score).to_list()
 
     async def discover_mappings_for_rule(
         self,
@@ -373,9 +366,7 @@ class RuleAssociationService:
 
                 if analysis.similarity_score > 0.2:  # Minimum threshold
                     # Get historical data
-                    historical_data = await self._get_historical_effectiveness(
-                        rule_id, plugin.plugin_id, platform
-                    )
+                    historical_data = await self._get_historical_effectiveness(rule_id, plugin.plugin_id, platform)
 
                     recommendation = RuleMappingRecommendation(
                         plugin_id=plugin.plugin_id,
@@ -451,9 +442,7 @@ class RuleAssociationService:
                     continue
 
             # Discover new mappings
-            discovered = await self.discover_mappings_for_rule(
-                rule_id, platform=platform, framework=framework
-            )
+            discovered = await self.discover_mappings_for_rule(rule_id, platform=platform, framework=framework)
             recommendations[rule_id] = discovered
 
         return recommendations
@@ -551,9 +540,7 @@ class RuleAssociationService:
 
         if validated_mappings:
             avg_effectiveness = sum(
-                m.effectiveness_score
-                for m in validated_mappings
-                if m.effectiveness_score is not None
+                m.effectiveness_score for m in validated_mappings if m.effectiveness_score is not None
             ) / len(validated_mappings)
         else:
             avg_effectiveness = 0.0
@@ -790,17 +777,13 @@ class RuleAssociationService:
                 {
                     "id": f"{plugin.plugin_id}_generic",
                     "name": f"{plugin.name} Generic Rule",
-                    "description": (
-                        plugin.description or f"Generic remediation using {plugin.name}"
-                    ),
+                    "description": (plugin.description or f"Generic remediation using {plugin.name}"),
                 }
             )
 
         return rules
 
-    async def _get_historical_effectiveness(
-        self, rule_id: str, plugin_id: str, platform: str
-    ) -> Dict[str, Any]:
+    async def _get_historical_effectiveness(self, rule_id: str, plugin_id: str, platform: str) -> Dict[str, Any]:
         """Get historical effectiveness data for a rule-plugin combination."""
         mappings = await RulePluginMapping.find(
             {
@@ -850,9 +833,7 @@ class RuleAssociationService:
 # ============================================================================
 
 
-async def create_stig_mappings(
-    service: RuleAssociationService, created_by: str
-) -> List[RulePluginMapping]:
+async def create_stig_mappings(service: RuleAssociationService, created_by: str) -> List[RulePluginMapping]:
     """Create common STIG rule mappings."""
     stig_mappings = [
         {
@@ -881,9 +862,7 @@ async def create_stig_mappings(
     return await service.bulk_import_mappings(stig_mappings, created_by, MappingSource.FRAMEWORK)
 
 
-async def create_cis_mappings(
-    service: RuleAssociationService, created_by: str
-) -> List[RulePluginMapping]:
+async def create_cis_mappings(service: RuleAssociationService, created_by: str) -> List[RulePluginMapping]:
     """Create common CIS benchmark mappings."""
     cis_mappings = [
         {

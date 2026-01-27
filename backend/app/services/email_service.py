@@ -39,11 +39,11 @@ class EmailService:
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">  # noqa: E501
                     <h2 style="color: #d32f2f; margin-bottom: 20px;">[ALERT] Host Offline</h2>
 
                     <div style="background-color: #ffebee; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                        <p style="margin: 0; font-weight: bold;">A monitored host has gone offline and requires attention.</p>
+                        <p style="margin: 0; font-weight: bold;">A monitored host has gone offline and requires attention.</p>  # noqa: E501
                     </div>
 
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -57,11 +57,11 @@ class EmailService:
                         </tr>
                         <tr style="background-color: #f5f5f5;">
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Last Check:</td>
-                            <td style="padding: 12px; border: 1px solid #ddd;">{last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">{last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}</td>  # noqa: E501
                         </tr>
                         <tr>
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Alert Time:</td>
-                            <td style="padding: 12px; border: 1px solid #ddd;">{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</td>  # noqa: E501
                         </tr>
                     </table>
 
@@ -124,7 +124,7 @@ This is an automated message from OpenWatch Security Scanner.
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">  # noqa: E501
                     <h2 style="color: #388e3c; margin-bottom: 20px;">[RESOLVED] Host Back Online</h2>
 
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
@@ -142,13 +142,13 @@ This is an automated message from OpenWatch Security Scanner.
                         </tr>
                         <tr style="background-color: #f5f5f5;">
                             <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Back Online:</td>
-                            <td style="padding: 12px; border: 1px solid #ddd;">{check_time.strftime('%Y-%m-%d %H:%M:%S UTC')}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">{check_time.strftime('%Y-%m-%d %H:%M:%S UTC')}</td>  # noqa: E501
                         </tr>
                     </table>
 
                     <div style="background-color: #e8f5e8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
                         <p style="margin: 0; color: #388e3c;">
-                            The host is now responding to connectivity checks and SSH authentication is working properly.
+                            The host is now responding to connectivity checks and SSH authentication is working properly.  # noqa: E501
                         </p>
                     </div>
 

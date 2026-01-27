@@ -56,8 +56,7 @@ class SecureAutomatedFix:
         if self.requires_sudo:
             return CommandSecurityLevel.PRIVILEGED
         elif any(
-            dangerous in (self.command or "").lower()
-            for dangerous in ["rm ", "delete", "modify", "install", "update"]
+            dangerous in (self.command or "").lower() for dangerous in ["rm ", "delete", "modify", "install", "update"]
         ):
             return CommandSecurityLevel.MODERATE
         else:
@@ -67,8 +66,7 @@ class SecureAutomatedFix:
         """Determine if fix requires manual approval"""
         return (
             self.requires_sudo
-            or self.security_level
-            in [CommandSecurityLevel.PRIVILEGED, CommandSecurityLevel.CRITICAL]
+            or self.security_level in [CommandSecurityLevel.PRIVILEGED, CommandSecurityLevel.CRITICAL]
             or not self.is_safe
         )
 
@@ -123,9 +121,7 @@ class FixExecutionAudit:
     def __init__(self):
         self.audit_entries = []
 
-    async def log_fix_request(
-        self, fix_id: str, requested_by: str, target_host: str, justification: str
-    ):
+    async def log_fix_request(self, fix_id: str, requested_by: str, target_host: str, justification: str):
         """Log fix execution request"""
         entry = {
             "event_type": "fix_requested",
@@ -207,9 +203,7 @@ class FixExecutionAudit:
                     audit_sql,
                     {
                         "event_type": entry["event_type"],
-                        "user_id": entry.get("requested_by")
-                        or entry.get("approved_by")
-                        or entry.get("rollback_by"),
+                        "user_id": entry.get("requested_by") or entry.get("approved_by") or entry.get("rollback_by"),
                         "resource_type": "automated_fix",
                         "resource_id": entry.get("request_id") or entry.get("fix_id"),
                         "action": entry["event_type"],
@@ -237,9 +231,7 @@ class SecureAutomatedFixExecutor:
         self.audit_service = FixExecutionAudit()
         self.pending_approvals = {}
 
-    async def evaluate_fix_options(
-        self, legacy_fixes: List[AutomatedFix], target_host: str
-    ) -> List[Dict[str, Any]]:
+    async def evaluate_fix_options(self, legacy_fixes: List[AutomatedFix], target_host: str) -> List[Dict[str, Any]]:
         """Evaluate legacy fixes and convert to secure options"""
         secure_options = []
 
@@ -342,9 +334,7 @@ class SecureAutomatedFixExecutor:
                 "message": f"Failed to request fix execution: {str(e)}",
             }
 
-    async def approve_fix_request(
-        self, request_id: str, approved_by: str, approval_reason: str
-    ) -> Dict[str, Any]:
+    async def approve_fix_request(self, request_id: str, approved_by: str, approval_reason: str) -> Dict[str, Any]:
         """Approve a pending fix execution request"""
 
         try:
@@ -501,9 +491,7 @@ class SecureAutomatedFixExecutor:
 
         # Clean up pending approvals that are too old
         expired_requests = [
-            req_id
-            for req_id, data in self.pending_approvals.items()
-            if data["requested_at"] < cutoff_date
+            req_id for req_id, data in self.pending_approvals.items() if data["requested_at"] < cutoff_date
         ]
 
         for req_id in expired_requests:

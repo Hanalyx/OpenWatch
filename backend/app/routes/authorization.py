@@ -41,9 +41,7 @@ class PermissionGrantRequest(BaseModel):
     role_name: Optional[str] = None
     host_id: Optional[str] = None
     host_group_id: Optional[str] = None
-    actions: Set[str] = Field(
-        ..., description="List of actions: read, write, execute, delete, manage, scan"
-    )
+    actions: Set[str] = Field(..., description="List of actions: read, write, execute, delete, manage, scan")
     effect: str = Field(default="allow", description="Permission effect: allow or deny")
     expires_at: Optional[datetime] = None
     conditions: Dict[str, Any] = Field(default_factory=dict)
@@ -90,9 +88,7 @@ class BulkPermissionCheckRequest(BaseModel):
     """Request for bulk permission checking."""
 
     user_id: Optional[str] = None
-    resources: List[Dict[str, Any]] = Field(
-        ..., description="List of {resource_type, resource_id} dicts"
-    )
+    resources: List[Dict[str, Any]] = Field(..., description="List of {resource_type, resource_id} dicts")
     action: str
     fail_fast: bool = True
 
@@ -249,9 +245,7 @@ async def revoke_permission(
                 detail=f"Permission {permission_id} not found",
             )
 
-        logger.info(
-            f"Permission {permission_id} revoked by {current_user.get('username', 'unknown')}"
-        )
+        logger.info(f"Permission {permission_id} revoked by {current_user.get('username', 'unknown')}")
 
         return {
             "success": True,
@@ -498,11 +492,7 @@ async def check_bulk_permissions(
                 "resource_type": res.resource_type.value,
                 "resource_id": res.resource_id,
                 "reason": next(
-                    (
-                        r.reason
-                        for r in result.individual_results
-                        if r.resource.resource_id == res.resource_id
-                    ),
+                    (r.reason for r in result.individual_results if r.resource.resource_id == res.resource_id),
                     "Access denied",
                 ),
             }
@@ -623,9 +613,7 @@ async def get_authorization_audit_log(
                     "resource_id": row.resource_id,
                     "action": row.action,
                     "decision": row.decision,
-                    "policies_evaluated": (
-                        row.policies_evaluated.split(",") if row.policies_evaluated else []
-                    ),
+                    "policies_evaluated": (row.policies_evaluated.split(",") if row.policies_evaluated else []),
                     "context": row.context,
                     "ip_address": row.ip_address,
                     "user_agent": row.user_agent,
@@ -730,24 +718,12 @@ async def get_authorization_summary(
 
         # Build response with null safety for fetchone results
         permission_statistics: Dict[str, int] = {
-            "total_permissions": (
-                getattr(perm_stats, "total_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "user_permissions": (
-                getattr(perm_stats, "user_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "group_permissions": (
-                getattr(perm_stats, "group_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "role_permissions": (
-                getattr(perm_stats, "role_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "temporary_permissions": (
-                getattr(perm_stats, "temporary_permissions", 0) or 0 if perm_stats else 0
-            ),
-            "deny_permissions": (
-                getattr(perm_stats, "deny_permissions", 0) or 0 if perm_stats else 0
-            ),
+            "total_permissions": (getattr(perm_stats, "total_permissions", 0) or 0 if perm_stats else 0),
+            "user_permissions": (getattr(perm_stats, "user_permissions", 0) or 0 if perm_stats else 0),
+            "group_permissions": (getattr(perm_stats, "group_permissions", 0) or 0 if perm_stats else 0),
+            "role_permissions": (getattr(perm_stats, "role_permissions", 0) or 0 if perm_stats else 0),
+            "temporary_permissions": (getattr(perm_stats, "temporary_permissions", 0) or 0 if perm_stats else 0),
+            "deny_permissions": (getattr(perm_stats, "deny_permissions", 0) or 0 if perm_stats else 0),
         }
 
         # Calculate avg_evaluation_time_ms safely
@@ -756,12 +732,8 @@ async def get_authorization_summary(
 
         recent_activity: Dict[str, Any] = {
             "total_checks_24h": getattr(audit_stats, "total_checks", 0) or 0 if audit_stats else 0,
-            "allowed_checks_24h": (
-                getattr(audit_stats, "allowed_checks", 0) or 0 if audit_stats else 0
-            ),
-            "denied_checks_24h": (
-                getattr(audit_stats, "denied_checks", 0) or 0 if audit_stats else 0
-            ),
+            "allowed_checks_24h": (getattr(audit_stats, "allowed_checks", 0) or 0 if audit_stats else 0),
+            "denied_checks_24h": (getattr(audit_stats, "denied_checks", 0) or 0 if audit_stats else 0),
             "avg_evaluation_time_ms": float(avg_eval_time) if avg_eval_time else 0.0,
             "avg_risk_score": float(avg_risk) if avg_risk else 0.0,
         }

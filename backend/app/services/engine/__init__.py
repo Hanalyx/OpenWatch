@@ -164,7 +164,7 @@ from .dependency_resolver import SCAPDependency, SCAPDependencyResolver, get_dep
 from .discovery import PlatformDetector, PlatformInfo, detect_platform_for_scan
 
 # Re-export exceptions for error handling
-from .exceptions import (  # Base exceptions; Executor exceptions; Scanner exceptions; Other exceptions; Backward compatibility
+from .exceptions import (  # Base exceptions; Executor exceptions; Scanner exceptions; Other exceptions; Backward compatibility  # noqa: E501
     ContentValidationError,
     DependencyError,
     EngineError,

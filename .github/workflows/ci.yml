@@ -73,7 +73,7 @@ jobs:
           black --check app/
 
           echo "Running Flake8 linter..."
-          flake8 app/ --max-line-length=120 --extend-ignore=E203,W503
+          flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --per-file-ignores='__init__.py:F401,E402'
 
           echo "Running type checking with mypy..."
           mypy app/ --ignore-missing-imports || true

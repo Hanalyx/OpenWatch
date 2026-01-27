@@ -544,18 +544,14 @@ class PluginGovernanceService:
                 field = condition_key[4:]  # Remove "max_" prefix
                 actual_value = plugin_data.get(field, 0)
                 if actual_value > condition_value:
-                    violations_details.append(
-                        f"{field} is {actual_value}, exceeds maximum {condition_value}"
-                    )
+                    violations_details.append(f"{field} is {actual_value}, exceeds maximum {condition_value}")
 
             elif condition_key.startswith("min_"):
                 # Minimum value check
                 field = condition_key[4:]  # Remove "min_" prefix
                 actual_value = plugin_data.get(field, 0)
                 if actual_value < condition_value:
-                    violations_details.append(
-                        f"{field} is {actual_value}, below minimum {condition_value}"
-                    )
+                    violations_details.append(f"{field} is {actual_value}, below minimum {condition_value}")
 
             elif condition_key.startswith("requires_"):
                 # Required field check
@@ -951,15 +947,11 @@ class PluginGovernanceService:
             by_standard[standard].append(finding)
 
         for standard, std_findings in by_standard.items():
-            recommendations.append(
-                f"Address {len(std_findings)} {standard.upper()} requirement gaps"
-            )
+            recommendations.append(f"Address {len(std_findings)} {standard.upper()} requirement gaps")
 
         # Add specific recommendations
         for finding in failed_findings[:5]:  # Limit to top 5
-            recommendations.append(
-                f"Implement: {finding.get('requirement', 'Unknown requirement')}"
-            )
+            recommendations.append(f"Implement: {finding.get('requirement', 'Unknown requirement')}")
 
         return recommendations
 
@@ -1256,17 +1248,13 @@ class PluginGovernanceService:
         violations = list(self._violations.values())
 
         active_violations = [v for v in violations if v.resolved_at is None]
-        critical_violations = [
-            v for v in active_violations if v.severity == ViolationSeverity.CRITICAL
-        ]
+        critical_violations = [v for v in active_violations if v.severity == ViolationSeverity.CRITICAL]
 
         return {
             "policies": {
                 "total": len(policies),
                 "enabled": sum(1 for p in policies if p.enabled),
-                "by_type": {
-                    pt.value: sum(1 for p in policies if p.policy_type == pt) for pt in PolicyType
-                },
+                "by_type": {pt.value: sum(1 for p in policies if p.policy_type == pt) for pt in PolicyType},
             },
             "violations": {
                 "total": len(violations),
@@ -1274,8 +1262,7 @@ class PluginGovernanceService:
                 "resolved": len(violations) - len(active_violations),
                 "critical": len(critical_violations),
                 "by_severity": {
-                    vs.value: sum(1 for v in active_violations if v.severity == vs)
-                    for vs in ViolationSeverity
+                    vs.value: sum(1 for v in active_violations if v.severity == vs) for vs in ViolationSeverity
                 },
             },
             "config": {

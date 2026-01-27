@@ -174,7 +174,7 @@ class MongoIntegrationService:
             fix_available=True,
             fix_content={
                 "shell": {
-                    "script": "sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl reload sshd",
+                    "script": "sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl reload sshd",  # noqa: E501
                     "requires_root": True,
                     "backup_command": "cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup",
                 },
@@ -254,7 +254,7 @@ fi
             requires_root=True,
             estimated_duration_seconds=10,
             validation_command="grep '^PermitRootLogin no' /etc/ssh/sshd_config",
-            rollback_script="sed -i 's/^.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && systemctl reload sshd",
+            rollback_script="sed -i 's/^.*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && systemctl reload sshd",  # noqa: E501
             tested_on=["rhel-8.8", "rhel-9.2"],
             contributed_by="OpenWatch Integration Test",
             approved=True,
@@ -277,9 +277,7 @@ fi
         query = {query_field: version}
 
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for query_rules_by_platform ({platform} {version})")
         repo = ComplianceRuleRepository()
         rules = await repo.find_many(query)
 
@@ -298,9 +296,7 @@ fi
         query = {query_field: {"$exists": True}}
 
         # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-        logger.debug(
-            f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})"
-        )
+        logger.debug(f"Using ComplianceRuleRepository for query_rules_by_framework ({framework} {version})")
         repo = ComplianceRuleRepository()
         rules = await repo.find_many(query)
 
@@ -497,9 +493,7 @@ fi
             # Execute aggregation (fallback to manual processing if aggregation fails)
             try:
                 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-                logger.debug(
-                    "Using ComplianceRuleRepository for get_platform_statistics aggregation"
-                )
+                logger.debug("Using ComplianceRuleRepository for get_platform_statistics aggregation")
                 repo = ComplianceRuleRepository()
                 aggregation_results = await repo.aggregate(pipeline)
 
@@ -515,18 +509,12 @@ fi
 
                         categories = []
                         total_rules = result.get("ruleCount", 0)
-                        for cat, count in sorted(
-                            category_counts.items(), key=lambda x: x[1], reverse=True
-                        ):
+                        for cat, count in sorted(category_counts.items(), key=lambda x: x[1], reverse=True):
                             categories.append(
                                 {
                                     "name": cat.replace("_", " ").title(),
                                     "count": count,
-                                    "percentage": (
-                                        round((count / total_rules) * 100, 1)
-                                        if total_rules > 0
-                                        else 0
-                                    ),
+                                    "percentage": (round((count / total_rules) * 100, 1) if total_rules > 0 else 0),
                                 }
                             )
 
@@ -556,9 +544,7 @@ fi
                     }
 
             except Exception as agg_error:
-                logger.warning(
-                    f"MongoDB aggregation failed, falling back to manual processing: {agg_error}"
-                )
+                logger.warning(f"MongoDB aggregation failed, falling back to manual processing: {agg_error}")
 
             # Fallback: Manual processing of all rules
             # OW-REFACTOR-002: Repository Pattern (MANDATORY)

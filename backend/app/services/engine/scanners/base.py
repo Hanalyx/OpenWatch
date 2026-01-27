@@ -296,9 +296,7 @@ class BaseScanner(ABC):
         """
         return self.capabilities.supported_scan_types
 
-    def log_validation_result(
-        self, content_path: Path, is_valid: bool, details: Optional[str] = None
-    ) -> None:
+    def log_validation_result(self, content_path: Path, is_valid: bool, details: Optional[str] = None) -> None:
         """
         Log content validation result.
 

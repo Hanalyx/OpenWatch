@@ -144,7 +144,7 @@ class ScanIntelligenceService:
             enhanced_suggestion = await self._enhance_suggestion_with_content(best_suggestion)
 
             logger.info(
-                f"Profile suggested for host {host_id}: {enhanced_suggestion.profile_id} (confidence: {enhanced_suggestion.confidence})"
+                f"Profile suggested for host {host_id}: {enhanced_suggestion.profile_id} (confidence: {enhanced_suggestion.confidence})"  # noqa: E501
             )
             return enhanced_suggestion
 
@@ -373,9 +373,7 @@ class ScanIntelligenceService:
 
         return best
 
-    async def _enhance_suggestion_with_content(
-        self, suggestion: RecommendedScanProfile
-    ) -> RecommendedScanProfile:
+    async def _enhance_suggestion_with_content(self, suggestion: RecommendedScanProfile) -> RecommendedScanProfile:
         """Enhance suggestion with actual SCAP content metadata"""
         try:
             # Find matching content and profile
@@ -466,15 +464,11 @@ class ScanIntelligenceService:
 
             # Environment mixing warning
             if "production" in env_groups and len(env_groups) > 1:
-                recommendations.append(
-                    "Production and non-production hosts mixed - consider separate scans"
-                )
+                recommendations.append("Production and non-production hosts mixed - consider separate scans")
 
             # Large batch warning
             if len(hosts_info) > 20:
-                recommendations.append(
-                    "Large batch detected - consider splitting into smaller groups"
-                )
+                recommendations.append("Large batch detected - consider splitting into smaller groups")
 
             return {
                 "feasible": True,

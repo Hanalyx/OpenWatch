@@ -71,11 +71,7 @@ async def create_api_key(
     check_permission(current_user["role"], "api_keys", "create")
 
     # Check if API key with same name exists
-    existing = (
-        db.query(ApiKey)
-        .filter(and_(ApiKey.name == request.name, ApiKey.is_active.is_(True)))
-        .first()
-    )
+    existing = db.query(ApiKey).filter(and_(ApiKey.name == request.name, ApiKey.is_active.is_(True))).first()
 
     if existing:
         raise HTTPException(

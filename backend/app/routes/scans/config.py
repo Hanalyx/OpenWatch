@@ -267,9 +267,7 @@ async def validate_variables(
     db = _get_database(mongo_service)
     service = FrameworkMetadataService(db)
 
-    valid, errors = await service.validate_variables(
-        framework=framework, version=version, variables=request.variables
-    )
+    valid, errors = await service.validate_variables(framework=framework, version=version, variables=request.variables)
 
     return ValidationResult(valid=valid, errors=errors)
 

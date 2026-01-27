@@ -61,9 +61,7 @@ def validate_host_uuid(host_id: str) -> uuid.UUID:
         # Log detailed error server-side for debugging
         logger.error(f"Invalid host ID format: {sanitize_id_for_log(host_id)} - {type(e).__name__}")
         # Return generic error to client (security best practice)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid host ID format")
 
 
 # =============================================================================
@@ -85,9 +83,7 @@ def calculate_connectivity_score(connectivity_tests: Dict[str, Any]) -> float:
         return 0.0
 
     total_tests = len(connectivity_tests)
-    successful_tests = sum(
-        1 for test in connectivity_tests.values() if test.get("ping_success", False)
-    )
+    successful_tests = sum(1 for test in connectivity_tests.values() if test.get("ping_success", False))
 
     return successful_tests / total_tests if total_tests > 0 else 0.0
 

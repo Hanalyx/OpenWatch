@@ -122,9 +122,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
 
         with get_db_session() as db:
             # Get current failures list
-            query = text(
-                "SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_failures'"
-            )
+            query = text("SELECT setting_value FROM system_settings WHERE setting_key = 'os_discovery_failures'")
             result = db.execute(query).fetchone()
 
             if result and result[0]:
@@ -146,7 +144,7 @@ def _record_discovery_failure(host_id: str, error_message: str) -> None:
 
             # Upsert the failures list
             upsert_query = text("""
-                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, modified_at)
+                INSERT INTO system_settings (setting_key, setting_value, setting_type, description, created_at, modified_at)  # noqa: E501
                 VALUES ('os_discovery_failures', :value, 'json', 'Failed OS discovery attempts', :now, :now)
                 ON CONFLICT (setting_key)
                 DO UPDATE SET setting_value = :value, modified_at = :now
@@ -230,9 +228,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
 
             # Create encryption service for credential decryption
             settings = get_settings()
-            encryption_service = create_encryption_service(
-                master_key=settings.master_key, config=EncryptionConfig()
-            )
+            encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
 
             # Create a Host-like object for the discovery service
             # HostBasicDiscoveryService expects a Host model instance
@@ -266,9 +262,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             if not discovery_results.get("discovery_success", False):
                 errors = discovery_results.get("discovery_errors", ["Unknown error"])
                 result["error"] = "; ".join(errors)
-                logger.warning(
-                    f"OS discovery failed for host {host_id} ({host_row.hostname}): {result['error']}"
-                )
+                logger.warning(f"OS discovery failed for host {host_id} ({host_row.hostname}): {result['error']}")
                 return result
 
             # Extract discovered values
@@ -278,9 +272,7 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
             discovered_os_name = discovery_results.get("os_name", "Unknown")
 
             # Normalize to platform identifier for OVAL selection
-            platform_identifier = _normalize_platform_identifier(
-                discovered_os_family, discovered_os_version
-            )
+            platform_identifier = _normalize_platform_identifier(discovered_os_family, discovered_os_version)
 
             # Update host record in database
             # Phase 4: Include platform_identifier for OVAL selection during scans
@@ -299,18 +291,10 @@ def trigger_os_discovery(self, host_id: str) -> Dict[str, Any]:
                 update_query,
                 {
                     "host_id": host_id,
-                    "os_family": (
-                        discovered_os_family if discovered_os_family != "Unknown" else None
-                    ),
-                    "os_version": (
-                        discovered_os_version if discovered_os_version != "Unknown" else None
-                    ),
-                    "architecture": (
-                        discovered_architecture if discovered_architecture != "Unknown" else None
-                    ),
-                    "operating_system": (
-                        discovered_os_name if discovered_os_name != "Unknown" else None
-                    ),
+                    "os_family": (discovered_os_family if discovered_os_family != "Unknown" else None),
+                    "os_version": (discovered_os_version if discovered_os_version != "Unknown" else None),
+                    "architecture": (discovered_architecture if discovered_architecture != "Unknown" else None),
+                    "operating_system": (discovered_os_name if discovered_os_name != "Unknown" else None),
                     "platform_identifier": platform_identifier,  # Phase 4: Persisted for scan OVAL selection
                     "last_os_detection": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
@@ -395,9 +379,7 @@ def batch_os_discovery(self, host_ids: List[str]) -> Dict[str, Any]:
                 UUID(host_id)
             except ValueError:
                 result["failed"] += 1
-                result["dispatch_errors"].append(
-                    {"host_id": host_id, "error": "Invalid UUID format"}
-                )
+                result["dispatch_errors"].append({"host_id": host_id, "error": "Invalid UUID format"})
                 continue
 
             # Dispatch individual discovery task
@@ -476,8 +458,7 @@ def discover_all_hosts_os(self, force: bool = False) -> Dict[str, Any]:
                     is_enabled = setting_result[0].lower() in ("true", "1", "yes", "enabled")
                     if not is_enabled:
                         logger.info(
-                            "Scheduled OS discovery is disabled via system_settings. "
-                            "Use force=True to override."
+                            "Scheduled OS discovery is disabled via system_settings. " "Use force=True to override."
                         )
                         result["disabled"] = True
                         return result

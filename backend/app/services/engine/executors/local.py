@@ -263,9 +263,7 @@ class LocalExecutor(BaseExecutor):
                 str(e),
                 exc_info=True,
             )
-            return self._create_failed_local_result(
-                context, content_path, profile_id, str(e), start_time
-            )
+            return self._create_failed_local_result(context, content_path, profile_id, str(e), start_time)
 
     def _run_oscap(
         self,

@@ -277,7 +277,7 @@ class AegisMapper:
                 remediation_type="configuration",
                 implementation_commands=[
                     "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config",
-                    "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config",
+                    "grep -q '^PermitRootLogin' /etc/ssh/sshd_config || echo 'PermitRootLogin no' >> /etc/ssh/sshd_config",  # noqa: E501
                     "systemctl restart sshd",
                 ],
                 verification_commands=["grep -E '^PermitRootLogin\\s+no' /etc/ssh/sshd_config"],
@@ -298,11 +298,9 @@ class AegisMapper:
                 remediation_type="configuration",
                 implementation_commands=[
                     "sed -i 's/^#*\\s*minlen.*/minlen = 15/' /etc/security/pwquality.conf",
-                    "grep -q '^minlen' /etc/security/pwquality.conf || echo 'minlen = 15' >> /etc/security/pwquality.conf",
+                    "grep -q '^minlen' /etc/security/pwquality.conf || echo 'minlen = 15' >> /etc/security/pwquality.conf",  # noqa: E501
                 ],
-                verification_commands=[
-                    "grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"
-                ],
+                verification_commands=["grep -E '^minlen\\s*=\\s*(1[5-9]|[2-9][0-9])' /etc/security/pwquality.conf"],
                 rollback_commands=["sed -i 's/^minlen.*/minlen = 8/' /etc/security/pwquality.conf"],
                 estimated_duration=20,
                 requires_reboot=False,
@@ -375,9 +373,7 @@ class AegisMapper:
                     "stat -c '%a' /etc/shadow | grep -q '600'",
                     "stat -c '%a' /etc/passwd | grep -q '644'",
                 ],
-                rollback_commands=[
-                    "# No rollback for security permissions - manual review required"
-                ],
+                rollback_commands=["# No rollback for security permissions - manual review required"],
                 estimated_duration=120,
                 requires_reboot=False,
                 dependencies=[],
@@ -818,10 +814,7 @@ class AegisMapper:
                 for cmd in mapping.verification_commands
             ],
             "rollback": (
-                [
-                    {"description": f"Rollback with: {cmd}", "command": cmd}
-                    for cmd in mapping.rollback_commands
-                ]
+                [{"description": f"Rollback with: {cmd}", "command": cmd} for cmd in mapping.rollback_commands]
                 if mapping.rollback_commands
                 else None
             ),
