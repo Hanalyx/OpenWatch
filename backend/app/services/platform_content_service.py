@@ -21,7 +21,7 @@ SSH Connection Pattern:
     with pre-decrypted values from CentralizedAuthService.
 
 Usage:
-    from backend.app.services.platform_content_service import (
+    from app.services.platform_content_service import (
         PlatformContentService,
         get_platform_content_service,
     )
@@ -46,7 +46,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
-    from backend.app.services.auth import CredentialData
+    from app.services.auth import CredentialData
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ class PlatformContentService:
 
         try:
             # Import here to avoid circular imports
-            from backend.app.services.engine.discovery import PlatformDetector
+            from app.services.engine.discovery import PlatformDetector
 
             detector = PlatformDetector(self.db)
             detection_result = await detector.detect(

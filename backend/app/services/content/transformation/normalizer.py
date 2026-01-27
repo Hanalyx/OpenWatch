@@ -28,7 +28,7 @@ Security Notes:
     - Maximum field lengths enforced to prevent DoS
 
 Usage:
-    from backend.app.services.content.transformation.normalizer import (
+    from app.services.content.transformation.normalizer import (
         ContentNormalizer,
         normalize_severity,
         normalize_platform,
@@ -737,7 +737,7 @@ def normalize_content(
         Normalized ParsedContent.
 
     Example:
-        >>> from backend.app.services.content.transformation import normalize_content
+        >>> from app.services.content.transformation import normalize_content
         >>> normalized = normalize_content(parsed_content)
     """
     normalizer = ContentNormalizer()

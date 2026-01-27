@@ -17,7 +17,7 @@ Available Executors:
 - LocalExecutor: Local execution on the same host
 
 Usage:
-    from backend.app.services.engine.executors import (
+    from app.services.engine.executors import (
         SSHExecutor,
         LocalExecutor,
         get_executor,

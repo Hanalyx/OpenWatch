@@ -11,10 +11,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.services.owca import get_owca_service
-from backend.app.services.owca.models import (
+from app.auth import get_current_user
+from app.database import get_db
+from app.services.owca import get_owca_service
+from app.services.owca.models import (
     BaselineDrift,
     ComplianceScore,
     DriftSeverity,

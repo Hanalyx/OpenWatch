@@ -17,11 +17,11 @@ Security Considerations:
 
 Usage:
     # Trigger OS discovery for a single host
-    from backend.app.tasks.os_discovery_tasks import trigger_os_discovery
+    from app.tasks.os_discovery_tasks import trigger_os_discovery
     trigger_os_discovery.delay(str(host_id))
 
     # Trigger batch discovery
-    from backend.app.tasks.os_discovery_tasks import batch_os_discovery
+    from app.tasks.os_discovery_tasks import batch_os_discovery
     batch_os_discovery.delay([str(host_id) for host_id in host_ids])
 
 See: docs/plans/HOST_OS_DETECTION_AND_OVAL_ALIGNMENT_PLAN.md
@@ -34,14 +34,14 @@ from uuid import UUID
 
 from sqlalchemy import text
 
-from backend.app.celery_app import celery_app
-from backend.app.config import get_settings
-from backend.app.database import get_db_session
-from backend.app.encryption import EncryptionConfig, create_encryption_service
-from backend.app.services.host_discovery_service import HostBasicDiscoveryService
+from app.celery_app import celery_app
+from app.config import get_settings
+from app.database import get_db_session
+from app.encryption import EncryptionConfig, create_encryption_service
+from app.services.host_discovery_service import HostBasicDiscoveryService
 
 # SSHConnectionManager provides modular SSH connection handling with better testability
-from backend.app.services.ssh import SSHConnectionManager
+from app.services.ssh import SSHConnectionManager
 
 logger = logging.getLogger(__name__)
 

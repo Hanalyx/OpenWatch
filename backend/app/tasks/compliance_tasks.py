@@ -10,11 +10,11 @@ from typing import Any, Dict, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.celery_app import celery_app
-from backend.app.database import HostGroup, get_db_session
+from app.celery_app import celery_app
+from app.database import HostGroup, get_db_session
 
 # Import from new modular host_groups package (Phase 1 API Standardization)
-from backend.app.routes.host_groups import execute_group_compliance_scan
+from app.routes.host_groups import execute_group_compliance_scan
 
 # GroupScanService removed - using group_compliance API instead
 

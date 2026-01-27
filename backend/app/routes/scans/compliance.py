@@ -31,17 +31,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.constants import is_framework_supported
-from backend.app.database import get_db
-from backend.app.routes.scans.helpers import (
+from app.auth import get_current_user
+from app.constants import is_framework_supported
+from app.database import get_db
+from app.routes.scans.helpers import (
     enrich_scan_results_background,
     get_compliance_reporter,
     get_compliance_scanner,
     get_enrichment_service,
     parse_xccdf_results,
 )
-from backend.app.routes.scans.models import (
+from app.routes.scans.models import (
     AvailableRulesResponse,
     ComplianceScanRequest,
     ComplianceScanResponse,
@@ -51,7 +51,7 @@ from backend.app.routes.scans.models import (
     ScannerCapabilities,
     ScannerHealthResponse,
 )
-from backend.app.utils.query_builder import QueryBuilder
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -152,8 +152,8 @@ async def _jit_platform_detection(
         - Logs detection attempts for audit compliance
     """
     try:
-        from backend.app.services.auth import get_auth_service
-        from backend.app.services.engine.discovery import detect_platform_for_scan
+        from app.services.auth import get_auth_service
+        from app.services.engine.discovery import detect_platform_for_scan
 
         # Get encryption service from app state
         encryption_service = getattr(request.app.state, "encryption_service", None)
@@ -335,7 +335,7 @@ async def create_compliance_scan(
         effective_platform_version = scan_request.platform_version or ""
 
         # Import normalize function for computing platform_identifier
-        from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+        from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
         # Initialize host_result to None for later reference
         # This ensures the variable exists even if the database query fails
@@ -800,7 +800,7 @@ async def get_available_rules(
         # If host_id provided, try to get platform from database
         if host_id:
             try:
-                from backend.app.tasks.os_discovery_tasks import _normalize_platform_identifier
+                from app.tasks.os_discovery_tasks import _normalize_platform_identifier
 
                 # Use QueryBuilder for consistent parameterized queries
                 host_builder = (
@@ -974,7 +974,7 @@ async def get_scanner_health(
         repo_status = "unknown"
         repo_details: Dict[str, Any] = {}
         try:
-            from backend.app.services.mongo_integration_service import get_mongo_service
+            from app.services.mongo_integration_service import get_mongo_service
 
             mongo_service = await get_mongo_service()
             mongo_health = await mongo_service.health_check()
@@ -1069,7 +1069,7 @@ async def get_scanner_health(
         redis_status = "unknown"
         redis_details: Dict[str, Any] = {}
         try:
-            from backend.app.celery_app import celery_app
+            from app.celery_app import celery_app
 
             # Ping the Celery broker to verify Redis connectivity
             inspect = celery_app.control.inspect()

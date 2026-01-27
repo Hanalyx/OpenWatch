@@ -20,7 +20,7 @@ Design Philosophy:
 - Stateless operation for thread safety
 
 Usage:
-    from backend.app.services.engine.scanners import OSCAPScanner
+    from app.services.engine.scanners import OSCAPScanner
 
     scanner = OSCAPScanner()
 

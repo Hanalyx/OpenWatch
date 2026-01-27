@@ -38,19 +38,19 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.models.scan_config_models import (
+from app.auth import get_current_user
+from app.database import get_db
+from app.models.scan_config_models import (
     ApplyTemplateRequest,
     CreateTemplateRequest,
     ScanTemplate,
     UpdateTemplateRequest,
 )
-from backend.app.services.mongo_integration_service import (
+from app.services.mongo_integration_service import (
     MongoIntegrationService,
     get_mongo_service,
 )
-from backend.app.services.scan_template_service import ScanTemplateService
+from app.services.scan_template_service import ScanTemplateService
 
 logger = logging.getLogger(__name__)
 

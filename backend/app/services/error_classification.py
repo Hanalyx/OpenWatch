@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from backend.app.models.error_models import (
+from app.models.error_models import (
     AutomatedFixInternal,
     ErrorCategory,
     ErrorSeverity,
@@ -28,14 +28,14 @@ from backend.app.models.error_models import (
     ValidationResultInternal,
     ValidationResultResponse,
 )
-from backend.app.models.readiness_models import (
+from app.models.readiness_models import (
     HostReadiness,
     ReadinessCheckResult,
     ReadinessCheckSeverity,
     ReadinessCheckType,
 )
-from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.security_audit_logger import get_security_audit_logger
+from app.services.error_sanitization import get_error_sanitization_service
+from app.services.security_audit_logger import get_security_audit_logger
 
 logger = logging.getLogger(__name__)
 sanitization_service = get_error_sanitization_service()
@@ -378,10 +378,10 @@ class ErrorClassificationService:
         """
         from uuid import UUID
 
-        from backend.app.config import get_settings
-        from backend.app.database import get_db as get_db_session
-        from backend.app.encryption import EncryptionConfig, create_encryption_service
-        from backend.app.services.host_validator.readiness_validator import (
+        from app.config import get_settings
+        from app.database import get_db as get_db_session
+        from app.encryption import EncryptionConfig, create_encryption_service
+        from app.services.host_validator.readiness_validator import (
             ReadinessValidatorService,
         )
 

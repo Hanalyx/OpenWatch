@@ -33,7 +33,7 @@ Key Security Assessment Criteria:
         - DSA (any size) - disabled in OpenSSH 7.0+
 
 Usage:
-    from backend.app.services.ssh.key_validator import validate_ssh_key
+    from app.services.ssh.key_validator import validate_ssh_key
 
     result = validate_ssh_key(key_content)
     if result.is_valid:

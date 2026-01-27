@@ -7,7 +7,7 @@ Provides framework-specific compliance intelligence for:
 - STIG (CAT I/II/III, finding statuses)
 
 Usage:
-    >>> from backend.app.services.owca.framework import get_framework_intelligence
+    >>> from app.services.owca.framework import get_framework_intelligence
     >>> intelligence = get_framework_intelligence("NIST_800_53", db, score_calculator)
     >>> result = await intelligence.analyze_host_compliance(host_id)
 """

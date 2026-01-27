@@ -15,7 +15,7 @@ Security Considerations:
 - Audit logging for all import operations
 
 Usage:
-    from backend.app.services.content.import import ContentImporter
+    from app.services.content.import import ContentImporter
 
     importer = ContentImporter(mongo_service)
     result = await importer.import_rules(
@@ -31,8 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from backend.app.models.mongo_models import ComplianceRule, RuleIntelligence
-from backend.app.repositories import ComplianceRuleRepository
+from app.models.mongo_models import ComplianceRule, RuleIntelligence
+from app.repositories import ComplianceRuleRepository
 
 from ..exceptions import ContentImportError  # noqa: F401
 

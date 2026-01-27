@@ -30,9 +30,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user, require_permissions
-from backend.app.database import get_db
-from backend.app.services.bulk_scan_orchestrator import BulkScanOrchestrator
+from app.auth import get_current_user, require_permissions
+from app.database import get_db
+from app.services.bulk_scan_orchestrator import BulkScanOrchestrator
 
 from .models import (
     CancelScanResponse,
@@ -971,7 +971,7 @@ def execute_group_compliance_scan(
         This function is called from Celery tasks which run with system privileges.
         The original authorization was validated when the scheduled scan was created.
     """
-    from backend.app.tasks.scan_tasks import execute_scan
+    from app.tasks.scan_tasks import execute_scan
 
     try:
         scan_ids = []

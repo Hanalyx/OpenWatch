@@ -22,7 +22,7 @@ Risk score interpretation:
     100+:    Critical risk
 
 Example:
-    >>> from backend.app.services.owca.extraction.constants import SEVERITY_WEIGHTS
+    >>> from app.services.owca.extraction.constants import SEVERITY_WEIGHTS
     >>> critical_findings = 3
     >>> high_findings = 10
     >>> risk = (critical_findings * SEVERITY_WEIGHTS['critical']) + (high_findings * SEVERITY_WEIGHTS['high'])

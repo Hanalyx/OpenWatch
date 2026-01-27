@@ -13,7 +13,7 @@ Features:
     - Mapping validation and learning
 
 Example:
-    >>> from backend.app.services.rules import (
+    >>> from app.services.rules import (
     ...     RuleAssociationService,
     ...     MappingConfidence,
     ...     MappingSource,
@@ -36,8 +36,8 @@ from typing import Any, Dict, List, Optional, Set
 from beanie import Document
 from pydantic import BaseModel, Field
 
-from backend.app.models.plugin_models import InstalledPlugin, PluginStatus
-from backend.app.services.plugins import PluginRegistryService
+from app.models.plugin_models import InstalledPlugin, PluginStatus
+from app.services.plugins import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

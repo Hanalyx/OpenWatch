@@ -17,7 +17,7 @@ Security Controls:
 - Input validation via Pydantic models
 
 Example:
-    >>> from backend.app.services.owca import get_owca_service
+    >>> from app.services.owca import get_owca_service
     >>> owca = get_owca_service(db)
     >>> result = await owca.extract_xccdf_score("/app/data/results/scan_123_xccdf.xml")
     >>> print(f"Score: {result.xccdf_score}/{result.xccdf_score_max}")

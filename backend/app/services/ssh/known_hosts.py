@@ -31,7 +31,7 @@ Table Schema (ssh_known_hosts):
     - notes: Optional notes about the host
 
 Usage:
-    from backend.app.services.ssh.known_hosts import KnownHostsManager
+    from app.services.ssh.known_hosts import KnownHostsManager
 
     known_hosts = KnownHostsManager(db)
 
@@ -93,7 +93,7 @@ class KnownHostsManager:
         db: SQLAlchemy database session for persistence operations
 
     Example:
-        >>> from backend.app.services.ssh.known_hosts import KnownHostsManager
+        >>> from app.services.ssh.known_hosts import KnownHostsManager
         >>> manager = KnownHostsManager(db)
         >>>
         >>> # Get all known hosts

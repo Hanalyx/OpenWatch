@@ -23,7 +23,7 @@ Architecture Notes:
 - All parsers produce consistent output format
 
 Usage:
-    from backend.app.services.engine.result_parsers import (
+    from app.services.engine.result_parsers import (
         XCCDFResultParser,
         ARFResultParser,
         get_parser_for_file,

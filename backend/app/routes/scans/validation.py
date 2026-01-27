@@ -47,23 +47,23 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.models.enums import ScanPriority
-from backend.app.models.error_models import ValidationResultResponse
-from backend.app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
-from backend.app.routes.scans.models import (
+from app.auth import get_current_user
+from app.database import get_db
+from app.models.enums import ScanPriority
+from app.models.error_models import ValidationResultResponse
+from app.routes.scans.helpers import add_deprecation_header, sanitize_http_error
+from app.routes.scans.models import (
     QuickScanRequest,
     QuickScanResponse,
     RuleRescanRequest,
     ValidationRequest,
     VerificationScanRequest,
 )
-from backend.app.services.error_classification import get_error_classification_service
-from backend.app.services.error_sanitization import get_error_sanitization_service
-from backend.app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
-from backend.app.tasks.scan_tasks import execute_scan_task
-from backend.app.utils.query_builder import QueryBuilder
+from app.services.error_classification import get_error_classification_service
+from app.services.error_sanitization import get_error_sanitization_service
+from app.services.scan_intelligence import RecommendedScanProfile, ScanIntelligenceService
+from app.tasks.scan_tasks import execute_scan_task
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ async def validate_scan_configuration(
         # Mode-specific validation
         if is_mongodb_mode:
             # MongoDB mode: Validate compliance rules exist for platform/framework
-            from backend.app.repositories.compliance_repository import ComplianceRuleRepository
+            from app.repositories.compliance_repository import ComplianceRuleRepository
 
             try:
                 repo = ComplianceRuleRepository()
@@ -228,9 +228,9 @@ async def validate_scan_configuration(
 
         # Resolve credentials using auth service
         try:
-            from backend.app.config import get_settings
-            from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth import get_auth_service
+            from app.config import get_settings
+            from app.encryption import EncryptionConfig, create_encryption_service
+            from app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -469,9 +469,9 @@ async def quick_scan(
 
         # Pre-flight validation (async, non-blocking for optimistic UI)
         try:
-            from backend.app.config import get_settings
-            from backend.app.encryption import EncryptionConfig, create_encryption_service
-            from backend.app.services.auth import get_auth_service
+            from app.config import get_settings
+            from app.encryption import EncryptionConfig, create_encryption_service
+            from app.services.auth import get_auth_service
 
             settings = get_settings()
             encryption_service = create_encryption_service(master_key=settings.master_key, config=EncryptionConfig())
@@ -1026,8 +1026,8 @@ async def validate_bulk_readiness(
         - SSH operations via UnifiedSSHService (audit logged)
     """
     try:
-        from backend.app.models.readiness_models import BulkReadinessRequest
-        from backend.app.services.host_validator.readiness_validator import (
+        from app.models.readiness_models import BulkReadinessRequest
+        from app.services.host_validator.readiness_validator import (
             ReadinessValidatorService,
         )
 
@@ -1035,7 +1035,7 @@ async def validate_bulk_readiness(
         bulk_request = BulkReadinessRequest(**request)
 
         # Get hosts to validate
-        from backend.app.database import Host
+        from app.database import Host
 
         if bulk_request.host_ids:
             hosts = db.query(Host).filter(Host.id.in_(bulk_request.host_ids)).all()
@@ -1211,8 +1211,8 @@ async def pre_flight_check(
         - SSH operations via UnifiedSSHService
     """
     try:
-        from backend.app.models.readiness_models import ReadinessCheckType
-        from backend.app.services.host_validator.readiness_validator import (
+        from app.models.readiness_models import ReadinessCheckType
+        from app.services.host_validator.readiness_validator import (
             ReadinessValidatorService,
         )
 
@@ -1228,7 +1228,7 @@ async def pre_flight_check(
         host_id = UUID(scan_result[1])
 
         # Get host
-        from backend.app.database import Host
+        from app.database import Host
 
         host = db.query(Host).filter(Host.id == host_id).first()
         if not host:

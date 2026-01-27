@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.models.enums import ScanPriority
+from app.models.enums import ScanPriority
 
 logger = logging.getLogger(__name__)
 

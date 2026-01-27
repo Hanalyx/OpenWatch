@@ -39,13 +39,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.routes.scans.helpers import add_deprecation_header, error_service
-from backend.app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
-from backend.app.tasks.scan_tasks import execute_scan_task
-from backend.app.utils.logging_security import sanitize_path_for_log
-from backend.app.utils.query_builder import QueryBuilder
+from app.auth import get_current_user
+from app.database import get_db
+from app.routes.scans.helpers import add_deprecation_header, error_service
+from app.routes.scans.models import AutomatedFixRequest, ScanRequest, ScanUpdate
+from app.tasks.scan_tasks import execute_scan_task
+from app.utils.logging_security import sanitize_path_for_log
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 

@@ -31,14 +31,14 @@ Migration Status (API Standardization):
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.scans import router
+    from app.routes.scans import router
     app.include_router(router, prefix="/api/scans")
 
     # Import models directly
-    from backend.app.routes.scans.models import ComplianceScanRequest
+    from app.routes.scans.models import ComplianceScanRequest
 
     # Import helpers
-    from backend.app.routes.scans.helpers import get_compliance_scanner
+    from app.routes.scans.helpers import get_compliance_scanner
 
 Router Organization:
     The main router aggregates all sub-routers with their endpoints:
@@ -120,16 +120,16 @@ router = APIRouter(prefix="/scans", tags=["Scans"])
 # Import sub-routers from modular files
 # Note: These imports must come after router definition to avoid circular imports
 # Core scan routers (Phase 1-2)
-from backend.app.routes.scans.bulk import router as bulk_router  # noqa: E402
-from backend.app.routes.scans.compliance import router as compliance_router  # noqa: E402
+from app.routes.scans.bulk import router as bulk_router  # noqa: E402
+from app.routes.scans.compliance import router as compliance_router  # noqa: E402
 
 # API Standardization routers (Phase 3)
-from backend.app.routes.scans.config import router as config_router  # noqa: E402
-from backend.app.routes.scans.crud import router as crud_router  # noqa: E402
-from backend.app.routes.scans.reports import router as reports_router  # noqa: E402
-from backend.app.routes.scans.rules import router as rules_router  # noqa: E402
-from backend.app.routes.scans.templates import router as templates_router  # noqa: E402
-from backend.app.routes.scans.validation import router as validation_router  # noqa: E402
+from app.routes.scans.config import router as config_router  # noqa: E402
+from app.routes.scans.crud import router as crud_router  # noqa: E402
+from app.routes.scans.reports import router as reports_router  # noqa: E402
+from app.routes.scans.rules import router as rules_router  # noqa: E402
+from app.routes.scans.templates import router as templates_router  # noqa: E402
+from app.routes.scans.validation import router as validation_router  # noqa: E402
 
 # Include all sub-routers into main router
 # Order matters for route matching - more specific routes first
@@ -147,7 +147,7 @@ router.include_router(validation_router)
 
 
 # Re-export helpers for convenient access
-from backend.app.routes.scans.helpers import (  # noqa: E402
+from app.routes.scans.helpers import (  # noqa: E402
     DEPRECATION_WARNING,
     add_deprecation_header,
     enrich_scan_results_background,
@@ -159,7 +159,7 @@ from backend.app.routes.scans.helpers import (  # noqa: E402
 )
 
 # Re-export models for convenient access
-from backend.app.routes.scans.models import (  # noqa: E402
+from app.routes.scans.models import (  # noqa: E402
     AutomatedFixRequest,
     AvailableRulesResponse,
     BulkScanRequest,

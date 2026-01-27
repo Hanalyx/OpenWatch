@@ -7,7 +7,7 @@ Classes:
     - ComplianceFrameworkReporter: Service for generating compliance framework reports
 
 Example:
-    >>> from backend.app.services.framework import ComplianceFrameworkReporter
+    >>> from app.services.framework import ComplianceFrameworkReporter
     >>>
     >>> reporter = ComplianceFrameworkReporter()
     >>> await reporter.initialize(db)
@@ -20,11 +20,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from jinja2 import Template
 
-from backend.app.services.mongo_integration_service import (
+from app.services.mongo_integration_service import (
     MongoIntegrationService,
     get_mongo_service,
 )
-from backend.app.services.result_enrichment_service import ResultEnrichmentService
+from app.services.result_enrichment_service import ResultEnrichmentService
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session

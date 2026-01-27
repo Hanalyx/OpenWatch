@@ -20,7 +20,7 @@ Deprecation Notes:
     key parsing directly.
 
 Usage:
-    from backend.app.services.ssh.key_parser import get_key_fingerprint
+    from app.services.ssh.key_parser import get_key_fingerprint
 
     fingerprint = get_key_fingerprint(private_key_content)
     if fingerprint:

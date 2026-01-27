@@ -33,7 +33,7 @@ Architecture Overview:
        - Framework version details
 
 Quick Start:
-    from backend.app.services.framework import (
+    from app.services.framework import (
         # Data models
         ScanResult,
         FrameworkResult,

@@ -21,7 +21,7 @@ Configuration Options:
         verification can be bypassed (e.g., ["192.168.1.0/24", "10.0.0.0/8"])
 
 Usage:
-    from backend.app.services.ssh.config_manager import SSHConfigManager
+    from app.services.ssh.config_manager import SSHConfigManager
 
     config_manager = SSHConfigManager(db)
 
@@ -78,7 +78,7 @@ class SSHConfigManager:
         db: SQLAlchemy database session for persistence operations
 
     Example:
-        >>> from backend.app.services.ssh.config_manager import SSHConfigManager
+        >>> from app.services.ssh.config_manager import SSHConfigManager
         >>> config = SSHConfigManager(db)
         >>>
         >>> # Check current policy

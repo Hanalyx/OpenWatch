@@ -23,10 +23,10 @@ import semver
 from beanie import Document
 from pydantic import BaseModel, Field, HttpUrl
 
-from backend.app.models.plugin_models import InstalledPlugin, PluginManifest, PluginStatus
-from backend.app.services.plugins.governance.service import PluginGovernanceService
-from backend.app.services.plugins.lifecycle.service import PluginLifecycleService
-from backend.app.services.plugins.registry.service import PluginRegistryService
+from app.models.plugin_models import InstalledPlugin, PluginManifest, PluginStatus
+from app.services.plugins.governance.service import PluginGovernanceService
+from app.services.plugins.lifecycle.service import PluginLifecycleService
+from app.services.plugins.registry.service import PluginRegistryService
 
 logger = logging.getLogger(__name__)
 

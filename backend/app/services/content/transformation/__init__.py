@@ -13,7 +13,7 @@ Components:
 - NormalizationStats: Statistics from normalization operations
 
 Usage:
-    from backend.app.services.content.transformation import (
+    from app.services.content.transformation import (
         MongoDBTransformer,
         ContentNormalizer,
         transform_to_mongodb,
@@ -64,8 +64,8 @@ def transform_to_mongodb(parsed_content: ParsedContent) -> TransformationResult:
         TransformationResult with transformed rules and statistics.
 
     Example:
-        >>> from backend.app.services.content.parsers import SCAPParser
-        >>> from backend.app.services.content.transformation import transform_to_mongodb
+        >>> from app.services.content.parsers import SCAPParser
+        >>> from app.services.content.transformation import transform_to_mongodb
         >>>
         >>> parser = SCAPParser()
         >>> content = parser.parse("/path/to/benchmark.xml")

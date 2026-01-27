@@ -34,11 +34,11 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.services.compliance_framework_mapper import ComplianceFrameworkMapper
-from backend.app.services.engine import get_aegis_mapper
-from backend.app.services.rules import RuleSpecificScanner
+from app.auth import get_current_user
+from app.database import get_db
+from app.services.compliance_framework_mapper import ComplianceFrameworkMapper
+from app.services.engine import get_aegis_mapper
+from app.services.rules import RuleSpecificScanner
 
 logger = logging.getLogger(__name__)
 

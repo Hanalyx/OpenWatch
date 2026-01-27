@@ -22,14 +22,14 @@ Migration Status (API Standardization - Phase 3):
 
 Usage:
     # Import the router in main.py
-    from backend.app.routes.hosts import router
+    from app.routes.hosts import router
     app.include_router(router, prefix="/api/hosts")
 
     # Import models directly
-    from backend.app.routes.hosts.models import Host, HostCreate
+    from app.routes.hosts.models import Host, HostCreate
 
     # Import helpers
-    from backend.app.routes.hosts.helpers import validate_host_uuid
+    from app.routes.hosts.helpers import validate_host_uuid
 
 Router Organization:
     The main router aggregates all sub-routers with their endpoints:

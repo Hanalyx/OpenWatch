@@ -32,9 +32,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.services.group_validation_service import GroupValidationService, ValidationError
+from app.auth import get_current_user
+from app.database import get_db
+from app.services.group_validation_service import GroupValidationService, ValidationError
 
 from .models import (
     AssignHostsRequest,

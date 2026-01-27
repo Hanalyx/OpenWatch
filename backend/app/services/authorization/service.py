@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.models.authorization_models import (
+from app.models.authorization_models import (
     ActionType,
     AuthorizationAuditEvent,
     AuthorizationConfiguration,
@@ -42,7 +42,7 @@ from backend.app.models.authorization_models import (
     ResourceIdentifier,
     ResourceType,
 )
-from backend.app.rbac import Permission, RBACManager, UserRole
+from app.rbac import Permission, RBACManager, UserRole
 
 logger = logging.getLogger(__name__)
 

@@ -20,18 +20,18 @@ Module Architecture:
 
 Usage:
     # Key validation and security assessment
-    from backend.app.services.ssh import validate_ssh_key, SSHKeyType
+    from app.services.ssh import validate_ssh_key, SSHKeyType
     result = validate_ssh_key(key_content)
     if result.key_type == SSHKeyType.ED25519:
         print("Modern key type detected")
 
     # SSH configuration and policy management
-    from backend.app.services.ssh import SSHConfigManager
+    from app.services.ssh import SSHConfigManager
     config = SSHConfigManager(db)
     policy = config.get_ssh_policy()
 
     # SSH connection management
-    from backend.app.services.ssh import SSHConnectionManager
+    from app.services.ssh import SSHConnectionManager
     conn_manager = SSHConnectionManager(db)
     result = conn_manager.connect_with_credentials(...)
 
@@ -100,7 +100,7 @@ def get_config_manager(db: Optional["Session"] = None) -> SSHConfigManager:
         Configured SSHConfigManager instance
 
     Example:
-        >>> from backend.app.services.ssh import get_config_manager
+        >>> from app.services.ssh import get_config_manager
         >>> config = get_config_manager(db)
         >>> policy = config.get_ssh_policy()
     """
@@ -118,7 +118,7 @@ def get_known_hosts_manager(db: Optional["Session"] = None) -> KnownHostsManager
         Configured KnownHostsManager instance
 
     Example:
-        >>> from backend.app.services.ssh import get_known_hosts_manager
+        >>> from app.services.ssh import get_known_hosts_manager
         >>> known_hosts = get_known_hosts_manager(db)
         >>> hosts = known_hosts.get_known_hosts()
     """
@@ -136,7 +136,7 @@ def get_connection_manager(db: Optional["Session"] = None) -> SSHConnectionManag
         Configured SSHConnectionManager instance
 
     Example:
-        >>> from backend.app.services.ssh import get_connection_manager
+        >>> from app.services.ssh import get_connection_manager
         >>> conn = get_connection_manager(db)
         >>> result = conn.connect_with_credentials(...)
     """
@@ -147,7 +147,7 @@ def get_connection_manager(db: Optional["Session"] = None) -> SSHConnectionManag
 # Public API exports
 # =============================================================================
 
-# This defines what is available via "from backend.app.services.ssh import *"
+# This defines what is available via "from app.services.ssh import *"
 # and documents the module's public interface
 __all__ = [
     # Factory functions

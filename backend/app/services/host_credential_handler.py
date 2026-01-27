@@ -25,7 +25,7 @@ Security:
     - Generic error messages to client (detailed logs server-side)
 
 Example Usage:
-    from backend.app.services.host_credential_handler import HostCredentialHandler
+    from app.services.host_credential_handler import HostCredentialHandler
 
     handler = HostCredentialHandler(db)
 

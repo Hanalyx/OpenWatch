@@ -683,9 +683,9 @@ def get_host_monitor(db_session: Session = None, encryption_service: EncryptionS
         HostMonitor instance with injected dependencies
 
     Example:
-        from backend.app.services.host_monitor import get_host_monitor
-        from backend.app.encryption import create_encryption_service, EncryptionConfig
-        from backend.app.config import get_settings
+        from app.services.host_monitor import get_host_monitor
+        from app.encryption import create_encryption_service, EncryptionConfig
+        from app.config import get_settings
 
         settings = get_settings()
         encryption_service = create_encryption_service(

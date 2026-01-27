@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import List
 
-from backend.app.models.unified_rule_models import Platform, UnifiedComplianceRule
-from backend.app.services.framework import FrameworkMappingEngine
+from app.models.unified_rule_models import Platform, UnifiedComplianceRule
+from app.services.framework import FrameworkMappingEngine
 
 
 async def load_unified_rules(rules_directory: str) -> List[UnifiedComplianceRule]:

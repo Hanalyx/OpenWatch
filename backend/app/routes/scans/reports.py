@@ -36,9 +36,9 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.auth import get_current_user
-from backend.app.database import get_db
-from backend.app.utils.query_builder import QueryBuilder
+from app.auth import get_current_user
+from app.database import get_db
+from app.utils.query_builder import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -487,7 +487,7 @@ async def get_scan_json_report(
                 if enhanced_parsing_enabled and content_file is not None:
                     # Use engine module's result parser for enhanced SCAP parsing
                     # XCCDFResultParser provides parse_scan_results() for XCCDF result files
-                    from backend.app.services.engine.result_parsers import XCCDFResultParser
+                    from app.services.engine.result_parsers import XCCDFResultParser
 
                     parser = XCCDFResultParser()
                     parsed = parser.parse_scan_results(

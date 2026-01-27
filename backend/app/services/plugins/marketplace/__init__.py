@@ -33,7 +33,7 @@ Marketplace Capabilities:
     - Governance and compliance integration
 
 Usage:
-    from backend.app.services.plugins.marketplace import PluginMarketplaceService
+    from app.services.plugins.marketplace import PluginMarketplaceService
 
     marketplace = PluginMarketplaceService()
     await marketplace.initialize_marketplace_service()
@@ -51,7 +51,7 @@ Usage:
     )
 
 Example:
-    >>> from backend.app.services.plugins.marketplace import (
+    >>> from app.services.plugins.marketplace import (
     ...     PluginMarketplaceService,
     ...     MarketplaceType,
     ...     PluginSource,

@@ -15,7 +15,7 @@ Security:
     - TTLs prevent stale data accumulation
 
 Example:
-    >>> from backend.app.services.rules import RuleCacheService, CachePriority
+    >>> from app.services.rules import RuleCacheService, CachePriority
     >>>
     >>> cache = RuleCacheService()
     >>> await cache.initialize()
@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import redis.asyncio as redis
 
-from backend.app.config import get_settings
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 

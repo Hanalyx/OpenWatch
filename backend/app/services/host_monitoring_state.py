@@ -85,7 +85,7 @@ class HostMonitoringStateMachine:
     def _load_config_from_database(self) -> StateTransitionConfig:
         """Load configuration from database host_monitoring_config table"""
         try:
-            from backend.app.services.adaptive_scheduler_service import adaptive_scheduler_service
+            from app.services.adaptive_scheduler_service import adaptive_scheduler_service
 
             db_config = adaptive_scheduler_service.get_config(self.db)
 

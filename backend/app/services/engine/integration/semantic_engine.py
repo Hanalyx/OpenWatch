@@ -26,7 +26,7 @@ Architecture:
 - Graceful fallback when AEGIS integration unavailable
 
 Usage:
-    from backend.app.services.engine.integration import (
+    from app.services.engine.integration import (
         SemanticEngine,
         get_semantic_engine,
     )
@@ -49,8 +49,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 from sqlalchemy import text
 
-from backend.app.config import get_settings
-from backend.app.database import get_db
+from app.config import get_settings
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 

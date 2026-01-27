@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.encryption import EncryptionService
-from backend.app.services.ssh import extract_ssh_key_metadata, validate_ssh_key
+from app.encryption import EncryptionService
+from app.services.ssh import extract_ssh_key_metadata, validate_ssh_key
 
 from .exceptions import (
     AuthMethodMismatchError,
@@ -674,7 +674,7 @@ def get_auth_service(db: Session, encryption_service: EncryptionService) -> Cent
 
     Example:
         from fastapi import Depends
-        from backend.app.database import get_db, get_encryption_service
+        from app.database import get_db, get_encryption_service
 
         @router.post("/credentials")
         async def create_credential(

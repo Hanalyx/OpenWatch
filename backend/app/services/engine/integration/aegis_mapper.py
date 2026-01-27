@@ -25,7 +25,7 @@ Architecture:
 - Stateless operations except for mapping cache
 
 Usage:
-    from backend.app.services.engine.integration import (
+    from app.services.engine.integration import (
         AegisMapper,
         get_aegis_mapper,
     )

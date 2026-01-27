@@ -13,7 +13,7 @@ Features:
     - Comprehensive rule statistics
 
 Example:
-    >>> from backend.app.services.rules import RuleService, QueryPriority
+    >>> from app.services.rules import RuleService, QueryPriority
     >>>
     >>> service = RuleService()
     >>> await service.initialize()
@@ -27,12 +27,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
-from backend.app.models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
+from app.models.mongo_models import ComplianceRule, RemediationScript, RuleIntelligence
 
 # OW-REFACTOR-002: Repository Pattern (MANDATORY)
-from backend.app.repositories import ComplianceRuleRepository
-from backend.app.services.platform_capability_service import PlatformCapabilityService
-from backend.app.services.rules.cache import RuleCacheService
+from app.repositories import ComplianceRuleRepository
+from app.services.platform_capability_service import PlatformCapabilityService
+from app.services.rules.cache import RuleCacheService
 
 logger = logging.getLogger(__name__)
 
