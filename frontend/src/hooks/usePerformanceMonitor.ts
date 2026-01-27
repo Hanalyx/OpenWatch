@@ -275,6 +275,8 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
   }, [getPerformanceSummary]);
 
   // Auto-start monitoring on mount
+  // Note: We intentionally exclude startMonitoring and stopMonitoring from deps
+  // to prevent re-running when their dependencies change
   useEffect(() => {
     if (enabled) {
       startMonitoring();
@@ -283,7 +285,8 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     return () => {
       stopMonitoring();
     };
-  }, [enabled, startMonitoring, stopMonitoring]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
   // Notify metrics update
   useEffect(() => {

@@ -11,7 +11,7 @@
  * - Interactive tooltips with detailed metrics
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   LineChart,
   Line,
@@ -53,9 +53,9 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Memoize CustomTooltip to prevent recreation on each render
-  const CustomTooltip = useMemo(() => {
-    const TooltipComponent = ({
+  // CustomTooltip - using callback pattern to avoid React Compiler immutability issues
+  const CustomTooltip = React.useCallback(
+    ({
       active,
       payload,
     }: {
@@ -108,14 +108,13 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
           )}
         </Paper>
       );
-    };
-    TooltipComponent.displayName = 'CustomTooltip';
-    return TooltipComponent;
-  }, []); // Empty deps - component doesn't depend on external values
+    },
+    []
+  );
 
-  // Memoize CustomDot to prevent recreation on each render
-  const CustomDot = useMemo(() => {
-    const DotComponent = (props: { cx?: number; cy?: number; payload?: { drift_type?: string } }) => {
+  // CustomDot - using callback pattern to avoid React Compiler immutability issues
+  const CustomDot = React.useCallback(
+    (props: { cx?: number; cy?: number; payload?: { drift_type?: string } }) => {
       const { cx, cy, payload } = props;
 
       if (!payload || !payload.drift_type || payload.drift_type === 'stable') {
@@ -132,10 +131,9 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
       }
 
       return <Dot cx={cx} cy={cy} r={6} fill={fillColor} stroke="#fff" strokeWidth={2} />;
-    };
-    DotComponent.displayName = 'CustomDot';
-    return DotComponent;
-  }, [theme]); // Depends on theme
+    },
+    [theme]
+  );
 
   if (!data || data.length === 0) {
     return (
@@ -173,7 +171,7 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
             style: { textAnchor: 'middle', fill: theme.palette.text.secondary },
           }}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={CustomTooltip} />
         <Legend />
 
         {baselineScore !== undefined && (
@@ -195,7 +193,7 @@ const ComplianceTrendChart: React.FC<ComplianceTrendChartProps> = ({
           dataKey="score"
           stroke={theme.palette.primary.main}
           strokeWidth={2}
-          dot={<CustomDot />}
+          dot={CustomDot}
           activeDot={{ r: 8 }}
           name="Compliance Score"
         />

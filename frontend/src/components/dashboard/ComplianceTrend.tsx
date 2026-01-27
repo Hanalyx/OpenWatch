@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -80,8 +80,9 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
     : [];
 
   // Custom tooltip for Recharts - displays compliance metrics for hovered data point
-  const CustomTooltip = useMemo(() => {
-    const TooltipComponent = ({ active, payload, label }: CustomTooltipProps) => {
+  // Using callback component pattern to avoid React Compiler immutability issues
+  const CustomTooltip = React.useCallback(
+    ({ active, payload, label }: CustomTooltipProps) => {
       if (active && payload && payload.length) {
         return (
           <Box
@@ -115,10 +116,9 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
         );
       }
       return null;
-    };
-    TooltipComponent.displayName = 'CustomTooltip';
-    return TooltipComponent;
-  }, [theme]);
+    },
+    [theme]
+  );
 
   const formatXAxis = (tickItem: string) => {
     const date = new Date(tickItem);
@@ -193,7 +193,7 @@ const ComplianceTrend: React.FC<ComplianceTrendProps> = ({
                   stroke={theme.palette.text.secondary}
                   style={{ fontSize: '0.75rem' }}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={CustomTooltip} />
                 <Legend wrapperStyle={{ fontSize: '0.875rem' }} iconType="circle" />
                 <Area
                   type="monotone"

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, Box, Typography, Chip, useTheme, alpha } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { CheckCircle, Error, Warning, Schedule } from '@mui/icons-material';
@@ -105,7 +105,7 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
     safeData.scanning +
     safeData.maintenance;
 
-  const getIcon = (status: string) => {
+  const getIcon = React.useCallback((status: string) => {
     switch (status) {
       case 'Online':
         return <CheckCircle fontSize="small" />;
@@ -122,11 +122,12 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
       default:
         return null;
     }
-  };
+  }, []);
 
   // Custom tooltip for Recharts - displays host count and status for hovered pie slice
-  const CustomTooltip = useMemo(() => {
-    const TooltipComponent = ({ active, payload }: FleetCustomTooltipProps) => {
+  // Using callback component pattern to avoid React Compiler immutability issues
+  const CustomTooltip = React.useCallback(
+    ({ active, payload }: FleetCustomTooltipProps) => {
       if (active && payload && payload.length) {
         const data = payload[0];
         return (
@@ -149,10 +150,9 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
         );
       }
       return null;
-    };
-    TooltipComponent.displayName = 'CustomTooltip';
-    return TooltipComponent;
-  }, [theme, getIcon]);
+    },
+    [theme, getIcon]
+  );
 
   return (
     <Card sx={{ height: '100%' }}>
@@ -202,7 +202,7 @@ const FleetHealthWidget: React.FC<FleetHealthWidgetProps> = ({ data, groups, onS
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={CustomTooltip} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
